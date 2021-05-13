@@ -15,22 +15,24 @@ That being said, the main crate aims to provide two frontends:
 * WASM-based virtual dom: The ability to convert gooey interfaces into an interactive browser application. The vdom implementation hasn't been decided upon yet.
 * Kludgine theme-able rendering: The ability to run efficiently and natively using wgpu on a variety of platforms.
 
-## gooey-core
+## `gooey-core`
 
 The core crate will consist of platform-agnostic code including:
 
 * `Widget` trait: Each user interface element must implement this trait.
 * Layout logic: Basic layout strategies including grid and absolute layout.
 * `Materializer` trait: To render a `Widget`, a `Materializer` must exist for the `Frontend` being used.
-* Widgets: The core widgets that are built-in. At this level, the cross-platform definitions and functionality are provided.
 
-## gooey-`frontend`
+## `gooey-widgets`
+
+The core widgets that are built-in. At this level, the cross-platform definitions and functionality are provided.
+
+## `gooey-[frontend]`
 
 These crates define the API that users creating applications will use to initialize and run their user interfaecs. These crates will also define any traits needed to implement `Materializer`s for the front end in question.
 
 This crate will also implement all widgets defined by gooey-core.
 
-## gooey
+## `gooey`
 
 The omnibus crate wraps all of the crates into a single consumable crate.
-

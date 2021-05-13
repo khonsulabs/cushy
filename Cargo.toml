@@ -1,5 +1,5 @@
 [workspace]
-members = ["gooey", "frontends/kludgine", "frontends/browser", "core"]
+members = ["gooey", "frontends/kludgine", "frontends/browser", "core", "widgets"]
 
 # [patch.crates-io]
 # easygpu = { path = "../easygpu" }

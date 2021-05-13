@@ -1,6 +1,7 @@
 use std::{any::TypeId, collections::HashMap};
 
-use gooey_core::{widgets::button::ButtonMaterializer, AnyWidget, Gooey, Materializer, Widget};
+use gooey_core::{AnyWidget, Gooey, Materializer, Widget};
+use gooey_widgets::button::ButtonMaterializer;
 use kludgine::prelude::*;
 
 mod widgets;
@@ -32,9 +33,6 @@ impl Kludgine {
     pub async fn render(&self, scene: &Target) {
         let size = scene.size().await;
         let children = self.ui.layout_within(size.cast_unit());
-        if !children.is_empty() {
-            todo!()
-        }
 
         if let Some(materializer) = self.root_materializer() {
             materializer
@@ -44,6 +42,10 @@ impl Kludgine {
                     Rect::new(Point::default(), size),
                 )
                 .await;
+        }
+
+        if !children.is_empty() {
+            todo!()
         }
     }
 

@@ -1,5 +1,6 @@
-use gooey_core::{widgets::button::Button, Gooey};
+use gooey_core::Gooey;
 use gooey_kludgine::Kludgine;
+use gooey_widgets::button::Button;
 use kludgine::prelude::*;
 
 fn main() {

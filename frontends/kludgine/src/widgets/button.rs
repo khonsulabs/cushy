@@ -1,8 +1,6 @@
 use crate::{Kludgine, KludgineRenderer};
-use gooey_core::{
-    widgets::button::{Button, ButtonMaterializer},
-    Materializer,
-};
+use gooey_core::Materializer;
+use gooey_widgets::button::{Button, ButtonMaterializer};
 use kludgine::prelude::*;
 
 impl Materializer<Kludgine> for ButtonMaterializer {

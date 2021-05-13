@@ -11,6 +11,7 @@ pub trait Widget: Send + Sync + 'static {
 
     fn state(&self) -> Self::State;
     fn layout(&self) -> Self::Layout;
+    fn content_size(&self, constraints: Size2D<Option<f32>, Points>) -> Size2D<f32, Points>;
 }
 
 pub trait Materializer<F>: Send + Sync {
@@ -29,6 +30,7 @@ pub trait AnyWidget: Send + Sync {
 
     fn layout_within(&'_ self, size: Size2D<f32, Points>) -> Vec<WidgetLayout<'_>>;
     fn update(&mut self) -> bool;
+    fn content_size(&self, constraints: Size2D<Option<f32>, Points>) -> Size2D<f32, Points>;
 }
 
 impl<T> AnyWidget for WidgetState<T>
@@ -65,5 +67,9 @@ where
         } else {
             None
         }
+    }
+
+    fn content_size(&self, constraints: Size2D<Option<f32>, Points>) -> Size2D<f32, Points> {
+        self.widget.content_size(constraints)
     }
 }

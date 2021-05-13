@@ -13,6 +13,7 @@ frontend-browser = ["gooey-browser"]
 gooey-kludgine = { path = "../frontends/kludgine", optional = true }
 gooey-browser = { path = "../frontends/browser", optional = true }
 gooey-core = { path = "../core" }
+gooey-widgets = { path = "../widgets" }
 
 [dev-dependencies]
 kludgine = { git = "https://github.com/khonsulabs/kludgine.git", branch = "redux" }

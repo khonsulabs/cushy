@@ -1,4 +1,4 @@
-use crate::Widget;
+use gooey_core::{euclid::Size2D, Widget};
 
 #[derive(Eq, PartialEq, Clone)]
 pub struct Button {
@@ -20,6 +20,17 @@ impl Widget for Button {
     }
 
     fn layout(&self) -> Self::Layout {}
+
+    fn content_size(
+        &self,
+        constraints: Size2D<Option<f32>, gooey_core::Points>,
+    ) -> Size2D<f32, gooey_core::Points> {
+        // TODO measure the text
+        Size2D::new(
+            constraints.width.unwrap_or_default(),
+            constraints.height.unwrap_or_default(),
+        )
+    }
 }
 
 pub struct ButtonMaterializer;
