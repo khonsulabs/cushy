@@ -1,0 +1,13 @@
+[package]
+name = "gooey"
+version = "0.1.0"
+authors = ["Jonathan Johnson <jon@khonsulabs.com>"]
+edition = "2018"
+
+[dependencies]
+gooey-kludgine = { path = "../frontends/kludgine" }
+gooey-core = { path = "../core" }
+gooey-widgets = { path = "../widgets" }
+
+[dev-dependencies]
+kludgine = { path = "../../kludgine" }
