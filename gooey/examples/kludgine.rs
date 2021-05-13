@@ -1,16 +1,14 @@
-extern crate kludgine;
-use gooey_core::Gooey;
+use gooey_core::{widgets::button::Button, Gooey};
 use gooey_kludgine::Kludgine;
-use gooey_widgets::{Button, ButtonMaterializer};
 use kludgine::prelude::*;
 
 fn main() {
-    let mut ui = Kludgine::new(Gooey::new(Button {
-        label: String::from("Hello"),
-        disabled: false,
-    }));
-    ui.register_materializer(ButtonMaterializer);
-    SingleWindowApplication::run(GooeyExample { ui });
+    SingleWindowApplication::run(GooeyExample {
+        ui: Kludgine::new(Gooey::new(Button {
+            label: String::from("Hello"),
+            disabled: false,
+        })),
+    });
 }
 
 struct GooeyExample {

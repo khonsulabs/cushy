@@ -1,7 +1,9 @@
 use std::{any::TypeId, collections::HashMap};
 
-use gooey_core::{AnyWidget, Gooey, Materializer, Widget};
+use gooey_core::{widgets::button::ButtonMaterializer, AnyWidget, Gooey, Materializer, Widget};
 use kludgine::prelude::*;
+
+mod widgets;
 
 pub struct Kludgine {
     materializers: HashMap<WidgetTypeId, Box<dyn AnyRenderer>>,
@@ -13,10 +15,14 @@ impl gooey_core::Frontend for Kludgine {}
 
 impl Kludgine {
     pub fn new(ui: Gooey) -> Self {
-        Self {
+        let mut frontend = Self {
             ui,
             materializers: HashMap::default(),
-        }
+        };
+
+        frontend.register_materializer(ButtonMaterializer);
+
+        frontend
     }
 
     pub fn update(&mut self) -> bool {

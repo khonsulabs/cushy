@@ -8,4 +8,4 @@ edition = "2018"
 
 [dependencies]
 gooey-core = { path = "../../core" }
-kludgine = { path = "../../../kludgine" }
+kludgine = { git = "https://github.com/khonsulabs/kludgine.git", branch = "redux" }
