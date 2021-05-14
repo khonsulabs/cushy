@@ -11,9 +11,9 @@ pub enum ButtonEvent {
 }
 
 impl Widget for Button {
+    type Layout = ();
     type MaterializerEvent = ButtonEvent;
     type State = Self;
-    type Layout = ();
 
     fn state(&self) -> Self::State {
         self.clone()

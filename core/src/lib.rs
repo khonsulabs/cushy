@@ -4,7 +4,7 @@ mod gooey;
 mod layout;
 mod widget;
 
-pub use self::{gooey::*, layout::*, widget::*};
-
 pub use euclid;
 pub use stylecs;
+
+pub use self::{gooey::*, layout::*, widget::*};

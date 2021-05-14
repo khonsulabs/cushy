@@ -1,7 +1,8 @@
-use crate::{Kludgine, KludgineRenderer};
 use gooey_core::Materializer;
 use gooey_widgets::button::{Button, ButtonMaterializer};
 use kludgine::prelude::*;
+
+use crate::{Kludgine, KludgineRenderer};
 
 impl Materializer<Kludgine> for ButtonMaterializer {
     type Widget = Button;
@@ -18,14 +19,11 @@ impl KludgineRenderer for ButtonMaterializer {
             &state.label,
             Style::new().with(ForegroundColor(Color::BLACK.into())),
         )
-        .wrap(
-            scene,
-            TextWrap::SingleLine {
-                max_width: bounds.size.width(),
-                truncate: true,
-                alignment: Alignment::Center,
-            },
-        )
+        .wrap(scene, TextWrap::SingleLine {
+            max_width: bounds.size.width(),
+            truncate: true,
+            alignment: Alignment::Center,
+        })
         .unwrap();
         let size = text.size() / scale;
         text.render(
