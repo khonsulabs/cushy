@@ -23,8 +23,8 @@ impl Widget for Button {
 
     fn content_size(
         &self,
-        constraints: Size2D<Option<f32>, gooey_core::Points>,
-    ) -> Size2D<f32, gooey_core::Points> {
+        constraints: Size2D<Option<f32>, gooey_core::stylecs::Points>,
+    ) -> Size2D<f32, gooey_core::stylecs::Points> {
         // TODO measure the text
         Size2D::new(
             constraints.width.unwrap_or_default(),

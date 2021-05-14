@@ -1,6 +1,6 @@
 use euclid::Size2D;
 
-use crate::{AnyWidget, Points, Widget, WidgetLayout, WidgetState};
+use crate::{stylecs::Points, AnyWidget, Widget, WidgetLayout, WidgetState};
 
 pub struct Gooey {
     root: Box<dyn AnyWidget>,

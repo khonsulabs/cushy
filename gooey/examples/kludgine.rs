@@ -22,16 +22,16 @@ impl WindowCreator for GooeyExample {
     }
 }
 
-#[async_trait]
 impl Window for GooeyExample {
-    async fn update(&mut self, _scene: &Target, window: &OpenWindow<Self>) -> KludgineResult<()> {
+    fn update(&mut self, _scene: &Target, status: &mut RedrawStatus) -> KludgineResult<()> {
         if self.ui.update() {
-            window.set_needs_redraw().await;
+            status.set_needs_redraw();
         }
         Ok(())
     }
-    async fn render(&mut self, scene: &Target) -> KludgineResult<()> {
-        self.ui.render(scene).await;
+
+    fn render(&mut self, scene: &Target) -> KludgineResult<()> {
+        self.ui.render(scene);
         Ok(())
     }
 }

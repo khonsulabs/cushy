@@ -2,7 +2,8 @@ use std::any::{Any, TypeId};
 
 use euclid::Size2D;
 
-use crate::{Layout, Points, WidgetLayout};
+use crate::{Layout, WidgetLayout};
+use stylecs::Points;
 
 pub trait Widget: Send + Sync + 'static {
     type MaterializerEvent: Send + Sync;

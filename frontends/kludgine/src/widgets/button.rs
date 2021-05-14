@@ -7,15 +7,13 @@ impl Materializer<Kludgine> for ButtonMaterializer {
     type Widget = Button;
 }
 
-#[async_trait]
 impl KludgineRenderer for ButtonMaterializer {
-    async fn render(&self, scene: &Target, state: &Button, bounds: Rect<f32, Scaled>) {
+    fn render(&self, scene: &Target, state: &Button, bounds: Rect<f32, Scaled>) {
         Shape::rect(bounds)
             .fill(Fill::new(Color::GREEN))
-            .render_at(Point::default(), scene)
-            .await;
+            .render_at(Point::default(), scene);
 
-        let scale = scene.scale_factor().await;
+        let scale = scene.scale_factor();
         let text = Text::span(
             &state.label,
             Style::new().with(ForegroundColor(Color::BLACK.into())),
@@ -28,15 +26,13 @@ impl KludgineRenderer for ButtonMaterializer {
                 alignment: Alignment::Center,
             },
         )
-        .await
         .unwrap();
-        let size = text.size().await / scale;
+        let size = text.size() / scale;
         text.render(
             scene,
             Point::new(0., bounds.center().y - size.to_vector().y / 2.),
             true,
         )
-        .await
         .unwrap();
     }
 }

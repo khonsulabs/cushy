@@ -1,5 +1,3 @@
-pub struct Points;
-
 pub trait Frontend: Sized {}
 
 mod gooey;
@@ -9,3 +7,4 @@ mod widget;
 pub use self::{gooey::*, layout::*, widget::*};
 
 pub use euclid;
+pub use stylecs;

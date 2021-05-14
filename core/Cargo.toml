@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 euclid = "0.22"
+stylecs = { git = "https://github.com/khonsulabs/stylecs.git", branch = "main" }

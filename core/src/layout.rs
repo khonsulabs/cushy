@@ -1,6 +1,6 @@
 use euclid::{Rect, Size2D};
 
-use crate::{AnyWidget, Points};
+use crate::{stylecs::Points, AnyWidget};
 
 pub trait Layout<'a> {
     fn layout_within(&mut self, size: Size2D<f32, Points>) -> Vec<WidgetLayout<'a>>;

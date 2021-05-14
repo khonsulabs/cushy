@@ -30,18 +30,16 @@ impl Kludgine {
         self.ui.update()
     }
 
-    pub async fn render(&self, scene: &Target) {
-        let size = scene.size().await;
+    pub fn render(&self, scene: &Target<'_>) {
+        let size = scene.size();
         let children = self.ui.layout_within(size.cast_unit());
 
         if let Some(materializer) = self.root_materializer() {
-            materializer
-                .render(
-                    scene,
-                    self.ui.root_widget(),
-                    Rect::new(Point::default(), size),
-                )
-                .await;
+            materializer.render(
+                scene,
+                self.ui.root_widget(),
+                Rect::new(Point::default(), size),
+            );
         }
 
         if !children.is_empty() {
@@ -63,9 +61,8 @@ impl Kludgine {
     }
 }
 
-#[async_trait]
 pub trait KludgineRenderer: Materializer<Kludgine> {
-    async fn render(
+    fn render(
         &self,
         scene: &Target,
         state: &<<Self as Materializer<Kludgine>>::Widget as Widget>::State,
@@ -73,22 +70,20 @@ pub trait KludgineRenderer: Materializer<Kludgine> {
     );
 }
 
-#[async_trait]
 pub trait AnyRenderer: Send + Sync + 'static {
-    async fn render(&self, scene: &Target, widget: &dyn AnyWidget, bounds: Rect<f32, Scaled>);
+    fn render(&self, scene: &Target, widget: &dyn AnyWidget, bounds: Rect<f32, Scaled>);
 }
 
-#[async_trait]
 impl<T> AnyRenderer for T
 where
     T: KludgineRenderer + 'static,
 {
-    async fn render(&self, scene: &Target, widget: &dyn AnyWidget, bounds: Rect<f32, Scaled>) {
+    fn render(&self, scene: &Target, widget: &dyn AnyWidget, bounds: Rect<f32, Scaled>) {
         let state = widget
             .state_as_any()
             .unwrap()
             .downcast_ref::<<<T as Materializer<Kludgine>>::Widget as Widget>::State>()
             .unwrap();
-        <T as KludgineRenderer>::render(&self, scene, state, bounds).await
+        <T as KludgineRenderer>::render(&self, scene, state, bounds)
     }
 }
