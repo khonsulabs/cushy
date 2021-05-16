@@ -3,9 +3,9 @@ pub mod frontends {
     #[cfg(feature = "frontend-browser")]
     #[doc(inline)]
     pub use gooey_browser as browser;
-    #[cfg(feature = "gooey-rasterized")]
+    #[cfg(feature = "gooey-rasterizer")]
     #[doc(inline)]
-    pub use gooey_rasterized as rasterized;
+    pub use gooey_rasterizer as rasterizer;
     pub mod renderers {
         #[cfg(feature = "frontend-kludgine")]
         #[doc(inline)]

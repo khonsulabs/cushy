@@ -3,7 +3,7 @@ members = [
     "gooey",
     "frontends/renderers/kludgine",
     "frontends/browser",
-    "frontends/rasterized",
+    "frontends/rasterizer",
     "core",
     "widgets",
 ]

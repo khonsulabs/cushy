@@ -1,5 +1,5 @@
 [package]
-name = "gooey-rasterized"
+name = "gooey-rasterizer"
 version = "0.1.0"
 authors = ["Jonathan Johnson <jon@khonsulabs.com>"]
 edition = "2018"

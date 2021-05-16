@@ -6,11 +6,11 @@ use gooey_core::{
 };
 use gooey_widgets::button::{Button, ButtonTransmogrifier};
 
-use crate::{Rasterized, WidgetRasterizer};
+use crate::{Rasterizer, WidgetRasterizer};
 
 const BUTTON_PADDING: Length<f32, Points> = Length::new(5.);
 
-impl<R: Renderer> Transmogrifier<Rasterized<R>> for ButtonTransmogrifier {
+impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
     type Widget = Button;
     type Context = R;
 

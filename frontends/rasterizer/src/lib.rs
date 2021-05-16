@@ -9,16 +9,16 @@ use gooey_widgets::button::ButtonTransmogrifier;
 
 mod widgets;
 
-pub struct Rasterized<R: Renderer> {
+pub struct Rasterizer<R: Renderer> {
     transmogrifiers: HashMap<WidgetTypeId, Box<dyn AnyWidgetRasterizer<R>>>,
     ui: Gooey,
     _phantom: PhantomData<R>,
 }
 
 type WidgetTypeId = TypeId;
-impl<R: Renderer> gooey_core::Frontend for Rasterized<R> {}
+impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {}
 
-impl<R: Renderer> Rasterized<R> {
+impl<R: Renderer> Rasterizer<R> {
     pub fn new(ui: Gooey) -> Self {
         let mut frontend = Self {
             ui,
@@ -68,11 +68,11 @@ impl<R: Renderer> Rasterized<R> {
     }
 }
 
-pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterized<R>> {
+pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> {
     fn render(
         &self,
         scene: &R,
-        state: &<<Self as Transmogrifier<Rasterized<R>>>::Widget as Widget>::State,
+        state: &<<Self as Transmogrifier<Rasterizer<R>>>::Widget as Widget>::State,
         bounds: Rect<f32, Points>,
     );
 }
@@ -90,7 +90,7 @@ where
         let state = widget
             .state_as_any()
             .unwrap()
-            .downcast_ref::<<<T as Transmogrifier<Rasterized<R>>>::Widget as Widget>::State>()
+            .downcast_ref::<<<T as Transmogrifier<Rasterizer<R>>>::Widget as Widget>::State>()
             .unwrap();
         <T as WidgetRasterizer<R>>::render(&self, scene, state, bounds)
     }
