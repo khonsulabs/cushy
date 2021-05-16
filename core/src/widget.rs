@@ -3,20 +3,23 @@ use std::any::{Any, TypeId};
 use euclid::Size2D;
 use stylecs::Points;
 
-use crate::{Layout, WidgetLayout};
-
 pub trait Widget: Send + Sync + 'static {
-    type MaterializerEvent: Send + Sync;
+    type TransmogrifierEvent: Send + Sync;
     type State: Send + Sync + Eq;
-    type Layout: Send + Sync + for<'a> Layout<'a>;
 
     fn state(&self) -> Self::State;
-    fn layout(&self) -> Self::Layout;
-    fn content_size(&self, constraints: Size2D<Option<f32>, Points>) -> Size2D<f32, Points>;
 }
 
-pub trait Materializer<F>: Send + Sync {
+pub trait Transmogrifier<F>: Send + Sync {
     type Widget: Widget;
+    type Context: Send + Sync;
+
+    fn content_size(
+        &self,
+        state: &<Self::Widget as Widget>::State,
+        constraints: Size2D<Option<f32>, Points>,
+        context: &Self::Context,
+    ) -> Size2D<f32, Points>;
 }
 
 pub struct WidgetState<W: Widget> {
@@ -29,9 +32,7 @@ pub trait AnyWidget: Send + Sync {
     fn widget_type_id(&self) -> TypeId;
     fn state_as_any(&self) -> Option<&'_ dyn Any>;
 
-    fn layout_within(&'_ self, size: Size2D<f32, Points>) -> Vec<WidgetLayout<'_>>;
     fn update(&mut self) -> bool;
-    fn content_size(&self, constraints: Size2D<Option<f32>, Points>) -> Size2D<f32, Points>;
 }
 
 impl<T> AnyWidget for WidgetState<T>
@@ -44,11 +45,6 @@ where
 
     fn widget_type_id(&self) -> TypeId {
         TypeId::of::<T>()
-    }
-
-    fn layout_within(&'_ self, size: Size2D<f32, Points>) -> Vec<WidgetLayout<'_>> {
-        let mut layout = self.widget.layout();
-        layout.layout_within(size)
     }
 
     fn update(&mut self) -> bool {
@@ -68,9 +64,5 @@ where
         } else {
             None
         }
-    }
-
-    fn content_size(&self, constraints: Size2D<Option<f32>, Points>) -> Size2D<f32, Points> {
-        self.widget.content_size(constraints)
     }
 }

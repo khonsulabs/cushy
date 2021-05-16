@@ -6,11 +6,12 @@ edition = "2018"
 
 [features]
 default = ["frontend-kludgine"]
-frontend-kludgine = ["gooey-kludgine"]
 frontend-browser = ["gooey-browser"]
+frontend-kludgine = ["gooey-kludgine", "gooey-rasterized"]
 
 [dependencies]
-gooey-kludgine = { path = "../frontends/kludgine", optional = true }
+gooey-kludgine = { path = "../frontends/renderers/kludgine", optional = true }
+gooey-rasterized = { path = "../frontends/rasterized", optional = true }
 gooey-browser = { path = "../frontends/browser", optional = true }
 gooey-core = { path = "../core" }
 gooey-widgets = { path = "../widgets" }

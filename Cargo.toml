@@ -1,8 +1,9 @@
 [workspace]
 members = [
     "gooey",
-    "frontends/kludgine",
+    "frontends/renderers/kludgine",
     "frontends/browser",
+    "frontends/rasterized",
     "core",
     "widgets",
 ]

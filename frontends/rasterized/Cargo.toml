@@ -1,0 +1,9 @@
+[package]
+name = "gooey-rasterized"
+version = "0.1.0"
+authors = ["Jonathan Johnson <jon@khonsulabs.com>"]
+edition = "2018"
+
+[dependencies]
+gooey-core = { path = "../../core" }
+gooey-widgets = { path = "../../widgets" }

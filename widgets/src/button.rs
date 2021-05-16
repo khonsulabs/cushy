@@ -1,4 +1,4 @@
-use gooey_core::{euclid::Size2D, Widget};
+use gooey_core::Widget;
 
 #[derive(Eq, PartialEq, Clone)]
 pub struct Button {
@@ -11,26 +11,12 @@ pub enum ButtonEvent {
 }
 
 impl Widget for Button {
-    type Layout = ();
-    type MaterializerEvent = ButtonEvent;
+    type TransmogrifierEvent = ButtonEvent;
     type State = Self;
 
     fn state(&self) -> Self::State {
         self.clone()
     }
-
-    fn layout(&self) -> Self::Layout {}
-
-    fn content_size(
-        &self,
-        constraints: Size2D<Option<f32>, gooey_core::stylecs::Points>,
-    ) -> Size2D<f32, gooey_core::stylecs::Points> {
-        // TODO measure the text
-        Size2D::new(
-            constraints.width.unwrap_or_default(),
-            constraints.height.unwrap_or_default(),
-        )
-    }
 }
 
-pub struct ButtonMaterializer;
+pub struct ButtonTransmogrifier;

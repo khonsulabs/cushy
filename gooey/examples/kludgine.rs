@@ -1,11 +1,13 @@
-use gooey_core::Gooey;
-use gooey_kludgine::Kludgine;
+use gooey::{
+    core::Gooey,
+    frontends::{rasterized::Rasterized, renderers::kludgine::Kludgine},
+};
 use gooey_widgets::button::Button;
 use kludgine::prelude::*;
 
 fn main() {
     SingleWindowApplication::run(GooeyExample {
-        ui: Kludgine::new(Gooey::new(Button {
+        ui: Rasterized::<Kludgine>::new(Gooey::new(Button {
             label: String::from("Hello"),
             disabled: false,
         })),
@@ -13,7 +15,7 @@ fn main() {
 }
 
 struct GooeyExample {
-    ui: Kludgine,
+    ui: Rasterized<Kludgine>,
 }
 
 impl WindowCreator for GooeyExample {
@@ -31,7 +33,7 @@ impl Window for GooeyExample {
     }
 
     fn render(&mut self, scene: &Target) -> KludgineResult<()> {
-        self.ui.render(scene);
+        self.ui.render(&Kludgine::from(scene));
         Ok(())
     }
 }
