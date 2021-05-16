@@ -23,4 +23,4 @@ mod widget;
 pub use euclid;
 pub use stylecs;
 
-pub use self::{gooey::*, renderer::Renderer, widget::*};
+pub use self::{gooey::*, widget::*};

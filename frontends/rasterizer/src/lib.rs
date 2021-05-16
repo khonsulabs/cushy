@@ -2,8 +2,9 @@ use std::{any::TypeId, collections::HashMap, marker::PhantomData};
 
 use gooey_core::{
     euclid::{Point2D, Rect},
+    renderer::Renderer,
     stylecs::Points,
-    AnyWidget, Gooey, Renderer, Transmogrifier,
+    AnyWidget, Gooey, Transmogrifier,
 };
 use gooey_widgets::button::ButtonTransmogrifier;
 

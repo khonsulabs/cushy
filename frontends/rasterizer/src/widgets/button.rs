@@ -1,8 +1,8 @@
 use gooey_core::{
     euclid::{Length, Rect, Vector2D},
-    renderer::TextOptions,
+    renderer::{Renderer, TextOptions},
     stylecs::{palette::Srgba, Points},
-    Renderer, Transmogrifier,
+    Transmogrifier,
 };
 use gooey_widgets::button::{Button, ButtonTransmogrifier};
 

@@ -1,8 +1,7 @@
 use gooey_core::{
     euclid::{Point2D, Rect},
-    renderer::{StrokeOptions, TextMetrics, TextOptions},
+    renderer::{Renderer, StrokeOptions, TextMetrics, TextOptions},
     stylecs::Points,
-    Renderer,
 };
 use kludgine::{prelude::*, text::prepared::VMetrics};
 
