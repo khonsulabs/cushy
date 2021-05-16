@@ -12,11 +12,6 @@ pub enum ButtonEvent {
 
 impl Widget for Button {
     type TransmogrifierEvent = ButtonEvent;
-    type State = Self;
-
-    fn state(&self) -> Self::State {
-        self.clone()
-    }
 }
 
 pub struct ButtonTransmogrifier;

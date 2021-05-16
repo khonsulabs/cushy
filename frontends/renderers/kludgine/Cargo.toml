@@ -1,12 +1,16 @@
 [package]
 name = "gooey-kludgine"
-version = "0.1.0"
+version = "0.1.0-dev.0"
 authors = ["Jonathan Johnson <jon@khonsulabs.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "A `kludgine`-powered renderer implementation for the `gooey` framework."
+repository = "https://github.com/khonsulabs/gooey"
+license = "MIT OR Apache-2.0"
+keywords = ["gui", "ui", "user interface"]
+categories = ["gui"]
+readme = "../../../README.md"
 
 [dependencies]
-gooey-core = { path = "../../../core" }
-gooey-widgets = { path = "../../../widgets" }
+gooey-core = { path = "../../../core", version = "0.1.0-dev.0" }
+gooey-widgets = { path = "../../../widgets", version = "0.1.0-dev.0" }
 kludgine = { git = "https://github.com/khonsulabs/kludgine.git", branch = "redux" }

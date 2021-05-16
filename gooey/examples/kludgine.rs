@@ -25,13 +25,6 @@ impl WindowCreator for GooeyExample {
 }
 
 impl Window for GooeyExample {
-    fn update(&mut self, _scene: &Target, status: &mut RedrawStatus) -> KludgineResult<()> {
-        if self.ui.update() {
-            status.set_needs_redraw();
-        }
-        Ok(())
-    }
-
     fn render(&mut self, scene: &Target) -> KludgineResult<()> {
         self.ui.render(&Kludgine::from(scene));
         Ok(())

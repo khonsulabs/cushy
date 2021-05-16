@@ -3,39 +3,44 @@ use std::any::{Any, TypeId};
 use euclid::Size2D;
 use stylecs::Points;
 
-pub trait Widget: Send + Sync + 'static {
-    type TransmogrifierEvent: Send + Sync;
-    type State: Send + Sync + Eq;
+use crate::Frontend;
 
-    fn state(&self) -> Self::State;
+/// A graphical user interface element.
+pub trait Widget: Send + Sync + 'static {
+    /// The type of the event that any [`Transmogrifier`] for this widget to
+    /// use.
+    type TransmogrifierEvent: Send + Sync;
 }
 
-pub trait Transmogrifier<F>: Send + Sync {
+/// Transforms a Widget into whatever is needed for [`Frontend`] `F`.
+pub trait Transmogrifier<F: Frontend>: Send + Sync {
+    /// The type of the widget being transmogrified.
     type Widget: Widget;
+    /// The frontend-specific context type provided to aide in transmogrifying.
     type Context: Send + Sync;
 
+    /// Calculate the content-size needed for this `widget`, trying to stay
+    /// within `constraints`.
     fn content_size(
         &self,
-        state: &<Self::Widget as Widget>::State,
+        widget: &Self::Widget,
         constraints: Size2D<Option<f32>, Points>,
         context: &Self::Context,
     ) -> Size2D<f32, Points>;
 }
 
-pub struct WidgetState<W: Widget> {
-    pub widget: W,
-    pub state: Option<W::State>,
-}
-
+/// A Widget without any associated types. Useful for implementing frontends.
+#[allow(clippy::module_name_repetitions)]
 pub trait AnyWidget: Send + Sync {
+    /// Returns the widget as the [`Any`] type.
+    #[must_use]
     fn as_any(&'_ self) -> &'_ dyn Any;
+    /// Returns the [`TypeId`] of the widget.
+    #[must_use]
     fn widget_type_id(&self) -> TypeId;
-    fn state_as_any(&self) -> Option<&'_ dyn Any>;
-
-    fn update(&mut self) -> bool;
 }
 
-impl<T> AnyWidget for WidgetState<T>
+impl<T> AnyWidget for T
 where
     T: Widget + Any,
 {
@@ -44,25 +49,6 @@ where
     }
 
     fn widget_type_id(&self) -> TypeId {
-        TypeId::of::<T>()
-    }
-
-    fn update(&mut self) -> bool {
-        let new_state = self.widget.state();
-        let changed = self
-            .state
-            .as_ref()
-            .map(|old_state| old_state != &new_state)
-            .unwrap_or(true);
-        self.state = Some(new_state);
-        changed
-    }
-
-    fn state_as_any(&self) -> Option<&'_ dyn Any> {
-        if let Some(state) = &self.state {
-            Some(state)
-        } else {
-            None
-        }
+        TypeId::of::<Self>()
     }
 }

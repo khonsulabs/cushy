@@ -11,8 +11,8 @@ use crate::{Rasterizer, WidgetRasterizer};
 const BUTTON_PADDING: Length<f32, Points> = Length::new(5.);
 
 impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
-    type Widget = Button;
     type Context = R;
+    type Widget = Button;
 
     fn content_size(
         &self,

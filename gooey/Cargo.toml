@@ -1,8 +1,14 @@
 [package]
 name = "gooey"
-version = "0.1.0"
+version = "0.1.0-dev.0"
 authors = ["Jonathan Johnson <jon@khonsulabs.com>"]
 edition = "2018"
+description = "A cross-platform graphical user interface framework"
+repository = "https://github.com/khonsulabs/gooey"
+license = "MIT OR Apache-2.0"
+keywords = ["gui", "ui", "user interface"]
+categories = ["gui"]
+readme = "../README.md"
 
 [features]
 default = ["frontend-kludgine"]
@@ -10,11 +16,11 @@ frontend-browser = ["gooey-browser"]
 frontend-kludgine = ["gooey-kludgine", "gooey-rasterizer"]
 
 [dependencies]
-gooey-kludgine = { path = "../frontends/renderers/kludgine", optional = true }
-gooey-rasterizer = { path = "../frontends/rasterizer", optional = true }
-gooey-browser = { path = "../frontends/browser", optional = true }
-gooey-core = { path = "../core" }
-gooey-widgets = { path = "../widgets" }
+gooey-kludgine = { path = "../frontends/renderers/kludgine", version = "0.1.0-dev.0", optional = true }
+gooey-rasterizer = { path = "../frontends/rasterizer", version = "0.1.0-dev.0", optional = true }
+gooey-browser = { path = "../frontends/browser", version = "0.1.0-dev.0", optional = true }
+gooey-core = { path = "../core", version = "0.1.0-dev.0" }
+gooey-widgets = { path = "../widgets", version = "0.1.0-dev.0" }
 
 [dev-dependencies]
 kludgine = { git = "https://github.com/khonsulabs/kludgine.git", branch = "redux" }

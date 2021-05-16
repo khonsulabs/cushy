@@ -3,7 +3,7 @@ use std::{any::TypeId, collections::HashMap, marker::PhantomData};
 use gooey_core::{
     euclid::{Point2D, Rect},
     stylecs::Points,
-    AnyWidget, Gooey, Renderer, Transmogrifier, Widget,
+    AnyWidget, Gooey, Renderer, Transmogrifier,
 };
 use gooey_widgets::button::ButtonTransmogrifier;
 
@@ -29,10 +29,6 @@ impl<R: Renderer> Rasterizer<R> {
         frontend.register_transmogrifier(ButtonTransmogrifier);
 
         frontend
-    }
-
-    pub fn update(&mut self) -> bool {
-        self.ui.update()
     }
 
     pub fn render(&self, scene: &R) {
@@ -72,7 +68,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> {
     fn render(
         &self,
         scene: &R,
-        state: &<<Self as Transmogrifier<Rasterizer<R>>>::Widget as Widget>::State,
+        widget: &<Self as Transmogrifier<Rasterizer<R>>>::Widget,
         bounds: Rect<f32, Points>,
     );
 }
@@ -87,11 +83,10 @@ where
     R: Renderer,
 {
     fn render(&self, scene: &R, widget: &dyn AnyWidget, bounds: Rect<f32, Points>) {
-        let state = widget
-            .state_as_any()
-            .unwrap()
-            .downcast_ref::<<<T as Transmogrifier<Rasterizer<R>>>::Widget as Widget>::State>()
+        let widget = widget
+            .as_any()
+            .downcast_ref::<<T as Transmogrifier<Rasterizer<R>>>::Widget>()
             .unwrap();
-        <T as WidgetRasterizer<R>>::render(&self, scene, state, bounds)
+        <T as WidgetRasterizer<R>>::render(&self, scene, widget, bounds)
     }
 }
