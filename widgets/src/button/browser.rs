@@ -1,9 +1,11 @@
-use gooey_widgets::button::{Button, ButtonTransmogrifier};
+use gooey_browser::{WebSys, WebSysTransmogrifier};
+use wasm_bindgen::JsCast;
 use web_sys::HtmlButtonElement;
 
-use crate::{window_document, WebSys, WebSysTransmogrifier};
-
-use wasm_bindgen::JsCast;
+use crate::{
+    button::{Button, ButtonTransmogrifier},
+    window_document,
+};
 
 impl gooey_core::Transmogrifier<WebSys> for ButtonTransmogrifier {
     type Widget = Button;

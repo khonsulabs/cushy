@@ -19,7 +19,7 @@ fn build_browser_example() -> Result<(), devx_cmd::Error> {
         "cargo",
         "build",
         "--example",
-        "browser",
+        "basic",
         "--no-default-features",
         "--features",
         "frontend-browser",
@@ -30,7 +30,7 @@ fn build_browser_example() -> Result<(), devx_cmd::Error> {
     println!("Executing wasm-bindgen (cargo install wasm-bindgen if you don't have this)");
     run!(
         "wasm-bindgen",
-        "target/wasm32-unknown-unknown/debug/examples/browser.wasm",
+        "target/wasm32-unknown-unknown/debug/examples/basic.wasm",
         "--target",
         "web",
         "--out-dir",

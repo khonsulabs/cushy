@@ -4,6 +4,12 @@ use gooey_core::{
     AnyWidget, Widget,
 };
 
+#[cfg(feature = "gooey-rasterizer")]
+mod rasterizer;
+
+#[cfg(feature = "frontend-browser")]
+mod browser;
+
 pub struct Container {
     pub child: Box<dyn AnyWidget>,
     pub padding: Surround<Points>,

@@ -1,22 +1,20 @@
 use std::{any::TypeId, ops::Deref, sync::Arc};
 
+#[doc(hidden)]
+pub use gooey_core::renderer::Renderer;
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
-    renderer::Renderer,
     stylecs::Points,
-    AnyWidget, Gooey, Transmogrifier,
+    AnyTransmogrifier, AnyWidget, Gooey, Transmogrifier,
 };
-use gooey_widgets::{button::ButtonTransmogrifier, container::ContainerTransmogrifier};
-
-mod widgets;
 
 pub struct Rasterizer<R: Renderer> {
-    ui: Arc<Gooey<Self>>,
+    pub ui: Arc<Gooey<Self>>,
     renderer: Option<R>,
 }
 
 impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
-    type AnyWidgetTransmogrifier = Box<dyn AnyWidgetRasterizer<R>>;
+    type AnyWidgetTransmogrifier = RegisteredTransmogrifier<R>;
     type Context = Self;
 }
 
@@ -30,26 +28,16 @@ impl<R: Renderer> Deref for Rasterizer<R> {
 
 impl<R: Renderer> Rasterizer<R> {
     pub fn new(ui: Gooey<Self>) -> Self {
-        let mut frontend = Self {
+        Self {
             ui: Arc::new(ui),
             renderer: None,
-        };
-
-        frontend.register_transmogrifier(ButtonTransmogrifier);
-        frontend.register_transmogrifier(ContainerTransmogrifier);
-
-        frontend
+        }
     }
 
     pub fn render(&self, scene: R) {
         let size = scene.size();
 
-        if let Some(transmogrifier) = self
-            .ui
-            .transmogrifiers
-            .get(&self.ui.root_widget().widget_type_id())
-            .map(|b| b.as_ref())
-        {
+        if let Some(transmogrifier) = self.ui.root_transmogrifier() {
             transmogrifier.render(
                 &Rasterizer {
                     ui: self.ui.clone(),
@@ -58,35 +46,17 @@ impl<R: Renderer> Rasterizer<R> {
                 self.ui.root_widget(),
                 Rect::new(Point2D::default(), size),
             );
+        } else {
+            todo!("Return an error -- unknown widget type")
         }
-    }
-
-    pub fn register_transmogrifier<M: WidgetRasterizer<R> + Send + Sync + 'static>(
-        &mut self,
-        transmogrifier: M,
-    ) {
-        Arc::get_mut(&mut self.ui)
-            .expect("couldn't acquire ui as mutable. Do not store any references to Rasterizers.")
-            .transmogrifiers
-            .insert(TypeId::of::<M::Widget>(), Box::new(transmogrifier));
-    }
-
-    pub fn transmogrifier(
-        &self,
-        widget_type_id: &TypeId,
-    ) -> Option<&'_ dyn AnyWidgetRasterizer<R>> {
-        self.ui
-            .transmogrifiers
-            .get(widget_type_id)
-            .map(|b| b.as_ref())
-    }
-
-    pub fn root_transmogrifier(&'_ self) -> Option<&'_ dyn AnyWidgetRasterizer<R>> {
-        self.transmogrifier(&self.ui.root_widget().widget_type_id())
     }
 }
 
-pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> {
+pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + 'static {
+    fn widget_type_id(&self) -> TypeId {
+        TypeId::of::<<Self as Transmogrifier<Rasterizer<R>>>::Widget>()
+    }
+
     fn render(
         &self,
         rasterizer: &Rasterizer<R>,
@@ -105,6 +75,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> {
 }
 
 pub trait AnyWidgetRasterizer<R: Renderer>: Send + Sync {
+    fn widget_type_id(&self) -> TypeId;
     fn render(&self, rasterizer: &Rasterizer<R>, widget: &dyn AnyWidget, bounds: Rect<f32, Points>);
     fn content_size(
         &self,
@@ -119,6 +90,10 @@ where
     T: WidgetRasterizer<R> + Send + Sync + 'static,
     R: Renderer,
 {
+    fn widget_type_id(&self) -> TypeId {
+        <T as WidgetRasterizer<R>>::widget_type_id(self)
+    }
+
     fn render(
         &self,
         rasterizer: &Rasterizer<R>,
@@ -144,4 +119,31 @@ where
             .unwrap();
         <T as WidgetRasterizer<R>>::content_size(&self, widget, rasterizer, constraints)
     }
+}
+
+pub struct RegisteredTransmogrifier<R: Renderer>(pub Box<dyn AnyWidgetRasterizer<R>>);
+
+impl<R: Renderer> Deref for RegisteredTransmogrifier<R> {
+    type Target = Box<dyn AnyWidgetRasterizer<R>>;
+
+    fn deref(&self) -> &'_ Self::Target {
+        &self.0
+    }
+}
+
+impl<R: Renderer> AnyTransmogrifier for RegisteredTransmogrifier<R> {
+    fn widget_type_id(&self) -> TypeId {
+        AnyWidgetRasterizer::widget_type_id(self.0.as_ref())
+    }
+}
+
+#[macro_export]
+macro_rules! make_rasterized {
+    ($transmogrifier:ident) => {
+        impl<R: $crate::Renderer> From<$transmogrifier> for $crate::RegisteredTransmogrifier<R> {
+            fn from(transmogrifier: $transmogrifier) -> Self {
+                Self(std::boxed::Box::new(transmogrifier))
+            }
+        }
+    };
 }

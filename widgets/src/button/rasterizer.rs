@@ -6,9 +6,9 @@ use gooey_core::{
     stylecs::{palette::Srgba, Points},
     Transmogrifier,
 };
-use gooey_widgets::button::{Button, ButtonTransmogrifier};
+use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
 
-use crate::{Rasterizer, WidgetRasterizer};
+use crate::button::{Button, ButtonTransmogrifier};
 
 const BUTTON_PADDING: Length<f32, Points> = Length::new(5.);
 

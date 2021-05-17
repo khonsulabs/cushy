@@ -1,31 +1,14 @@
 use std::any::TypeId;
 
-use gooey_core::{AnyWidget, Gooey, Transmogrifier};
-use gooey_widgets::{button::ButtonTransmogrifier, container::ContainerTransmogrifier};
-
-mod widgets;
+use gooey_core::{AnyTransmogrifier, AnyWidget, Gooey, Transmogrifier};
 
 pub struct WebSys {
-    ui: Gooey<Self>,
+    pub ui: Gooey<Self>,
 }
 
 impl WebSys {
     pub fn new(ui: Gooey<Self>) -> Self {
-        let mut frontend = Self { ui };
-
-        frontend.register_transmogrifier(ButtonTransmogrifier);
-        frontend.register_transmogrifier(ContainerTransmogrifier);
-
-        frontend
-    }
-
-    pub fn register_transmogrifier<M: WebSysTransmogrifier + Send + Sync + 'static>(
-        &mut self,
-        transmogrifier: M,
-    ) {
-        self.ui
-            .transmogrifiers
-            .insert(TypeId::of::<M::Widget>(), Box::new(transmogrifier));
+        Self { ui }
     }
 
     pub fn install_in_id(&self, id: &str) {
@@ -34,32 +17,39 @@ impl WebSys {
         let document = window.document().unwrap();
         let parent = document.get_element_by_id(id).expect("id not found");
 
-        if let Some(transmogrifier) = self
-            .ui
-            .transmogrifiers
-            .get(&self.ui.root_widget().widget_type_id())
-            .map(|b| b.as_ref())
-        {
+        if let Some(transmogrifier) = self.ui.root_transmogrifier() {
             transmogrifier.transmogrify(&parent, self.ui.root_widget(), self);
         }
     }
+}
 
-    pub fn transmogrifier(
+pub struct RegisteredTransmogrifier(pub Box<dyn AnyWidgetWebSysTransmogrifier>);
+
+impl AnyWidgetWebSysTransmogrifier for RegisteredTransmogrifier {
+    fn widget_type_id(&self) -> TypeId {
+        AnyWidgetWebSysTransmogrifier::widget_type_id(self.0.as_ref())
+    }
+
+    fn transmogrify(
         &self,
-        widget_type_id: &TypeId,
-    ) -> Option<&'_ dyn AnyWidgetWebSysTransmogrifier> {
-        self.ui
-            .transmogrifiers
-            .get(widget_type_id)
-            .map(|b| b.as_ref())
+        parent: &web_sys::Node,
+        widget: &dyn AnyWidget,
+        frontend: &WebSys,
+    ) -> Option<web_sys::Element> {
+        self.0.transmogrify(parent, widget, frontend)
+    }
+}
+
+impl AnyTransmogrifier for RegisteredTransmogrifier {
+    fn widget_type_id(&self) -> TypeId {
+        self.0.as_ref().widget_type_id()
     }
 }
 
 impl gooey_core::Frontend for WebSys {
-    type AnyWidgetTransmogrifier = Box<dyn AnyWidgetWebSysTransmogrifier>;
+    type AnyWidgetTransmogrifier = RegisteredTransmogrifier;
     type Context = WebSys;
 }
-
 pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
     fn transmogrify(
         &self,
@@ -70,6 +60,8 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
 }
 
 pub trait AnyWidgetWebSysTransmogrifier {
+    fn widget_type_id(&self) -> TypeId;
+
     fn transmogrify(
         &self,
         parent: &web_sys::Node,
@@ -82,6 +74,10 @@ impl<T> AnyWidgetWebSysTransmogrifier for T
 where
     T: WebSysTransmogrifier + Send + Sync + 'static,
 {
+    fn widget_type_id(&self) -> TypeId {
+        TypeId::of::<<T as Transmogrifier<WebSys>>::Widget>()
+    }
+
     fn transmogrify(
         &self,
         parent: &web_sys::Node,
@@ -96,6 +92,13 @@ where
     }
 }
 
-fn window_document() -> web_sys::Document {
-    web_sys::window().unwrap().document().unwrap()
+#[macro_export]
+macro_rules! make_browser {
+    ($transmogrifier:ident) => {
+        impl From<$transmogrifier> for $crate::RegisteredTransmogrifier {
+            fn from(transmogrifier: $transmogrifier) -> Self {
+                Self(std::boxed::Box::new(transmogrifier))
+            }
+        }
+    };
 }

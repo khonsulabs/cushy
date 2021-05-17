@@ -3,6 +3,12 @@ use gooey_core::{
     Widget,
 };
 
+#[cfg(feature = "gooey-rasterizer")]
+mod rasterizer;
+
+#[cfg(feature = "frontend-browser")]
+mod browser;
+
 #[derive(Debug)]
 pub struct Button {
     pub label: String,

@@ -4,9 +4,9 @@ use gooey_core::{
     stylecs::Points,
     Transmogrifier,
 };
-use gooey_widgets::container::{Container, ContainerTransmogrifier};
+use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
 
-use crate::{Rasterizer, WidgetRasterizer};
+use crate::container::{Container, ContainerTransmogrifier};
 
 impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ContainerTransmogrifier {
     type Widget = Container;
@@ -14,7 +14,8 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ContainerTransmogrifier {
 
 impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
     fn render(&self, rasterizer: &Rasterizer<R>, state: &Container, bounds: Rect<f32, Points>) {
-        if let Some(child_transmogrifier) = rasterizer.transmogrifier(&state.child.widget_type_id())
+        if let Some(child_transmogrifier) =
+            rasterizer.ui.transmogrifier(state.child.widget_type_id())
         {
             let size = child_transmogrifier.content_size(
                 state.child.as_ref(),
@@ -42,7 +43,8 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
         rasterizer: &Rasterizer<R>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
-        if let Some(child_transmogrifier) = rasterizer.transmogrifier(&state.child.widget_type_id())
+        if let Some(child_transmogrifier) =
+            rasterizer.ui.transmogrifier(state.child.widget_type_id())
         {
             let size =
                 child_transmogrifier.content_size(state.child.as_ref(), rasterizer, constraints);

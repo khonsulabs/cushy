@@ -39,13 +39,13 @@ These crates define the API that users creating applications will use to initial
 These crates will also implement all widgets defined by gooey-core. These crates are:
 
 * `gooey-rasterizer`: [`Rasterizer`](https://khonsulabs.github.io/gooey/main/gooey/frontends/rasterizer/struct.Rasterizer.html) frontend. Requires a [`Renderer`](https://khonsulabs.github.io/gooey/main/gooey/core/renderer/trait.Renderer.html).
-* `gooey-browser`: [`WebSys`](https://khonsulabs.github.io/gooey/main/gooey/frontends/browser/struct.WebSys.html) frontend. See [`gooey/examples/browser.rs`](./gooey/examples/browser.rs), or run `cargo xtask build-browser-example`.
+* `gooey-browser`: [`WebSys`](https://khonsulabs.github.io/gooey/main/gooey/frontends/browser/struct.WebSys.html) frontend. See [`gooey/examples/basic.rs`](./gooey/examples/basic.rs), or run `cargo xtask build-browser-example`.
 
 ## Renderers
 
 These crates implement [`Renderer`](https://khonsulabs.github.io/gooey/main/gooey/core/renderer/trait.Renderer.html) for an environment where raw drawing APIs are the only tools available to display a user interface. For example, inside of a game. The only renderer currently being developed is:
 
-* `gooey-kludgine`: Provides the [`Kludgine`](https://khonsulabs.github.io/gooey/main/gooey/frontends/renderers/kludgine/struct.Kludgine.html) renderer. See [`gooey/examples/kludgine.rs`](./gooey/examples/kludgine.rs) or run `cargo run --example kludgine`.
+* `gooey-kludgine`: Provides the [`Kludgine`](https://khonsulabs.github.io/gooey/main/gooey/frontends/renderers/kludgine/struct.Kludgine.html) renderer. See [`gooey/examples/basic.rs`](./gooey/examples/basic.rs) or run `cargo run --example basic`.
 
 ## `gooey`
 

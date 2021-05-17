@@ -23,5 +23,4 @@ web-sys = { version = "0.3", features = [
     "HtmlDivElement",
 ] }
 gooey-core = { path = "../../core", version = "0.1.0-dev.0" }
-gooey-widgets = { path = "../../widgets", version = "0.1.0-dev.0" }
 console_error_panic_hook = "0.1"

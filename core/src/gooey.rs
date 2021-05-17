@@ -1,6 +1,6 @@
 use std::{any::TypeId, collections::HashMap, marker::PhantomData};
 
-use crate::{AnyWidget, Frontend, Widget};
+use crate::{AnyTransmogrifier, AnyWidget, Frontend, Widget};
 
 type WidgetTypeId = TypeId;
 
@@ -26,5 +26,41 @@ impl<F: Frontend> Gooey<F> {
     #[must_use]
     pub fn root_widget(&self) -> &dyn AnyWidget {
         self.root.as_ref()
+    }
+
+    /// Registers a transmogrifier.
+    ///
+    /// # Errors
+    ///
+    /// If an existing transmogrifier is already registered, the transmogrifier
+    /// is returned in `Err()`.
+    pub fn register_transmogrifier<T: Into<<F as Frontend>::AnyWidgetTransmogrifier>>(
+        &mut self,
+        transmogrifier: T,
+    ) -> Result<(), <F as Frontend>::AnyWidgetTransmogrifier> {
+        let transmogrifier = transmogrifier.into();
+        let type_id = transmogrifier.widget_type_id();
+        if self.transmogrifiers.contains_key(&type_id) {
+            return Err(transmogrifier);
+        }
+
+        self.transmogrifiers.insert(type_id, transmogrifier);
+
+        Ok(())
+    }
+
+    /// Returns the registered transmogrifier for the widget type id specified.
+    #[must_use]
+    pub fn transmogrifier(
+        &self,
+        widget_type_id: TypeId,
+    ) -> Option<&'_ <F as Frontend>::AnyWidgetTransmogrifier> {
+        self.transmogrifiers.get(&widget_type_id)
+    }
+
+    /// Returns the registered transmogrifier for the root widget.
+    #[must_use]
+    pub fn root_transmogrifier(&'_ self) -> Option<&'_ <F as Frontend>::AnyWidgetTransmogrifier> {
+        self.transmogrifier(self.root_widget().widget_type_id())
     }
 }
