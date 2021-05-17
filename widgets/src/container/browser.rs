@@ -17,7 +17,7 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
         parent: &web_sys::Node,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
         frontend: &WebSys,
-    ) -> Option<web_sys::Element> {
+    ) -> Option<web_sys::HtmlElement> {
         if let Some(child_transmogrifier) =
             frontend.ui.transmogrifier(widget.child.widget_type_id())
         {

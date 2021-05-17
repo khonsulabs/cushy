@@ -17,7 +17,7 @@ impl WebSysTransmogrifier for ButtonTransmogrifier {
         parent: &web_sys::Node,
         widget: &Button,
         _frontend: &WebSys,
-    ) -> Option<web_sys::Element> {
+    ) -> Option<web_sys::HtmlElement> {
         let document = window_document();
         let element = document
             .create_element("button")

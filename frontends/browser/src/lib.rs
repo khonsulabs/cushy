@@ -35,7 +35,7 @@ impl AnyWidgetWebSysTransmogrifier for RegisteredTransmogrifier {
         parent: &web_sys::Node,
         widget: &dyn AnyWidget,
         frontend: &WebSys,
-    ) -> Option<web_sys::Element> {
+    ) -> Option<web_sys::HtmlElement> {
         self.0.transmogrify(parent, widget, frontend)
     }
 }
@@ -56,7 +56,7 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         parent: &web_sys::Node,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
         frontend: &WebSys,
-    ) -> Option<web_sys::Element>;
+    ) -> Option<web_sys::HtmlElement>;
 }
 
 pub trait AnyWidgetWebSysTransmogrifier {
@@ -67,7 +67,7 @@ pub trait AnyWidgetWebSysTransmogrifier {
         parent: &web_sys::Node,
         widget: &dyn AnyWidget,
         frontend: &WebSys,
-    ) -> Option<web_sys::Element>;
+    ) -> Option<web_sys::HtmlElement>;
 }
 
 impl<T> AnyWidgetWebSysTransmogrifier for T
@@ -83,7 +83,7 @@ where
         parent: &web_sys::Node,
         widget: &dyn AnyWidget,
         frontend: &WebSys,
-    ) -> Option<web_sys::Element> {
+    ) -> Option<web_sys::HtmlElement> {
         let widget = widget
             .as_any()
             .downcast_ref::<<T as Transmogrifier<WebSys>>::Widget>()
