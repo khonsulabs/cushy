@@ -12,7 +12,14 @@ readme = "../../README.md"
 
 
 [dependencies]
-web-sys = { version = "0.3", features = ["Document", "Node", "HtmlElement", "Element"] }
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Node",
+    "HtmlElement",
+    "Element",
+    "CssStyleDeclaration",
+] }
 gooey-core = { path = "../../core", version = "0.1.0-dev.0" }
 gooey-widgets = { path = "../../widgets", version = "0.1.0-dev.0" }
 console_error_panic_hook = "0.1"

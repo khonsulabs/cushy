@@ -1,7 +1,7 @@
 use std::any::TypeId;
 
 use gooey_core::{AnyWidget, Gooey, Transmogrifier};
-use gooey_widgets::button::ButtonTransmogrifier;
+use gooey_widgets::{button::ButtonTransmogrifier, container::ContainerTransmogrifier};
 
 mod widgets;
 
@@ -14,6 +14,7 @@ impl WebSys {
         let mut frontend = Self { ui };
 
         frontend.register_transmogrifier(ButtonTransmogrifier);
+        frontend.register_transmogrifier(ContainerTransmogrifier);
 
         frontend
     }
@@ -39,13 +40,24 @@ impl WebSys {
             .get(&self.ui.root_widget().widget_type_id())
             .map(|b| b.as_ref())
         {
-            transmogrifier.transmogrify(&parent, self.ui.root_widget());
+            transmogrifier.transmogrify(&parent, self.ui.root_widget(), self);
         }
+    }
+
+    pub fn transmogrifier(
+        &self,
+        widget_type_id: &TypeId,
+    ) -> Option<&'_ dyn AnyWidgetWebSysTransmogrifier> {
+        self.ui
+            .transmogrifiers
+            .get(widget_type_id)
+            .map(|b| b.as_ref())
     }
 }
 
 impl gooey_core::Frontend for WebSys {
     type AnyWidgetTransmogrifier = Box<dyn AnyWidgetWebSysTransmogrifier>;
+    type Context = WebSys;
 }
 
 pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
@@ -53,6 +65,7 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         &self,
         parent: &web_sys::Node,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
+        frontend: &WebSys,
     ) -> Option<web_sys::Element>;
 }
 
@@ -61,6 +74,7 @@ pub trait AnyWidgetWebSysTransmogrifier {
         &self,
         parent: &web_sys::Node,
         widget: &dyn AnyWidget,
+        frontend: &WebSys,
     ) -> Option<web_sys::Element>;
 }
 
@@ -72,12 +86,13 @@ where
         &self,
         parent: &web_sys::Node,
         widget: &dyn AnyWidget,
+        frontend: &WebSys,
     ) -> Option<web_sys::Element> {
         let widget = widget
             .as_any()
             .downcast_ref::<<T as Transmogrifier<WebSys>>::Widget>()
             .unwrap();
-        <T as WebSysTransmogrifier>::transmogrify(&self, parent, widget)
+        <T as WebSysTransmogrifier>::transmogrify(&self, parent, widget, frontend)
     }
 }
 

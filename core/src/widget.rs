@@ -1,8 +1,5 @@
 use std::any::{Any, TypeId};
 
-use euclid::Size2D;
-use stylecs::Points;
-
 use crate::Frontend;
 
 /// A graphical user interface element.
@@ -16,17 +13,6 @@ pub trait Widget: 'static {
 pub trait Transmogrifier<F: Frontend> {
     /// The type of the widget being transmogrified.
     type Widget: Widget;
-    /// The frontend-specific context type provided to aide in transmogrifying.
-    type Context;
-
-    /// Calculate the content-size needed for this `widget`, trying to stay
-    /// within `constraints`.
-    fn content_size(
-        &self,
-        widget: &Self::Widget,
-        constraints: Size2D<Option<f32>, Points>,
-        context: &Self::Context,
-    ) -> Size2D<f32, Points>;
 }
 
 /// A Widget without any associated types. Useful for implementing frontends.

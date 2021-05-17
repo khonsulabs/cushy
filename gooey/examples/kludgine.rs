@@ -1,18 +1,13 @@
-use gooey::{
-    core::Gooey,
-    frontends::{
-        rasterizer::Rasterizer,
-        renderers::kludgine::{kludgine::prelude::*, Kludgine},
-    },
-    widgets::button::Button,
+use gooey::frontends::{
+    rasterizer::Rasterizer,
+    renderers::kludgine::{kludgine::prelude::*, Kludgine},
 };
+
+mod shared;
 
 fn main() {
     SingleWindowApplication::run(GooeyExample {
-        ui: Rasterizer::<Kludgine>::new(Gooey::new(Button {
-            label: String::from("Hello"),
-            disabled: false,
-        })),
+        ui: Rasterizer::<Kludgine>::new(shared::ui()),
     });
 }
 
@@ -28,7 +23,7 @@ impl WindowCreator for GooeyExample {
 
 impl Window for GooeyExample {
     fn render(&mut self, scene: &Target) -> KludgineResult<()> {
-        self.ui.render(&Kludgine::from(scene));
+        self.ui.render(Kludgine::from(scene));
         Ok(())
     }
 }

@@ -1,9 +1,7 @@
-use gooey::{core::Gooey, frontends::browser::WebSys, widgets::button::Button};
+use gooey::frontends::browser::WebSys;
+
+mod shared;
 
 fn main() {
-    WebSys::new(Gooey::new(Button {
-        label: String::from("Hello"),
-        disabled: false,
-    }))
-    .install_in_id("gooey")
+    WebSys::new(shared::ui()).install_in_id("gooey")
 }

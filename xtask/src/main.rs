@@ -38,7 +38,10 @@ fn build_browser_example() -> Result<(), devx_cmd::Error> {
         "--remove-producers-section"
     )?;
 
-    println!("Build succeeded. ./examples/browser/index.html can be loaded through any http server that supports wasm.");
+    println!(
+        "Build succeeded. ./examples/browser/index.html can be loaded through any http server \
+         that supports wasm."
+    );
     println!();
     println!("For example, using `miniserve` (`cargo install miniserve`):");
     println!();
