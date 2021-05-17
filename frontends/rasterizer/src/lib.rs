@@ -1,4 +1,4 @@
-use std::{any::TypeId, collections::HashMap, marker::PhantomData};
+use std::{any::TypeId, marker::PhantomData};
 
 use gooey_core::{
     euclid::{Point2D, Rect},
@@ -11,19 +11,18 @@ use gooey_widgets::button::ButtonTransmogrifier;
 mod widgets;
 
 pub struct Rasterizer<R: Renderer> {
-    transmogrifiers: HashMap<WidgetTypeId, Box<dyn AnyWidgetRasterizer<R>>>,
-    ui: Gooey,
+    ui: Gooey<Self>,
     _phantom: PhantomData<R>,
 }
 
-type WidgetTypeId = TypeId;
-impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {}
+impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
+    type AnyWidgetTransmogrifier = Box<dyn AnyWidgetRasterizer<R>>;
+}
 
 impl<R: Renderer> Rasterizer<R> {
-    pub fn new(ui: Gooey) -> Self {
+    pub fn new(ui: Gooey<Self>) -> Self {
         let mut frontend = Self {
             ui,
-            transmogrifiers: HashMap::default(),
             _phantom: PhantomData::default(),
         };
 
@@ -36,6 +35,7 @@ impl<R: Renderer> Rasterizer<R> {
         let size = scene.size();
 
         if let Some(transmogrifier) = self
+            .ui
             .transmogrifiers
             .get(&self.ui.root_widget().widget_type_id())
             .map(|b| b.as_ref())
@@ -48,8 +48,12 @@ impl<R: Renderer> Rasterizer<R> {
         }
     }
 
-    pub fn register_transmogrifier<M: WidgetRasterizer<R> + 'static>(&mut self, transmogrifier: M) {
-        self.transmogrifiers
+    pub fn register_transmogrifier<M: WidgetRasterizer<R> + Send + Sync + 'static>(
+        &mut self,
+        transmogrifier: M,
+    ) {
+        self.ui
+            .transmogrifiers
             .insert(TypeId::of::<M::Widget>(), Box::new(transmogrifier));
     }
 
@@ -57,7 +61,10 @@ impl<R: Renderer> Rasterizer<R> {
         &self,
         widget_type_id: &TypeId,
     ) -> Option<&'_ dyn AnyWidgetRasterizer<R>> {
-        self.transmogrifiers.get(widget_type_id).map(|b| b.as_ref())
+        self.ui
+            .transmogrifiers
+            .get(widget_type_id)
+            .map(|b| b.as_ref())
     }
 
     pub fn root_transmogrifier(&'_ self) -> Option<&'_ dyn AnyWidgetRasterizer<R>> {
@@ -80,7 +87,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: Send + Sync {
 
 impl<T, R> AnyWidgetRasterizer<R> for T
 where
-    T: WidgetRasterizer<R> + 'static,
+    T: WidgetRasterizer<R> + Send + Sync + 'static,
     R: Renderer,
 {
     fn render(&self, scene: &R, widget: &dyn AnyWidget, bounds: Rect<f32, Points>) {

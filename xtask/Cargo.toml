@@ -1,0 +1,15 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+authors = ["Jonathan Johnson <jon@khonsulabs.com>"]
+edition = "2018"
+description = "Build-related tasks"
+repository = "https://github.com/khonsulabs/gooey"
+license = "MIT OR Apache-2.0"
+keywords = ["gui", "ui", "user interface"]
+categories = ["gui"]
+readme = "../README.md"
+
+[dependencies]
+devx-cmd = "0.3"
+structopt = "0.3"

@@ -3,6 +3,7 @@ use gooey_core::{
     renderer::{Renderer, StrokeOptions, TextMetrics, TextOptions},
     stylecs::Points,
 };
+pub use kludgine;
 use kludgine::{prelude::*, text::prepared::VMetrics};
 
 pub struct Kludgine {

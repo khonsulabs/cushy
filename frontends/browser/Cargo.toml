@@ -1,6 +1,6 @@
 [package]
 name = "gooey-browser"
-version = "0.1.0"
+version = "0.1.0-dev.0"
 authors = ["Jonathan Johnson <jon@khonsulabs.com>"]
 edition = "2018"
 description = "A virtual-dom frontend for the `gooey` framework."
@@ -10,6 +10,9 @@ keywords = ["gui", "ui", "user interface"]
 categories = ["gui"]
 readme = "../../README.md"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+web-sys = { version = "0.3", features = ["Document", "Node", "HtmlElement", "Element"] }
+gooey-core = { path = "../../core", version = "0.1.0-dev.0" }
+gooey-widgets = { path = "../../widgets", version = "0.1.0-dev.0" }
+console_error_panic_hook = "0.1"

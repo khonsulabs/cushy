@@ -1,15 +1,24 @@
-use crate::{AnyWidget, Widget};
+use std::{any::TypeId, collections::HashMap, marker::PhantomData};
+
+use crate::{AnyWidget, Frontend, Widget};
+
+type WidgetTypeId = TypeId;
 
 /// A graphical user interface.
-pub struct Gooey {
+pub struct Gooey<F: Frontend> {
+    /// The available widget transmogrifiers.
+    pub transmogrifiers: HashMap<WidgetTypeId, <F as Frontend>::AnyWidgetTransmogrifier>,
     root: Box<dyn AnyWidget>,
+    _phantom: PhantomData<F>,
 }
 
-impl Gooey {
+impl<F: Frontend> Gooey<F> {
     /// Creates a user interface using `root`.
-    pub fn new<W: Widget>(root: W) -> Self {
+    pub fn new<W: Widget + Send + Sync>(root: W) -> Self {
         Self {
             root: Box::new(root),
+            transmogrifiers: HashMap::default(),
+            _phantom: PhantomData::default(),
         }
     }
 

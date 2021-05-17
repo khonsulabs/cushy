@@ -2,7 +2,7 @@ use euclid::{Length, Point2D, Rect, Scale, Size2D};
 use stylecs::{palette::Srgba, Pixels, Points};
 
 /// Implements drawing APIs.
-pub trait Renderer: Send + Sync {
+pub trait Renderer {
     /// The size of the area being drawn.
     fn size(&self) -> Size2D<f32, Points>;
     /// The scale when converting between [`Points`] and [`Pixels`].

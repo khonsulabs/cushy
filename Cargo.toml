@@ -6,6 +6,7 @@ members = [
     "frontends/rasterizer",
     "core",
     "widgets",
+    "xtask",
 ]
 
 # [patch.crates-io]

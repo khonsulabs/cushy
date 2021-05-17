@@ -12,9 +12,7 @@
 )]
 #![cfg_attr(doc, deny(rustdoc))]
 
-/// A frontend is an implementation of widgets and layouts.
-pub trait Frontend: Sized {}
-
+mod frontend;
 mod gooey;
 /// Types used for drawing.
 pub mod renderer;
@@ -23,4 +21,4 @@ mod widget;
 pub use euclid;
 pub use stylecs;
 
-pub use self::{gooey::*, widget::*};
+pub use self::{frontend::*, gooey::*, widget::*};

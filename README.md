@@ -1,5 +1,10 @@
 # gooey
 
+[![crate version](https://img.shields.io/crates/v/gooey.svg)](https://crates.io/crates/gooey)
+[![Live Build Status](https://img.shields.io/github/workflow/status/khonsulabs/gooey/Tests/main)](https://github.com/khonsulabs/gooey/actions?query=workflow:Tests)
+[![HTML Coverage Report for `main` branch](https://khonsulabs.github.io/gooey/coverage/badge.svg)](https://khonsulabs.github.io/gooey/coverage/)
+[![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)](https://khonsulabs.github.io/gooey/main/gooey/)
+
 **Warning:** This crate is incredibly early in development.
 
 This is an attempt to write a cross-platform framework for creating user interfaces in Rust.
@@ -27,11 +32,20 @@ The core crate will consist of platform-agnostic code including:
 
 The core widgets that are built-in. At this level, the cross-platform definitions and functionality are provided.
 
-## `gooey-[frontend]`
+## Frontends
 
 These crates define the API that users creating applications will use to initialize and run their user interfaecs. These crates will also define any traits needed to implement `Transmogrifier`s for the front end in question.
 
-This crate will also implement all widgets defined by gooey-core.
+These crates will also implement all widgets defined by gooey-core. These crates are:
+
+* `gooey-rasterizer`: [`Rasterizer`](https://khonsulabs.github.io/gooey/main/gooey/frontends/rasterizer/struct.Rasterizer.html) frontend. Requires a [`Renderer`](https://khonsulabs.github.io/gooey/main/gooey/core/renderer/trait.Renderer.html).
+* `gooey-browser`: [`WebSys`](https://khonsulabs.github.io/gooey/main/gooey/frontends/browser/struct.WebSys.html) frontend. See [`gooey/examples/browser.rs`](./gooey/examples/browser.rs), or run `cargo xtask build-browser-example`.
+
+## Renderers
+
+These crates implement [`Renderer`](https://khonsulabs.github.io/gooey/main/gooey/core/renderer/trait.Renderer.html) for an environment where raw drawing APIs are the only tools available to display a user interface. For example, inside of a game. The only renderer currently being developed is:
+
+* `gooey-kludgine`: Provides the [`Kludgine`](https://khonsulabs.github.io/gooey/main/gooey/frontends/renderers/kludgine/struct.Kludgine.html) renderer. See [`gooey/examples/kludgine.rs`](./gooey/examples/kludgine.rs) or run `cargo run --example kludgine`.
 
 ## `gooey`
 

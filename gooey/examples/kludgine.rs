@@ -1,9 +1,11 @@
 use gooey::{
     core::Gooey,
-    frontends::{rasterizer::Rasterizer, renderers::kludgine::Kludgine},
+    frontends::{
+        rasterizer::Rasterizer,
+        renderers::kludgine::{kludgine::prelude::*, Kludgine},
+    },
+    widgets::button::Button,
 };
-use gooey_widgets::button::Button;
-use kludgine::prelude::*;
 
 fn main() {
     SingleWindowApplication::run(GooeyExample {
