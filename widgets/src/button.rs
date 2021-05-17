@@ -1,9 +1,12 @@
-use gooey_core::Widget;
+use gooey_core::{
+    stylecs::{Points, Style},
+    Widget,
+};
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Debug)]
 pub struct Button {
     pub label: String,
-    pub disabled: bool,
+    pub style: Style<Points>,
 }
 
 pub enum ButtonEvent {

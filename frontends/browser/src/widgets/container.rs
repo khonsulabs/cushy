@@ -1,12 +1,6 @@
-use std::borrow::Cow;
-
-use gooey_core::{
-    stylecs::{Dimension, Points},
-    Transmogrifier,
-};
+use gooey_core::{euclid::Length, stylecs::Points, Transmogrifier};
 use gooey_widgets::container::{Container, ContainerTransmogrifier};
 use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
 
 use crate::{window_document, WebSys, WebSysTransmogrifier};
 
@@ -25,15 +19,16 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
         {
             let container = window_document()
                 .create_element("div")
-                .expect("error creating div");
-            set_element_style(&container, "display", "flex");
-            set_element_style(&container, "align-items", "center");
-            set_element_style(&container, "justify-content", "center");
+                .expect("error creating div")
+                .unchecked_into::<web_sys::HtmlDivElement>();
+            set_element_style(&container, "display", Some("flex"));
+            set_element_style(&container, "align-items", Some("center"));
+            set_element_style(&container, "justify-content", Some("center"));
 
-            set_element_padding(&container, "padding-left", widget.padding.left);
-            set_element_padding(&container, "padding-right", widget.padding.right);
-            set_element_padding(&container, "padding-top", widget.padding.top);
-            set_element_padding(&container, "padding-bottom", widget.padding.bottom);
+            set_element_padding(&container, "padding-left", widget.padding.left());
+            set_element_padding(&container, "padding-right", widget.padding.right());
+            set_element_padding(&container, "padding-top", widget.padding.top());
+            set_element_padding(&container, "padding-bottom", widget.padding.bottom());
 
             parent.append_child(&container).unwrap();
 
@@ -44,26 +39,31 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
                     .append_child(&child)
                     .expect("error appending child");
             }
-            Some(container)
+            Some(container.unchecked_into())
         } else {
             None
         }
     }
 }
-fn set_element_style(element: &web_sys::Element, name: &str, value: &str) {
-    let element_style = element.unchecked_ref::<HtmlElement>().style();
-    element_style.set_property(name, value).unwrap();
+
+fn set_element_style(element: &web_sys::HtmlElement, name: &str, value: Option<&str>) {
+    if let Some(value) = value {
+        element.style().set_property(name, value).unwrap();
+    } else {
+        drop(element.style().remove_property(name));
+    }
 }
 
-fn set_element_padding(element: &web_sys::Element, name: &str, dimension: Dimension<Points>) {
+fn set_element_padding(
+    element: &web_sys::HtmlElement,
+    name: &str,
+    dimension: Option<Length<f32, Points>>,
+) {
     set_element_style(
         element,
         name,
-        match dimension {
-            Dimension::Auto => Cow::Borrowed("auto"),
-            Dimension::Minimal => Cow::Borrowed("0"),
-            Dimension::Length(value) => Cow::Owned(format!("{}pts", value.get())),
-        }
-        .as_ref(),
+        dimension
+            .map(|length| format!("{}pts", length.get()))
+            .as_deref(),
     );
 }

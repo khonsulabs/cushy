@@ -19,6 +19,8 @@ web-sys = { version = "0.3", features = [
     "HtmlElement",
     "Element",
     "CssStyleDeclaration",
+    "HtmlButtonElement",
+    "HtmlDivElement",
 ] }
 gooey-core = { path = "../../core", version = "0.1.0-dev.0" }
 gooey-widgets = { path = "../../widgets", version = "0.1.0-dev.0" }

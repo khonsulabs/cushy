@@ -1,7 +1,7 @@
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     renderer::Renderer,
-    stylecs::{Dimension, Points},
+    stylecs::Points,
     Transmogrifier,
 };
 use gooey_widgets::container::{Container, ContainerTransmogrifier};
@@ -25,22 +25,10 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
                 - size.to_vector()
                 - state.padding.minimum_size().to_vector())
             .to_size();
-            let auto_width_measurements = match (state.padding.left, state.padding.right) {
-                (Dimension::Auto, Dimension::Auto) => 2,
-                (Dimension::Auto, _) | (_, Dimension::Auto) => 1,
-                _ => 0,
-            };
-            let auto_height_measurements = match (state.padding.top, state.padding.bottom) {
-                (Dimension::Auto, Dimension::Auto) => 2,
-                (Dimension::Auto, _) | (_, Dimension::Auto) => 1,
-                _ => 0,
-            };
 
+            // TODO respect alignment
             let child_rect = Rect::new(
-                Point2D::new(
-                    remaining_size.width / auto_width_measurements as f32,
-                    remaining_size.height / auto_height_measurements as f32,
-                ),
+                Point2D::new(remaining_size.width / 2., remaining_size.height / 2.),
                 size,
             );
 

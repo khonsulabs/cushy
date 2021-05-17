@@ -1,5 +1,6 @@
 use gooey_core::{
-    stylecs::{Dimension, Points, Surround},
+    euclid::Length,
+    stylecs::{Points, Surround},
     AnyWidget, Widget,
 };
 
@@ -16,23 +17,23 @@ impl Container {
         }
     }
 
-    pub fn pad_left<F: Into<Dimension<Points>>>(mut self, padding: F) -> Self {
-        self.padding.left = padding.into();
+    pub fn pad_left<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
+        self.padding.left = Some(padding.into().get());
         self
     }
 
-    pub fn pad_right<F: Into<Dimension<Points>>>(mut self, padding: F) -> Self {
-        self.padding.right = padding.into();
+    pub fn pad_right<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
+        self.padding.right = Some(padding.into().get());
         self
     }
 
-    pub fn pad_top<F: Into<Dimension<Points>>>(mut self, padding: F) -> Self {
-        self.padding.top = padding.into();
+    pub fn pad_top<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
+        self.padding.top = Some(padding.into().get());
         self
     }
 
-    pub fn pad_bottom<F: Into<Dimension<Points>>>(mut self, padding: F) -> Self {
-        self.padding.bottom = padding.into();
+    pub fn pad_bottom<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
+        self.padding.bottom = Some(padding.into().get());
         self
     }
 }

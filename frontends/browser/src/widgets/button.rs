@@ -1,6 +1,9 @@
 use gooey_widgets::button::{Button, ButtonTransmogrifier};
+use web_sys::HtmlButtonElement;
 
 use crate::{window_document, WebSys, WebSysTransmogrifier};
+
+use wasm_bindgen::JsCast;
 
 impl gooey_core::Transmogrifier<WebSys> for ButtonTransmogrifier {
     type Widget = Button;
@@ -16,10 +19,10 @@ impl WebSysTransmogrifier for ButtonTransmogrifier {
         let document = window_document();
         let element = document
             .create_element("button")
-            .expect("couldn't create button");
-        // TODO escape html entities
-        element.set_inner_html(&widget.label);
+            .expect("couldn't create button")
+            .unchecked_into::<HtmlButtonElement>();
+        element.set_inner_text(&widget.label);
         parent.append_child(&element).unwrap();
-        Some(element)
+        Some(element.unchecked_into())
     }
 }
