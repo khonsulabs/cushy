@@ -1,5 +1,3 @@
-use stylecs::{Points, UnscaledStyleComponent};
-
 /// Horizontally aligns items.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Alignment {
@@ -10,7 +8,7 @@ pub enum Alignment {
     /// Horizontally align items to the right.
     Right,
 }
-impl UnscaledStyleComponent<Points> for Alignment {}
+impl stylecs::UnscaledStyleComponent for Alignment {}
 
 impl Default for Alignment {
     fn default() -> Self {
@@ -29,7 +27,7 @@ pub enum VerticalAlignment {
     /// Vertically align items to the bottom.
     Bottom,
 }
-impl UnscaledStyleComponent<Points> for VerticalAlignment {}
+impl stylecs::UnscaledStyleComponent for VerticalAlignment {}
 
 impl Default for VerticalAlignment {
     fn default() -> Self {

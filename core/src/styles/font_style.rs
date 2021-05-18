@@ -1,5 +1,3 @@
-use stylecs::{Points, UnscaledStyleComponent};
-
 /// The rendering style of the font.
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum FontStyle {
@@ -17,4 +15,4 @@ impl Default for FontStyle {
     }
 }
 
-impl UnscaledStyleComponent<Points> for FontStyle {}
+impl stylecs::UnscaledStyleComponent for FontStyle {}

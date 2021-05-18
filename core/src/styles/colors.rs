@@ -1,9 +1,9 @@
-use stylecs::{palette::Srgba, ColorPair, Points, UnscaledStyleComponent};
+use stylecs::{palette::Srgba, ColorPair, UnscaledStyleComponent};
 
 /// The foreground color. Used for text and line/border drawing.
 #[derive(Debug, Clone)]
 pub struct ForegroundColor(pub ColorPair);
-impl UnscaledStyleComponent<Points> for ForegroundColor {}
+impl UnscaledStyleComponent for ForegroundColor {}
 
 impl Default for ForegroundColor {
     fn default() -> Self {
@@ -23,8 +23,8 @@ impl From<ForegroundColor> for ColorPair {
 /// The background color. Used for shape fills. Is not inherited.
 #[derive(Debug, Clone)]
 pub struct BackgroundColor(pub ColorPair);
-impl UnscaledStyleComponent<Points> for BackgroundColor {
-    fn unscaled_should_be_inherited(&self) -> bool {
+impl UnscaledStyleComponent for BackgroundColor {
+    fn should_be_inherited(&self) -> bool {
         false
     }
 }

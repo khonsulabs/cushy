@@ -1,6 +1,6 @@
 pub use stylecs::{
-    palette::Srgba, AnyStyleComponent, ColorPair, GenericStyle, Pixels, Points, Style,
-    StyleComponent, StyleSheet, Surround, SystemTheme, UnscaledStyleComponent,
+    palette::Srgba, AnyStyleComponent, ColorPair, Pixels, Points, Style, StyleComponent, Surround,
+    SystemTheme, UnscaledStyleComponent,
 };
 
 mod alignment;

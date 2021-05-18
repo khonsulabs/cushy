@@ -1,5 +1,3 @@
-use stylecs::{Points, UnscaledStyleComponent};
-
 /// The weight of a font.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Weight {
@@ -34,7 +32,7 @@ impl Default for Weight {
     }
 }
 
-impl UnscaledStyleComponent<Points> for Weight {}
+impl stylecs::UnscaledStyleComponent for Weight {}
 
 impl Weight {
     /// Converts the weight to a `u16` using standard CSS mappings.
