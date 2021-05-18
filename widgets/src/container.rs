@@ -1,6 +1,6 @@
 use gooey_core::{
     euclid::Length,
-    stylecs::{Points, Surround},
+    styles::{Points, Surround},
     AnyWidget, Widget,
 };
 

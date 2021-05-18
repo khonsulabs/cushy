@@ -16,9 +16,10 @@ mod frontend;
 mod gooey;
 /// Types used for drawing.
 pub mod renderer;
+/// Types used for styling.
+pub mod styles;
 mod widget;
 
 pub use euclid;
-pub use stylecs;
 
 pub use self::{frontend::*, gooey::*, widget::*};

@@ -1,10 +1,12 @@
 use gooey_core::{
     euclid::{Point2D, Rect},
-    renderer::{Renderer, StrokeOptions, TextMetrics, TextOptions},
-    stylecs::Points,
+    renderer::{Renderer, TextMetrics},
+    styles::{
+        BackgroundColor, FontSize, ForegroundColor, LineWidth, Points, Srgba, Style, SystemTheme,
+    },
 };
 pub use kludgine;
-use kludgine::{prelude::*, text::prepared::VMetrics};
+use kludgine::{prelude::*, text::prepared::PreparedSpan};
 
 pub struct Kludgine {
     target: Target,
@@ -18,12 +20,59 @@ impl<'a> From<&'a Target> for Kludgine {
     }
 }
 
+impl Kludgine {
+    fn prepare_text(&self, text: &str, options: &Style<Points>) -> PreparedSpan {
+        let system_theme = options.get::<SystemTheme>().cloned().unwrap_or_default();
+        Text::prepare(
+            text,
+            &bundled_fonts::ROBOTO,
+            options
+                .get::<FontSize<Points>>()
+                .cloned()
+                .unwrap_or_else(|| FontSize::new(13.))
+                .length(),
+            Color::from(
+                options
+                    .get::<ForegroundColor>()
+                    .cloned()
+                    .unwrap_or_else(|| ForegroundColor(Srgba::new(0., 0., 0., 1.).into()))
+                    .0
+                    .themed_color(&system_theme),
+            ),
+            &self.target,
+        )
+    }
+
+    fn stroke_shape(&self, shape: Shape<Points>, style: &Style<Points>) {
+        let system_theme = style.get::<SystemTheme>().cloned().unwrap_or_default();
+        shape
+            .stroke(
+                Stroke::new(Color::from(
+                    style
+                        .get::<ForegroundColor>()
+                        .cloned()
+                        .unwrap_or_else(|| ForegroundColor(Srgba::new(0., 0., 0., 1.).into()))
+                        .0
+                        .themed_color(&system_theme),
+                ))
+                .line_width(
+                    style
+                        .get::<LineWidth<Points>>()
+                        .cloned()
+                        .unwrap_or_else(|| LineWidth::new(1.))
+                        .length(),
+                ),
+            )
+            .render_at(Point2D::default(), &self.target)
+    }
+}
+
 impl Renderer for Kludgine {
     fn size(&self) -> gooey_core::euclid::Size2D<f32, Points> {
         self.target.size()
     }
 
-    fn scale(&self) -> Scale<f32, Points, gooey_core::stylecs::Pixels> {
+    fn scale(&self) -> Scale<f32, Points, gooey_core::styles::Pixels> {
         self.target.scale_factor()
     }
 
@@ -31,47 +80,43 @@ impl Renderer for Kludgine {
         &self,
         text: &str,
         baseline_origin: Point2D<f32, Points>,
-        options: &TextOptions,
+        options: &Style<Points>,
     ) {
-        Text::span(text, Style::default())
-            .render_baseline_at(&self.target, baseline_origin, TextWrap::NoWrap)
+        self.prepare_text(text, options)
+            .render_baseline_at(&self.target, baseline_origin)
             .unwrap();
     }
 
     fn measure_text(
         &self,
         text: &str,
-        options: &TextOptions,
+        options: &Style<Points>,
     ) -> gooey_core::renderer::TextMetrics<Points> {
-        let text = Text::span(text, Style::default())
-            .wrap(&self.target, TextWrap::NoWrap)
-            .unwrap();
-        let vmetrics = text
-            .lines
-            .first()
-            .map(|line| line.metrics)
-            .unwrap_or(VMetrics {
-                ascent: Length::default(),
-                descent: Length::default(),
-                line_gap: Length::default(),
-            });
+        let text = self.prepare_text(text, options);
+        let vmetrics = text.metrics();
         TextMetrics {
-            width: text.size().width(),
-            ascent: vmetrics.ascent,
-            descent: vmetrics.descent,
-            line_gap: vmetrics.line_gap,
+            width: text.data.width,
+            ascent: Pixels::new(vmetrics.ascent),
+            descent: Pixels::new(vmetrics.descent),
+            line_gap: Pixels::new(vmetrics.line_gap),
         } / self.target.scale_factor()
     }
 
-    fn stroke_rect(&self, rect: &Rect<f32, Points>, options: StrokeOptions) {
-        Shape::rect(*rect)
-            .stroke(Stroke::new(Color::from(options.color)))
-            .render_at(Point2D::default(), &self.target);
+    fn stroke_rect(&self, rect: &Rect<f32, Points>, style: &Style<Points>) {
+        self.stroke_shape(Shape::rect(*rect), style);
     }
 
-    fn fill_rect(&self, rect: &Rect<f32, Points>, color: gooey_core::stylecs::palette::Srgba) {
+    fn fill_rect(&self, rect: &Rect<f32, Points>, style: &Style<Points>) {
+        let system_theme = style.get::<SystemTheme>().cloned().unwrap_or_default();
         Shape::rect(*rect)
-            .fill(Fill::new(Color::from(color)))
+            .fill(Fill::new(Color::from(
+                style
+                    .get::<BackgroundColor>()
+                    .cloned()
+                    .unwrap_or_else(|| BackgroundColor(Srgba::new(1., 1., 1., 1.).into()))
+                    .0
+                    .themed_color(&system_theme),
+            )))
             .render_at(Point2D::default(), &self.target);
     }
 
@@ -79,8 +124,8 @@ impl Renderer for Kludgine {
         &self,
         point_a: Point2D<f32, Points>,
         point_b: Point2D<f32, Points>,
-        options: StrokeOptions,
+        style: &Style<Points>,
     ) {
-        todo!()
+        self.stroke_shape(Shape::polygon(vec![point_a, point_b]), style);
     }
 }

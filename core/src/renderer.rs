@@ -1,5 +1,5 @@
 use euclid::{Length, Point2D, Rect, Scale, Size2D};
-use stylecs::{palette::Srgba, Pixels, Points};
+use stylecs::{palette::Srgba, Pixels, Points, Style};
 
 /// Implements drawing APIs.
 pub trait Renderer {
@@ -9,22 +9,22 @@ pub trait Renderer {
     fn scale(&self) -> Scale<f32, Points, Pixels>;
 
     /// Renders `text` at `baseline_origin` with `options`.
-    fn render_text(&self, text: &str, baseline_origin: Point2D<f32, Points>, options: &TextOptions);
+    fn render_text(&self, text: &str, baseline_origin: Point2D<f32, Points>, style: &Style<Points>);
     /// Measures `text` using `options`.
     #[must_use]
-    fn measure_text(&self, text: &str, options: &TextOptions) -> TextMetrics<Points>;
+    fn measure_text(&self, text: &str, style: &Style<Points>) -> TextMetrics<Points>;
 
     /// Strokes the outline of `rect` using `options`.
-    fn stroke_rect(&self, rect: &Rect<f32, Points>, options: StrokeOptions);
+    fn stroke_rect(&self, rect: &Rect<f32, Points>, style: &Style<Points>);
     /// Fills `rect` using `color`.
-    fn fill_rect(&self, rect: &Rect<f32, Points>, color: Srgba);
+    fn fill_rect(&self, rect: &Rect<f32, Points>, style: &Style<Points>);
 
     /// Draws a line between `point_a` and `point_b` using `options`.
     fn stroke_line(
         &self,
         point_a: Point2D<f32, Points>,
         point_b: Point2D<f32, Points>,
-        options: StrokeOptions,
+        style: &Style<Points>,
     );
 }
 

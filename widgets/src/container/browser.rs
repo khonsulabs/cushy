@@ -1,5 +1,5 @@
 use gooey_browser::{AnyWidgetWebSysTransmogrifier, WebSys, WebSysTransmogrifier};
-use gooey_core::{euclid::Length, stylecs::Points, Transmogrifier};
+use gooey_core::{euclid::Length, styles::Points, Transmogrifier};
 use wasm_bindgen::JsCast;
 
 use crate::{

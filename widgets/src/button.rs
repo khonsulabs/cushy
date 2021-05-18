@@ -1,5 +1,5 @@
 use gooey_core::{
-    stylecs::{Points, Style},
+    styles::{Points, Style},
     Widget,
 };
 

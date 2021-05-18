@@ -4,7 +4,7 @@ use std::{any::TypeId, ops::Deref, sync::Arc};
 pub use gooey_core::renderer::Renderer;
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
-    stylecs::Points,
+    styles::Points,
     AnyTransmogrifier, AnyWidget, Gooey, Transmogrifier,
 };
 

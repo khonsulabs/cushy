@@ -1,5 +1,5 @@
 use gooey::{
-    core::{stylecs::Style, Frontend, Gooey},
+    core::{styles::Style, Frontend, Gooey},
     widgets::{button::Button, container::Container},
 };
 
