@@ -4,10 +4,15 @@ use gooey::{
 };
 
 pub fn ui<F: Frontend>() -> Gooey<F> {
-    Gooey::new(Container::new(Button {
-        label: String::from("Hello"),
-        style: Style::default(),
-    }))
+    Gooey::with(|storage| {
+        Container::new(
+            Button {
+                label: String::from("Hello, World"),
+                style: Style::default(),
+            },
+            storage,
+        )
+    })
 }
 
 fn main() {

@@ -8,12 +8,14 @@ use crate::{
 };
 
 impl gooey_core::Transmogrifier<WebSys> for ButtonTransmogrifier {
+    type State = u32;
     type Widget = Button;
 }
 
 impl WebSysTransmogrifier for ButtonTransmogrifier {
     fn transmogrify(
         &self,
+        _state: &Self::State,
         parent: &web_sys::Node,
         widget: &Button,
         _frontend: &WebSys,

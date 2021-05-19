@@ -5,7 +5,7 @@ pub use gooey_core::renderer::Renderer;
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     styles::Points,
-    AnyTransmogrifier, AnyWidget, Gooey, Transmogrifier,
+    AnySendSync, AnyTransmogrifier, AnyWidgetInstance, Gooey, Transmogrifier, TransmogrifierState,
 };
 
 pub struct Rasterizer<R: Renderer> {
@@ -37,18 +37,18 @@ impl<R: Renderer> Rasterizer<R> {
     pub fn render(&self, scene: R) {
         let size = scene.size();
 
-        if let Some(transmogrifier) = self.ui.root_transmogrifier() {
-            transmogrifier.render(
-                &Rasterizer {
-                    ui: self.ui.clone(),
-                    renderer: Some(scene),
-                },
-                self.ui.root_widget(),
-                Rect::new(Point2D::default(), size),
-            );
-        } else {
-            todo!("Return an error -- unknown widget type")
-        }
+        self.ui
+            .with_transmogrifier(self.ui.root_widget(), |transmogrifier, state| {
+                transmogrifier.render(
+                    state,
+                    &Rasterizer {
+                        ui: self.ui.clone(),
+                        renderer: Some(scene),
+                    },
+                    self.ui.root_widget(),
+                    Rect::new(Point2D::default(), size),
+                );
+            });
     }
 }
 
@@ -59,6 +59,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + 'static
 
     fn render(
         &self,
+        state: &Self::State,
         rasterizer: &Rasterizer<R>,
         widget: &<Self as Transmogrifier<Rasterizer<R>>>::Widget,
         bounds: Rect<f32, Points>,
@@ -68,6 +69,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + 'static
     /// within `constraints`.
     fn content_size(
         &self,
+        state: &Self::State,
         widget: &Self::Widget,
         rasterizer: &Rasterizer<R>,
         constraints: Size2D<Option<f32>, Points>,
@@ -75,11 +77,19 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + 'static
 }
 
 pub trait AnyWidgetRasterizer<R: Renderer>: Send + Sync {
+    fn default_state(&self) -> TransmogrifierState;
     fn widget_type_id(&self) -> TypeId;
-    fn render(&self, rasterizer: &Rasterizer<R>, widget: &dyn AnyWidget, bounds: Rect<f32, Points>);
+    fn render(
+        &self,
+        state: &mut dyn AnySendSync,
+        rasterizer: &Rasterizer<R>,
+        widget: &dyn AnyWidgetInstance,
+        bounds: Rect<f32, Points>,
+    );
     fn content_size(
         &self,
-        widget: &dyn AnyWidget,
+        state: &mut dyn AnySendSync,
+        widget: &dyn AnyWidgetInstance,
         rasterizer: &Rasterizer<R>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points>;
@@ -96,20 +106,26 @@ where
 
     fn render(
         &self,
+        state: &mut dyn AnySendSync,
         rasterizer: &Rasterizer<R>,
-        widget: &dyn AnyWidget,
+        widget: &dyn AnyWidgetInstance,
         bounds: Rect<f32, Points>,
     ) {
         let widget = widget
             .as_any()
             .downcast_ref::<<T as Transmogrifier<Rasterizer<R>>>::Widget>()
             .unwrap();
-        <T as WidgetRasterizer<R>>::render(&self, rasterizer, widget, bounds)
+        let state = state
+            .as_mut_any()
+            .downcast_mut::<<T as Transmogrifier<Rasterizer<R>>>::State>()
+            .unwrap();
+        <T as WidgetRasterizer<R>>::render(&self, state, rasterizer, widget, bounds)
     }
 
     fn content_size(
         &self,
-        widget: &dyn AnyWidget,
+        state: &mut dyn AnySendSync,
+        widget: &dyn AnyWidgetInstance,
         rasterizer: &Rasterizer<R>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
@@ -117,7 +133,17 @@ where
             .as_any()
             .downcast_ref::<<T as Transmogrifier<Rasterizer<R>>>::Widget>()
             .unwrap();
-        <T as WidgetRasterizer<R>>::content_size(&self, widget, rasterizer, constraints)
+        let state = state
+            .as_mut_any()
+            .downcast_mut::<<T as Transmogrifier<Rasterizer<R>>>::State>()
+            .unwrap();
+        <T as WidgetRasterizer<R>>::content_size(&self, state, widget, rasterizer, constraints)
+    }
+
+    fn default_state(&self) -> TransmogrifierState {
+        TransmogrifierState(Box::new(
+            <<T as Transmogrifier<Rasterizer<R>>>::State as Default>::default(),
+        ))
     }
 }
 
@@ -133,7 +159,11 @@ impl<R: Renderer> Deref for RegisteredTransmogrifier<R> {
 
 impl<R: Renderer> AnyTransmogrifier for RegisteredTransmogrifier<R> {
     fn widget_type_id(&self) -> TypeId {
-        AnyWidgetRasterizer::widget_type_id(self.0.as_ref())
+        self.0.widget_type_id()
+    }
+
+    fn default_state(&self) -> gooey_core::TransmogrifierState {
+        self.0.default_state()
     }
 }
 

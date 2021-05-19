@@ -1,6 +1,8 @@
 use std::any::TypeId;
 
-use gooey_core::{AnyTransmogrifier, AnyWidget, Gooey, Transmogrifier};
+use gooey_core::{
+    AnySendSync, AnyTransmogrifier, AnyWidgetInstance, Gooey, Transmogrifier, TransmogrifierState,
+};
 
 pub struct WebSys {
     pub ui: Gooey<Self>,
@@ -17,9 +19,10 @@ impl WebSys {
         let document = window.document().unwrap();
         let parent = document.get_element_by_id(id).expect("id not found");
 
-        if let Some(transmogrifier) = self.ui.root_transmogrifier() {
-            transmogrifier.transmogrify(&parent, self.ui.root_widget(), self);
-        }
+        self.ui
+            .with_transmogrifier(self.ui.root_widget(), |transmogrifier, state| {
+                transmogrifier.transmogrify(state, &parent, self.ui.root_widget(), self);
+            });
     }
 }
 
@@ -32,17 +35,26 @@ impl AnyWidgetWebSysTransmogrifier for RegisteredTransmogrifier {
 
     fn transmogrify(
         &self,
+        state: &mut dyn AnySendSync,
         parent: &web_sys::Node,
-        widget: &dyn AnyWidget,
+        widget: &dyn AnyWidgetInstance,
         frontend: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
-        self.0.transmogrify(parent, widget, frontend)
+        self.0.transmogrify(state, parent, widget, frontend)
+    }
+
+    fn default_state(&self) -> TransmogrifierState {
+        self.0.default_state()
     }
 }
 
 impl AnyTransmogrifier for RegisteredTransmogrifier {
     fn widget_type_id(&self) -> TypeId {
-        self.0.as_ref().widget_type_id()
+        self.0.widget_type_id()
+    }
+
+    fn default_state(&self) -> TransmogrifierState {
+        self.0.default_state()
     }
 }
 
@@ -53,6 +65,7 @@ impl gooey_core::Frontend for WebSys {
 pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
     fn transmogrify(
         &self,
+        state: &Self::State,
         parent: &web_sys::Node,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
         frontend: &WebSys,
@@ -62,10 +75,13 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
 pub trait AnyWidgetWebSysTransmogrifier {
     fn widget_type_id(&self) -> TypeId;
 
+    fn default_state(&self) -> TransmogrifierState;
+
     fn transmogrify(
         &self,
+        state: &mut dyn AnySendSync,
         parent: &web_sys::Node,
-        widget: &dyn AnyWidget,
+        widget: &dyn AnyWidgetInstance,
         frontend: &WebSys,
     ) -> Option<web_sys::HtmlElement>;
 }
@@ -80,15 +96,26 @@ where
 
     fn transmogrify(
         &self,
+        state: &mut dyn AnySendSync,
         parent: &web_sys::Node,
-        widget: &dyn AnyWidget,
+        widget: &dyn AnyWidgetInstance,
         frontend: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
         let widget = widget
             .as_any()
             .downcast_ref::<<T as Transmogrifier<WebSys>>::Widget>()
             .unwrap();
-        <T as WebSysTransmogrifier>::transmogrify(&self, parent, widget, frontend)
+        let state = state
+            .as_mut_any()
+            .downcast_mut::<<T as Transmogrifier<WebSys>>::State>()
+            .unwrap();
+        <T as WebSysTransmogrifier>::transmogrify(&self, state, parent, widget, frontend)
+    }
+
+    fn default_state(&self) -> TransmogrifierState {
+        TransmogrifierState(Box::new(
+            <<T as Transmogrifier<WebSys>>::State as Default>::default(),
+        ))
     }
 }
 
