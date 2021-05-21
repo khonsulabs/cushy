@@ -1,8 +1,8 @@
 use std::any::TypeId;
 
 use gooey_core::{
-    AnyChannels, AnyFrontendTransmogrifier, AnySendSync, AnyWidget, Channels, Gooey,
-    Transmogrifier, TransmogrifierState, WidgetId,
+    AnyChannels, AnySendSync, AnyTransmogrifier, AnyWidget, Channels, Gooey, Transmogrifier,
+    TransmogrifierState, WidgetId,
 };
 
 pub struct WebSys {
@@ -46,7 +46,7 @@ impl AnyWidgetWebSysTransmogrifier for RegisteredTransmogrifier {
 }
 
 impl gooey_core::Frontend for WebSys {
-    type AnyWidgetTransmogrifier = RegisteredTransmogrifier;
+    type AnyTransmogrifier = RegisteredTransmogrifier;
     type Context = WebSys;
 
     fn gooey(&self) -> &'_ Gooey<Self> {
@@ -65,7 +65,7 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
     ) -> Option<web_sys::HtmlElement>;
 }
 
-pub trait AnyWidgetWebSysTransmogrifier: AnyFrontendTransmogrifier<WebSys> {
+pub trait AnyWidgetWebSysTransmogrifier: AnyTransmogrifier<WebSys> {
     fn transmogrify(
         &self,
         state: &mut dyn AnySendSync,
@@ -78,7 +78,7 @@ pub trait AnyWidgetWebSysTransmogrifier: AnyFrontendTransmogrifier<WebSys> {
 
 impl<T> AnyWidgetWebSysTransmogrifier for T
 where
-    T: WebSysTransmogrifier + AnyFrontendTransmogrifier<WebSys> + Send + Sync + 'static,
+    T: WebSysTransmogrifier + AnyTransmogrifier<WebSys> + Send + Sync + 'static,
 {
     fn transmogrify(
         &self,
@@ -104,7 +104,7 @@ where
     }
 }
 
-impl AnyFrontendTransmogrifier<WebSys> for RegisteredTransmogrifier {
+impl AnyTransmogrifier<WebSys> for RegisteredTransmogrifier {
     fn process_messages(
         &self,
         state: &mut dyn AnySendSync,

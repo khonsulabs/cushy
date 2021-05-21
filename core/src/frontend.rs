@@ -8,7 +8,7 @@ use crate::{
 /// A frontend is an implementation of widgets and layouts.
 pub trait Frontend: Sized {
     /// The generic-free type of the frontend-specific transmogrifier trait.
-    type AnyWidgetTransmogrifier: AnyFrontendTransmogrifier<Self>;
+    type AnyTransmogrifier: AnyTransmogrifier<Self>;
     /// The context type provided to aide in transmogrifying.
     type Context;
 
@@ -17,7 +17,7 @@ pub trait Frontend: Sized {
 }
 
 /// A Transmogrifier without any associated types.
-pub trait AnyFrontendTransmogrifier<F: Frontend> {
+pub trait AnyTransmogrifier<F: Frontend> {
     /// Returns the [`TypeId`] of the underlying [`Widget`](crate::Widget).
     fn widget_type_id(&self) -> TypeId;
     /// Initializes default state for a newly created widget.
@@ -33,7 +33,7 @@ pub trait AnyFrontendTransmogrifier<F: Frontend> {
     );
 }
 
-impl<F: Frontend, T> AnyFrontendTransmogrifier<F> for T
+impl<F: Frontend, T> AnyTransmogrifier<F> for T
 where
     T: Transmogrifier<F>,
 {

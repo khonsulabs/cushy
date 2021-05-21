@@ -5,7 +5,7 @@ pub use gooey_core::renderer::Renderer;
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     styles::Points,
-    AnyFrontendTransmogrifier, AnySendSync, AnyWidget, Frontend, Gooey, Transmogrifier,
+    AnySendSync, AnyTransmogrifier, AnyWidget, Frontend, Gooey, Transmogrifier,
     TransmogrifierState, WidgetId,
 };
 
@@ -15,7 +15,7 @@ pub struct Rasterizer<R: Renderer> {
 }
 
 impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
-    type AnyWidgetTransmogrifier = RegisteredTransmogrifier<Self>;
+    type AnyTransmogrifier = RegisteredTransmogrifier<Self>;
     type Context = Self;
 
     fn gooey(&self) -> &'_ Gooey<Self> {
@@ -83,7 +83,7 @@ pub trait WidgetRasterizer<F: Frontend>: Transmogrifier<F> + 'static {
     ) -> Size2D<f32, Points>;
 }
 
-pub trait AnyWidgetRasterizer<F: Frontend>: AnyFrontendTransmogrifier<F> + Send + Sync {
+pub trait AnyWidgetRasterizer<F: Frontend>: AnyTransmogrifier<F> + Send + Sync {
     fn render(
         &self,
         state: &mut dyn AnySendSync,
@@ -102,7 +102,7 @@ pub trait AnyWidgetRasterizer<F: Frontend>: AnyFrontendTransmogrifier<F> + Send 
 
 impl<T, F> AnyWidgetRasterizer<F> for T
 where
-    T: WidgetRasterizer<F> + AnyFrontendTransmogrifier<F> + Send + Sync + 'static,
+    T: WidgetRasterizer<F> + AnyTransmogrifier<F> + Send + Sync + 'static,
     F: Frontend,
 {
     fn render(
@@ -142,9 +142,7 @@ where
     }
 }
 
-impl<R: Renderer> AnyFrontendTransmogrifier<Rasterizer<R>>
-    for RegisteredTransmogrifier<Rasterizer<R>>
-{
+impl<R: Renderer> AnyTransmogrifier<Rasterizer<R>> for RegisteredTransmogrifier<Rasterizer<R>> {
     fn process_messages(
         &self,
         state: &mut dyn AnySendSync,

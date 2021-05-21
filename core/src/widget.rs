@@ -6,7 +6,7 @@ use std::{
 
 use flume::{Receiver, Sender};
 
-use crate::{Frontend, TransmogrifierStorage};
+use crate::{Frontend, WidgetStorage};
 
 /// A graphical user interface element.
 pub trait Widget: Debug + Send + Sync + 'static {
@@ -121,7 +121,7 @@ pub trait AnyChannels: AnySendSync {
 pub struct TransmogrifierState {
     /// The `State` type, stored without its type information.
     pub state: Box<dyn AnySendSync>,
-    /// The `Channels<Widget>` type, stoerd without its type information.
+    /// The `Channels<Widget>` type, stored without its type information.
     pub channels: Box<dyn AnyChannels>,
 }
 
@@ -151,14 +151,14 @@ where
 pub struct Context<W: Widget> {
     widget: WidgetId,
     command_sender: Sender<W::TransmogrifierCommand>,
-    storage: TransmogrifierStorage,
+    storage: WidgetStorage,
     _widget: PhantomData<W>,
 }
 
 impl<W: Widget> Context<W> {
     /// Create a new `Context`.
     #[must_use]
-    pub fn new(channels: &Channels<W>, storage: &TransmogrifierStorage) -> Self {
+    pub fn new(channels: &Channels<W>, storage: &WidgetStorage) -> Self {
         Self {
             widget: channels.widget_id.clone(),
             command_sender: channels.command_sender.clone(),

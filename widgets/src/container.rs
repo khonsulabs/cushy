@@ -1,7 +1,7 @@
 use gooey_core::{
     euclid::Length,
     styles::{Points, Surround},
-    TransmogrifierStorage, Widget, WidgetRegistration,
+    Widget, WidgetRegistration, WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -17,7 +17,7 @@ pub struct Container {
 }
 
 impl Container {
-    pub fn new<W: Widget>(child: W, storage: &TransmogrifierStorage) -> Self {
+    pub fn new<W: Widget>(child: W, storage: &WidgetStorage) -> Self {
         Self {
             child: storage.register(child),
             padding: Surround::default(),

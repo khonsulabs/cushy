@@ -10,40 +10,24 @@ use std::{
 };
 
 use crate::{
-    AnyChannels, AnyFrontendTransmogrifier, AnySendSync, AnyWidget, Frontend, TransmogrifierState,
-    Widget, WidgetId,
+    AnyChannels, AnySendSync, AnyTransmogrifier, AnyWidget, Frontend, TransmogrifierState, Widget,
+    WidgetId,
 };
 
 type WidgetTypeId = TypeId;
 
 /// A graphical user interface.
 pub struct Gooey<F: Frontend> {
-    /// The available widget transmogrifiers.
-    pub transmogrifiers: HashMap<WidgetTypeId, <F as Frontend>::AnyWidgetTransmogrifier>,
+    transmogrifiers: HashMap<WidgetTypeId, <F as Frontend>::AnyTransmogrifier>,
     root: WidgetRegistration,
-    storage: TransmogrifierStorage,
+    storage: WidgetStorage,
     _phantom: PhantomData<F>,
-}
-
-/// Generic storage for a transmogrifier.
-#[derive(Clone, Default, Debug)]
-pub struct TransmogrifierStorage {
-    data: Arc<TransmogrifierStorageData>,
-}
-
-#[derive(Default, Debug)]
-struct TransmogrifierStorageData {
-    widget_id_generator: AtomicU32,
-    state: RwLock<HashMap<u32, WidgetState>>,
-    widgets_with_messages: Mutex<HashSet<WidgetId>>,
 }
 
 impl<F: Frontend> Gooey<F> {
     /// Creates a user interface using `root`.
-    pub fn with<W: Widget + Send + Sync, C: FnOnce(&TransmogrifierStorage) -> W>(
-        initializer: C,
-    ) -> Self {
-        let storage = TransmogrifierStorage::default();
+    pub fn with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(initializer: C) -> Self {
+        let storage = WidgetStorage::default();
         let root = initializer(&storage);
         let root = storage.register(root);
         Self {
@@ -66,15 +50,14 @@ impl<F: Frontend> Gooey<F> {
     ///
     /// If an existing transmogrifier is already registered, the transmogrifier
     /// is returned in `Err()`.
-    pub fn register_transmogrifier<T: Into<<F as Frontend>::AnyWidgetTransmogrifier>>(
+    pub fn register_transmogrifier<T: Into<<F as Frontend>::AnyTransmogrifier>>(
         &mut self,
         transmogrifier: T,
-    ) -> Result<(), <F as Frontend>::AnyWidgetTransmogrifier> {
+    ) -> Result<(), <F as Frontend>::AnyTransmogrifier> {
         let transmogrifier = transmogrifier.into();
-        let type_id =
-            <<F as Frontend>::AnyWidgetTransmogrifier as AnyFrontendTransmogrifier<F>>::widget_type_id(
-                &transmogrifier,
-            );
+        let type_id = <<F as Frontend>::AnyTransmogrifier as AnyTransmogrifier<F>>::widget_type_id(
+            &transmogrifier,
+        );
         if self.transmogrifiers.contains_key(&type_id) {
             return Err(transmogrifier);
         }
@@ -90,7 +73,7 @@ impl<F: Frontend> Gooey<F> {
     pub fn with_transmogrifier<
         R,
         C: FnOnce(
-            &'_ <F as Frontend>::AnyWidgetTransmogrifier,
+            &'_ <F as Frontend>::AnyTransmogrifier,
             &mut dyn AnySendSync,
             &mut dyn AnyWidget,
             &dyn AnyChannels,
@@ -117,7 +100,7 @@ impl<F: Frontend> Gooey<F> {
     #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
     pub fn for_each_widget<
         C: FnMut(
-            &'_ <F as Frontend>::AnyWidgetTransmogrifier,
+            &'_ <F as Frontend>::AnyTransmogrifier,
             &mut dyn AnySendSync,
             &dyn AnyWidget,
             &dyn AnyChannels,
@@ -158,14 +141,27 @@ impl<F: Frontend> Gooey<F> {
 }
 
 impl<F: Frontend> Deref for Gooey<F> {
-    type Target = TransmogrifierStorage;
+    type Target = WidgetStorage;
 
     fn deref(&self) -> &Self::Target {
         &self.storage
     }
 }
 
-impl TransmogrifierStorage {
+/// Generic-type-less widget storage.
+#[derive(Clone, Default, Debug)]
+pub struct WidgetStorage {
+    data: Arc<WidgetStorageData>,
+}
+
+#[derive(Default, Debug)]
+struct WidgetStorageData {
+    widget_id_generator: AtomicU32,
+    state: RwLock<HashMap<u32, WidgetState>>,
+    widgets_with_messages: Mutex<HashSet<WidgetId>>,
+}
+
+impl WidgetStorage {
     /// Register a widget with storage.
     #[must_use]
     #[allow(clippy::missing_panics_doc)] // The unwrap is unreachable
@@ -261,7 +257,7 @@ impl WidgetState {
     /// Panics if internal lock poisoning occurs.
     pub fn with_state<
         R,
-        T: AnyFrontendTransmogrifier<F>,
+        T: AnyTransmogrifier<F>,
         F: Frontend,
         C: FnOnce(&mut dyn AnySendSync, &mut dyn AnyWidget, &dyn AnyChannels) -> R,
     >(
@@ -282,14 +278,14 @@ impl WidgetState {
 }
 
 /// References an initialized widget. On drop, frees the storage and id.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct WidgetRegistration {
     id: WidgetId,
-    storage: TransmogrifierStorage,
+    storage: WidgetStorage,
 }
 
 impl WidgetRegistration {
-    pub(crate) fn new<W: Widget>(id: u32, storage: &TransmogrifierStorage) -> Self {
+    pub(crate) fn new<W: Widget>(id: u32, storage: &WidgetStorage) -> Self {
         Self {
             id: WidgetId {
                 id,
