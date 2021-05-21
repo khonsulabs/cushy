@@ -6,7 +6,7 @@ use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     styles::Points,
     AnySendSync, AnyTransmogrifier, AnyWidget, Frontend, Gooey, Transmogrifier,
-    TransmogrifierState, WidgetRegistration, WidgetStorage,
+    TransmogrifierState, WidgetRegistration,
 };
 
 #[derive(Debug)]
@@ -161,11 +161,11 @@ impl<R: Renderer> AnyTransmogrifier<Rasterizer<R>> for RegisteredTransmogrifier<
         state: &mut dyn AnySendSync,
         widget: &mut dyn AnyWidget,
         channels: &dyn gooey_core::AnyChannels,
-        storage: &WidgetStorage,
+        frontend: &Rasterizer<R>,
     ) {
         self.0
             .as_ref()
-            .process_messages(state, widget, channels, storage);
+            .process_messages(state, widget, channels, frontend);
     }
 
     fn widget_type_id(&self) -> TypeId {

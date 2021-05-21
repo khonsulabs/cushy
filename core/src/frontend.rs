@@ -2,7 +2,7 @@ use std::{any::TypeId, fmt::Debug, sync::Arc};
 
 use crate::{
     AnyChannels, AnySendSync, AnyWidget, Channels, Gooey, Transmogrifier, TransmogrifierState,
-    WidgetRegistration, WidgetStorage,
+    WidgetRegistration,
 };
 
 /// A frontend is an implementation of widgets and layouts.
@@ -29,7 +29,7 @@ pub trait AnyTransmogrifier<F: Frontend>: Debug {
         state: &mut dyn AnySendSync,
         widget: &mut dyn AnyWidget,
         channels: &dyn AnyChannels,
-        storage: &WidgetStorage,
+        frontend: &F,
     );
 }
 
@@ -42,7 +42,7 @@ where
         state: &mut dyn AnySendSync,
         widget: &mut dyn AnyWidget,
         channels: &dyn AnyChannels,
-        storage: &WidgetStorage,
+        frontend: &F,
     ) {
         let widget = widget
             .as_mut_any()
@@ -56,7 +56,7 @@ where
             .as_any()
             .downcast_ref::<Channels<<Self as Transmogrifier<F>>::Widget>>()
             .unwrap();
-        <Self as Transmogrifier<F>>::process_messages(self, state, widget, storage, channels);
+        <Self as Transmogrifier<F>>::process_messages(self, state, widget, frontend, channels);
     }
 
     fn widget_type_id(&self) -> TypeId {

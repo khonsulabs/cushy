@@ -1,5 +1,5 @@
 use gooey_browser::{WebSys, WebSysTransmogrifier, WidgetClosure};
-use gooey_core::{Channels, Widget, WidgetStorage};
+use gooey_core::{Channels, Widget};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlButtonElement;
 
@@ -17,7 +17,8 @@ impl gooey_core::Transmogrifier<WebSys> for ButtonTransmogrifier {
         state: &mut Self::State,
         command: <Self::Widget as Widget>::TransmogrifierCommand,
         widget: &Self::Widget,
-        storage: &WidgetStorage,
+        channels: &Channels<Button>,
+        frontend: &WebSys,
     ) {
         todo!("Got command:{:?}", command)
     }

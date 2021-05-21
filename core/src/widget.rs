@@ -53,7 +53,8 @@ pub trait Transmogrifier<F: Frontend>: Debug {
         state: &mut Self::State,
         command: <Self::Widget as Widget>::TransmogrifierCommand,
         widget: &Self::Widget,
-        storage: &WidgetStorage,
+        channels: &Channels<Self::Widget>,
+        frontend: &F,
     ) {
         unimplemented!(
             "widget tried to send a command, but the transmogrifier wasn't expecting one"
@@ -65,18 +66,18 @@ pub trait Transmogrifier<F: Frontend>: Debug {
         &self,
         state: &mut Self::State,
         widget: &mut Self::Widget,
-        storage: &WidgetStorage,
+        frontend: &F,
         channels: &Channels<Self::Widget>,
     ) {
         // The frontend is initiating this call, so we should process events that the
         // Transmogrifier sends first.
         while let Ok(event) = channels.event_receiver.try_recv() {
-            let context = Context::new(channels, storage);
+            let context = Context::new(channels, frontend.gooey());
             widget.receive_event(event, &context);
         }
 
         while let Ok(command) = channels.command_receiver.try_recv() {
-            self.receive_command(state, command, widget, storage);
+            self.receive_command(state, command, widget, channels, frontend);
         }
     }
 

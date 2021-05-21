@@ -115,7 +115,7 @@ impl<F: Frontend> Gooey<F> {
     /// # Panics
     ///
     /// Panics upon internal locking errors.
-    pub fn process_widget_messages(&self) {
+    pub fn process_widget_messages(&self, frontend: &F) {
         let widgets_with_messages = {
             let mut widgets_with_messages =
                 self.data.storage.data.widgets_with_messages.lock().unwrap();
@@ -128,7 +128,7 @@ impl<F: Frontend> Gooey<F> {
 
         for widget_id in widgets_with_messages {
             self.with_transmogrifier(&widget_id, |transmogrifier, state, widget, channels| {
-                transmogrifier.process_messages(state, widget, channels, &self.data.storage);
+                transmogrifier.process_messages(state, widget, channels, frontend);
             });
         }
     }
@@ -137,16 +137,17 @@ impl<F: Frontend> Gooey<F> {
         &self,
         widget: &WidgetId,
         event: <W as Widget>::TransmogrifierEvent,
+        frontend: &F,
     ) {
         self.with_transmogrifier(widget, |transmogrifier, state, widget, channels| {
             let channels = channels.as_any().downcast_ref::<Channels<W>>().unwrap();
 
             channels.post_event(event);
-            transmogrifier.process_messages(state, widget, channels, self);
+            transmogrifier.process_messages(state, widget, channels, frontend);
         });
 
         // Process any messages that may have been triggered onto other widgets.
-        self.process_widget_messages();
+        self.process_widget_messages(frontend);
     }
 }
 
@@ -413,9 +414,11 @@ impl<W: Widget, F: Frontend> WidgetRef<W, F> {
     /// Posts `event` to a transmogrifier.
     pub fn post_event(&self, event: W::TransmogrifierEvent) {
         if let Some(registration) = self.registration() {
-            self.frontend
-                .gooey()
-                .post_transmogrifier_event::<W>(&registration.id, event);
+            self.frontend.gooey().post_transmogrifier_event::<W>(
+                &registration.id,
+                event,
+                &self.frontend,
+            );
         }
     }
 }

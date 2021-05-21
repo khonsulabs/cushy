@@ -2,7 +2,7 @@ use std::{any::TypeId, sync::Arc};
 
 use gooey_core::{
     AnyChannels, AnySendSync, AnyTransmogrifier, AnyWidget, Channels, Gooey, Transmogrifier,
-    TransmogrifierState, Widget, WidgetRef, WidgetRegistration, WidgetStorage,
+    TransmogrifierState, Widget, WidgetRef, WidgetRegistration,
 };
 use wasm_bindgen::prelude::*;
 
@@ -112,9 +112,9 @@ impl AnyTransmogrifier<WebSys> for RegisteredTransmogrifier {
         state: &mut dyn AnySendSync,
         widget: &mut dyn AnyWidget,
         channels: &dyn AnyChannels,
-        storage: &WidgetStorage,
+        frontend: &WebSys,
     ) {
-        self.0.process_messages(state, widget, channels, storage)
+        self.0.process_messages(state, widget, channels, frontend)
     }
 
     fn widget_type_id(&self) -> TypeId {
