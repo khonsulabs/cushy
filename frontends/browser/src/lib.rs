@@ -1,7 +1,8 @@
 use std::any::TypeId;
 
 use gooey_core::{
-    AnySendSync, AnyTransmogrifier, AnyWidgetInstance, Gooey, Transmogrifier, TransmogrifierState,
+    AnyChannels, AnyFrontendTransmogrifier, AnySendSync, AnyWidget, Channels, Gooey,
+    Transmogrifier, TransmogrifierState, WidgetId,
 };
 
 pub struct WebSys {
@@ -19,86 +20,72 @@ impl WebSys {
         let document = window.document().unwrap();
         let parent = document.get_element_by_id(id).expect("id not found");
 
-        self.ui
-            .with_transmogrifier(self.ui.root_widget(), |transmogrifier, state| {
-                transmogrifier.transmogrify(state, &parent, self.ui.root_widget(), self);
-            });
+        self.ui.with_transmogrifier(
+            self.ui.root_widget().id(),
+            |transmogrifier, state, widget, channels| {
+                transmogrifier.transmogrify(state, channels, &parent, widget, self);
+            },
+        );
     }
 }
 
 pub struct RegisteredTransmogrifier(pub Box<dyn AnyWidgetWebSysTransmogrifier>);
 
 impl AnyWidgetWebSysTransmogrifier for RegisteredTransmogrifier {
-    fn widget_type_id(&self) -> TypeId {
-        AnyWidgetWebSysTransmogrifier::widget_type_id(self.0.as_ref())
-    }
-
     fn transmogrify(
         &self,
         state: &mut dyn AnySendSync,
+        channels: &dyn AnyChannels,
         parent: &web_sys::Node,
-        widget: &dyn AnyWidgetInstance,
+        widget: &dyn AnyWidget,
         frontend: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
-        self.0.transmogrify(state, parent, widget, frontend)
-    }
-
-    fn default_state(&self) -> TransmogrifierState {
-        self.0.default_state()
-    }
-}
-
-impl AnyTransmogrifier for RegisteredTransmogrifier {
-    fn widget_type_id(&self) -> TypeId {
-        self.0.widget_type_id()
-    }
-
-    fn default_state(&self) -> TransmogrifierState {
-        self.0.default_state()
+        self.0
+            .transmogrify(state, channels, parent, widget, frontend)
     }
 }
 
 impl gooey_core::Frontend for WebSys {
     type AnyWidgetTransmogrifier = RegisteredTransmogrifier;
     type Context = WebSys;
+
+    fn gooey(&self) -> &'_ Gooey<Self> {
+        &self.ui
+    }
 }
+
 pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
     fn transmogrify(
         &self,
         state: &Self::State,
+        channels: &Channels<<Self as Transmogrifier<WebSys>>::Widget>,
         parent: &web_sys::Node,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
         frontend: &WebSys,
     ) -> Option<web_sys::HtmlElement>;
 }
 
-pub trait AnyWidgetWebSysTransmogrifier {
-    fn widget_type_id(&self) -> TypeId;
-
-    fn default_state(&self) -> TransmogrifierState;
-
+pub trait AnyWidgetWebSysTransmogrifier: AnyFrontendTransmogrifier<WebSys> {
     fn transmogrify(
         &self,
         state: &mut dyn AnySendSync,
+        channels: &dyn AnyChannels,
         parent: &web_sys::Node,
-        widget: &dyn AnyWidgetInstance,
+        widget: &dyn AnyWidget,
         frontend: &WebSys,
     ) -> Option<web_sys::HtmlElement>;
 }
 
 impl<T> AnyWidgetWebSysTransmogrifier for T
 where
-    T: WebSysTransmogrifier + Send + Sync + 'static,
+    T: WebSysTransmogrifier + AnyFrontendTransmogrifier<WebSys> + Send + Sync + 'static,
 {
-    fn widget_type_id(&self) -> TypeId {
-        TypeId::of::<<T as Transmogrifier<WebSys>>::Widget>()
-    }
-
     fn transmogrify(
         &self,
         state: &mut dyn AnySendSync,
+        channels: &dyn AnyChannels,
         parent: &web_sys::Node,
-        widget: &dyn AnyWidgetInstance,
+        widget: &dyn AnyWidget,
         frontend: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
         let widget = widget
@@ -109,13 +96,31 @@ where
             .as_mut_any()
             .downcast_mut::<<T as Transmogrifier<WebSys>>::State>()
             .unwrap();
-        <T as WebSysTransmogrifier>::transmogrify(&self, state, parent, widget, frontend)
+        let channels = channels
+            .as_any()
+            .downcast_ref::<Channels<<T as Transmogrifier<WebSys>>::Widget>>()
+            .unwrap();
+        <T as WebSysTransmogrifier>::transmogrify(&self, state, channels, parent, widget, frontend)
+    }
+}
+
+impl AnyFrontendTransmogrifier<WebSys> for RegisteredTransmogrifier {
+    fn process_messages(
+        &self,
+        state: &mut dyn AnySendSync,
+        widget: &mut dyn AnyWidget,
+        channels: &dyn AnyChannels,
+        frontend: &WebSys,
+    ) {
+        self.0.process_messages(state, widget, channels, frontend)
     }
 
-    fn default_state(&self) -> TransmogrifierState {
-        TransmogrifierState(Box::new(
-            <<T as Transmogrifier<WebSys>>::State as Default>::default(),
-        ))
+    fn widget_type_id(&self) -> TypeId {
+        self.0.widget_type_id()
+    }
+
+    fn default_state_for(&self, widget_id: WidgetId) -> TransmogrifierState {
+        self.0.default_state_for(widget_id)
     }
 }
 

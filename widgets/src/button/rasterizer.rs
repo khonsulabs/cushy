@@ -17,7 +17,7 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
     type Widget = Button;
 }
 
-impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
+impl<R: Renderer> WidgetRasterizer<Rasterizer<R>> for ButtonTransmogrifier {
     fn render(
         &self,
         _state: &Self::State,

@@ -15,3 +15,4 @@ readme = "../README.md"
 [dependencies]
 euclid = "0.22"
 stylecs = { git = "https://github.com/khonsulabs/stylecs.git", branch = "main" }
+flume = "0.10"

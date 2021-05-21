@@ -1,7 +1,7 @@
 use gooey_core::{
     euclid::Length,
     styles::{Points, Surround},
-    AnyWidgetInstance, TransmogrifierStorage, Widget, WidgetInstance,
+    TransmogrifierStorage, Widget, WidgetRegistration,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -10,15 +10,16 @@ mod rasterizer;
 #[cfg(feature = "frontend-browser")]
 mod browser;
 
+#[derive(Debug)]
 pub struct Container {
-    pub child: Box<dyn AnyWidgetInstance>,
+    pub child: WidgetRegistration,
     pub padding: Surround<Points>,
 }
 
 impl Container {
     pub fn new<W: Widget>(child: W, storage: &TransmogrifierStorage) -> Self {
         Self {
-            child: Box::new(WidgetInstance::new(child, storage)),
+            child: storage.register(child),
             padding: Surround::default(),
         }
     }
@@ -45,6 +46,7 @@ impl Container {
 }
 
 impl Widget for Container {
+    type TransmogrifierCommand = ();
     type TransmogrifierEvent = ();
 }
 

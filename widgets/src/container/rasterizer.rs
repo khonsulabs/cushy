@@ -13,7 +13,7 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ContainerTransmogrifier {
     type Widget = Container;
 }
 
-impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
+impl<R: Renderer> WidgetRasterizer<Rasterizer<R>> for ContainerTransmogrifier {
     fn render(
         &self,
         _state: &Self::State,
@@ -22,11 +22,11 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
         bounds: Rect<f32, Points>,
     ) {
         rasterizer.ui.with_transmogrifier(
-            container.child.as_ref(),
-            |child_transmogrifier, child_state| {
+            container.child.id(),
+            |child_transmogrifier, child_state, child_widget, _channels| {
                 let size = child_transmogrifier.content_size(
                     child_state,
-                    container.child.as_ref(),
+                    child_widget,
                     rasterizer,
                     Size2D::new(Some(bounds.size.width), Some(bounds.size.height)),
                 );
@@ -41,12 +41,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
                     size,
                 );
 
-                child_transmogrifier.render(
-                    child_state,
-                    rasterizer,
-                    container.child.as_ref(),
-                    child_rect,
-                );
+                child_transmogrifier.render(child_state, rasterizer, child_widget, child_rect);
             },
         );
     }
@@ -61,11 +56,11 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
         rasterizer
             .ui
             .with_transmogrifier(
-                container.child.as_ref(),
-                |child_transmogrifier, child_state| {
+                container.child.id(),
+                |child_transmogrifier, child_state, child_widget, _channels| {
                     let size = child_transmogrifier.content_size(
                         child_state,
-                        container.child.as_ref(),
+                        child_widget,
                         rasterizer,
                         constraints,
                     );

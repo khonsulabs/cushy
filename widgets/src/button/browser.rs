@@ -1,4 +1,5 @@
 use gooey_browser::{WebSys, WebSysTransmogrifier};
+use gooey_core::Channels;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlButtonElement;
 
@@ -16,6 +17,7 @@ impl WebSysTransmogrifier for ButtonTransmogrifier {
     fn transmogrify(
         &self,
         _state: &Self::State,
+        _channels: &Channels<Button>,
         parent: &web_sys::Node,
         widget: &Button,
         _frontend: &WebSys,
