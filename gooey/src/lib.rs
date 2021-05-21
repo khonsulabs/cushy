@@ -20,18 +20,32 @@ pub use gooey_widgets as widgets;
 
 #[cfg(feature = "frontend-kludgine")]
 mod kludgine {
+    use gooey_core::{Transmogrifiers, Widget, WidgetStorage};
     use gooey_kludgine::kludgine::prelude::*;
+    use gooey_widgets::rasterized::default_transmogrifiers;
 
     use crate::{
         core::Gooey,
         frontends::{rasterizer::Rasterizer, renderers::kludgine::Kludgine},
     };
 
-    pub fn kludgine_main(ui: Gooey<Rasterizer<Kludgine>>) {
-        let ui = crate::widgets::rasterized::register_transmogrifiers(ui);
+    pub fn kludgine_main_with_transmogrifiers<
+        W: Widget + Send + Sync,
+        C: FnOnce(&WidgetStorage) -> W,
+    >(
+        mut transmogrifiers: Transmogrifiers<Rasterizer<Kludgine>>,
+        initializer: C,
+    ) {
+        crate::widgets::rasterized::register_transmogrifiers(&mut transmogrifiers);
+        let ui = Gooey::with(transmogrifiers, initializer);
+
         SingleWindowApplication::run(GooeyWindow {
             ui: Rasterizer::<Kludgine>::new(ui),
         });
+    }
+
+    pub fn kludgine_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(initializer: C) {
+        kludgine_main_with_transmogrifiers(default_transmogrifiers(), initializer)
     }
 
     struct GooeyWindow {
@@ -57,12 +71,24 @@ pub use kludgine::kludgine_main;
 #[cfg(feature = "frontend-browser")]
 mod browser {
     use crate::{
-        core::Gooey, frontends::browser::WebSys, widgets::browser::register_transmogrifiers,
+        core::{Gooey, Transmogrifiers, Widget, WidgetStorage},
+        frontends::browser::WebSys,
+        widgets::browser::{default_transmogrifiers, register_transmogrifiers},
     };
 
-    pub fn browser_main(ui: Gooey<WebSys>) {
-        let ui = register_transmogrifiers(ui);
-        WebSys::new(ui).install_in_id("gooey")
+    pub fn browser_main_with_transmogrifiers<
+        W: Widget + Send + Sync,
+        C: FnOnce(&WidgetStorage) -> W,
+    >(
+        mut transmogrifiers: Transmogrifiers<WebSys>,
+        initializer: C,
+    ) {
+        register_transmogrifiers(&mut transmogrifiers);
+        WebSys::new(Gooey::with(transmogrifiers, initializer)).install_in_id("gooey")
+    }
+
+    pub fn browser_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(initializer: C) {
+        browser_main_with_transmogrifiers(default_transmogrifiers(), initializer)
     }
 }
 

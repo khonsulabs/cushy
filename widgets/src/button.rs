@@ -20,8 +20,13 @@ pub enum ButtonEvent {
     Clicked,
 }
 
+#[derive(Debug)]
+pub enum ButtonCommand {
+    SetLabel(String),
+}
+
 impl Widget for Button {
-    type TransmogrifierCommand = ();
+    type TransmogrifierCommand = ButtonCommand;
     type TransmogrifierEvent = ButtonEvent;
 
     fn receive_event(
@@ -31,8 +36,10 @@ impl Widget for Button {
     ) where
         Self: Sized,
     {
-        todo!()
+        let ButtonEvent::Clicked = event;
+        context.send_command(ButtonCommand::SetLabel(String::from("Clicked!")));
     }
 }
 
+#[derive(Debug)]
 pub struct ButtonTransmogrifier;

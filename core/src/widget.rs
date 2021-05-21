@@ -2,11 +2,12 @@ use std::{
     any::{Any, TypeId},
     fmt::Debug,
     marker::PhantomData,
+    sync::{Arc, Weak},
 };
 
 use flume::{Receiver, Sender};
 
-use crate::{Frontend, WidgetStorage};
+use crate::{Frontend, WidgetRef, WidgetRegistration, WidgetStorage};
 
 /// A graphical user interface element.
 pub trait Widget: Debug + Send + Sync + 'static {
@@ -39,7 +40,7 @@ pub struct WidgetId {
 }
 
 /// Transforms a Widget into whatever is needed for [`Frontend`] `F`.
-pub trait Transmogrifier<F: Frontend> {
+pub trait Transmogrifier<F: Frontend>: Debug {
     /// The type of the widget being transmogrified.
     type Widget: Widget;
     /// The type the storage this transmogrifier uses for state.
@@ -52,7 +53,7 @@ pub trait Transmogrifier<F: Frontend> {
         state: &mut Self::State,
         command: <Self::Widget as Widget>::TransmogrifierCommand,
         widget: &Self::Widget,
-        frontend: &F,
+        storage: &WidgetStorage,
     ) {
         unimplemented!(
             "widget tried to send a command, but the transmogrifier wasn't expecting one"
@@ -64,25 +65,26 @@ pub trait Transmogrifier<F: Frontend> {
         &self,
         state: &mut Self::State,
         widget: &mut Self::Widget,
-        frontend: &F,
+        storage: &WidgetStorage,
         channels: &Channels<Self::Widget>,
     ) {
-        // The frontend is initiating this call, so we should process events that the Transmogrifier sends first.
+        // The frontend is initiating this call, so we should process events that the
+        // Transmogrifier sends first.
         while let Ok(event) = channels.event_receiver.try_recv() {
-            let context = Context::new(channels, frontend.gooey());
+            let context = Context::new(channels, storage);
             widget.receive_event(event, &context);
         }
 
         while let Ok(command) = channels.command_receiver.try_recv() {
-            self.receive_command(state, command, widget, frontend);
+            self.receive_command(state, command, widget, storage);
         }
     }
 
     /// Returns an initialized state using `Self::State::default()`.
-    fn default_state_for(&self, widget_id: WidgetId) -> TransmogrifierState {
+    fn default_state_for(&self, widget: &Arc<WidgetRegistration>) -> TransmogrifierState {
         TransmogrifierState {
             state: Box::new(<Self::State as Default>::default()),
-            channels: Box::new(Channels::<Self::Widget>::new(widget_id)),
+            channels: Box::new(Channels::<Self::Widget>::new(widget)),
         }
     }
 
@@ -149,7 +151,7 @@ where
 /// Enables [`Widget`]s to send commands to the
 /// [`Transmogrifier`](crate::Transmogrifier).
 pub struct Context<W: Widget> {
-    widget: WidgetId,
+    widget: Weak<WidgetRegistration>,
     command_sender: Sender<W::TransmogrifierCommand>,
     storage: WidgetStorage,
     _widget: PhantomData<W>,
@@ -160,7 +162,7 @@ impl<W: Widget> Context<W> {
     #[must_use]
     pub fn new(channels: &Channels<W>, storage: &WidgetStorage) -> Self {
         Self {
-            widget: channels.widget_id.clone(),
+            widget: channels.widget.clone(),
             command_sender: channels.command_sender.clone(),
             storage: storage.clone(),
             _widget: PhantomData::default(),
@@ -169,8 +171,10 @@ impl<W: Widget> Context<W> {
 
     /// Send `command` to the transmogrifier.
     pub fn send_command(&self, command: W::TransmogrifierCommand) {
-        drop(self.command_sender.send(command));
-        self.storage.set_widget_has_messages(self.widget.clone());
+        if let Some(widget) = self.widget.upgrade() {
+            drop(self.command_sender.send(command));
+            self.storage.set_widget_has_messages(widget.id().clone());
+        }
     }
 }
 
@@ -178,7 +182,7 @@ impl<W: Widget> Context<W> {
 /// [`Transmogrifier`](crate::Transmogrifier)s.
 #[derive(Debug)]
 pub struct Channels<W: Widget> {
-    widget_id: WidgetId,
+    widget: Weak<WidgetRegistration>,
     command_sender: Sender<W::TransmogrifierCommand>,
     command_receiver: Receiver<W::TransmogrifierCommand>,
     event_sender: Sender<W::TransmogrifierEvent>,
@@ -194,12 +198,12 @@ impl<W: Widget> AnyChannels for Channels<W> {
 impl<W: Widget> Channels<W> {
     /// Creates a new set of channels for a widget and transmogrifier.
     #[must_use]
-    fn new(widget_id: WidgetId) -> Self {
+    fn new(widget: &Arc<WidgetRegistration>) -> Self {
         let (command_sender, command_receiver) = flume::unbounded();
         let (event_sender, event_receiver) = flume::unbounded();
 
         Self {
-            widget_id,
+            widget: Arc::downgrade(widget),
             command_sender,
             command_receiver,
             event_sender,
@@ -209,7 +213,21 @@ impl<W: Widget> Channels<W> {
     }
 
     /// Sends an event to the [`Widget`].
-    pub fn send_event(&self, event: W::TransmogrifierEvent) {
+    pub fn post_event(&self, event: W::TransmogrifierEvent) {
         drop(self.event_sender.send(event))
+    }
+
+    /// Returns the widget registration. Returns none if the widget has been
+    /// destroyed.
+    #[must_use]
+    pub fn widget(&self) -> Option<Arc<WidgetRegistration>> {
+        self.widget.upgrade()
+    }
+
+    /// Returns the widget reference for this widget. Returns none if the widget
+    /// has been destroyed.
+    #[must_use]
+    pub fn widget_ref<F: Frontend>(&self, frontend: F) -> Option<WidgetRef<W, F>> {
+        self.widget().and_then(|reg| WidgetRef::new(&reg, frontend))
     }
 }

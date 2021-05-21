@@ -8,6 +8,7 @@ use gooey_core::{
 pub use kludgine;
 use kludgine::{prelude::*, text::prepared::PreparedSpan};
 
+#[derive(Debug)]
 pub struct Kludgine {
     target: Target,
 }

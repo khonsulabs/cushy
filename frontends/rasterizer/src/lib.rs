@@ -6,12 +6,25 @@ use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     styles::Points,
     AnySendSync, AnyTransmogrifier, AnyWidget, Frontend, Gooey, Transmogrifier,
-    TransmogrifierState, WidgetId,
+    TransmogrifierState, WidgetRegistration, WidgetStorage,
 };
 
+#[derive(Debug)]
 pub struct Rasterizer<R: Renderer> {
     pub ui: Arc<Gooey<Self>>,
     renderer: Option<R>,
+}
+
+impl<R: Renderer> Clone for Rasterizer<R> {
+    /// This implementation ignores the `renderer` field, as it's temporary
+    /// state only used during the render method. It shouldn't ever be accessed
+    /// outside of that context.
+    fn clone(&self) -> Self {
+        Self {
+            ui: self.ui.clone(),
+            renderer: None,
+        }
+    }
 }
 
 impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
@@ -44,7 +57,7 @@ impl<R: Renderer> Rasterizer<R> {
 
         self.ui.with_transmogrifier(
             self.ui.root_widget().id(),
-            |transmogrifier, state, widget, channels| {
+            |transmogrifier, state, widget, _channels| {
                 transmogrifier.render(
                     state,
                     &Rasterizer {
@@ -148,22 +161,23 @@ impl<R: Renderer> AnyTransmogrifier<Rasterizer<R>> for RegisteredTransmogrifier<
         state: &mut dyn AnySendSync,
         widget: &mut dyn AnyWidget,
         channels: &dyn gooey_core::AnyChannels,
-        frontend: &Rasterizer<R>,
+        storage: &WidgetStorage,
     ) {
         self.0
             .as_ref()
-            .process_messages(state, widget, channels, frontend);
+            .process_messages(state, widget, channels, storage);
     }
 
     fn widget_type_id(&self) -> TypeId {
         self.0.widget_type_id()
     }
 
-    fn default_state_for(&self, widget_id: WidgetId) -> TransmogrifierState {
-        self.0.default_state_for(widget_id)
+    fn default_state_for(&self, widget: &Arc<WidgetRegistration>) -> TransmogrifierState {
+        self.0.default_state_for(widget)
     }
 }
 
+#[derive(Debug)]
 pub struct RegisteredTransmogrifier<F: Frontend>(pub Box<dyn AnyWidgetRasterizer<F>>);
 
 impl<F: Frontend> Deref for RegisteredTransmogrifier<F> {

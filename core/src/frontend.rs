@@ -1,12 +1,12 @@
-use std::any::TypeId;
+use std::{any::TypeId, fmt::Debug, sync::Arc};
 
 use crate::{
     AnyChannels, AnySendSync, AnyWidget, Channels, Gooey, Transmogrifier, TransmogrifierState,
-    WidgetId,
+    WidgetRegistration, WidgetStorage,
 };
 
 /// A frontend is an implementation of widgets and layouts.
-pub trait Frontend: Sized {
+pub trait Frontend: Clone {
     /// The generic-free type of the frontend-specific transmogrifier trait.
     type AnyTransmogrifier: AnyTransmogrifier<Self>;
     /// The context type provided to aide in transmogrifying.
@@ -17,11 +17,11 @@ pub trait Frontend: Sized {
 }
 
 /// A Transmogrifier without any associated types.
-pub trait AnyTransmogrifier<F: Frontend> {
+pub trait AnyTransmogrifier<F: Frontend>: Debug {
     /// Returns the [`TypeId`] of the underlying [`Widget`](crate::Widget).
     fn widget_type_id(&self) -> TypeId;
     /// Initializes default state for a newly created widget.
-    fn default_state_for(&self, widget_id: WidgetId) -> TransmogrifierState;
+    fn default_state_for(&self, widget: &Arc<WidgetRegistration>) -> TransmogrifierState;
 
     /// Processes commands and events for this widget and transmogrifier.
     fn process_messages(
@@ -29,7 +29,7 @@ pub trait AnyTransmogrifier<F: Frontend> {
         state: &mut dyn AnySendSync,
         widget: &mut dyn AnyWidget,
         channels: &dyn AnyChannels,
-        frontend: &F,
+        storage: &WidgetStorage,
     );
 }
 
@@ -42,7 +42,7 @@ where
         state: &mut dyn AnySendSync,
         widget: &mut dyn AnyWidget,
         channels: &dyn AnyChannels,
-        frontend: &F,
+        storage: &WidgetStorage,
     ) {
         let widget = widget
             .as_mut_any()
@@ -56,14 +56,14 @@ where
             .as_any()
             .downcast_ref::<Channels<<Self as Transmogrifier<F>>::Widget>>()
             .unwrap();
-        <Self as Transmogrifier<F>>::process_messages(self, state, widget, frontend, channels);
+        <Self as Transmogrifier<F>>::process_messages(self, state, widget, storage, channels);
     }
 
     fn widget_type_id(&self) -> TypeId {
         <Self as Transmogrifier<F>>::widget_type_id(self)
     }
 
-    fn default_state_for(&self, widget_id: WidgetId) -> TransmogrifierState {
-        <Self as Transmogrifier<F>>::default_state_for(self, widget_id)
+    fn default_state_for(&self, widget: &Arc<WidgetRegistration>) -> TransmogrifierState {
+        <Self as Transmogrifier<F>>::default_state_for(self, widget)
     }
 }

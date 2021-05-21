@@ -19,9 +19,9 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
         _channels: &Channels<Container>,
         parent: &web_sys::Node,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
-        frontend: &WebSys,
+        gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
-        frontend.ui.with_transmogrifier(
+        gooey.ui.with_transmogrifier(
             widget.child.id(),
             |child_transmogrifier, child_state, child_widget, channels| {
                 let container = window_document()
@@ -44,7 +44,7 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
                     channels,
                     &container,
                     child_widget,
-                    frontend,
+                    gooey,
                 ) {
                     container
                         .append_child(&child)

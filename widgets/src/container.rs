@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use gooey_core::{
     euclid::Length,
     styles::{Points, Surround},
@@ -12,7 +14,7 @@ mod browser;
 
 #[derive(Debug)]
 pub struct Container {
-    pub child: WidgetRegistration,
+    pub child: Arc<WidgetRegistration>,
     pub padding: Surround<Points>,
 }
 
@@ -50,4 +52,5 @@ impl Widget for Container {
     type TransmogrifierEvent = ();
 }
 
+#[derive(Debug)]
 pub struct ContainerTransmogrifier;

@@ -1,10 +1,12 @@
-use std::any::TypeId;
+use std::{any::TypeId, sync::Arc};
 
 use gooey_core::{
     AnyChannels, AnySendSync, AnyTransmogrifier, AnyWidget, Channels, Gooey, Transmogrifier,
-    TransmogrifierState, WidgetId,
+    TransmogrifierState, Widget, WidgetRef, WidgetRegistration, WidgetStorage,
 };
+use wasm_bindgen::prelude::*;
 
+#[derive(Debug, Clone)]
 pub struct WebSys {
     pub ui: Gooey<Self>,
 }
@@ -29,6 +31,7 @@ impl WebSys {
     }
 }
 
+#[derive(Debug)]
 pub struct RegisteredTransmogrifier(pub Box<dyn AnyWidgetWebSysTransmogrifier>);
 
 impl AnyWidgetWebSysTransmogrifier for RegisteredTransmogrifier {
@@ -38,10 +41,9 @@ impl AnyWidgetWebSysTransmogrifier for RegisteredTransmogrifier {
         channels: &dyn AnyChannels,
         parent: &web_sys::Node,
         widget: &dyn AnyWidget,
-        frontend: &WebSys,
+        gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
-        self.0
-            .transmogrify(state, channels, parent, widget, frontend)
+        self.0.transmogrify(state, channels, parent, widget, gooey)
     }
 }
 
@@ -61,7 +63,7 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         channels: &Channels<<Self as Transmogrifier<WebSys>>::Widget>,
         parent: &web_sys::Node,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
-        frontend: &WebSys,
+        gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement>;
 }
 
@@ -72,7 +74,7 @@ pub trait AnyWidgetWebSysTransmogrifier: AnyTransmogrifier<WebSys> {
         channels: &dyn AnyChannels,
         parent: &web_sys::Node,
         widget: &dyn AnyWidget,
-        frontend: &WebSys,
+        gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement>;
 }
 
@@ -86,7 +88,7 @@ where
         channels: &dyn AnyChannels,
         parent: &web_sys::Node,
         widget: &dyn AnyWidget,
-        frontend: &WebSys,
+        gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
         let widget = widget
             .as_any()
@@ -100,7 +102,7 @@ where
             .as_any()
             .downcast_ref::<Channels<<T as Transmogrifier<WebSys>>::Widget>>()
             .unwrap();
-        <T as WebSysTransmogrifier>::transmogrify(&self, state, channels, parent, widget, frontend)
+        <T as WebSysTransmogrifier>::transmogrify(&self, state, channels, parent, widget, gooey)
     }
 }
 
@@ -110,17 +112,17 @@ impl AnyTransmogrifier<WebSys> for RegisteredTransmogrifier {
         state: &mut dyn AnySendSync,
         widget: &mut dyn AnyWidget,
         channels: &dyn AnyChannels,
-        frontend: &WebSys,
+        storage: &WidgetStorage,
     ) {
-        self.0.process_messages(state, widget, channels, frontend)
+        self.0.process_messages(state, widget, channels, storage)
     }
 
     fn widget_type_id(&self) -> TypeId {
         self.0.widget_type_id()
     }
 
-    fn default_state_for(&self, widget_id: WidgetId) -> TransmogrifierState {
-        self.0.default_state_for(widget_id)
+    fn default_state_for(&self, widget: &Arc<WidgetRegistration>) -> TransmogrifierState {
+        self.0.default_state_for(widget)
     }
 }
 
@@ -133,4 +135,18 @@ macro_rules! make_browser {
             }
         }
     };
+}
+
+pub struct WidgetClosure;
+
+impl WidgetClosure {
+    #[allow(clippy::new_ret_no_self)]
+    pub fn new<W: Widget, C: FnMut() -> <W as Widget>::TransmogrifierEvent + 'static>(
+        widget: WidgetRef<W, WebSys>,
+        mut event_generator: C,
+    ) -> Closure<dyn FnMut()> {
+        Closure::wrap(Box::new(move || {
+            widget.post_event(event_generator());
+        }) as Box<dyn FnMut()>)
+    }
 }

@@ -1,10 +1,10 @@
 use gooey::{
-    core::{styles::Style, Frontend, Gooey},
+    core::styles::Style,
     widgets::{button::Button, container::Container},
 };
 
-pub fn ui<F: Frontend>() -> Gooey<F> {
-    Gooey::with(|storage| {
+fn main() {
+    gooey::main(|storage| {
         Container::new(
             Button {
                 label: String::from("Hello, World"),
@@ -13,8 +13,4 @@ pub fn ui<F: Frontend>() -> Gooey<F> {
             storage,
         )
     })
-}
-
-fn main() {
-    gooey::main(ui())
 }
