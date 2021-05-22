@@ -25,7 +25,11 @@ impl WebSys {
         self.ui.with_transmogrifier(
             self.ui.root_widget().id(),
             |transmogrifier, state, widget, channels| {
-                transmogrifier.transmogrify(state, channels, &parent, widget, self);
+                if let Some(root_element) =
+                    transmogrifier.transmogrify(state, channels, widget, self)
+                {
+                    parent.append_child(&root_element).unwrap();
+                }
             },
         );
     }
@@ -39,11 +43,10 @@ impl AnyWidgetWebSysTransmogrifier for RegisteredTransmogrifier {
         &self,
         state: &mut dyn AnySendSync,
         channels: &dyn AnyChannels,
-        parent: &web_sys::Node,
         widget: &dyn AnyWidget,
         gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
-        self.0.transmogrify(state, channels, parent, widget, gooey)
+        self.0.transmogrify(state, channels, widget, gooey)
     }
 }
 
@@ -61,7 +64,6 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         &self,
         state: &Self::State,
         channels: &Channels<<Self as Transmogrifier<WebSys>>::Widget>,
-        parent: &web_sys::Node,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
         gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement>;
@@ -72,7 +74,6 @@ pub trait AnyWidgetWebSysTransmogrifier: AnyTransmogrifier<WebSys> {
         &self,
         state: &mut dyn AnySendSync,
         channels: &dyn AnyChannels,
-        parent: &web_sys::Node,
         widget: &dyn AnyWidget,
         gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement>;
@@ -86,7 +87,6 @@ where
         &self,
         state: &mut dyn AnySendSync,
         channels: &dyn AnyChannels,
-        parent: &web_sys::Node,
         widget: &dyn AnyWidget,
         gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
@@ -102,7 +102,7 @@ where
             .as_any()
             .downcast_ref::<Channels<<T as Transmogrifier<WebSys>>::Widget>>()
             .unwrap();
-        <T as WebSysTransmogrifier>::transmogrify(&self, state, channels, parent, widget, gooey)
+        <T as WebSysTransmogrifier>::transmogrify(&self, state, channels, widget, gooey)
     }
 }
 

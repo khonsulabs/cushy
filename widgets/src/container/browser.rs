@@ -17,7 +17,6 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
         &self,
         _state: &Self::State,
         _channels: &Channels<Container>,
-        parent: &web_sys::Node,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
         gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
@@ -37,15 +36,9 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
                 set_element_padding(&container, "padding-top", widget.padding.top());
                 set_element_padding(&container, "padding-bottom", widget.padding.bottom());
 
-                parent.append_child(&container).unwrap();
-
-                if let Some(child) = child_transmogrifier.transmogrify(
-                    child_state,
-                    channels,
-                    &container,
-                    child_widget,
-                    gooey,
-                ) {
+                if let Some(child) =
+                    child_transmogrifier.transmogrify(child_state, channels, child_widget, gooey)
+                {
                     container
                         .append_child(&child)
                         .expect("error appending child");
