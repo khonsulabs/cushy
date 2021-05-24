@@ -23,7 +23,8 @@ impl<R: Renderer> WidgetRasterizer<Rasterizer<R>> for ContainerTransmogrifier {
     ) {
         rasterizer.ui.with_transmogrifier(
             container.child.id(),
-            |child_transmogrifier, child_state, child_widget, _channels| {
+            rasterizer,
+            |child_transmogrifier, child_state, child_widget| {
                 let size = child_transmogrifier.content_size(
                     child_state,
                     child_widget,
@@ -57,7 +58,8 @@ impl<R: Renderer> WidgetRasterizer<Rasterizer<R>> for ContainerTransmogrifier {
             .ui
             .with_transmogrifier(
                 container.child.id(),
-                |child_transmogrifier, child_state, child_widget, _channels| {
+                rasterizer,
+                |child_transmogrifier, child_state, child_widget| {
                     let size = child_transmogrifier.content_size(
                         child_state,
                         child_widget,

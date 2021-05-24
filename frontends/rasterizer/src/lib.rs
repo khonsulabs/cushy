@@ -8,6 +8,7 @@ use gooey_core::{
     AnySendSync, AnyTransmogrifier, AnyWidget, Frontend, Gooey, Transmogrifier,
     TransmogrifierState, WidgetRegistration,
 };
+use winit::event::DeviceId;
 
 #[derive(Debug)]
 pub struct Rasterizer<R: Renderer> {
@@ -57,7 +58,8 @@ impl<R: Renderer> Rasterizer<R> {
 
         self.ui.with_transmogrifier(
             self.ui.root_widget().id(),
-            |transmogrifier, state, widget, _channels| {
+            self,
+            |transmogrifier, state, widget| {
                 transmogrifier.render(
                     state,
                     &Rasterizer {
@@ -69,6 +71,14 @@ impl<R: Renderer> Rasterizer<R> {
                 );
             },
         );
+    }
+
+    pub fn handle_winit_event<'evt, T>(
+        &self,
+        scene: R,
+        device: &DeviceId,
+        event: &winit::event::Event<'evt, T>,
+    ) {
     }
 }
 
@@ -172,8 +182,13 @@ impl<R: Renderer> AnyTransmogrifier<Rasterizer<R>> for RegisteredTransmogrifier<
         self.0.widget_type_id()
     }
 
-    fn default_state_for(&self, widget: &Arc<WidgetRegistration>) -> TransmogrifierState {
-        self.0.default_state_for(widget)
+    fn default_state_for(
+        &self,
+        widget: &mut dyn AnyWidget,
+        registration: &Arc<WidgetRegistration>,
+        frontend: &Rasterizer<R>,
+    ) -> TransmogrifierState {
+        self.0.default_state_for(widget, registration, frontend)
     }
 }
 

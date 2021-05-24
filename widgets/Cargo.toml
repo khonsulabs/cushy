@@ -30,3 +30,5 @@ web-sys = { version = "0.3", features = [
     "HtmlButtonElement",
     "HtmlDivElement",
 ], optional = true }
+flume = "0.10"
+log = "0.4"

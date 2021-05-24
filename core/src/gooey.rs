@@ -10,7 +10,7 @@ use std::{
 };
 
 use crate::{
-    AnyChannels, AnySendSync, AnyTransmogrifier, AnyWidget, Channels, Frontend,
+    AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyWidget, Channels, Frontend,
     TransmogrifierState, Widget, WidgetId,
 };
 
@@ -27,6 +27,7 @@ struct GooeyData<F: Frontend> {
     transmogrifiers: Transmogrifiers<F>,
     root: Arc<WidgetRegistration>,
     storage: WidgetStorage,
+    processing_messages_lock: Mutex<()>,
 }
 
 impl<F: Frontend> Gooey<F> {
@@ -43,6 +44,7 @@ impl<F: Frontend> Gooey<F> {
                 transmogrifiers,
                 root,
                 storage,
+                processing_messages_lock: Mutex::default(),
             }),
         }
     }
@@ -62,11 +64,11 @@ impl<F: Frontend> Gooey<F> {
             &'_ <F as Frontend>::AnyTransmogrifier,
             &mut dyn AnySendSync,
             &mut dyn AnyWidget,
-            &dyn AnyChannels,
         ) -> R,
     >(
         &self,
         widget: &WidgetId,
+        frontend: &F,
         callback: C,
     ) -> Option<R> {
         self.data
@@ -77,8 +79,8 @@ impl<F: Frontend> Gooey<F> {
                 let state = self
                     .widget_state(widget.id)
                     .expect("Missing widget state for root");
-                state.with_state(transmogrifier, |state, widget, channels| {
-                    callback(transmogrifier, state, widget, channels)
+                state.with_state(transmogrifier, frontend, |state, widget| {
+                    callback(transmogrifier, state, widget)
                 })
             })
     }
@@ -87,14 +89,10 @@ impl<F: Frontend> Gooey<F> {
     /// parameters.
     #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
     pub fn for_each_widget<
-        C: FnMut(
-            &'_ <F as Frontend>::AnyTransmogrifier,
-            &mut dyn AnySendSync,
-            &dyn AnyWidget,
-            &dyn AnyChannels,
-        ),
+        C: FnMut(&'_ <F as Frontend>::AnyTransmogrifier, &mut dyn AnySendSync, &dyn AnyWidget),
     >(
         &self,
+        frontend: &F,
         mut callback: C,
     ) {
         self.data.storage.for_each_widget(|widget_state| {
@@ -104,8 +102,8 @@ impl<F: Frontend> Gooey<F> {
                 .map
                 .get(&widget_state.registration().unwrap().id.type_id)
                 .unwrap();
-            widget_state.with_state(transmogrifier, |transmogrifier_state, widget, channels| {
-                callback(transmogrifier, transmogrifier_state, widget, channels);
+            widget_state.with_state(transmogrifier, frontend, |transmogrifier_state, widget| {
+                callback(transmogrifier, transmogrifier_state, widget);
             });
         });
     }
@@ -116,38 +114,75 @@ impl<F: Frontend> Gooey<F> {
     ///
     /// Panics upon internal locking errors.
     pub fn process_widget_messages(&self, frontend: &F) {
-        let widgets_with_messages = {
-            let mut widgets_with_messages =
-                self.data.storage.data.widgets_with_messages.lock().unwrap();
-            if widgets_with_messages.is_empty() {
-                return;
-            }
-
-            std::mem::take(&mut *widgets_with_messages)
+        // If a widget calls code that posts more messages, we don't want this
+        // code to re-enter. Instead, the first process_widget_message will loop
+        // to catch new widgets that have messages.
+        let _guard = match self.data.processing_messages_lock.try_lock() {
+            Ok(guard) => guard,
+            Err(_) => return,
         };
+        // This method will return early if there are no widgets with pending
+        // messages. `chatter_limit` is put in place to limit cross-talk betwen
+        // widgets. It's possible for one widget to invoke behavior that
+        // triggers a message in another widget, which then returns the favor.
+        // 10 is an arbitrary number.
+        let mut chatter_limit = 10;
+        while chatter_limit > 0 {
+            chatter_limit -= 1;
+            let widgets_with_messages = {
+                let mut widgets_with_messages =
+                    self.data.storage.data.widgets_with_messages.lock().unwrap();
+                if widgets_with_messages.is_empty() {
+                    return;
+                }
 
-        for widget_id in widgets_with_messages {
-            self.with_transmogrifier(&widget_id, |transmogrifier, state, widget, channels| {
-                transmogrifier.process_messages(state, widget, channels, frontend);
-            });
+                std::mem::take(&mut *widgets_with_messages)
+            };
+
+            for widget_id in widgets_with_messages {
+                self.with_transmogrifier(&widget_id, frontend, |transmogrifier, state, widget| {
+                    let widget_state = self.data.storage.widget_state(widget_id.id).unwrap();
+                    transmogrifier.process_messages(
+                        state,
+                        widget,
+                        widget_state.channels.as_ref().as_ref(),
+                        frontend,
+                    );
+                });
+            }
         }
     }
 
     pub(crate) fn post_transmogrifier_event<W: Widget>(
         &self,
-        widget: &WidgetId,
+        widget_id: &WidgetId,
         event: <W as Widget>::TransmogrifierEvent,
         frontend: &F,
     ) {
-        self.with_transmogrifier(widget, |transmogrifier, state, widget, channels| {
-            let channels = channels.as_any().downcast_ref::<Channels<W>>().unwrap();
-
+        if let Some(state) = self.widget_state(widget_id.id) {
+            let channels = state.channels::<W>().unwrap();
             channels.post_event(event);
-            transmogrifier.process_messages(state, widget, channels, frontend);
-        });
+            self.set_widget_has_messages(widget_id.clone());
+        }
 
         // Process any messages that may have been triggered onto other widgets.
-        self.process_widget_messages(frontend);
+        frontend.process_widget_messages();
+    }
+
+    pub(crate) fn post_command<W: Widget>(
+        &self,
+        widget_id: &WidgetId,
+        event: <W as Widget>::Command,
+        frontend: &F,
+    ) {
+        if let Some(state) = self.widget_state(widget_id.id) {
+            let channels = state.channels::<W>().unwrap();
+            channels.post_command(event);
+            self.set_widget_has_messages(widget_id.clone());
+        }
+
+        // Process any messages that may have been triggered onto other widgets.
+        frontend.process_widget_messages();
     }
 }
 
@@ -271,7 +306,13 @@ impl WidgetStorage {
         }
     }
 
-    pub(crate) fn set_widget_has_messages(&self, widget: WidgetId) {
+    /// Marks a widget as having messages. If this isn't set, pending messages
+    /// will not be received.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal lock handling results in an error.
+    pub fn set_widget_has_messages(&self, widget: WidgetId) {
         let mut statuses = self.data.widgets_with_messages.lock().unwrap();
         statuses.insert(widget);
     }
@@ -286,16 +327,20 @@ pub struct WidgetState {
     pub widget: Arc<Mutex<Box<dyn AnyWidget>>>,
     /// The transmogrifier state.
     pub state: Arc<Mutex<Option<TransmogrifierState>>>,
+
+    /// The channels to communicate with the widget.
+    pub channels: Arc<Box<dyn AnyChannels>>,
 }
 
 impl WidgetState {
     /// Initializes a new widget state with `widget`, `id`, and `None` for the
     /// transmogrifier state.
-    pub fn new<W: AnyWidget>(widget: W, id: &Arc<WidgetRegistration>) -> Self {
+    pub fn new<W: Widget + AnyWidget>(widget: W, id: &Arc<WidgetRegistration>) -> Self {
         Self {
             id: Arc::downgrade(id),
             widget: Arc::new(Mutex::new(Box::new(widget))),
             state: Arc::default(),
+            channels: Arc::new(Box::new(Channels::<W>::new(id))),
         }
     }
 
@@ -317,23 +362,32 @@ impl WidgetState {
         R,
         T: AnyTransmogrifier<F>,
         F: Frontend,
-        C: FnOnce(&mut dyn AnySendSync, &mut dyn AnyWidget, &dyn AnyChannels) -> R,
+        C: FnOnce(&mut dyn AnySendSync, &mut dyn AnyWidget) -> R,
     >(
         &self,
         transmogrifier: &T,
+        frontend: &F,
         callback: C,
     ) -> Option<R> {
         let mut state = self.state.lock().unwrap();
         let mut widget = self.widget.lock().unwrap();
         self.id.upgrade().map(|id| {
-            let state = state.get_or_insert_with(|| transmogrifier.default_state_for(&id));
+            let state = state.get_or_insert_with(|| {
+                transmogrifier.default_state_for(widget.as_mut(), &id, frontend)
+            });
 
-            callback(
-                state.state.as_mut(),
-                widget.as_mut(),
-                state.channels.as_ref(),
-            )
+            callback(state.state.as_mut(), widget.as_mut())
         })
+    }
+
+    #[must_use]
+    pub(crate) fn any_channels(&self) -> &'_ dyn AnyChannels {
+        self.channels.as_ref().as_ref()
+    }
+
+    #[must_use]
+    pub(crate) fn channels<W: Widget>(&self) -> Option<&'_ Channels<W>> {
+        self.any_channels().as_any().downcast_ref()
     }
 }
 
@@ -372,27 +426,45 @@ impl Drop for WidgetRegistration {
 /// A widget reference. Does not prevent a widget from being destroyed if
 /// removed from an interface.
 #[derive(Debug)]
-pub struct WidgetRef<W: Widget, F: Frontend> {
+pub struct WidgetRef<W: Widget> {
     registration: Weak<WidgetRegistration>,
-    frontend: F,
-    _phantom: PhantomData<(W, F)>,
+    frontend: Box<dyn AnyFrontend>,
+    _phantom: PhantomData<W>,
 }
 
-impl<W: Widget, F: Frontend> Clone for WidgetRef<W, F> {
+impl<W: Widget> Clone for WidgetRef<W> {
     fn clone(&self) -> Self {
         Self {
             registration: self.registration.clone(),
-            frontend: self.frontend.clone(),
+            frontend: self.frontend.cloned(),
             _phantom: PhantomData::default(),
         }
     }
 }
 
-impl<W: Widget, F: Frontend> WidgetRef<W, F> {
+impl<W: Widget> WidgetRef<W> {
     /// Creates a new reference from a [`WidgetRegistration`]. Returns None if
     /// the `W` type doesn't match the type of the widget.
     #[must_use]
-    pub fn new(registration: &Arc<WidgetRegistration>, frontend: F) -> Option<Self> {
+    pub fn new<F: Frontend>(registration: &Arc<WidgetRegistration>, frontend: F) -> Option<Self> {
+        if registration.id.type_id == TypeId::of::<W>() {
+            Some(Self {
+                registration: Arc::downgrade(registration),
+                frontend: Box::new(frontend),
+                _phantom: PhantomData::default(),
+            })
+        } else {
+            None
+        }
+    }
+
+    /// Creates a new reference from a [`WidgetRegistration`]. Returns None if
+    /// the `W` type doesn't match the type of the widget.
+    #[must_use]
+    pub fn new_with_any_frontend(
+        registration: &Arc<WidgetRegistration>,
+        frontend: Box<dyn AnyFrontend>,
+    ) -> Option<Self> {
         if registration.id.type_id == TypeId::of::<W>() {
             Some(Self {
                 registration: Arc::downgrade(registration),
@@ -412,13 +484,30 @@ impl<W: Widget, F: Frontend> WidgetRef<W, F> {
     }
 
     /// Posts `event` to a transmogrifier.
-    pub fn post_event(&self, event: W::TransmogrifierEvent) {
+    ///
+    /// # Panics
+    ///
+    /// Panics if `F` is not the type of the frontend in use.
+    pub fn post_event<F: Frontend>(&self, event: W::TransmogrifierEvent) {
+        let frontend = self.frontend.as_ref().as_any().downcast_ref::<F>().unwrap();
         if let Some(registration) = self.registration() {
-            self.frontend.gooey().post_transmogrifier_event::<W>(
-                &registration.id,
-                event,
-                &self.frontend,
-            );
+            frontend
+                .gooey()
+                .post_transmogrifier_event::<W>(&registration.id, event, frontend);
+        }
+    }
+
+    /// Posts `event` to a transmogrifier.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `F` is not the type of the frontend in use.
+    pub fn post_command<F: Frontend>(&self, command: W::Command) {
+        let frontend = self.frontend.as_ref().as_any().downcast_ref::<F>().unwrap();
+        if let Some(registration) = self.registration() {
+            frontend
+                .gooey()
+                .post_command::<W>(&registration.id, command, frontend);
         }
     }
 }

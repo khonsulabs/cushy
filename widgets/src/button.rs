@@ -1,7 +1,4 @@
-use gooey_core::{
-    styles::{Points, Style},
-    Widget,
-};
+use gooey_core::{Callback, Context, Widget};
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;
@@ -12,11 +9,11 @@ mod browser;
 #[derive(Debug)]
 pub struct Button {
     pub label: String,
-    pub style: Style<Points>,
+    pub clicked: Callback,
 }
 
 #[derive(Debug)]
-pub enum ButtonEvent {
+pub enum InternalButtonEvent {
     Clicked,
 }
 
@@ -26,18 +23,24 @@ pub enum ButtonCommand {
 }
 
 impl Widget for Button {
+    type Command = ButtonCommand;
     type TransmogrifierCommand = ButtonCommand;
-    type TransmogrifierEvent = ButtonEvent;
+    type TransmogrifierEvent = InternalButtonEvent;
 
     fn receive_event(
         &mut self,
         event: Self::TransmogrifierEvent,
-        context: &gooey_core::Context<Self>,
-    ) where
-        Self: Sized,
-    {
-        let ButtonEvent::Clicked = event;
-        context.send_command(ButtonCommand::SetLabel(String::from("Clicked!")));
+        _context: &gooey_core::Context<Self>,
+    ) {
+        let InternalButtonEvent::Clicked = event;
+        self.clicked.invoke(());
+    }
+
+    /// Called when an `event` from the transmogrifier was received.
+    #[allow(unused_variables)]
+    fn receive_command(&mut self, command: Self::Command, context: &Context<Self>) {
+        log::info!("Received command {:?}", command);
+        context.send_command(command);
     }
 }
 

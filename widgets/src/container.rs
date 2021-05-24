@@ -3,7 +3,7 @@ use std::sync::Arc;
 use gooey_core::{
     euclid::Length,
     styles::{Points, Surround},
-    Widget, WidgetRegistration, WidgetStorage,
+    Frontend, Widget, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -45,9 +45,14 @@ impl Container {
         self.padding.bottom = Some(padding.into().get());
         self
     }
+
+    pub fn child<W: Widget, F: Frontend>(&self, frontend: F) -> Option<WidgetRef<W>> {
+        WidgetRef::new(&self.child, frontend)
+    }
 }
 
 impl Widget for Container {
+    type Command = ();
     type TransmogrifierCommand = ();
     type TransmogrifierEvent = ();
 }

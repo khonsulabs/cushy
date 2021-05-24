@@ -1,5 +1,5 @@
 use gooey_browser::{AnyWidgetWebSysTransmogrifier, WebSys, WebSysTransmogrifier};
-use gooey_core::{euclid::Length, styles::Points, Channels, Transmogrifier};
+use gooey_core::{euclid::Length, styles::Points, Transmogrifier};
 use wasm_bindgen::JsCast;
 
 use crate::{
@@ -16,13 +16,13 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
     fn transmogrify(
         &self,
         _state: &Self::State,
-        _channels: &Channels<Container>,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
         gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
         gooey.ui.with_transmogrifier(
             widget.child.id(),
-            |child_transmogrifier, child_state, child_widget, channels| {
+            gooey,
+            |child_transmogrifier, child_state, child_widget| {
                 let container = window_document()
                     .create_element("div")
                     .expect("error creating div")
@@ -37,7 +37,7 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
                 set_element_padding(&container, "padding-bottom", widget.padding.bottom());
 
                 if let Some(child) =
-                    child_transmogrifier.transmogrify(child_state, channels, child_widget, gooey)
+                    child_transmogrifier.transmogrify(child_state, child_widget, gooey)
                 {
                     container
                         .append_child(&child)

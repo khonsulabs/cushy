@@ -24,3 +24,4 @@ web-sys = { version = "0.3", features = [
 ] }
 gooey-core = { path = "../../core", version = "0.1.0-dev.0" }
 console_error_panic_hook = "0.1"
+log = "0.4"

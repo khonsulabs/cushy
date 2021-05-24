@@ -1,4 +1,5 @@
 pub mod button;
+pub mod component;
 pub mod container;
 
 #[cfg(feature = "frontend-browser")]

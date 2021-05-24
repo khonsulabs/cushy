@@ -20,32 +20,30 @@ pub use gooey_widgets as widgets;
 
 #[cfg(feature = "frontend-kludgine")]
 mod kludgine {
-    use gooey_core::{Transmogrifiers, Widget, WidgetStorage};
+    use gooey_core::{Frontend, Transmogrifiers, Widget, WidgetStorage};
     use gooey_kludgine::kludgine::prelude::*;
     use gooey_widgets::rasterized::default_transmogrifiers;
 
     use crate::{
         core::Gooey,
         frontends::{rasterizer::Rasterizer, renderers::kludgine::Kludgine},
+        widgets::rasterized::register_transmogrifiers,
     };
 
-    pub fn kludgine_main_with_transmogrifiers<
-        W: Widget + Send + Sync,
-        C: FnOnce(&WidgetStorage) -> W,
-    >(
+    pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(
         mut transmogrifiers: Transmogrifiers<Rasterizer<Kludgine>>,
         initializer: C,
     ) {
-        crate::widgets::rasterized::register_transmogrifiers(&mut transmogrifiers);
+        register_transmogrifiers(&mut transmogrifiers);
         let ui = Gooey::with(transmogrifiers, initializer);
+        let ui = Rasterizer::<Kludgine>::new(ui);
+        ui.process_widget_messages();
 
-        SingleWindowApplication::run(GooeyWindow {
-            ui: Rasterizer::<Kludgine>::new(ui),
-        });
+        SingleWindowApplication::run(GooeyWindow { ui });
     }
 
     pub fn kludgine_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(initializer: C) {
-        kludgine_main_with_transmogrifiers(default_transmogrifiers(), initializer)
+        kludgine_main_with(default_transmogrifiers(), initializer)
     }
 
     struct GooeyWindow {
@@ -66,39 +64,42 @@ mod kludgine {
     }
 }
 #[cfg(feature = "frontend-kludgine")]
-pub use kludgine::kludgine_main;
+pub use kludgine::{kludgine_main, kludgine_main_with};
 
 #[cfg(feature = "frontend-browser")]
 mod browser {
     use crate::{
-        core::{Gooey, Transmogrifiers, Widget, WidgetStorage},
+        core::{Frontend, Gooey, Transmogrifiers, Widget, WidgetStorage},
         frontends::browser::WebSys,
         widgets::browser::{default_transmogrifiers, register_transmogrifiers},
     };
 
-    pub fn browser_main_with_transmogrifiers<
-        W: Widget + Send + Sync,
-        C: FnOnce(&WidgetStorage) -> W,
-    >(
+    pub fn browser_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(
         mut transmogrifiers: Transmogrifiers<WebSys>,
         initializer: C,
     ) {
         register_transmogrifiers(&mut transmogrifiers);
-        WebSys::new(Gooey::with(transmogrifiers, initializer)).install_in_id("gooey")
+        let ui = WebSys::new(Gooey::with(transmogrifiers, initializer));
+        ui.process_widget_messages();
+        ui.install_in_id("gooey")
     }
 
     pub fn browser_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(initializer: C) {
-        browser_main_with_transmogrifiers(default_transmogrifiers(), initializer)
+        browser_main_with(default_transmogrifiers(), initializer)
     }
 }
 
 #[cfg(feature = "frontend-browser")]
-pub use browser::browser_main;
+pub use browser::{browser_main, browser_main_with};
 
 cfg_if! {
     if #[cfg(feature = "frontend-browser")] {
         pub use browser_main as main;
+        pub use browser_main_with as main_with;
+        pub type ActiveFrontend = gooey_browser::WebSys;
     } else if #[cfg(feature = "frontend-kludgine")] {
         pub use kludgine_main as main;
+        pub use kludgine_main_with as main_with;
+        pub type ActiveFrontend = gooey_rasterizer::Rasterizer<gooey_kludgine::Kludgine>;
     }
 }

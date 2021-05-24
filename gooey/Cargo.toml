@@ -29,3 +29,5 @@ cfg-if = "1"
 
 [dev-dependencies]
 wasm-bindgen = "0.2"
+wasm-logger = "0.2"
+log = "0.4"
