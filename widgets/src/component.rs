@@ -1,6 +1,7 @@
 use std::{
     fmt::Debug,
     marker::PhantomData,
+    ops::Deref,
     sync::{Arc, RwLock},
 };
 
@@ -24,13 +25,13 @@ pub struct Component<B: Behavior> {
 }
 
 impl<B: Behavior> Component<B> {
-    pub fn with<W: Widget, I: FnOnce(&WidgetStorage, &CallbackMapper<B>) -> W>(
+    pub fn with<W: Widget, I: FnOnce(&CallbackMapper<B>) -> W>(
         storage: &WidgetStorage,
         behavior: B,
         widget_initializer: I,
     ) -> Self {
-        let callbacks = CallbackMapper::default();
-        let content = storage.register(widget_initializer(storage, &callbacks));
+        let callbacks = CallbackMapper::new(storage);
+        let content = storage.register(widget_initializer(&callbacks));
 
         Self {
             behavior,
@@ -96,10 +97,19 @@ pub enum InternalEvent<B: Behavior> {
 #[derive(Debug)]
 pub struct CallbackMapper<B: Behavior> {
     widget: SettableWidgetRef<B>,
+    storage: WidgetStorage,
     _phantom: PhantomData<B>,
 }
 
 impl<B: Behavior> CallbackMapper<B> {
+    pub fn new(storage: &WidgetStorage) -> Self {
+        Self {
+            storage: storage.clone(),
+            widget: SettableWidgetRef::default(),
+            _phantom: PhantomData::default(),
+        }
+    }
+
     pub fn map_event<I: 'static, C: CallbackFn<I, <B as Behavior>::Event> + 'static>(
         &self,
         mapper: C,
@@ -113,12 +123,11 @@ impl<B: Behavior> CallbackMapper<B> {
     }
 }
 
-impl<B: Behavior> Default for CallbackMapper<B> {
-    fn default() -> Self {
-        Self {
-            widget: SettableWidgetRef::default(),
-            _phantom: PhantomData::default(),
-        }
+impl<B: Behavior> Deref for CallbackMapper<B> {
+    type Target = WidgetStorage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.storage
     }
 }
 
@@ -180,12 +189,14 @@ impl<B: Behavior, F: Frontend + Send + Sync> Transmogrifier<F> for ComponentTran
         &self,
         component: &Self::Widget,
         widget: &WidgetRef<Self::Widget>,
-        channels: &Channels<Self::Widget>,
         frontend: &F,
     ) -> Self::State {
+        let widget = widget.registration().unwrap().id().clone();
+        let widget_state = frontend.gooey().widget_state(widget.id).unwrap();
+        let channels = widget_state.channels::<Self::Widget>().unwrap();
         let mut callback_widget = component.callback_widget.write().unwrap();
         *callback_widget = Some(Box::new(EventPoster {
-            widget: widget.registration().unwrap().id().clone(),
+            widget,
             channels: channels.clone(),
             frontend: frontend.clone(),
         }));
@@ -194,15 +205,12 @@ impl<B: Behavior, F: Frontend + Send + Sync> Transmogrifier<F> for ComponentTran
         ));
     }
 
-    /// Called when a command is received from the widget.
-    #[allow(unused_variables)] // Keeps documentation clean
     fn receive_command(
         &self,
-        state: &mut Self::State,
+        _state: &mut Self::State,
         command: <Self::Widget as Widget>::TransmogrifierCommand,
         widget: &Self::Widget,
-        channels: &Channels<Self::Widget>,
-        frontend: &F,
+        _frontend: &F,
     ) {
         log::info!("Component Transmogrifier received command: {:?}", command);
         widget

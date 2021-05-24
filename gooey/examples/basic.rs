@@ -16,7 +16,7 @@ fn main() {
         .register_transmogrifier(ComponentTransmogrifier::<Counter>::default())
         .unwrap();
     gooey::main_with(transmogrifiers, |storage| {
-        Component::with(storage, Counter::default(), |storage, callbacks| Button {
+        Component::with(storage, Counter::default(), |callbacks| Button {
             label: String::from("Hello, World"),
             clicked: callbacks.map_event(|_| CounterEvent::ButtonClicked),
         })

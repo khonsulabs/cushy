@@ -74,7 +74,6 @@ pub trait Transmogrifier<F: Frontend>: Debug {
         &self,
         widget: &Self::Widget,
         reference: &WidgetRef<Self::Widget>,
-        channels: &Channels<Self::Widget>,
         frontend: &F,
     ) -> Self::State {
         <Self::State as Default>::default()
@@ -87,7 +86,6 @@ pub trait Transmogrifier<F: Frontend>: Debug {
         state: &mut Self::State,
         command: <Self::Widget as Widget>::TransmogrifierCommand,
         widget: &Self::Widget,
-        channels: &Channels<Self::Widget>,
         frontend: &F,
     ) {
         unimplemented!(
@@ -121,7 +119,7 @@ pub trait Transmogrifier<F: Frontend>: Debug {
 
             while let Ok(command) = channels.transmogrifier_command_receiver.try_recv() {
                 received_one_message = true;
-                self.receive_command(state, command, widget, channels, frontend);
+                self.receive_command(state, command, widget, frontend);
             }
         }
     }
@@ -133,16 +131,7 @@ pub trait Transmogrifier<F: Frontend>: Debug {
         reference: &WidgetRef<Self::Widget>,
         frontend: &F,
     ) -> TransmogrifierState {
-        let widget_state = frontend
-            .gooey()
-            .widget_state(reference.registration().unwrap().id().id)
-            .unwrap();
-        let state = self.initialize(
-            widget,
-            reference,
-            widget_state.channels().unwrap(),
-            frontend,
-        );
+        let state = self.initialize(widget, reference, frontend);
         TransmogrifierState {
             state: Box::new(state),
         }

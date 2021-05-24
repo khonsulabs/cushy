@@ -284,8 +284,13 @@ impl WidgetStorage {
         drop(removed_value)
     }
 
+    /// Returns the state of the widget with id `widget_id`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if internal lock handling results in an error.
     #[must_use]
-    pub(crate) fn widget_state(&self, widget_id: u32) -> Option<WidgetState> {
+    pub fn widget_state(&self, widget_id: u32) -> Option<WidgetState> {
         let state = self.data.state.read().unwrap();
         state.get(&widget_id).cloned()
     }
@@ -385,8 +390,9 @@ impl WidgetState {
         self.channels.as_ref().as_ref()
     }
 
+    /// Returns the channels used to communicate with this widget.
     #[must_use]
-    pub(crate) fn channels<W: Widget>(&self) -> Option<&'_ Channels<W>> {
+    pub fn channels<W: Widget>(&self) -> Option<&'_ Channels<W>> {
         self.any_channels().as_any().downcast_ref()
     }
 }
