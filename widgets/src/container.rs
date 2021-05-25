@@ -20,10 +20,7 @@ pub struct Container {
 
 impl Container {
     pub fn new<W: Widget>(child: W, storage: &WidgetStorage) -> Self {
-        Self {
-            child: storage.register(child),
-            padding: Surround::default(),
-        }
+        Self::from(storage.register(child))
     }
 
     pub fn pad_left<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
@@ -48,6 +45,15 @@ impl Container {
 
     pub fn child<W: Widget, F: Frontend>(&self, frontend: F) -> Option<WidgetRef<W>> {
         WidgetRef::new(&self.child, frontend)
+    }
+}
+
+impl From<Arc<WidgetRegistration>> for Container {
+    fn from(child: Arc<WidgetRegistration>) -> Self {
+        Self {
+            child,
+            padding: Surround::default(),
+        }
     }
 }
 

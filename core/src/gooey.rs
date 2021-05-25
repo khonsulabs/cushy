@@ -421,6 +421,13 @@ impl WidgetRegistration {
     pub const fn id(&self) -> &'_ WidgetId {
         &self.id
     }
+
+    /// Sets that this widget has messages. Should not be necessary in normal
+    /// usage patterns. This is only needed if you're directly calling send on a
+    /// widget's channels.
+    pub fn set_has_messages(&self) {
+        self.storage.set_widget_has_messages(self.id.clone());
+    }
 }
 
 impl Drop for WidgetRegistration {

@@ -303,12 +303,18 @@ impl<W: Widget> Channels<W> {
 
     /// Sends an event to the [`Widget`].
     pub fn post_event(&self, event: W::TransmogrifierEvent) {
-        drop(self.event_sender.send(event))
+        if let Some(registration) = self.widget() {
+            drop(self.event_sender.send(event));
+            registration.set_has_messages();
+        }
     }
 
     /// Sends a `command` to the [`Widget`].
     pub fn post_command(&self, command: W::Command) {
-        drop(self.command_sender.send(command))
+        if let Some(registration) = self.widget() {
+            drop(self.command_sender.send(command));
+            registration.set_has_messages();
+        }
     }
 
     /// Returns the widget registration. Returns none if the widget has been

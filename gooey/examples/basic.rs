@@ -5,6 +5,8 @@ use gooey::{
         component::{Behavior, Component, ComponentTransmogrifier},
     },
 };
+use gooey_core::WidgetId;
+use gooey_widgets::{component::CallbackMapper, container::Container};
 
 fn main() {
     #[cfg(target_arch = "wasm32")]
@@ -16,21 +18,36 @@ fn main() {
         .register_transmogrifier(ComponentTransmogrifier::<Counter>::default())
         .unwrap();
     gooey::main_with(transmogrifiers, |storage| {
-        Component::with(storage, Counter::default(), |callbacks| Button {
-            label: String::from("Hello, World"),
-            clicked: callbacks.map_event(|_| CounterEvent::ButtonClicked),
-        })
+        Component::<Counter>::new(storage)
     })
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Counter {
+    button_id: WidgetId,
     count: u32,
 }
 
 impl Behavior for Counter {
-    type Content = Button;
+    type Content = Container;
     type Event = CounterEvent;
+
+    fn initialize(callbacks: CallbackMapper<Self>) -> Component<Self> {
+        let button = callbacks.register(Button {
+            label: String::from("Click Me!"),
+            clicked: callbacks.map_event(|_| CounterEvent::ButtonClicked),
+        });
+        let button_id = button.id().clone();
+
+        Component::initialized(
+            Container::from(button),
+            Self {
+                button_id,
+                count: 0,
+            },
+            callbacks,
+        )
+    }
 
     fn receive_event(
         component: &mut Component<Self>,
@@ -40,7 +57,14 @@ impl Behavior for Counter {
         let CounterEvent::ButtonClicked = event;
         component.behavior.count += 1;
 
-        context.send_command(ButtonCommand::SetLabel(
+        let button_state = context
+            .frontend
+            .storage()
+            .widget_state(component.behavior.button_id.id)
+            .unwrap();
+        let button_channels = button_state.channels::<Button>().unwrap();
+
+        button_channels.post_command(ButtonCommand::SetLabel(
             component.behavior.count.to_string(),
         ));
     }

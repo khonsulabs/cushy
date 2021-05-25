@@ -31,6 +31,9 @@ pub trait AnyFrontend: AnySendSync {
     /// Returns the widget storage.
     #[must_use]
     fn storage(&self) -> &'_ WidgetStorage;
+
+    /// Processes any pending messages for widgets and transmogrifiers.
+    fn process_widget_messages(&self);
 }
 
 impl<T> AnyFrontend for T
@@ -43,6 +46,10 @@ where
 
     fn storage(&self) -> &'_ WidgetStorage {
         self.gooey()
+    }
+
+    fn process_widget_messages(&self) {
+        self.process_widget_messages()
     }
 }
 

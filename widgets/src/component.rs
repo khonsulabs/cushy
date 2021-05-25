@@ -25,14 +25,12 @@ pub struct Component<B: Behavior> {
 }
 
 impl<B: Behavior> Component<B> {
-    pub fn with<W: Widget, I: FnOnce(&CallbackMapper<B>) -> W>(
-        storage: &WidgetStorage,
-        behavior: B,
-        widget_initializer: I,
-    ) -> Self {
-        let callbacks = CallbackMapper::new(storage);
-        let content = storage.register(widget_initializer(&callbacks));
+    pub fn new(storage: &WidgetStorage) -> Self {
+        B::initialize(CallbackMapper::new(storage))
+    }
 
+    pub fn initialized(widget: B::Content, behavior: B, callbacks: CallbackMapper<B>) -> Self {
+        let content = callbacks.register(widget);
         Self {
             behavior,
             content,
@@ -58,6 +56,10 @@ impl<B: Behavior> Default for ComponentTransmogrifier<B> {
 pub trait Behavior: Debug + Send + Sync + 'static {
     type Event: Debug + Send + Sync;
     type Content: Widget;
+
+    fn initialize(callbacks: CallbackMapper<Self>) -> Component<Self>
+    where
+        Self: Sized;
 
     fn receive_event(
         component: &mut Component<Self>,
@@ -201,7 +203,9 @@ impl<B: Behavior, F: Frontend + Send + Sync> Transmogrifier<F> for ComponentTran
             frontend: frontend.clone(),
         }));
         channels.post_event(InternalEvent::ReceiveWidget(
-            WidgetRef::new(&component.content, frontend.clone()).unwrap(),
+            WidgetRef::new(&component.content, frontend.clone()).expect(
+                "type mismatch: Behavior::Widget type doesn't match initialized widget type",
+            ),
         ));
     }
 
