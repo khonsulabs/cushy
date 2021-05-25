@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use gooey_core::{
-    euclid::{Length, Rect, Size2D, Vector2D},
+    euclid::{Length, Size2D, Vector2D},
     renderer::Renderer,
     styles::{ForegroundColor, Points, Srgba, Style},
     Transmogrifier,
@@ -17,23 +17,17 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
     type Widget = Button;
 }
 
-impl<R: Renderer> WidgetRasterizer<Rasterizer<R>> for ButtonTransmogrifier {
-    fn render(
-        &self,
-        _state: &Self::State,
-        rasterizer: &Rasterizer<R>,
-        button: &Button,
-        bounds: Rect<f32, Points>,
-    ) {
+impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
+    fn render(&self, _state: &Self::State, rasterizer: &Rasterizer<R>, button: &Button) {
         if let Some(scene) = rasterizer.deref() {
             scene.fill_rect(
-                &bounds,
+                &scene.bounds(),
                 &Style::new().with(ForegroundColor(Srgba::new(0., 1., 0., 1.).into())),
             );
 
             let text_size = scene.measure_text(&button.label, &Style::default());
 
-            let center = bounds.center();
+            let center = scene.bounds().center();
             scene.render_text(
                 &button.label,
                 center - Vector2D::from_lengths(text_size.width, text_size.height()) / 2.

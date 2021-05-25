@@ -5,8 +5,8 @@ pub use gooey_core::renderer::Renderer;
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     styles::Points,
-    AnySendSync, AnyTransmogrifier, AnyWidget, Frontend, Gooey, Transmogrifier,
-    TransmogrifierState, WidgetRegistration,
+    AnySendSync, AnyTransmogrifier, AnyWidget, Gooey, Transmogrifier, TransmogrifierState,
+    WidgetRegistration,
 };
 use winit::event::DeviceId;
 
@@ -29,7 +29,7 @@ impl<R: Renderer> Clone for Rasterizer<R> {
 }
 
 impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
-    type AnyTransmogrifier = RegisteredTransmogrifier<Self>;
+    type AnyTransmogrifier = RegisteredTransmogrifier<R>;
     type Context = Self;
 
     fn gooey(&self) -> &'_ Gooey<Self> {
@@ -60,7 +60,7 @@ impl<R: Renderer> Rasterizer<R> {
             self.ui.root_widget().id(),
             self,
             |transmogrifier, state, widget| {
-                transmogrifier.render(
+                transmogrifier.render_within(
                     state,
                     &Rasterizer {
                         ui: self.ui.clone(),
@@ -73,26 +73,66 @@ impl<R: Renderer> Rasterizer<R> {
         );
     }
 
+    pub fn clipped_to(&self, clip: Rect<f32, Points>) -> Option<Self> {
+        self.renderer().map(|renderer| Self {
+            ui: self.ui.clone(),
+            renderer: Some(renderer.clip_to(clip)),
+        })
+    }
+
     pub fn handle_winit_event<'evt, T>(
         &self,
         scene: R,
         device: &DeviceId,
         event: &winit::event::Event<'evt, T>,
     ) {
+        // TODO:
+        // * Need a list of all widgets that have been rendered.
+        // * I removed the ability to get the widgetid from the callbacks by
+        //   removing the Channels parameter. We need the widget id back, it
+        //   seems like it's a good time to introduce a Context parameter that
+        //   can house the common paramters to all transmogrifier callbacks --
+        //   state, widget id/reg, frontend, widget.
+        // * Once we have the widget id, we can have a simple Mutex<collection>
+        //   that gets cleared on render start. During `render_within` we can
+        //   note the id and location into the lookup structure. Order is
+        //   important, but it also seems like a spatial map would be nice...
+        //   Vec is easiest and likely will be fine for any sane application
+        //   (ie, not oodles of widgets).
+        // * The existing handling of focus/hover seemed fine from memory. The
+        //   pain points were around styling, not the actual application of
+        //   state. Actually there was a need of refactoring for code-reuse --
+        //   each of the mouse event handlers were very similar.
+    }
+
+    pub fn renderer(&self) -> Option<&R> {
+        self.renderer.as_ref()
     }
 }
 
-pub trait WidgetRasterizer<F: Frontend>: Transmogrifier<F> + 'static {
+pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + 'static {
     fn widget_type_id(&self) -> TypeId {
-        TypeId::of::<<Self as Transmogrifier<F>>::Widget>()
+        TypeId::of::<<Self as Transmogrifier<Rasterizer<R>>>::Widget>()
+    }
+
+    fn render_within(
+        &self,
+        state: &Self::State,
+        rasterizer: &Rasterizer<R>,
+        widget: &<Self as Transmogrifier<Rasterizer<R>>>::Widget,
+        bounds: Rect<f32, Points>,
+    ) {
+        if let Some(rasterizer) = rasterizer.clipped_to(bounds) {
+            self.render(state, &rasterizer, widget);
+            // TODO notate that it's rendered.
+        }
     }
 
     fn render(
         &self,
         state: &Self::State,
-        rasterizer: &F,
-        widget: &<Self as Transmogrifier<F>>::Widget,
-        bounds: Rect<f32, Points>,
+        rasterizer: &Rasterizer<R>,
+        widget: &<Self as Transmogrifier<Rasterizer<R>>>::Widget,
     );
 
     /// Calculate the content-size needed for this `widget`, trying to stay
@@ -101,16 +141,16 @@ pub trait WidgetRasterizer<F: Frontend>: Transmogrifier<F> + 'static {
         &self,
         state: &Self::State,
         widget: &Self::Widget,
-        rasterizer: &F,
+        rasterizer: &Rasterizer<R>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points>;
 }
 
-pub trait AnyWidgetRasterizer<F: Frontend>: AnyTransmogrifier<F> + Send + Sync {
-    fn render(
+pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + Send + Sync {
+    fn render_within(
         &self,
         state: &mut dyn AnySendSync,
-        rasterizer: &F,
+        rasterizer: &Rasterizer<R>,
         widget: &dyn AnyWidget,
         bounds: Rect<f32, Points>,
     );
@@ -118,54 +158,54 @@ pub trait AnyWidgetRasterizer<F: Frontend>: AnyTransmogrifier<F> + Send + Sync {
         &self,
         state: &mut dyn AnySendSync,
         widget: &dyn AnyWidget,
-        rasterizer: &F,
+        rasterizer: &Rasterizer<R>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points>;
 }
 
-impl<T, F> AnyWidgetRasterizer<F> for T
+impl<T, R> AnyWidgetRasterizer<R> for T
 where
-    T: WidgetRasterizer<F> + AnyTransmogrifier<F> + Send + Sync + 'static,
-    F: Frontend,
+    T: WidgetRasterizer<R> + AnyTransmogrifier<Rasterizer<R>> + Send + Sync + 'static,
+    R: Renderer,
 {
-    fn render(
+    fn render_within(
         &self,
         state: &mut dyn AnySendSync,
-        rasterizer: &F,
+        rasterizer: &Rasterizer<R>,
         widget: &dyn AnyWidget,
         bounds: Rect<f32, Points>,
     ) {
         let widget = widget
             .as_any()
-            .downcast_ref::<<T as Transmogrifier<F>>::Widget>()
+            .downcast_ref::<<T as Transmogrifier<Rasterizer<R>>>::Widget>()
             .unwrap();
         let state = state
             .as_mut_any()
-            .downcast_mut::<<T as Transmogrifier<F>>::State>()
+            .downcast_mut::<<T as Transmogrifier<Rasterizer<R>>>::State>()
             .unwrap();
-        <T as WidgetRasterizer<F>>::render(&self, state, rasterizer, widget, bounds)
+        <T as WidgetRasterizer<R>>::render_within(&self, state, rasterizer, widget, bounds)
     }
 
     fn content_size(
         &self,
         state: &mut dyn AnySendSync,
         widget: &dyn AnyWidget,
-        rasterizer: &F,
+        rasterizer: &Rasterizer<R>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         let widget = widget
             .as_any()
-            .downcast_ref::<<T as Transmogrifier<F>>::Widget>()
+            .downcast_ref::<<T as Transmogrifier<Rasterizer<R>>>::Widget>()
             .unwrap();
         let state = state
             .as_mut_any()
-            .downcast_mut::<<T as Transmogrifier<F>>::State>()
+            .downcast_mut::<<T as Transmogrifier<Rasterizer<R>>>::State>()
             .unwrap();
-        <T as WidgetRasterizer<F>>::content_size(&self, state, widget, rasterizer, constraints)
+        <T as WidgetRasterizer<R>>::content_size(&self, state, widget, rasterizer, constraints)
     }
 }
 
-impl<R: Renderer> AnyTransmogrifier<Rasterizer<R>> for RegisteredTransmogrifier<Rasterizer<R>> {
+impl<R: Renderer> AnyTransmogrifier<Rasterizer<R>> for RegisteredTransmogrifier<R> {
     fn process_messages(
         &self,
         state: &mut dyn AnySendSync,
@@ -193,10 +233,10 @@ impl<R: Renderer> AnyTransmogrifier<Rasterizer<R>> for RegisteredTransmogrifier<
 }
 
 #[derive(Debug)]
-pub struct RegisteredTransmogrifier<F: Frontend>(pub Box<dyn AnyWidgetRasterizer<F>>);
+pub struct RegisteredTransmogrifier<R: Renderer>(pub Box<dyn AnyWidgetRasterizer<R>>);
 
-impl<F: Frontend> Deref for RegisteredTransmogrifier<F> {
-    type Target = Box<dyn AnyWidgetRasterizer<F>>;
+impl<R: Renderer> Deref for RegisteredTransmogrifier<R> {
+    type Target = Box<dyn AnyWidgetRasterizer<R>>;
 
     fn deref(&self) -> &'_ Self::Target {
         &self.0
@@ -206,9 +246,7 @@ impl<F: Frontend> Deref for RegisteredTransmogrifier<F> {
 #[macro_export]
 macro_rules! make_rasterized {
     ($transmogrifier:ident) => {
-        impl<R: $crate::Renderer> From<$transmogrifier>
-            for $crate::RegisteredTransmogrifier<$crate::Rasterizer<R>>
-        {
+        impl<R: $crate::Renderer> From<$transmogrifier> for $crate::RegisteredTransmogrifier<R> {
             fn from(transmogrifier: $transmogrifier) -> Self {
                 Self(std::boxed::Box::new(transmogrifier))
             }

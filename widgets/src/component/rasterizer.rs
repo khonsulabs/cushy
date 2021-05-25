@@ -1,25 +1,19 @@
-use gooey_core::{
-    euclid::{Rect, Size2D},
-    renderer::Renderer,
-    styles::Points,
-};
+use gooey_core::{euclid::Size2D, renderer::Renderer, styles::Points};
 use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
 
 use crate::component::{Behavior, Component, ComponentTransmogrifier};
 
-impl<R: Renderer, B: Behavior> WidgetRasterizer<Rasterizer<R>> for ComponentTransmogrifier<B> {
-    fn render(
-        &self,
-        _state: &Self::State,
-        rasterizer: &Rasterizer<R>,
-        container: &Component<B>,
-        bounds: Rect<f32, Points>,
-    ) {
+impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B> {
+    fn render(&self, _state: &Self::State, rasterizer: &Rasterizer<R>, container: &Component<B>) {
         rasterizer.ui.with_transmogrifier(
             container.content.id(),
             rasterizer,
             |child_transmogrifier, child_state, child_widget| {
-                child_transmogrifier.render(child_state, rasterizer, child_widget, bounds);
+                let bounds = rasterizer
+                    .renderer()
+                    .map(|r| r.bounds())
+                    .unwrap_or_default();
+                child_transmogrifier.render_within(child_state, rasterizer, child_widget, bounds);
             },
         );
     }
@@ -46,5 +40,13 @@ impl<R: Renderer, B: Behavior> WidgetRasterizer<Rasterizer<R>> for ComponentTran
                 },
             )
             .unwrap_or_default()
+    }
+}
+
+impl<B: Behavior, R: Renderer> From<ComponentTransmogrifier<B>>
+    for gooey_rasterizer::RegisteredTransmogrifier<R>
+{
+    fn from(transmogrifier: ComponentTransmogrifier<B>) -> Self {
+        Self(std::boxed::Box::new(transmogrifier))
     }
 }

@@ -13,6 +13,12 @@ pub struct Kludgine {
     target: Target,
 }
 
+impl From<Target> for Kludgine {
+    fn from(target: Target) -> Self {
+        Self { target }
+    }
+}
+
 impl<'a> From<&'a Target> for Kludgine {
     fn from(target: &'a Target) -> Self {
         Self {
@@ -70,7 +76,23 @@ impl Kludgine {
 
 impl Renderer for Kludgine {
     fn size(&self) -> gooey_core::euclid::Size2D<f32, Points> {
-        self.target.size()
+        self.target
+            .clip
+            .map(|c| c.size.to_f32() / self.scale())
+            .unwrap_or_else(|| self.target.size())
+    }
+
+    fn clip_to(&self, bounds: Rect<f32, Points>) -> Self {
+        // Kludgine's clipping is scene-relative, but the bounds in this function is
+        // relative to the current rendering location.
+        let scene_relative_bounds =
+            bounds.translate(self.target.offset.unwrap_or_default() / self.scale());
+
+        Kludgine::from(
+            self.target
+                .clipped_to((scene_relative_bounds * self.scale()).to_u32())
+                .offset_by(bounds.origin.to_vector() * self.scale()),
+        )
     }
 
     fn scale(&self) -> Scale<f32, Points, gooey_core::styles::Pixels> {

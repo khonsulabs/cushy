@@ -13,25 +13,20 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ContainerTransmogrifier {
     type Widget = Container;
 }
 
-impl<R: Renderer> WidgetRasterizer<Rasterizer<R>> for ContainerTransmogrifier {
-    fn render(
-        &self,
-        _state: &Self::State,
-        rasterizer: &Rasterizer<R>,
-        container: &Container,
-        bounds: Rect<f32, Points>,
-    ) {
+impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
+    fn render(&self, _state: &Self::State, rasterizer: &Rasterizer<R>, container: &Container) {
         rasterizer.ui.with_transmogrifier(
             container.child.id(),
             rasterizer,
             |child_transmogrifier, child_state, child_widget| {
+                let render_size = rasterizer.renderer().map(|r| r.size()).unwrap_or_default();
                 let size = child_transmogrifier.content_size(
                     child_state,
                     child_widget,
                     rasterizer,
-                    Size2D::new(Some(bounds.size.width), Some(bounds.size.height)),
+                    Size2D::new(Some(render_size.width), Some(render_size.height)),
                 );
-                let remaining_size = (bounds.size.to_vector()
+                let remaining_size = (render_size.to_vector()
                     - size.to_vector()
                     - container.padding.minimum_size().to_vector())
                 .to_size();
@@ -42,7 +37,12 @@ impl<R: Renderer> WidgetRasterizer<Rasterizer<R>> for ContainerTransmogrifier {
                     size,
                 );
 
-                child_transmogrifier.render(child_state, rasterizer, child_widget, child_rect);
+                child_transmogrifier.render_within(
+                    child_state,
+                    rasterizer,
+                    child_widget,
+                    child_rect,
+                );
             },
         );
     }
