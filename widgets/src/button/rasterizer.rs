@@ -1,12 +1,10 @@
-use std::ops::Deref;
-
 use gooey_core::{
     euclid::{Length, Size2D, Vector2D},
     renderer::Renderer,
     styles::{ForegroundColor, Points, Srgba, Style},
     Transmogrifier,
 };
-use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
+use gooey_rasterizer::{RasterContext, Rasterizer, WidgetRasterizer};
 
 use crate::button::{Button, ButtonTransmogrifier};
 
@@ -18,18 +16,18 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
-    fn render(&self, _state: &Self::State, rasterizer: &Rasterizer<R>, button: &Button) {
-        if let Some(scene) = rasterizer.deref() {
+    fn render(&self, context: RasterContext<Self, R>) {
+        if let Some(scene) = context.rasterizer.renderer() {
             scene.fill_rect(
                 &scene.bounds(),
                 &Style::new().with(ForegroundColor(Srgba::new(0., 1., 0., 1.).into())),
             );
 
-            let text_size = scene.measure_text(&button.label, &Style::default());
+            let text_size = scene.measure_text(&context.widget.label, &Style::default());
 
             let center = scene.bounds().center();
             scene.render_text(
-                &button.label,
+                &context.widget.label,
                 center - Vector2D::from_lengths(text_size.width, text_size.height()) / 2.
                     + Vector2D::from_lengths(Length::default(), text_size.ascent),
                 &Style::default(),
@@ -39,14 +37,12 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
 
     fn content_size(
         &self,
-        _state: &Self::State,
-        button: &Button,
-        rasterizer: &Rasterizer<R>,
+        context: RasterContext<Self, R>,
         _constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
-        if let Some(scene) = rasterizer.deref() {
+        if let Some(scene) = context.rasterizer.renderer() {
             // TODO should be wrapped width
-            let text_size = scene.measure_text(&button.label, &Style::default());
+            let text_size = scene.measure_text(&context.widget.label, &Style::default());
             (Vector2D::from_lengths(text_size.width, text_size.height())
                 + Vector2D::from_lengths(BUTTON_PADDING * 2., BUTTON_PADDING * 2.))
             .to_size()

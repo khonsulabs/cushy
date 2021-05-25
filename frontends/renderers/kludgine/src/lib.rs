@@ -82,6 +82,13 @@ impl Renderer for Kludgine {
             .unwrap_or_else(|| self.target.size())
     }
 
+    fn clip_bounds(&self) -> Rect<f32, Points> {
+        Rect::new(
+            self.target.offset.unwrap_or_default().to_point() / self.scale(),
+            self.size(),
+        )
+    }
+
     fn clip_to(&self, bounds: Rect<f32, Points>) -> Self {
         // Kludgine's clipping is scene-relative, but the bounds in this function is
         // relative to the current rendering location.

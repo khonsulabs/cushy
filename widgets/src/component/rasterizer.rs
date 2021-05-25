@@ -1,40 +1,51 @@
 use gooey_core::{euclid::Size2D, renderer::Renderer, styles::Points};
-use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
+use gooey_rasterizer::{AnyRasterContext, RasterContext, Rasterizer, WidgetRasterizer};
 
 use crate::component::{Behavior, Component, ComponentTransmogrifier};
 
 impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B> {
-    fn render(&self, _state: &Self::State, rasterizer: &Rasterizer<R>, container: &Component<B>) {
-        rasterizer.ui.with_transmogrifier(
-            container.content.id(),
-            rasterizer,
+    fn render(&self, context: RasterContext<Self, R>) {
+        context.rasterizer.ui.with_transmogrifier(
+            context.widget.content.id(),
+            context.rasterizer,
             |child_transmogrifier, child_state, child_widget| {
-                let bounds = rasterizer
+                let bounds = context
+                    .rasterizer
                     .renderer()
                     .map(|r| r.bounds())
                     .unwrap_or_default();
-                child_transmogrifier.render_within(child_state, rasterizer, child_widget, bounds);
+                child_transmogrifier.render_within(
+                    AnyRasterContext::new(
+                        context.widget.content.clone(),
+                        child_state,
+                        context.rasterizer,
+                        child_widget,
+                    ),
+                    bounds,
+                );
             },
         );
     }
 
     fn content_size(
         &self,
-        _state: &Self::State,
-        container: &Component<B>,
-        rasterizer: &Rasterizer<R>,
+        context: RasterContext<Self, R>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
-        rasterizer
+        context
+            .rasterizer
             .ui
             .with_transmogrifier(
-                container.content.id(),
-                rasterizer,
+                context.widget.content.id(),
+                context.rasterizer,
                 |child_transmogrifier, child_state, child_widget| {
                     child_transmogrifier.content_size(
-                        child_state,
-                        child_widget,
-                        rasterizer,
+                        AnyRasterContext::new(
+                            context.widget.content.clone(),
+                            child_state,
+                            context.rasterizer,
+                            child_widget,
+                        ),
                         constraints,
                     )
                 },

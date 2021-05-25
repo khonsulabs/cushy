@@ -1,4 +1,11 @@
-use std::{any::TypeId, ops::Deref, sync::Arc};
+use std::{
+    any::TypeId,
+    collections::HashMap,
+    convert::TryFrom,
+    marker::PhantomData,
+    ops::Deref,
+    sync::{Arc, Mutex},
+};
 
 #[doc(hidden)]
 pub use gooey_core::renderer::Renderer;
@@ -6,13 +13,14 @@ use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     styles::Points,
     AnySendSync, AnyTransmogrifier, AnyWidget, Gooey, Transmogrifier, TransmogrifierState,
-    WidgetRegistration,
+    WidgetId, WidgetRegistration,
 };
 use winit::event::DeviceId;
 
 #[derive(Debug)]
 pub struct Rasterizer<R: Renderer> {
     pub ui: Arc<Gooey<Self>>,
+    last_raster: Arc<Mutex<RasterResult>>,
     renderer: Option<R>,
 }
 
@@ -23,6 +31,7 @@ impl<R: Renderer> Clone for Rasterizer<R> {
     fn clone(&self) -> Self {
         Self {
             ui: self.ui.clone(),
+            last_raster: Arc::default(),
             renderer: None,
         }
     }
@@ -49,11 +58,16 @@ impl<R: Renderer> Rasterizer<R> {
     pub fn new(ui: Gooey<Self>) -> Self {
         Self {
             ui: Arc::new(ui),
+            last_raster: Arc::default(),
             renderer: None,
         }
     }
 
     pub fn render(&self, scene: R) {
+        {
+            let mut last_raster = self.last_raster.lock().unwrap();
+            last_raster.reset();
+        }
         let size = scene.size();
 
         self.ui.with_transmogrifier(
@@ -61,12 +75,16 @@ impl<R: Renderer> Rasterizer<R> {
             self,
             |transmogrifier, state, widget| {
                 transmogrifier.render_within(
-                    state,
-                    &Rasterizer {
-                        ui: self.ui.clone(),
-                        renderer: Some(scene),
-                    },
-                    widget,
+                    AnyRasterContext::new(
+                        self.ui.root_widget().clone(),
+                        state,
+                        &Rasterizer {
+                            ui: self.ui.clone(),
+                            last_raster: self.last_raster.clone(),
+                            renderer: Some(scene),
+                        },
+                        widget,
+                    ),
                     Rect::new(Point2D::default(), size),
                 );
             },
@@ -76,6 +94,7 @@ impl<R: Renderer> Rasterizer<R> {
     pub fn clipped_to(&self, clip: Rect<f32, Points>) -> Option<Self> {
         self.renderer().map(|renderer| Self {
             ui: self.ui.clone(),
+            last_raster: self.last_raster.clone(),
             renderer: Some(renderer.clip_to(clip)),
         })
     }
@@ -87,18 +106,6 @@ impl<R: Renderer> Rasterizer<R> {
         event: &winit::event::Event<'evt, T>,
     ) {
         // TODO:
-        // * Need a list of all widgets that have been rendered.
-        // * I removed the ability to get the widgetid from the callbacks by
-        //   removing the Channels parameter. We need the widget id back, it
-        //   seems like it's a good time to introduce a Context parameter that
-        //   can house the common paramters to all transmogrifier callbacks --
-        //   state, widget id/reg, frontend, widget.
-        // * Once we have the widget id, we can have a simple Mutex<collection>
-        //   that gets cleared on render start. During `render_within` we can
-        //   note the id and location into the lookup structure. Order is
-        //   important, but it also seems like a spatial map would be nice...
-        //   Vec is easiest and likely will be fine for any sane application
-        //   (ie, not oodles of widgets).
         // * The existing handling of focus/hover seemed fine from memory. The
         //   pain points were around styling, not the actual application of
         //   state. Actually there was a need of refactoring for code-reuse --
@@ -108,57 +115,121 @@ impl<R: Renderer> Rasterizer<R> {
     pub fn renderer(&self) -> Option<&R> {
         self.renderer.as_ref()
     }
+
+    pub fn rasterizerd_widget(&self, widget: WidgetId, bounds: Rect<f32, Points>) {
+        let mut raster = self.last_raster.lock().unwrap();
+        raster.widget_rendered(widget, bounds);
+    }
 }
 
-pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + 'static {
+pub struct RasterContext<'a, T: WidgetRasterizer<R>, R: Renderer> {
+    pub registration: Arc<WidgetRegistration>,
+    pub state: &'a mut <T as Transmogrifier<Rasterizer<R>>>::State,
+    pub rasterizer: &'a Rasterizer<R>,
+    pub widget: &'a <T as Transmogrifier<Rasterizer<R>>>::Widget,
+    _transmogrifier: PhantomData<T>,
+}
+
+impl<'a, T: WidgetRasterizer<R>, R: Renderer> RasterContext<'a, T, R> {
+    pub fn new(
+        registration: Arc<WidgetRegistration>,
+        state: &'a mut <T as Transmogrifier<Rasterizer<R>>>::State,
+        rasterizer: &'a Rasterizer<R>,
+        widget: &'a <T as Transmogrifier<Rasterizer<R>>>::Widget,
+    ) -> Self {
+        Self {
+            registration,
+            state,
+            rasterizer,
+            widget,
+            _transmogrifier: PhantomData::default(),
+        }
+    }
+}
+
+impl<'a, T: WidgetRasterizer<R>, R: Renderer> TryFrom<AnyRasterContext<'a, R>>
+    for RasterContext<'a, T, R>
+{
+    type Error = ();
+
+    fn try_from(context: AnyRasterContext<'a, R>) -> Result<Self, Self::Error> {
+        let widget = context
+            .widget
+            .as_any()
+            .downcast_ref::<<T as Transmogrifier<Rasterizer<R>>>::Widget>()
+            .ok_or(())?;
+        let state = context
+            .state
+            .as_mut_any()
+            .downcast_mut::<<T as Transmogrifier<Rasterizer<R>>>::State>()
+            .ok_or(())?;
+        Ok(RasterContext::new(
+            context.registration.clone(),
+            state,
+            context.rasterizer,
+            widget,
+        ))
+    }
+}
+
+pub struct AnyRasterContext<'a, R: Renderer> {
+    pub registration: Arc<WidgetRegistration>,
+    pub state: &'a mut dyn AnySendSync,
+    pub rasterizer: &'a Rasterizer<R>,
+    pub widget: &'a dyn AnyWidget,
+}
+
+impl<'a, R: Renderer> AnyRasterContext<'a, R> {
+    pub fn new(
+        registration: Arc<WidgetRegistration>,
+        state: &'a mut dyn AnySendSync,
+        rasterizer: &'a Rasterizer<R>,
+        widget: &'a dyn AnyWidget,
+    ) -> Self {
+        Self {
+            registration,
+            state,
+            rasterizer,
+            widget,
+        }
+    }
+}
+pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized + 'static {
     fn widget_type_id(&self) -> TypeId {
         TypeId::of::<<Self as Transmogrifier<Rasterizer<R>>>::Widget>()
     }
 
-    fn render_within(
-        &self,
-        state: &Self::State,
-        rasterizer: &Rasterizer<R>,
-        widget: &<Self as Transmogrifier<Rasterizer<R>>>::Widget,
-        bounds: Rect<f32, Points>,
-    ) {
-        if let Some(rasterizer) = rasterizer.clipped_to(bounds) {
-            self.render(state, &rasterizer, widget);
-            // TODO notate that it's rendered.
+    fn render_within(&self, context: RasterContext<'_, Self, R>, bounds: Rect<f32, Points>) {
+        if let Some(rasterizer) = context.rasterizer.clipped_to(bounds) {
+            rasterizer.rasterizerd_widget(
+                context.registration.id().clone(),
+                rasterizer.renderer().unwrap().clip_bounds(),
+            );
+            self.render(RasterContext::new(
+                context.registration.clone(),
+                context.state,
+                &rasterizer,
+                context.widget,
+            ));
         }
     }
 
-    fn render(
-        &self,
-        state: &Self::State,
-        rasterizer: &Rasterizer<R>,
-        widget: &<Self as Transmogrifier<Rasterizer<R>>>::Widget,
-    );
+    fn render(&self, context: RasterContext<'_, Self, R>);
 
     /// Calculate the content-size needed for this `widget`, trying to stay
     /// within `constraints`.
     fn content_size(
         &self,
-        state: &Self::State,
-        widget: &Self::Widget,
-        rasterizer: &Rasterizer<R>,
+        context: RasterContext<'_, Self, R>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points>;
 }
 
 pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + Send + Sync {
-    fn render_within(
-        &self,
-        state: &mut dyn AnySendSync,
-        rasterizer: &Rasterizer<R>,
-        widget: &dyn AnyWidget,
-        bounds: Rect<f32, Points>,
-    );
+    fn render_within(&self, context: AnyRasterContext<'_, R>, bounds: Rect<f32, Points>);
     fn content_size(
         &self,
-        state: &mut dyn AnySendSync,
-        widget: &dyn AnyWidget,
-        rasterizer: &Rasterizer<R>,
+        context: AnyRasterContext<'_, R>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points>;
 }
@@ -168,40 +239,24 @@ where
     T: WidgetRasterizer<R> + AnyTransmogrifier<Rasterizer<R>> + Send + Sync + 'static,
     R: Renderer,
 {
-    fn render_within(
-        &self,
-        state: &mut dyn AnySendSync,
-        rasterizer: &Rasterizer<R>,
-        widget: &dyn AnyWidget,
-        bounds: Rect<f32, Points>,
-    ) {
-        let widget = widget
-            .as_any()
-            .downcast_ref::<<T as Transmogrifier<Rasterizer<R>>>::Widget>()
-            .unwrap();
-        let state = state
-            .as_mut_any()
-            .downcast_mut::<<T as Transmogrifier<Rasterizer<R>>>::State>()
-            .unwrap();
-        <T as WidgetRasterizer<R>>::render_within(&self, state, rasterizer, widget, bounds)
+    fn render_within(&self, context: AnyRasterContext<'_, R>, bounds: Rect<f32, Points>) {
+        <T as WidgetRasterizer<R>>::render_within(
+            &self,
+            RasterContext::try_from(context).unwrap(),
+            bounds,
+        )
     }
 
     fn content_size(
         &self,
-        state: &mut dyn AnySendSync,
-        widget: &dyn AnyWidget,
-        rasterizer: &Rasterizer<R>,
+        context: AnyRasterContext<'_, R>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
-        let widget = widget
-            .as_any()
-            .downcast_ref::<<T as Transmogrifier<Rasterizer<R>>>::Widget>()
-            .unwrap();
-        let state = state
-            .as_mut_any()
-            .downcast_mut::<<T as Transmogrifier<Rasterizer<R>>>::State>()
-            .unwrap();
-        <T as WidgetRasterizer<R>>::content_size(&self, state, widget, rasterizer, constraints)
+        <T as WidgetRasterizer<R>>::content_size(
+            &self,
+            RasterContext::try_from(context).unwrap(),
+            constraints,
+        )
     }
 }
 
@@ -252,4 +307,22 @@ macro_rules! make_rasterized {
             }
         }
     };
+}
+
+#[derive(Default, Debug)]
+struct RasterResult {
+    pub order: Vec<WidgetId>,
+    pub bounds: HashMap<u32, Rect<f32, Points>>,
+}
+
+impl RasterResult {
+    pub fn reset(&mut self) {
+        self.order.clear();
+        self.bounds.clear();
+    }
+
+    pub fn widget_rendered(&mut self, widget: WidgetId, bounds: Rect<f32, Points>) {
+        self.bounds.insert(widget.id, bounds);
+        self.order.push(widget);
+    }
 }
