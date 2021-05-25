@@ -1,7 +1,7 @@
 use gooey_core::{euclid::Size2D, renderer::Renderer, styles::Points};
-use gooey_rasterizer::{AnyRasterContext, RasterContext, Rasterizer, WidgetRasterizer};
+use gooey_rasterizer::{AnyRasterContext, RasterContext, WidgetRasterizer};
 
-use crate::component::{Behavior, Component, ComponentTransmogrifier};
+use crate::component::{Behavior, ComponentTransmogrifier};
 
 impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B> {
     fn render(&self, context: RasterContext<Self, R>) {
