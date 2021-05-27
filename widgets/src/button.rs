@@ -39,7 +39,12 @@ impl Widget for Button {
     /// Called when an `event` from the transmogrifier was received.
     #[allow(unused_variables)]
     fn receive_command(&mut self, command: Self::Command, context: &Context<Self>) {
-        log::info!("Received command {:?}", command);
+        match &command {
+            ButtonCommand::SetLabel(label) => {
+                self.label = label.clone();
+            }
+        }
+
         context.send_command(command);
     }
 }

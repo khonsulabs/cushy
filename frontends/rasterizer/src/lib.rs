@@ -1,26 +1,31 @@
-use std::sync::{Arc, Mutex};
+use std::{collections::HashSet, sync::Arc};
 
-#[doc(hidden)]
-pub use gooey_core::renderer::Renderer;
+use events::{InputEvent, WindowEvent};
 use gooey_core::{
     euclid::{Point2D, Rect},
     styles::Points,
     Gooey, WidgetId,
 };
-use winit::event::DeviceId;
+use winit::event::{
+    ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
+};
 
 mod context;
-mod raster;
+pub mod events;
+mod state;
 mod transmogrifier;
 
-pub use self::{context::*, transmogrifier::*};
+#[doc(hidden)]
+pub use gooey_core::renderer::Renderer;
+use state::State;
+pub use winit;
 
-use raster::Raster;
+pub use self::{context::*, transmogrifier::*};
 
 #[derive(Debug)]
 pub struct Rasterizer<R: Renderer> {
     pub ui: Arc<Gooey<Self>>,
-    last_raster: Arc<Mutex<Raster>>,
+    state: State,
     renderer: Option<R>,
 }
 
@@ -31,7 +36,7 @@ impl<R: Renderer> Clone for Rasterizer<R> {
     fn clone(&self) -> Self {
         Self {
             ui: self.ui.clone(),
-            last_raster: Arc::default(),
+            state: self.state.clone(),
             renderer: None,
         }
     }
@@ -50,58 +55,164 @@ impl<R: Renderer> Rasterizer<R> {
     pub fn new(ui: Gooey<Self>) -> Self {
         Self {
             ui: Arc::new(ui),
-            last_raster: Arc::default(),
+            state: State::default(),
             renderer: None,
         }
     }
 
     pub fn render(&self, scene: R) {
-        {
-            let mut last_raster = self.last_raster.lock().unwrap();
-            last_raster.reset();
-        }
+        self.state.new_frame();
         let size = scene.size();
 
-        self.ui.with_transmogrifier(
-            self.ui.root_widget().id(),
-            self,
-            |transmogrifier, state, widget| {
-                transmogrifier.render_within(
-                    AnyRasterContext::new(
-                        self.ui.root_widget().clone(),
-                        state,
-                        &Rasterizer {
-                            ui: self.ui.clone(),
-                            last_raster: self.last_raster.clone(),
-                            renderer: Some(scene),
-                        },
-                        widget,
-                    ),
-                    Rect::new(Point2D::default(), size),
-                );
-            },
-        );
+        Rasterizer {
+            ui: self.ui.clone(),
+            state: self.state.clone(),
+            renderer: Some(scene),
+        }
+        .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
+            transmogrifier.render_within(&mut context, Rect::new(Point2D::default(), size));
+        });
     }
 
     pub fn clipped_to(&self, clip: Rect<f32, Points>) -> Option<Self> {
         self.renderer().map(|renderer| Self {
             ui: self.ui.clone(),
-            last_raster: self.last_raster.clone(),
+            state: self.state.clone(),
             renderer: Some(renderer.clip_to(clip)),
         })
     }
 
-    pub fn handle_winit_event<'evt, T>(
+    pub fn handle_event(&self, event: WindowEvent) -> EventResult {
+        match event {
+            WindowEvent::Input(input_event) => match input_event {
+                InputEvent::Keyboard {
+                    scancode,
+                    key,
+                    state,
+                } => self.handle_keyboard_input(scancode, key, state),
+                InputEvent::MouseButton { button, state } => self.handle_mouse_input(state, button),
+                InputEvent::MouseMoved { position } => self.handle_cursor_moved(position),
+                InputEvent::MouseWheel { delta, touch_phase } =>
+                    self.handle_mouse_wheel(delta, touch_phase),
+            },
+            WindowEvent::RedrawRequested => EventResult::redraw(),
+            WindowEvent::ReceiveCharacter(_) => EventResult::ignored(),
+            WindowEvent::ModifiersChanged(_) => EventResult::ignored(),
+            WindowEvent::LayerChanged { .. } => EventResult::ignored(),
+            WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
+        }
+    }
+
+    fn handle_cursor_moved(&self, position: Option<Point2D<f32, Points>>) -> EventResult {
+        self.state.set_last_mouse_position(position);
+        self.invoke_drag_events(position);
+        if let Some(position) = position {
+            self.update_hover(position)
+        } else if self.state.clear_hover().is_empty() {
+            EventResult::processed()
+        } else {
+            EventResult::redraw()
+        }
+    }
+
+    fn invoke_drag_events(&self, _position: Option<Point2D<f32, Points>>) {
+        // TODO
+    }
+
+    fn handle_keyboard_input(
         &self,
-        scene: R,
-        device: &DeviceId,
-        event: &winit::event::Event<'evt, T>,
-    ) {
-        // TODO:
-        // * The existing handling of focus/hover seemed fine from memory. The
-        //   pain points were around styling, not the actual application of
-        //   state. Actually there was a need of refactoring for code-reuse --
-        //   each of the mouse event handlers were very similar.
+        _scancode: ScanCode,
+        _keycode: Option<VirtualKeyCode>,
+        _state: ElementState,
+    ) -> EventResult {
+        EventResult::ignored()
+    }
+
+    fn update_hover(&self, position: Point2D<f32, Points>) -> EventResult {
+        let new_hover = self
+            .state
+            .widgets_under_point(position)
+            .into_iter()
+            .filter(|id| {
+                self.with_transmogrifier(id, |transmogrifier, mut context| {
+                    transmogrifier.hit_test(&mut context, position)
+                })
+                .unwrap_or_default()
+            })
+            .collect::<HashSet<_>>();
+
+        // TODO call mouse drag on any of the active handlers
+
+        let last_hover = self.state.clear_hover();
+        if new_hover != last_hover {
+            for unhovered_id in last_hover.difference(&new_hover) {
+                self.with_transmogrifier(unhovered_id, |transmogrifier, mut context| {
+                    transmogrifier.unhovered(&mut context);
+                });
+            }
+            for newly_hovered_id in new_hover.difference(&last_hover) {
+                self.with_transmogrifier(newly_hovered_id, |transmogrifier, mut context| {
+                    transmogrifier.hovered(&mut context);
+                });
+            }
+            self.state.set_hover(new_hover);
+            EventResult::redraw()
+        } else {
+            EventResult::processed()
+        }
+    }
+
+    fn handle_mouse_input(&self, state: ElementState, button: MouseButton) -> EventResult {
+        match state {
+            ElementState::Pressed => self.handle_mouse_down(button),
+            ElementState::Released => self.handle_mouse_up(button),
+        }
+    }
+
+    fn handle_mouse_down(&self, button: MouseButton) -> EventResult {
+        self.state.blur();
+
+        for hovered in self.state.hover() {
+            if let Some(last_mouse_position) = self.state.last_mouse_position() {
+                let handled = self
+                    .with_transmogrifier(&hovered, |transmogrifier, mut context| {
+                        let hit = transmogrifier.hit_test(&mut context, last_mouse_position);
+                        let handled = hit
+                            && transmogrifier.mouse_down(&mut context, last_mouse_position, button)
+                                == EventStatus::Processed;
+                        if handled {
+                            self.state.register_mouse_handler(button, hovered.clone());
+                            true
+                        } else {
+                            false
+                        }
+                    })
+                    .unwrap_or_default();
+
+                if handled {
+                    return EventResult::processed();
+                }
+            }
+        }
+
+        EventResult::ignored()
+    }
+
+    fn handle_mouse_up(&self, button: MouseButton) -> EventResult {
+        self.state
+            .take_mouse_button_handler(&button)
+            .and_then(|handler| {
+                self.with_transmogrifier(&handler, |transmogrifier, mut context| {
+                    transmogrifier.mouse_up(&mut context, self.state.last_mouse_position(), button);
+                    EventResult::processed()
+                })
+            })
+            .unwrap_or_else(EventResult::ignored)
+    }
+
+    fn handle_mouse_wheel(&self, _delta: MouseScrollDelta, _phase: TouchPhase) -> EventResult {
+        // TODO forward mouse wheel events
+        EventResult::ignored()
     }
 
     pub fn renderer(&self) -> Option<&R> {
@@ -109,7 +220,90 @@ impl<R: Renderer> Rasterizer<R> {
     }
 
     pub fn rasterizerd_widget(&self, widget: WidgetId, bounds: Rect<f32, Points>) {
-        let mut raster = self.last_raster.lock().unwrap();
-        raster.widget_rendered(widget, bounds);
+        self.state.widget_rendered(widget, bounds);
+    }
+
+    /// Executes `callback` with the transmogrifier and transmogrifier state as
+    /// parameters.
+    #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
+    pub fn with_transmogrifier<
+        TResult,
+        C: FnOnce(&'_ dyn AnyWidgetRasterizer<R>, AnyRasterContext<'_, R>) -> TResult,
+    >(
+        &self,
+        widget_id: &WidgetId,
+        callback: C,
+    ) -> Option<TResult> {
+        self.ui
+            .with_transmogrifier(widget_id, self, |transmogrifier, state, widget| {
+                let widget_state = self.ui.widget_state(widget_id.id).unwrap();
+                callback(
+                    transmogrifier.as_ref(),
+                    AnyRasterContext::new(
+                        widget_state.registration().unwrap(),
+                        state,
+                        self,
+                        widget,
+                    ),
+                )
+            })
+    }
+
+    pub fn set_needs_redraw(&self) {
+        self.state.set_needs_redraw();
+    }
+
+    pub fn needs_redraw(&self) -> bool {
+        self.state.needs_redraw()
+    }
+}
+
+pub struct EventResult {
+    pub status: EventStatus,
+    pub needs_redraw: bool,
+}
+
+impl EventResult {
+    pub const fn ignored() -> Self {
+        Self {
+            status: EventStatus::Ignored,
+            needs_redraw: false,
+        }
+    }
+
+    pub const fn processed() -> Self {
+        Self {
+            status: EventStatus::Processed,
+            needs_redraw: false,
+        }
+    }
+
+    pub const fn redraw() -> Self {
+        Self {
+            status: EventStatus::Processed,
+            needs_redraw: true,
+        }
+    }
+}
+
+impl std::ops::Add for EventResult {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl std::ops::AddAssign for EventResult {
+    fn add_assign(&mut self, rhs: Self) {
+        self.needs_redraw = self.needs_redraw || rhs.needs_redraw;
+        self.status = if matches!(self.status, EventStatus::Processed)
+            || matches!(rhs.status, EventStatus::Processed)
+        {
+            EventStatus::Processed
+        } else {
+            EventStatus::Ignored
+        };
     }
 }

@@ -29,12 +29,12 @@ impl<'a, T: WidgetRasterizer<R>, R: Renderer> RasterContext<'a, T, R> {
     }
 }
 
-impl<'a, T: WidgetRasterizer<R>, R: Renderer> TryFrom<AnyRasterContext<'a, R>>
-    for RasterContext<'a, T, R>
+impl<'a, 'b, T: WidgetRasterizer<R>, R: Renderer> TryFrom<&'b mut AnyRasterContext<'a, R>>
+    for RasterContext<'b, T, R>
 {
     type Error = ();
 
-    fn try_from(context: AnyRasterContext<'a, R>) -> Result<Self, Self::Error> {
+    fn try_from(context: &'b mut AnyRasterContext<'a, R>) -> Result<Self, Self::Error> {
         let widget = context
             .widget
             .as_any()

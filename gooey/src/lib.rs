@@ -20,14 +20,13 @@ pub use gooey_widgets as widgets;
 
 #[cfg(feature = "frontend-kludgine")]
 mod kludgine {
-    use gooey_core::{Frontend, Transmogrifiers, Widget, WidgetStorage};
-    use gooey_kludgine::kludgine::prelude::*;
-    use gooey_widgets::rasterized::default_transmogrifiers;
-
     use crate::{
-        core::Gooey,
-        frontends::{rasterizer::Rasterizer, renderers::kludgine::Kludgine},
-        widgets::rasterized::register_transmogrifiers,
+        core::{Frontend, Gooey, Transmogrifiers, Widget, WidgetStorage},
+        frontends::{
+            rasterizer::{events::InputEvent as GooeyInputEvent, Rasterizer},
+            renderers::kludgine::{kludgine::prelude::*, Kludgine},
+        },
+        widgets::rasterized::{default_transmogrifiers, register_transmogrifiers},
     };
 
     pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(
@@ -59,6 +58,37 @@ mod kludgine {
     impl Window for GooeyWindow {
         fn render(&mut self, scene: &Target) -> KludgineResult<()> {
             self.ui.render(Kludgine::from(scene));
+            Ok(())
+        }
+
+        fn process_input(
+            &mut self,
+            input: InputEvent,
+            status: &mut RedrawStatus,
+        ) -> KludgineResult<()> {
+            let input = match input.event {
+                Event::Keyboard {
+                    scancode,
+                    key,
+                    state,
+                } => GooeyInputEvent::Keyboard {
+                    scancode,
+                    key,
+                    state,
+                },
+                Event::MouseButton { button, state } =>
+                    GooeyInputEvent::MouseButton { button, state },
+                Event::MouseMoved { position } => GooeyInputEvent::MouseMoved { position },
+                Event::MouseWheel { delta, touch_phase } =>
+                    GooeyInputEvent::MouseWheel { delta, touch_phase },
+            };
+            let result = self
+                .ui
+                .handle_event(gooey_rasterizer::events::WindowEvent::Input(input));
+            self.ui.process_widget_messages();
+            if result.needs_redraw || self.ui.needs_redraw() {
+                status.set_needs_redraw();
+            }
             Ok(())
         }
     }

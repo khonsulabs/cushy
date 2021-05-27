@@ -4,7 +4,7 @@ use gooey_core::{
     styles::Points,
     Transmogrifier,
 };
-use gooey_rasterizer::{AnyRasterContext, RasterContext, Rasterizer, WidgetRasterizer};
+use gooey_rasterizer::{RasterContext, Rasterizer, WidgetRasterizer};
 
 use crate::container::{Container, ContainerTransmogrifier};
 
@@ -15,22 +15,16 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ContainerTransmogrifier {
 
 impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
     fn render(&self, context: RasterContext<Self, R>) {
-        context.rasterizer.ui.with_transmogrifier(
+        context.rasterizer.with_transmogrifier(
             context.widget.child.id(),
-            context.rasterizer,
-            |child_transmogrifier, child_state, child_widget| {
+            |child_transmogrifier, mut child_context| {
                 let render_size = context
                     .rasterizer
                     .renderer()
                     .map(|r| r.size())
                     .unwrap_or_default();
                 let size = child_transmogrifier.content_size(
-                    AnyRasterContext::new(
-                        context.widget.child.clone(),
-                        child_state,
-                        context.rasterizer,
-                        child_widget,
-                    ),
+                    &mut child_context,
                     Size2D::new(Some(render_size.width), Some(render_size.height)),
                 );
                 let remaining_size = (render_size.to_vector()
@@ -44,15 +38,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
                     size,
                 );
 
-                child_transmogrifier.render_within(
-                    AnyRasterContext::new(
-                        context.widget.child.clone(),
-                        child_state,
-                        context.rasterizer,
-                        child_widget,
-                    ),
-                    child_rect,
-                );
+                child_transmogrifier.render_within(&mut child_context, child_rect);
             },
         );
     }
@@ -64,20 +50,10 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
     ) -> Size2D<f32, Points> {
         context
             .rasterizer
-            .ui
             .with_transmogrifier(
                 context.widget.child.id(),
-                context.rasterizer,
-                |child_transmogrifier, child_state, child_widget| {
-                    let size = child_transmogrifier.content_size(
-                        AnyRasterContext::new(
-                            context.widget.child.clone(),
-                            child_state,
-                            context.rasterizer,
-                            child_widget,
-                        ),
-                        constraints,
-                    );
+                |child_transmogrifier, mut child_context| {
+                    let size = child_transmogrifier.content_size(&mut child_context, constraints);
                     (size.to_vector() + context.widget.padding.minimum_size().to_vector()).to_size()
                 },
             )

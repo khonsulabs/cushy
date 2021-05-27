@@ -1,28 +1,19 @@
 use gooey_core::{euclid::Size2D, renderer::Renderer, styles::Points};
-use gooey_rasterizer::{AnyRasterContext, RasterContext, WidgetRasterizer};
+use gooey_rasterizer::{RasterContext, WidgetRasterizer};
 
 use crate::component::{Behavior, ComponentTransmogrifier};
 
 impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B> {
     fn render(&self, context: RasterContext<Self, R>) {
-        context.rasterizer.ui.with_transmogrifier(
+        context.rasterizer.with_transmogrifier(
             context.widget.content.id(),
-            context.rasterizer,
-            |child_transmogrifier, child_state, child_widget| {
+            |child_transmogrifier, mut child_context| {
                 let bounds = context
                     .rasterizer
                     .renderer()
                     .map(|r| r.bounds())
                     .unwrap_or_default();
-                child_transmogrifier.render_within(
-                    AnyRasterContext::new(
-                        context.widget.content.clone(),
-                        child_state,
-                        context.rasterizer,
-                        child_widget,
-                    ),
-                    bounds,
-                );
+                child_transmogrifier.render_within(&mut child_context, bounds);
             },
         );
     }
@@ -34,20 +25,10 @@ impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B
     ) -> Size2D<f32, Points> {
         context
             .rasterizer
-            .ui
             .with_transmogrifier(
                 context.widget.content.id(),
-                context.rasterizer,
-                |child_transmogrifier, child_state, child_widget| {
-                    child_transmogrifier.content_size(
-                        AnyRasterContext::new(
-                            context.widget.content.clone(),
-                            child_state,
-                            context.rasterizer,
-                            child_widget,
-                        ),
-                        constraints,
-                    )
+                |child_transmogrifier, mut child_context| {
+                    child_transmogrifier.content_size(&mut child_context, constraints)
                 },
             )
             .unwrap_or_default()

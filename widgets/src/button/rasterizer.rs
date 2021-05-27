@@ -1,18 +1,31 @@
 use gooey_core::{
-    euclid::{Length, Size2D, Vector2D},
+    euclid::{Length, Point2D, Size2D, Vector2D},
     renderer::Renderer,
     styles::{ForegroundColor, Points, Srgba, Style},
     Transmogrifier,
 };
-use gooey_rasterizer::{RasterContext, Rasterizer, WidgetRasterizer};
+use gooey_rasterizer::{
+    winit::event::MouseButton, EventStatus, RasterContext, Rasterizer, WidgetRasterizer,
+};
 
-use crate::button::{Button, ButtonTransmogrifier};
+use super::InternalButtonEvent;
+use crate::button::{Button, ButtonCommand, ButtonTransmogrifier};
 
 const BUTTON_PADDING: Length<f32, Points> = Length::new(5.);
 
 impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
     type State = ();
     type Widget = Button;
+
+    fn receive_command(
+        &self,
+        _state: &mut Self::State,
+        _command: ButtonCommand,
+        _widget: &Self::Widget,
+        frontend: &Rasterizer<R>,
+    ) {
+        frontend.set_needs_redraw();
+    }
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
@@ -48,6 +61,38 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
             .to_size()
         } else {
             Size2D::default()
+        }
+    }
+
+    fn mouse_down(
+        &self,
+        _context: RasterContext<Self, R>,
+        _location: Point2D<f32, Points>,
+        button: MouseButton,
+    ) -> EventStatus {
+        if button == MouseButton::Left {
+            EventStatus::Processed
+        } else {
+            EventStatus::Ignored
+        }
+    }
+
+    fn mouse_up(
+        &self,
+        context: RasterContext<Self, R>,
+        _location: Option<Point2D<f32, Points>>,
+        _button: MouseButton,
+    ) {
+        // TODO check for location to be contained
+        if let Some(widget) = context
+            .rasterizer
+            .ui
+            .widget_state(context.registration.id().id)
+        {
+            widget
+                .channels::<Self::Widget>()
+                .unwrap()
+                .post_event(InternalButtonEvent::Clicked);
         }
     }
 }
