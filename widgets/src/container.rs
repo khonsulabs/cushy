@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use gooey_core::{
     euclid::Length,
     styles::{Points, Surround},
@@ -14,7 +12,7 @@ mod browser;
 
 #[derive(Debug)]
 pub struct Container {
-    pub child: Arc<WidgetRegistration>,
+    pub child: WidgetRegistration,
     pub padding: Surround<Points>,
 }
 
@@ -48,8 +46,8 @@ impl Container {
     }
 }
 
-impl From<Arc<WidgetRegistration>> for Container {
-    fn from(child: Arc<WidgetRegistration>) -> Self {
+impl From<WidgetRegistration> for Container {
+    fn from(child: WidgetRegistration) -> Self {
         Self {
             child,
             padding: Surround::default(),

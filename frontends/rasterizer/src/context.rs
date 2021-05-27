@@ -1,11 +1,11 @@
-use std::{convert::TryFrom, marker::PhantomData, sync::Arc};
+use std::{convert::TryFrom, marker::PhantomData};
 
 use gooey_core::{renderer::Renderer, AnySendSync, AnyWidget, Transmogrifier, WidgetRegistration};
 
 use crate::{Rasterizer, WidgetRasterizer};
 
 pub struct RasterContext<'a, T: WidgetRasterizer<R>, R: Renderer> {
-    pub registration: Arc<WidgetRegistration>,
+    pub registration: WidgetRegistration,
     pub state: &'a mut <T as Transmogrifier<Rasterizer<R>>>::State,
     pub rasterizer: &'a Rasterizer<R>,
     pub widget: &'a <T as Transmogrifier<Rasterizer<R>>>::Widget,
@@ -14,7 +14,7 @@ pub struct RasterContext<'a, T: WidgetRasterizer<R>, R: Renderer> {
 
 impl<'a, T: WidgetRasterizer<R>, R: Renderer> RasterContext<'a, T, R> {
     pub fn new(
-        registration: Arc<WidgetRegistration>,
+        registration: WidgetRegistration,
         state: &'a mut <T as Transmogrifier<Rasterizer<R>>>::State,
         rasterizer: &'a Rasterizer<R>,
         widget: &'a <T as Transmogrifier<Rasterizer<R>>>::Widget,
@@ -55,7 +55,7 @@ impl<'a, 'b, T: WidgetRasterizer<R>, R: Renderer> TryFrom<&'b mut AnyRasterConte
 }
 
 pub struct AnyRasterContext<'a, R: Renderer> {
-    pub registration: Arc<WidgetRegistration>,
+    pub registration: WidgetRegistration,
     pub state: &'a mut dyn AnySendSync,
     pub rasterizer: &'a Rasterizer<R>,
     pub widget: &'a dyn AnyWidget,
@@ -63,7 +63,7 @@ pub struct AnyRasterContext<'a, R: Renderer> {
 
 impl<'a, R: Renderer> AnyRasterContext<'a, R> {
     pub fn new(
-        registration: Arc<WidgetRegistration>,
+        registration: WidgetRegistration,
         state: &'a mut dyn AnySendSync,
         rasterizer: &'a Rasterizer<R>,
         widget: &'a dyn AnyWidget,

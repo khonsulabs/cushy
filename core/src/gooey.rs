@@ -25,7 +25,7 @@ pub struct Gooey<F: Frontend> {
 #[derive(Debug)]
 struct GooeyData<F: Frontend> {
     transmogrifiers: Transmogrifiers<F>,
-    root: Arc<WidgetRegistration>,
+    root: WidgetRegistration,
     storage: WidgetStorage,
     processing_messages_lock: Mutex<()>,
 }
@@ -51,7 +51,7 @@ impl<F: Frontend> Gooey<F> {
 
     /// Returns the root widget.
     #[must_use]
-    pub fn root_widget(&self) -> &Arc<WidgetRegistration> {
+    pub fn root_widget(&self) -> &WidgetRegistration {
         &self.data.root
     }
 
@@ -100,7 +100,7 @@ impl<F: Frontend> Gooey<F> {
                 .data
                 .transmogrifiers
                 .map
-                .get(&widget_state.registration().unwrap().id.type_id)
+                .get(&widget_state.registration().unwrap().id().type_id)
                 .unwrap();
             widget_state.with_state(transmogrifier, frontend, |transmogrifier_state, widget| {
                 callback(transmogrifier, transmogrifier_state, widget);
@@ -252,7 +252,7 @@ impl WidgetStorage {
     /// Register a widget with storage.
     #[must_use]
     #[allow(clippy::missing_panics_doc)] // The unwrap is unreachable
-    pub fn register<W: Widget + AnyWidget>(&self, widget: W) -> Arc<WidgetRegistration> {
+    pub fn register<W: Widget + AnyWidget>(&self, widget: W) -> WidgetRegistration {
         let mut widget = Some(widget);
         loop {
             let next_id = self.data.widget_id_generator.fetch_add(1, Ordering::AcqRel);
@@ -262,7 +262,7 @@ impl WidgetStorage {
             let mut widget_registration = None;
             let mut state = self.data.state.write().unwrap();
             state.entry(next_id).or_insert_with(|| {
-                let reg = Arc::new(WidgetRegistration::new::<W>(next_id, self));
+                let reg = WidgetRegistration::new::<W>(next_id, self);
                 let state = WidgetState::new(widget.take().unwrap(), &reg);
                 widget_registration = Some(reg);
                 state
@@ -327,7 +327,7 @@ impl WidgetStorage {
 #[derive(Clone, Debug)]
 pub struct WidgetState {
     /// The id of the widget.
-    pub id: Weak<WidgetRegistration>,
+    pub id: WeakWidgetRegistration,
     /// The widget.
     pub widget: Arc<Mutex<Box<dyn AnyWidget>>>,
     /// The transmogrifier state.
@@ -340,9 +340,9 @@ pub struct WidgetState {
 impl WidgetState {
     /// Initializes a new widget state with `widget`, `id`, and `None` for the
     /// transmogrifier state.
-    pub fn new<W: Widget + AnyWidget>(widget: W, id: &Arc<WidgetRegistration>) -> Self {
+    pub fn new<W: Widget + AnyWidget>(widget: W, id: &WidgetRegistration) -> Self {
         Self {
-            id: Arc::downgrade(id),
+            id: WeakWidgetRegistration::from(id),
             widget: Arc::new(Mutex::new(Box::new(widget))),
             state: Arc::default(),
             channels: Arc::new(Box::new(Channels::<W>::new(id))),
@@ -352,7 +352,7 @@ impl WidgetState {
     /// Gets the registration for this widget. Returns None if the widget has
     /// been destroyed.
     #[must_use]
-    pub fn registration(&self) -> Option<Arc<WidgetRegistration>> {
+    pub fn registration(&self) -> Option<WidgetRegistration> {
         self.id.upgrade()
     }
 
@@ -398,8 +398,36 @@ impl WidgetState {
 }
 
 /// References an initialized widget. On drop, frees the storage and id.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct WidgetRegistration {
+    data: Arc<WidgetRegistrationData>,
+}
+
+/// References an initialized widget. These references will not keep a widget
+/// from being removed.
+#[derive(Clone, Debug)]
+pub struct WeakWidgetRegistration {
+    data: Weak<WidgetRegistrationData>,
+}
+
+impl WeakWidgetRegistration {
+    /// Attempt to convert this weak widget registration into a strong one.
+    #[must_use]
+    pub fn upgrade(&self) -> Option<WidgetRegistration> {
+        self.data.upgrade().map(|data| WidgetRegistration { data })
+    }
+}
+
+impl From<&WidgetRegistration> for WeakWidgetRegistration {
+    fn from(reg: &WidgetRegistration) -> Self {
+        Self {
+            data: Arc::downgrade(&reg.data),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct WidgetRegistrationData {
     id: WidgetId,
     storage: WidgetStorage,
 }
@@ -407,30 +435,34 @@ pub struct WidgetRegistration {
 impl WidgetRegistration {
     pub(crate) fn new<W: Widget>(id: u32, storage: &WidgetStorage) -> Self {
         Self {
-            id: WidgetId {
-                id,
-                type_id: TypeId::of::<W>(),
-            },
-            storage: storage.clone(),
+            data: Arc::new(WidgetRegistrationData {
+                id: WidgetId {
+                    id,
+                    type_id: TypeId::of::<W>(),
+                },
+                storage: storage.clone(),
+            }),
         }
     }
 
     /// Returns the unique ID of this widget. IDs are unique per `Gooey`
     /// instance, not across the entire executable.
     #[must_use]
-    pub const fn id(&self) -> &'_ WidgetId {
-        &self.id
+    pub fn id(&self) -> &'_ WidgetId {
+        &self.data.id
     }
 
     /// Sets that this widget has messages. Should not be necessary in normal
     /// usage patterns. This is only needed if you're directly calling send on a
     /// widget's channels.
     pub fn set_has_messages(&self) {
-        self.storage.set_widget_has_messages(self.id.clone());
+        self.data
+            .storage
+            .set_widget_has_messages(self.data.id.clone());
     }
 }
 
-impl Drop for WidgetRegistration {
+impl Drop for WidgetRegistrationData {
     fn drop(&mut self) {
         self.storage.unregister_id(self.id.id)
     }
@@ -440,7 +472,7 @@ impl Drop for WidgetRegistration {
 /// removed from an interface.
 #[derive(Debug)]
 pub struct WidgetRef<W: Widget> {
-    registration: Weak<WidgetRegistration>,
+    registration: WeakWidgetRegistration,
     frontend: Box<dyn AnyFrontend>,
     _phantom: PhantomData<W>,
 }
@@ -459,10 +491,10 @@ impl<W: Widget> WidgetRef<W> {
     /// Creates a new reference from a [`WidgetRegistration`]. Returns None if
     /// the `W` type doesn't match the type of the widget.
     #[must_use]
-    pub fn new<F: Frontend>(registration: &Arc<WidgetRegistration>, frontend: F) -> Option<Self> {
-        if registration.id.type_id == TypeId::of::<W>() {
+    pub fn new<F: Frontend>(registration: &WidgetRegistration, frontend: F) -> Option<Self> {
+        if registration.id().type_id == TypeId::of::<W>() {
             Some(Self {
-                registration: Arc::downgrade(registration),
+                registration: WeakWidgetRegistration::from(registration),
                 frontend: Box::new(frontend),
                 _phantom: PhantomData::default(),
             })
@@ -475,12 +507,12 @@ impl<W: Widget> WidgetRef<W> {
     /// the `W` type doesn't match the type of the widget.
     #[must_use]
     pub fn new_with_any_frontend(
-        registration: &Arc<WidgetRegistration>,
+        registration: &WidgetRegistration,
         frontend: Box<dyn AnyFrontend>,
     ) -> Option<Self> {
-        if registration.id.type_id == TypeId::of::<W>() {
+        if registration.id().type_id == TypeId::of::<W>() {
             Some(Self {
-                registration: Arc::downgrade(registration),
+                registration: WeakWidgetRegistration::from(registration),
                 frontend,
                 _phantom: PhantomData::default(),
             })
@@ -492,7 +524,7 @@ impl<W: Widget> WidgetRef<W> {
     /// Returns the registration record. Returns None if the widget has been
     /// removed from the interface.
     #[must_use]
-    pub fn registration(&self) -> Option<Arc<WidgetRegistration>> {
+    pub fn registration(&self) -> Option<WidgetRegistration> {
         self.registration.upgrade()
     }
 
@@ -506,7 +538,7 @@ impl<W: Widget> WidgetRef<W> {
         if let Some(registration) = self.registration() {
             frontend
                 .gooey()
-                .post_transmogrifier_event::<W>(&registration.id, event, frontend);
+                .post_transmogrifier_event::<W>(registration.id(), event, frontend);
         }
     }
 
@@ -520,7 +552,7 @@ impl<W: Widget> WidgetRef<W> {
         if let Some(registration) = self.registration() {
             frontend
                 .gooey()
-                .post_command::<W>(&registration.id, command, frontend);
+                .post_command::<W>(registration.id(), command, frontend);
         }
     }
 }

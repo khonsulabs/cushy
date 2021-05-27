@@ -1,4 +1,4 @@
-use std::{any::TypeId, sync::Arc};
+use std::any::TypeId;
 
 use gooey_core::{
     AnyChannels, AnySendSync, AnyTransmogrifier, AnyWidget, Frontend, Gooey, Transmogrifier,
@@ -115,7 +115,7 @@ impl AnyTransmogrifier<WebSys> for RegisteredTransmogrifier {
     fn default_state_for(
         &self,
         widget: &mut dyn AnyWidget,
-        registration: &Arc<WidgetRegistration>,
+        registration: &WidgetRegistration,
         frontend: &WebSys,
     ) -> TransmogrifierState {
         self.0.default_state_for(widget, registration, frontend)

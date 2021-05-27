@@ -2,12 +2,11 @@ use std::{
     any::{type_name, Any, TypeId},
     fmt::Debug,
     marker::PhantomData,
-    sync::{Arc, Weak},
 };
 
 use flume::{Receiver, Sender};
 
-use crate::{AnyFrontend, Frontend, WidgetRef, WidgetRegistration};
+use crate::{AnyFrontend, Frontend, WeakWidgetRegistration, WidgetRef, WidgetRegistration};
 
 /// A graphical user interface element.
 pub trait Widget: Debug + Send + Sync + 'static {
@@ -210,7 +209,7 @@ where
 pub struct Context<W: Widget> {
     /// The frontend that created this context.
     pub frontend: Box<dyn AnyFrontend>,
-    widget: Weak<WidgetRegistration>,
+    widget: WeakWidgetRegistration,
     command_sender: Sender<W::TransmogrifierCommand>,
     _widget: PhantomData<W>,
 }
@@ -242,7 +241,7 @@ impl<W: Widget> Context<W> {
 /// [`Transmogrifier`](crate::Transmogrifier)s.
 #[derive(Debug)]
 pub struct Channels<W: Widget> {
-    widget: Weak<WidgetRegistration>,
+    widget: WeakWidgetRegistration,
     command_sender: Sender<W::Command>,
     command_receiver: Receiver<W::Command>,
     transmogrifier_command_sender: Sender<W::TransmogrifierCommand>,
@@ -284,13 +283,13 @@ impl<W: Widget> AnyChannels for Channels<W> {
 impl<W: Widget> Channels<W> {
     /// Creates a new set of channels for a widget and transmogrifier.
     #[must_use]
-    pub fn new(widget: &Arc<WidgetRegistration>) -> Self {
+    pub fn new(widget: &WidgetRegistration) -> Self {
         let (command_sender, command_receiver) = flume::unbounded();
         let (transmogrifier_command_sender, transmogrifier_command_receiver) = flume::unbounded();
         let (event_sender, event_receiver) = flume::unbounded();
 
         Self {
-            widget: Arc::downgrade(widget),
+            widget: WeakWidgetRegistration::from(widget),
             command_sender,
             command_receiver,
             transmogrifier_command_sender,
@@ -320,7 +319,7 @@ impl<W: Widget> Channels<W> {
     /// Returns the widget registration. Returns none if the widget has been
     /// destroyed.
     #[must_use]
-    pub fn widget(&self) -> Option<Arc<WidgetRegistration>> {
+    pub fn widget(&self) -> Option<WidgetRegistration> {
         self.widget.upgrade()
     }
 

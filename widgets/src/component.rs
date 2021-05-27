@@ -19,7 +19,7 @@ mod browser;
 #[derive(Debug)]
 pub struct Component<B: Behavior> {
     pub behavior: B,
-    content: Arc<WidgetRegistration>,
+    content: WidgetRegistration,
     content_widget: Option<WidgetRef<B::Content>>,
     callback_widget: SettableWidgetRef<B>,
 }

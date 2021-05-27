@@ -1,4 +1,4 @@
-use std::{any::TypeId, fmt::Debug, sync::Arc};
+use std::{any::TypeId, fmt::Debug};
 
 use crate::{
     AnyChannels, AnySendSync, AnyWidget, Channels, Gooey, Transmogrifier, TransmogrifierState,
@@ -61,7 +61,7 @@ pub trait AnyTransmogrifier<F: Frontend>: Debug {
     fn default_state_for(
         &self,
         widget: &mut dyn AnyWidget,
-        registration: &Arc<WidgetRegistration>,
+        registration: &WidgetRegistration,
         frontend: &F,
     ) -> TransmogrifierState;
 
@@ -108,7 +108,7 @@ where
     fn default_state_for(
         &self,
         widget: &mut dyn AnyWidget,
-        registration: &Arc<WidgetRegistration>,
+        registration: &WidgetRegistration,
         frontend: &F,
     ) -> TransmogrifierState {
         let widget = widget

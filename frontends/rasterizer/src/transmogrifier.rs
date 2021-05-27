@@ -1,4 +1,4 @@
-use std::{any::TypeId, convert::TryFrom, ops::Deref, sync::Arc};
+use std::{any::TypeId, convert::TryFrom, ops::Deref};
 
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
@@ -229,7 +229,7 @@ impl<R: Renderer> AnyTransmogrifier<Rasterizer<R>> for RegisteredTransmogrifier<
     fn default_state_for(
         &self,
         widget: &mut dyn AnyWidget,
-        registration: &Arc<WidgetRegistration>,
+        registration: &WidgetRegistration,
         frontend: &Rasterizer<R>,
     ) -> TransmogrifierState {
         self.0.default_state_for(widget, registration, frontend)
