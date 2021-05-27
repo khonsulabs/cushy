@@ -1,7 +1,6 @@
 use gooey_core::{
-    euclid::Length,
-    styles::{Points, Surround},
-    Frontend, Widget, WidgetRef, WidgetRegistration, WidgetStorage,
+    euclid::Length, styles::Surround, Frontend, Points, Widget, WidgetRef, WidgetRegistration,
+    WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]

@@ -1,7 +1,9 @@
 use std::fmt::Debug;
 
 use euclid::{Length, Point2D, Rect, Scale, Size2D};
-use stylecs::{palette::Srgba, Pixels, Points, Style};
+use stylecs::{palette::Srgba, Style};
+
+use crate::{Pixels, Points};
 
 /// Implements drawing APIs.
 pub trait Renderer: Debug + Send + Sync + Sized + 'static {
@@ -27,22 +29,22 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     fn scale(&self) -> Scale<f32, Points, Pixels>;
 
     /// Renders `text` at `baseline_origin` with `options`.
-    fn render_text(&self, text: &str, baseline_origin: Point2D<f32, Points>, style: &Style<Points>);
+    fn render_text(&self, text: &str, baseline_origin: Point2D<f32, Points>, style: &Style);
     /// Measures `text` using `options`.
     #[must_use]
-    fn measure_text(&self, text: &str, style: &Style<Points>) -> TextMetrics<Points>;
+    fn measure_text(&self, text: &str, style: &Style) -> TextMetrics<Points>;
 
     /// Strokes the outline of `rect` using `options`.
-    fn stroke_rect(&self, rect: &Rect<f32, Points>, style: &Style<Points>);
+    fn stroke_rect(&self, rect: &Rect<f32, Points>, style: &Style);
     /// Fills `rect` using `color`.
-    fn fill_rect(&self, rect: &Rect<f32, Points>, style: &Style<Points>);
+    fn fill_rect(&self, rect: &Rect<f32, Points>, style: &Style);
 
     /// Draws a line between `point_a` and `point_b` using `options`.
     fn stroke_line(
         &self,
         point_a: Point2D<f32, Points>,
         point_b: Point2D<f32, Points>,
-        style: &Style<Points>,
+        style: &Style,
     );
 }
 

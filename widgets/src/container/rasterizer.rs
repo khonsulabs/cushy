@@ -1,8 +1,7 @@
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     renderer::Renderer,
-    styles::Points,
-    Transmogrifier,
+    Points, Transmogrifier,
 };
 use gooey_rasterizer::{RasterContext, Rasterizer, WidgetRasterizer};
 

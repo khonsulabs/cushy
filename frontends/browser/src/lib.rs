@@ -27,6 +27,8 @@ impl WebSys {
             self,
             |transmogrifier, state, widget| {
                 if let Some(root_element) = transmogrifier.transmogrify(state, widget, self) {
+                    root_element.style().set_property("width", "100%").unwrap();
+                    root_element.style().set_property("height", "100%").unwrap();
                     parent.append_child(&root_element).unwrap();
                 }
             },

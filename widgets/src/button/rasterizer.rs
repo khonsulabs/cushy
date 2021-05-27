@@ -1,8 +1,8 @@
 use gooey_core::{
     euclid::{Length, Point2D, Rect, Size2D, Vector2D},
     renderer::Renderer,
-    styles::{ForegroundColor, Points, Srgba, Style},
-    Transmogrifier,
+    styles::{ForegroundColor, Srgba, Style},
+    Points, Transmogrifier,
 };
 use gooey_rasterizer::{
     winit::event::MouseButton, EventStatus, RasterContext, Rasterizer, WidgetRasterizer,

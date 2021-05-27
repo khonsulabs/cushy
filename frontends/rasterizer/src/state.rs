@@ -5,8 +5,7 @@ use std::{
 
 use gooey_core::{
     euclid::{Point2D, Rect},
-    styles::Points,
-    WidgetId,
+    Points, WidgetId,
 };
 use winit::event::MouseButton;
 

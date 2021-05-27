@@ -3,8 +3,7 @@ use std::{any::TypeId, convert::TryFrom, ops::Deref};
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     renderer::Renderer,
-    styles::Points,
-    AnySendSync, AnyTransmogrifier, AnyWidget, Transmogrifier, TransmogrifierState,
+    AnySendSync, AnyTransmogrifier, AnyWidget, Points, Transmogrifier, TransmogrifierState,
     WidgetRegistration,
 };
 use winit::event::MouseButton;

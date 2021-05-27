@@ -1,6 +1,7 @@
 use gooey_core::{
     euclid::{Point2D, Scale},
-    styles::{Pixels, Points, SystemTheme},
+    styles::SystemTheme,
+    Pixels, Points,
 };
 use winit::event::{
     ElementState, ModifiersState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase,

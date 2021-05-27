@@ -1,5 +1,7 @@
-use euclid::{Length, Scale};
-use stylecs::{Pixels, Points, Style, StyleComponent};
+use euclid::Length;
+use stylecs::StyleComponent;
+
+use crate::Points;
 
 /// The font size for drawing text.
 #[derive(Debug, Copy)]
@@ -37,15 +39,4 @@ impl<Unit> FontSize<Unit> {
     }
 }
 
-impl StyleComponent<Points> for FontSize<Points> {
-    fn scale(&self, scale: Scale<f32, Points, Pixels>, map: &mut Style<Pixels>) {
-        let value = self.0 * scale;
-        map.push(FontSize(value));
-    }
-}
-
-impl StyleComponent<Pixels> for FontSize<Pixels> {
-    fn scale(&self, _scale: Scale<f32, Pixels, Pixels>, map: &mut Style<Pixels>) {
-        map.push(Self(self.0));
-    }
-}
+impl StyleComponent for FontSize<Points> {}

@@ -3,8 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
     euclid::{Point2D, Rect},
-    styles::Points,
-    Gooey, WidgetId,
+    Gooey, Points, WidgetId,
 };
 use winit::event::{
     ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,

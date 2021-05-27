@@ -15,4 +15,4 @@ impl Default for FontStyle {
     }
 }
 
-impl stylecs::UnscaledStyleComponent for FontStyle {}
+impl stylecs::StyleComponent for FontStyle {}

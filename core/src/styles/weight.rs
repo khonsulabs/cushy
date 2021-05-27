@@ -32,7 +32,7 @@ impl Default for Weight {
     }
 }
 
-impl stylecs::UnscaledStyleComponent for Weight {}
+impl stylecs::StyleComponent for Weight {}
 
 impl Weight {
     /// Converts the weight to a `u16` using standard CSS mappings.

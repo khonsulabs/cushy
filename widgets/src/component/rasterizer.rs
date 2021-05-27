@@ -1,4 +1,4 @@
-use gooey_core::{euclid::Size2D, renderer::Renderer, styles::Points};
+use gooey_core::{euclid::Size2D, renderer::Renderer, Points};
 use gooey_rasterizer::{RasterContext, WidgetRasterizer};
 
 use crate::component::{Behavior, ComponentTransmogrifier};

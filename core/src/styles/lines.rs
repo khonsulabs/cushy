@@ -1,5 +1,7 @@
-use euclid::{Length, Scale};
-use stylecs::{Pixels, Points, Style, StyleComponent};
+use euclid::Length;
+use stylecs::StyleComponent;
+
+use crate::Points;
 
 /// The width of lines stroked/drawn. Default is `1.` [`Points`].
 #[derive(Debug, Copy)]
@@ -37,15 +39,4 @@ impl<Unit> LineWidth<Unit> {
     }
 }
 
-impl StyleComponent<Points> for LineWidth<Points> {
-    fn scale(&self, scale: Scale<f32, Points, Pixels>, map: &mut Style<Pixels>) {
-        let value = self.0 * scale;
-        map.push(LineWidth(value));
-    }
-}
-
-impl StyleComponent<Pixels> for LineWidth<Pixels> {
-    fn scale(&self, _scale: Scale<f32, Pixels, Pixels>, map: &mut Style<Pixels>) {
-        map.push(Self(self.0));
-    }
-}
+impl StyleComponent for LineWidth<Points> {}

@@ -8,7 +8,7 @@ pub enum Alignment {
     /// Horizontally align items to the right.
     Right,
 }
-impl stylecs::UnscaledStyleComponent for Alignment {}
+impl stylecs::StyleComponent for Alignment {}
 
 impl Default for Alignment {
     fn default() -> Self {
@@ -27,7 +27,7 @@ pub enum VerticalAlignment {
     /// Vertically align items to the bottom.
     Bottom,
 }
-impl stylecs::UnscaledStyleComponent for VerticalAlignment {}
+impl stylecs::StyleComponent for VerticalAlignment {}
 
 impl Default for VerticalAlignment {
     fn default() -> Self {
