@@ -24,7 +24,7 @@ impl Behavior for Counter {
     type Event = CounterEvent;
     type Widgets = CounterWidgets;
 
-    fn initialize(builder: &mut ComponentBuilder<Self>) -> Container {
+    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> Container {
         Container::from(builder.register_widget(
             CounterWidgets::Button,
             Button {

@@ -28,13 +28,13 @@ pub struct Component<B: Behavior> {
 }
 
 impl<B: Behavior> Component<B> {
-    pub fn new(behavior: B, storage: &WidgetStorage) -> Self {
-        let mut builder = ComponentBuilder::new(behavior, storage);
-        let content = B::initialize(&mut builder);
+    pub fn new(mut behavior: B, storage: &WidgetStorage) -> Self {
+        let mut builder = ComponentBuilder::new(storage);
+        let content = behavior.create_content(&mut builder);
         let content = builder.register(content);
         Component {
             content,
-            behavior: builder.behavior,
+            behavior,
             callback_widget: builder.widget,
             registered_widgets: builder.registered_widgets,
             content_widget: None,
@@ -87,7 +87,7 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
     type Content: Widget;
     type Widgets: Hash + Eq + Debug + Send + Sync;
 
-    fn initialize(initializer: &mut ComponentBuilder<Self>) -> Self::Content;
+    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> Self::Content;
 
     fn receive_event(
         component: &mut Component<Self>,
@@ -123,7 +123,6 @@ pub enum InternalEvent<B: Behavior> {
 
 #[derive(Debug)]
 pub struct ComponentBuilder<B: Behavior> {
-    behavior: B,
     widget: SettableWidgetRef<B>,
     storage: WidgetStorage,
     registered_widgets: HashMap<B::Widgets, WeakWidgetRegistration>,
@@ -131,9 +130,8 @@ pub struct ComponentBuilder<B: Behavior> {
 }
 
 impl<B: Behavior> ComponentBuilder<B> {
-    pub fn new(behavior: B, storage: &WidgetStorage) -> Self {
+    pub fn new(storage: &WidgetStorage) -> Self {
         Self {
-            behavior,
             storage: storage.clone(),
             widget: SettableWidgetRef::default(),
             registered_widgets: HashMap::default(),
