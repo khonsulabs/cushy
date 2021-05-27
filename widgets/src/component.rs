@@ -28,23 +28,24 @@ pub struct Component<B: Behavior> {
 }
 
 impl<B: Behavior> Component<B> {
-    pub fn new(storage: &WidgetStorage) -> Self {
-        B::initialize(ComponentInitializer::new(storage))
+    pub fn new(behavior: B, storage: &WidgetStorage) -> Self {
+        let mut builder = ComponentBuilder::new(behavior, storage);
+        let content = B::initialize(&mut builder);
+        let content = builder.register(content);
+        Component {
+            content,
+            behavior: builder.behavior,
+            callback_widget: builder.widget,
+            registered_widgets: builder.registered_widgets,
+            content_widget: None,
+        }
     }
 
-    pub fn initialized(
-        widget: B::Content,
-        behavior: B,
-        initializer: ComponentInitializer<B>,
-    ) -> Self {
-        let content = initializer.register(widget);
-        Self {
-            behavior,
-            content,
-            content_widget: None,
-            callback_widget: initializer.widget,
-            registered_widgets: initializer.registered_widgets,
-        }
+    pub fn default_for(storage: &WidgetStorage) -> Self
+    where
+        B: Default,
+    {
+        Self::new(B::default(), storage)
     }
 
     pub fn content(&self) -> Option<&'_ WidgetRef<B::Content>> {
@@ -86,7 +87,7 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
     type Content: Widget;
     type Widgets: Hash + Eq + Debug + Send + Sync;
 
-    fn initialize(initializer: ComponentInitializer<Self>) -> Component<Self>;
+    fn initialize(initializer: &mut ComponentBuilder<Self>) -> Self::Content;
 
     fn receive_event(
         component: &mut Component<Self>,
@@ -121,16 +122,18 @@ pub enum InternalEvent<B: Behavior> {
 }
 
 #[derive(Debug)]
-pub struct ComponentInitializer<B: Behavior> {
+pub struct ComponentBuilder<B: Behavior> {
+    behavior: B,
     widget: SettableWidgetRef<B>,
     storage: WidgetStorage,
     registered_widgets: HashMap<B::Widgets, WeakWidgetRegistration>,
     _phantom: PhantomData<B>,
 }
 
-impl<B: Behavior> ComponentInitializer<B> {
-    pub fn new(storage: &WidgetStorage) -> Self {
+impl<B: Behavior> ComponentBuilder<B> {
+    pub fn new(behavior: B, storage: &WidgetStorage) -> Self {
         Self {
+            behavior,
             storage: storage.clone(),
             widget: SettableWidgetRef::default(),
             registered_widgets: HashMap::default(),
@@ -153,7 +156,7 @@ impl<B: Behavior> ComponentInitializer<B> {
     /// Register a widget with storage.
     #[must_use]
     #[allow(clippy::missing_panics_doc)] // The unwrap is unreachable
-    pub fn register_with_id<W: Widget + AnyWidget>(
+    pub fn register_widget<W: Widget + AnyWidget>(
         &mut self,
         id: B::Widgets,
         widget: W,
@@ -165,7 +168,7 @@ impl<B: Behavior> ComponentInitializer<B> {
     }
 }
 
-impl<B: Behavior> Deref for ComponentInitializer<B> {
+impl<B: Behavior> Deref for ComponentBuilder<B> {
     type Target = WidgetStorage;
 
     fn deref(&self) -> &Self::Target {

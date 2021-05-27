@@ -2,7 +2,7 @@ use gooey::{
     core::Context,
     widgets::{
         button::{Button, ButtonCommand},
-        component::{Behavior, Component, ComponentInitializer, ComponentTransmogrifier},
+        component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
         container::Container,
     },
     App,
@@ -11,7 +11,7 @@ use gooey::{
 fn main() {
     App::default()
         .with(ComponentTransmogrifier::<Counter>::default())
-        .run(|storage| Component::<Counter>::new(storage))
+        .run(|storage| Component::<Counter>::default_for(storage))
 }
 
 #[derive(Default, Debug)]
@@ -24,17 +24,14 @@ impl Behavior for Counter {
     type Event = CounterEvent;
     type Widgets = CounterWidgets;
 
-    fn initialize(mut initializer: ComponentInitializer<Self>) -> Component<Self> {
-        Component::initialized(
-            Container::from(
-                initializer.register_with_id(CounterWidgets::Button, Button {
-                    label: String::from("Click Me!"),
-                    clicked: initializer.map_event(|_| CounterEvent::ButtonClicked),
-                }),
-            ),
-            Self::default(),
-            initializer,
-        )
+    fn initialize(builder: &mut ComponentBuilder<Self>) -> Container {
+        Container::from(builder.register_widget(
+            CounterWidgets::Button,
+            Button {
+                label: String::from("Click Me!"),
+                clicked: builder.map_event(|_| CounterEvent::ButtonClicked),
+            },
+        ))
     }
 
     fn receive_event(
