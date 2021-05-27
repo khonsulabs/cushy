@@ -1,13 +1,15 @@
 use std::{
+    collections::HashMap,
     fmt::Debug,
+    hash::Hash,
     marker::PhantomData,
     ops::Deref,
     sync::{Arc, RwLock},
 };
 
 use gooey_core::{
-    Callback, CallbackFn, Channels, Context, Frontend, Transmogrifier, Widget, WidgetId, WidgetRef,
-    WidgetRegistration, WidgetStorage,
+    AnyWidget, Callback, CallbackFn, Channels, Context, Frontend, Transmogrifier,
+    WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -21,6 +23,7 @@ pub struct Component<B: Behavior> {
     pub behavior: B,
     content: WidgetRegistration,
     content_widget: Option<WidgetRef<B::Content>>,
+    registered_widgets: HashMap<B::Widgets, WeakWidgetRegistration>,
     callback_widget: SettableWidgetRef<B>,
 }
 
@@ -36,11 +39,16 @@ impl<B: Behavior> Component<B> {
             content,
             content_widget: None,
             callback_widget: callbacks.widget,
+            registered_widgets: callbacks.registered_widgets,
         }
     }
 
     pub fn content(&self) -> Option<&'_ WidgetRef<B::Content>> {
         self.content_widget.as_ref()
+    }
+
+    pub fn registered_widget(&self, id: &B::Widgets) -> Option<WidgetRegistration> {
+        self.registered_widgets.get(id).and_then(|id| id.upgrade())
     }
 }
 
@@ -53,20 +61,18 @@ impl<B: Behavior> Default for ComponentTransmogrifier<B> {
     }
 }
 
-pub trait Behavior: Debug + Send + Sync + 'static {
+pub trait Behavior: Debug + Send + Sync + Sized + 'static {
     type Event: Debug + Send + Sync;
     type Content: Widget;
+    type Widgets: Hash + Eq + Debug + Send + Sync;
 
-    fn initialize(callbacks: CallbackMapper<Self>) -> Component<Self>
-    where
-        Self: Sized;
+    fn initialize(callbacks: CallbackMapper<Self>) -> Component<Self>;
 
     fn receive_event(
         component: &mut Component<Self>,
         event: Self::Event,
         context: &Context<Component<Self>>,
-    ) where
-        Self: Sized;
+    );
 }
 
 impl<B: Behavior> Widget for Component<B> {
@@ -100,6 +106,7 @@ pub enum InternalEvent<B: Behavior> {
 pub struct CallbackMapper<B: Behavior> {
     widget: SettableWidgetRef<B>,
     storage: WidgetStorage,
+    registered_widgets: HashMap<B::Widgets, WeakWidgetRegistration>,
     _phantom: PhantomData<B>,
 }
 
@@ -108,6 +115,7 @@ impl<B: Behavior> CallbackMapper<B> {
         Self {
             storage: storage.clone(),
             widget: SettableWidgetRef::default(),
+            registered_widgets: HashMap::default(),
             _phantom: PhantomData::default(),
         }
     }
@@ -122,6 +130,20 @@ impl<B: Behavior> CallbackMapper<B> {
             _phantom: PhantomData::default(),
         };
         Callback::new(mapped_callback)
+    }
+
+    /// Register a widget with storage.
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)] // The unwrap is unreachable
+    pub fn register_with_id<W: Widget + AnyWidget>(
+        &mut self,
+        id: B::Widgets,
+        widget: W,
+    ) -> WidgetRegistration {
+        let registration = self.storage.register(widget);
+        self.registered_widgets
+            .insert(id, WeakWidgetRegistration::from(&registration));
+        registration
     }
 }
 

@@ -2,17 +2,12 @@ use gooey::{
     core::{Context, Transmogrifiers},
     widgets::{
         button::{Button, ButtonCommand},
-        component::{Behavior, Component, ComponentTransmogrifier},
+        component::{Behavior, CallbackMapper, Component, ComponentTransmogrifier},
+        container::Container,
     },
 };
-use gooey_core::WidgetId;
-use gooey_widgets::{component::CallbackMapper, container::Container};
 
 fn main() {
-    #[cfg(target_arch = "wasm32")]
-    wasm_logger::init(wasm_logger::Config::default());
-    log::info!("Starting up");
-
     let mut transmogrifiers = Transmogrifiers::default();
     transmogrifiers
         .register_transmogrifier(ComponentTransmogrifier::<Counter>::default())
@@ -22,29 +17,31 @@ fn main() {
     })
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 struct Counter {
-    button_id: WidgetId,
     count: u32,
+}
+
+#[derive(Debug, Hash, Eq, PartialEq)]
+enum CounterWidgets {
+    Button,
 }
 
 impl Behavior for Counter {
     type Content = Container;
     type Event = CounterEvent;
+    type Widgets = CounterWidgets;
 
-    fn initialize(callbacks: CallbackMapper<Self>) -> Component<Self> {
-        let button = callbacks.register(Button {
-            label: String::from("Click Me!"),
-            clicked: callbacks.map_event(|_| CounterEvent::ButtonClicked),
-        });
-        let button_id = button.id().clone();
-
+    fn initialize(mut callbacks: CallbackMapper<Self>) -> Component<Self> {
         Component::initialized(
-            Container::from(button),
-            Self {
-                button_id,
-                count: 0,
-            },
+            Container::from(callbacks.register_with_id(
+                CounterWidgets::Button,
+                Button {
+                    label: String::from("Click Me!"),
+                    clicked: callbacks.map_event(|_| CounterEvent::ButtonClicked),
+                },
+            )),
+            Self::default(),
             callbacks,
         )
     }
@@ -57,11 +54,10 @@ impl Behavior for Counter {
         let CounterEvent::ButtonClicked = event;
         component.behavior.count += 1;
 
-        let button_state = context
-            .frontend
-            .storage()
-            .widget_state(component.behavior.button_id.id)
+        let button = component
+            .registered_widget(&CounterWidgets::Button)
             .unwrap();
+        let button_state = context.widget_state(button.id().id).unwrap();
         let button_channels = button_state.channels::<Button>().unwrap();
 
         button_channels.post_command(ButtonCommand::SetLabel(
