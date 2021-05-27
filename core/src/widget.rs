@@ -2,11 +2,14 @@ use std::{
     any::{type_name, Any, TypeId},
     fmt::Debug,
     marker::PhantomData,
+    ops::Deref,
 };
 
 use flume::{Receiver, Sender};
 
-use crate::{AnyFrontend, Frontend, WeakWidgetRegistration, WidgetRef, WidgetRegistration};
+use crate::{
+    AnyFrontend, Frontend, WeakWidgetRegistration, WidgetRef, WidgetRegistration, WidgetStorage,
+};
 
 /// A graphical user interface element.
 pub trait Widget: Debug + Send + Sync + 'static {
@@ -234,6 +237,14 @@ impl<W: Widget> Context<W> {
                 .storage()
                 .set_widget_has_messages(widget.id().clone());
         }
+    }
+}
+
+impl<W: Widget> Deref for Context<W> {
+    type Target = WidgetStorage;
+
+    fn deref(&self) -> &Self::Target {
+        self.frontend.storage()
     }
 }
 

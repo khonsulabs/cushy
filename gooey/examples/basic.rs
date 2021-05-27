@@ -34,13 +34,10 @@ impl Behavior for Counter {
 
     fn initialize(mut callbacks: CallbackMapper<Self>) -> Component<Self> {
         Component::initialized(
-            Container::from(callbacks.register_with_id(
-                CounterWidgets::Button,
-                Button {
-                    label: String::from("Click Me!"),
-                    clicked: callbacks.map_event(|_| CounterEvent::ButtonClicked),
-                },
-            )),
+            Container::from(callbacks.register_with_id(CounterWidgets::Button, Button {
+                label: String::from("Click Me!"),
+                clicked: callbacks.map_event(|_| CounterEvent::ButtonClicked),
+            })),
             Self::default(),
             callbacks,
         )

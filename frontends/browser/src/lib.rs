@@ -147,7 +147,6 @@ impl WidgetClosure {
     ) -> Closure<dyn FnMut()> {
         Closure::wrap(Box::new(move || {
             let event = event_generator();
-            log::info!("Posting event: {:?}", event);
             widget.post_event::<F>(event);
         }) as Box<dyn FnMut()>)
     }

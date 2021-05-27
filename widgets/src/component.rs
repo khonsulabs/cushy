@@ -81,7 +81,6 @@ impl<B: Behavior> Widget for Component<B> {
     type TransmogrifierEvent = InternalEvent<B>;
 
     fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>) {
-        log::info!("Component Widget received event: {:?}", event);
         match event {
             InternalEvent::ReceiveWidget(widget) => {
                 self.content_widget = Some(widget);
@@ -91,7 +90,6 @@ impl<B: Behavior> Widget for Component<B> {
     }
 
     fn receive_command(&mut self, command: Self::Command, context: &Context<Self>) {
-        log::info!("Component Widget received command: {:?}", command);
         context.send_command(command);
     }
 }
@@ -172,7 +170,6 @@ pub struct EventPoster<B: Behavior, F: Frontend> {
 
 impl<B: Behavior, F: Frontend> AnyEventPoster<B> for EventPoster<B, F> {
     fn post_event(&self, event: B::Event) {
-        log::info!("AnyEventPoster posting: {:?}", event);
         let _ = self.channels.post_event(InternalEvent::Content(event));
         self.frontend
             .gooey()
@@ -198,7 +195,6 @@ impl<B: Behavior, I> Debug for MappedCallback<B, I> {
 
 impl<B: Behavior, I> CallbackFn<I, ()> for MappedCallback<B, I> {
     fn invoke(&self, info: I) {
-        log::info!("Invoking mapped callback");
         let poster = self.widget.read().unwrap();
         let poster = poster.as_ref().unwrap();
         poster.post_event(self.mapper.invoke(info));
@@ -238,7 +234,6 @@ impl<B: Behavior, F: Frontend + Send + Sync> Transmogrifier<F> for ComponentTran
         widget: &Self::Widget,
         _frontend: &F,
     ) {
-        log::info!("Component Transmogrifier received command: {:?}", command);
         widget
             .content_widget
             .as_ref()
