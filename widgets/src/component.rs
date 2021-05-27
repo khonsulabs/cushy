@@ -50,6 +50,22 @@ impl<B: Behavior> Component<B> {
     pub fn registered_widget(&self, id: &B::Widgets) -> Option<WidgetRegistration> {
         self.registered_widgets.get(id).and_then(|id| id.upgrade())
     }
+
+    pub fn send_command_to<W: Widget>(
+        &self,
+        id: &B::Widgets,
+        command: W::Command,
+        storage: &WidgetStorage,
+    ) -> bool {
+        if let Some(widget) = self.registered_widget(id) {
+            if let Some(state) = storage.widget_state(widget.id().id) {
+                let channels = state.channels::<W>().expect("incorrect widget type");
+                channels.post_command(command);
+                return true;
+            }
+        }
+        false
+    }
 }
 
 #[derive(Debug)]

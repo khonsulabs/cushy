@@ -22,11 +22,6 @@ struct Counter {
     count: u32,
 }
 
-#[derive(Debug, Hash, Eq, PartialEq)]
-enum CounterWidgets {
-    Button,
-}
-
 impl Behavior for Counter {
     type Content = Container;
     type Event = CounterEvent;
@@ -34,10 +29,13 @@ impl Behavior for Counter {
 
     fn initialize(mut callbacks: CallbackMapper<Self>) -> Component<Self> {
         Component::initialized(
-            Container::from(callbacks.register_with_id(CounterWidgets::Button, Button {
-                label: String::from("Click Me!"),
-                clicked: callbacks.map_event(|_| CounterEvent::ButtonClicked),
-            })),
+            Container::from(callbacks.register_with_id(
+                CounterWidgets::Button,
+                Button {
+                    label: String::from("Click Me!"),
+                    clicked: callbacks.map_event(|_| CounterEvent::ButtonClicked),
+                },
+            )),
             Self::default(),
             callbacks,
         )
@@ -51,16 +49,17 @@ impl Behavior for Counter {
         let CounterEvent::ButtonClicked = event;
         component.behavior.count += 1;
 
-        let button = component
-            .registered_widget(&CounterWidgets::Button)
-            .unwrap();
-        let button_state = context.widget_state(button.id().id).unwrap();
-        let button_channels = button_state.channels::<Button>().unwrap();
-
-        button_channels.post_command(ButtonCommand::SetLabel(
-            component.behavior.count.to_string(),
-        ));
+        component.send_command_to::<Button>(
+            &CounterWidgets::Button,
+            ButtonCommand::SetLabel(component.behavior.count.to_string()),
+            context,
+        );
     }
+}
+
+#[derive(Debug, Hash, Eq, PartialEq)]
+enum CounterWidgets {
+    Button,
 }
 
 #[derive(Debug)]
