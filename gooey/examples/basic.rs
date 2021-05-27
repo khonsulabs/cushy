@@ -25,13 +25,10 @@ impl Behavior for Counter {
     type Widgets = CounterWidgets;
 
     fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> Container {
-        Container::from(builder.register_widget(
-            CounterWidgets::Button,
-            Button {
-                label: String::from("Click Me!"),
-                clicked: builder.map_event(|_| CounterEvent::ButtonClicked),
-            },
-        ))
+        Container::from(builder.register_widget(CounterWidgets::Button, Button {
+            label: String::from("Click Me!"),
+            clicked: builder.map_event(|_| CounterEvent::ButtonClicked),
+        }))
     }
 
     fn receive_event(

@@ -134,16 +134,31 @@ impl<R: Renderer> Rasterizer<R> {
             .widgets_under_point(position)
             .into_iter()
             .filter(|id| {
-                self.with_transmogrifier(id, |transmogrifier, mut context| {
-                    transmogrifier.hit_test(&mut context, position)
-                })
-                .unwrap_or_default()
+                self.state
+                    .widget_bounds(id)
+                    .and_then(|bounds| {
+                        self.with_transmogrifier(id, |transmogrifier, mut context| {
+                            transmogrifier.mouse_move(&mut context, position, bounds.size)
+                        })
+                    })
+                    .unwrap_or_default()
             })
             .collect::<HashSet<_>>();
 
-        // TODO call mouse drag on any of the active handlers
+        for (button, handler) in self.state.mouse_button_handlers() {
+            self.state.widget_bounds(&handler).and_then(|bounds| {
+                self.with_transmogrifier(&handler, |transmogrifier, mut context| {
+                    transmogrifier.mouse_drag(
+                        &mut context,
+                        button,
+                        position - bounds.origin.to_vector(),
+                        bounds.size,
+                    );
+                })
+            });
+        }
 
-        let last_hover = self.state.clear_hover();
+        let last_hover = self.state.hover();
         if new_hover != last_hover {
             for unhovered_id in last_hover.difference(&new_hover) {
                 self.with_transmogrifier(unhovered_id, |transmogrifier, mut context| {
@@ -172,25 +187,32 @@ impl<R: Renderer> Rasterizer<R> {
     fn handle_mouse_down(&self, button: MouseButton) -> EventResult {
         self.state.blur();
 
-        for hovered in self.state.hover() {
-            if let Some(last_mouse_position) = self.state.last_mouse_position() {
-                let handled = self
-                    .with_transmogrifier(&hovered, |transmogrifier, mut context| {
-                        let hit = transmogrifier.hit_test(&mut context, last_mouse_position);
-                        let handled = hit
-                            && transmogrifier.mouse_down(&mut context, last_mouse_position, button)
-                                == EventStatus::Processed;
-                        if handled {
-                            self.state.register_mouse_handler(button, hovered.clone());
-                            true
-                        } else {
-                            false
-                        }
-                    })
-                    .unwrap_or_default();
+        if let Some(last_mouse_position) = self.state.last_mouse_position() {
+            for hovered in self.state.hover() {
+                if let Some(bounds) = self.state.widget_bounds(&hovered) {
+                    let handled = self
+                        .with_transmogrifier(&hovered, |transmogrifier, mut context| {
+                            let position = last_mouse_position - bounds.origin.to_vector();
+                            let hit = transmogrifier.hit_test(&mut context, position, bounds.size);
+                            let handled = hit
+                                && transmogrifier.mouse_down(
+                                    &mut context,
+                                    button,
+                                    position,
+                                    bounds.size,
+                                ) == EventStatus::Processed;
+                            if handled {
+                                self.state.register_mouse_handler(button, hovered.clone());
+                                true
+                            } else {
+                                false
+                            }
+                        })
+                        .unwrap_or_default();
 
-                if handled {
-                    return EventResult::processed();
+                    if handled {
+                        return EventResult::processed();
+                    }
                 }
             }
         }
@@ -202,9 +224,18 @@ impl<R: Renderer> Rasterizer<R> {
         self.state
             .take_mouse_button_handler(&button)
             .and_then(|handler| {
-                self.with_transmogrifier(&handler, |transmogrifier, mut context| {
-                    transmogrifier.mouse_up(&mut context, self.state.last_mouse_position(), button);
-                    EventResult::processed()
+                self.state.widget_bounds(&handler).and_then(|bounds| {
+                    self.with_transmogrifier(&handler, |transmogrifier, mut context| {
+                        transmogrifier.mouse_up(
+                            &mut context,
+                            button,
+                            self.state
+                                .last_mouse_position()
+                                .map(|pos| pos - bounds.origin.to_vector()),
+                            bounds.size,
+                        );
+                        EventResult::processed()
+                    })
                 })
             })
             .unwrap_or_else(EventResult::ignored)

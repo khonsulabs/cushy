@@ -1,5 +1,5 @@
 use gooey_core::{
-    euclid::{Length, Point2D, Size2D, Vector2D},
+    euclid::{Length, Point2D, Rect, Size2D, Vector2D},
     renderer::Renderer,
     styles::{ForegroundColor, Points, Srgba, Style},
     Transmogrifier,
@@ -67,8 +67,9 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
     fn mouse_down(
         &self,
         _context: RasterContext<Self, R>,
-        _location: Point2D<f32, Points>,
         button: MouseButton,
+        _location: Point2D<f32, Points>,
+        _rastered_size: Size2D<f32, Points>,
     ) -> EventStatus {
         if button == MouseButton::Left {
             EventStatus::Processed
@@ -80,19 +81,24 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
     fn mouse_up(
         &self,
         context: RasterContext<Self, R>,
-        _location: Option<Point2D<f32, Points>>,
         _button: MouseButton,
+        location: Option<Point2D<f32, Points>>,
+        rastered_size: Size2D<f32, Points>,
     ) {
-        // TODO check for location to be contained
-        if let Some(widget) = context
-            .rasterizer
-            .ui
-            .widget_state(context.registration.id().id)
+        if location
+            .map(|location| Rect::new(Point2D::default(), rastered_size).contains(location))
+            .unwrap_or_default()
         {
-            widget
-                .channels::<Self::Widget>()
-                .unwrap()
-                .post_event(InternalButtonEvent::Clicked);
+            if let Some(widget) = context
+                .rasterizer
+                .ui
+                .widget_state(context.registration.id().id)
+            {
+                widget
+                    .channels::<Self::Widget>()
+                    .unwrap()
+                    .post_event(InternalButtonEvent::Clicked);
+            }
         }
     }
 }

@@ -40,6 +40,11 @@ impl State {
         data.widget_rendered(widget, bounds)
     }
 
+    pub fn widget_bounds(&self, widget: &WidgetId) -> Option<Rect<f32, Points>> {
+        let data = self.data.lock().unwrap();
+        data.bounds.get(&widget.id).cloned()
+    }
+
     pub fn widgets_under_point(&self, location: Point2D<f32, Points>) -> Vec<WidgetId> {
         let data = self.data.lock().unwrap();
         data.widgets_under_point(location).cloned().collect()
@@ -96,9 +101,9 @@ impl State {
         data.mouse_button_handlers.remove(button)
     }
 
-    pub fn mouse_button_handler(&self, button: &MouseButton) -> Option<WidgetId> {
+    pub fn mouse_button_handlers(&self) -> HashMap<MouseButton, WidgetId> {
         let data = self.data.lock().unwrap();
-        data.mouse_button_handlers.get(button).cloned()
+        data.mouse_button_handlers.clone()
     }
 }
 
