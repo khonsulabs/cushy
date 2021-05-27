@@ -25,8 +25,7 @@ jobs:
           ref: ${{ matrix.branch }}
       - name: Audit
         run: |
-          cargo audit -D warnings --ignore RUSTSEC-2020-0016
-          echo '::warning::Ignoring alert for net2 dependency of winit https://github.com/khonsulabs/kludgine/issues/47'
+          cargo audit -D warnings
 
   test:
     runs-on: ubuntu-latest

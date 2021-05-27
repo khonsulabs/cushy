@@ -16,13 +16,13 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
     fn transmogrify(
         &self,
         _state: &Self::State,
-        parent: &web_sys::Node,
         widget: &<Self as Transmogrifier<WebSys>>::Widget,
-        frontend: &WebSys,
+        gooey: &WebSys,
     ) -> Option<web_sys::HtmlElement> {
-        frontend.ui.with_transmogrifier(
-            widget.child.as_ref(),
-            |child_transmogrifier, child_state| {
+        gooey.ui.with_transmogrifier(
+            widget.child.id(),
+            gooey,
+            |child_transmogrifier, child_state, child_widget| {
                 let container = window_document()
                     .create_element("div")
                     .expect("error creating div")
@@ -36,14 +36,9 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
                 set_element_padding(&container, "padding-top", widget.padding.top());
                 set_element_padding(&container, "padding-bottom", widget.padding.bottom());
 
-                parent.append_child(&container).unwrap();
-
-                if let Some(child) = child_transmogrifier.transmogrify(
-                    child_state,
-                    &container,
-                    widget.child.as_ref(),
-                    frontend,
-                ) {
+                if let Some(child) =
+                    child_transmogrifier.transmogrify(child_state, child_widget, gooey)
+                {
                     container
                         .append_child(&child)
                         .expect("error appending child");

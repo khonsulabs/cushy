@@ -1,4 +1,5 @@
 pub mod button;
+pub mod component;
 pub mod container;
 
 #[cfg(feature = "frontend-browser")]
@@ -8,18 +9,22 @@ fn window_document() -> web_sys::Document {
 
 #[cfg(feature = "frontend-rasterizer")]
 pub mod rasterized {
-    use gooey_core::Gooey;
-    use gooey_rasterizer::make_rasterized;
+    use gooey_core::{renderer::Renderer, Transmogrifiers};
+    use gooey_rasterizer::{make_rasterized, Rasterizer};
 
     use crate::{button::ButtonTransmogrifier, container::ContainerTransmogrifier};
 
-    pub fn register_transmogrifiers<R: gooey_core::renderer::Renderer>(
-        mut ui: Gooey<gooey_rasterizer::Rasterizer<R>>,
-    ) -> Gooey<gooey_rasterizer::Rasterizer<R>> {
-        drop(ui.register_transmogrifier(ButtonTransmogrifier));
-        drop(ui.register_transmogrifier(ContainerTransmogrifier));
+    pub fn register_transmogrifiers<R: Renderer>(
+        transmogrifiers: &mut Transmogrifiers<Rasterizer<R>>,
+    ) {
+        drop(transmogrifiers.register_transmogrifier(ButtonTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(ContainerTransmogrifier));
+    }
 
-        ui
+    pub fn default_transmogrifiers<R: Renderer>() -> Transmogrifiers<Rasterizer<R>> {
+        let mut transmogrifiers = Transmogrifiers::default();
+        register_transmogrifiers(&mut transmogrifiers);
+        transmogrifiers
     }
 
     make_rasterized!(ButtonTransmogrifier);
@@ -29,15 +34,19 @@ pub mod rasterized {
 #[cfg(feature = "frontend-browser")]
 pub mod browser {
     use gooey_browser::{make_browser, WebSys};
-    use gooey_core::Gooey;
+    use gooey_core::Transmogrifiers;
 
     use crate::{button::ButtonTransmogrifier, container::ContainerTransmogrifier};
 
-    pub fn register_transmogrifiers(mut ui: Gooey<WebSys>) -> Gooey<WebSys> {
-        drop(ui.register_transmogrifier(ButtonTransmogrifier));
-        drop(ui.register_transmogrifier(ContainerTransmogrifier));
+    pub fn register_transmogrifiers(transmogrifiers: &mut Transmogrifiers<WebSys>) {
+        drop(transmogrifiers.register_transmogrifier(ButtonTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(ContainerTransmogrifier));
+    }
 
-        ui
+    pub fn default_transmogrifiers() -> Transmogrifiers<WebSys> {
+        let mut transmogrifiers = Transmogrifiers::default();
+        register_transmogrifiers(&mut transmogrifiers);
+        transmogrifiers
     }
 
     make_browser!(ButtonTransmogrifier);

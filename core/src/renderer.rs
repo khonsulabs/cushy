@@ -1,10 +1,28 @@
+use std::fmt::Debug;
+
 use euclid::{Length, Point2D, Rect, Scale, Size2D};
 use stylecs::{palette::Srgba, Pixels, Points, Style};
 
 /// Implements drawing APIs.
-pub trait Renderer {
+pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     /// The size of the area being drawn.
     fn size(&self) -> Size2D<f32, Points>;
+
+    /// A [`Rect`] representing the area being drawn. Due to how rendering
+    /// works, the origin is always zero.
+    fn bounds(&self) -> Rect<f32, Points> {
+        Rect::new(Point2D::default(), self.size())
+    }
+
+    /// Returns a new renderer instance with the state such that each operation
+    /// executes as if the origin is `bounds.origin`. The returned instance's
+    /// `size()` should equal `bounds.size`.
+    fn clip_to(&self, bounds: Rect<f32, Points>) -> Self;
+
+    /// A [`Rect`] representing the area being drawn. This rect should be offset
+    /// relative to the origin of the renderer.
+    fn clip_bounds(&self) -> Rect<f32, Points>;
+
     /// The scale when converting between [`Points`] and [`Pixels`].
     fn scale(&self) -> Scale<f32, Points, Pixels>;
 

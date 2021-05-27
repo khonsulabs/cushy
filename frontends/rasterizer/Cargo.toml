@@ -12,3 +12,4 @@ readme = "../../README.md"
 
 [dependencies]
 gooey-core = { path = "../../core", version = "0.1.0-dev.0" }
+winit = "0.25"
