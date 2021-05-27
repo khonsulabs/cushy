@@ -29,17 +29,21 @@ pub struct Component<B: Behavior> {
 
 impl<B: Behavior> Component<B> {
     pub fn new(storage: &WidgetStorage) -> Self {
-        B::initialize(CallbackMapper::new(storage))
+        B::initialize(ComponentInitializer::new(storage))
     }
 
-    pub fn initialized(widget: B::Content, behavior: B, callbacks: CallbackMapper<B>) -> Self {
-        let content = callbacks.register(widget);
+    pub fn initialized(
+        widget: B::Content,
+        behavior: B,
+        initializer: ComponentInitializer<B>,
+    ) -> Self {
+        let content = initializer.register(widget);
         Self {
             behavior,
             content,
             content_widget: None,
-            callback_widget: callbacks.widget,
-            registered_widgets: callbacks.registered_widgets,
+            callback_widget: initializer.widget,
+            registered_widgets: initializer.registered_widgets,
         }
     }
 
@@ -82,7 +86,7 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
     type Content: Widget;
     type Widgets: Hash + Eq + Debug + Send + Sync;
 
-    fn initialize(callbacks: CallbackMapper<Self>) -> Component<Self>;
+    fn initialize(initializer: ComponentInitializer<Self>) -> Component<Self>;
 
     fn receive_event(
         component: &mut Component<Self>,
@@ -117,14 +121,14 @@ pub enum InternalEvent<B: Behavior> {
 }
 
 #[derive(Debug)]
-pub struct CallbackMapper<B: Behavior> {
+pub struct ComponentInitializer<B: Behavior> {
     widget: SettableWidgetRef<B>,
     storage: WidgetStorage,
     registered_widgets: HashMap<B::Widgets, WeakWidgetRegistration>,
     _phantom: PhantomData<B>,
 }
 
-impl<B: Behavior> CallbackMapper<B> {
+impl<B: Behavior> ComponentInitializer<B> {
     pub fn new(storage: &WidgetStorage) -> Self {
         Self {
             storage: storage.clone(),
@@ -161,7 +165,7 @@ impl<B: Behavior> CallbackMapper<B> {
     }
 }
 
-impl<B: Behavior> Deref for CallbackMapper<B> {
+impl<B: Behavior> Deref for ComponentInitializer<B> {
     type Target = WidgetStorage;
 
     fn deref(&self) -> &Self::Target {

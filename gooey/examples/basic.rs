@@ -2,7 +2,7 @@ use gooey::{
     core::{Context, Transmogrifiers},
     widgets::{
         button::{Button, ButtonCommand},
-        component::{Behavior, CallbackMapper, Component, ComponentTransmogrifier},
+        component::{Behavior, Component, ComponentInitializer, ComponentTransmogrifier},
         container::Container,
     },
 };
@@ -27,17 +27,17 @@ impl Behavior for Counter {
     type Event = CounterEvent;
     type Widgets = CounterWidgets;
 
-    fn initialize(mut callbacks: CallbackMapper<Self>) -> Component<Self> {
+    fn initialize(mut initializer: ComponentInitializer<Self>) -> Component<Self> {
         Component::initialized(
-            Container::from(callbacks.register_with_id(
+            Container::from(initializer.register_with_id(
                 CounterWidgets::Button,
                 Button {
                     label: String::from("Click Me!"),
-                    clicked: callbacks.map_event(|_| CounterEvent::ButtonClicked),
+                    clicked: initializer.map_event(|_| CounterEvent::ButtonClicked),
                 },
             )),
             Self::default(),
-            callbacks,
+            initializer,
         )
     }
 
