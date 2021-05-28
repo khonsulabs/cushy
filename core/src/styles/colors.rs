@@ -1,4 +1,4 @@
-use stylecs::{palette::Srgba, ColorPair, ComponentRoot, FallbackComponent, StyleComponent};
+use stylecs::{palette::Srgba, ColorPair, FallbackComponent, StyleComponent};
 
 /// The foreground color. Used for text and line/border drawing.
 #[derive(Debug, Clone)]
@@ -20,8 +20,9 @@ impl From<ForegroundColor> for ColorPair {
     }
 }
 
-impl FallbackComponent<ColorPair> for ForegroundColor {
-    type Fallback = ComponentRoot;
+impl FallbackComponent for ForegroundColor {
+    type Fallback = Self;
+    type Value = ColorPair;
 
     fn value(&self) -> Option<&ColorPair> {
         Some(&self.0)
@@ -52,8 +53,9 @@ impl From<BackgroundColor> for ColorPair {
     }
 }
 
-impl FallbackComponent<ColorPair> for BackgroundColor {
-    type Fallback = ComponentRoot;
+impl FallbackComponent for BackgroundColor {
+    type Fallback = Self;
+    type Value = ColorPair;
 
     fn value(&self) -> Option<&ColorPair> {
         Some(&self.0)
@@ -71,8 +73,9 @@ impl From<TextColor> for ColorPair {
     }
 }
 
-impl FallbackComponent<ColorPair> for TextColor {
+impl FallbackComponent for TextColor {
     type Fallback = ForegroundColor;
+    type Value = ColorPair;
 
     fn value(&self) -> Option<&ColorPair> {
         Some(&self.0)

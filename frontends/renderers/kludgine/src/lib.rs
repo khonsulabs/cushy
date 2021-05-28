@@ -42,7 +42,7 @@ impl Kludgine {
                 .cast_unit(),
             Color::from(
                 options
-                    .get_with_fallback::<TextColor, _>()
+                    .get_with_fallback::<TextColor>()
                     .cloned()
                     .unwrap_or_else(|| Srgba::new(0., 0., 0., 1.).into())
                     .themed_color(&system_theme),
