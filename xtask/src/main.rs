@@ -1,15 +1,19 @@
 use devx_cmd::run;
+use khonsu_tools::{anyhow, code_coverage::CodeCoverage};
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 enum Args {
     BuildBrowserExample,
+    GenerateCodeCoverageReport,
 }
 
-fn main() -> Result<(), devx_cmd::Error> {
+fn main() -> anyhow::Result<()> {
     let args = Args::from_args();
-    let Args::BuildBrowserExample = args;
-    build_browser_example()?;
+    match args {
+        Args::BuildBrowserExample => build_browser_example()?,
+        Args::GenerateCodeCoverageReport => CodeCoverage::<CodeCoverageConfig>::execute()?,
+    };
     Ok(())
 }
 
@@ -48,4 +52,12 @@ fn build_browser_example() -> Result<(), devx_cmd::Error> {
     println!("miniserve gooey/examples/browser/");
 
     Ok(())
+}
+
+struct CodeCoverageConfig;
+
+impl khonsu_tools::code_coverage::Config for CodeCoverageConfig {
+    fn ignore_paths() -> Vec<String> {
+        vec![String::from("gooey/examples/*")]
+    }
 }

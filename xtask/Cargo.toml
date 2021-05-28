@@ -13,3 +13,4 @@ readme = "../README.md"
 [dependencies]
 devx-cmd = "0.3"
 structopt = "0.3"
+khonsu-tools = { git = "https://github.com/khonsulabs/khonsu-tools.git", branch = "main" }
