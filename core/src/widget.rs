@@ -6,13 +6,15 @@ use std::{
 };
 
 use flume::{Receiver, Sender};
+use stylecs::{Style, StyleComponent};
 
 use crate::{
-    AnyFrontend, Frontend, WeakWidgetRegistration, WidgetRef, WidgetRegistration, WidgetStorage,
+    AnyFrontend, Frontend, StyledWidget, WeakWidgetRegistration, WidgetRef, WidgetRegistration,
+    WidgetStorage,
 };
 
 /// A graphical user interface element.
-pub trait Widget: Debug + Send + Sync + 'static {
+pub trait Widget: Debug + Send + Sync + Sized + 'static {
     /// Widgets may need to receive instructions from other entities. This type
     /// is the type other widgets can use to communicate with this widget;
     type Command: Debug + Send + Sync;
@@ -27,10 +29,7 @@ pub trait Widget: Debug + Send + Sync + 'static {
 
     /// Called when an `event` from the transmogrifier was received.
     #[allow(unused_variables)]
-    fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>)
-    where
-        Self: Sized,
-    {
+    fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>) {
         unimplemented!(
             "an event `{:?}` was sent by the transmogrifier but receive_event isn't implemented \
              by {}",
@@ -41,15 +40,30 @@ pub trait Widget: Debug + Send + Sync + 'static {
 
     /// Called when an `event` from the transmogrifier was received.
     #[allow(unused_variables)]
-    fn receive_command(&mut self, command: Self::Command, context: &Context<Self>)
-    where
-        Self: Sized,
-    {
+    fn receive_command(&mut self, command: Self::Command, context: &Context<Self>) {
         unimplemented!(
             "a commmand `{:?}` was sent but receive_command isn't implemented by {}",
             command,
             type_name::<Self>()
         )
+    }
+
+    fn with<C: StyleComponent + Clone>(self, style: C) -> StyledWidget<Self> {
+        StyledWidget {
+            widget: self,
+            style: Self::default_style().with(style),
+        }
+    }
+
+    fn with_default_style(self) -> StyledWidget<Self> {
+        StyledWidget {
+            widget: self,
+            style: Self::default_style(),
+        }
+    }
+
+    fn default_style() -> Style {
+        Style::default()
     }
 }
 

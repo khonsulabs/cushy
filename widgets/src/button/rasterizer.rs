@@ -8,7 +8,7 @@ use gooey_rasterizer::{
     winit::event::MouseButton, EventStatus, RasterContext, Rasterizer, WidgetRasterizer,
 };
 
-use super::InternalButtonEvent;
+use super::{ButtonColor, InternalButtonEvent};
 use crate::button::{Button, ButtonCommand, ButtonTransmogrifier};
 
 const BUTTON_PADDING: Length<f32, Points> = Length::new(5.);
@@ -31,19 +31,16 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
 impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
     fn render(&self, context: RasterContext<Self, R>) {
         if let Some(scene) = context.rasterizer.renderer() {
-            scene.fill_rect(
-                &scene.bounds(),
-                &Style::new().with(ForegroundColor(Srgba::new(0., 1., 0., 1.).into())),
-            );
+            scene.fill_rect::<ButtonColor>(&scene.bounds(), context.style);
 
-            let text_size = scene.measure_text(&context.widget.label, &Style::default());
+            let text_size = scene.measure_text(&context.widget.label, context.style);
 
             let center = scene.bounds().center();
             scene.render_text(
                 &context.widget.label,
                 center - Vector2D::from_lengths(text_size.width, text_size.height()) / 2.
                     + Vector2D::from_lengths(Length::default(), text_size.ascent),
-                &Style::default(),
+                context.style,
             );
         }
     }
@@ -55,7 +52,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
     ) -> Size2D<f32, Points> {
         if let Some(scene) = context.rasterizer.renderer() {
             // TODO should be wrapped width
-            let text_size = scene.measure_text(&context.widget.label, &Style::default());
+            let text_size = scene.measure_text(&context.widget.label, context.style);
             (Vector2D::from_lengths(text_size.width, text_size.height())
                 + Vector2D::from_lengths(BUTTON_PADDING * 2., BUTTON_PADDING * 2.))
             .to_size()

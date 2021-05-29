@@ -3,6 +3,7 @@ use std::{any::TypeId, convert::TryFrom, ops::Deref};
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     renderer::Renderer,
+    styles::{style_sheet::State, Style},
     AnySendSync, AnyTransmogrifier, AnyWidget, Points, Transmogrifier, TransmogrifierState,
     WidgetRegistration,
 };
@@ -15,17 +16,28 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         TypeId::of::<<Self as Transmogrifier<Rasterizer<R>>>::Widget>()
     }
 
-    fn render_within(&self, context: RasterContext<'_, Self, R>, bounds: Rect<f32, Points>) {
+    fn render_within(
+        &self,
+        context: RasterContext<'_, Self, R>,
+        bounds: Rect<f32, Points>,
+        parent_style: &Style,
+    ) {
         if let Some(rasterizer) = context.rasterizer.clipped_to(bounds) {
             rasterizer.rasterizerd_widget(
                 context.registration.id().clone(),
                 rasterizer.renderer().unwrap().clip_bounds(),
+            );
+            let effective_style = context.rasterizer.theme.effective_style_for(
+                context.style.merge_with(parent_style, true),
+                context.ui_state,
             );
             self.render(RasterContext::new(
                 context.registration.clone(),
                 context.state,
                 &rasterizer,
                 context.widget,
+                &effective_style,
+                context.ui_state,
             ));
         }
     }
@@ -99,7 +111,12 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
 }
 
 pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + Send + Sync {
-    fn render_within(&self, context: &mut AnyRasterContext<'_, R>, bounds: Rect<f32, Points>);
+    fn render_within(
+        &self,
+        context: &mut AnyRasterContext<'_, R>,
+        bounds: Rect<f32, Points>,
+        parent_style: &Style,
+    );
     fn content_size(
         &self,
         context: &mut AnyRasterContext<'_, R>,
@@ -154,11 +171,17 @@ where
     T: WidgetRasterizer<R> + AnyTransmogrifier<Rasterizer<R>> + Send + Sync + 'static,
     R: Renderer,
 {
-    fn render_within(&self, context: &mut AnyRasterContext<'_, R>, bounds: Rect<f32, Points>) {
+    fn render_within(
+        &self,
+        context: &mut AnyRasterContext<'_, R>,
+        bounds: Rect<f32, Points>,
+        parent_style: &Style,
+    ) {
         <T as WidgetRasterizer<R>>::render_within(
             &self,
             RasterContext::try_from(context).unwrap(),
             bounds,
+            parent_style,
         )
     }
 

@@ -5,6 +5,7 @@ use std::{
 
 use gooey_core::{
     euclid::{Point2D, Rect},
+    styles::style_sheet,
     Points, WidgetId,
 };
 use winit::event::MouseButton;
@@ -103,6 +104,15 @@ impl State {
     pub fn mouse_button_handlers(&self) -> HashMap<MouseButton, WidgetId> {
         let data = self.data.lock().unwrap();
         data.mouse_button_handlers.clone()
+    }
+
+    pub fn ui_state_for(&self, widget_id: &WidgetId) -> style_sheet::State {
+        let data = self.data.lock().unwrap();
+        style_sheet::State {
+            hovered: data.hover.contains(widget_id),
+            active: data.active.as_ref() == Some(widget_id),
+            focused: data.focus.as_ref() == Some(widget_id),
+        }
     }
 }
 

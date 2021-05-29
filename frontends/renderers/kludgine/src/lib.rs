@@ -2,7 +2,8 @@ use gooey_core::{
     euclid::{Point2D, Rect},
     renderer::{Renderer, TextMetrics},
     styles::{
-        BackgroundColor, FontSize, ForegroundColor, LineWidth, Srgba, Style, SystemTheme, TextColor,
+        BackgroundColor, ColorPair, FallbackComponent, FontSize, ForegroundColor, LineWidth, Srgba,
+        Style, SystemTheme, TextColor,
     },
     Pixels, Points,
 };
@@ -135,15 +136,18 @@ impl Renderer for Kludgine {
         self.stroke_shape(Shape::rect(*rect), style);
     }
 
-    fn fill_rect(&self, rect: &Rect<f32, Points>, style: &Style) {
+    fn fill_rect<F: FallbackComponent<Value = ColorPair>>(
+        &self,
+        rect: &Rect<f32, Points>,
+        style: &Style,
+    ) {
         let system_theme = style.get::<SystemTheme>().cloned().unwrap_or_default();
         Shape::rect(rect.cast_unit())
             .fill(Fill::new(Color::from(
                 style
-                    .get::<BackgroundColor>()
+                    .get_with_fallback::<F>()
                     .cloned()
-                    .unwrap_or_else(|| BackgroundColor(Srgba::new(1., 1., 1., 1.).into()))
-                    .0
+                    .unwrap_or_else(|| Srgba::new(1., 1., 1., 1.).into())
                     .themed_color(&system_theme),
             )))
             .render_at(Point2D::default(), &self.target);

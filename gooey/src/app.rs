@@ -1,4 +1,4 @@
-use gooey_core::{Frontend, Transmogrifiers, Widget, WidgetStorage};
+use gooey_core::{Frontend, StyledWidget, Transmogrifiers, Widget, WidgetStorage};
 
 #[derive(Default, Debug)]
 pub struct App {
@@ -16,7 +16,10 @@ impl App {
         self
     }
 
-    pub fn run<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(self, initializer: C) {
+    pub fn run<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
+        self,
+        initializer: C,
+    ) {
         crate::main_with(self.transmogrifiers, initializer)
     }
 }

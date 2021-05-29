@@ -1,6 +1,6 @@
 use gooey_core::{
-    euclid::Length, styles::Surround, Frontend, Points, Widget, WidgetRef, WidgetRegistration,
-    WidgetStorage,
+    euclid::Length, styles::Surround, Frontend, Points, StyledWidget, Widget, WidgetRef,
+    WidgetRegistration, WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -16,7 +16,7 @@ pub struct Container {
 }
 
 impl Container {
-    pub fn new<W: Widget>(child: W, storage: &WidgetStorage) -> Self {
+    pub fn new<W: Widget>(child: StyledWidget<W>, storage: &WidgetStorage) -> Self {
         Self::from(storage.register(child))
     }
 

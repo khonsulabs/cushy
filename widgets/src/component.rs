@@ -8,7 +8,7 @@ use std::{
 };
 
 use gooey_core::{
-    AnyWidget, Callback, CallbackFn, Channels, Context, Frontend, Transmogrifier,
+    AnyWidget, Callback, CallbackFn, Channels, Context, Frontend, StyledWidget, Transmogrifier,
     WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
@@ -28,7 +28,7 @@ pub struct Component<B: Behavior> {
 }
 
 impl<B: Behavior> Component<B> {
-    pub fn new(mut behavior: B, storage: &WidgetStorage) -> Self {
+    pub fn new(mut behavior: B, storage: &WidgetStorage) -> StyledWidget<Self> {
         let mut builder = ComponentBuilder::new(storage);
         let content = behavior.create_content(&mut builder);
         let content = builder.register(content);
@@ -39,9 +39,10 @@ impl<B: Behavior> Component<B> {
             registered_widgets: builder.registered_widgets,
             content_widget: None,
         }
+        .with_default_style()
     }
 
-    pub fn default_for(storage: &WidgetStorage) -> Self
+    pub fn default_for(storage: &WidgetStorage) -> StyledWidget<Self>
     where
         B: Default,
     {
@@ -87,7 +88,10 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
     type Content: Widget;
     type Widgets: Hash + Eq + Debug + Send + Sync;
 
-    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> Self::Content;
+    fn create_content(
+        &mut self,
+        builder: &mut ComponentBuilder<Self>,
+    ) -> StyledWidget<Self::Content>;
 
     fn receive_event(
         component: &mut Component<Self>,
@@ -157,7 +161,7 @@ impl<B: Behavior> ComponentBuilder<B> {
     pub fn register_widget<W: Widget + AnyWidget>(
         &mut self,
         id: B::Widgets,
-        widget: W,
+        widget: StyledWidget<W>,
     ) -> WidgetRegistration {
         let registration = self.storage.register(widget);
         self.registered_widgets

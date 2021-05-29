@@ -37,7 +37,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
                     size,
                 );
 
-                child_transmogrifier.render_within(&mut child_context, child_rect);
+                child_transmogrifier.render_within(&mut child_context, child_rect, context.style);
             },
         );
     }

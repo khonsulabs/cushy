@@ -1,5 +1,9 @@
+use gooey_core::StyledWidget;
+
 use crate::{
-    core::{Frontend, Gooey, Transmogrifiers, Widget, WidgetStorage},
+    core::{
+        styles::style_sheet::StyleSheet, Frontend, Gooey, Transmogrifiers, Widget, WidgetStorage,
+    },
     frontends::{
         rasterizer::{events::InputEvent as GooeyInputEvent, Rasterizer},
         renderers::kludgine::{kludgine::prelude::*, Kludgine},
@@ -7,19 +11,21 @@ use crate::{
     widgets::rasterized::{default_transmogrifiers, register_transmogrifiers},
 };
 
-pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(
+pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
     mut transmogrifiers: Transmogrifiers<Rasterizer<Kludgine>>,
     initializer: C,
 ) {
     register_transmogrifiers(&mut transmogrifiers);
-    let ui = Gooey::with(transmogrifiers, initializer);
+    let ui = Gooey::with(transmogrifiers, StyleSheet::default(), initializer);
     let ui = Rasterizer::<Kludgine>::new(ui);
     ui.process_widget_messages();
 
     SingleWindowApplication::run(GooeyWindow { ui });
 }
 
-pub fn kludgine_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(initializer: C) {
+pub fn kludgine_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
+    initializer: C,
+) {
     kludgine_main_with(default_transmogrifiers(), initializer)
 }
 

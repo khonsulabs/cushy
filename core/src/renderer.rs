@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use euclid::{Length, Point2D, Rect, Scale, Size2D};
-use stylecs::{palette::Srgba, Style};
+use stylecs::{palette::Srgba, ColorPair, FallbackComponent, Style};
 
 use crate::{Pixels, Points};
 
@@ -37,7 +37,11 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     /// Strokes the outline of `rect` using `options`.
     fn stroke_rect(&self, rect: &Rect<f32, Points>, style: &Style);
     /// Fills `rect` using `color`.
-    fn fill_rect(&self, rect: &Rect<f32, Points>, style: &Style);
+    fn fill_rect<F: FallbackComponent<Value = ColorPair>>(
+        &self,
+        rect: &Rect<f32, Points>,
+        style: &Style,
+    );
 
     /// Draws a line between `point_a` and `point_b` using `options`.
     fn stroke_line(

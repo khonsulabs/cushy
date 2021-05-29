@@ -3,8 +3,13 @@ use std::{collections::HashSet, sync::Arc};
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
     euclid::{Point2D, Rect},
+    styles::{
+        style_sheet::{self, StyleSheet},
+        Style,
+    },
     Gooey, Points, WidgetId,
 };
+use style::default_stylesheet;
 use winit::event::{
     ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
 };
@@ -12,6 +17,7 @@ use winit::event::{
 mod context;
 pub mod events;
 mod state;
+pub mod style;
 mod transmogrifier;
 
 #[doc(hidden)]
@@ -24,6 +30,7 @@ pub use self::{context::*, transmogrifier::*};
 #[derive(Debug)]
 pub struct Rasterizer<R: Renderer> {
     pub ui: Arc<Gooey<Self>>,
+    pub theme: Arc<StyleSheet>,
     state: State,
     renderer: Option<R>,
 }
@@ -36,6 +43,7 @@ impl<R: Renderer> Clone for Rasterizer<R> {
         Self {
             ui: self.ui.clone(),
             state: self.state.clone(),
+            theme: self.theme.clone(),
             renderer: None,
         }
     }
@@ -53,6 +61,7 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
 impl<R: Renderer> Rasterizer<R> {
     pub fn new(ui: Gooey<Self>) -> Self {
         Self {
+            theme: Arc::new(default_stylesheet().merge_with(ui.stylesheet())),
             ui: Arc::new(ui),
             state: State::default(),
             renderer: None,
@@ -66,10 +75,15 @@ impl<R: Renderer> Rasterizer<R> {
         Rasterizer {
             ui: self.ui.clone(),
             state: self.state.clone(),
+            theme: self.theme.clone(),
             renderer: Some(scene),
         }
         .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
-            transmogrifier.render_within(&mut context, Rect::new(Point2D::default(), size));
+            transmogrifier.render_within(
+                &mut context,
+                Rect::new(Point2D::default(), size),
+                &Style::default(),
+            );
         });
     }
 
@@ -77,6 +91,7 @@ impl<R: Renderer> Rasterizer<R> {
         self.renderer().map(|renderer| Self {
             ui: self.ui.clone(),
             state: self.state.clone(),
+            theme: self.theme.clone(),
             renderer: Some(renderer.clip_to(clip)),
         })
     }
@@ -267,6 +282,7 @@ impl<R: Renderer> Rasterizer<R> {
         self.ui
             .with_transmogrifier(widget_id, self, |transmogrifier, state, widget| {
                 let widget_state = self.ui.widget_state(widget_id.id).unwrap();
+                let style = widget_state.style.lock().unwrap();
                 callback(
                     transmogrifier.as_ref(),
                     AnyRasterContext::new(
@@ -274,6 +290,8 @@ impl<R: Renderer> Rasterizer<R> {
                         state,
                         self,
                         widget,
+                        &style,
+                        &self.state.ui_state_for(widget_id),
                     ),
                 )
             })

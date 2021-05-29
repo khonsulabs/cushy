@@ -9,6 +9,8 @@ use std::{
     },
 };
 
+use stylecs::{style_sheet::StyleSheet, Style};
+
 use crate::{
     AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyWidget, Channels, Frontend,
     TransmogrifierState, Widget, WidgetId,
@@ -28,12 +30,14 @@ struct GooeyData<F: Frontend> {
     root: WidgetRegistration,
     storage: WidgetStorage,
     processing_messages_lock: Mutex<()>,
+    stylesheet: StyleSheet,
 }
 
 impl<F: Frontend> Gooey<F> {
     /// Creates a user interface using `root`.
-    pub fn with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(
+    pub fn with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
         transmogrifiers: Transmogrifiers<F>,
+        stylesheet: StyleSheet,
         initializer: C,
     ) -> Self {
         let storage = WidgetStorage::default();
@@ -44,6 +48,7 @@ impl<F: Frontend> Gooey<F> {
                 transmogrifiers,
                 root,
                 storage,
+                stylesheet,
                 processing_messages_lock: Mutex::default(),
             }),
         }
@@ -184,6 +189,12 @@ impl<F: Frontend> Gooey<F> {
         // Process any messages that may have been triggered onto other widgets.
         frontend.process_widget_messages();
     }
+
+    /// Returns the root widget.
+    #[must_use]
+    pub fn stylesheet(&self) -> &StyleSheet {
+        &self.data.stylesheet
+    }
 }
 
 impl<F: Frontend> Deref for Gooey<F> {
@@ -252,8 +263,11 @@ impl WidgetStorage {
     /// Register a widget with storage.
     #[must_use]
     #[allow(clippy::missing_panics_doc)] // The unwrap is unreachable
-    pub fn register<W: Widget + AnyWidget>(&self, widget: W) -> WidgetRegistration {
-        let mut widget = Some(widget);
+    pub fn register<W: Widget + AnyWidget>(
+        &self,
+        styled_widget: StyledWidget<W>,
+    ) -> WidgetRegistration {
+        let mut styled_widget = Some(styled_widget);
         loop {
             let next_id = self.data.widget_id_generator.fetch_add(1, Ordering::AcqRel);
             // Insert None if the slot is free, which is most likely the case.
@@ -263,7 +277,7 @@ impl WidgetStorage {
             let mut state = self.data.state.write().unwrap();
             state.entry(next_id).or_insert_with(|| {
                 let reg = WidgetRegistration::new::<W>(next_id, self);
-                let state = WidgetState::new(widget.take().unwrap(), &reg);
+                let state = WidgetState::new(styled_widget.take().unwrap(), &reg);
                 widget_registration = Some(reg);
                 state
             });
@@ -323,6 +337,12 @@ impl WidgetStorage {
     }
 }
 
+#[derive(Debug)]
+pub struct StyledWidget<W: Widget> {
+    pub widget: W,
+    pub style: Style,
+}
+
 /// Generic, clone-able storage for a widget's transmogrifier.
 #[derive(Clone, Debug)]
 pub struct WidgetState {
@@ -335,15 +355,22 @@ pub struct WidgetState {
 
     /// The channels to communicate with the widget.
     pub channels: Arc<Box<dyn AnyChannels>>,
+
+    /// The widget's style.
+    pub style: Arc<Mutex<Style>>,
 }
 
 impl WidgetState {
     /// Initializes a new widget state with `widget`, `id`, and `None` for the
     /// transmogrifier state.
-    pub fn new<W: Widget + AnyWidget>(widget: W, id: &WidgetRegistration) -> Self {
+    pub fn new<W: Widget + AnyWidget>(
+        styled_widget: StyledWidget<W>,
+        id: &WidgetRegistration,
+    ) -> Self {
         Self {
             id: WeakWidgetRegistration::from(id),
-            widget: Arc::new(Mutex::new(Box::new(widget))),
+            widget: Arc::new(Mutex::new(Box::new(styled_widget.widget))),
+            style: Arc::new(Mutex::new(styled_widget.style)),
             state: Arc::default(),
             channels: Arc::new(Box::new(Channels::<W>::new(id))),
         }

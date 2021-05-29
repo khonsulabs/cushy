@@ -1,4 +1,10 @@
-use gooey_core::{Callback, Context, Widget};
+use gooey_core::{
+    styles::{
+        style_sheet::Classes, BackgroundColor, ColorPair, FallbackComponent, Style, StyleComponent,
+    },
+    Callback, Context, Widget,
+};
+use gooey_rasterizer::style::CONTROL_CLASS;
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;
@@ -27,6 +33,10 @@ impl Widget for Button {
     type TransmogrifierCommand = ButtonCommand;
     type TransmogrifierEvent = InternalButtonEvent;
 
+    fn default_style() -> Style {
+        Style::default().with(Classes::from(vec!["button", CONTROL_CLASS]))
+    }
+
     fn receive_event(
         &mut self,
         event: Self::TransmogrifierEvent,
@@ -51,3 +61,23 @@ impl Widget for Button {
 
 #[derive(Debug)]
 pub struct ButtonTransmogrifier;
+
+/// The button's background color.
+#[derive(Debug, Clone)]
+pub struct ButtonColor(pub ColorPair);
+impl StyleComponent for ButtonColor {}
+
+impl From<ButtonColor> for ColorPair {
+    fn from(color: ButtonColor) -> Self {
+        color.0
+    }
+}
+
+impl FallbackComponent for ButtonColor {
+    type Fallback = BackgroundColor;
+    type Value = ColorPair;
+
+    fn value(&self) -> Option<&ColorPair> {
+        Some(&self.0)
+    }
+}
