@@ -1,9 +1,11 @@
-use gooey_core::styles::{
-    style_sheet::{Rule, StyleSheet},
-    BackgroundColor, ColorPair, Srgba, TextColor,
+use gooey_core::{
+    palette::{Hsla, Srgba},
+    styles::{
+        style_sheet::{Rule, StyleSheet},
+        BackgroundColor, ColorPair, TextColor,
+    },
 };
 use gooey_rasterizer::CONTROL_CLASS;
-use palette::Hsla;
 
 pub fn default_stylesheet() -> StyleSheet {
     // Palette from https://flatuicolors.com/palette/defo

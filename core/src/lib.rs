@@ -21,6 +21,7 @@ pub mod styles;
 mod widget;
 
 pub use euclid;
+pub use palette;
 
 pub use self::{frontend::*, gooey::*, widget::*};
 

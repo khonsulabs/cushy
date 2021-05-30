@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 
 use euclid::{Length, Point2D, Rect, Scale, Size2D};
-use stylecs::{palette::Srgba, ColorPair, FallbackComponent, Style};
+use palette::Srgba;
+use stylecs::{FallbackComponent, Style};
 
-use crate::{Pixels, Points};
+use crate::{styles::ColorPair, Pixels, Points};
 
 /// Implements drawing APIs.
 pub trait Renderer: Debug + Send + Sync + Sized + 'static {

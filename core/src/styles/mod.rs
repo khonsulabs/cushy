@@ -1,7 +1,4 @@
-pub use stylecs::{
-    palette::Srgba, style_sheet, AnyStyleComponent, ColorPair, FallbackComponent, Style,
-    StyleComponent, Surround, SystemTheme,
-};
+pub use stylecs::{style_sheet, AnyStyleComponent, FallbackComponent, Style, StyleComponent};
 
 mod alignment;
 mod colors;
@@ -9,10 +6,11 @@ mod font_family;
 mod font_size;
 mod font_style;
 mod lines;
+mod surround;
 mod weight;
 mod widget;
 
 pub use self::{
-    alignment::*, colors::*, font_family::*, font_size::*, font_style::*, lines::*, weight::*,
-    widget::*,
+    alignment::*, colors::*, font_family::*, font_size::*, font_style::*, lines::*, surround::*,
+    weight::*, widget::*,
 };
