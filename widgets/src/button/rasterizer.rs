@@ -1,7 +1,6 @@
 use gooey_core::{
     euclid::{Length, Point2D, Rect, Size2D, Vector2D},
     renderer::Renderer,
-    styles::{ForegroundColor, Srgba, Style},
     Points, Transmogrifier,
 };
 use gooey_rasterizer::{

@@ -8,8 +8,9 @@ use std::{
 };
 
 use gooey_core::{
-    AnyWidget, Callback, CallbackFn, Channels, Context, Frontend, StyledWidget, Transmogrifier,
-    WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
+    styles::Style, AnyWidget, Callback, CallbackFn, Channels, Context, Frontend, StyledWidget,
+    Transmogrifier, WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration,
+    WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -32,14 +33,16 @@ impl<B: Behavior> Component<B> {
         let mut builder = ComponentBuilder::new(storage);
         let content = behavior.create_content(&mut builder);
         let content = builder.register(content);
-        Component {
-            content,
-            behavior,
-            callback_widget: builder.widget,
-            registered_widgets: builder.registered_widgets,
-            content_widget: None,
-        }
-        .with_default_style()
+        StyledWidget::new(
+            Component {
+                content,
+                behavior,
+                callback_widget: builder.widget,
+                registered_widgets: builder.registered_widgets,
+                content_widget: None,
+            },
+            Style::default(),
+        )
     }
 
     pub fn default_for(storage: &WidgetStorage) -> StyledWidget<Self>

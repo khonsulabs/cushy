@@ -2,8 +2,8 @@ use gooey_core::{
     euclid::{Point2D, Rect},
     renderer::{Renderer, TextMetrics},
     styles::{
-        BackgroundColor, ColorPair, FallbackComponent, FontSize, ForegroundColor, LineWidth, Srgba,
-        Style, SystemTheme, TextColor,
+        ColorPair, FallbackComponent, FontSize, ForegroundColor, LineWidth, Srgba, Style,
+        SystemTheme, TextColor,
     },
     Pixels, Points,
 };

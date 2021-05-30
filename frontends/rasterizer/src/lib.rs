@@ -3,13 +3,11 @@ use std::{collections::HashSet, sync::Arc};
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
     euclid::{Point2D, Rect},
-    styles::{
-        style_sheet::{self, StyleSheet},
-        Style,
-    },
+    styles::{style_sheet::StyleSheet, Style},
     Gooey, Points, WidgetId,
 };
-use style::default_stylesheet;
+
+pub const CONTROL_CLASS: &str = "gooey-widgets.control";
 use winit::event::{
     ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
 };
@@ -17,7 +15,6 @@ use winit::event::{
 mod context;
 pub mod events;
 mod state;
-pub mod style;
 mod transmogrifier;
 
 #[doc(hidden)]
@@ -59,9 +56,9 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
 }
 
 impl<R: Renderer> Rasterizer<R> {
-    pub fn new(ui: Gooey<Self>) -> Self {
+    pub fn new(ui: Gooey<Self>, stylesheet: StyleSheet) -> Self {
         Self {
-            theme: Arc::new(default_stylesheet().merge_with(ui.stylesheet())),
+            theme: Arc::new(stylesheet.merge_with(ui.stylesheet())),
             ui: Arc::new(ui),
             state: State::default(),
             renderer: None,

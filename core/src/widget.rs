@@ -6,11 +6,9 @@ use std::{
 };
 
 use flume::{Receiver, Sender};
-use stylecs::{Style, StyleComponent};
 
 use crate::{
-    AnyFrontend, Frontend, StyledWidget, WeakWidgetRegistration, WidgetRef, WidgetRegistration,
-    WidgetStorage,
+    AnyFrontend, Frontend, WeakWidgetRegistration, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
 /// A graphical user interface element.
@@ -46,24 +44,6 @@ pub trait Widget: Debug + Send + Sync + Sized + 'static {
             command,
             type_name::<Self>()
         )
-    }
-
-    fn with<C: StyleComponent + Clone>(self, style: C) -> StyledWidget<Self> {
-        StyledWidget {
-            widget: self,
-            style: Self::default_style().with(style),
-        }
-    }
-
-    fn with_default_style(self) -> StyledWidget<Self> {
-        StyledWidget {
-            widget: self,
-            style: Self::default_style(),
-        }
-    }
-
-    fn default_style() -> Style {
-        Style::default()
     }
 }
 

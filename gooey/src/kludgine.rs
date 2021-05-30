@@ -8,6 +8,7 @@ use crate::{
         rasterizer::{events::InputEvent as GooeyInputEvent, Rasterizer},
         renderers::kludgine::{kludgine::prelude::*, Kludgine},
     },
+    style::default_stylesheet,
     widgets::rasterized::{default_transmogrifiers, register_transmogrifiers},
 };
 
@@ -17,7 +18,7 @@ pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> 
 ) {
     register_transmogrifiers(&mut transmogrifiers);
     let ui = Gooey::with(transmogrifiers, StyleSheet::default(), initializer);
-    let ui = Rasterizer::<Kludgine>::new(ui);
+    let ui = Rasterizer::<Kludgine>::new(ui, default_stylesheet());
     ui.process_widget_messages();
 
     SingleWindowApplication::run(GooeyWindow { ui });

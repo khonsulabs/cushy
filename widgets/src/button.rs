@@ -2,9 +2,9 @@ use gooey_core::{
     styles::{
         style_sheet::Classes, BackgroundColor, ColorPair, FallbackComponent, Style, StyleComponent,
     },
-    Callback, Context, Widget,
+    Callback, Context, StyledWidget, Widget,
 };
-use gooey_rasterizer::style::CONTROL_CLASS;
+use gooey_rasterizer::CONTROL_CLASS;
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;
@@ -16,6 +16,18 @@ mod browser;
 pub struct Button {
     pub label: String,
     pub clicked: Callback,
+}
+
+impl Button {
+    pub fn new<S: ToString>(label: S, clicked: Callback) -> StyledWidget<Self> {
+        StyledWidget::new(
+            Self {
+                label: label.to_string(),
+                clicked,
+            },
+            Style::default().with(Classes::from(vec!["button", CONTROL_CLASS])),
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -32,10 +44,6 @@ impl Widget for Button {
     type Command = ButtonCommand;
     type TransmogrifierCommand = ButtonCommand;
     type TransmogrifierEvent = InternalButtonEvent;
-
-    fn default_style() -> Style {
-        Style::default().with(Classes::from(vec!["button", CONTROL_CLASS]))
-    }
 
     fn receive_event(
         &mut self,

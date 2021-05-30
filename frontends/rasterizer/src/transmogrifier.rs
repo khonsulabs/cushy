@@ -3,7 +3,7 @@ use std::{any::TypeId, convert::TryFrom, ops::Deref};
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     renderer::Renderer,
-    styles::{style_sheet::State, Style},
+    styles::Style,
     AnySendSync, AnyTransmogrifier, AnyWidget, Points, Transmogrifier, TransmogrifierState,
     WidgetRegistration,
 };

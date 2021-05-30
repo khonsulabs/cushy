@@ -9,7 +9,7 @@ use std::{
     },
 };
 
-use stylecs::{style_sheet::StyleSheet, Style};
+use stylecs::{style_sheet::StyleSheet, Style, StyleComponent};
 
 use crate::{
     AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyWidget, Channels, Frontend,
@@ -337,10 +337,27 @@ impl WidgetStorage {
     }
 }
 
+/// A widget and its initial style information.
 #[derive(Debug)]
 pub struct StyledWidget<W: Widget> {
+    /// The widget.
     pub widget: W,
+    /// The style information.
     pub style: Style,
+}
+
+impl<W: Widget> StyledWidget<W> {
+    /// Returns a new instance.
+    #[must_use]
+    pub fn new(widget: W, style: Style) -> Self {
+        Self { widget, style }
+    }
+
+    /// Adds `component` to `style` and returns self.
+    pub fn with<C: StyleComponent + Clone>(mut self, component: C) -> Self {
+        self.style.push(component);
+        self
+    }
 }
 
 /// Generic, clone-able storage for a widget's transmogrifier.
