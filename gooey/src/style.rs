@@ -54,4 +54,14 @@ pub fn default_stylesheet() -> StyleSheet {
                     }))
                 }),
         )
+        .with(
+            Rule::for_classes(CONTROL_CLASS)
+                .when_active()
+                .with_styles(|style| {
+                    style.with(BackgroundColor(ColorPair {
+                        light_color: gray40,
+                        dark_color: black,
+                    }))
+                }),
+        )
 }

@@ -301,6 +301,26 @@ impl<R: Renderer> Rasterizer<R> {
     pub fn needs_redraw(&self) -> bool {
         self.state.needs_redraw()
     }
+
+    pub fn activate(&self, widget: &WidgetId) {
+        self.state.set_active(Some(widget.clone()));
+    }
+
+    pub fn active_widget(&self) -> Option<WidgetId> {
+        self.state.active()
+    }
+
+    pub fn focused_widget(&self) -> Option<WidgetId> {
+        self.state.focus()
+    }
+
+    pub fn focus_on(&self, widget: &WidgetId) {
+        self.state.set_focus(Some(widget.clone()));
+    }
+
+    pub fn blur(&self) {
+        self.state.blur();
+    }
 }
 
 pub struct EventResult {

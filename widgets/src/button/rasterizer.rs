@@ -62,15 +62,30 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
 
     fn mouse_down(
         &self,
-        _context: RasterContext<Self, R>,
+        context: RasterContext<Self, R>,
         button: MouseButton,
         _location: Point2D<f32, Points>,
         _rastered_size: Size2D<f32, Points>,
     ) -> EventStatus {
         if button == MouseButton::Left {
+            context.rasterizer.activate(context.registration.id());
             EventStatus::Processed
         } else {
             EventStatus::Ignored
+        }
+    }
+
+    fn mouse_drag(
+        &self,
+        context: RasterContext<Self, R>,
+        _button: MouseButton,
+        location: Point2D<f32, Points>,
+        rastered_size: Size2D<f32, Points>,
+    ) {
+        if Rect::from_size(rastered_size).contains(location) {
+            context.rasterizer.activate(context.registration.id());
+        } else {
+            context.rasterizer.blur();
         }
     }
 
@@ -96,5 +111,6 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
                     .post_event(InternalButtonEvent::Clicked);
             }
         }
+        context.rasterizer.blur();
     }
 }

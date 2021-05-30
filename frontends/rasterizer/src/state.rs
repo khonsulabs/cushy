@@ -82,13 +82,45 @@ impl State {
 
     pub fn set_hover(&self, hover: HashSet<WidgetId>) {
         let mut data = self.data.lock().unwrap();
-        data.hover = hover;
+        if data.hover != hover {
+            data.needs_redraw = true;
+            data.hover = hover;
+        }
+    }
+
+    pub fn active(&self) -> Option<WidgetId> {
+        let data = self.data.lock().unwrap();
+        data.active.clone()
+    }
+
+    pub fn set_active(&self, active: Option<WidgetId>) {
+        let mut data = self.data.lock().unwrap();
+        if data.active != active {
+            data.needs_redraw = true;
+            data.active = active;
+        }
+    }
+
+    pub fn focus(&self) -> Option<WidgetId> {
+        let data = self.data.lock().unwrap();
+        data.focus.clone()
+    }
+
+    pub fn set_focus(&self, focus: Option<WidgetId>) {
+        let mut data = self.data.lock().unwrap();
+        if data.focus != focus {
+            data.needs_redraw = true;
+            data.focus = focus;
+        }
     }
 
     pub fn blur(&self) {
         let mut data = self.data.lock().unwrap();
-        data.focus = None;
-        data.active = None;
+        if data.focus.is_some() || data.active.is_some() {
+            data.focus = None;
+            data.active = None;
+            data.needs_redraw = true;
+        }
     }
 
     pub fn register_mouse_handler(&self, button: MouseButton, widget: WidgetId) {
