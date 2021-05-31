@@ -9,8 +9,8 @@ use std::{
 
 use gooey_core::{
     styles::Style, AnyWidget, Callback, CallbackFn, Channels, Context, Frontend, StyledWidget,
-    Transmogrifier, WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration,
-    WidgetStorage,
+    Transmogrifier, TransmogrifierContext, WeakWidgetRegistration, Widget, WidgetId, WidgetRef,
+    WidgetRegistration, WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -257,12 +257,11 @@ impl<B: Behavior, F: Frontend + Send + Sync> Transmogrifier<F> for ComponentTran
 
     fn receive_command(
         &self,
-        _state: &mut Self::State,
         command: <Self::Widget as Widget>::TransmogrifierCommand,
-        widget: &Self::Widget,
-        _frontend: &F,
+        context: &mut TransmogrifierContext<Self, F>,
     ) {
-        widget
+        context
+            .widget
             .content_widget
             .as_ref()
             .unwrap()

@@ -2,7 +2,7 @@ use gooey_core::{
     palette::{Hsla, Srgba},
     styles::{
         style_sheet::{Rule, StyleSheet},
-        BackgroundColor, ColorPair, TextColor,
+        BackgroundColor, Color, ColorPair, TextColor,
     },
 };
 use gooey_rasterizer::CONTROL_CLASS;
@@ -25,12 +25,12 @@ pub fn default_stylesheet() -> StyleSheet {
     // let purple = Srgba::new(0.424, 0.361, 0.906, 1.);
     // let light_pink = Srgba::new(0.992, 0.475, 0.659, 1.);
     // let pink = Srgba::new(0.910, 0.263, 0.576, 1.);
-    let white = Srgba::from(Hsla::new(0., 0., 1., 1.));
-    let gray80 = Srgba::from(Hsla::new(0., 0., 0.8, 1.));
-    let gray60 = Srgba::from(Hsla::new(0., 0., 0.6, 1.));
-    let gray40 = Srgba::from(Hsla::new(0., 0., 0.4, 1.));
-    let gray20 = Srgba::from(Hsla::new(0., 0., 0.2, 1.));
-    let black = Srgba::from(Hsla::new(0., 0., 0., 1.));
+    let white = Color::from(Srgba::from(Hsla::new(0., 0., 1., 1.)));
+    let gray80 = Color::from(Srgba::from(Hsla::new(0., 0., 0.8, 1.)));
+    let gray60 = Color::from(Srgba::from(Hsla::new(0., 0., 0.6, 1.)));
+    let gray40 = Color::from(Srgba::from(Hsla::new(0., 0., 0.4, 1.)));
+    let gray20 = Color::from(Srgba::from(Hsla::new(0., 0., 0.2, 1.)));
+    let black = Color::from(Srgba::from(Hsla::new(0., 0., 0., 1.)));
 
     StyleSheet::default()
         .with(Rule::for_classes(CONTROL_CLASS).with_styles(|style| {

@@ -1,22 +1,19 @@
-use gooey_browser::{AnyWidgetWebSysTransmogrifier, WebSys, WebSysTransmogrifier};
-use gooey_core::Transmogrifier;
+use gooey_browser::{WebSys, WebSysTransmogrifier};
+use gooey_core::TransmogrifierContext;
 
 use crate::component::{Behavior, ComponentTransmogrifier};
 
 impl<B: Behavior> WebSysTransmogrifier for ComponentTransmogrifier<B> {
     fn transmogrify(
         &self,
-        _state: &Self::State,
-        widget: &<Self as Transmogrifier<WebSys>>::Widget,
-        gooey: &WebSys,
+        context: TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
-        gooey
-            .ui
+        context
+            .frontend
             .with_transmogrifier(
-                widget.content.id(),
-                gooey,
-                |child_transmogrifier, child_state, child_widget| {
-                    child_transmogrifier.transmogrify(child_state, child_widget, gooey)
+                context.widget.content.id(),
+                |child_transmogrifier, mut child_context| {
+                    child_transmogrifier.transmogrify(&mut child_context)
                 },
             )
             .unwrap_or_default()

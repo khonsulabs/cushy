@@ -47,7 +47,8 @@ impl Kludgine {
                     .get_with_fallback::<TextColor>()
                     .cloned()
                     .unwrap_or_else(|| Srgba::new(0., 0., 0., 1.).into())
-                    .themed_color(&system_theme),
+                    .themed_color(&system_theme)
+                    .0,
             ),
             &self.target,
         )
@@ -64,7 +65,8 @@ impl Kludgine {
                         .cloned()
                         .unwrap_or_else(|| ForegroundColor(Srgba::new(0., 0., 0., 1.).into()))
                         .0
-                        .themed_color(&system_theme),
+                        .themed_color(&system_theme)
+                        .0,
                 ))
                 .line_width(
                     style
@@ -149,7 +151,8 @@ impl Renderer for Kludgine {
                     .get_with_fallback::<F>()
                     .cloned()
                     .unwrap_or_else(|| Srgba::new(1., 1., 1., 1.).into())
-                    .themed_color(&system_theme),
+                    .themed_color(&system_theme)
+                    .0,
             )))
             .render_at(Point2D::default(), &self.target);
     }

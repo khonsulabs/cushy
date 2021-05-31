@@ -3,9 +3,7 @@ pub mod component;
 pub mod container;
 
 #[cfg(feature = "frontend-browser")]
-fn window_document() -> web_sys::Document {
-    web_sys::window().unwrap().document().unwrap()
-}
+pub mod browser_utils;
 
 #[cfg(feature = "frontend-rasterizer")]
 pub mod rasterized {

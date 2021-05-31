@@ -1,8 +1,8 @@
-use std::any::TypeId;
+use std::{any::TypeId, convert::TryFrom, ops::Deref};
 
 use gooey_core::{
-    AnyChannels, AnySendSync, AnyTransmogrifier, AnyWidget, Frontend, Gooey, Transmogrifier,
-    TransmogrifierState, Widget, WidgetRef, WidgetRegistration,
+    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
+    TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef, WidgetRegistration,
 };
 use wasm_bindgen::prelude::*;
 
@@ -22,17 +22,33 @@ impl WebSys {
         let document = window.document().unwrap();
         let parent = document.get_element_by_id(id).expect("id not found");
 
-        self.ui.with_transmogrifier(
-            self.ui.root_widget().id(),
-            self,
-            |transmogrifier, state, widget| {
-                if let Some(root_element) = transmogrifier.transmogrify(state, widget, self) {
-                    root_element.style().set_property("width", "100%").unwrap();
-                    root_element.style().set_property("height", "100%").unwrap();
-                    parent.append_child(&root_element).unwrap();
-                }
-            },
-        );
+        self.with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
+            if let Some(root_element) = transmogrifier.transmogrify(&mut context) {
+                root_element.style().set_property("width", "100%").unwrap();
+                root_element.style().set_property("height", "100%").unwrap();
+                parent.append_child(&root_element).unwrap();
+            }
+        });
+    }
+
+    /// Executes `callback` with the transmogrifier and transmogrifier state as
+    /// parameters.
+    #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
+    pub fn with_transmogrifier<
+        TResult,
+        C: FnOnce(
+            &'_ dyn AnyWidgetWebSysTransmogrifier,
+            AnyTransmogrifierContext<'_, Self>,
+        ) -> TResult,
+    >(
+        &self,
+        widget_id: &WidgetId,
+        callback: C,
+    ) -> Option<TResult> {
+        self.ui
+            .with_transmogrifier(widget_id, self, |transmogrifier, context| {
+                callback(transmogrifier.as_ref(), context)
+            })
     }
 }
 
@@ -42,11 +58,17 @@ pub struct RegisteredTransmogrifier(pub Box<dyn AnyWidgetWebSysTransmogrifier>);
 impl AnyWidgetWebSysTransmogrifier for RegisteredTransmogrifier {
     fn transmogrify(
         &self,
-        state: &mut dyn AnySendSync,
-        widget: &dyn AnyWidget,
-        gooey: &WebSys,
+        context: &mut AnyTransmogrifierContext<'_, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
-        self.0.transmogrify(state, widget, gooey)
+        self.0.transmogrify(context)
+    }
+}
+
+impl Deref for RegisteredTransmogrifier {
+    type Target = Box<dyn AnyWidgetWebSysTransmogrifier>;
+
+    fn deref(&self) -> &'_ Self::Target {
+        &self.0
     }
 }
 
@@ -62,18 +84,14 @@ impl gooey_core::Frontend for WebSys {
 pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
     fn transmogrify(
         &self,
-        state: &Self::State,
-        widget: &<Self as Transmogrifier<WebSys>>::Widget,
-        gooey: &WebSys,
+        context: TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<web_sys::HtmlElement>;
 }
 
 pub trait AnyWidgetWebSysTransmogrifier: AnyTransmogrifier<WebSys> + Send + Sync {
     fn transmogrify(
         &self,
-        state: &mut dyn AnySendSync,
-        widget: &dyn AnyWidget,
-        gooey: &WebSys,
+        context: &mut AnyTransmogrifierContext<'_, WebSys>,
     ) -> Option<web_sys::HtmlElement>;
 }
 
@@ -83,31 +101,18 @@ where
 {
     fn transmogrify(
         &self,
-        state: &mut dyn AnySendSync,
-        widget: &dyn AnyWidget,
-        gooey: &WebSys,
+        context: &mut AnyTransmogrifierContext<'_, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
-        let widget = widget
-            .as_any()
-            .downcast_ref::<<T as Transmogrifier<WebSys>>::Widget>()
-            .unwrap();
-        let state = state
-            .as_mut_any()
-            .downcast_mut::<<T as Transmogrifier<WebSys>>::State>()
-            .unwrap();
-        <T as WebSysTransmogrifier>::transmogrify(&self, state, widget, gooey)
+        <T as WebSysTransmogrifier>::transmogrify(
+            &self,
+            TransmogrifierContext::try_from(context).unwrap(),
+        )
     }
 }
 
 impl AnyTransmogrifier<WebSys> for RegisteredTransmogrifier {
-    fn process_messages(
-        &self,
-        state: &mut dyn AnySendSync,
-        widget: &mut dyn AnyWidget,
-        channels: &dyn AnyChannels,
-        frontend: &WebSys,
-    ) {
-        self.0.process_messages(state, widget, channels, frontend)
+    fn process_messages(&self, context: AnyTransmogrifierContext<'_, WebSys>) {
+        self.0.process_messages(context)
     }
 
     fn widget_type_id(&self) -> TypeId {

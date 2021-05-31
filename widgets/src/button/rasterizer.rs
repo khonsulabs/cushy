@@ -1,11 +1,9 @@
 use gooey_core::{
     euclid::{Length, Point2D, Rect, Size2D, Vector2D},
     renderer::Renderer,
-    Points, Transmogrifier,
+    Points, Transmogrifier, TransmogrifierContext,
 };
-use gooey_rasterizer::{
-    winit::event::MouseButton, EventStatus, RasterContext, Rasterizer, WidgetRasterizer,
-};
+use gooey_rasterizer::{winit::event::MouseButton, EventStatus, Rasterizer, WidgetRasterizer};
 
 use super::{ButtonColor, InternalButtonEvent};
 use crate::button::{Button, ButtonCommand, ButtonTransmogrifier};
@@ -18,18 +16,16 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
 
     fn receive_command(
         &self,
-        _state: &mut Self::State,
         _command: ButtonCommand,
-        _widget: &Self::Widget,
-        frontend: &Rasterizer<R>,
+        context: &mut TransmogrifierContext<Self, Rasterizer<R>>,
     ) {
-        frontend.set_needs_redraw();
+        context.frontend.set_needs_redraw();
     }
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
-    fn render(&self, context: RasterContext<Self, R>) {
-        if let Some(scene) = context.rasterizer.renderer() {
+    fn render(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {
+        if let Some(scene) = context.frontend.renderer() {
             scene.fill_rect::<ButtonColor>(&scene.bounds(), context.style);
 
             let text_size = scene.measure_text(&context.widget.label, context.style);
@@ -46,10 +42,10 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
 
     fn content_size(
         &self,
-        context: RasterContext<Self, R>,
+        context: TransmogrifierContext<Self, Rasterizer<R>>,
         _constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
-        if let Some(scene) = context.rasterizer.renderer() {
+        if let Some(scene) = context.frontend.renderer() {
             // TODO should be wrapped width
             let text_size = scene.measure_text(&context.widget.label, context.style);
             (Vector2D::from_lengths(text_size.width, text_size.height())
@@ -62,13 +58,13 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
 
     fn mouse_down(
         &self,
-        context: RasterContext<Self, R>,
+        context: TransmogrifierContext<Self, Rasterizer<R>>,
         button: MouseButton,
         _location: Point2D<f32, Points>,
         _rastered_size: Size2D<f32, Points>,
     ) -> EventStatus {
         if button == MouseButton::Left {
-            context.rasterizer.activate(context.registration.id());
+            context.frontend.activate(context.registration.id());
             EventStatus::Processed
         } else {
             EventStatus::Ignored
@@ -77,21 +73,21 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
 
     fn mouse_drag(
         &self,
-        context: RasterContext<Self, R>,
+        context: TransmogrifierContext<Self, Rasterizer<R>>,
         _button: MouseButton,
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
     ) {
         if Rect::from_size(rastered_size).contains(location) {
-            context.rasterizer.activate(context.registration.id());
+            context.frontend.activate(context.registration.id());
         } else {
-            context.rasterizer.blur();
+            context.frontend.blur();
         }
     }
 
     fn mouse_up(
         &self,
-        context: RasterContext<Self, R>,
+        context: TransmogrifierContext<Self, Rasterizer<R>>,
         _button: MouseButton,
         location: Option<Point2D<f32, Points>>,
         rastered_size: Size2D<f32, Points>,
@@ -101,7 +97,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
             .unwrap_or_default()
         {
             if let Some(widget) = context
-                .rasterizer
+                .frontend
                 .ui
                 .widget_state(context.registration.id().id)
             {
@@ -111,6 +107,6 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
                     .post_event(InternalButtonEvent::Clicked);
             }
         }
-        context.rasterizer.blur();
+        context.frontend.blur();
     }
 }

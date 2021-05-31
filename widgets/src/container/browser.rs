@@ -1,10 +1,10 @@
-use gooey_browser::{AnyWidgetWebSysTransmogrifier, WebSys, WebSysTransmogrifier};
-use gooey_core::{euclid::Length, Points, Transmogrifier};
+use gooey_browser::{WebSys, WebSysTransmogrifier};
+use gooey_core::{euclid::Length, Points, Transmogrifier, TransmogrifierContext};
 use wasm_bindgen::JsCast;
 
 use crate::{
+    browser_utils::window_document,
     container::{Container, ContainerTransmogrifier},
-    window_document,
 };
 
 impl Transmogrifier<WebSys> for ContainerTransmogrifier {
@@ -15,14 +15,11 @@ impl Transmogrifier<WebSys> for ContainerTransmogrifier {
 impl WebSysTransmogrifier for ContainerTransmogrifier {
     fn transmogrify(
         &self,
-        _state: &Self::State,
-        widget: &<Self as Transmogrifier<WebSys>>::Widget,
-        gooey: &WebSys,
+        context: TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
-        gooey.ui.with_transmogrifier(
-            widget.child.id(),
-            gooey,
-            |child_transmogrifier, child_state, child_widget| {
+        context.frontend.with_transmogrifier(
+            context.widget.child.id(),
+            |child_transmogrifier, mut child_context| {
                 let container = window_document()
                     .create_element("div")
                     .expect("error creating div")
@@ -31,14 +28,16 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
                 set_element_style(&container, "align-items", Some("center"));
                 set_element_style(&container, "justify-content", Some("center"));
 
-                set_element_padding(&container, "padding-left", widget.padding.left());
-                set_element_padding(&container, "padding-right", widget.padding.right());
-                set_element_padding(&container, "padding-top", widget.padding.top());
-                set_element_padding(&container, "padding-bottom", widget.padding.bottom());
+                set_element_padding(&container, "padding-left", context.widget.padding.left());
+                set_element_padding(&container, "padding-right", context.widget.padding.right());
+                set_element_padding(&container, "padding-top", context.widget.padding.top());
+                set_element_padding(
+                    &container,
+                    "padding-bottom",
+                    context.widget.padding.bottom(),
+                );
 
-                if let Some(child) =
-                    child_transmogrifier.transmogrify(child_state, child_widget, gooey)
-                {
+                if let Some(child) = child_transmogrifier.transmogrify(&mut child_context) {
                     container
                         .append_child(&child)
                         .expect("error appending child");

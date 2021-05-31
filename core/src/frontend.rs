@@ -1,8 +1,10 @@
-use std::{any::TypeId, fmt::Debug};
+use std::{any::TypeId, convert::TryFrom, fmt::Debug};
+
+use stylecs::style_sheet::State;
 
 use crate::{
-    AnyChannels, AnySendSync, AnyWidget, Channels, Gooey, Transmogrifier, TransmogrifierState,
-    WidgetRef, WidgetRegistration, WidgetStorage,
+    AnySendSync, AnyTransmogrifierContext, AnyWidget, Gooey, Transmogrifier, TransmogrifierContext,
+    TransmogrifierState, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
 /// A frontend is an implementation of widgets and layouts.
@@ -14,6 +16,13 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
 
     /// Returns the underlying [`Gooey`] instance.
     fn gooey(&self) -> &'_ Gooey<Self>;
+
+    /// Returns the [`State`] for the widget. Not all frontends track UI state,
+    /// and this function is primarily used when building frontends.
+    #[allow(unused_variables)]
+    fn ui_state_for(&self, widget_id: &WidgetId) -> State {
+        State::default()
+    }
 
     /// Processes any pending messages for widgets and transmogrifiers.
     fn process_widget_messages(&self) {
@@ -66,39 +75,18 @@ pub trait AnyTransmogrifier<F: Frontend>: Debug {
     ) -> TransmogrifierState;
 
     /// Processes commands and events for this widget and transmogrifier.
-    fn process_messages(
-        &self,
-        state: &mut dyn AnySendSync,
-        widget: &mut dyn AnyWidget,
-        channels: &dyn AnyChannels,
-        frontend: &F,
-    );
+    fn process_messages(&self, context: AnyTransmogrifierContext<'_, F>);
 }
 
 impl<F: Frontend, T> AnyTransmogrifier<F> for T
 where
     T: Transmogrifier<F>,
 {
-    fn process_messages(
-        &self,
-        state: &mut dyn AnySendSync,
-        widget: &mut dyn AnyWidget,
-        channels: &dyn AnyChannels,
-        frontend: &F,
-    ) {
-        let widget = widget
-            .as_mut_any()
-            .downcast_mut::<<Self as Transmogrifier<F>>::Widget>()
-            .unwrap();
-        let state = state
-            .as_mut_any()
-            .downcast_mut::<<Self as Transmogrifier<F>>::State>()
-            .unwrap();
-        let channels = channels
-            .as_any()
-            .downcast_ref::<Channels<<Self as Transmogrifier<F>>::Widget>>()
-            .unwrap();
-        <Self as Transmogrifier<F>>::process_messages(self, state, widget, frontend, channels);
+    fn process_messages(&self, mut context: AnyTransmogrifierContext<'_, F>) {
+        <Self as Transmogrifier<F>>::process_messages(
+            self,
+            TransmogrifierContext::try_from(&mut context).unwrap(),
+        );
     }
 
     fn widget_type_id(&self) -> TypeId {

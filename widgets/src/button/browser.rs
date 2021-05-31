@@ -1,46 +1,25 @@
 use gooey_browser::{WebSys, WebSysTransmogrifier, WidgetClosure};
-use gooey_core::{Widget, WidgetRef};
+use gooey_core::{TransmogrifierContext, WidgetRef};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlButtonElement;
 
 use crate::{
+    browser_utils::{widget_css_id, window_document},
     button::{Button, ButtonCommand, ButtonTransmogrifier, InternalButtonEvent},
-    window_document,
 };
 
 impl gooey_core::Transmogrifier<WebSys> for ButtonTransmogrifier {
-    type State = Option<WidgetRef<Button>>;
+    type State = ();
     type Widget = Button;
-
-    #[allow(unused_variables)]
-    fn initialize(
-        &self,
-        _widget: &Self::Widget,
-        reference: &WidgetRef<Self::Widget>,
-        _frontend: &WebSys,
-    ) -> Self::State {
-        Some(reference.clone())
-    }
 
     fn receive_command(
         &self,
-        state: &mut Self::State,
-        command: <Self::Widget as Widget>::TransmogrifierCommand,
-        _widget: &Self::Widget,
-        _frontend: &WebSys,
+        command: ButtonCommand,
+        context: &mut TransmogrifierContext<'_, Self, WebSys>,
     ) {
         let document = window_document();
         if let Some(element) = document
-            .get_element_by_id(
-                &state
-                    .as_ref()
-                    .unwrap()
-                    .registration()
-                    .unwrap()
-                    .id()
-                    .id
-                    .to_string(),
-            )
+            .get_element_by_id(&widget_css_id(context.registration.id().id))
             .and_then(|e| e.dyn_into::<HtmlButtonElement>().ok())
         {
             let ButtonCommand::SetLabel(new_label) = command;
@@ -52,28 +31,22 @@ impl gooey_core::Transmogrifier<WebSys> for ButtonTransmogrifier {
 impl WebSysTransmogrifier for ButtonTransmogrifier {
     fn transmogrify(
         &self,
-        widget_ref: &Self::State,
-        widget: &Button,
-        gooey: &WebSys,
+        context: TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
-        widget_ref
-            .as_ref()
-            .and_then(|widget| widget.registration())
-            .map(|registration| {
-                let document = window_document();
-                let element = document
-                    .create_element("button")
-                    .expect("couldn't create button")
-                    .unchecked_into::<HtmlButtonElement>();
-                element.set_id(&registration.id().id.to_string());
-                element.set_inner_text(&widget.label);
+        let document = window_document();
+        let element = document
+            .create_element("button")
+            .expect("couldn't create button")
+            .unchecked_into::<HtmlButtonElement>();
+        element.set_id(&widget_css_id(context.registration.id().id));
+        element.set_inner_text(&context.widget.label);
+        // element.style().set_property("background-color",)
 
-                let closure = WidgetClosure::new::<WebSys, Button, _>(
-                    WidgetRef::new(&registration, gooey.clone()).unwrap(),
-                    || InternalButtonEvent::Clicked,
-                );
-                element.set_onclick(Some(closure.into_js_value().unchecked_ref()));
-                element.unchecked_into()
-            })
+        let closure = WidgetClosure::new::<WebSys, Button, _>(
+            WidgetRef::new(&context.registration, context.frontend.clone()).unwrap(),
+            || InternalButtonEvent::Clicked,
+        );
+        element.set_onclick(Some(closure.into_js_value().unchecked_ref()));
+        Some(element.unchecked_into())
     }
 }

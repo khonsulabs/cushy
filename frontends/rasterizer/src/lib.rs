@@ -3,8 +3,11 @@ use std::{collections::HashSet, sync::Arc};
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
     euclid::{Point2D, Rect},
-    styles::{style_sheet::StyleSheet, Style},
-    Gooey, Points, WidgetId,
+    styles::{
+        style_sheet::{self, StyleSheet},
+        Style,
+    },
+    AnyTransmogrifierContext, Gooey, Points, WidgetId,
 };
 
 pub const CONTROL_CLASS: &str = "gooey-widgets.control";
@@ -12,7 +15,6 @@ use winit::event::{
     ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
 };
 
-mod context;
 pub mod events;
 mod state;
 mod transmogrifier;
@@ -22,7 +24,7 @@ pub use gooey_core::renderer::Renderer;
 use state::State;
 pub use winit;
 
-pub use self::{context::*, transmogrifier::*};
+pub use self::transmogrifier::*;
 
 #[derive(Debug)]
 pub struct Rasterizer<R: Renderer> {
@@ -52,6 +54,10 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
 
     fn gooey(&self) -> &'_ Gooey<Self> {
         &self.ui
+    }
+
+    fn ui_state_for(&self, widget_id: &WidgetId) -> style_sheet::State {
+        self.state.ui_state_for(widget_id)
     }
 }
 
@@ -270,27 +276,18 @@ impl<R: Renderer> Rasterizer<R> {
     #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
     pub fn with_transmogrifier<
         TResult,
-        C: FnOnce(&'_ dyn AnyWidgetRasterizer<R>, AnyRasterContext<'_, R>) -> TResult,
+        C: FnOnce(
+            &'_ dyn AnyWidgetRasterizer<R>,
+            AnyTransmogrifierContext<'_, Rasterizer<R>>,
+        ) -> TResult,
     >(
         &self,
         widget_id: &WidgetId,
         callback: C,
     ) -> Option<TResult> {
         self.ui
-            .with_transmogrifier(widget_id, self, |transmogrifier, state, widget| {
-                let widget_state = self.ui.widget_state(widget_id.id).unwrap();
-                let style = widget_state.style.lock().unwrap();
-                callback(
-                    transmogrifier.as_ref(),
-                    AnyRasterContext::new(
-                        widget_state.registration().unwrap(),
-                        state,
-                        self,
-                        widget,
-                        &style,
-                        &self.state.ui_state_for(widget_id),
-                    ),
-                )
+            .with_transmogrifier(widget_id, self, |transmogrifier, context| {
+                callback(transmogrifier.as_ref(), context)
             })
     }
 

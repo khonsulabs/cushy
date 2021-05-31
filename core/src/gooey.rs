@@ -12,8 +12,8 @@ use std::{
 use stylecs::{style_sheet::StyleSheet, Style, StyleComponent};
 
 use crate::{
-    AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyWidget, Channels, Frontend,
-    TransmogrifierState, Widget, WidgetId,
+    AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget,
+    Channels, Frontend, TransmogrifierState, Widget, WidgetId,
 };
 
 type WidgetTypeId = TypeId;
@@ -65,27 +65,36 @@ impl<F: Frontend> Gooey<F> {
     #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
     pub fn with_transmogrifier<
         R,
-        C: FnOnce(
-            &'_ <F as Frontend>::AnyTransmogrifier,
-            &mut dyn AnySendSync,
-            &mut dyn AnyWidget,
-        ) -> R,
+        C: FnOnce(&'_ <F as Frontend>::AnyTransmogrifier, AnyTransmogrifierContext<'_, F>) -> R,
     >(
         &self,
-        widget: &WidgetId,
+        widget_id: &WidgetId,
         frontend: &F,
         callback: C,
     ) -> Option<R> {
         self.data
             .transmogrifiers
             .map
-            .get(&widget.type_id)
+            .get(&widget_id.type_id)
             .and_then(|transmogrifier| {
-                let state = self
-                    .widget_state(widget.id)
+                let widget_state = self
+                    .widget_state(widget_id.id)
                     .expect("Missing widget state for root");
-                state.with_state(transmogrifier, frontend, |state, widget| {
-                    callback(transmogrifier, state, widget)
+                widget_state.with_state(transmogrifier, frontend, |state, widget| {
+                    let style = widget_state.style.lock().unwrap();
+                    let channels = widget_state.channels.as_ref().as_ref();
+                    callback(
+                        transmogrifier,
+                        AnyTransmogrifierContext::new(
+                            widget_state.id.upgrade().unwrap(),
+                            state,
+                            frontend,
+                            widget,
+                            channels,
+                            &style,
+                            &frontend.ui_state_for(widget_id),
+                        ),
+                    )
                 })
             })
     }
@@ -145,14 +154,8 @@ impl<F: Frontend> Gooey<F> {
             };
 
             for widget_id in widgets_with_messages {
-                self.with_transmogrifier(&widget_id, frontend, |transmogrifier, state, widget| {
-                    let widget_state = self.data.storage.widget_state(widget_id.id).unwrap();
-                    transmogrifier.process_messages(
-                        state,
-                        widget,
-                        widget_state.channels.as_ref().as_ref(),
-                        frontend,
-                    );
+                self.with_transmogrifier(&widget_id, frontend, |transmogrifier, context| {
+                    transmogrifier.process_messages(context);
                 });
             }
         }
