@@ -12,7 +12,7 @@ pub fn browser_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> S
     initializer: C,
 ) {
     register_transmogrifiers(&mut transmogrifiers);
-    let ui = WebSys::new(Gooey::with(
+    let mut ui = WebSys::new(Gooey::with(
         transmogrifiers,
         StyleSheet::default(),
         initializer,

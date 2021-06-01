@@ -9,8 +9,6 @@ use gooey_core::{
     },
     AnyTransmogrifierContext, Gooey, Points, WidgetId,
 };
-
-pub const CONTROL_CLASS: &str = "gooey-widgets.control";
 use winit::event::{
     ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
 };

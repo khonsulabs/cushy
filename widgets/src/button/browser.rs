@@ -1,15 +1,15 @@
-use gooey_browser::{WebSys, WebSysTransmogrifier, WidgetClosure};
-use gooey_core::{TransmogrifierContext, WidgetRef};
+use gooey_browser::{
+    utils::{initialize_widget_element, widget_css_id, window_document, CssRule},
+    WebSys, WebSysTransmogrifier, WidgetClosure,
+};
+use gooey_core::{styles::style_sheet::Classes, TransmogrifierContext, WidgetRef};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlButtonElement;
 
-use crate::{
-    browser_utils::{widget_css_id, window_document},
-    button::{Button, ButtonCommand, ButtonTransmogrifier, InternalButtonEvent},
-};
+use crate::button::{Button, ButtonCommand, ButtonTransmogrifier, InternalButtonEvent};
 
 impl gooey_core::Transmogrifier<WebSys> for ButtonTransmogrifier {
-    type State = ();
+    type State = Option<CssRule>;
     type Widget = Button;
 
     fn receive_command(
@@ -38,9 +38,12 @@ impl WebSysTransmogrifier for ButtonTransmogrifier {
             .create_element("button")
             .expect("couldn't create button")
             .unchecked_into::<HtmlButtonElement>();
-        element.set_id(&widget_css_id(context.registration.id().id));
+        initialize_widget_element(
+            &element,
+            context.registration.id().id,
+            context.style.get::<Classes>(),
+        );
         element.set_inner_text(&context.widget.label);
-        // element.style().set_property("background-color",)
 
         let closure = WidgetClosure::new::<WebSys, Button, _>(
             WidgetRef::new(&context.registration, context.frontend.clone()).unwrap(),

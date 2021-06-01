@@ -4,7 +4,8 @@ use gooey_core::{
     },
     Callback, Context, StyledWidget, Widget,
 };
-use gooey_rasterizer::CONTROL_CLASS;
+
+use crate::CONTROL_CLASS;
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;

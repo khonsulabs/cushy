@@ -2,8 +2,7 @@ pub mod button;
 pub mod component;
 pub mod container;
 
-#[cfg(feature = "frontend-browser")]
-pub mod browser_utils;
+pub const CONTROL_CLASS: &str = "gooey-control";
 
 #[cfg(feature = "frontend-rasterizer")]
 pub mod rasterized {

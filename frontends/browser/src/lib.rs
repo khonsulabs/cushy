@@ -1,4 +1,4 @@
-use std::{any::TypeId, convert::TryFrom, ops::Deref};
+use std::{any::TypeId, convert::TryFrom, ops::Deref, sync::Arc};
 
 use gooey_core::{
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
@@ -6,17 +6,39 @@ use gooey_core::{
 };
 use wasm_bindgen::prelude::*;
 
+pub mod utils;
+
+use utils::{CssBlockBuilder, CssManager, CssRule};
+
 #[derive(Debug, Clone)]
 pub struct WebSys {
     pub ui: Gooey<Self>,
+    body_style: Arc<CssRule>,
 }
 
 impl WebSys {
     pub fn new(ui: Gooey<Self>) -> Self {
-        Self { ui }
+        wasm_logger::init(wasm_logger::Config::default());
+        log::info!(
+            "Statement: {}",
+            CssBlockBuilder::for_id(ui.root_widget().id().id)
+                .with_css_statement("width: 100%")
+                .with_css_statement("height: 100%")
+                .to_string()
+        );
+        let body_style = Arc::new(
+            CssManager::shared().register_rule(
+                &CssBlockBuilder::for_id(ui.root_widget().id().id)
+                    .with_css_statement("width: 100%")
+                    .with_css_statement("height: 100%")
+                    .with_css_statement("display: flex")
+                    .to_string(),
+            ),
+        );
+        Self { ui, body_style }
     }
 
-    pub fn install_in_id(&self, id: &str) {
+    pub fn install_in_id(&mut self, id: &str) {
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
@@ -24,8 +46,6 @@ impl WebSys {
 
         self.with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
             if let Some(root_element) = transmogrifier.transmogrify(&mut context) {
-                root_element.style().set_property("width", "100%").unwrap();
-                root_element.style().set_property("height", "100%").unwrap();
                 parent.append_child(&root_element).unwrap();
             }
         });

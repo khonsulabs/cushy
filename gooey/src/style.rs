@@ -5,7 +5,7 @@ use gooey_core::{
         BackgroundColor, Color, ColorPair, TextColor,
     },
 };
-use gooey_rasterizer::CONTROL_CLASS;
+use gooey_widgets::CONTROL_CLASS;
 
 pub fn default_stylesheet() -> StyleSheet {
     // Palette from https://flatuicolors.com/palette/defo
