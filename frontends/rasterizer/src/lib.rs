@@ -4,7 +4,7 @@ use events::{InputEvent, WindowEvent};
 use gooey_core::{
     euclid::{Point2D, Rect},
     styles::{
-        style_sheet::{self, StyleSheet},
+        style_sheet::{self},
         Style,
     },
     AnyTransmogrifierContext, Gooey, Points, WidgetId,
@@ -27,7 +27,6 @@ pub use self::transmogrifier::*;
 #[derive(Debug)]
 pub struct Rasterizer<R: Renderer> {
     pub ui: Arc<Gooey<Self>>,
-    pub theme: Arc<StyleSheet>,
     state: State,
     renderer: Option<R>,
 }
@@ -40,7 +39,6 @@ impl<R: Renderer> Clone for Rasterizer<R> {
         Self {
             ui: self.ui.clone(),
             state: self.state.clone(),
-            theme: self.theme.clone(),
             renderer: None,
         }
     }
@@ -60,9 +58,8 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
 }
 
 impl<R: Renderer> Rasterizer<R> {
-    pub fn new(ui: Gooey<Self>, stylesheet: StyleSheet) -> Self {
+    pub fn new(ui: Gooey<Self>) -> Self {
         Self {
-            theme: Arc::new(stylesheet.merge_with(ui.stylesheet())),
             ui: Arc::new(ui),
             state: State::default(),
             renderer: None,
@@ -76,7 +73,6 @@ impl<R: Renderer> Rasterizer<R> {
         Rasterizer {
             ui: self.ui.clone(),
             state: self.state.clone(),
-            theme: self.theme.clone(),
             renderer: Some(scene),
         }
         .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
@@ -92,7 +88,6 @@ impl<R: Renderer> Rasterizer<R> {
         self.renderer().map(|renderer| Self {
             ui: self.ui.clone(),
             state: self.state.clone(),
-            theme: self.theme.clone(),
             renderer: Some(renderer.clip_to(clip)),
         })
     }

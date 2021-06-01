@@ -5,7 +5,7 @@ use gooey_core::{
         BackgroundColor, Color, ColorPair, TextColor,
     },
 };
-use gooey_widgets::CONTROL_CLASS;
+use gooey_widgets::button::Button;
 
 pub fn default_stylesheet() -> StyleSheet {
     // Palette from https://flatuicolors.com/palette/defo
@@ -33,7 +33,7 @@ pub fn default_stylesheet() -> StyleSheet {
     let black = Color::from(Srgba::from(Hsla::new(0., 0., 0., 1.)));
 
     StyleSheet::default()
-        .with(Rule::for_classes(CONTROL_CLASS).with_styles(|style| {
+        .with(Rule::for_widget::<Button>().with_styles(|style| {
             style
                 .with(TextColor(ColorPair {
                     light_color: black,
@@ -45,8 +45,9 @@ pub fn default_stylesheet() -> StyleSheet {
                 }))
         }))
         .with(
-            Rule::for_classes(CONTROL_CLASS)
+            Rule::for_widget::<Button>()
                 .when_hovered()
+                .when_not_active()
                 .with_styles(|style| {
                     style.with(BackgroundColor(ColorPair {
                         light_color: gray80,
@@ -55,7 +56,7 @@ pub fn default_stylesheet() -> StyleSheet {
                 }),
         )
         .with(
-            Rule::for_classes(CONTROL_CLASS)
+            Rule::for_widget::<Button>()
                 .when_active()
                 .with_styles(|style| {
                     style.with(BackgroundColor(ColorPair {

@@ -1,9 +1,7 @@
 use gooey_core::StyledWidget;
 
 use crate::{
-    core::{
-        styles::style_sheet::StyleSheet, Frontend, Gooey, Transmogrifiers, Widget, WidgetStorage,
-    },
+    core::{Frontend, Gooey, Transmogrifiers, Widget, WidgetStorage},
     frontends::{
         rasterizer::{events::InputEvent as GooeyInputEvent, Rasterizer},
         renderers::kludgine::{kludgine::prelude::*, Kludgine},
@@ -17,8 +15,8 @@ pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> 
     initializer: C,
 ) {
     register_transmogrifiers(&mut transmogrifiers);
-    let ui = Gooey::with(transmogrifiers, StyleSheet::default(), initializer);
-    let ui = Rasterizer::<Kludgine>::new(ui, default_stylesheet());
+    let ui = Gooey::with(transmogrifiers, default_stylesheet(), initializer);
+    let ui = Rasterizer::<Kludgine>::new(ui);
     ui.process_widget_messages();
 
     SingleWindowApplication::run(GooeyWindow { ui });

@@ -1,10 +1,9 @@
 use std::{any::TypeId, convert::TryFrom, fmt::Debug};
 
-use stylecs::style_sheet::State;
-
 use crate::{
-    AnySendSync, AnyTransmogrifierContext, AnyWidget, Gooey, Transmogrifier, TransmogrifierContext,
-    TransmogrifierState, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
+    styles::style_sheet::State, AnySendSync, AnyTransmogrifierContext, AnyWidget, Gooey,
+    Transmogrifier, TransmogrifierContext, TransmogrifierState, WidgetId, WidgetRef,
+    WidgetRegistration, WidgetStorage,
 };
 
 /// A frontend is an implementation of widgets and layouts.

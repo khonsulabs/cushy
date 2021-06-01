@@ -2,10 +2,10 @@ use gooey_browser::{
     utils::{initialize_widget_element, window_document},
     WebSys, WebSysTransmogrifier,
 };
-use gooey_core::{styles::style_sheet::Classes, TransmogrifierContext};
+use gooey_core::TransmogrifierContext;
 use wasm_bindgen::JsCast;
 
-use crate::component::{Behavior, ComponentTransmogrifier};
+use crate::component::{Behavior, Component, ComponentTransmogrifier};
 
 impl<B: Behavior> WebSysTransmogrifier for ComponentTransmogrifier<B> {
     fn transmogrify(
@@ -16,11 +16,7 @@ impl<B: Behavior> WebSysTransmogrifier for ComponentTransmogrifier<B> {
             .create_element("div")
             .expect("error creating div")
             .unchecked_into::<web_sys::HtmlDivElement>();
-        initialize_widget_element(
-            &container,
-            context.registration.id().id,
-            context.style.get::<Classes>(),
-        );
+        initialize_widget_element::<Component<B>>(&container, context.registration.id().id);
         if let Some(child) = context
             .frontend
             .with_transmogrifier(

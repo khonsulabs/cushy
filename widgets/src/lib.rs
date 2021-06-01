@@ -2,8 +2,6 @@ pub mod button;
 pub mod component;
 pub mod container;
 
-pub const CONTROL_CLASS: &str = "gooey-control";
-
 #[cfg(feature = "frontend-rasterizer")]
 pub mod rasterized {
     use gooey_core::{renderer::Renderer, Transmogrifiers};

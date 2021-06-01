@@ -9,11 +9,11 @@ use std::{
     },
 };
 
-use stylecs::{style_sheet::StyleSheet, Style, StyleComponent};
+use stylecs::{Style, StyleComponent};
 
 use crate::{
-    AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget,
-    Channels, Frontend, TransmogrifierState, Widget, WidgetId,
+    styles::style_sheet::StyleSheet, AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier,
+    AnyTransmogrifierContext, AnyWidget, Channels, Frontend, TransmogrifierState, Widget, WidgetId,
 };
 
 type WidgetTypeId = TypeId;
@@ -58,6 +58,15 @@ impl<F: Frontend> Gooey<F> {
     #[must_use]
     pub fn root_widget(&self) -> &WidgetRegistration {
         &self.data.root
+    }
+
+    /// Returns the transmogrifier fo the type id
+    #[must_use]
+    pub fn transmogrifier_for_type_id(
+        &self,
+        widget_type_id: TypeId,
+    ) -> Option<&'_ <F as Frontend>::AnyTransmogrifier> {
+        self.data.transmogrifiers.map.get(&widget_type_id)
     }
 
     /// Executes `callback` with the transmogrifier and transmogrifier state as
@@ -354,6 +363,12 @@ impl<W: Widget> StyledWidget<W> {
     #[must_use]
     pub fn new(widget: W, style: Style) -> Self {
         Self { widget, style }
+    }
+
+    /// Returns a new instance with a default [`Style`].
+    #[must_use]
+    pub fn default_for(widget: W) -> Self {
+        Self::new(widget, Style::default())
     }
 
     /// Adds `component` to `style` and returns self.

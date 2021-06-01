@@ -1,6 +1,7 @@
 use std::{any::TypeId, convert::TryFrom, ops::Deref, sync::Arc};
 
 use gooey_core::{
+    styles::{style_sheet::Classes, Style},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef, WidgetRegistration,
 };
@@ -13,29 +14,36 @@ use utils::{CssBlockBuilder, CssManager, CssRule};
 #[derive(Debug, Clone)]
 pub struct WebSys {
     pub ui: Gooey<Self>,
-    body_style: Arc<CssRule>,
+    styles: Arc<Vec<CssRule>>,
 }
 
 impl WebSys {
     pub fn new(ui: Gooey<Self>) -> Self {
         wasm_logger::init(wasm_logger::Config::default());
-        log::info!(
-            "Statement: {}",
-            CssBlockBuilder::for_id(ui.root_widget().id().id)
+        let manager = CssManager::shared();
+        let mut styles = vec![manager.register_rule(
+            &CssBlockBuilder::for_id(ui.root_widget().id().id)
                 .with_css_statement("width: 100%")
                 .with_css_statement("height: 100%")
-                .to_string()
-        );
-        let body_style = Arc::new(
-            CssManager::shared().register_rule(
-                &CssBlockBuilder::for_id(ui.root_widget().id().id)
-                    .with_css_statement("width: 100%")
-                    .with_css_statement("height: 100%")
-                    .with_css_statement("display: flex")
-                    .to_string(),
-            ),
-        );
-        Self { ui, body_style }
+                .with_css_statement("display: flex")
+                .to_string(),
+        )];
+
+        for rule in &ui.stylesheet().rules {
+            if let Some(transmogrifier) = ui.transmogrifier_for_type_id(rule.widget_type_id) {
+                let css = transmogrifier.convert_style_to_css(
+                    &rule.style,
+                    CssBlockBuilder::for_classes_and_rule(transmogrifier.widget_classes(), rule),
+                );
+                log::info!("Converted css: {}", css.to_string());
+                styles.push(manager.register_rule(&css.to_string()));
+            }
+        }
+
+        Self {
+            ui,
+            styles: Arc::new(styles),
+        }
     }
 
     pub fn install_in_id(&mut self, id: &str) {
@@ -56,10 +64,7 @@ impl WebSys {
     #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
     pub fn with_transmogrifier<
         TResult,
-        C: FnOnce(
-            &'_ dyn AnyWidgetWebSysTransmogrifier,
-            AnyTransmogrifierContext<'_, Self>,
-        ) -> TResult,
+        C: FnOnce(&'_ dyn AnyWebSysTransmogrifier, AnyTransmogrifierContext<'_, Self>) -> TResult,
     >(
         &self,
         widget_id: &WidgetId,
@@ -73,19 +78,27 @@ impl WebSys {
 }
 
 #[derive(Debug)]
-pub struct RegisteredTransmogrifier(pub Box<dyn AnyWidgetWebSysTransmogrifier>);
+pub struct RegisteredTransmogrifier(pub Box<dyn AnyWebSysTransmogrifier>);
 
-impl AnyWidgetWebSysTransmogrifier for RegisteredTransmogrifier {
+impl AnyWebSysTransmogrifier for RegisteredTransmogrifier {
     fn transmogrify(
         &self,
         context: &mut AnyTransmogrifierContext<'_, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
         self.0.transmogrify(context)
     }
+
+    fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
+        self.0.convert_style_to_css(style, css)
+    }
+
+    fn widget_classes(&self) -> Classes {
+        self.0.widget_classes()
+    }
 }
 
 impl Deref for RegisteredTransmogrifier {
-    type Target = Box<dyn AnyWidgetWebSysTransmogrifier>;
+    type Target = Box<dyn AnyWebSysTransmogrifier>;
 
     fn deref(&self) -> &'_ Self::Target {
         &self.0
@@ -106,16 +119,30 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         &self,
         context: TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<web_sys::HtmlElement>;
+
+    #[allow(unused_variables)]
+    fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
+        css
+    }
+
+    fn widget_classes() -> Classes {
+        Classes::from(<<Self as Transmogrifier<WebSys>>::Widget as Widget>::CLASS)
+    }
 }
 
-pub trait AnyWidgetWebSysTransmogrifier: AnyTransmogrifier<WebSys> + Send + Sync {
+pub trait AnyWebSysTransmogrifier: AnyTransmogrifier<WebSys> + Send + Sync {
     fn transmogrify(
         &self,
         context: &mut AnyTransmogrifierContext<'_, WebSys>,
     ) -> Option<web_sys::HtmlElement>;
+
+    #[allow(unused_variables)]
+    fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder;
+
+    fn widget_classes(&self) -> Classes;
 }
 
-impl<T> AnyWidgetWebSysTransmogrifier for T
+impl<T> AnyWebSysTransmogrifier for T
 where
     T: WebSysTransmogrifier + AnyTransmogrifier<WebSys> + Send + Sync + 'static,
 {
@@ -127,6 +154,14 @@ where
             &self,
             TransmogrifierContext::try_from(context).unwrap(),
         )
+    }
+
+    fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
+        <T as WebSysTransmogrifier>::convert_style_to_css(&self, style, css)
+    }
+
+    fn widget_classes(&self) -> Classes {
+        <T as WebSysTransmogrifier>::widget_classes()
     }
 }
 

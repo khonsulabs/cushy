@@ -1,9 +1,7 @@
 use crate::{
-    core::{
-        styles::style_sheet::StyleSheet, Frontend, Gooey, StyledWidget, Transmogrifiers, Widget,
-        WidgetStorage,
-    },
+    core::{Frontend, Gooey, StyledWidget, Transmogrifiers, Widget, WidgetStorage},
     frontends::browser::WebSys,
+    style::default_stylesheet,
     widgets::browser::{default_transmogrifiers, register_transmogrifiers},
 };
 
@@ -14,7 +12,7 @@ pub fn browser_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> S
     register_transmogrifiers(&mut transmogrifiers);
     let mut ui = WebSys::new(Gooey::with(
         transmogrifiers,
-        StyleSheet::default(),
+        default_stylesheet(),
         initializer,
     ));
     ui.process_widget_messages();

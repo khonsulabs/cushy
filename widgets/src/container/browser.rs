@@ -2,9 +2,7 @@ use gooey_browser::{
     utils::{initialize_widget_element, window_document, CssBlockBuilder, CssManager, CssRule},
     WebSys, WebSysTransmogrifier,
 };
-use gooey_core::{
-    euclid::Length, styles::style_sheet::Classes, Points, Transmogrifier, TransmogrifierContext,
-};
+use gooey_core::{euclid::Length, Points, Transmogrifier, TransmogrifierContext};
 use wasm_bindgen::JsCast;
 
 use crate::container::{Container, ContainerTransmogrifier};
@@ -23,11 +21,7 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
             .create_element("div")
             .expect("error creating div")
             .unchecked_into::<web_sys::HtmlDivElement>();
-        initialize_widget_element(
-            &container,
-            context.registration.id().id,
-            context.style.get::<Classes>(),
-        );
+        initialize_widget_element::<Container>(&container, context.registration.id().id);
 
         let mut container_css = CssBlockBuilder::for_id(context.registration.id().id)
             .with_css_statement("display: flex")

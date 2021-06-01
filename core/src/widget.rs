@@ -29,6 +29,12 @@ pub trait Widget: Debug + Send + Sync + Sized + 'static {
     /// use.
     type TransmogrifierEvent: Debug + Send + Sync;
 
+    /// The unique class name for this widget. Must not conflict with any other
+    /// widgets in use. Widget authors should prefix their widget names to
+    /// ensure no conflicts. For example, the `gooey-widgets` crate prefixes all
+    /// of the `CLASS` constants with `gooey-`.
+    const CLASS: &'static str;
+
     /// Called when an `event` from the transmogrifier was received.
     #[allow(unused_variables)]
     fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>) {

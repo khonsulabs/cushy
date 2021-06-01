@@ -32,10 +32,15 @@ impl Color {
 
     /// Formats the color for CSS.
     #[must_use]
+    #[allow(clippy::cast_possible_truncation)]
+    #[allow(clippy::cast_sign_loss)]
     pub fn to_css_string(&self) -> String {
         format!(
-            "rgba({:.03}, {:.03}, {:.03}, {:.03})",
-            self.red, self.green, self.blue, self.alpha
+            "rgba({}, {}, {}, {:.03})",
+            (self.red * 255.).clamp(0., 255.) as u8,
+            (self.green * 255.).clamp(0., 255.) as u8,
+            (self.blue * 255.).clamp(0., 255.) as u8,
+            self.alpha
         )
     }
 }

@@ -8,9 +8,9 @@ use std::{
 };
 
 use gooey_core::{
-    styles::Style, AnyWidget, Callback, CallbackFn, Channels, Context, Frontend, StyledWidget,
-    Transmogrifier, TransmogrifierContext, WeakWidgetRegistration, Widget, WidgetId, WidgetRef,
-    WidgetRegistration, WidgetStorage,
+    AnyWidget, Callback, CallbackFn, Channels, Context, Frontend, StyledWidget, Transmogrifier,
+    TransmogrifierContext, WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration,
+    WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -33,16 +33,13 @@ impl<B: Behavior> Component<B> {
         let mut builder = ComponentBuilder::new(storage);
         let content = behavior.create_content(&mut builder);
         let content = builder.register(content);
-        StyledWidget::new(
-            Component {
-                content,
-                behavior,
-                callback_widget: builder.widget,
-                registered_widgets: builder.registered_widgets,
-                content_widget: None,
-            },
-            Style::default(),
-        )
+        StyledWidget::default_for(Component {
+            content,
+            behavior,
+            callback_widget: builder.widget,
+            registered_widgets: builder.registered_widgets,
+            content_widget: None,
+        })
     }
 
     pub fn default_for(storage: &WidgetStorage) -> StyledWidget<Self>
@@ -107,6 +104,8 @@ impl<B: Behavior> Widget for Component<B> {
     type Command = <B::Content as Widget>::Command;
     type TransmogrifierCommand = <B::Content as Widget>::Command;
     type TransmogrifierEvent = InternalEvent<B>;
+
+    const CLASS: &'static str = "gooey-component";
 
     fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>) {
         match event {

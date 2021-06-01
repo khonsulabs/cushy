@@ -27,10 +27,14 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                 context.registration.id().clone(),
                 rasterizer.renderer().unwrap().clip_bounds(),
             );
-            let effective_style = context.frontend.theme.effective_style_for(
-                context.style.merge_with(parent_style, true),
-                context.ui_state,
-            );
+            let effective_style = context
+                .frontend
+                .ui
+                .stylesheet()
+                .effective_style_for::<<Self as Transmogrifier<Rasterizer<R>>>::Widget>(
+                    context.style.merge_with(parent_style, true),
+                    context.ui_state,
+                );
             self.render(TransmogrifierContext::new(
                 context.registration.clone(),
                 context.state,
