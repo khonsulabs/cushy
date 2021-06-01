@@ -87,6 +87,7 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
     type Event: Debug + Send + Sync;
     type Content: Widget;
     type Widgets: Hash + Eq + Debug + Send + Sync;
+    const CLASS: &'static str;
 
     fn create_content(
         &mut self,
@@ -105,7 +106,7 @@ impl<B: Behavior> Widget for Component<B> {
     type TransmogrifierCommand = <B::Content as Widget>::Command;
     type TransmogrifierEvent = InternalEvent<B>;
 
-    const CLASS: &'static str = "gooey-component";
+    const CLASS: &'static str = B::CLASS;
 
     fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>) {
         match event {
@@ -228,19 +229,16 @@ impl<B: Behavior, I> CallbackFn<I, ()> for MappedCallback<B, I> {
     }
 }
 
-impl<B: Behavior, F: Frontend + Send + Sync> Transmogrifier<F> for ComponentTransmogrifier<B> {
-    type State = ();
-    type Widget = Component<B>;
-
-    fn initialize(
+impl<B: Behavior> ComponentTransmogrifier<B> {
+    pub fn initialize_component<F: Frontend>(
         &self,
-        component: &Self::Widget,
-        widget: &WidgetRef<Self::Widget>,
+        component: &Component<B>,
+        widget: &WidgetRef<Component<B>>,
         frontend: &F,
-    ) -> Self::State {
+    ) {
         let widget = widget.registration().unwrap().id().clone();
         let widget_state = frontend.gooey().widget_state(widget.id).unwrap();
-        let channels = widget_state.channels::<Self::Widget>().unwrap();
+        let channels = widget_state.channels::<Component<B>>().unwrap();
         let mut callback_widget = component.callback_widget.write().unwrap();
         *callback_widget = Some(Box::new(EventPoster {
             widget,
@@ -254,11 +252,13 @@ impl<B: Behavior, F: Frontend + Send + Sync> Transmogrifier<F> for ComponentTran
         ));
     }
 
-    fn receive_command(
+    pub fn forward_command_to_content<F: Frontend>(
         &self,
-        command: <Self::Widget as Widget>::TransmogrifierCommand,
+        command: <Component<B> as Widget>::TransmogrifierCommand,
         context: &mut TransmogrifierContext<Self, F>,
-    ) {
+    ) where
+        Self: Transmogrifier<F, Widget = Component<B>>,
+    {
         context
             .widget
             .content_widget

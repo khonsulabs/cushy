@@ -1,5 +1,5 @@
 use gooey_browser::{
-    utils::{initialize_widget_element, window_document, CssBlockBuilder, CssManager, CssRule},
+    utils::{window_document, CssBlockBuilder, CssManager, CssRule},
     WebSys, WebSysTransmogrifier,
 };
 use gooey_core::{euclid::Length, Points, Transmogrifier, TransmogrifierContext};
@@ -8,7 +8,7 @@ use wasm_bindgen::JsCast;
 use crate::container::{Container, ContainerTransmogrifier};
 
 impl Transmogrifier<WebSys> for ContainerTransmogrifier {
-    type State = Option<CssRule>;
+    type State = Option<Vec<CssRule>>;
     type Widget = Container;
 }
 
@@ -21,7 +21,10 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
             .create_element("div")
             .expect("error creating div")
             .unchecked_into::<web_sys::HtmlDivElement>();
-        initialize_widget_element::<Container>(&container, context.registration.id().id);
+        let mut css_rules = Vec::new();
+        if let Some(rule) = self.initialize_widget_element(&container, &context) {
+            css_rules.push(rule);
+        }
 
         let mut container_css = CssBlockBuilder::for_id(context.registration.id().id)
             .with_css_statement("display: flex")
@@ -42,7 +45,8 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
             "padding-bottom",
             context.widget.padding.bottom(),
         );
-        *context.state = Some(CssManager::shared().register_rule(&container_css.to_string()));
+        css_rules.push(CssManager::shared().register_rule(&container_css.to_string()));
+        *context.state = Some(css_rules);
 
         context.frontend.with_transmogrifier(
             context.widget.child.id(),

@@ -25,6 +25,8 @@ impl Behavior for Counter {
     type Event = CounterEvent;
     type Widgets = CounterWidgets;
 
+    const CLASS: &'static str = "example-component";
+
     fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Container> {
         Container::from_registration(builder.register_widget(
             CounterWidgets::Button,

@@ -1,7 +1,7 @@
 use std::{any::TypeId, convert::TryFrom, ops::Deref, sync::Arc};
 
 use gooey_core::{
-    styles::{style_sheet::Classes, Style},
+    styles::{style_sheet::Classes, BackgroundColor, ColorPair, Style, StyleComponent, TextColor},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef, WidgetRegistration,
 };
@@ -9,7 +9,8 @@ use wasm_bindgen::prelude::*;
 
 pub mod utils;
 
-use utils::{CssBlockBuilder, CssManager, CssRule};
+use utils::{set_widget_classes, set_widget_id, CssBlockBuilder, CssManager, CssRule};
+use web_sys::HtmlElement;
 
 #[derive(Debug, Clone)]
 pub struct WebSys {
@@ -29,13 +30,19 @@ impl WebSys {
                 .to_string(),
         )];
 
-        for rule in &ui.stylesheet().rules {
-            if let Some(transmogrifier) = ui.transmogrifier_for_type_id(rule.widget_type_id) {
+        for rule in ui
+            .stylesheet()
+            .rules
+            .iter()
+            .filter(|rule| rule.widget_type_id.is_some())
+        {
+            if let Some(transmogrifier) =
+                ui.transmogrifier_for_type_id(rule.widget_type_id.unwrap())
+            {
                 let css = transmogrifier.convert_style_to_css(
                     &rule.style,
-                    CssBlockBuilder::for_classes_and_rule(transmogrifier.widget_classes(), rule),
+                    CssBlockBuilder::for_classes_and_rule(&transmogrifier.widget_classes(), rule),
                 );
-                log::info!("Converted css: {}", css.to_string());
                 styles.push(manager.register_rule(&css.to_string()));
             }
         }
@@ -120,9 +127,66 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         context: TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<web_sys::HtmlElement>;
 
+    #[must_use]
+    fn initialize_widget_element(
+        &self,
+        element: &HtmlElement,
+        context: &TransmogrifierContext<'_, Self, WebSys>,
+    ) -> Option<CssRule> {
+        set_widget_id(element, context.registration.id().id);
+        let mut classes = Self::widget_classes();
+        if let Some(custom_classes) = context.style.get::<Classes>() {
+            classes = classes.merge(custom_classes);
+        }
+        set_widget_classes(element, &classes);
+        let mut css = self.convert_style_to_css(
+            context.style,
+            CssBlockBuilder::for_id(context.registration.id().id),
+        );
+
+        let style_sheet = context.frontend.gooey().stylesheet();
+        if let Some(rules) = style_sheet.rules_by_widget.get(&None) {
+            for &rule_index in rules {
+                let rule = &style_sheet.rules[rule_index];
+                if rule.widget_type_id.is_none() && rule.applies(context.ui_state, Some(&classes)) {
+                    css = self.convert_style_to_css(&rule.style, css);
+                }
+            }
+        }
+
+        if css.is_empty() {
+            None
+        } else {
+            log::info!("Installing CSS rule: {}", css.to_string());
+            Some(CssManager::shared().register_rule(&css.to_string()))
+        }
+    }
+
     #[allow(unused_variables)]
     fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
+        self.convert_colors_to_css(style, css)
+    }
+
+    #[allow(unused_variables)]
+    fn convert_colors_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
+        if let Some(color) = self.text_color(style) {
+            css = css.with_css_statement(format!("color: {}", color.light_color.to_css_string()));
+        }
+        if let Some(color) = self.background_color(style) {
+            css = css.with_css_statement(format!(
+                "background-color: {}",
+                color.light_color.to_css_string()
+            ));
+        }
         css
+    }
+
+    fn text_color<'a>(&self, style: &'a Style) -> Option<&'a ColorPair> {
+        style.get_with_fallback::<TextColor>()
+    }
+
+    fn background_color<'a>(&self, style: &'a Style) -> Option<&'a ColorPair> {
+        style.get_with_fallback::<BackgroundColor>()
     }
 
     fn widget_classes() -> Classes {

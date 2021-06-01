@@ -1,6 +1,10 @@
-use gooey_core::{euclid::Size2D, renderer::Renderer, Points, TransmogrifierContext};
+use gooey_core::{
+    euclid::Size2D, renderer::Renderer, Points, Transmogrifier, TransmogrifierContext, Widget,
+    WidgetRef,
+};
 use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
 
+use super::Component;
 use crate::component::{Behavior, ComponentTransmogrifier};
 
 impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B> {
@@ -40,5 +44,27 @@ impl<B: Behavior, R: Renderer> From<ComponentTransmogrifier<B>>
 {
     fn from(transmogrifier: ComponentTransmogrifier<B>) -> Self {
         Self(std::boxed::Box::new(transmogrifier))
+    }
+}
+
+impl<B: Behavior, R: Renderer> Transmogrifier<Rasterizer<R>> for ComponentTransmogrifier<B> {
+    type State = ();
+    type Widget = Component<B>;
+
+    fn initialize(
+        &self,
+        component: &Self::Widget,
+        widget: &WidgetRef<Self::Widget>,
+        frontend: &Rasterizer<R>,
+    ) -> Self::State {
+        self.initialize_component(component, widget, frontend);
+    }
+
+    fn receive_command(
+        &self,
+        command: <Self::Widget as Widget>::TransmogrifierCommand,
+        context: &mut TransmogrifierContext<Self, Rasterizer<R>>,
+    ) {
+        self.forward_command_to_content(command, context);
     }
 }

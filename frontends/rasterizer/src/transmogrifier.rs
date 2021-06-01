@@ -3,7 +3,7 @@ use std::{any::TypeId, convert::TryFrom, ops::Deref};
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     renderer::Renderer,
-    styles::Style,
+    styles::{BackgroundColor, ColorPair, Style},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Points, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, WidgetRegistration,
 };
@@ -35,6 +35,15 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                     context.style.merge_with(parent_style, true),
                     context.ui_state,
                 );
+
+            if let Some(color) = self.background_color(&effective_style) {
+                let renderer = rasterizer.renderer().unwrap();
+                renderer.fill_rect::<BackgroundColor>(
+                    &renderer.bounds(),
+                    &Style::default().with(BackgroundColor(color)),
+                )
+            }
+
             self.render(TransmogrifierContext::new(
                 context.registration.clone(),
                 context.state,
@@ -48,6 +57,10 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     }
 
     fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>);
+
+    fn background_color(&self, style: &Style) -> Option<ColorPair> {
+        style.get::<BackgroundColor>().map(|bg| bg.0)
+    }
 
     /// Calculate the content-size needed for this `widget`, trying to stay
     /// within `constraints`.

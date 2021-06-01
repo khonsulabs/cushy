@@ -12,8 +12,9 @@ use std::{
 use stylecs::{Style, StyleComponent};
 
 use crate::{
-    styles::style_sheet::StyleSheet, AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier,
-    AnyTransmogrifierContext, AnyWidget, Channels, Frontend, TransmogrifierState, Widget, WidgetId,
+    styles::style_sheet::{Classes, StyleSheet},
+    AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget,
+    Channels, Frontend, TransmogrifierState, Widget, WidgetId, ROOT_CLASS,
 };
 
 type WidgetTypeId = TypeId;
@@ -41,7 +42,7 @@ impl<F: Frontend> Gooey<F> {
         initializer: C,
     ) -> Self {
         let storage = WidgetStorage::default();
-        let root = initializer(&storage);
+        let root = initializer(&storage).with(Classes::from(ROOT_CLASS));
         let root = storage.register(root);
         Self {
             data: Arc::new(GooeyData {

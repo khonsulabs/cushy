@@ -1,8 +1,8 @@
 use std::fmt::Write;
 
-use gooey_core::{
-    styles::style_sheet::{Classes, Rule},
-    Widget,
+use gooey_core::styles::{
+    style_sheet::{Classes, Rule},
+    StyleComponent,
 };
 use wasm_bindgen::JsCast;
 use web_sys::{CssStyleSheet, HtmlElement, HtmlStyleElement};
@@ -12,20 +12,15 @@ pub fn window_document() -> web_sys::Document {
 }
 
 pub fn widget_css_id(widget_id: u32) -> String {
-    format!("goo-{}", widget_id)
+    format!("gooey-{}", widget_id)
 }
 
-fn set_widget_id(element: &HtmlElement, widget_id: u32) {
+pub fn set_widget_id(element: &HtmlElement, widget_id: u32) {
     element.set_id(&widget_css_id(widget_id));
 }
 
-fn set_widget_classes(element: &HtmlElement, classes: Classes) {
-    element.set_class_name(&classes.join(" "));
-}
-
-pub fn initialize_widget_element<W: Widget>(element: &HtmlElement, widget_id: u32) {
-    set_widget_id(element, widget_id);
-    set_widget_classes(element, Classes::from(<W as Widget>::CLASS));
+pub fn set_widget_classes(element: &HtmlElement, classes: &Classes) {
+    element.set_class_name(&classes.to_vec().join(" "));
 }
 
 pub struct CssManager {
@@ -96,27 +91,40 @@ impl CssBlockBuilder {
         }
     }
 
-    pub fn for_classes_and_rule(classes: Classes, rule: &Rule) -> Self {
-        let mut selector = format!(".{}", classes.join(".")); // TODO join rule.classes if present
-        if let Some(active) = rule.active {
-            selector += if active { ":active" } else { ":not(:active)" };
-        }
-        if let Some(focused) = rule.focused {
-            selector += if focused { ":focus" } else { ":not(:focus)" };
-        }
-        if let Some(hovered) = rule.hovered {
-            selector += if hovered { ":hover" } else { ":not(:hover)" };
-        }
-
+    pub fn for_classes(classes: &Classes) -> Self {
         Self {
-            selector,
+            selector: format!(".{}", classes.to_vec().join(".")),
             statements: Vec::default(),
         }
+    }
+
+    pub fn for_classes_and_rule(classes: &Classes, rule: &Rule) -> Self {
+        let mut builder = if let Some(rule_classes) = &rule.classes {
+            Self::for_classes(&classes.merge(rule_classes))
+        } else {
+            Self::for_classes(classes)
+        };
+        if let Some(active) = rule.active {
+            builder.selector += if active { ":active" } else { ":not(:active)" };
+        }
+        if let Some(focused) = rule.focused {
+            builder.selector += if focused { ":focus" } else { ":not(:focus)" };
+        }
+        if let Some(hovered) = rule.hovered {
+            builder.selector += if hovered { ":hover" } else { ":not(:hover)" };
+        }
+
+        builder
     }
 
     pub fn with_css_statement<S: ToString>(mut self, css: S) -> Self {
         self.statements.push(css.to_string());
         self
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.statements.is_empty()
     }
 }
 

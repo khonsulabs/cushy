@@ -1,9 +1,10 @@
 use gooey_core::{
-    palette::{Hsla, Srgba},
+    palette::Hsla,
     styles::{
         style_sheet::{Rule, StyleSheet},
         BackgroundColor, Color, ColorPair, TextColor,
     },
+    ROOT_CLASS,
 };
 use gooey_widgets::button::Button;
 
@@ -25,14 +26,20 @@ pub fn default_stylesheet() -> StyleSheet {
     // let purple = Srgba::new(0.424, 0.361, 0.906, 1.);
     // let light_pink = Srgba::new(0.992, 0.475, 0.659, 1.);
     // let pink = Srgba::new(0.910, 0.263, 0.576, 1.);
-    let white = Color::from(Srgba::from(Hsla::new(0., 0., 1., 1.)));
-    let gray80 = Color::from(Srgba::from(Hsla::new(0., 0., 0.8, 1.)));
-    let gray60 = Color::from(Srgba::from(Hsla::new(0., 0., 0.6, 1.)));
-    let gray40 = Color::from(Srgba::from(Hsla::new(0., 0., 0.4, 1.)));
-    let gray20 = Color::from(Srgba::from(Hsla::new(0., 0., 0.2, 1.)));
-    let black = Color::from(Srgba::from(Hsla::new(0., 0., 0., 1.)));
+    let white = Color::from(Hsla::new(0., 0., 1., 1.));
+    let gray80 = Color::from(Hsla::new(0., 0., 0.8, 1.));
+    let gray60 = Color::from(Hsla::new(0., 0., 0.6, 1.));
+    let gray40 = Color::from(Hsla::new(0., 0., 0.4, 1.));
+    let gray20 = Color::from(Hsla::new(0., 0., 0.2, 1.));
+    let black = Color::from(Hsla::new(0., 0., 0., 1.));
 
     StyleSheet::default()
+        .with(Rule::for_classes(ROOT_CLASS).with_styles(|style| {
+            style.with(BackgroundColor(ColorPair {
+                light_color: white,
+                dark_color: black,
+            }))
+        }))
         .with(Rule::for_widget::<Button>().with_styles(|style| {
             style
                 .with(TextColor(ColorPair {

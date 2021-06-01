@@ -1,11 +1,8 @@
 use gooey_browser::{
-    utils::{initialize_widget_element, widget_css_id, window_document, CssBlockBuilder, CssRule},
+    utils::{widget_css_id, window_document, CssBlockBuilder, CssRule},
     WebSys, WebSysTransmogrifier, WidgetClosure,
 };
-use gooey_core::{
-    styles::{BackgroundColor, Style, TextColor},
-    TransmogrifierContext, WidgetRef,
-};
+use gooey_core::{styles::Style, TransmogrifierContext, WidgetRef};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlButtonElement;
 
@@ -41,7 +38,7 @@ impl WebSysTransmogrifier for ButtonTransmogrifier {
             .create_element("button")
             .expect("couldn't create button")
             .unchecked_into::<HtmlButtonElement>();
-        initialize_widget_element::<Button>(&element, context.registration.id().id);
+        *context.state = self.initialize_widget_element(&element, &context);
         element.set_inner_text(&context.widget.label);
 
         let closure = WidgetClosure::new::<WebSys, Button, _>(
@@ -52,18 +49,8 @@ impl WebSysTransmogrifier for ButtonTransmogrifier {
         Some(element.unchecked_into())
     }
 
-    fn convert_style_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
-        if let Some(text_color) = style.get_with_fallback::<TextColor>() {
-            css = css
-                .with_css_statement(format!("color: {}", text_color.light_color.to_css_string()));
-        }
-        if let Some(text_color) = style.get_with_fallback::<BackgroundColor>() {
-            css = css.with_css_statement(format!(
-                "background-color: {}",
-                text_color.light_color.to_css_string()
-            ));
-        }
-
-        css.with_css_statement("border: none") // TODO support borders
+    fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
+        self.convert_colors_to_css(style, css)
+            .with_css_statement("border: none") // TODO support borders
     }
 }

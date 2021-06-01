@@ -1,4 +1,9 @@
-use std::{any::TypeId, borrow::Cow, collections::HashMap, ops::Deref};
+use std::{
+    any::TypeId,
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    ops::Deref,
+};
 
 use stylecs::{Style, StyleComponent};
 
@@ -10,7 +15,8 @@ pub struct StyleSheet {
     /// The rules in the style sheet.
     pub rules: Vec<Rule>,
 
-    rules_by_widget: HashMap<TypeId, Vec<usize>>,
+    /// The rule indexes, organizd by widget [`TypeId`].
+    pub rules_by_widget: HashMap<Option<TypeId>, Vec<usize>>,
 }
 
 impl StyleSheet {
@@ -20,16 +26,25 @@ impl StyleSheet {
     /// rules that match the id or classes provided.
     #[must_use]
     pub fn effective_style_for<W: Widget>(&self, mut style: Style, state: &State) -> Style {
-        if let Some(rules) = self.rules_by_widget.get(&TypeId::of::<W>()) {
-            for &rule in rules.iter().rev() {
-                let rule = &self.rules[rule];
-                // TODO check classes
-                if rule.applies(state) {
-                    style = style.merge_with(&rule.style, false);
-                }
-            }
+        let mut possible_rules = Vec::new();
+        if let Some(rules) = self.rules_by_widget.get(&Some(TypeId::of::<W>())) {
+            possible_rules.extend(rules.clone());
         }
 
+        if let Some(rules) = self.rules_by_widget.get(&None) {
+            possible_rules.extend(rules.clone());
+        }
+
+        possible_rules.sort_unstable();
+        possible_rules.dedup();
+
+        for rule in possible_rules.into_iter().rev() {
+            let rule = &self.rules[rule];
+
+            if rule.applies(state, style.get()) {
+                style = style.merge_with(&rule.style, false);
+            }
+        }
         style
     }
 
@@ -76,7 +91,7 @@ impl StyleSheet {
 #[derive(Debug, Clone)]
 pub struct Rule {
     /// The [`TypeId`] of the widget this rule is associated with.
-    pub widget_type_id: TypeId,
+    pub widget_type_id: Option<TypeId>,
     /// The classes this rule should optionally filter by.
     pub classes: Option<Classes>,
     /// If specified, only applies `style` if `hovered` matches
@@ -97,8 +112,21 @@ impl Rule {
     #[must_use]
     pub fn for_widget<W: Widget>() -> Self {
         Self {
-            widget_type_id: TypeId::of::<W>(),
+            widget_type_id: Some(TypeId::of::<W>()),
             classes: None,
+            hovered: None,
+            focused: None,
+            active: None,
+            style: Style::default(),
+        }
+    }
+
+    /// Returns a rule targeting any widget with `classes`.
+    #[must_use]
+    pub fn for_classes<C: Into<Classes>>(classes: C) -> Self {
+        Self {
+            classes: Some(classes.into()),
+            widget_type_id: None,
             hovered: None,
             focused: None,
             active: None,
@@ -165,11 +193,21 @@ impl Rule {
 
     /// Returns true if the rule should apply based on `state`.
     #[must_use]
-    pub fn applies(&self, state: &State) -> bool {
-        check_one_state(self.hovered, state.hovered)
-            .or_else(|| check_one_state(self.focused, state.focused))
-            .or_else(|| check_one_state(self.active, state.active))
-            .unwrap_or(true)
+    pub fn applies(&self, state: &State, classes: Option<&Classes>) -> bool {
+        self.classes_apply(classes)
+            && (check_one_state(self.hovered, state.hovered)
+                .or_else(|| check_one_state(self.focused, state.focused))
+                .or_else(|| check_one_state(self.active, state.active))
+                .unwrap_or(true))
+    }
+
+    fn classes_apply(&self, classes: Option<&Classes>) -> bool {
+        // If classes aren't defined on this rule, return true.
+        // If there are, all classes must be contained in the style's Classes value.
+
+        self.classes.as_ref().map_or(true, |required_classes| {
+            classes.map_or(false, |classes| required_classes.is_subset(classes))
+        })
     }
 }
 
@@ -186,8 +224,8 @@ pub enum Selector {
 }
 
 /// A list of class names. Not inherited when merging styles.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct Classes(Vec<Cow<'static, str>>);
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
+pub struct Classes(HashSet<Cow<'static, str>>);
 
 impl Classes {
     /// Returns a new Classes component with the classes passed.
@@ -208,8 +246,7 @@ impl Classes {
     // TODO refactor to have an error. Implement TryFrom as well, move the panic into the From
     // implementations.
     #[must_use]
-    pub fn new(mut classes: Vec<Cow<'static, str>>) -> Self {
-        classes.sort();
+    pub fn new(classes: HashSet<Cow<'static, str>>) -> Self {
         for class in &classes {
             for ch in class.chars() {
                 match ch {
@@ -220,10 +257,24 @@ impl Classes {
         }
         Self(classes)
     }
+
+    /// Returns a Classes instance with a single name.
+    #[must_use]
+    pub fn single(class: Cow<'static, str>) -> Self {
+        let mut set = HashSet::new();
+        set.insert(class);
+        Self::new(set)
+    }
+
+    /// Converts the classes into a `Vec`.
+    #[must_use]
+    pub fn to_vec(&self) -> Vec<Cow<'static, str>> {
+        self.0.clone().into_iter().collect()
+    }
 }
 
 impl Deref for Classes {
-    type Target = Vec<Cow<'static, str>>;
+    type Target = HashSet<Cow<'static, str>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -232,13 +283,13 @@ impl Deref for Classes {
 
 impl From<String> for Classes {
     fn from(s: String) -> Self {
-        Self::new(vec![Cow::Owned(s)])
+        Self::single(Cow::Owned(s))
     }
 }
 
 impl From<&'static str> for Classes {
     fn from(s: &'static str) -> Self {
-        Self::new(vec![Cow::Borrowed(s)])
+        Self::single(Cow::Borrowed(s))
     }
 }
 
@@ -361,3 +412,61 @@ pub struct State {
     /// actively being depressed.
     pub active: bool,
 }
+
+#[test]
+fn classes_merge_test() {
+    assert_eq!(
+        Classes::from(vec!["a", "b", "c"]).merge(&Classes::from(vec!["c", "b", "a"])),
+        Classes::from(vec!["a", "b", "c"])
+    );
+    assert_eq!(
+        Classes::from(vec!["a", "c", "d", "e"]).merge(&Classes::from(vec!["b", "d", "f"])),
+        Classes::from(vec!["a", "b", "c", "d", "e", "f"])
+    );
+}
+
+// #[test]
+// fn rule_applies_tests() {
+//     let only_hovered = State {
+//         hovered: true,
+//         ..State::default()
+//     };
+//     let only_focused = State {
+//         focused: true,
+//         ..State::default()
+//     };
+//     let only_active = State {
+//         active: true,
+//         ..State::default()
+//     };
+
+//     assert!(Rule::for_classes("a").when_hovered().applies(&only_hovered));
+//     assert!(!Rule::for_classes("a")
+//         .when_hovered()
+//         .applies(&State::default()));
+//     assert!(Rule::for_classes("a")
+//         .when_not_hovered()
+//         .applies(&State::default()));
+
+//     assert!(Rule::for_classes("a").when_focused().applies(&only_focused));
+//     assert!(!Rule::for_classes("a")
+//         .when_focused()
+//         .applies(&State::default()));
+//     assert!(Rule::for_classes("a")
+//         .when_not_focused()
+//         .applies(&State::default()));
+
+//     assert!(Rule::for_classes("a").when_active().applies(&only_active));
+//     assert!(!Rule::for_classes("a")
+//         .when_active()
+//         .applies(&State::default()));
+//     assert!(Rule::for_classes("a")
+//         .when_not_active()
+//         .applies(&State::default()));
+
+//     assert!(Rule::for_classes("a").applies(&State::default()));
+//     assert!(Rule::for_classes("a")
+//         .when_not_active()
+//         .applies(&State::default()));
+//     assert!(Rule::for_classes("a").applies(&only_hovered));
+// }
