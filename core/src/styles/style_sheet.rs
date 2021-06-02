@@ -314,90 +314,7 @@ impl StyleComponent for Classes {
     where
         Self: Clone,
     {
-        Self(
-            UniqueOrderedMerge::merge(self.0.iter(), other.0.iter())
-                .cloned()
-                .collect(),
-        )
-    }
-}
-
-struct UniqueOrderedMerge<T, I>
-where
-    T: Clone + Ord,
-    I: Iterator<Item = T>,
-{
-    iter1: I,
-    iter2: I,
-    last_iter1: Option<T>,
-    last_iter2: Option<T>,
-    last_value: Option<T>,
-}
-
-impl<T, I> UniqueOrderedMerge<T, I>
-where
-    T: Clone + Ord,
-    I: Iterator<Item = T>,
-{
-    pub fn merge(iter1: I, iter2: I) -> Self {
-        Self {
-            iter1,
-            iter2,
-            last_iter1: None,
-            last_iter2: None,
-            last_value: None,
-        }
-    }
-
-    fn next_item(iter: &mut I, last_value: Option<T>) -> Option<T> {
-        if last_value.is_some() {
-            last_value
-        } else {
-            iter.next()
-        }
-    }
-}
-
-impl<T, I> Iterator for UniqueOrderedMerge<T, I>
-where
-    T: Clone + Ord,
-    I: Iterator<Item = T>,
-{
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let item1 = Self::next_item(&mut self.iter1, self.last_iter1.take());
-        let item2 = Self::next_item(&mut self.iter2, self.last_iter2.take());
-
-        let resulting_value = match (item1, item2) {
-            (Some(item1), Some(item2)) => {
-                match item1.cmp(&item2) {
-                    std::cmp::Ordering::Less => {
-                        self.last_iter2 = Some(item2);
-                        Some(item1)
-                    }
-                    std::cmp::Ordering::Equal => {
-                        // When equal, drop one
-                        Some(item1)
-                    }
-                    std::cmp::Ordering::Greater => {
-                        self.last_iter1 = Some(item1);
-                        Some(item2)
-                    }
-                }
-            }
-            (Some(item), None) | (None, Some(item)) => Some(item),
-            (None, None) => None,
-        };
-
-        if resulting_value.is_some() && self.last_value == resulting_value {
-            // When we produce the same value as the last time, automatically get the next
-            // value.
-            self.next()
-        } else {
-            self.last_value = resulting_value.clone();
-            resulting_value
-        }
+        Self(self.0.union(&other.0).cloned().collect())
     }
 }
 
@@ -470,3 +387,21 @@ fn classes_merge_test() {
 //         .applies(&State::default()));
 //     assert!(Rule::for_classes("a").applies(&only_hovered));
 // }
+
+#[test]
+fn style_merge_test() {
+    let original = Style::default().with(Classes::from("a"));
+    let b_style = Style::default().with(Classes::from("b"));
+
+    let merged = original.merge_with(&b_style, false);
+    assert_eq!(
+        merged.get::<Classes>().expect("no classes"),
+        &Classes::from(vec!["a", "b"])
+    );
+
+    let merged = original.merge_with(&b_style, true);
+    assert_eq!(
+        merged.get::<Classes>().expect("no classes"),
+        &Classes::from(vec!["a"])
+    );
+}
