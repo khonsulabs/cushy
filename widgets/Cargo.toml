@@ -23,11 +23,15 @@ gooey-browser = { path = "../frontends/browser", version = "0.1.0-dev.0", option
 wasm-bindgen = { version = "0.2", optional = true }
 web-sys = { version = "0.3", features = [
     "Document",
+    "CssStyleSheet",
+    "CssRule",
     "Node",
     "HtmlElement",
     "Element",
     "CssStyleDeclaration",
     "HtmlButtonElement",
     "HtmlDivElement",
+    "HtmlStyleElement",
+    "HtmlHeadElement",
 ], optional = true }
 flume = "0.10"

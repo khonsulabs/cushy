@@ -1,9 +1,9 @@
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     renderer::Renderer,
-    Points, Transmogrifier,
+    Points, Transmogrifier, TransmogrifierContext,
 };
-use gooey_rasterizer::{RasterContext, Rasterizer, WidgetRasterizer};
+use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
 
 use crate::container::{Container, ContainerTransmogrifier};
 
@@ -13,12 +13,12 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ContainerTransmogrifier {
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
-    fn render(&self, context: RasterContext<Self, R>) {
-        context.rasterizer.with_transmogrifier(
+    fn render(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {
+        context.frontend.with_transmogrifier(
             context.widget.child.id(),
             |child_transmogrifier, mut child_context| {
                 let render_size = context
-                    .rasterizer
+                    .frontend
                     .renderer()
                     .map(|r| r.size())
                     .unwrap_or_default();
@@ -37,18 +37,18 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
                     size,
                 );
 
-                child_transmogrifier.render_within(&mut child_context, child_rect);
+                child_transmogrifier.render_within(&mut child_context, child_rect, context.style);
             },
         );
     }
 
     fn content_size(
         &self,
-        context: RasterContext<Self, R>,
+        context: TransmogrifierContext<Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         context
-            .rasterizer
+            .frontend
             .with_transmogrifier(
                 context.widget.child.id(),
                 |child_transmogrifier, mut child_context| {

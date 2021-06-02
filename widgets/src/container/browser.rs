@@ -1,44 +1,57 @@
-use gooey_browser::{AnyWidgetWebSysTransmogrifier, WebSys, WebSysTransmogrifier};
-use gooey_core::{euclid::Length, Points, Transmogrifier};
+use gooey_browser::{
+    utils::{window_document, CssBlockBuilder, CssManager, CssRule},
+    WebSys, WebSysTransmogrifier,
+};
+use gooey_core::{euclid::Length, Points, Transmogrifier, TransmogrifierContext};
 use wasm_bindgen::JsCast;
 
-use crate::{
-    container::{Container, ContainerTransmogrifier},
-    window_document,
-};
+use crate::container::{Container, ContainerTransmogrifier};
 
 impl Transmogrifier<WebSys> for ContainerTransmogrifier {
-    type State = u32;
+    type State = Option<Vec<CssRule>>;
     type Widget = Container;
 }
 
 impl WebSysTransmogrifier for ContainerTransmogrifier {
     fn transmogrify(
         &self,
-        _state: &Self::State,
-        widget: &<Self as Transmogrifier<WebSys>>::Widget,
-        gooey: &WebSys,
+        context: TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
-        gooey.ui.with_transmogrifier(
-            widget.child.id(),
-            gooey,
-            |child_transmogrifier, child_state, child_widget| {
-                let container = window_document()
-                    .create_element("div")
-                    .expect("error creating div")
-                    .unchecked_into::<web_sys::HtmlDivElement>();
-                set_element_style(&container, "display", Some("flex"));
-                set_element_style(&container, "align-items", Some("center"));
-                set_element_style(&container, "justify-content", Some("center"));
+        let container = window_document()
+            .create_element("div")
+            .expect("error creating div")
+            .unchecked_into::<web_sys::HtmlDivElement>();
+        let mut css_rules = Vec::new();
+        if let Some(rule) = self.initialize_widget_element(&container, &context) {
+            css_rules.push(rule);
+        }
 
-                set_element_padding(&container, "padding-left", widget.padding.left());
-                set_element_padding(&container, "padding-right", widget.padding.right());
-                set_element_padding(&container, "padding-top", widget.padding.top());
-                set_element_padding(&container, "padding-bottom", widget.padding.bottom());
+        let mut container_css = CssBlockBuilder::for_id(context.registration.id().id)
+            .with_css_statement("display: flex")
+            .with_css_statement("flex: 1")
+            .with_css_statement("align-items: center")
+            .with_css_statement("justify-content: center");
+        container_css =
+            append_padding_rule(container_css, "padding-left", context.widget.padding.left());
+        container_css = append_padding_rule(
+            container_css,
+            "padding-right",
+            context.widget.padding.right(),
+        );
+        container_css =
+            append_padding_rule(container_css, "padding-top", context.widget.padding.top());
+        container_css = append_padding_rule(
+            container_css,
+            "padding-bottom",
+            context.widget.padding.bottom(),
+        );
+        css_rules.push(CssManager::shared().register_rule(&container_css.to_string()));
+        *context.state = Some(css_rules);
 
-                if let Some(child) =
-                    child_transmogrifier.transmogrify(child_state, child_widget, gooey)
-                {
+        context.frontend.with_transmogrifier(
+            context.widget.child.id(),
+            |child_transmogrifier, mut child_context| {
+                if let Some(child) = child_transmogrifier.transmogrify(&mut child_context) {
                     container
                         .append_child(&child)
                         .expect("error appending child");
@@ -49,24 +62,14 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
     }
 }
 
-fn set_element_style(element: &web_sys::HtmlElement, name: &str, value: Option<&str>) {
-    if let Some(value) = value {
-        element.style().set_property(name, value).unwrap();
-    } else {
-        drop(element.style().remove_property(name));
-    }
-}
-
-fn set_element_padding(
-    element: &web_sys::HtmlElement,
+fn append_padding_rule(
+    builder: CssBlockBuilder,
     name: &str,
     dimension: Option<Length<f32, Points>>,
-) {
-    set_element_style(
-        element,
-        name,
-        dimension
-            .map(|length| format!("{}pts", length.get()))
-            .as_deref(),
-    );
+) -> CssBlockBuilder {
+    if let Some(dimension) = dimension {
+        builder.with_css_statement(format!("{}: {}pts", name, dimension.get()))
+    } else {
+        builder
+    }
 }

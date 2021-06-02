@@ -11,8 +11,12 @@ use crate::{
     AnyFrontend, Frontend, WeakWidgetRegistration, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
+mod transmogrifier_context;
+
+pub use transmogrifier_context::{AnyTransmogrifierContext, TransmogrifierContext};
+
 /// A graphical user interface element.
-pub trait Widget: Debug + Send + Sync + 'static {
+pub trait Widget: Debug + Send + Sync + Sized + 'static {
     /// Widgets may need to receive instructions from other entities. This type
     /// is the type other widgets can use to communicate with this widget;
     type Command: Debug + Send + Sync;
@@ -25,12 +29,15 @@ pub trait Widget: Debug + Send + Sync + 'static {
     /// use.
     type TransmogrifierEvent: Debug + Send + Sync;
 
+    /// The unique class name for this widget. Must not conflict with any other
+    /// widgets in use. Widget authors should prefix their widget names to
+    /// ensure no conflicts. For example, the `gooey-widgets` crate prefixes all
+    /// of the `CLASS` constants with `gooey-`.
+    const CLASS: &'static str;
+
     /// Called when an `event` from the transmogrifier was received.
     #[allow(unused_variables)]
-    fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>)
-    where
-        Self: Sized,
-    {
+    fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>) {
         unimplemented!(
             "an event `{:?}` was sent by the transmogrifier but receive_event isn't implemented \
              by {}",
@@ -41,10 +48,7 @@ pub trait Widget: Debug + Send + Sync + 'static {
 
     /// Called when an `event` from the transmogrifier was received.
     #[allow(unused_variables)]
-    fn receive_command(&mut self, command: Self::Command, context: &Context<Self>)
-    where
-        Self: Sized,
-    {
+    fn receive_command(&mut self, command: Self::Command, context: &Context<Self>) {
         unimplemented!(
             "a commmand `{:?}` was sent but receive_command isn't implemented by {}",
             command,
@@ -64,7 +68,7 @@ pub struct WidgetId {
 }
 
 /// Transforms a Widget into whatever is needed for [`Frontend`] `F`.
-pub trait Transmogrifier<F: Frontend>: Debug {
+pub trait Transmogrifier<F: Frontend>: Debug + Sized {
     /// The type of the widget being transmogrified.
     type Widget: Widget;
     /// The type the storage this transmogrifier uses for state.
@@ -85,10 +89,8 @@ pub trait Transmogrifier<F: Frontend>: Debug {
     #[allow(unused_variables)] // Keeps documentation clean
     fn receive_command(
         &self,
-        state: &mut Self::State,
         command: <Self::Widget as Widget>::TransmogrifierCommand,
-        widget: &Self::Widget,
-        frontend: &F,
+        context: &mut TransmogrifierContext<'_, Self, F>,
     ) {
         unimplemented!(
             "widget tried to send a command, but the transmogrifier wasn't expecting one"
@@ -96,32 +98,35 @@ pub trait Transmogrifier<F: Frontend>: Debug {
     }
 
     /// Processes commands and events for this widget and transmogrifier.
-    fn process_messages(
-        &self,
-        state: &mut Self::State,
-        widget: &mut Self::Widget,
-        frontend: &F,
-        channels: &Channels<Self::Widget>,
-    ) {
+    fn process_messages(&self, mut transmogrifier_context: TransmogrifierContext<'_, Self, F>) {
         // The frontend is initiating this call, so we should process events that the
         // Transmogrifier sends first.
-        let context = Context::new(channels, frontend);
+        let context = Context::new(
+            transmogrifier_context.channels,
+            transmogrifier_context.frontend,
+        );
         let mut received_one_message = true;
         while received_one_message {
             received_one_message = false;
-            while let Ok(command) = channels.command_receiver.try_recv() {
+            while let Ok(command) = transmogrifier_context.channels.command_receiver.try_recv() {
                 received_one_message = true;
-                widget.receive_command(command, &context);
+                transmogrifier_context
+                    .widget
+                    .receive_command(command, &context);
             }
 
-            while let Ok(event) = channels.event_receiver.try_recv() {
+            while let Ok(event) = transmogrifier_context.channels.event_receiver.try_recv() {
                 received_one_message = true;
-                widget.receive_event(event, &context);
+                transmogrifier_context.widget.receive_event(event, &context);
             }
 
-            while let Ok(command) = channels.transmogrifier_command_receiver.try_recv() {
+            while let Ok(command) = transmogrifier_context
+                .channels
+                .transmogrifier_command_receiver
+                .try_recv()
+            {
                 received_one_message = true;
-                self.receive_command(state, command, widget, frontend);
+                self.receive_command(command, &mut transmogrifier_context);
             }
         }
     }

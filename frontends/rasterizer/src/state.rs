@@ -5,6 +5,7 @@ use std::{
 
 use gooey_core::{
     euclid::{Point2D, Rect},
+    styles::style_sheet,
     Points, WidgetId,
 };
 use winit::event::MouseButton;
@@ -81,13 +82,45 @@ impl State {
 
     pub fn set_hover(&self, hover: HashSet<WidgetId>) {
         let mut data = self.data.lock().unwrap();
-        data.hover = hover;
+        if data.hover != hover {
+            data.needs_redraw = true;
+            data.hover = hover;
+        }
+    }
+
+    pub fn active(&self) -> Option<WidgetId> {
+        let data = self.data.lock().unwrap();
+        data.active.clone()
+    }
+
+    pub fn set_active(&self, active: Option<WidgetId>) {
+        let mut data = self.data.lock().unwrap();
+        if data.active != active {
+            data.needs_redraw = true;
+            data.active = active;
+        }
+    }
+
+    pub fn focus(&self) -> Option<WidgetId> {
+        let data = self.data.lock().unwrap();
+        data.focus.clone()
+    }
+
+    pub fn set_focus(&self, focus: Option<WidgetId>) {
+        let mut data = self.data.lock().unwrap();
+        if data.focus != focus {
+            data.needs_redraw = true;
+            data.focus = focus;
+        }
     }
 
     pub fn blur(&self) {
         let mut data = self.data.lock().unwrap();
-        data.focus = None;
-        data.active = None;
+        if data.focus.is_some() || data.active.is_some() {
+            data.focus = None;
+            data.active = None;
+            data.needs_redraw = true;
+        }
     }
 
     pub fn register_mouse_handler(&self, button: MouseButton, widget: WidgetId) {
@@ -103,6 +136,15 @@ impl State {
     pub fn mouse_button_handlers(&self) -> HashMap<MouseButton, WidgetId> {
         let data = self.data.lock().unwrap();
         data.mouse_button_handlers.clone()
+    }
+
+    pub fn ui_state_for(&self, widget_id: &WidgetId) -> style_sheet::State {
+        let data = self.data.lock().unwrap();
+        style_sheet::State {
+            hovered: data.hover.contains(widget_id),
+            active: data.active.as_ref() == Some(widget_id),
+            focused: data.focus.as_ref() == Some(widget_id),
+        }
     }
 }
 

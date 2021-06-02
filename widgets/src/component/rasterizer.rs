@@ -1,30 +1,34 @@
-use gooey_core::{euclid::Size2D, renderer::Renderer, Points};
-use gooey_rasterizer::{RasterContext, WidgetRasterizer};
+use gooey_core::{
+    euclid::Size2D, renderer::Renderer, Points, Transmogrifier, TransmogrifierContext, Widget,
+    WidgetRef,
+};
+use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
 
+use super::Component;
 use crate::component::{Behavior, ComponentTransmogrifier};
 
 impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B> {
-    fn render(&self, context: RasterContext<Self, R>) {
-        context.rasterizer.with_transmogrifier(
+    fn render(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {
+        context.frontend.with_transmogrifier(
             context.widget.content.id(),
             |child_transmogrifier, mut child_context| {
                 let bounds = context
-                    .rasterizer
+                    .frontend
                     .renderer()
                     .map(|r| r.bounds())
                     .unwrap_or_default();
-                child_transmogrifier.render_within(&mut child_context, bounds);
+                child_transmogrifier.render_within(&mut child_context, bounds, context.style);
             },
         );
     }
 
     fn content_size(
         &self,
-        context: RasterContext<Self, R>,
+        context: TransmogrifierContext<Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         context
-            .rasterizer
+            .frontend
             .with_transmogrifier(
                 context.widget.content.id(),
                 |child_transmogrifier, mut child_context| {
@@ -40,5 +44,27 @@ impl<B: Behavior, R: Renderer> From<ComponentTransmogrifier<B>>
 {
     fn from(transmogrifier: ComponentTransmogrifier<B>) -> Self {
         Self(std::boxed::Box::new(transmogrifier))
+    }
+}
+
+impl<B: Behavior, R: Renderer> Transmogrifier<Rasterizer<R>> for ComponentTransmogrifier<B> {
+    type State = ();
+    type Widget = Component<B>;
+
+    fn initialize(
+        &self,
+        component: &Self::Widget,
+        widget: &WidgetRef<Self::Widget>,
+        frontend: &Rasterizer<R>,
+    ) -> Self::State {
+        self.initialize_component(component, widget, frontend);
+    }
+
+    fn receive_command(
+        &self,
+        command: <Self::Widget as Widget>::TransmogrifierCommand,
+        context: &mut TransmogrifierContext<Self, Rasterizer<R>>,
+    ) {
+        self.forward_command_to_content(command, context);
     }
 }

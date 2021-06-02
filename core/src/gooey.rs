@@ -9,9 +9,12 @@ use std::{
     },
 };
 
+use stylecs::{Style, StyleComponent};
+
 use crate::{
-    AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyWidget, Channels, Frontend,
-    TransmogrifierState, Widget, WidgetId,
+    styles::style_sheet::{Classes, StyleSheet},
+    AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget,
+    Channels, Frontend, TransmogrifierState, Widget, WidgetId, ROOT_CLASS,
 };
 
 type WidgetTypeId = TypeId;
@@ -28,22 +31,25 @@ struct GooeyData<F: Frontend> {
     root: WidgetRegistration,
     storage: WidgetStorage,
     processing_messages_lock: Mutex<()>,
+    stylesheet: StyleSheet,
 }
 
 impl<F: Frontend> Gooey<F> {
     /// Creates a user interface using `root`.
-    pub fn with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> W>(
+    pub fn with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
         transmogrifiers: Transmogrifiers<F>,
+        stylesheet: StyleSheet,
         initializer: C,
     ) -> Self {
         let storage = WidgetStorage::default();
-        let root = initializer(&storage);
+        let root = initializer(&storage).with(Classes::from(ROOT_CLASS));
         let root = storage.register(root);
         Self {
             data: Arc::new(GooeyData {
                 transmogrifiers,
                 root,
                 storage,
+                stylesheet,
                 processing_messages_lock: Mutex::default(),
             }),
         }
@@ -55,32 +61,50 @@ impl<F: Frontend> Gooey<F> {
         &self.data.root
     }
 
+    /// Returns the transmogrifier fo the type id
+    #[must_use]
+    pub fn transmogrifier_for_type_id(
+        &self,
+        widget_type_id: TypeId,
+    ) -> Option<&'_ <F as Frontend>::AnyTransmogrifier> {
+        self.data.transmogrifiers.map.get(&widget_type_id)
+    }
+
     /// Executes `callback` with the transmogrifier and transmogrifier state as
     /// parameters.
     #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
     pub fn with_transmogrifier<
         R,
-        C: FnOnce(
-            &'_ <F as Frontend>::AnyTransmogrifier,
-            &mut dyn AnySendSync,
-            &mut dyn AnyWidget,
-        ) -> R,
+        C: FnOnce(&'_ <F as Frontend>::AnyTransmogrifier, AnyTransmogrifierContext<'_, F>) -> R,
     >(
         &self,
-        widget: &WidgetId,
+        widget_id: &WidgetId,
         frontend: &F,
         callback: C,
     ) -> Option<R> {
         self.data
             .transmogrifiers
             .map
-            .get(&widget.type_id)
+            .get(&widget_id.type_id)
             .and_then(|transmogrifier| {
-                let state = self
-                    .widget_state(widget.id)
+                let widget_state = self
+                    .widget_state(widget_id.id)
                     .expect("Missing widget state for root");
-                state.with_state(transmogrifier, frontend, |state, widget| {
-                    callback(transmogrifier, state, widget)
+                widget_state.with_state(transmogrifier, frontend, |state, widget| {
+                    let style = widget_state.style.lock().unwrap();
+                    let channels = widget_state.channels.as_ref().as_ref();
+                    callback(
+                        transmogrifier,
+                        AnyTransmogrifierContext::new(
+                            widget_state.id.upgrade().unwrap(),
+                            state,
+                            frontend,
+                            widget,
+                            channels,
+                            &style,
+                            &frontend.ui_state_for(widget_id),
+                        ),
+                    )
                 })
             })
     }
@@ -140,14 +164,8 @@ impl<F: Frontend> Gooey<F> {
             };
 
             for widget_id in widgets_with_messages {
-                self.with_transmogrifier(&widget_id, frontend, |transmogrifier, state, widget| {
-                    let widget_state = self.data.storage.widget_state(widget_id.id).unwrap();
-                    transmogrifier.process_messages(
-                        state,
-                        widget,
-                        widget_state.channels.as_ref().as_ref(),
-                        frontend,
-                    );
+                self.with_transmogrifier(&widget_id, frontend, |transmogrifier, context| {
+                    transmogrifier.process_messages(context);
                 });
             }
         }
@@ -183,6 +201,12 @@ impl<F: Frontend> Gooey<F> {
 
         // Process any messages that may have been triggered onto other widgets.
         frontend.process_widget_messages();
+    }
+
+    /// Returns the root widget.
+    #[must_use]
+    pub fn stylesheet(&self) -> &StyleSheet {
+        &self.data.stylesheet
     }
 }
 
@@ -252,8 +276,11 @@ impl WidgetStorage {
     /// Register a widget with storage.
     #[must_use]
     #[allow(clippy::missing_panics_doc)] // The unwrap is unreachable
-    pub fn register<W: Widget + AnyWidget>(&self, widget: W) -> WidgetRegistration {
-        let mut widget = Some(widget);
+    pub fn register<W: Widget + AnyWidget>(
+        &self,
+        styled_widget: StyledWidget<W>,
+    ) -> WidgetRegistration {
+        let mut styled_widget = Some(styled_widget);
         loop {
             let next_id = self.data.widget_id_generator.fetch_add(1, Ordering::AcqRel);
             // Insert None if the slot is free, which is most likely the case.
@@ -263,7 +290,7 @@ impl WidgetStorage {
             let mut state = self.data.state.write().unwrap();
             state.entry(next_id).or_insert_with(|| {
                 let reg = WidgetRegistration::new::<W>(next_id, self);
-                let state = WidgetState::new(widget.take().unwrap(), &reg);
+                let state = WidgetState::new(styled_widget.take().unwrap(), &reg);
                 widget_registration = Some(reg);
                 state
             });
@@ -323,6 +350,35 @@ impl WidgetStorage {
     }
 }
 
+/// A widget and its initial style information.
+#[derive(Debug)]
+pub struct StyledWidget<W: Widget> {
+    /// The widget.
+    pub widget: W,
+    /// The style information.
+    pub style: Style,
+}
+
+impl<W: Widget> StyledWidget<W> {
+    /// Returns a new instance.
+    #[must_use]
+    pub fn new(widget: W, style: Style) -> Self {
+        Self { widget, style }
+    }
+
+    /// Returns a new instance with a default [`Style`].
+    #[must_use]
+    pub fn default_for(widget: W) -> Self {
+        Self::new(widget, Style::default())
+    }
+
+    /// Adds `component` to `style` and returns self.
+    pub fn with<C: StyleComponent + Clone>(mut self, component: C) -> Self {
+        self.style.push(component);
+        self
+    }
+}
+
 /// Generic, clone-able storage for a widget's transmogrifier.
 #[derive(Clone, Debug)]
 pub struct WidgetState {
@@ -335,15 +391,22 @@ pub struct WidgetState {
 
     /// The channels to communicate with the widget.
     pub channels: Arc<Box<dyn AnyChannels>>,
+
+    /// The widget's style.
+    pub style: Arc<Mutex<Style>>,
 }
 
 impl WidgetState {
     /// Initializes a new widget state with `widget`, `id`, and `None` for the
     /// transmogrifier state.
-    pub fn new<W: Widget + AnyWidget>(widget: W, id: &WidgetRegistration) -> Self {
+    pub fn new<W: Widget + AnyWidget>(
+        styled_widget: StyledWidget<W>,
+        id: &WidgetRegistration,
+    ) -> Self {
         Self {
             id: WeakWidgetRegistration::from(id),
-            widget: Arc::new(Mutex::new(Box::new(widget))),
+            widget: Arc::new(Mutex::new(Box::new(styled_widget.widget))),
+            style: Arc::new(Mutex::new(styled_widget.style)),
             state: Arc::default(),
             channels: Arc::new(Box::new(Channels::<W>::new(id))),
         }

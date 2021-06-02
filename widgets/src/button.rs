@@ -1,4 +1,7 @@
-use gooey_core::{Callback, Context, Widget};
+use gooey_core::{
+    styles::{BackgroundColor, ColorPair, FallbackComponent, StyleComponent},
+    Callback, Context, StyledWidget, Widget,
+};
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;
@@ -10,6 +13,15 @@ mod browser;
 pub struct Button {
     pub label: String,
     pub clicked: Callback,
+}
+
+impl Button {
+    pub fn new<S: ToString>(label: S, clicked: Callback) -> StyledWidget<Self> {
+        StyledWidget::default_for(Self {
+            label: label.to_string(),
+            clicked,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -26,6 +38,8 @@ impl Widget for Button {
     type Command = ButtonCommand;
     type TransmogrifierCommand = ButtonCommand;
     type TransmogrifierEvent = InternalButtonEvent;
+
+    const CLASS: &'static str = "gooey-button";
 
     fn receive_event(
         &mut self,
@@ -51,3 +65,23 @@ impl Widget for Button {
 
 #[derive(Debug)]
 pub struct ButtonTransmogrifier;
+
+/// The button's background color.
+#[derive(Debug, Clone)]
+pub struct ButtonColor(pub ColorPair);
+impl StyleComponent for ButtonColor {}
+
+impl From<ButtonColor> for ColorPair {
+    fn from(color: ButtonColor) -> Self {
+        color.0
+    }
+}
+
+impl FallbackComponent for ButtonColor {
+    type Fallback = BackgroundColor;
+    type Value = ColorPair;
+
+    fn value(&self) -> Option<&ColorPair> {
+        Some(&self.0)
+    }
+}

@@ -7,6 +7,7 @@ use gooey::{
     },
     App,
 };
+use gooey_core::StyledWidget;
 
 fn main() {
     App::default()
@@ -24,11 +25,14 @@ impl Behavior for Counter {
     type Event = CounterEvent;
     type Widgets = CounterWidgets;
 
-    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> Container {
-        Container::from(builder.register_widget(CounterWidgets::Button, Button {
-            label: String::from("Click Me!"),
-            clicked: builder.map_event(|_| CounterEvent::ButtonClicked),
-        }))
+    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Container> {
+        Container::from_registration(builder.register_widget(
+            CounterWidgets::Button,
+            Button::new(
+                "Click Me!",
+                builder.map_event(|_| CounterEvent::ButtonClicked),
+            ),
+        ))
     }
 
     fn receive_event(

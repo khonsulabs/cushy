@@ -1,6 +1,6 @@
 use gooey_core::{
-    euclid::Length, styles::Surround, Frontend, Points, Widget, WidgetRef, WidgetRegistration,
-    WidgetStorage,
+    euclid::Length, styles::Surround, Frontend, Points, StyledWidget, Widget, WidgetRef,
+    WidgetRegistration, WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -16,8 +16,15 @@ pub struct Container {
 }
 
 impl Container {
-    pub fn new<W: Widget>(child: W, storage: &WidgetStorage) -> Self {
-        Self::from(storage.register(child))
+    pub fn new<W: Widget>(child: StyledWidget<W>, storage: &WidgetStorage) -> StyledWidget<Self> {
+        Self::from_registration(storage.register(child))
+    }
+
+    pub fn from_registration(child: WidgetRegistration) -> StyledWidget<Self> {
+        StyledWidget::default_for(Self {
+            child,
+            padding: Surround::default(),
+        })
     }
 
     pub fn pad_left<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
@@ -45,19 +52,12 @@ impl Container {
     }
 }
 
-impl From<WidgetRegistration> for Container {
-    fn from(child: WidgetRegistration) -> Self {
-        Self {
-            child,
-            padding: Surround::default(),
-        }
-    }
-}
-
 impl Widget for Container {
     type Command = ();
     type TransmogrifierCommand = ();
     type TransmogrifierEvent = ();
+
+    const CLASS: &'static str = "gooey-container";
 }
 
 #[derive(Debug)]

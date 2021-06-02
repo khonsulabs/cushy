@@ -3,13 +3,16 @@ use std::{collections::HashSet, sync::Arc};
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
     euclid::{Point2D, Rect},
-    Gooey, Points, WidgetId,
+    styles::{
+        style_sheet::{self},
+        Style,
+    },
+    AnyTransmogrifierContext, Gooey, Points, WidgetId,
 };
 use winit::event::{
     ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
 };
 
-mod context;
 pub mod events;
 mod state;
 mod transmogrifier;
@@ -19,7 +22,7 @@ pub use gooey_core::renderer::Renderer;
 use state::State;
 pub use winit;
 
-pub use self::{context::*, transmogrifier::*};
+pub use self::transmogrifier::*;
 
 #[derive(Debug)]
 pub struct Rasterizer<R: Renderer> {
@@ -48,6 +51,10 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
     fn gooey(&self) -> &'_ Gooey<Self> {
         &self.ui
     }
+
+    fn ui_state_for(&self, widget_id: &WidgetId) -> style_sheet::State {
+        self.state.ui_state_for(widget_id)
+    }
 }
 
 impl<R: Renderer> Rasterizer<R> {
@@ -69,7 +76,11 @@ impl<R: Renderer> Rasterizer<R> {
             renderer: Some(scene),
         }
         .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
-            transmogrifier.render_within(&mut context, Rect::new(Point2D::default(), size));
+            transmogrifier.render_within(
+                &mut context,
+                Rect::new(Point2D::default(), size),
+                &Style::default(),
+            );
         });
     }
 
@@ -258,24 +269,18 @@ impl<R: Renderer> Rasterizer<R> {
     #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
     pub fn with_transmogrifier<
         TResult,
-        C: FnOnce(&'_ dyn AnyWidgetRasterizer<R>, AnyRasterContext<'_, R>) -> TResult,
+        C: FnOnce(
+            &'_ dyn AnyWidgetRasterizer<R>,
+            AnyTransmogrifierContext<'_, Rasterizer<R>>,
+        ) -> TResult,
     >(
         &self,
         widget_id: &WidgetId,
         callback: C,
     ) -> Option<TResult> {
         self.ui
-            .with_transmogrifier(widget_id, self, |transmogrifier, state, widget| {
-                let widget_state = self.ui.widget_state(widget_id.id).unwrap();
-                callback(
-                    transmogrifier.as_ref(),
-                    AnyRasterContext::new(
-                        widget_state.registration().unwrap(),
-                        state,
-                        self,
-                        widget,
-                    ),
-                )
+            .with_transmogrifier(widget_id, self, |transmogrifier, context| {
+                callback(transmogrifier.as_ref(), context)
             })
     }
 
@@ -285,6 +290,26 @@ impl<R: Renderer> Rasterizer<R> {
 
     pub fn needs_redraw(&self) -> bool {
         self.state.needs_redraw()
+    }
+
+    pub fn activate(&self, widget: &WidgetId) {
+        self.state.set_active(Some(widget.clone()));
+    }
+
+    pub fn active_widget(&self) -> Option<WidgetId> {
+        self.state.active()
+    }
+
+    pub fn focused_widget(&self) -> Option<WidgetId> {
+        self.state.focus()
+    }
+
+    pub fn focus_on(&self, widget: &WidgetId) {
+        self.state.set_focus(Some(widget.clone()));
+    }
+
+    pub fn blur(&self) {
+        self.state.blur();
     }
 }
 
