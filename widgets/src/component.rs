@@ -87,7 +87,6 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
     type Event: Debug + Send + Sync;
     type Content: Widget;
     type Widgets: Hash + Eq + Debug + Send + Sync;
-    const CLASS: &'static str;
 
     fn create_content(
         &mut self,
@@ -106,7 +105,7 @@ impl<B: Behavior> Widget for Component<B> {
     type TransmogrifierCommand = <B::Content as Widget>::Command;
     type TransmogrifierEvent = InternalEvent<B>;
 
-    const CLASS: &'static str = B::CLASS;
+    const CLASS: &'static str = "gooey-component";
 
     fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>) {
         match event {
