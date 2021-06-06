@@ -4,26 +4,27 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 enum Args {
-    BuildBrowserExample,
+    BuildBrowserExample { name: Option<String> },
     GenerateCodeCoverageReport,
 }
 
 fn main() -> anyhow::Result<()> {
     let args = Args::from_args();
     match args {
-        Args::BuildBrowserExample => build_browser_example()?,
+        Args::BuildBrowserExample { name } =>
+            build_browser_example(name.unwrap_or_else(|| String::from("basic")))?,
         Args::GenerateCodeCoverageReport => CodeCoverage::<CodeCoverageConfig>::execute()?,
     };
     Ok(())
 }
 
-fn build_browser_example() -> Result<(), devx_cmd::Error> {
+fn build_browser_example(name: String) -> Result<(), devx_cmd::Error> {
     println!("Executing cargo build");
     run!(
         "cargo",
         "build",
         "--example",
-        "basic",
+        &name,
         "--no-default-features",
         "--features",
         "frontend-browser",
@@ -34,7 +35,7 @@ fn build_browser_example() -> Result<(), devx_cmd::Error> {
     println!("Executing wasm-bindgen (cargo install wasm-bindgen if you don't have this)");
     run!(
         "wasm-bindgen",
-        "target/wasm32-unknown-unknown/debug/examples/basic.wasm",
+        format!("target/wasm32-unknown-unknown/debug/examples/{}.wasm", name),
         "--target",
         "web",
         "--out-dir",
@@ -43,8 +44,9 @@ fn build_browser_example() -> Result<(), devx_cmd::Error> {
     )?;
 
     println!(
-        "Build succeeded. ./examples/browser/index.html can be loaded through any http server \
-         that supports wasm."
+        "Build succeeded. ./examples/browser/index.html?{} can be loaded through any http server \
+         that supports wasm.",
+        name
     );
     println!();
     println!("For example, using `miniserve` (`cargo install miniserve`):");

@@ -91,6 +91,13 @@ impl CssBlockBuilder {
         }
     }
 
+    pub fn for_css_selector<S: ToString>(selector: S) -> Self {
+        Self {
+            selector: selector.to_string(),
+            statements: Vec::default(),
+        }
+    }
+
     pub fn for_classes(classes: &Classes) -> Self {
         Self {
             selector: format!(".{}", classes.to_vec().join(".")),

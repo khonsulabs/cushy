@@ -22,13 +22,21 @@ impl WebSys {
     pub fn new(ui: Gooey<Self>) -> Self {
         wasm_logger::init(wasm_logger::Config::default());
         let manager = CssManager::shared();
-        let mut styles = vec![manager.register_rule(
-            &CssBlockBuilder::for_id(ui.root_widget().id().id)
-                .with_css_statement("width: 100%")
-                .with_css_statement("height: 100%")
-                .with_css_statement("display: flex")
-                .to_string(),
-        )];
+        let mut styles = vec![
+            manager.register_rule(
+                &CssBlockBuilder::for_id(ui.root_widget().id().id)
+                    .with_css_statement("width: 100%")
+                    .with_css_statement("height: 100%")
+                    .with_css_statement("display: flex")
+                    .to_string(),
+            ),
+            manager.register_rule(
+                &CssBlockBuilder::for_css_selector("#gooey")
+                    .with_css_statement("margin: 0")
+                    .with_css_statement("padding: 0")
+                    .to_string(),
+            ),
+        ];
 
         for rule in ui
             .stylesheet()
@@ -157,7 +165,6 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         if css.is_empty() {
             None
         } else {
-            log::info!("Installing CSS rule: {}", css.to_string());
             Some(CssManager::shared().register_rule(&css.to_string()))
         }
     }

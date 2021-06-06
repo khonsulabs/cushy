@@ -8,7 +8,7 @@ use wasm_bindgen::JsCast;
 use crate::container::{Container, ContainerTransmogrifier};
 
 impl Transmogrifier<WebSys> for ContainerTransmogrifier {
-    type State = Option<Vec<CssRule>>;
+    type State = Vec<CssRule>;
     type Widget = Container;
 }
 
@@ -32,21 +32,18 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
             .with_css_statement("align-items: center")
             .with_css_statement("justify-content: center");
         container_css =
-            append_padding_rule(container_css, "padding-left", context.widget.padding.left());
-        container_css = append_padding_rule(
-            container_css,
-            "padding-right",
-            context.widget.padding.right(),
-        );
+            append_padding_rule(container_css, "padding-left", context.widget.padding.left);
         container_css =
-            append_padding_rule(container_css, "padding-top", context.widget.padding.top());
+            append_padding_rule(container_css, "padding-right", context.widget.padding.right);
+        container_css =
+            append_padding_rule(container_css, "padding-top", context.widget.padding.top);
         container_css = append_padding_rule(
             container_css,
             "padding-bottom",
-            context.widget.padding.bottom(),
+            context.widget.padding.bottom,
         );
         css_rules.push(CssManager::shared().register_rule(&container_css.to_string()));
-        *context.state = Some(css_rules);
+        *context.state = css_rules;
 
         context.frontend.with_transmogrifier(
             context.widget.child.id(),
@@ -68,7 +65,7 @@ fn append_padding_rule(
     dimension: Option<Length<f32, Points>>,
 ) -> CssBlockBuilder {
     if let Some(dimension) = dimension {
-        builder.with_css_statement(format!("{}: {}pts", name, dimension.get()))
+        builder.with_css_statement(format!("{}: {}pt", name, dimension.get()))
     } else {
         builder
     }
