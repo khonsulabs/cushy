@@ -165,7 +165,6 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         if css.is_empty() {
             None
         } else {
-            log::info!("Installing CSS rule: {}", css.to_string());
             Some(CssManager::shared().register_rule(&css.to_string()))
         }
     }

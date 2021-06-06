@@ -28,22 +28,22 @@ impl Container {
     }
 
     pub fn pad_left<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-        self.padding.left = Some(padding.into().get());
+        self.padding.left = Some(padding.into());
         self
     }
 
     pub fn pad_right<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-        self.padding.right = Some(padding.into().get());
+        self.padding.right = Some(padding.into());
         self
     }
 
     pub fn pad_top<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-        self.padding.top = Some(padding.into().get());
+        self.padding.top = Some(padding.into());
         self
     }
 
     pub fn pad_bottom<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-        self.padding.bottom = Some(padding.into().get());
+        self.padding.bottom = Some(padding.into());
         self
     }
 

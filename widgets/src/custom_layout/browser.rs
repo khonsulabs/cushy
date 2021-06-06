@@ -44,17 +44,17 @@ impl WebSysTransmogrifier for CustomLayoutTransmogrifier {
                 layout_child.registration.id(),
                 |child_transmogrifier, mut child_context| {
                     if let Some(child) = child_transmogrifier.transmogrify(&mut child_context) {
-                        context.state.insert(
-                            Some(layout_child.registration.id().id),
-                            vec![css_manager.register_rule(
-                                &apply_layout_rules(
-                                    &layout_child.layout,
-                                    CssBlockBuilder::for_id(layout_child.registration.id().id)
-                                        .with_css_statement("position: absolute"),
-                                )
-                                .to_string(),
-                            )],
-                        );
+                        context
+                            .state
+                            .insert(Some(layout_child.registration.id().id), vec![css_manager
+                                .register_rule(
+                                    &apply_layout_rules(
+                                        &layout_child.layout,
+                                        CssBlockBuilder::for_id(layout_child.registration.id().id)
+                                            .with_css_statement("position: absolute"),
+                                    )
+                                    .to_string(),
+                                )]);
                         container
                             .append_child(&child)
                             .expect("error appending child");

@@ -32,18 +32,15 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
             .with_css_statement("align-items: center")
             .with_css_statement("justify-content: center");
         container_css =
-            append_padding_rule(container_css, "padding-left", context.widget.padding.left());
-        container_css = append_padding_rule(
-            container_css,
-            "padding-right",
-            context.widget.padding.right(),
-        );
+            append_padding_rule(container_css, "padding-left", context.widget.padding.left);
         container_css =
-            append_padding_rule(container_css, "padding-top", context.widget.padding.top());
+            append_padding_rule(container_css, "padding-right", context.widget.padding.right);
+        container_css =
+            append_padding_rule(container_css, "padding-top", context.widget.padding.top);
         container_css = append_padding_rule(
             container_css,
             "padding-bottom",
-            context.widget.padding.bottom(),
+            context.widget.padding.bottom,
         );
         css_rules.push(CssManager::shared().register_rule(&container_css.to_string()));
         *context.state = css_rules;

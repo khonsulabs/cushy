@@ -1,7 +1,9 @@
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use gooey_core::{
-    euclid::Length, AnySendSync, Points, StyledWidget, Widget, WidgetRegistration, WidgetStorage,
+    euclid::{Length, Size2D},
+    styles::Surround,
+    AnySendSync, Points, StyledWidget, Widget, WidgetRegistration, WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -63,13 +65,10 @@ impl<K: LayoutKey> Builder<K> {
         registration: WidgetRegistration,
         layout: Layout,
     ) -> Self {
-        self.children.insert(
-            key,
-            LayoutChild {
-                registration,
-                layout,
-            },
-        );
+        self.children.insert(key, LayoutChild {
+            registration,
+            layout,
+        });
         self
     }
 
@@ -124,6 +123,59 @@ impl Layout {
         self.height = height.into();
         self
     }
+
+    pub fn left_in_points(
+        &self,
+        content_size: &Size2D<f32, Points>,
+    ) -> Option<Length<f32, Points>> {
+        self.left.length(Length::new(content_size.width))
+    }
+
+    pub fn right_in_points(
+        &self,
+        content_size: &Size2D<f32, Points>,
+    ) -> Option<Length<f32, Points>> {
+        self.right.length(Length::new(content_size.width))
+    }
+
+    pub fn top_in_points(&self, content_size: &Size2D<f32, Points>) -> Option<Length<f32, Points>> {
+        self.top.length(Length::new(content_size.height))
+    }
+
+    pub fn bottom_in_points(
+        &self,
+        content_size: &Size2D<f32, Points>,
+    ) -> Option<Length<f32, Points>> {
+        self.bottom.length(Length::new(content_size.height))
+    }
+
+    pub fn width_in_points(&self, content_size: &Size2D<f32, Points>) -> Length<f32, Points> {
+        self.width
+            .length(Length::new(content_size.width))
+            .unwrap_or_default()
+    }
+
+    pub fn height_in_points(&self, content_size: &Size2D<f32, Points>) -> Length<f32, Points> {
+        self.height
+            .length(Length::new(content_size.height))
+            .unwrap_or_default()
+    }
+
+    pub fn surround_in_points(&self, content_size: &Size2D<f32, Points>) -> Surround<Points> {
+        Surround {
+            left: self.left_in_points(content_size),
+            top: self.top_in_points(content_size),
+            right: self.right_in_points(content_size),
+            bottom: self.bottom_in_points(content_size),
+        }
+    }
+
+    pub fn size_in_points(&self, content_size: &Size2D<f32, Points>) -> Size2D<f32, Points> {
+        Size2D::from_lengths(
+            self.width_in_points(content_size),
+            self.height_in_points(content_size),
+        )
+    }
 }
 
 pub trait LayoutChildren: AnySendSync {
@@ -155,5 +207,15 @@ pub enum Dimension {
 impl Default for Dimension {
     fn default() -> Self {
         Dimension::Auto
+    }
+}
+
+impl Dimension {
+    pub fn length(self, content_length: Length<f32, Points>) -> Option<Length<f32, Points>> {
+        match self {
+            Dimension::Auto => None,
+            Dimension::Exact(measurement) => Some(measurement),
+            Dimension::Percent(percent) => Some(content_length * percent),
+        }
     }
 }
