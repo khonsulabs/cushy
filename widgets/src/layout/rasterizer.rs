@@ -6,14 +6,14 @@ use gooey_core::{
 use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
 
 use super::LayoutChild;
-use crate::custom_layout::{CustomLayout, CustomLayoutTransmogrifier};
+use crate::layout::{Layout, LayoutTransmogrifier};
 
-impl<R: Renderer> Transmogrifier<Rasterizer<R>> for CustomLayoutTransmogrifier {
+impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LayoutTransmogrifier {
     type State = ();
-    type Widget = CustomLayout;
+    type Widget = Layout;
 }
 
-impl<R: Renderer> WidgetRasterizer<R> for CustomLayoutTransmogrifier {
+impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
     fn render(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {
         let context_size = context.frontend.renderer().unwrap().size();
         for_each_measured_widget(&context, context_size, |layout, child_bounds| {
@@ -45,7 +45,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CustomLayoutTransmogrifier {
 }
 
 fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, Rect<f32, Points>)>(
-    context: &TransmogrifierContext<CustomLayoutTransmogrifier, Rasterizer<R>>,
+    context: &TransmogrifierContext<LayoutTransmogrifier, Rasterizer<R>>,
     constraints: Size2D<f32, Points>,
     mut callback: F,
 ) {

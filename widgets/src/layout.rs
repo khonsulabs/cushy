@@ -13,18 +13,18 @@ mod rasterizer;
 mod browser;
 
 #[derive(Debug)]
-pub struct CustomLayout {
+pub struct Layout {
     children: Box<dyn LayoutChildren>,
 }
 
-impl CustomLayout {
+impl Layout {
     #[must_use]
     pub fn build<K: LayoutKey>(storage: &WidgetStorage) -> Builder<K> {
         Builder::new(storage)
     }
 }
 
-impl Widget for CustomLayout {
+impl Widget for Layout {
     type Command = ();
     type TransmogrifierCommand = ();
     type TransmogrifierEvent = ();
@@ -43,7 +43,7 @@ type ChildrenMap<K> = HashMap<K, LayoutChild>;
 #[derive(Clone, Debug)]
 pub struct LayoutChild {
     pub registration: WidgetRegistration,
-    pub layout: Layout,
+    pub layout: WidgetLayout,
 }
 
 impl<K: LayoutKey> Builder<K> {
@@ -54,7 +54,7 @@ impl<K: LayoutKey> Builder<K> {
         }
     }
 
-    pub fn with<W: Widget>(self, key: K, widget: StyledWidget<W>, layout: Layout) -> Self {
+    pub fn with<W: Widget>(self, key: K, widget: StyledWidget<W>, layout: WidgetLayout) -> Self {
         let widget = self.storage.register(widget);
         self.with_registration(key, widget, layout)
     }
@@ -63,7 +63,7 @@ impl<K: LayoutKey> Builder<K> {
         mut self,
         key: K,
         registration: WidgetRegistration,
-        layout: Layout,
+        layout: WidgetLayout,
     ) -> Self {
         self.children.insert(key, LayoutChild {
             registration,
@@ -72,8 +72,8 @@ impl<K: LayoutKey> Builder<K> {
         self
     }
 
-    pub fn finish(self) -> StyledWidget<CustomLayout> {
-        StyledWidget::default_for(CustomLayout {
+    pub fn finish(self) -> StyledWidget<Layout> {
+        StyledWidget::default_for(Layout {
             children: Box::new(self.children),
         })
     }
@@ -84,7 +84,7 @@ pub trait LayoutKey: Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
 impl<T> LayoutKey for T where T: Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
 
 #[derive(Clone, Debug, Default)]
-pub struct Layout {
+pub struct WidgetLayout {
     pub left: Dimension,
     pub top: Dimension,
     pub right: Dimension,
@@ -93,7 +93,7 @@ pub struct Layout {
     pub height: Dimension,
 }
 
-impl Layout {
+impl WidgetLayout {
     pub fn with_left<D: Into<Dimension>>(mut self, left: D) -> Self {
         self.left = left.into();
         self
@@ -183,7 +183,7 @@ pub trait LayoutChildren: AnySendSync {
 }
 
 #[derive(Debug)]
-pub struct CustomLayoutTransmogrifier;
+pub struct LayoutTransmogrifier;
 
 impl<K: LayoutKey> LayoutChildren for ChildrenMap<K> {
     fn layout_children(&self) -> Vec<LayoutChild> {
@@ -191,7 +191,7 @@ impl<K: LayoutKey> LayoutChildren for ChildrenMap<K> {
     }
 }
 
-impl LayoutChildren for CustomLayout {
+impl LayoutChildren for Layout {
     fn layout_children(&self) -> Vec<LayoutChild> {
         self.children.layout_children()
     }

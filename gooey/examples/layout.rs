@@ -3,12 +3,12 @@ use gooey::{
     widgets::{
         button::{Button, ButtonCommand},
         component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
-        custom_layout::{CustomLayout, Dimension},
+        layout::{Dimension, Layout},
     },
     App,
 };
 use gooey_core::{euclid::Length, Callback, StyledWidget};
-use gooey_widgets::custom_layout::Layout;
+use gooey_widgets::layout::WidgetLayout;
 
 fn main() {
     App::default()
@@ -22,15 +22,12 @@ struct Counter {
 }
 
 impl Behavior for Counter {
-    type Content = CustomLayout;
+    type Content = Layout;
     type Event = CounterEvent;
     type Widgets = CounterWidgets;
 
-    fn create_content(
-        &mut self,
-        builder: &mut ComponentBuilder<Self>,
-    ) -> StyledWidget<CustomLayout> {
-        CustomLayout::build(builder)
+    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Layout> {
+        Layout::build(builder)
             .with_registration(
                 CounterWidgets::ClickyButton,
                 builder.register_widget(
@@ -40,7 +37,7 @@ impl Behavior for Counter {
                         builder.map_event(|_| CounterEvent::ButtonClicked),
                     ),
                 ),
-                Layout::default()
+                WidgetLayout::default()
                     .with_left(Dimension::Exact(Length::new(0.)))
                     .with_top(Dimension::Percent(0.4))
                     .with_height(Dimension::Percent(0.2))
@@ -52,7 +49,7 @@ impl Behavior for Counter {
                     CounterWidgets::LabelButton,
                     Button::new("0", Callback::default()),
                 ),
-                Layout::default()
+                WidgetLayout::default()
                     .with_right(Dimension::Exact(Length::new(0.)))
                     .with_top(Dimension::Percent(0.4))
                     .with_height(Dimension::Percent(0.2))

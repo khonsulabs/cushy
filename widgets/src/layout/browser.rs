@@ -7,16 +7,14 @@ use gooey_browser::{
 use gooey_core::{Transmogrifier, TransmogrifierContext};
 use wasm_bindgen::JsCast;
 
-use crate::custom_layout::{
-    CustomLayout, CustomLayoutTransmogrifier, Dimension, Layout, LayoutChildren,
-};
+use crate::layout::{Dimension, Layout, LayoutChildren, LayoutTransmogrifier, WidgetLayout};
 
-impl Transmogrifier<WebSys> for CustomLayoutTransmogrifier {
+impl Transmogrifier<WebSys> for LayoutTransmogrifier {
     type State = HashMap<Option<u32>, Vec<CssRule>>;
-    type Widget = CustomLayout;
+    type Widget = Layout;
 }
 
-impl WebSysTransmogrifier for CustomLayoutTransmogrifier {
+impl WebSysTransmogrifier for LayoutTransmogrifier {
     fn transmogrify(
         &self,
         context: TransmogrifierContext<'_, Self, WebSys>,
@@ -66,7 +64,7 @@ impl WebSysTransmogrifier for CustomLayoutTransmogrifier {
     }
 }
 
-fn apply_layout_rules(layout: &Layout, mut css: CssBlockBuilder) -> CssBlockBuilder {
+fn apply_layout_rules(layout: &WidgetLayout, mut css: CssBlockBuilder) -> CssBlockBuilder {
     css = apply_dimension("left", &layout.left, css);
     css = apply_dimension("right", &layout.right, css);
     css = apply_dimension("top", &layout.top, css);

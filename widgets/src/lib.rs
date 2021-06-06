@@ -1,7 +1,7 @@
 pub mod button;
 pub mod component;
 pub mod container;
-pub mod custom_layout;
+pub mod layout;
 
 #[cfg(feature = "frontend-rasterizer")]
 pub mod rasterized {
@@ -10,7 +10,7 @@ pub mod rasterized {
 
     use crate::{
         button::ButtonTransmogrifier, container::ContainerTransmogrifier,
-        custom_layout::CustomLayoutTransmogrifier,
+        layout::LayoutTransmogrifier,
     };
 
     pub fn register_transmogrifiers<R: Renderer>(
@@ -18,7 +18,7 @@ pub mod rasterized {
     ) {
         drop(transmogrifiers.register_transmogrifier(ButtonTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(ContainerTransmogrifier));
-        drop(transmogrifiers.register_transmogrifier(CustomLayoutTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(LayoutTransmogrifier));
     }
 
     pub fn default_transmogrifiers<R: Renderer>() -> Transmogrifiers<Rasterizer<R>> {
@@ -29,7 +29,7 @@ pub mod rasterized {
 
     make_rasterized!(ButtonTransmogrifier);
     make_rasterized!(ContainerTransmogrifier);
-    make_rasterized!(CustomLayoutTransmogrifier);
+    make_rasterized!(LayoutTransmogrifier);
 }
 
 #[cfg(feature = "frontend-browser")]
@@ -39,13 +39,13 @@ pub mod browser {
 
     use crate::{
         button::ButtonTransmogrifier, container::ContainerTransmogrifier,
-        custom_layout::CustomLayoutTransmogrifier,
+        layout::LayoutTransmogrifier,
     };
 
     pub fn register_transmogrifiers(transmogrifiers: &mut Transmogrifiers<WebSys>) {
         drop(transmogrifiers.register_transmogrifier(ButtonTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(ContainerTransmogrifier));
-        drop(transmogrifiers.register_transmogrifier(CustomLayoutTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(LayoutTransmogrifier));
     }
 
     pub fn default_transmogrifiers() -> Transmogrifiers<WebSys> {
@@ -56,5 +56,5 @@ pub mod browser {
 
     make_browser!(ButtonTransmogrifier);
     make_browser!(ContainerTransmogrifier);
-    make_browser!(CustomLayoutTransmogrifier);
+    make_browser!(LayoutTransmogrifier);
 }
