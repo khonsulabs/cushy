@@ -1,19 +1,24 @@
 pub mod button;
 pub mod component;
 pub mod container;
+pub mod custom_layout;
 
 #[cfg(feature = "frontend-rasterizer")]
 pub mod rasterized {
     use gooey_core::{renderer::Renderer, Transmogrifiers};
     use gooey_rasterizer::{make_rasterized, Rasterizer};
 
-    use crate::{button::ButtonTransmogrifier, container::ContainerTransmogrifier};
+    use crate::{
+        button::ButtonTransmogrifier, container::ContainerTransmogrifier,
+        custom_layout::CustomLayoutTransmogrifier,
+    };
 
     pub fn register_transmogrifiers<R: Renderer>(
         transmogrifiers: &mut Transmogrifiers<Rasterizer<R>>,
     ) {
         drop(transmogrifiers.register_transmogrifier(ButtonTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(ContainerTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(CustomLayoutTransmogrifier));
     }
 
     pub fn default_transmogrifiers<R: Renderer>() -> Transmogrifiers<Rasterizer<R>> {
@@ -24,6 +29,7 @@ pub mod rasterized {
 
     make_rasterized!(ButtonTransmogrifier);
     make_rasterized!(ContainerTransmogrifier);
+    make_rasterized!(CustomLayoutTransmogrifier);
 }
 
 #[cfg(feature = "frontend-browser")]
@@ -31,11 +37,15 @@ pub mod browser {
     use gooey_browser::{make_browser, WebSys};
     use gooey_core::Transmogrifiers;
 
-    use crate::{button::ButtonTransmogrifier, container::ContainerTransmogrifier};
+    use crate::{
+        button::ButtonTransmogrifier, container::ContainerTransmogrifier,
+        custom_layout::CustomLayoutTransmogrifier,
+    };
 
     pub fn register_transmogrifiers(transmogrifiers: &mut Transmogrifiers<WebSys>) {
         drop(transmogrifiers.register_transmogrifier(ButtonTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(ContainerTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(CustomLayoutTransmogrifier));
     }
 
     pub fn default_transmogrifiers() -> Transmogrifiers<WebSys> {
@@ -46,4 +56,5 @@ pub mod browser {
 
     make_browser!(ButtonTransmogrifier);
     make_browser!(ContainerTransmogrifier);
+    make_browser!(CustomLayoutTransmogrifier);
 }

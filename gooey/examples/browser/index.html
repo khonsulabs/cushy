@@ -5,9 +5,11 @@
   </head>
 <body id="gooey">
   <script type="module">
-    import init from "./pkg/basic.js";
     window.addEventListener("load", () => {
-        init('./pkg/basic_bg.wasm');
+      let example = window.location.search.substring(1) || "basic";
+      import('./pkg/' + example + '.js').then(function(module) {
+        module.default('./pkg/' + example + '_bg.wasm');
+      });
     });
   </script>
   </body>

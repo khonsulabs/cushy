@@ -8,7 +8,7 @@ use wasm_bindgen::JsCast;
 use crate::container::{Container, ContainerTransmogrifier};
 
 impl Transmogrifier<WebSys> for ContainerTransmogrifier {
-    type State = Option<Vec<CssRule>>;
+    type State = Vec<CssRule>;
     type Widget = Container;
 }
 
@@ -46,7 +46,7 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
             context.widget.padding.bottom(),
         );
         css_rules.push(CssManager::shared().register_rule(&container_css.to_string()));
-        *context.state = Some(css_rules);
+        *context.state = css_rules;
 
         context.frontend.with_transmogrifier(
             context.widget.child.id(),
@@ -68,7 +68,7 @@ fn append_padding_rule(
     dimension: Option<Length<f32, Points>>,
 ) -> CssBlockBuilder {
     if let Some(dimension) = dimension {
-        builder.with_css_statement(format!("{}: {}pts", name, dimension.get()))
+        builder.with_css_statement(format!("{}: {}pt", name, dimension.get()))
     } else {
         builder
     }
