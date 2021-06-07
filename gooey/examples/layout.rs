@@ -1,13 +1,14 @@
 use gooey::{
     core::Context,
     widgets::{
-        button::{Button, ButtonCommand},
+        button::Button,
         component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
+        label::{Label, LabelCommand},
         layout::{Dimension, Layout},
     },
     App,
 };
-use gooey_core::{euclid::Length, Callback, StyledWidget};
+use gooey_core::{euclid::Length, StyledWidget};
 use gooey_widgets::layout::WidgetLayout;
 
 fn main() {
@@ -29,9 +30,9 @@ impl Behavior for Counter {
     fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Layout> {
         Layout::build(builder)
             .with_registration(
-                CounterWidgets::ClickyButton,
+                CounterWidgets::Button,
                 builder.register_widget(
-                    CounterWidgets::ClickyButton,
+                    CounterWidgets::Button,
                     Button::new(
                         "Click Me!",
                         builder.map_event(|_| CounterEvent::ButtonClicked),
@@ -44,11 +45,8 @@ impl Behavior for Counter {
                     .with_width(Dimension::Percent(0.5)),
             )
             .with_registration(
-                CounterWidgets::LabelButton,
-                builder.register_widget(
-                    CounterWidgets::LabelButton,
-                    Button::new("0", Callback::default()),
-                ),
+                CounterWidgets::Label,
+                builder.register_widget(CounterWidgets::Label, Label::new("0")),
                 WidgetLayout::default()
                     .with_right(Dimension::Exact(Length::new(0.)))
                     .with_top(Dimension::Percent(0.4))
@@ -66,9 +64,9 @@ impl Behavior for Counter {
         let CounterEvent::ButtonClicked = event;
         component.behavior.count += 1;
 
-        component.send_command_to::<Button>(
-            &CounterWidgets::LabelButton,
-            ButtonCommand::SetLabel(component.behavior.count.to_string()),
+        component.send_command_to::<Label>(
+            &CounterWidgets::Label,
+            LabelCommand::SetLabel(component.behavior.count.to_string()),
             context,
         );
     }
@@ -76,8 +74,8 @@ impl Behavior for Counter {
 
 #[derive(Debug, Hash, Eq, PartialEq)]
 enum CounterWidgets {
-    ClickyButton,
-    LabelButton,
+    Button,
+    Label,
 }
 
 #[derive(Debug)]

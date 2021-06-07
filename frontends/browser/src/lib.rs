@@ -1,7 +1,7 @@
 use std::{any::TypeId, convert::TryFrom, ops::Deref, sync::Arc};
 
 use gooey_core::{
-    styles::{style_sheet::Classes, BackgroundColor, ColorPair, Style, StyleComponent, TextColor},
+    styles::{style_sheet::Classes, Style, StyleComponent},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef, WidgetRegistration,
 };
@@ -176,24 +176,16 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
 
     #[allow(unused_variables)]
     fn convert_colors_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
-        if let Some(color) = self.text_color(style) {
+        if let Some(color) = <Self::Widget as Widget>::text_color(style) {
             css = css.with_css_statement(format!("color: {}", color.light_color.to_css_string()));
         }
-        if let Some(color) = self.background_color(style) {
+        if let Some(color) = <Self::Widget as Widget>::background_color(style) {
             css = css.with_css_statement(format!(
                 "background-color: {}",
                 color.light_color.to_css_string()
             ));
         }
         css
-    }
-
-    fn text_color<'a>(&self, style: &'a Style) -> Option<&'a ColorPair> {
-        style.get_with_fallback::<TextColor>()
-    }
-
-    fn background_color<'a>(&self, style: &'a Style) -> Option<&'a ColorPair> {
-        style.get_with_fallback::<BackgroundColor>()
     }
 
     fn widget_classes() -> Classes {

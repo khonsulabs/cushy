@@ -30,7 +30,12 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     fn scale(&self) -> Scale<f32, Points, Pixels>;
 
     /// Renders `text` at `baseline_origin` with `options`.
-    fn render_text(&self, text: &str, baseline_origin: Point2D<f32, Points>, style: &Style);
+    fn render_text<F: FallbackComponent<Value = ColorPair>>(
+        &self,
+        text: &str,
+        baseline_origin: Point2D<f32, Points>,
+        style: &Style,
+    );
     /// Measures `text` using `options`.
     #[must_use]
     fn measure_text(&self, text: &str, style: &Style) -> TextMetrics<Points>;

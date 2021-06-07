@@ -1,6 +1,7 @@
 pub mod button;
 pub mod component;
 pub mod container;
+pub mod label;
 pub mod layout;
 
 #[cfg(feature = "frontend-rasterizer")]
@@ -10,7 +11,7 @@ pub mod rasterized {
 
     use crate::{
         button::ButtonTransmogrifier, container::ContainerTransmogrifier,
-        layout::LayoutTransmogrifier,
+        label::LabelTransmogrifier, layout::LayoutTransmogrifier,
     };
 
     pub fn register_transmogrifiers<R: Renderer>(
@@ -18,6 +19,7 @@ pub mod rasterized {
     ) {
         drop(transmogrifiers.register_transmogrifier(ButtonTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(ContainerTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(LabelTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(LayoutTransmogrifier));
     }
 
@@ -29,6 +31,7 @@ pub mod rasterized {
 
     make_rasterized!(ButtonTransmogrifier);
     make_rasterized!(ContainerTransmogrifier);
+    make_rasterized!(LabelTransmogrifier);
     make_rasterized!(LayoutTransmogrifier);
 }
 
@@ -39,12 +42,13 @@ pub mod browser {
 
     use crate::{
         button::ButtonTransmogrifier, container::ContainerTransmogrifier,
-        layout::LayoutTransmogrifier,
+        label::LabelTransmogrifier, layout::LayoutTransmogrifier,
     };
 
     pub fn register_transmogrifiers(transmogrifiers: &mut Transmogrifiers<WebSys>) {
         drop(transmogrifiers.register_transmogrifier(ButtonTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(ContainerTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(LabelTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(LayoutTransmogrifier));
     }
 
@@ -56,5 +60,6 @@ pub mod browser {
 
     make_browser!(ButtonTransmogrifier);
     make_browser!(ContainerTransmogrifier);
+    make_browser!(LabelTransmogrifier);
     make_browser!(LayoutTransmogrifier);
 }

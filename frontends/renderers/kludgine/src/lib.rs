@@ -31,7 +31,11 @@ impl<'a> From<&'a Target> for Kludgine {
 }
 
 impl Kludgine {
-    fn prepare_text(&self, text: &str, options: &Style) -> PreparedSpan {
+    fn prepare_text<F: FallbackComponent<Value = ColorPair>>(
+        &self,
+        text: &str,
+        options: &Style,
+    ) -> PreparedSpan {
         let system_theme = options.get::<SystemTheme>().cloned().unwrap_or_default();
         Text::prepare(
             text,
@@ -44,7 +48,7 @@ impl Kludgine {
                 .cast_unit(),
             Color::from(
                 options
-                    .get_with_fallback::<TextColor>()
+                    .get_with_fallback::<F>()
                     .cloned()
                     .unwrap_or_else(|| Srgba::new(0., 0., 0., 1.).into())
                     .themed_color(&system_theme)
@@ -118,14 +122,19 @@ impl Renderer for Kludgine {
         Scale::new(self.target.scale_factor().get())
     }
 
-    fn render_text(&self, text: &str, baseline_origin: Point2D<f32, Points>, options: &Style) {
-        self.prepare_text(text, options)
+    fn render_text<F: FallbackComponent<Value = ColorPair>>(
+        &self,
+        text: &str,
+        baseline_origin: Point2D<f32, Points>,
+        options: &Style,
+    ) {
+        self.prepare_text::<F>(text, options)
             .render_baseline_at(&self.target, baseline_origin.cast_unit())
             .unwrap();
     }
 
     fn measure_text(&self, text: &str, options: &Style) -> TextMetrics<Points> {
-        let text = self.prepare_text(text, options);
+        let text = self.prepare_text::<TextColor>(text, options);
         let vmetrics = text.metrics();
         TextMetrics {
             width: text.data.width.cast_unit::<Pixels>(),

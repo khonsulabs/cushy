@@ -3,9 +3,9 @@ use std::{any::TypeId, convert::TryFrom, ops::Deref};
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
     renderer::Renderer,
-    styles::{BackgroundColor, ColorPair, Style},
+    styles::{BackgroundColor, Style},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Points, Transmogrifier,
-    TransmogrifierContext, TransmogrifierState, WidgetRegistration,
+    TransmogrifierContext, TransmogrifierState, Widget, WidgetRegistration,
 };
 use winit::event::MouseButton;
 
@@ -36,7 +36,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                     context.ui_state,
                 );
 
-            if let Some(color) = self.background_color(&effective_style) {
+            if let Some(&color) = <Self::Widget as Widget>::background_color(&effective_style) {
                 let renderer = rasterizer.renderer().unwrap();
                 renderer.fill_rect::<BackgroundColor>(
                     &renderer.bounds(),
@@ -57,10 +57,6 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     }
 
     fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>);
-
-    fn background_color(&self, style: &Style) -> Option<ColorPair> {
-        style.get::<BackgroundColor>().map(|bg| bg.0)
-    }
 
     /// Calculate the content-size needed for this `widget`, trying to stay
     /// within `constraints`.

@@ -1,5 +1,5 @@
 use gooey_core::{
-    styles::{BackgroundColor, ColorPair, FallbackComponent, StyleComponent},
+    styles::{BackgroundColor, ColorPair, FallbackComponent, Style, StyleComponent},
     Callback, Context, StyledWidget, Widget,
 };
 
@@ -60,6 +60,10 @@ impl Widget for Button {
         }
 
         context.send_command(command);
+    }
+
+    fn background_color(style: &Style) -> Option<&'_ ColorPair> {
+        style.get_with_fallback::<ButtonColor>()
     }
 }
 

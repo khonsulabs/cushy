@@ -1,12 +1,14 @@
 use gooey_core::{
     euclid::{Length, Point2D, Rect, Size2D, Vector2D},
     renderer::Renderer,
+    styles::TextColor,
     Points, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{winit::event::MouseButton, EventStatus, Rasterizer, WidgetRasterizer};
 
-use super::{ButtonColor, InternalButtonEvent};
-use crate::button::{Button, ButtonCommand, ButtonTransmogrifier};
+use crate::button::{
+    Button, ButtonColor, ButtonCommand, ButtonTransmogrifier, InternalButtonEvent,
+};
 
 const BUTTON_PADDING: Length<f32, Points> = Length::new(5.);
 
@@ -31,7 +33,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
             let text_size = scene.measure_text(&context.widget.label, context.style);
 
             let center = scene.bounds().center();
-            scene.render_text(
+            scene.render_text::<TextColor>(
                 &context.widget.label,
                 center - Vector2D::from_lengths(text_size.width, text_size.height()) / 2.
                     + Vector2D::from_lengths(Length::default(), text_size.ascent),

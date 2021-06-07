@@ -6,8 +6,10 @@ use std::{
 };
 
 use flume::{Receiver, Sender};
+use stylecs::Style;
 
 use crate::{
+    styles::{BackgroundColor, ColorPair, TextColor},
     AnyFrontend, Frontend, WeakWidgetRegistration, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
@@ -54,6 +56,18 @@ pub trait Widget: Debug + Send + Sync + Sized + 'static {
             command,
             type_name::<Self>()
         )
+    }
+
+    /// Returns the effective text color for the given style.
+    #[must_use]
+    fn text_color(style: &Style) -> Option<&ColorPair> {
+        style.get_with_fallback::<TextColor>()
+    }
+
+    /// Returns the effective background color for the given style.
+    #[must_use]
+    fn background_color(style: &Style) -> Option<&ColorPair> {
+        style.get_with_fallback::<BackgroundColor>()
     }
 }
 
