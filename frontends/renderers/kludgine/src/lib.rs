@@ -9,7 +9,7 @@ use gooey_core::{
     Pixels, Points,
 };
 pub use kludgine;
-use kludgine::{prelude::*, text::prepared::PreparedSpan};
+use kludgine::prelude::*;
 
 #[derive(Debug)]
 pub struct Kludgine {
@@ -135,12 +135,11 @@ impl Renderer for Kludgine {
 
     fn measure_text(&self, text: &str, options: &Style) -> TextMetrics<Points> {
         let text = self.prepare_text::<TextColor>(text, options);
-        let vmetrics = text.metrics();
         TextMetrics {
-            width: text.data.width.cast_unit::<Pixels>(),
-            ascent: Length::new(vmetrics.ascent),
-            descent: Length::new(vmetrics.descent),
-            line_gap: Length::new(vmetrics.line_gap),
+            width: text.width.cast_unit::<Pixels>(),
+            ascent: Length::new(text.metrics.ascent),
+            descent: Length::new(text.metrics.descent),
+            line_gap: Length::new(text.metrics.line_gap),
         } / self.scale()
     }
 

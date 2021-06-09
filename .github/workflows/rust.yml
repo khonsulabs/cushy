@@ -83,10 +83,12 @@ jobs:
 
       - name: Install x11 dependencies for Kludgine
         run: |
+          sudo add-apt-repository ppa:kisak/kisak-mesa -y
           sudo apt-get install -yqq \
             libxcb-render-util0-dev \
             libxcb-shape0-dev \
-            libxcb-xfixes0-dev
+            libxcb-xfixes0-dev \
+            mesa-vulkan-drivers
 
       - name: Install code coverage requirements
         run: |

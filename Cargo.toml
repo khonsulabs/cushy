@@ -16,4 +16,4 @@ members = [
 # stylecs = { path = "../stylecs/stylecs" }
 
 # [patch."https://github.com/khonsulabs/kludgine.git"]
-# kludgine = { path = "../kludgine" }
+# kludgine = { path = "../kludgine/kludgine" }

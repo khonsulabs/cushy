@@ -4,7 +4,10 @@ use crate::{
     core::{Frontend, Gooey, Transmogrifiers, Widget, WidgetStorage},
     frontends::{
         rasterizer::{events::InputEvent as GooeyInputEvent, Rasterizer},
-        renderers::kludgine::{kludgine::prelude::*, Kludgine},
+        renderers::kludgine::{
+            kludgine::{self, prelude::*},
+            Kludgine,
+        },
     },
     style::default_stylesheet,
     widgets::rasterized::{default_transmogrifiers, register_transmogrifiers},
@@ -39,7 +42,7 @@ impl WindowCreator for GooeyWindow {
 }
 
 impl Window for GooeyWindow {
-    fn render(&mut self, scene: &Target) -> KludgineResult<()> {
+    fn render(&mut self, scene: &Target) -> kludgine::Result<()> {
         self.ui.render(Kludgine::from(scene));
         Ok(())
     }
@@ -48,7 +51,7 @@ impl Window for GooeyWindow {
         &mut self,
         input: InputEvent,
         status: &mut RedrawStatus,
-    ) -> KludgineResult<()> {
+    ) -> kludgine::Result<()> {
         let input = match input.event {
             Event::Keyboard {
                 scancode,
@@ -63,8 +66,9 @@ impl Window for GooeyWindow {
             Event::MouseMoved { position } => GooeyInputEvent::MouseMoved {
                 position: position.map(|p| p.cast_unit()),
             },
-            Event::MouseWheel { delta, touch_phase } =>
-                GooeyInputEvent::MouseWheel { delta, touch_phase },
+            Event::MouseWheel { delta, touch_phase } => {
+                GooeyInputEvent::MouseWheel { delta, touch_phase }
+            }
         };
         let result = self
             .ui
