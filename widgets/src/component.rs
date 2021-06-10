@@ -67,6 +67,7 @@ impl<B: Behavior> Component<B> {
             if let Some(state) = storage.widget_state(widget.id().id) {
                 let channels = state.channels::<W>().expect("incorrect widget type");
                 channels.post_command(command);
+                storage.set_widget_has_messages(widget.id().clone());
                 return true;
             }
         }

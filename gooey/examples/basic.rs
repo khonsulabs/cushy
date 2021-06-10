@@ -1,5 +1,5 @@
 use gooey::{
-    core::Context,
+    core::{Context, StyledWidget},
     widgets::{
         button::{Button, ButtonCommand},
         component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
@@ -7,7 +7,6 @@ use gooey::{
     },
     App,
 };
-use gooey_core::StyledWidget;
 
 fn main() {
     App::default()

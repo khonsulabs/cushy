@@ -268,6 +268,17 @@ impl<W: Widget> Context<W> {
                 .set_widget_has_messages(widget.id().clone());
         }
     }
+
+    /// Send `command` to the widget.
+    pub fn send_command_to<OW: Widget>(&self, widget: &WidgetId, command: OW::Command) {
+        if let Some(state) = self.widget_state(widget.id) {
+            let channels = state.channels::<OW>().expect("incorrect widget type");
+            channels.post_command(command);
+            self.frontend
+                .storage()
+                .set_widget_has_messages(widget.clone());
+        }
+    }
 }
 
 impl<W: Widget> Deref for Context<W> {
