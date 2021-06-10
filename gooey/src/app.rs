@@ -1,3 +1,6 @@
+use std::future::Future;
+
+use cfg_if::cfg_if;
 use gooey_core::{Frontend, StyledWidget, Transmogrifiers, Widget, WidgetStorage};
 
 #[derive(Default, Debug)]
@@ -14,6 +17,20 @@ impl App {
             .register_transmogrifier(transmogrifier)
             .expect("a transmogrifier is already registered for this widget");
         self
+    }
+
+    #[cfg(feature = "async")]
+    pub fn spawn<F: Future<Output = ()> + Send + 'static>(future: F) {
+        cfg_if! {
+            if #[cfg(target_arch = "wasm32")] {
+                todo!("wasm bindgen futures")
+            } else if #[cfg(feature = "frontend-kludgine")] {
+                gooey_kludgine::kludgine::prelude::Runtime::initialize();
+                gooey_kludgine::kludgine::prelude::Runtime::spawn(future);
+            } else {
+                compile_error!("unsupported async configuration")
+            }
+        }
     }
 
     pub fn run<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
