@@ -28,7 +28,7 @@ mod browser;
 pub use browser::{browser_main, browser_main_with};
 
 cfg_if! {
-    if #[cfg(feature = "frontend-browser")] {
+    if #[cfg(all(target_arch = "wasm32", feature = "frontend-browser"))] {
         pub use browser_main as main;
         pub use browser_main_with as main_with;
         pub type ActiveFrontend = gooey_browser::WebSys;

@@ -12,7 +12,7 @@ readme = "../README.md"
 
 [features]
 default = ["frontend-kludgine"]
-frontend-browser = ["gooey-browser", "gooey-widgets/gooey-browser"]
+frontend-browser = ["gooey-browser", "gooey-widgets/frontend-browser"]
 frontend-kludgine = [
     "gooey-kludgine",
     "gooey-rasterizer",
