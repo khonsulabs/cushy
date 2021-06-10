@@ -45,7 +45,7 @@ impl<B: Behavior> Transmogrifier<WebSys> for ComponentTransmogrifier<B> {
 
     fn initialize(
         &self,
-        component: &Self::Widget,
+        component: &mut Self::Widget,
         widget: &WidgetRef<Self::Widget>,
         frontend: &WebSys,
     ) -> Self::State {

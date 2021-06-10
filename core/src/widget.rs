@@ -92,7 +92,7 @@ pub trait Transmogrifier<F: Frontend>: Debug + Sized {
     #[allow(unused_variables)]
     fn initialize(
         &self,
-        widget: &Self::Widget,
+        widget: &mut Self::Widget,
         reference: &WidgetRef<Self::Widget>,
         frontend: &F,
     ) -> Self::State {
@@ -148,7 +148,7 @@ pub trait Transmogrifier<F: Frontend>: Debug + Sized {
     /// Returns an initialized state using `Self::State::default()`.
     fn default_state_for(
         &self,
-        widget: &Self::Widget,
+        widget: &mut Self::Widget,
         reference: &WidgetRef<Self::Widget>,
         frontend: &F,
     ) -> TransmogrifierState {

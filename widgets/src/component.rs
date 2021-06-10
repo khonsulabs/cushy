@@ -94,6 +94,9 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
         builder: &mut ComponentBuilder<Self>,
     ) -> StyledWidget<Self::Content>;
 
+    #[allow(unused_variables)]
+    fn initialize(component: &mut Component<Self>, context: &Context<Component<Self>>) {}
+
     fn receive_event(
         component: &mut Component<Self>,
         event: Self::Event,
@@ -232,13 +235,15 @@ impl<B: Behavior, I> CallbackFn<I, ()> for MappedCallback<B, I> {
 impl<B: Behavior> ComponentTransmogrifier<B> {
     pub fn initialize_component<F: Frontend>(
         &self,
-        component: &Component<B>,
+        component: &mut Component<B>,
         widget: &WidgetRef<Component<B>>,
         frontend: &F,
     ) {
         let widget = widget.registration().unwrap().id().clone();
         let widget_state = frontend.gooey().widget_state(widget.id).unwrap();
         let channels = widget_state.channels::<Component<B>>().unwrap();
+        B::initialize(component, &Context::new(channels, frontend));
+
         let mut callback_widget = component.callback_widget.write().unwrap();
         *callback_widget = Some(Box::new(EventPoster {
             widget,

@@ -53,7 +53,7 @@ impl<B: Behavior, R: Renderer> Transmogrifier<Rasterizer<R>> for ComponentTransm
 
     fn initialize(
         &self,
-        component: &Self::Widget,
+        component: &mut Self::Widget,
         widget: &WidgetRef<Self::Widget>,
         frontend: &Rasterizer<R>,
     ) -> Self::State {
