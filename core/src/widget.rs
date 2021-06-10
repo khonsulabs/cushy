@@ -236,6 +236,17 @@ pub struct Context<W: Widget> {
     _widget: PhantomData<W>,
 }
 
+impl<W: Widget> Clone for Context<W> {
+    fn clone(&self) -> Self {
+        Self {
+            frontend: self.frontend.cloned(),
+            widget: self.widget.clone(),
+            command_sender: self.command_sender.clone(),
+            _widget: PhantomData::default(),
+        }
+    }
+}
+
 impl<W: Widget> Context<W> {
     /// Create a new `Context`.
     #[must_use]
