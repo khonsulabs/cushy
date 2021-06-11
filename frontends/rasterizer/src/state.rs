@@ -27,6 +27,7 @@ struct StateData {
     last_mouse_position: Option<Point2D<f32, Points>>,
     mouse_button_handlers: HashMap<MouseButton, WidgetId>,
     needs_redraw: bool,
+    inside_event_loop: bool,
 }
 
 impl State {
@@ -145,6 +146,21 @@ impl State {
             active: data.active.as_ref() == Some(widget_id),
             focused: data.focus.as_ref() == Some(widget_id),
         }
+    }
+
+    pub fn enter_managed_code(&self) {
+        let mut data = self.data.lock().unwrap();
+        data.inside_event_loop = true;
+    }
+
+    pub fn exit_managed_code(&self) {
+        let mut data = self.data.lock().unwrap();
+        data.inside_event_loop = false;
+    }
+
+    pub fn is_managed(&self) -> bool {
+        let data = self.data.lock().unwrap();
+        data.inside_event_loop
     }
 }
 

@@ -22,7 +22,7 @@ pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> 
     let ui = Rasterizer::<Kludgine>::new(ui);
     ui.process_widget_messages();
 
-    SingleWindowApplication::run(GooeyWindow { ui });
+    SingleWindowApplication::run(GooeyWindow { ui, redrawer: None });
 }
 
 pub fn kludgine_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
@@ -33,6 +33,7 @@ pub fn kludgine_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> Style
 
 struct GooeyWindow {
     ui: Rasterizer<Kludgine>,
+    redrawer: Option<RedrawRequester>,
 }
 
 impl WindowCreator for GooeyWindow {
@@ -42,8 +43,33 @@ impl WindowCreator for GooeyWindow {
 }
 
 impl Window for GooeyWindow {
+    fn initialize(&mut self, _scene: &Target, redrawer: RedrawRequester) -> kludgine::Result<()>
+    where
+        Self: Sized,
+    {
+        self.redrawer = Some(redrawer.clone());
+        self.ui.set_refresh_callback(move || {
+            redrawer.awaken();
+        });
+        Ok(())
+    }
+
     fn render(&mut self, scene: &Target) -> kludgine::Result<()> {
         self.ui.render(Kludgine::from(scene));
+        self.ui.process_widget_messages();
+        if self.ui.needs_redraw() {
+            self.redrawer.as_ref().unwrap().request_redraw();
+        }
+
+        Ok(())
+    }
+
+    fn update(&mut self, _scene: &Target, status: &mut RedrawStatus) -> kludgine::Result<()> {
+        self.ui.process_widget_messages();
+        if self.ui.needs_redraw() {
+            status.set_needs_redraw();
+        }
+
         Ok(())
     }
 
@@ -66,9 +92,8 @@ impl Window for GooeyWindow {
             Event::MouseMoved { position } => GooeyInputEvent::MouseMoved {
                 position: position.map(|p| p.cast_unit()),
             },
-            Event::MouseWheel { delta, touch_phase } => {
-                GooeyInputEvent::MouseWheel { delta, touch_phase }
-            }
+            Event::MouseWheel { delta, touch_phase } =>
+                GooeyInputEvent::MouseWheel { delta, touch_phase },
         };
         let result = self
             .ui

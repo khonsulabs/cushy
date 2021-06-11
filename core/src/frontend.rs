@@ -27,6 +27,13 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
     fn process_widget_messages(&self) {
         self.gooey().process_widget_messages(self);
     }
+
+    /// Notifies the frontend that a widget has messages. Frontends should
+    /// ensure that `process_widget_messages` is called at some point after this
+    /// method is called.
+    fn set_widget_has_messages(&self, widget: WidgetId) {
+        self.gooey().set_widget_has_messages(widget);
+    }
 }
 
 /// An interface for Frontend that doesn't requier knowledge of associated
@@ -42,6 +49,11 @@ pub trait AnyFrontend: AnySendSync {
 
     /// Processes any pending messages for widgets and transmogrifiers.
     fn process_widget_messages(&self);
+
+    /// Notifies the frontend that a widget has messages. Frontends should
+    /// ensure that `process_widget_messages` is called at some point after this
+    /// method is called.
+    fn set_widget_has_messages(&self, widget: WidgetId);
 }
 
 impl<T> AnyFrontend for T
@@ -58,6 +70,10 @@ where
 
     fn process_widget_messages(&self) {
         self.process_widget_messages()
+    }
+
+    fn set_widget_has_messages(&self, widget: WidgetId) {
+        self.set_widget_has_messages(widget);
     }
 }
 

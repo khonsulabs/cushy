@@ -33,6 +33,20 @@ impl App {
         }
     }
 
+    #[cfg(feature = "async")]
+    pub fn block_on<F: Future<Output = R> + Send + 'static, R: Send + Sync>(future: F) -> R {
+        cfg_if! {
+            if #[cfg(target_arch = "wasm32")] {
+                todo!("wasm bindgen futures")
+            } else if #[cfg(feature = "frontend-kludgine")] {
+                gooey_kludgine::kludgine::prelude::Runtime::initialize();
+                gooey_kludgine::kludgine::prelude::Runtime::block_on(future)
+            } else {
+                compile_error!("unsupported async configuration")
+            }
+        }
+    }
+
     pub fn run<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
         self,
         initializer: C,

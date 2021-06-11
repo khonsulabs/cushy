@@ -263,9 +263,7 @@ impl<W: Widget> Context<W> {
     pub fn send_command(&self, command: W::TransmogrifierCommand) {
         if let Some(widget) = self.widget.upgrade() {
             drop(self.command_sender.send(command));
-            self.frontend
-                .storage()
-                .set_widget_has_messages(widget.id().clone());
+            self.frontend.set_widget_has_messages(widget.id().clone());
         }
     }
 
@@ -274,9 +272,7 @@ impl<W: Widget> Context<W> {
         if let Some(state) = self.widget_state(widget.id) {
             let channels = state.channels::<OW>().expect("incorrect widget type");
             channels.post_command(command);
-            self.frontend
-                .storage()
-                .set_widget_has_messages(widget.clone());
+            self.frontend.set_widget_has_messages(widget.clone());
         }
     }
 }

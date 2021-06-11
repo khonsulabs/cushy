@@ -180,7 +180,7 @@ impl<F: Frontend> Gooey<F> {
         if let Some(state) = self.widget_state(widget_id.id) {
             let channels = state.channels::<W>().unwrap();
             channels.post_event(event);
-            self.set_widget_has_messages(widget_id.clone());
+            frontend.set_widget_has_messages(widget_id.clone());
         }
 
         // Process any messages that may have been triggered onto other widgets.
@@ -196,7 +196,7 @@ impl<F: Frontend> Gooey<F> {
         if let Some(state) = self.widget_state(widget_id.id) {
             let channels = state.channels::<W>().unwrap();
             channels.post_command(event);
-            self.set_widget_has_messages(widget_id.clone());
+            frontend.set_widget_has_messages(widget_id.clone());
         }
 
         // Process any messages that may have been triggered onto other widgets.

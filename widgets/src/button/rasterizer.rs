@@ -109,6 +109,6 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
                     .post_event(InternalButtonEvent::Clicked);
             }
         }
-        context.frontend.blur();
+        context.frontend.deactivate();
     }
 }

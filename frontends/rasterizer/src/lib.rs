@@ -7,7 +7,7 @@ use gooey_core::{
         style_sheet::{self},
         Style,
     },
-    AnyTransmogrifierContext, Gooey, Points, WidgetId,
+    AnyTransmogrifierContext, Frontend, Gooey, Points, WidgetId,
 };
 use winit::event::{
     ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
@@ -24,11 +24,25 @@ pub use winit;
 
 pub use self::transmogrifier::*;
 
-#[derive(Debug)]
 pub struct Rasterizer<R: Renderer> {
     pub ui: Arc<Gooey<Self>>,
     state: State,
+    refresh_callback: Option<Arc<dyn RefreshCallback>>,
     renderer: Option<R>,
+}
+
+impl<R: Renderer> std::fmt::Debug for Rasterizer<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Rasterizer")
+            .field("ui", &self.ui)
+            .field("state", &self.state)
+            .field("renderer", &self.renderer)
+            .field(
+                "refresh_callback",
+                &self.refresh_callback.as_ref().map(|_| "installed"),
+            )
+            .finish()
+    }
 }
 
 impl<R: Renderer> Clone for Rasterizer<R> {
@@ -39,6 +53,7 @@ impl<R: Renderer> Clone for Rasterizer<R> {
         Self {
             ui: self.ui.clone(),
             state: self.state.clone(),
+            refresh_callback: self.refresh_callback.clone(),
             renderer: None,
         }
     }
@@ -55,6 +70,30 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
     fn ui_state_for(&self, widget_id: &WidgetId) -> style_sheet::State {
         self.state.ui_state_for(widget_id)
     }
+
+    fn set_widget_has_messages(&self, widget: WidgetId) {
+        self.gooey().set_widget_has_messages(widget);
+        // If we're not inside of a render
+        if let (false, Some(callback)) = (self.state.is_managed(), &self.refresh_callback) {
+            println!("Refreshing because of widget messages");
+            callback.refresh();
+        }
+    }
+
+    fn process_widget_messages(&self) {
+        let entered = if !self.state.is_managed() {
+            self.state.enter_managed_code();
+            true
+        } else {
+            false
+        };
+
+        self.gooey().process_widget_messages(self);
+
+        if entered {
+            self.state.exit_managed_code();
+        }
+    }
 }
 
 impl<R: Renderer> Rasterizer<R> {
@@ -62,17 +101,24 @@ impl<R: Renderer> Rasterizer<R> {
         Self {
             ui: Arc::new(ui),
             state: State::default(),
+            refresh_callback: None,
             renderer: None,
         }
     }
 
     pub fn render(&self, scene: R) {
+        self.state.enter_managed_code();
+        // Process messages after new_frame,
+        self.process_widget_messages();
+
         self.state.new_frame();
+
         let size = scene.size();
 
         Rasterizer {
             ui: self.ui.clone(),
             state: self.state.clone(),
+            refresh_callback: self.refresh_callback.clone(),
             renderer: Some(scene),
         }
         .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
@@ -82,18 +128,21 @@ impl<R: Renderer> Rasterizer<R> {
                 &Style::default(),
             );
         });
+        self.state.exit_managed_code();
     }
 
     pub fn clipped_to(&self, clip: Rect<f32, Points>) -> Option<Self> {
         self.renderer().map(|renderer| Self {
             ui: self.ui.clone(),
             state: self.state.clone(),
+            refresh_callback: self.refresh_callback.clone(),
             renderer: Some(renderer.clip_to(clip)),
         })
     }
 
-    pub fn handle_event(&self, event: WindowEvent) -> EventResult {
-        match event {
+    pub fn handle_event(&mut self, event: WindowEvent) -> EventResult {
+        self.state.enter_managed_code();
+        let result = match event {
             WindowEvent::Input(input_event) => match input_event {
                 InputEvent::Keyboard {
                     scancode,
@@ -110,7 +159,14 @@ impl<R: Renderer> Rasterizer<R> {
             WindowEvent::ModifiersChanged(_) => EventResult::ignored(),
             WindowEvent::LayerChanged { .. } => EventResult::ignored(),
             WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
-        }
+        };
+        self.process_widget_messages();
+        self.state.exit_managed_code();
+        result
+    }
+
+    pub fn set_refresh_callback<F: RefreshCallback>(&mut self, callback: F) {
+        self.refresh_callback = Some(Arc::new(callback))
     }
 
     fn handle_cursor_moved(&self, position: Option<Point2D<f32, Points>>) -> EventResult {
@@ -286,6 +342,11 @@ impl<R: Renderer> Rasterizer<R> {
 
     pub fn set_needs_redraw(&self) {
         self.state.set_needs_redraw();
+        if !self.state.is_managed() {
+            if let Some(callback) = &self.refresh_callback {
+                callback.refresh();
+            }
+        }
     }
 
     pub fn needs_redraw(&self) -> bool {
@@ -294,6 +355,10 @@ impl<R: Renderer> Rasterizer<R> {
 
     pub fn activate(&self, widget: &WidgetId) {
         self.state.set_active(Some(widget.clone()));
+    }
+
+    pub fn deactivate(&self) {
+        self.state.set_active(None);
     }
 
     pub fn active_widget(&self) -> Option<WidgetId> {
@@ -360,5 +425,18 @@ impl std::ops::AddAssign for EventResult {
         } else {
             EventStatus::Ignored
         };
+    }
+}
+
+pub trait RefreshCallback: Send + Sync + 'static {
+    fn refresh(&self);
+}
+
+impl<T> RefreshCallback for T
+where
+    T: Fn() + Send + Sync + 'static,
+{
+    fn refresh(&self) {
+        self()
     }
 }
