@@ -6,7 +6,7 @@ pub mod frontends {
     #[doc(inline)]
     pub use gooey_rasterizer as rasterizer;
     pub mod renderers {
-        #[cfg(feature = "frontend-kludgine")]
+        #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
         #[doc(inline)]
         pub use gooey_kludgine as kludgine;
     }
@@ -17,9 +17,9 @@ pub use gooey_core as core;
 #[doc(inline)]
 pub use gooey_widgets as widgets;
 
-#[cfg(feature = "frontend-kludgine")]
+#[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
 mod kludgine;
-#[cfg(feature = "frontend-kludgine")]
+#[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
 pub use kludgine::{kludgine_main, kludgine_main_with};
 
 #[cfg(feature = "frontend-browser")]

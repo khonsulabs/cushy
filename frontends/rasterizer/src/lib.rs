@@ -7,7 +7,7 @@ use gooey_core::{
         style_sheet::{self},
         Style,
     },
-    AnyTransmogrifierContext, Frontend, Gooey, Points, WidgetId,
+    AnyTransmogrifierContext, Gooey, Points, WidgetId,
 };
 use winit::event::{
     ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
@@ -74,24 +74,9 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
     fn set_widget_has_messages(&self, widget: WidgetId) {
         self.gooey().set_widget_has_messages(widget);
         // If we're not inside of a render
-        if let (false, Some(callback)) = (self.state.is_managed(), &self.refresh_callback) {
+        if let (false, Some(callback)) = (self.gooey().is_managed_code(), &self.refresh_callback) {
             println!("Refreshing because of widget messages");
             callback.refresh();
-        }
-    }
-
-    fn process_widget_messages(&self) {
-        let entered = if !self.state.is_managed() {
-            self.state.enter_managed_code();
-            true
-        } else {
-            false
-        };
-
-        self.gooey().process_widget_messages(self);
-
-        if entered {
-            self.state.exit_managed_code();
         }
     }
 }
@@ -107,9 +92,9 @@ impl<R: Renderer> Rasterizer<R> {
     }
 
     pub fn render(&self, scene: R) {
-        self.state.enter_managed_code();
+        self.ui.enter_managed_code();
         // Process messages after new_frame,
-        self.process_widget_messages();
+        self.ui.process_widget_messages(self);
 
         self.state.new_frame();
 
@@ -128,7 +113,7 @@ impl<R: Renderer> Rasterizer<R> {
                 &Style::default(),
             );
         });
-        self.state.exit_managed_code();
+        self.ui.exit_managed_code();
     }
 
     pub fn clipped_to(&self, clip: Rect<f32, Points>) -> Option<Self> {
@@ -141,7 +126,7 @@ impl<R: Renderer> Rasterizer<R> {
     }
 
     pub fn handle_event(&mut self, event: WindowEvent) -> EventResult {
-        self.state.enter_managed_code();
+        self.ui.enter_managed_code();
         let result = match event {
             WindowEvent::Input(input_event) => match input_event {
                 InputEvent::Keyboard {
@@ -160,8 +145,8 @@ impl<R: Renderer> Rasterizer<R> {
             WindowEvent::LayerChanged { .. } => EventResult::ignored(),
             WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
         };
-        self.process_widget_messages();
-        self.state.exit_managed_code();
+        self.ui.process_widget_messages(self);
+        self.ui.exit_managed_code();
         result
     }
 
@@ -342,7 +327,7 @@ impl<R: Renderer> Rasterizer<R> {
 
     pub fn set_needs_redraw(&self) {
         self.state.set_needs_redraw();
-        if !self.state.is_managed() {
+        if !self.ui.is_managed_code() {
             if let Some(callback) = &self.refresh_callback {
                 callback.refresh();
             }

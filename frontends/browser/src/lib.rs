@@ -127,6 +127,14 @@ impl gooey_core::Frontend for WebSys {
     fn gooey(&self) -> &'_ Gooey<Self> {
         &self.ui
     }
+
+    fn set_widget_has_messages(&self, widget: WidgetId) {
+        self.gooey().set_widget_has_messages(widget);
+        // If we're not inside of a render
+        if !self.gooey().is_managed_code() {
+            self.gooey().process_widget_messages(self);
+        }
+    }
 }
 
 pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {

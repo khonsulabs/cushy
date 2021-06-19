@@ -228,6 +228,7 @@ where
 
 /// Enables [`Widget`]s to send commands to the
 /// [`Transmogrifier`](crate::Transmogrifier).
+#[derive(Debug)]
 pub struct Context<W: Widget> {
     /// The frontend that created this context.
     pub frontend: Box<dyn AnyFrontend>,

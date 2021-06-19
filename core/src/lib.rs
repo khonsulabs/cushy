@@ -10,6 +10,7 @@
     future_incompatible,
     rust_2018_idioms
 )]
+#![allow(clippy::if_not_else)]
 #![cfg_attr(doc, deny(rustdoc::all))]
 
 mod frontend;

@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
     ops::Deref,
     sync::{
-        atomic::{AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc, Mutex, RwLock, Weak,
     },
 };
@@ -32,6 +32,7 @@ struct GooeyData<F: Frontend> {
     storage: WidgetStorage,
     processing_messages_lock: Mutex<()>,
     stylesheet: StyleSheet,
+    inside_event_loop: AtomicBool,
 }
 
 impl<F: Frontend> Gooey<F> {
@@ -51,6 +52,7 @@ impl<F: Frontend> Gooey<F> {
                 storage,
                 stylesheet,
                 processing_messages_lock: Mutex::default(),
+                inside_event_loop: AtomicBool::default(),
             }),
         }
     }
@@ -145,6 +147,14 @@ impl<F: Frontend> Gooey<F> {
             Ok(guard) => guard,
             Err(_) => return,
         };
+
+        let entered = if !self.is_managed_code() {
+            self.enter_managed_code();
+            true
+        } else {
+            false
+        };
+
         // This method will return early if there are no widgets with pending
         // messages. `chatter_limit` is put in place to limit cross-talk betwen
         // widgets. It's possible for one widget to invoke behavior that
@@ -157,7 +167,7 @@ impl<F: Frontend> Gooey<F> {
                 let mut widgets_with_messages =
                     self.data.storage.data.widgets_with_messages.lock().unwrap();
                 if widgets_with_messages.is_empty() {
-                    return;
+                    break;
                 }
 
                 std::mem::take(&mut *widgets_with_messages)
@@ -168,6 +178,10 @@ impl<F: Frontend> Gooey<F> {
                     transmogrifier.process_messages(context);
                 });
             }
+        }
+
+        if entered {
+            self.exit_managed_code();
         }
     }
 
@@ -184,7 +198,7 @@ impl<F: Frontend> Gooey<F> {
         }
 
         // Process any messages that may have been triggered onto other widgets.
-        frontend.process_widget_messages();
+        frontend.gooey().process_widget_messages(frontend);
     }
 
     pub(crate) fn post_command<W: Widget>(
@@ -200,13 +214,30 @@ impl<F: Frontend> Gooey<F> {
         }
 
         // Process any messages that may have been triggered onto other widgets.
-        frontend.process_widget_messages();
+        frontend.gooey().process_widget_messages(frontend);
     }
 
     /// Returns the root widget.
     #[must_use]
     pub fn stylesheet(&self) -> &StyleSheet {
         &self.data.stylesheet
+    }
+
+    /// Sets the `in_managed_code` state to true. This function cannot be
+    /// nested.
+    pub fn enter_managed_code(&self) {
+        self.data.inside_event_loop.store(true, Ordering::SeqCst);
+    }
+
+    /// Resets the `in_managed_code` state.
+    pub fn exit_managed_code(&self) {
+        self.data.inside_event_loop.store(false, Ordering::SeqCst);
+    }
+
+    /// Returns whether `Gooey` managed code is currently executing.
+    #[must_use]
+    pub fn is_managed_code(&self) -> bool {
+        self.data.inside_event_loop.load(Ordering::SeqCst)
     }
 }
 

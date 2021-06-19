@@ -23,17 +23,10 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
         State::default()
     }
 
-    /// Processes any pending messages for widgets and transmogrifiers.
-    fn process_widget_messages(&self) {
-        self.gooey().process_widget_messages(self);
-    }
-
     /// Notifies the frontend that a widget has messages. Frontends should
     /// ensure that `process_widget_messages` is called at some point after this
     /// method is called.
-    fn set_widget_has_messages(&self, widget: WidgetId) {
-        self.gooey().set_widget_has_messages(widget);
-    }
+    fn set_widget_has_messages(&self, widget: WidgetId);
 }
 
 /// An interface for Frontend that doesn't requier knowledge of associated
@@ -46,9 +39,6 @@ pub trait AnyFrontend: AnySendSync {
     /// Returns the widget storage.
     #[must_use]
     fn storage(&self) -> &'_ WidgetStorage;
-
-    /// Processes any pending messages for widgets and transmogrifiers.
-    fn process_widget_messages(&self);
 
     /// Notifies the frontend that a widget has messages. Frontends should
     /// ensure that `process_widget_messages` is called at some point after this
@@ -66,10 +56,6 @@ where
 
     fn storage(&self) -> &'_ WidgetStorage {
         self.gooey()
-    }
-
-    fn process_widget_messages(&self) {
-        self.process_widget_messages()
     }
 
     fn set_widget_has_messages(&self, widget: WidgetId) {

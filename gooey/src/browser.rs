@@ -15,7 +15,7 @@ pub fn browser_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> S
         default_stylesheet(),
         initializer,
     ));
-    ui.process_widget_messages();
+    ui.gooey().process_widget_messages(&ui);
     ui.install_in_id("gooey")
 }
 

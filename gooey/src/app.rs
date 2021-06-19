@@ -1,6 +1,3 @@
-use std::future::Future;
-
-use cfg_if::cfg_if;
 use gooey_core::{Frontend, StyledWidget, Transmogrifiers, Widget, WidgetStorage};
 
 #[derive(Default, Debug)]
@@ -20,27 +17,13 @@ impl App {
     }
 
     #[cfg(feature = "async")]
-    pub fn spawn<F: Future<Output = ()> + Send + 'static>(future: F) {
-        cfg_if! {
+    pub fn spawn<F: std::future::Future<Output = ()> + Send + 'static>(future: F) {
+        cfg_if::cfg_if! {
             if #[cfg(target_arch = "wasm32")] {
-                todo!("wasm bindgen futures")
+                wasm_bindgen_futures::future_to_promise(async move { future.await; Ok(wasm_bindgen::JsValue::UNDEFINED) });
             } else if #[cfg(feature = "frontend-kludgine")] {
                 gooey_kludgine::kludgine::prelude::Runtime::initialize();
                 gooey_kludgine::kludgine::prelude::Runtime::spawn(future);
-            } else {
-                compile_error!("unsupported async configuration")
-            }
-        }
-    }
-
-    #[cfg(feature = "async")]
-    pub fn block_on<F: Future<Output = R> + Send + 'static, R: Send + Sync>(future: F) -> R {
-        cfg_if! {
-            if #[cfg(target_arch = "wasm32")] {
-                todo!("wasm bindgen futures")
-            } else if #[cfg(feature = "frontend-kludgine")] {
-                gooey_kludgine::kludgine::prelude::Runtime::initialize();
-                gooey_kludgine::kludgine::prelude::Runtime::block_on(future)
             } else {
                 compile_error!("unsupported async configuration")
             }

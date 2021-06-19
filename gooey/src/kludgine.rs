@@ -20,7 +20,7 @@ pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> 
     register_transmogrifiers(&mut transmogrifiers);
     let ui = Gooey::with(transmogrifiers, default_stylesheet(), initializer);
     let ui = Rasterizer::<Kludgine>::new(ui);
-    ui.process_widget_messages();
+    ui.gooey().process_widget_messages(&ui);
 
     SingleWindowApplication::run(GooeyWindow { ui, redrawer: None });
 }
@@ -56,7 +56,7 @@ impl Window for GooeyWindow {
 
     fn render(&mut self, scene: &Target) -> kludgine::Result<()> {
         self.ui.render(Kludgine::from(scene));
-        self.ui.process_widget_messages();
+        self.ui.gooey().process_widget_messages(&self.ui);
         if self.ui.needs_redraw() {
             self.redrawer.as_ref().unwrap().request_redraw();
         }
@@ -65,7 +65,7 @@ impl Window for GooeyWindow {
     }
 
     fn update(&mut self, _scene: &Target, status: &mut RedrawStatus) -> kludgine::Result<()> {
-        self.ui.process_widget_messages();
+        self.ui.gooey().process_widget_messages(&self.ui);
         if self.ui.needs_redraw() {
             status.set_needs_redraw();
         }
@@ -98,7 +98,7 @@ impl Window for GooeyWindow {
         let result = self
             .ui
             .handle_event(gooey_rasterizer::events::WindowEvent::Input(input));
-        self.ui.process_widget_messages();
+        self.ui.gooey().process_widget_messages(&self.ui);
         if result.needs_redraw || self.ui.needs_redraw() {
             status.set_needs_redraw();
         }
