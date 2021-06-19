@@ -1,4 +1,12 @@
-use std::{any::TypeId, convert::TryFrom, ops::Deref, sync::Arc};
+use std::{
+    any::TypeId,
+    convert::TryFrom,
+    ops::Deref,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use gooey_core::{
     styles::{style_sheet::Classes, Style, StyleComponent},
@@ -12,6 +20,8 @@ pub mod utils;
 use utils::{set_widget_classes, set_widget_id, CssBlockBuilder, CssManager, CssRule};
 use web_sys::HtmlElement;
 
+static INITIALIZED: AtomicBool = AtomicBool::new(false);
+
 #[derive(Debug, Clone)]
 pub struct WebSys {
     pub ui: Gooey<Self>,
@@ -19,8 +29,18 @@ pub struct WebSys {
 }
 
 impl WebSys {
+    pub fn initialize() {
+        if INITIALIZED
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+        {
+            wasm_logger::init(wasm_logger::Config::default());
+        }
+    }
+
     pub fn new(ui: Gooey<Self>) -> Self {
-        wasm_logger::init(wasm_logger::Config::default());
+        Self::initialize();
+
         let manager = CssManager::shared();
         let mut styles = vec![
             manager.register_rule(
