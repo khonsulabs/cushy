@@ -69,7 +69,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     #[allow(unused_variables)]
     fn hit_test(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
     ) -> bool {
@@ -77,15 +77,15 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     }
 
     #[allow(unused_variables)]
-    fn hovered(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {}
+    fn hovered(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {}
 
     #[allow(unused_variables)]
-    fn unhovered(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {}
+    fn unhovered(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {}
 
     #[allow(unused_variables)]
     fn mouse_move(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
     ) -> bool {
@@ -95,7 +95,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     #[allow(unused_variables)]
     fn mouse_down(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
@@ -106,7 +106,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     #[allow(unused_variables)]
     fn mouse_drag(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
@@ -116,7 +116,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     #[allow(unused_variables)]
     fn mouse_up(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
         location: Option<Point2D<f32, Points>>,
         rastered_size: Size2D<f32, Points>,
@@ -191,8 +191,8 @@ where
         bounds: Rect<f32, Points>,
         parent_style: &Style,
     ) {
-        <T as WidgetRasterizer<R>>::render_within(
-            &self,
+        <Self as WidgetRasterizer<R>>::render_within(
+            self,
             TransmogrifierContext::try_from(context).unwrap(),
             bounds,
             parent_style,
@@ -204,8 +204,8 @@ where
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
-        <T as WidgetRasterizer<R>>::content_size(
-            &self,
+        <Self as WidgetRasterizer<R>>::content_size(
+            self,
             TransmogrifierContext::try_from(context).unwrap(),
             constraints,
         )
@@ -217,8 +217,8 @@ where
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
     ) -> bool {
-        <T as WidgetRasterizer<R>>::hit_test(
-            &self,
+        <Self as WidgetRasterizer<R>>::hit_test(
+            self,
             TransmogrifierContext::try_from(context).unwrap(),
             location,
             rastered_size,
@@ -226,15 +226,15 @@ where
     }
 
     fn hovered(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>) {
-        <T as WidgetRasterizer<R>>::hovered(
-            &self,
+        <Self as WidgetRasterizer<R>>::hovered(
+            self,
             TransmogrifierContext::try_from(context).unwrap(),
         )
     }
 
     fn unhovered(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>) {
-        <T as WidgetRasterizer<R>>::unhovered(
-            &self,
+        <Self as WidgetRasterizer<R>>::unhovered(
+            self,
             TransmogrifierContext::try_from(context).unwrap(),
         )
     }
@@ -245,8 +245,8 @@ where
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
     ) -> bool {
-        <T as WidgetRasterizer<R>>::mouse_move(
-            &self,
+        <Self as WidgetRasterizer<R>>::mouse_move(
+            self,
             TransmogrifierContext::try_from(context).unwrap(),
             location,
             rastered_size,
@@ -260,8 +260,8 @@ where
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
     ) -> EventStatus {
-        <T as WidgetRasterizer<R>>::mouse_down(
-            &self,
+        <Self as WidgetRasterizer<R>>::mouse_down(
+            self,
             TransmogrifierContext::try_from(context).unwrap(),
             button,
             location,
@@ -276,8 +276,8 @@ where
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
     ) {
-        <T as WidgetRasterizer<R>>::mouse_drag(
-            &self,
+        <Self as WidgetRasterizer<R>>::mouse_drag(
+            self,
             TransmogrifierContext::try_from(context).unwrap(),
             button,
             location,
@@ -292,8 +292,8 @@ where
         location: Option<Point2D<f32, Points>>,
         rastered_size: Size2D<f32, Points>,
     ) {
-        <T as WidgetRasterizer<R>>::mouse_up(
-            &self,
+        <Self as WidgetRasterizer<R>>::mouse_up(
+            self,
             TransmogrifierContext::try_from(context).unwrap(),
             button,
             location,

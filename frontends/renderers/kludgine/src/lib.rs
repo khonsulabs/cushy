@@ -1,3 +1,27 @@
+//! A [`Renderer`](gooey_core::renderer::Renderer) for `Gooey` that uses
+//! [`Kludgine`](https://github.com/kludgine/kludgine/) to draw. Under the hood,
+//! `Kludgine` uses `wgpu`, and in the future we [aim to support embedding
+//! `Gooey` into other `wgpu`
+//! applications](https://github.com/khonsulabs/kludgine/issues/51).
+
+#![forbid(unsafe_code)]
+#![warn(
+    clippy::cargo,
+    // TODO missing_docs,
+    clippy::nursery,
+    clippy::pedantic,
+    future_incompatible,
+    rust_2018_idioms
+)]
+#![allow(
+    clippy::if_not_else,
+    clippy::module_name_repetitions,
+    clippy::multiple_crate_versions, // this is a mess due to winit dependencies and wgpu dependencies not lining up
+    clippy::missing_errors_doc, // TODO clippy::missing_errors_doc
+    clippy::missing_panics_doc, // TODO clippy::missing_panics_doc
+)]
+#![cfg_attr(doc, warn(rustdoc::all))]
+
 use gooey_core::{
     euclid::{Point2D, Rect},
     palette::Srgba,
@@ -42,14 +66,14 @@ impl Kludgine {
             &bundled_fonts::ROBOTO,
             options
                 .get::<FontSize<Points>>()
-                .cloned()
+                .copied()
                 .unwrap_or_else(|| FontSize::new(13.))
                 .length()
                 .cast_unit(),
             Color::from(
                 options
                     .get_with_fallback::<F>()
-                    .cloned()
+                    .copied()
                     .unwrap_or_else(|| Srgba::new(0., 0., 0., 1.).into())
                     .themed_color(&system_theme)
                     .0,
@@ -75,7 +99,7 @@ impl Kludgine {
                 .line_width(
                     style
                         .get::<LineWidth<Points>>()
-                        .cloned()
+                        .copied()
                         .unwrap_or_else(|| LineWidth::new(1.))
                         .length()
                         .cast_unit(),
@@ -87,10 +111,10 @@ impl Kludgine {
 
 impl Renderer for Kludgine {
     fn size(&self) -> gooey_core::euclid::Size2D<f32, Points> {
-        self.target
-            .clip
-            .map(|c| c.size.to_f32().cast_unit::<Pixels>() / self.scale())
-            .unwrap_or_else(|| self.target.size().cast_unit::<Points>())
+        self.target.clip.map_or_else(
+            || self.target.size().cast_unit::<Points>(),
+            |c| c.size.to_f32().cast_unit::<Pixels>() / self.scale(),
+        )
     }
 
     fn clip_bounds(&self) -> Rect<f32, Points> {
@@ -111,7 +135,7 @@ impl Renderer for Kludgine {
         let scene_relative_bounds = bounds
             .translate(self.target.offset.unwrap_or_default().cast_unit::<Pixels>() / self.scale());
 
-        Kludgine::from(
+        Self::from(
             self.target
                 .clipped_to((scene_relative_bounds * self.scale()).to_u32().cast_unit())
                 .offset_by((bounds.origin.to_vector() * self.scale()).cast_unit()),
@@ -157,7 +181,7 @@ impl Renderer for Kludgine {
             .fill(Fill::new(Color::from(
                 style
                     .get_with_fallback::<F>()
-                    .cloned()
+                    .copied()
                     .unwrap_or_else(|| Srgba::new(1., 1., 1., 1.).into())
                     .themed_color(&system_theme)
                     .0,

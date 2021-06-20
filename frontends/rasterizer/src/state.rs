@@ -42,7 +42,7 @@ impl State {
 
     pub fn widget_bounds(&self, widget: &WidgetId) -> Option<Rect<f32, Points>> {
         let data = self.data.lock().unwrap();
-        data.bounds.get(&widget.id).cloned()
+        data.bounds.get(&widget.id).copied()
     }
 
     pub fn widgets_under_point(&self, location: Point2D<f32, Points>) -> Vec<WidgetId> {
@@ -128,9 +128,9 @@ impl State {
         data.mouse_button_handlers.insert(button, widget);
     }
 
-    pub fn take_mouse_button_handler(&self, button: &MouseButton) -> Option<WidgetId> {
+    pub fn take_mouse_button_handler(&self, button: MouseButton) -> Option<WidgetId> {
         let mut data = self.data.lock().unwrap();
-        data.mouse_button_handlers.remove(button)
+        data.mouse_button_handlers.remove(&button)
     }
 
     pub fn mouse_button_handlers(&self) -> HashMap<MouseButton, WidgetId> {

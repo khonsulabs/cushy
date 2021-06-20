@@ -1,3 +1,25 @@
+//! A [`Frontend`](gooey_core::Frontend) for `Gooey` that targets web browsers
+//! by creating DOM elements using `web-sys` and `wasm-bindgen`.
+
+#![forbid(unsafe_code)]
+#![warn(
+    clippy::cargo,
+    // TODO missing_docs,
+    clippy::nursery,
+    clippy::pedantic,
+    future_incompatible,
+    rust_2018_idioms
+)]
+#![allow(
+    clippy::if_not_else,
+    clippy::module_name_repetitions,
+    clippy::needless_pass_by_value,
+    clippy::multiple_crate_versions, // this is a mess due to winit dependencies and wgpu dependencies not lining up
+    clippy::missing_errors_doc, // TODO clippy::missing_errors_doc
+    clippy::missing_panics_doc, // TODO clippy::missing_panics_doc
+)]
+#![cfg_attr(doc, warn(rustdoc::all))]
+
 use std::{
     any::TypeId,
     convert::TryFrom,
@@ -38,6 +60,7 @@ impl WebSys {
         }
     }
 
+    #[must_use]
     pub fn new(ui: Gooey<Self>) -> Self {
         Self::initialize();
 
@@ -142,7 +165,7 @@ impl Deref for RegisteredTransmogrifier {
 
 impl gooey_core::Frontend for WebSys {
     type AnyTransmogrifier = RegisteredTransmogrifier;
-    type Context = WebSys;
+    type Context = Self;
 
     fn gooey(&self) -> &'_ Gooey<Self> {
         &self.ui
@@ -205,17 +228,18 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
     #[allow(unused_variables)]
     fn convert_colors_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
         if let Some(color) = <Self::Widget as Widget>::text_color(style) {
-            css = css.with_css_statement(format!("color: {}", color.light_color.to_css_string()));
+            css = css.with_css_statement(format!("color: {}", color.light_color.as_css_string()));
         }
         if let Some(color) = <Self::Widget as Widget>::background_color(style) {
             css = css.with_css_statement(format!(
                 "background-color: {}",
-                color.light_color.to_css_string()
+                color.light_color.as_css_string()
             ));
         }
         css
     }
 
+    #[must_use]
     fn widget_classes() -> Classes {
         Classes::from(<<Self as Transmogrifier<WebSys>>::Widget as Widget>::CLASS)
     }
@@ -241,18 +265,18 @@ where
         &self,
         context: &mut AnyTransmogrifierContext<'_, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
-        <T as WebSysTransmogrifier>::transmogrify(
-            &self,
+        <Self as WebSysTransmogrifier>::transmogrify(
+            self,
             TransmogrifierContext::try_from(context).unwrap(),
         )
     }
 
     fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
-        <T as WebSysTransmogrifier>::convert_style_to_css(&self, style, css)
+        <Self as WebSysTransmogrifier>::convert_style_to_css(self, style, css)
     }
 
     fn widget_classes(&self) -> Classes {
-        <T as WebSysTransmogrifier>::widget_classes()
+        <Self as WebSysTransmogrifier>::widget_classes()
     }
 }
 

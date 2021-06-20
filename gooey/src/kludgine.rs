@@ -13,6 +13,10 @@ use crate::{
     widgets::rasterized::{default_transmogrifiers, register_transmogrifiers},
 };
 
+/// Runs a `Kludgine`-based [`App`](crate::app::App) with `transmogrifiers` and
+/// the root widget from `initializer`. Unless overriden by `transmogrifier`,
+/// all widgets from [`gooey::widget`](crate::widgets) will use the built-in
+/// transmogrifiers.
 pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
     mut transmogrifiers: Transmogrifiers<Rasterizer<Kludgine>>,
     initializer: C,
@@ -25,6 +29,10 @@ pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> 
     SingleWindowApplication::run(GooeyWindow { ui, redrawer: None });
 }
 
+/// Runs a `Kludgine`-based [`App`](crate::app::App) with the root widget from
+/// `initializer`. All widgets from [`gooey::widget`](crate::widgets) will be
+/// usable. If you wish to use other widgets, use `browser_main_with` and
+/// provide the transmogrifiers for the widgets you wish to use.
 pub fn kludgine_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
     initializer: C,
 ) {
@@ -90,7 +98,7 @@ impl Window for GooeyWindow {
             },
             Event::MouseButton { button, state } => GooeyInputEvent::MouseButton { button, state },
             Event::MouseMoved { position } => GooeyInputEvent::MouseMoved {
-                position: position.map(|p| p.cast_unit()),
+                position: position.map(Point::cast_unit),
             },
             Event::MouseWheel { delta, touch_phase } =>
                 GooeyInputEvent::MouseWheel { delta, touch_phase },

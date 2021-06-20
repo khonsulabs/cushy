@@ -13,7 +13,7 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ContainerTransmogrifier {
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
-    fn render(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {
+    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
         context.frontend.with_transmogrifier(
             context.widget.child.id(),
             |child_transmogrifier, mut child_context| {
@@ -44,7 +44,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
 
     fn content_size(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         context

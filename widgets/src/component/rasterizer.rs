@@ -8,7 +8,7 @@ use super::Component;
 use crate::component::{Behavior, ComponentTransmogrifier};
 
 impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B> {
-    fn render(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {
+    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
         context.frontend.with_transmogrifier(
             context.widget.content.id(),
             |child_transmogrifier, mut child_context| {
@@ -24,7 +24,7 @@ impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B
 
     fn content_size(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         context
@@ -57,14 +57,14 @@ impl<B: Behavior, R: Renderer> Transmogrifier<Rasterizer<R>> for ComponentTransm
         widget: &WidgetRef<Self::Widget>,
         frontend: &Rasterizer<R>,
     ) -> Self::State {
-        self.initialize_component(component, widget, frontend);
+        Self::initialize_component(component, widget, frontend);
     }
 
     fn receive_command(
         &self,
         command: <Self::Widget as Widget>::TransmogrifierCommand,
-        context: &mut TransmogrifierContext<Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
     ) {
-        self.forward_command_to_content(command, context);
+        Self::forward_command_to_content(command, context);
     }
 }

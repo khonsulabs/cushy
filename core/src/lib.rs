@@ -11,7 +11,7 @@
     rust_2018_idioms
 )]
 #![allow(clippy::if_not_else)]
-#![cfg_attr(doc, deny(rustdoc::all))]
+#![cfg_attr(doc, warn(rustdoc::all))]
 
 mod frontend;
 mod gooey;

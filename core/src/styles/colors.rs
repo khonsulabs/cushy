@@ -34,7 +34,7 @@ impl Color {
     #[must_use]
     #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_sign_loss)]
-    pub fn to_css_string(&self) -> String {
+    pub fn as_css_string(&self) -> String {
         format!(
             "rgba({}, {}, {}, {:.03})",
             (self.red * 255.).clamp(0., 255.).round() as u8,
@@ -47,7 +47,7 @@ impl Color {
 
 impl Display for Color {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.to_css_string())
+        f.write_str(&self.as_css_string())
     }
 }
 

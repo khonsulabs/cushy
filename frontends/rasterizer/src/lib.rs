@@ -1,3 +1,24 @@
+//! A [`Frontend`](gooey_core::Frontend) for `Gooey` that rasterizes widgets
+//! using a [`Renderer`](gooey_core::renderer::Renderer).
+
+#![forbid(unsafe_code)]
+#![warn(
+    clippy::cargo,
+    // TODO missing_docs,
+    clippy::nursery,
+    clippy::pedantic,
+    future_incompatible,
+    rust_2018_idioms
+)]
+#![allow(
+    clippy::if_not_else,
+    clippy::module_name_repetitions,
+    clippy::needless_pass_by_value,
+    clippy::missing_errors_doc, // TODO clippy::missing_errors_doc
+    clippy::missing_panics_doc, // TODO clippy::missing_panics_doc
+)]
+#![cfg_attr(doc, warn(rustdoc::all))]
+
 use std::{collections::HashSet, sync::Arc};
 
 use events::{InputEvent, WindowEvent};
@@ -82,6 +103,7 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
 }
 
 impl<R: Renderer> Rasterizer<R> {
+    #[must_use]
     pub fn new(ui: Gooey<Self>) -> Self {
         Self {
             ui: Arc::new(ui),
@@ -100,7 +122,7 @@ impl<R: Renderer> Rasterizer<R> {
 
         let size = scene.size();
 
-        Rasterizer {
+        Self {
             ui: self.ui.clone(),
             state: self.state.clone(),
             refresh_callback: self.refresh_callback.clone(),
@@ -140,10 +162,10 @@ impl<R: Renderer> Rasterizer<R> {
                     self.handle_mouse_wheel(delta, touch_phase),
             },
             WindowEvent::RedrawRequested => EventResult::redraw(),
-            WindowEvent::ReceiveCharacter(_) => EventResult::ignored(),
-            WindowEvent::ModifiersChanged(_) => EventResult::ignored(),
-            WindowEvent::LayerChanged { .. } => EventResult::ignored(),
-            WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
+            WindowEvent::ReceiveCharacter(_)
+            | WindowEvent::ModifiersChanged(_)
+            | WindowEvent::LayerChanged { .. }
+            | WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
         };
         self.ui.process_widget_messages(self);
         self.ui.exit_managed_code();
@@ -166,10 +188,10 @@ impl<R: Renderer> Rasterizer<R> {
         }
     }
 
-    fn invoke_drag_events(&self, _position: Option<Point2D<f32, Points>>) {
-        // TODO
-    }
+    #[allow(clippy::unused_self)] // TODO needs implementing
+    fn invoke_drag_events(&self, _position: Option<Point2D<f32, Points>>) {}
 
+    #[allow(clippy::unused_self)] // TODO needs implementing
     fn handle_keyboard_input(
         &self,
         _scancode: ScanCode,
@@ -273,7 +295,7 @@ impl<R: Renderer> Rasterizer<R> {
 
     fn handle_mouse_up(&self, button: MouseButton) -> EventResult {
         self.state
-            .take_mouse_button_handler(&button)
+            .take_mouse_button_handler(button)
             .and_then(|handler| {
                 self.state.widget_bounds(&handler).and_then(|bounds| {
                     self.with_transmogrifier(&handler, |transmogrifier, mut context| {
@@ -292,6 +314,7 @@ impl<R: Renderer> Rasterizer<R> {
             .unwrap_or_else(EventResult::ignored)
     }
 
+    #[allow(clippy::unused_self)] // TODO needs implementing
     fn handle_mouse_wheel(&self, _delta: MouseScrollDelta, _phase: TouchPhase) -> EventResult {
         // TODO forward mouse wheel events
         EventResult::ignored()
@@ -310,10 +333,7 @@ impl<R: Renderer> Rasterizer<R> {
     #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
     pub fn with_transmogrifier<
         TResult,
-        C: FnOnce(
-            &'_ dyn AnyWidgetRasterizer<R>,
-            AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        ) -> TResult,
+        C: FnOnce(&'_ dyn AnyWidgetRasterizer<R>, AnyTransmogrifierContext<'_, Self>) -> TResult,
     >(
         &self,
         widget_id: &WidgetId,
@@ -369,6 +389,7 @@ pub struct EventResult {
 }
 
 impl EventResult {
+    #[must_use]
     pub const fn ignored() -> Self {
         Self {
             status: EventStatus::Ignored,
@@ -376,6 +397,7 @@ impl EventResult {
         }
     }
 
+    #[must_use]
     pub const fn processed() -> Self {
         Self {
             status: EventStatus::Processed,
@@ -383,6 +405,7 @@ impl EventResult {
         }
     }
 
+    #[must_use]
     pub const fn redraw() -> Self {
         Self {
             status: EventStatus::Processed,

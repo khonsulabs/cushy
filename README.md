@@ -2,8 +2,8 @@
 
 [![crate version](https://img.shields.io/crates/v/gooey.svg)](https://crates.io/crates/gooey)
 [![Live Build Status](https://img.shields.io/github/workflow/status/khonsulabs/gooey/Tests/main)](https://github.com/khonsulabs/gooey/actions?query=workflow:Tests)
-[![HTML Coverage Report for `main` branch](https://khonsulabs.github.io/gooey/coverage/badge.svg)](https://khonsulabs.github.io/gooey/coverage/)
-[![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)](https://khonsulabs.github.io/gooey/main/gooey/)
+[![HTML Coverage Report for `main` branch](https://khonsulabs.github.io/gooey/coverage/badge.svg)](https://gooey.rs/coverage/)
+[![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)](https://gooey.rs/main/gooey/)
 
 **Warning:** This crate is incredibly early in development.
 
@@ -38,14 +38,14 @@ These crates define the API that users creating applications will use to initial
 
 These crates will also implement all widgets defined by gooey-core. These crates are:
 
-* `gooey-rasterizer`: [`Rasterizer`](https://khonsulabs.github.io/gooey/main/gooey/frontends/rasterizer/struct.Rasterizer.html) frontend. Requires a [`Renderer`](https://khonsulabs.github.io/gooey/main/gooey/core/renderer/trait.Renderer.html).
-* `gooey-browser`: [`WebSys`](https://khonsulabs.github.io/gooey/main/gooey/frontends/browser/struct.WebSys.html) frontend. See [`gooey/examples/basic.rs`](./gooey/examples/basic.rs), or run `cargo xtask build-browser-example`.
+* `gooey-rasterizer`: [`Rasterizer`](https://gooey.rs/main/gooey/frontends/rasterizer/struct.Rasterizer.html) frontend. Requires a [`Renderer`](https://gooey.rs/main/gooey/core/renderer/trait.Renderer.html).
+* `gooey-browser`: [`WebSys`](https://gooey.rs/main/gooey/frontends/browser/struct.WebSys.html) frontend. See [`gooey/examples/basic.rs`](./gooey/examples/basic.rs), or run `cargo xtask build-browser-example`.
 
 ## Renderers
 
-These crates implement [`Renderer`](https://khonsulabs.github.io/gooey/main/gooey/core/renderer/trait.Renderer.html) for an environment where raw drawing APIs are the only tools available to display a user interface. For example, inside of a game. The only renderer currently being developed is:
+These crates implement [`Renderer`](https://gooey.rs/main/gooey/core/renderer/trait.Renderer.html) for an environment where raw drawing APIs are the only tools available to display a user interface. For example, inside of a game. The only renderer currently being developed is:
 
-* `gooey-kludgine`: Provides the [`Kludgine`](https://khonsulabs.github.io/gooey/main/gooey/frontends/renderers/kludgine/struct.Kludgine.html) renderer. See [`gooey/examples/basic.rs`](./gooey/examples/basic.rs) or run `cargo run --example basic`.
+* `gooey-kludgine`: Provides the [`Kludgine`](https://gooey.rs/main/gooey/frontends/renderers/kludgine/struct.Kludgine.html) renderer. See [`gooey/examples/basic.rs`](./gooey/examples/basic.rs) or run `cargo run --example basic`.
 
 ## `gooey`
 

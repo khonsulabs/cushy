@@ -49,15 +49,15 @@ impl<B: Behavior> Transmogrifier<WebSys> for ComponentTransmogrifier<B> {
         widget: &WidgetRef<Self::Widget>,
         frontend: &WebSys,
     ) -> Self::State {
-        self.initialize_component(component, widget, frontend);
+        Self::initialize_component(component, widget, frontend);
         None
     }
 
     fn receive_command(
         &self,
         command: <Self::Widget as Widget>::TransmogrifierCommand,
-        context: &mut TransmogrifierContext<Self, WebSys>,
+        context: &mut TransmogrifierContext<'_, Self, WebSys>,
     ) {
-        self.forward_command_to_content(command, context);
+        Self::forward_command_to_content(command, context);
     }
 }

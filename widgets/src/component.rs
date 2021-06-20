@@ -33,7 +33,7 @@ impl<B: Behavior> Component<B> {
         let mut builder = ComponentBuilder::new(storage);
         let content = behavior.create_content(&mut builder);
         let content = builder.register(content);
-        StyledWidget::default_for(Component {
+        StyledWidget::default_for(Self {
             content,
             behavior,
             callback_widget: builder.widget,
@@ -42,6 +42,7 @@ impl<B: Behavior> Component<B> {
         })
     }
 
+    #[must_use]
     pub fn default_for(storage: &WidgetStorage) -> StyledWidget<Self>
     where
         B: Default,
@@ -54,7 +55,9 @@ impl<B: Behavior> Component<B> {
     }
 
     pub fn registered_widget(&self, id: &B::Widgets) -> Option<WidgetRegistration> {
-        self.registered_widgets.get(id).and_then(|id| id.upgrade())
+        self.registered_widgets
+            .get(id)
+            .and_then(WeakWidgetRegistration::upgrade)
     }
 
     pub fn send_command_to<W: Widget>(
@@ -140,6 +143,7 @@ pub struct ComponentBuilder<B: Behavior> {
 }
 
 impl<B: Behavior> ComponentBuilder<B> {
+    #[must_use]
     pub fn new(storage: &WidgetStorage) -> Self {
         Self {
             storage: storage.clone(),
@@ -201,7 +205,7 @@ pub struct EventPoster<B: Behavior, F: Frontend> {
 
 impl<B: Behavior, F: Frontend> AnyEventPoster<B> for EventPoster<B, F> {
     fn post_event(&self, event: B::Event) {
-        let _ = self.channels.post_event(InternalEvent::Content(event));
+        self.channels.post_event(InternalEvent::Content(event));
         self.frontend.set_widget_has_messages(self.widget.clone());
         self.frontend
             .gooey()
@@ -232,7 +236,6 @@ impl<B: Behavior, I> CallbackFn<I, ()> for MappedCallback<B, I> {
 
 impl<B: Behavior> ComponentTransmogrifier<B> {
     pub fn initialize_component<F: Frontend>(
-        &self,
         component: &mut Component<B>,
         widget: &WidgetRef<Component<B>>,
         frontend: &F,
@@ -256,9 +259,8 @@ impl<B: Behavior> ComponentTransmogrifier<B> {
     }
 
     pub fn forward_command_to_content<F: Frontend>(
-        &self,
         command: <Component<B> as Widget>::TransmogrifierCommand,
-        context: &mut TransmogrifierContext<Self, F>,
+        context: &mut TransmogrifierContext<'_, Self, F>,
     ) where
         Self: Transmogrifier<F, Widget = Component<B>>,
     {

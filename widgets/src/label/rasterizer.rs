@@ -16,14 +16,14 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LabelTransmogrifier {
     fn receive_command(
         &self,
         _command: LabelCommand,
-        context: &mut TransmogrifierContext<Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
     ) {
         context.frontend.set_needs_redraw();
     }
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
-    fn render(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {
+    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
         if let Some(scene) = context.frontend.renderer() {
             let text_size = scene.measure_text(&context.widget.label, context.style);
 
@@ -39,17 +39,18 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
 
     fn content_size(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
-        if let Some(scene) = context.frontend.renderer() {
-            // TODO should be wrapped width
-            let text_size = scene.measure_text(&context.widget.label, context.style);
-            (Vector2D::from_lengths(text_size.width, text_size.height())
-                + Vector2D::from_lengths(LABEL_PADDING * 2., LABEL_PADDING * 2.))
-            .to_size()
-        } else {
-            Size2D::default()
-        }
+        context
+            .frontend
+            .renderer()
+            .map_or_else(Size2D::default, |scene| {
+                // TODO should be wrapped width
+                let text_size = scene.measure_text(&context.widget.label, context.style);
+                (Vector2D::from_lengths(text_size.width, text_size.height())
+                    + Vector2D::from_lengths(LABEL_PADDING * 2., LABEL_PADDING * 2.))
+                .to_size()
+            })
     }
 }

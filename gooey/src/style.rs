@@ -8,6 +8,8 @@ use gooey_core::{
 };
 use gooey_widgets::button::Button;
 
+/// The default [`StyleSheet`] for `Gooey`.
+#[must_use]
 pub fn default_stylesheet() -> StyleSheet {
     // Palette from https://flatuicolors.com/palette/defo
     // let light_green = Srgba::new(0.333, 0.937, 0.769, 1.);

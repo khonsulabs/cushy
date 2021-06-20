@@ -14,7 +14,7 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LayoutTransmogrifier {
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
-    fn render(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {
+    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
         let context_size = context.frontend.renderer().unwrap().size();
         for_each_measured_widget(&context, context_size, |layout, child_bounds| {
             context.frontend.with_transmogrifier(
@@ -28,7 +28,7 @@ impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
 
     fn content_size(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         let mut extents = Vector2D::default();
@@ -44,13 +44,14 @@ impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
     }
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, Rect<f32, Points>)>(
-    context: &TransmogrifierContext<LayoutTransmogrifier, Rasterizer<R>>,
+    context: &TransmogrifierContext<'_, LayoutTransmogrifier, Rasterizer<R>>,
     constraints: Size2D<f32, Points>,
     mut callback: F,
 ) {
     for child in context.widget.children.layout_children() {
-        let layout_surround = child.layout.surround_in_points(&constraints);
+        let layout_surround = child.layout.surround_in_points(constraints);
         let child_constrained_size = Size2D::from_lengths(
             Length::new(constraints.width) - layout_surround.minimum_width(),
             Length::new(constraints.height) - layout_surround.minimum_height(),
@@ -74,7 +75,7 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, Rect<f32, Points
 
         // If the layout has an explicit width/height, we should return it if it's a
         // value larger than what the child reported
-        let child_size = child_size.max(child.layout.size_in_points(&child_constrained_size));
+        let child_size = child_size.max(child.layout.size_in_points(child_constrained_size));
         // If either top or left are Auto, we need to divide it equally with the
         // corresponding measurement if it's also auto.
         let child_left = layout_surround.left.unwrap_or_else(|| {
@@ -92,11 +93,11 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, Rect<f32, Points
     }
 }
 
-fn count_autos(a: Option<Length<f32, Points>>, b: Option<Length<f32, Points>>) -> usize {
+const fn count_autos(a: Option<Length<f32, Points>>, b: Option<Length<f32, Points>>) -> usize {
     count_auto(a) + count_auto(b)
 }
 
-fn count_auto(a: Option<Length<f32, Points>>) -> usize {
+const fn count_auto(a: Option<Length<f32, Points>>) -> usize {
     if a.is_none() {
         1
     } else {

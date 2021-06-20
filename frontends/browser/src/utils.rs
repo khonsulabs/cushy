@@ -7,10 +7,12 @@ use gooey_core::styles::{
 use wasm_bindgen::JsCast;
 use web_sys::{CssStyleSheet, HtmlElement, HtmlStyleElement};
 
+#[must_use]
 pub fn window_document() -> web_sys::Document {
     web_sys::window().unwrap().document().unwrap()
 }
 
+#[must_use]
 pub fn widget_css_id(widget_id: u32) -> String {
     format!("gooey-{}", widget_id)
 }
@@ -28,28 +30,31 @@ pub struct CssManager {
 }
 
 impl CssManager {
+    #[must_use]
     pub fn shared() -> Self {
         let doc = window_document();
-        let style_tag = if let Some(style_tag) = doc.get_element_by_id("gooey-styles") {
-            style_tag.unchecked_into::<HtmlStyleElement>()
-        } else {
-            let style = doc
-                .create_element("style")
-                .expect("error creating style")
-                .unchecked_into::<web_sys::HtmlStyleElement>();
-            style.set_id("gooey-styles");
-            doc.head()
-                .expect("missing <head>")
-                .append_child(&style)
-                .unwrap();
-            style
-        };
+        let style_tag = doc.get_element_by_id("gooey-styles").map_or_else(
+            || {
+                let style = doc
+                    .create_element("style")
+                    .expect("error creating style")
+                    .unchecked_into::<web_sys::HtmlStyleElement>();
+                style.set_id("gooey-styles");
+                doc.head()
+                    .expect("missing <head>")
+                    .append_child(&style)
+                    .unwrap();
+                style
+            },
+            JsCast::unchecked_into::<HtmlStyleElement>,
+        );
 
         Self {
             sheet: style_tag.sheet().expect("missing sheet").unchecked_into(),
         }
     }
 
+    #[must_use]
     pub fn register_rule(&self, rule: &str) -> CssRule {
         CssRule {
             index: Some(self.sheet.insert_rule(rule).unwrap()),
@@ -84,6 +89,7 @@ pub struct CssBlockBuilder {
 }
 
 impl CssBlockBuilder {
+    #[must_use]
     pub fn for_id(widget_id: u32) -> Self {
         Self {
             selector: format!("#{}", widget_css_id(widget_id)),
@@ -98,6 +104,7 @@ impl CssBlockBuilder {
         }
     }
 
+    #[must_use]
     pub fn for_classes(classes: &Classes) -> Self {
         Self {
             selector: format!(".{}", classes.to_vec().join(".")),
@@ -105,12 +112,12 @@ impl CssBlockBuilder {
         }
     }
 
+    #[must_use]
     pub fn for_classes_and_rule(classes: &Classes, rule: &Rule) -> Self {
-        let mut builder = if let Some(rule_classes) = &rule.classes {
-            Self::for_classes(&classes.merge(rule_classes))
-        } else {
-            Self::for_classes(classes)
-        };
+        let mut builder = rule.classes.as_ref().map_or_else(
+            || Self::for_classes(classes),
+            |rule_classes| Self::for_classes(&classes.merge(rule_classes)),
+        );
         if let Some(active) = rule.active {
             builder.selector += if active { ":active" } else { ":not(:active)" };
         }
@@ -140,7 +147,7 @@ impl std::fmt::Display for CssBlockBuilder {
         f.write_str(&self.selector)?;
         f.write_char('{')?;
         for statement in &self.statements {
-            f.write_str(&statement)?;
+            f.write_str(statement)?;
             f.write_char(';')?;
         }
         f.write_char('}')

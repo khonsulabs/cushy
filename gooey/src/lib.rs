@@ -1,3 +1,50 @@
+//! A graphical user interface library. This crate exposes all of the built-in
+//! functionality of Gooey, as well as types for building apps.
+//!
+//! ## Feature Flags
+//!
+//! This crate has several feature flags to control what features are enabled.
+//! The default feature flags are `["frontend-kludgine"]`.
+//!
+//! * `frontend-browser`: Enables the `frontends::browser` module, which is
+//!   `gooey-browser` re-exported.
+//! * `frontend-kludgine`: Enables the `frontends::rasterizer` module and the
+//!   `frontends::renderers::kludgine` module. These are re-exports of
+//!   `gooey-rasterizer` and `gooey-kludgine` respectively.
+//! * `async`: Enables the `App::spawn()` function.
+//!
+//! ## Top-level exports
+//!
+//! The `ActiveFrontend`, `main()`, and `main_with()` function will change types
+//! based on the feature flags enabled as well as the target platform. Here is a
+//! reference to understand what symbols to expect:
+//!
+//! | `target_arch = "wasm32"` | `frontend-kludgine` | `frontend-browser` | `ActiveFrontend`/`main()` |
+//! | - | - | - | - |
+//! | `false` | `false` | `false` | |
+//! | `false` | `false` | `true`  | |
+//! | `false` | `true`  | `false` | `Rasterizer<Kludgine>`/`kludgine_main` |
+//! | `false` | `true`  | `true`  | `Rasterizer<Kludgine>`/`kludgine_main` |
+//! | `true`  | `false` | `true`  | `WebSys`/`browser_main` |
+//! | `true`  | `true`  | `true`  | `WebSys`/`browser_main` |
+
+#![forbid(unsafe_code)]
+#![warn(
+    clippy::cargo,
+    missing_docs,
+    clippy::nursery,
+    clippy::pedantic,
+    future_incompatible,
+    rust_2018_idioms
+)]
+#![allow(
+    clippy::if_not_else,
+    clippy::module_name_repetitions,
+    clippy::multiple_crate_versions, // this is a mess due to winit dependencies and wgpu dependencies not lining up
+)]
+#![cfg_attr(doc, warn(rustdoc::all))]
+
+/// Available [`Frontends`](gooey_core::Frontend).
 pub mod frontends {
     #[cfg(feature = "frontend-browser")]
     #[doc(inline)]
@@ -5,6 +52,7 @@ pub mod frontends {
     #[cfg(feature = "gooey-rasterizer")]
     #[doc(inline)]
     pub use gooey_rasterizer as rasterizer;
+    /// Available [`Renderers`](gooey_core::renderer::Renderer).
     pub mod renderers {
         #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
         #[doc(inline)]
@@ -35,6 +83,7 @@ cfg_if! {
     } else if #[cfg(feature = "frontend-kludgine")] {
         pub use kludgine_main as main;
         pub use kludgine_main_with as main_with;
+        /// The active frontend.
         pub type ActiveFrontend = gooey_rasterizer::Rasterizer<gooey_kludgine::Kludgine>;
     }
 }
@@ -42,4 +91,5 @@ cfg_if! {
 mod app;
 
 pub use app::App;
+/// Styles for applications.
 pub mod style;

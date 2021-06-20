@@ -47,6 +47,7 @@ pub struct LayoutChild {
 }
 
 impl<K: LayoutKey> Builder<K> {
+    #[must_use]
     pub fn new(storage: &WidgetStorage) -> Self {
         Self {
             storage: storage.clone(),
@@ -72,6 +73,7 @@ impl<K: LayoutKey> Builder<K> {
         self
     }
 
+    #[must_use]
     pub fn finish(self) -> StyledWidget<Layout> {
         StyledWidget::default_for(Layout {
             children: Box::new(self.children),
@@ -124,44 +126,48 @@ impl WidgetLayout {
         self
     }
 
-    pub fn left_in_points(
-        &self,
-        content_size: &Size2D<f32, Points>,
-    ) -> Option<Length<f32, Points>> {
+    #[must_use]
+    pub fn left_in_points(&self, content_size: Size2D<f32, Points>) -> Option<Length<f32, Points>> {
         self.left.length(Length::new(content_size.width))
     }
 
+    #[must_use]
     pub fn right_in_points(
         &self,
-        content_size: &Size2D<f32, Points>,
+        content_size: Size2D<f32, Points>,
     ) -> Option<Length<f32, Points>> {
         self.right.length(Length::new(content_size.width))
     }
 
-    pub fn top_in_points(&self, content_size: &Size2D<f32, Points>) -> Option<Length<f32, Points>> {
+    #[must_use]
+    pub fn top_in_points(&self, content_size: Size2D<f32, Points>) -> Option<Length<f32, Points>> {
         self.top.length(Length::new(content_size.height))
     }
 
+    #[must_use]
     pub fn bottom_in_points(
         &self,
-        content_size: &Size2D<f32, Points>,
+        content_size: Size2D<f32, Points>,
     ) -> Option<Length<f32, Points>> {
         self.bottom.length(Length::new(content_size.height))
     }
 
-    pub fn width_in_points(&self, content_size: &Size2D<f32, Points>) -> Length<f32, Points> {
+    #[must_use]
+    pub fn width_in_points(&self, content_size: Size2D<f32, Points>) -> Length<f32, Points> {
         self.width
             .length(Length::new(content_size.width))
             .unwrap_or_default()
     }
 
-    pub fn height_in_points(&self, content_size: &Size2D<f32, Points>) -> Length<f32, Points> {
+    #[must_use]
+    pub fn height_in_points(&self, content_size: Size2D<f32, Points>) -> Length<f32, Points> {
         self.height
             .length(Length::new(content_size.height))
             .unwrap_or_default()
     }
 
-    pub fn surround_in_points(&self, content_size: &Size2D<f32, Points>) -> Surround<Points> {
+    #[must_use]
+    pub fn surround_in_points(&self, content_size: Size2D<f32, Points>) -> Surround<Points> {
         Surround {
             left: self.left_in_points(content_size),
             top: self.top_in_points(content_size),
@@ -170,7 +176,8 @@ impl WidgetLayout {
         }
     }
 
-    pub fn size_in_points(&self, content_size: &Size2D<f32, Points>) -> Size2D<f32, Points> {
+    #[must_use]
+    pub fn size_in_points(&self, content_size: Size2D<f32, Points>) -> Size2D<f32, Points> {
         Size2D::from_lengths(
             self.width_in_points(content_size),
             self.height_in_points(content_size),
@@ -206,11 +213,12 @@ pub enum Dimension {
 
 impl Default for Dimension {
     fn default() -> Self {
-        Dimension::Auto
+        Self::Auto
     }
 }
 
 impl Dimension {
+    #[must_use]
     pub fn length(self, content_length: Length<f32, Points>) -> Option<Length<f32, Points>> {
         match self {
             Dimension::Auto => None,

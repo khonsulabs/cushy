@@ -19,14 +19,14 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
     fn receive_command(
         &self,
         _command: ButtonCommand,
-        context: &mut TransmogrifierContext<Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
     ) {
         context.frontend.set_needs_redraw();
     }
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
-    fn render(&self, context: TransmogrifierContext<Self, Rasterizer<R>>) {
+    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
         if let Some(scene) = context.frontend.renderer() {
             scene.fill_rect::<ButtonColor>(&scene.bounds(), context.style);
 
@@ -44,23 +44,24 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
 
     fn content_size(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
-        if let Some(scene) = context.frontend.renderer() {
-            // TODO should be wrapped width
-            let text_size = scene.measure_text(&context.widget.label, context.style);
-            (Vector2D::from_lengths(text_size.width, text_size.height())
-                + Vector2D::from_lengths(BUTTON_PADDING * 2., BUTTON_PADDING * 2.))
-            .to_size()
-        } else {
-            Size2D::default()
-        }
+        context
+            .frontend
+            .renderer()
+            .map_or_else(Size2D::default, |scene| {
+                // TODO should be wrapped width
+                let text_size = scene.measure_text(&context.widget.label, context.style);
+                (Vector2D::from_lengths(text_size.width, text_size.height())
+                    + Vector2D::from_lengths(BUTTON_PADDING * 2., BUTTON_PADDING * 2.))
+                .to_size()
+            })
     }
 
     fn mouse_down(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
         _location: Point2D<f32, Points>,
         _rastered_size: Size2D<f32, Points>,
@@ -75,7 +76,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
 
     fn mouse_drag(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
@@ -89,7 +90,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
 
     fn mouse_up(
         &self,
-        context: TransmogrifierContext<Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
         location: Option<Point2D<f32, Points>>,
         rastered_size: Size2D<f32, Points>,

@@ -20,6 +20,7 @@ impl Container {
         Self::from_registration(storage.register(child))
     }
 
+    #[must_use]
     pub fn from_registration(child: WidgetRegistration) -> StyledWidget<Self> {
         StyledWidget::default_for(Self {
             child,

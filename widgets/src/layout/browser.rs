@@ -65,16 +65,16 @@ impl WebSysTransmogrifier for LayoutTransmogrifier {
 }
 
 fn apply_layout_rules(layout: &WidgetLayout, mut css: CssBlockBuilder) -> CssBlockBuilder {
-    css = apply_dimension("left", &layout.left, css);
-    css = apply_dimension("right", &layout.right, css);
-    css = apply_dimension("top", &layout.top, css);
-    css = apply_dimension("bottom", &layout.bottom, css);
-    css = apply_dimension("width", &layout.width, css);
-    css = apply_dimension("height", &layout.height, css);
+    css = apply_dimension("left", layout.left, css);
+    css = apply_dimension("right", layout.right, css);
+    css = apply_dimension("top", layout.top, css);
+    css = apply_dimension("bottom", layout.bottom, css);
+    css = apply_dimension("width", layout.width, css);
+    css = apply_dimension("height", layout.height, css);
     css
 }
 
-fn dimension_css(dimension: &Dimension) -> Option<String> {
+fn dimension_css(dimension: Dimension) -> Option<String> {
     match dimension {
         Dimension::Auto => None,
         Dimension::Exact(length) => Some(format!("{:0.2}pt", length.get())),
@@ -82,7 +82,7 @@ fn dimension_css(dimension: &Dimension) -> Option<String> {
     }
 }
 
-fn apply_dimension(name: &str, dimension: &Dimension, css: CssBlockBuilder) -> CssBlockBuilder {
+fn apply_dimension(name: &str, dimension: Dimension, css: CssBlockBuilder) -> CssBlockBuilder {
     if let Some(dimension) = dimension_css(dimension) {
         css.with_css_statement(format!("{}: {}", name, dimension))
     } else {
