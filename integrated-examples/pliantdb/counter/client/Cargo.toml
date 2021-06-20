@@ -1,0 +1,27 @@
+[package]
+name = "pliantdb-counter-client"
+version = "0.1.0"
+authors = ["Jonathan Johnson <jon@khonsulabs.com>"]
+edition = "2018"
+description = "The client portion of a simple example using a PliantDb server backend."
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+pliantdb-counter-shared = { path="../shared" }
+pliantdb = { git="https://github.com/khonsulabs/pliantdb.git", branch="wasm-client", features=[
+    "client",
+    "client-websockets",
+    "client-pubsub",
+    "client-keyvalue",
+] }
+log = "0.4"
+flume = "0.10"
+async-trait = "0.1"
+
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gooey = { path="../../../../gooey", default-features=false, features=["frontend-browser", "async"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gooey = { path="../../../../gooey", default-features=false, features=["frontend-kludgine", "async"] }

@@ -7,6 +7,9 @@ members = [
     "core",
     "widgets",
     "xtask",
+    "integrated-examples/pliantdb/counter/server",
+    "integrated-examples/pliantdb/counter/client",
+    "integrated-examples/pliantdb/counter/shared",
 ]
 
 # [patch.crates-io]
