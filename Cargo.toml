@@ -20,3 +20,6 @@ members = [
 
 # [patch."https://github.com/khonsulabs/kludgine.git"]
 # kludgine = { path = "../kludgine/kludgine" }
+
+# [patch."https://github.com/khonsulabs/khonsu-tools.git"]
+# khonsu-tools = { path="../khonsu-tools" }

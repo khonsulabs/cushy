@@ -4,8 +4,13 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 enum Args {
-    BuildBrowserExample { name: Option<String> },
-    GenerateCodeCoverageReport,
+    BuildBrowserExample {
+        name: Option<String>,
+    },
+    GenerateCodeCoverageReport {
+        #[structopt(long = "install-dependencies")]
+        install_dependencies: bool,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -13,7 +18,9 @@ fn main() -> anyhow::Result<()> {
     match args {
         Args::BuildBrowserExample { name } =>
             build_browser_example(name.unwrap_or_else(|| String::from("basic")))?,
-        Args::GenerateCodeCoverageReport => CodeCoverage::<CodeCoverageConfig>::execute()?,
+        Args::GenerateCodeCoverageReport {
+            install_dependencies,
+        } => CodeCoverage::<CodeCoverageConfig>::execute(install_dependencies)?,
     };
     Ok(())
 }
@@ -55,18 +62,6 @@ fn build_browser_example(name: String) -> Result<(), devx_cmd::Error> {
             )
         }
     };
-
-    // run!(
-    //     "cargo",
-    //     "build",
-    //     "--example",
-    //     &name,
-    //     "--no-default-features",
-    //     "--features",
-    //     "frontend-browser",
-    //     "--target",
-    //     "wasm32-unknown-unknown",
-    // )?;
 
     println!(
         "Build succeeded. .{}/{} can be loaded through any http server that supports wasm.",
