@@ -1,0 +1,15 @@
+[book]
+authors = ["Jonathan Johnson"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Gooey User's Guide"
+
+[output.linkcheck]
+follow-web-links = false
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output.html]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
