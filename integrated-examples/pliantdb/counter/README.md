@@ -2,7 +2,7 @@
 
 This example shows how to create a [`PliantDb`](https://github.com/khonsulabs/pliantdb/) server with a custom API and use [`Gooey`](https://github.com/khonsulabs/gooey/) to create a user interface to call that API. The example is simple: a button that increments a counter.
 
-[![Example Screen Capture](https://khonsulabs.github.io/gooey/pliantdb-counter-example.mp4)](https://khonsulabs.github.io/gooey/pliantdb-counter-example.mp4)
+[![Example Screen Capture](https://khonsulabs.github.io/gooey/pliantdb-counter-example.webp)](https://khonsulabs.github.io/gooey/pliantdb-counter-example.webp)
 
 There are three crates in this example:
 
