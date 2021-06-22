@@ -14,7 +14,7 @@ use stylecs::{Style, StyleComponent};
 use crate::{
     styles::style_sheet::{Classes, StyleSheet},
     AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget,
-    Channels, Frontend, TransmogrifierState, Widget, WidgetId, ROOT_CLASS,
+    Channels, Context, Frontend, TransmogrifierState, Widget, WidgetId, ROOT_CLASS,
 };
 
 type WidgetTypeId = TypeId;
@@ -188,7 +188,7 @@ impl<F: Frontend> Gooey<F> {
     pub(crate) fn post_transmogrifier_event<W: Widget>(
         &self,
         widget_id: &WidgetId,
-        event: <W as Widget>::TransmogrifierEvent,
+        event: <W as Widget>::Event,
         frontend: &F,
     ) {
         if let Some(state) = self.widget_state(widget_id.id) {
@@ -489,6 +489,39 @@ impl WidgetState {
     pub fn channels<W: Widget>(&self) -> Option<&'_ Channels<W>> {
         self.any_channels().as_any().downcast_ref()
     }
+
+    /// Invokes `with_fn` with this `Widget` and a `Context`. Returns the
+    /// result.
+    ///
+    /// Returns None if `W` does not match the type of the widget contained.
+    pub fn with_widget<W: Widget, F: FnOnce(&W, &Context<W>) -> R, R>(
+        &self,
+        frontend: &dyn AnyFrontend,
+        with_fn: F,
+    ) -> Option<R> {
+        let widget = self.widget.lock().ok()?;
+        let channels = self.channels::<W>()?;
+        let context = Context::new(channels, frontend);
+        Some(with_fn(widget.as_ref().as_any().downcast_ref()?, &context))
+    }
+
+    /// Invokes `with_fn` with this `Widget` and a `Context`. Returns the
+    /// result.
+    ///
+    /// Returns None if `W` does not match the type of the widget contained.
+    pub fn with_widget_mut<OW: Widget, F: FnOnce(&mut OW, &Context<OW>) -> R, R>(
+        &self,
+        frontend: &dyn AnyFrontend,
+        with_fn: F,
+    ) -> Option<R> {
+        let mut widget = self.widget.lock().ok()?;
+        let channels = self.channels::<OW>()?;
+        let context = Context::new(channels, frontend);
+        Some(with_fn(
+            widget.as_mut().as_mut_any().downcast_mut()?,
+            &context,
+        ))
+    }
 }
 
 /// References an initialized widget. On drop, frees the storage and id.
@@ -627,7 +660,7 @@ impl<W: Widget> WidgetRef<W> {
     /// # Panics
     ///
     /// Panics if `F` is not the type of the frontend in use.
-    pub fn post_event<F: Frontend>(&self, event: W::TransmogrifierEvent) {
+    pub fn post_event<F: Frontend>(&self, event: W::Event) {
         let frontend = self.frontend.as_ref().as_any().downcast_ref::<F>().unwrap();
         if let Some(registration) = self.registration() {
             frontend

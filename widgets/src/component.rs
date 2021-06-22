@@ -60,21 +60,24 @@ impl<B: Behavior> Component<B> {
             .and_then(WeakWidgetRegistration::upgrade)
     }
 
-    pub fn send_command_to<W: Widget>(
+    pub fn with_widget<OW: Widget, F: FnOnce(&OW, &Context<OW>) -> R, R>(
         &self,
         id: &B::Widgets,
-        command: W::Command,
-        storage: &WidgetStorage,
-    ) -> bool {
-        if let Some(widget) = self.registered_widget(id) {
-            if let Some(state) = storage.widget_state(widget.id().id) {
-                let channels = state.channels::<W>().expect("incorrect widget type");
-                channels.post_command(command);
-                storage.set_widget_has_messages(widget.id().clone());
-                return true;
-            }
-        }
-        false
+        context: &Context<Self>,
+        with_fn: F,
+    ) -> Option<R> {
+        self.registered_widget(id)
+            .and_then(|widget| context.with_widget(widget.id(), with_fn))
+    }
+
+    pub fn with_widget_mut<OW: Widget, F: FnOnce(&mut OW, &Context<OW>) -> R, R>(
+        &self,
+        id: &B::Widgets,
+        context: &Context<Self>,
+        with_fn: F,
+    ) -> Option<R> {
+        self.registered_widget(id)
+            .and_then(|widget| context.with_widget_mut(widget.id(), with_fn))
     }
 }
 
@@ -109,22 +112,17 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
 
 impl<B: Behavior> Widget for Component<B> {
     type Command = <B::Content as Widget>::Command;
-    type TransmogrifierCommand = <B::Content as Widget>::Command;
-    type TransmogrifierEvent = InternalEvent<B>;
+    type Event = InternalEvent<B>;
 
     const CLASS: &'static str = "gooey-component";
 
-    fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>) {
+    fn receive_event(&mut self, event: Self::Event, context: &Context<Self>) {
         match event {
             InternalEvent::ReceiveWidget(widget) => {
                 self.content_widget = Some(widget);
             }
             InternalEvent::Content(event) => B::receive_event(self, event, context),
         }
-    }
-
-    fn receive_command(&mut self, command: Self::Command, context: &Context<Self>) {
-        context.send_command(command);
     }
 }
 
@@ -259,7 +257,7 @@ impl<B: Behavior> ComponentTransmogrifier<B> {
     }
 
     pub fn forward_command_to_content<F: Frontend>(
-        command: <Component<B> as Widget>::TransmogrifierCommand,
+        command: <Component<B> as Widget>::Command,
         context: &mut TransmogrifierContext<'_, Self, F>,
     ) where
         Self: Transmogrifier<F, Widget = Component<B>>,

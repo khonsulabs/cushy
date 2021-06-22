@@ -62,7 +62,7 @@ impl<B: Behavior, R: Renderer> Transmogrifier<Rasterizer<R>> for ComponentTransm
 
     fn receive_command(
         &self,
-        command: <Self::Widget as Widget>::TransmogrifierCommand,
+        command: <Self::Widget as Widget>::Command,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
     ) {
         Self::forward_command_to_content(command, context);

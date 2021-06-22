@@ -1,7 +1,7 @@
 use gooey::{
     core::{Context, StyledWidget},
     widgets::{
-        button::{Button, ButtonCommand},
+        button::Button,
         component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
         container::Container,
     },
@@ -42,10 +42,14 @@ impl Behavior for Counter {
         let CounterEvent::ButtonClicked = event;
         component.behavior.count += 1;
 
-        component.send_command_to::<Button>(
-            &CounterWidgets::Button,
-            ButtonCommand::SetLabel(component.behavior.count.to_string()),
-            context,
+        context.with_widget_mut(
+            component
+                .registered_widget(&CounterWidgets::Button)
+                .unwrap()
+                .id(),
+            |button: &mut Button, context| {
+                button.set_label(component.behavior.count.to_string(), &context);
+            },
         );
     }
 }

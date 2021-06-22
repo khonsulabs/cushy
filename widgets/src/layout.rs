@@ -26,8 +26,7 @@ impl Layout {
 
 impl Widget for Layout {
     type Command = ();
-    type TransmogrifierCommand = ();
-    type TransmogrifierEvent = ();
+    type Event = ();
 
     const CLASS: &'static str = "gooey-layout";
 }

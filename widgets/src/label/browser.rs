@@ -22,8 +22,8 @@ impl gooey_core::Transmogrifier<WebSys> for LabelTransmogrifier {
             .get_element_by_id(&widget_css_id(context.registration.id().id))
             .and_then(|e| e.dyn_into::<HtmlDivElement>().ok())
         {
-            let LabelCommand::SetLabel(new_label) = command;
-            element.set_inner_text(&new_label);
+            let LabelCommand::LabelChanged = command;
+            element.set_inner_text(&context.widget.label);
         }
     }
 }

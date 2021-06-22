@@ -1,7 +1,7 @@
 use gooey::{
     core::{Context, StyledWidget, WidgetId},
     widgets::{
-        button::{Button, ButtonCommand},
+        button::Button,
         component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
         container::Container,
     },
@@ -182,11 +182,11 @@ async fn watch_for_changes(client: Client<ExampleApi>, context: DatabaseContext)
         // to determine what type the payload contains. For this example, the server
         // sends the current value as a `u64` for our topic.
         let new_count = message.payload::<u64>().unwrap();
-        // Tell the button to change its label to the new count.
-        context.context.send_command_to::<Button>(
-            &context.button_id,
-            ButtonCommand::SetLabel(new_count.to_string()),
-        );
+        context
+            .context
+            .with_widget_mut(&context.button_id, |button: &mut Button, context| {
+                button.set_label(new_count.to_string(), context);
+            });
     }
 }
 
@@ -199,11 +199,11 @@ async fn increment_counter(client: &Client<ExampleApi>, context: &DatabaseContex
             // Our API can only respond with one value, so let's destructure it and get the
             // response out.
             let Response::CounterIncremented(count) = response;
-            // Tell the button to change its label to the new count.
-            context.context.send_command_to::<Button>(
-                &context.button_id,
-                ButtonCommand::SetLabel(count.to_string()),
-            );
+            context
+                .context
+                .with_widget_mut(&context.button_id, |button: &mut Button, context| {
+                    button.set_label(count.to_string(), context);
+                });
         }
         Err(err) => {
             log::error!("Error sending request: {:?}", err);

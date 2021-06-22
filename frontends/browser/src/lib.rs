@@ -314,11 +314,7 @@ pub struct WidgetClosure;
 
 impl WidgetClosure {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new<
-        F: Frontend,
-        W: Widget,
-        C: FnMut() -> <W as Widget>::TransmogrifierEvent + 'static,
-    >(
+    pub fn new<F: Frontend, W: Widget, C: FnMut() -> <W as Widget>::Event + 'static>(
         widget: WidgetRef<W>,
         mut event_generator: C,
     ) -> Closure<dyn FnMut()> {

@@ -11,7 +11,7 @@ mod browser;
 
 #[derive(Debug)]
 pub struct Label {
-    pub label: String,
+    label: String,
 }
 
 impl Label {
@@ -19,6 +19,11 @@ impl Label {
         StyledWidget::default_for(Self {
             label: label.to_string(),
         })
+    }
+
+    pub fn set_label(&mut self, label: impl Into<String>, context: &Context<Self>) {
+        self.label = label.into();
+        context.send_command(LabelCommand::LabelChanged);
     }
 }
 
@@ -29,27 +34,14 @@ pub enum InternalButtonEvent {
 
 #[derive(Debug)]
 pub enum LabelCommand {
-    SetLabel(String),
+    LabelChanged,
 }
 
 impl Widget for Label {
     type Command = LabelCommand;
-    type TransmogrifierCommand = LabelCommand;
-    type TransmogrifierEvent = ();
+    type Event = ();
 
     const CLASS: &'static str = "gooey-label";
-
-    /// Called when an `event` from the transmogrifier was received.
-    #[allow(unused_variables)]
-    fn receive_command(&mut self, command: Self::Command, context: &Context<Self>) {
-        match &command {
-            LabelCommand::SetLabel(label) => {
-                self.label = label.clone();
-            }
-        }
-
-        context.send_command(command);
-    }
 }
 
 #[derive(Debug)]

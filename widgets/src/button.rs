@@ -11,8 +11,8 @@ mod browser;
 
 #[derive(Debug)]
 pub struct Button {
-    pub label: String,
-    pub clicked: Callback,
+    label: String,
+    clicked: Callback,
 }
 
 impl Button {
@@ -21,6 +21,11 @@ impl Button {
             label: label.to_string(),
             clicked,
         })
+    }
+
+    pub fn set_label(&mut self, label: impl Into<String>, context: &Context<Self>) {
+        self.label = label.into();
+        context.send_command(ButtonCommand::LabelChanged);
     }
 }
 
@@ -31,35 +36,18 @@ pub enum InternalButtonEvent {
 
 #[derive(Debug)]
 pub enum ButtonCommand {
-    SetLabel(String),
+    LabelChanged,
 }
 
 impl Widget for Button {
     type Command = ButtonCommand;
-    type TransmogrifierCommand = ButtonCommand;
-    type TransmogrifierEvent = InternalButtonEvent;
+    type Event = InternalButtonEvent;
 
     const CLASS: &'static str = "gooey-button";
 
-    fn receive_event(
-        &mut self,
-        event: Self::TransmogrifierEvent,
-        _context: &gooey_core::Context<Self>,
-    ) {
+    fn receive_event(&mut self, event: Self::Event, _context: &gooey_core::Context<Self>) {
         let InternalButtonEvent::Clicked = event;
         self.clicked.invoke(());
-    }
-
-    /// Called when an `event` from the transmogrifier was received.
-    #[allow(unused_variables)]
-    fn receive_command(&mut self, command: Self::Command, context: &Context<Self>) {
-        match &command {
-            ButtonCommand::SetLabel(label) => {
-                self.label = label.clone();
-            }
-        }
-
-        context.send_command(command);
     }
 
     fn background_color(style: &Style) -> Option<&'_ ColorPair> {

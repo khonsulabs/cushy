@@ -19,17 +19,13 @@ pub use transmogrifier_context::{AnyTransmogrifierContext, TransmogrifierContext
 
 /// A graphical user interface element.
 pub trait Widget: Debug + Send + Sync + Sized + 'static {
-    /// Widgets may need to receive instructions from other entities. This type
-    /// is the type other widgets can use to communicate with this widget;
-    type Command: Debug + Send + Sync;
-
     /// Widgets may need to communicate with transmogrifier implementations.
     /// This type is the type that can be sent to a transmogrifier.
-    type TransmogrifierCommand: Debug + Send + Sync;
+    type Command: Debug + Send + Sync;
 
     /// The type of the event that any [`Transmogrifier`] for this widget to
     /// use.
-    type TransmogrifierEvent: Debug + Send + Sync;
+    type Event: Debug + Send + Sync;
 
     /// The unique class name for this widget. Must not conflict with any other
     /// widgets in use. Widget authors should prefix their widget names to
@@ -39,21 +35,11 @@ pub trait Widget: Debug + Send + Sync + Sized + 'static {
 
     /// Called when an `event` from the transmogrifier was received.
     #[allow(unused_variables)]
-    fn receive_event(&mut self, event: Self::TransmogrifierEvent, context: &Context<Self>) {
+    fn receive_event(&mut self, event: Self::Event, context: &Context<Self>) {
         unimplemented!(
             "an event `{:?}` was sent by the transmogrifier but receive_event isn't implemented \
              by {}",
             event,
-            type_name::<Self>()
-        )
-    }
-
-    /// Called when an `event` from the transmogrifier was received.
-    #[allow(unused_variables)]
-    fn receive_command(&mut self, command: Self::Command, context: &Context<Self>) {
-        unimplemented!(
-            "a commmand `{:?}` was sent but receive_command isn't implemented by {}",
-            command,
             type_name::<Self>()
         )
     }
@@ -103,7 +89,7 @@ pub trait Transmogrifier<F: Frontend>: Debug + Sized {
     #[allow(unused_variables)] // Keeps documentation clean
     fn receive_command(
         &self,
-        command: <Self::Widget as Widget>::TransmogrifierCommand,
+        command: <Self::Widget as Widget>::Command,
         context: &mut TransmogrifierContext<'_, Self, F>,
     ) {
         unimplemented!(
@@ -122,13 +108,6 @@ pub trait Transmogrifier<F: Frontend>: Debug + Sized {
         let mut received_one_message = true;
         while received_one_message {
             received_one_message = false;
-            while let Ok(command) = transmogrifier_context.channels.command_receiver.try_recv() {
-                received_one_message = true;
-                transmogrifier_context
-                    .widget
-                    .receive_command(command, &context);
-            }
-
             while let Ok(event) = transmogrifier_context.channels.event_receiver.try_recv() {
                 received_one_message = true;
                 transmogrifier_context.widget.receive_event(event, &context);
@@ -193,7 +172,7 @@ pub trait AnyChannels: AnySendSync {
     fn command_sender(&self) -> Box<dyn AnySendSync>;
 
     /// Returns a `Sender` for this widget's
-    /// [`TransmogrifierEvent`](crate::Widget::TransmogrifierEvent) type.
+    /// [`Event`](crate::Widget::Event) type.
     #[must_use]
     fn event_sender(&self) -> &'_ dyn AnySendSync;
 }
@@ -233,7 +212,7 @@ pub struct Context<W: Widget> {
     /// The frontend that created this context.
     pub frontend: Box<dyn AnyFrontend>,
     widget: WeakWidgetRegistration,
-    command_sender: Sender<W::TransmogrifierCommand>,
+    command_sender: Sender<W::Command>,
     _widget: PhantomData<W>,
 }
 
@@ -251,17 +230,17 @@ impl<W: Widget> Clone for Context<W> {
 impl<W: Widget> Context<W> {
     /// Create a new `Context`.
     #[must_use]
-    pub fn new<F: Frontend>(channels: &Channels<W>, frontend: &F) -> Self {
+    pub fn new(channels: &Channels<W>, frontend: &dyn AnyFrontend) -> Self {
         Self {
             widget: channels.widget.clone(),
             command_sender: channels.transmogrifier_command_sender.clone(),
-            frontend: Box::new(frontend.clone()),
+            frontend: frontend.cloned(),
             _widget: PhantomData::default(),
         }
     }
 
     /// Send `command` to the transmogrifier.
-    pub fn send_command(&self, command: W::TransmogrifierCommand) {
+    pub fn send_command(&self, command: W::Command) {
         if let Some(widget) = self.widget.upgrade() {
             drop(self.command_sender.send(command));
             self.frontend.set_widget_has_messages(widget.id().clone());
@@ -275,6 +254,32 @@ impl<W: Widget> Context<W> {
             channels.post_command(command);
             self.frontend.set_widget_has_messages(widget.clone());
         }
+    }
+
+    /// Invokes `with_fn` with the widget `widget_id` and a `Context`. Returns the
+    /// result.
+    ///
+    /// Returns None if `OW` does not match the type of the widget contained.
+    pub fn with_widget<OW: Widget, F: FnOnce(&OW, &Context<OW>) -> R, R>(
+        &self,
+        widget: &WidgetId,
+        with_fn: F,
+    ) -> Option<R> {
+        self.widget_state(widget.id)
+            .and_then(|state| state.with_widget(self.frontend.as_ref(), with_fn))
+    }
+
+    /// Invokes `with_fn` with the widget `widget_id` and a `Context`. Returns the
+    /// result.
+    ///
+    /// Returns None if `OW` does not match the type of the widget contained.
+    pub fn with_widget_mut<OW: Widget, F: FnOnce(&mut OW, &Context<OW>) -> R, R>(
+        &self,
+        widget_id: &WidgetId,
+        with_fn: F,
+    ) -> Option<R> {
+        self.widget_state(widget_id.id)
+            .and_then(|state| state.with_widget_mut(self.frontend.as_ref(), with_fn))
     }
 }
 
@@ -293,10 +298,10 @@ pub struct Channels<W: Widget> {
     widget: WeakWidgetRegistration,
     command_sender: Sender<W::Command>,
     command_receiver: Receiver<W::Command>,
-    transmogrifier_command_sender: Sender<W::TransmogrifierCommand>,
-    transmogrifier_command_receiver: Receiver<W::TransmogrifierCommand>,
-    event_sender: Sender<W::TransmogrifierEvent>,
-    event_receiver: Receiver<W::TransmogrifierEvent>,
+    transmogrifier_command_sender: Sender<W::Command>,
+    transmogrifier_command_receiver: Receiver<W::Command>,
+    event_sender: Sender<W::Event>,
+    event_receiver: Receiver<W::Event>,
     _phantom: PhantomData<W>,
 }
 
@@ -350,7 +355,7 @@ impl<W: Widget> Channels<W> {
     }
 
     /// Sends an event to the [`Widget`].
-    pub fn post_event(&self, event: W::TransmogrifierEvent) {
+    pub fn post_event(&self, event: W::Event) {
         if let Some(registration) = self.widget() {
             drop(self.event_sender.send(event));
             registration.set_has_messages();

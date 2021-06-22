@@ -3,7 +3,7 @@ use gooey::{
     widgets::{
         button::Button,
         component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
-        label::{Label, LabelCommand},
+        label::Label,
         layout::{Dimension, Layout},
     },
     App,
@@ -64,10 +64,12 @@ impl Behavior for Counter {
         let CounterEvent::ButtonClicked = event;
         component.behavior.count += 1;
 
-        component.send_command_to::<Label>(
+        component.with_widget_mut(
             &CounterWidgets::Label,
-            LabelCommand::SetLabel(component.behavior.count.to_string()),
             context,
+            |label: &mut Label, context| {
+                label.set_label(component.behavior.count.to_string(), context);
+            },
         );
     }
 }

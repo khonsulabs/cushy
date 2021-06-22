@@ -55,7 +55,7 @@ impl<B: Behavior> Transmogrifier<WebSys> for ComponentTransmogrifier<B> {
 
     fn receive_command(
         &self,
-        command: <Self::Widget as Widget>::TransmogrifierCommand,
+        command: <Self::Widget as Widget>::Command,
         context: &mut TransmogrifierContext<'_, Self, WebSys>,
     ) {
         Self::forward_command_to_content(command, context);

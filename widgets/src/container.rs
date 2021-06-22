@@ -55,8 +55,7 @@ impl Container {
 
 impl Widget for Container {
     type Command = ();
-    type TransmogrifierCommand = ();
-    type TransmogrifierEvent = ();
+    type Event = ();
 
     const CLASS: &'static str = "gooey-container";
 }
