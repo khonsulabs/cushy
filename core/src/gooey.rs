@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
     ops::Deref,
     sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::{AtomicU32, Ordering},
         Arc, Mutex, RwLock, Weak,
     },
 };
@@ -14,7 +14,8 @@ use stylecs::{Style, StyleComponent};
 use crate::{
     styles::style_sheet::{Classes, StyleSheet},
     AnyChannels, AnyFrontend, AnySendSync, AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget,
-    Channels, Context, Frontend, TransmogrifierState, Widget, WidgetId, ROOT_CLASS,
+    Channels, Context, Frontend, ManagedCodeGuard, TransmogrifierState, Widget, WidgetId,
+    ROOT_CLASS,
 };
 
 type WidgetTypeId = TypeId;
@@ -32,7 +33,7 @@ struct GooeyData<F: Frontend> {
     storage: WidgetStorage,
     processing_messages_lock: Mutex<()>,
     stylesheet: StyleSheet,
-    inside_event_loop: AtomicBool,
+    inside_event_loop: AtomicU32,
 }
 
 impl<F: Frontend> Gooey<F> {
@@ -52,7 +53,7 @@ impl<F: Frontend> Gooey<F> {
                 storage,
                 stylesheet,
                 processing_messages_lock: Mutex::default(),
-                inside_event_loop: AtomicBool::default(),
+                inside_event_loop: AtomicU32::default(),
             }),
         }
     }
@@ -148,12 +149,8 @@ impl<F: Frontend> Gooey<F> {
             Err(_) => return,
         };
 
-        let entered = if !self.is_managed_code() {
-            self.enter_managed_code();
-            true
-        } else {
-            false
-        };
+        let mut managed_code_guard = self.enter_managed_code(frontend);
+        managed_code_guard.allow_process_messages = false;
 
         // This method will return early if there are no widgets with pending
         // messages. `chatter_limit` is put in place to limit cross-talk betwen
@@ -178,10 +175,6 @@ impl<F: Frontend> Gooey<F> {
                     transmogrifier.process_messages(context);
                 });
             }
-        }
-
-        if entered {
-            self.exit_managed_code();
         }
     }
 
@@ -223,21 +216,29 @@ impl<F: Frontend> Gooey<F> {
         &self.data.stylesheet
     }
 
-    /// Sets the `in_managed_code` state to true. This function cannot be
-    /// nested.
-    pub fn enter_managed_code(&self) {
-        self.data.inside_event_loop.store(true, Ordering::SeqCst);
+    /// Enters a region of managed code. Automatically exits the region when the returned guard is dropped.
+    ///
+    /// When the last managed code region is exited, widget messages are processed before returning.
+    #[must_use]
+    pub fn enter_managed_code(&self, frontend: &F) -> ManagedCodeGuard {
+        self.data.inside_event_loop.fetch_add(1, Ordering::SeqCst);
+        ManagedCodeGuard {
+            frontend: Box::new(frontend.clone()),
+            allow_process_messages: true,
+        }
     }
 
-    /// Resets the `in_managed_code` state.
-    pub fn exit_managed_code(&self) {
-        self.data.inside_event_loop.store(false, Ordering::SeqCst);
+    pub(crate) fn exit_managed_code(&self, frontend: &F, allow_process_messages: bool) {
+        let previous_value = self.data.inside_event_loop.fetch_sub(1, Ordering::SeqCst);
+        if previous_value == 1 && allow_process_messages {
+            self.process_widget_messages(frontend);
+        }
     }
 
     /// Returns whether `Gooey` managed code is currently executing.
     #[must_use]
     pub fn is_managed_code(&self) -> bool {
-        self.data.inside_event_loop.load(Ordering::SeqCst)
+        self.data.inside_event_loop.load(Ordering::SeqCst) > 0
     }
 }
 
@@ -499,10 +500,14 @@ impl WidgetState {
         frontend: &dyn AnyFrontend,
         with_fn: F,
     ) -> Option<R> {
-        let widget = self.widget.lock().ok()?;
-        let channels = self.channels::<W>()?;
-        let context = Context::new(channels, frontend);
-        Some(with_fn(widget.as_ref().as_any().downcast_ref()?, &context))
+        let _guard = frontend.enter_managed_code();
+        let result = {
+            let widget = self.widget.lock().ok()?;
+            let channels = self.channels::<W>()?;
+            let context = Context::new(channels, frontend);
+            Some(with_fn(widget.as_ref().as_any().downcast_ref()?, &context))
+        };
+        result
     }
 
     /// Invokes `with_fn` with this `Widget` and a `Context`. Returns the
@@ -514,13 +519,17 @@ impl WidgetState {
         frontend: &dyn AnyFrontend,
         with_fn: F,
     ) -> Option<R> {
-        let mut widget = self.widget.lock().ok()?;
-        let channels = self.channels::<OW>()?;
-        let context = Context::new(channels, frontend);
-        Some(with_fn(
-            widget.as_mut().as_mut_any().downcast_mut()?,
-            &context,
-        ))
+        let _guard = frontend.enter_managed_code();
+        let result = {
+            let mut widget = self.widget.lock().ok()?;
+            let channels = self.channels::<OW>()?;
+            let context = Context::new(channels, frontend);
+            Some(with_fn(
+                widget.as_mut().as_mut_any().downcast_mut()?,
+                &context,
+            ))
+        };
+        result
     }
 }
 
@@ -662,6 +671,7 @@ impl<W: Widget> WidgetRef<W> {
     /// Panics if `F` is not the type of the frontend in use.
     pub fn post_event<F: Frontend>(&self, event: W::Event) {
         let frontend = self.frontend.as_ref().as_any().downcast_ref::<F>().unwrap();
+        let _guard = frontend.enter_managed_code();
         if let Some(registration) = self.registration() {
             frontend
                 .gooey()

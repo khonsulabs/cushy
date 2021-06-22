@@ -114,7 +114,7 @@ impl<R: Renderer> Rasterizer<R> {
     }
 
     pub fn render(&self, scene: R) {
-        self.ui.enter_managed_code();
+        let _guard = self.ui.enter_managed_code(self);
         // Process messages after new_frame,
         self.ui.process_widget_messages(self);
 
@@ -135,7 +135,6 @@ impl<R: Renderer> Rasterizer<R> {
                 &Style::default(),
             );
         });
-        self.ui.exit_managed_code();
     }
 
     pub fn clipped_to(&self, clip: Rect<f32, Points>) -> Option<Self> {
@@ -148,8 +147,8 @@ impl<R: Renderer> Rasterizer<R> {
     }
 
     pub fn handle_event(&mut self, event: WindowEvent) -> EventResult {
-        self.ui.enter_managed_code();
-        let result = match event {
+        let _guard = self.ui.enter_managed_code(self);
+        match event {
             WindowEvent::Input(input_event) => match input_event {
                 InputEvent::Keyboard {
                     scancode,
@@ -166,10 +165,7 @@ impl<R: Renderer> Rasterizer<R> {
             | WindowEvent::ModifiersChanged(_)
             | WindowEvent::LayerChanged { .. }
             | WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
-        };
-        self.ui.process_widget_messages(self);
-        self.ui.exit_managed_code();
-        result
+        }
     }
 
     pub fn set_refresh_callback<F: RefreshCallback>(&mut self, callback: F) {

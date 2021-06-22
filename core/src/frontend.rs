@@ -44,6 +44,27 @@ pub trait AnyFrontend: AnySendSync {
     /// ensure that `process_widget_messages` is called at some point after this
     /// method is called.
     fn set_widget_has_messages(&self, widget: WidgetId);
+
+    /// Marks that managed code is being executed. Can be nested. Automatically exited when the returned guard is dropped.
+    #[must_use]
+    fn enter_managed_code(&self) -> ManagedCodeGuard;
+
+    /// Internal API used by `ManagedCodeGuard`. Do not call directly.
+    #[doc(hidden)]
+    fn _exit_managed_code(&self, allow_process_messages: bool);
+}
+
+/// A guard marking that Gooey-managed code is executing.
+pub struct ManagedCodeGuard {
+    pub(crate) frontend: Box<dyn AnyFrontend>,
+    pub(crate) allow_process_messages: bool,
+}
+
+impl Drop for ManagedCodeGuard {
+    fn drop(&mut self) {
+        self.frontend
+            ._exit_managed_code(self.allow_process_messages);
+    }
 }
 
 impl<T> AnyFrontend for T
@@ -60,6 +81,14 @@ where
 
     fn set_widget_has_messages(&self, widget: WidgetId) {
         self.set_widget_has_messages(widget);
+    }
+
+    fn enter_managed_code(&self) -> ManagedCodeGuard {
+        self.gooey().enter_managed_code(self)
+    }
+
+    fn _exit_managed_code(&self, allow_process_messages: bool) {
+        self.gooey().exit_managed_code(self, allow_process_messages);
     }
 }
 
