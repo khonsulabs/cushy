@@ -42,11 +42,9 @@ impl Behavior for Counter {
         let CounterEvent::ButtonClicked = event;
         component.behavior.count += 1;
 
-        context.with_widget_mut(
-            component
-                .registered_widget(&CounterWidgets::Button)
-                .unwrap()
-                .id(),
+        component.with_widget_mut(
+            &CounterWidgets::Button,
+            context,
             |button: &mut Button, context| {
                 button.set_label(component.behavior.count.to_string(), &context);
             },
