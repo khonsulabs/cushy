@@ -18,6 +18,7 @@ pliantdb = { git="https://github.com/khonsulabs/pliantdb.git", branch="wasm-clie
 log = "0.4"
 flume = "0.10"
 async-trait = "0.1"
+anyhow = "1"
 
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

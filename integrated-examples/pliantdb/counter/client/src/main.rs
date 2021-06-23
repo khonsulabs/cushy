@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use gooey::{
     core::{Context, StyledWidget, WidgetId},
     widgets::{
@@ -137,9 +139,15 @@ struct DatabaseContext {
 async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
     // Connect to the locally running server. `cargo run --package server`
     // launches the server.
-    let client = Client::new("ws://127.0.0.1:8081".parse().unwrap())
-        .await
-        .unwrap();
+    let client = loop {
+        match Client::new("ws://127.0.0.1:8081".parse().unwrap()).await {
+            Ok(client) => break client,
+            Err(err) => {
+                log::error!("Error connecting: {:?}", err);
+                App::sleep_for(Duration::from_secs(1)).await;
+            }
+        }
+    };
     // Will store the `DatabaseContext` once we receive it from the user interface.
     let mut context = None;
     // For each `DatabaseCommand`. The only error possible from recv_async() is
@@ -149,7 +157,7 @@ async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
         match command {
             DatabaseCommand::Initialize(new_context) => {
                 // Launch a task that listens for events when other clients click their buttons.
-                App::spawn(watch_for_changes(client.clone(), new_context.clone()));
+                App::spawn(watch_for_changes_loop(client.clone(), new_context.clone()));
                 // Store the context for use in future commands.
                 context = Some(new_context);
             }
@@ -162,13 +170,26 @@ async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
 
 /// Listens for `PubSub` events that come in from other clients pressing the
 /// button.
-async fn watch_for_changes(client: Client<ExampleApi>, context: DatabaseContext) {
+async fn watch_for_changes_loop(client: Client<ExampleApi>, context: DatabaseContext) {
+    loop {
+        if let Err(err) = watch_for_changes(&client, &context).await {
+            log::error!("Error communicating with database: {:?}", err);
+            App::sleep_for(Duration::from_secs(1)).await;
+        }
+    }
+}
+
+async fn watch_for_changes(
+    client: &Client<ExampleApi>,
+    context: &DatabaseContext,
+) -> Result<(), anyhow::Error> {
+    log::info!("watching for changes");
     // Connect to a database, so that we can use `PubSub`. Usually a database
     // will have a Schema that allows storing collections of data. This example
     // only needs a simple counter, so we don't provide a schema.
-    let database = client.database::<()>(DATABASE_NAME).await.unwrap();
+    let database = client.database::<()>(DATABASE_NAME).await?;
     // Create a `PubSub` subscriber.
-    let subscriber = database.create_subscriber().await.unwrap();
+    let subscriber = database.create_subscriber().await?;
     // Subscribe to the counter changed topic. This topic is the one that the
     // server will publish messages to when the counter is incremented.
     subscriber
@@ -176,12 +197,13 @@ async fn watch_for_changes(client: Client<ExampleApi>, context: DatabaseContext)
         .await
         .unwrap();
 
-    while let Ok(message) = subscriber.receiver().recv_async().await {
+    loop {
+        let message = subscriber.receiver().recv_async().await?;
         // We only need to worry about a single topic, but if you subscribed to
         // multiple topics, `message` contains a `topic` field that you can use
         // to determine what type the payload contains. For this example, the server
         // sends the current value as a `u64` for our topic.
-        let new_count = message.payload::<u64>().unwrap();
+        let new_count = message.payload::<u64>()?;
         context
             .context
             .with_widget_mut(&context.button_id, |button: &mut Button, context| {
@@ -194,6 +216,7 @@ async fn increment_counter(client: &Client<ExampleApi>, context: &DatabaseContex
     // While we could use the key value store directly, this example is showing
     // another powerful feature of PliantDb: the ablity to easily add a custom
     // api using your own enums.
+    log::info!("sending request");
     match client.send_api_request(Request::IncrementCounter).await {
         Ok(response) => {
             // Our API can only respond with one value, so let's destructure it and get the

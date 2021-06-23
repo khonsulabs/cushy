@@ -30,6 +30,8 @@ cfg-if = "1"
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = { version="0.4", optional=true }
 wasm-bindgen = { version="0.2" }
+web-sys = { version="0.3", features=["Window"] }
+flume = "0.10"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version="1", features=["full"], optional=true }
