@@ -11,7 +11,7 @@ publish = false
 
 [dependencies]
 pliantdb-counter-shared = { path="../shared", features=["actionable-traits"] }
-pliantdb = { git="https://github.com/khonsulabs/pliantdb.git", branch="main", features=["server-full"] }
+pliantdb = { version="0.1.0-dev.4", features=["server-full"] }
 tokio = { version="1", features=["full"] }
 anyhow = "1"
 actionable = "0.1.0-dev.2"

@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 pliantdb-counter-shared = { path="../shared" }
-pliantdb = { git="https://github.com/khonsulabs/pliantdb.git", branch="main", features=[
+pliantdb = { version="0.1.0-dev.4", features=[
     "client",
     "client-websockets",
     "client-pubsub",
