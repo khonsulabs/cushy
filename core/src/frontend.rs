@@ -27,6 +27,9 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
     /// ensure that `process_widget_messages` is called at some point after this
     /// method is called.
     fn set_widget_has_messages(&self, widget: WidgetId);
+
+    /// Executed when `Gooey` exits a managed code block.
+    fn exit_managed_code(&self) {}
 }
 
 /// An interface for Frontend that doesn't requier knowledge of associated
@@ -89,6 +92,7 @@ where
 
     fn _exit_managed_code(&self, allow_process_messages: bool) {
         self.gooey().exit_managed_code(self, allow_process_messages);
+        self.exit_managed_code();
     }
 }
 

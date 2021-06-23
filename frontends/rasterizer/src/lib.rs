@@ -95,9 +95,16 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
     fn set_widget_has_messages(&self, widget: WidgetId) {
         self.gooey().set_widget_has_messages(widget);
         // If we're not inside of a render
-        if let (false, Some(callback)) = (self.gooey().is_managed_code(), &self.refresh_callback) {
-            println!("Refreshing because of widget messages");
-            callback.refresh();
+        if !self.gooey().is_managed_code() {
+            self.gooey().process_widget_messages(self);
+        }
+    }
+
+    fn exit_managed_code(&self) {
+        if self.needs_redraw() {
+            if let Some(callback) = &self.refresh_callback {
+                callback.refresh();
+            }
         }
     }
 }

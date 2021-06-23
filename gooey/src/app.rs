@@ -26,7 +26,7 @@ impl App {
         cfg_if::cfg_if! {
             if #[cfg(target_arch = "wasm32")] {
                 gooey_browser::WebSys::initialize();
-                wasm_bindgen_futures::future_to_promise(async move { future.await; Ok(wasm_bindgen::JsValue::UNDEFINED) });
+                let _promise = wasm_bindgen_futures::future_to_promise(async move { future.await; Ok(wasm_bindgen::JsValue::UNDEFINED) });
             } else if #[cfg(feature = "frontend-kludgine")] {
                 gooey_kludgine::kludgine::prelude::Runtime::initialize();
                 gooey_kludgine::kludgine::prelude::Runtime::spawn(future);
