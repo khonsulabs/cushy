@@ -23,3 +23,6 @@ members = [
 
 # [patch."https://github.com/khonsulabs/khonsu-tools.git"]
 # khonsu-tools = { path="../khonsu-tools" }
+
+# [patch."https://github.com/khonsulabs/pliantdb.git"]
+# pliantdb = { path="../pliantdb/pliantdb" }
