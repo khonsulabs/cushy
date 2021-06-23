@@ -14,12 +14,14 @@ use pliantdb_counter_shared::{
 async fn main() -> anyhow::Result<()> {
     // Open a `PliantDb` server at the given path, allowing all actions to be
     // done over the network connections.
-    let server =
-        CustomServer::<Example>::open(Path::new("counter-example.pliantdb"), Configuration {
+    let server = CustomServer::<Example>::open(
+        Path::new("counter-example.pliantdb"),
+        Configuration {
             default_permissions: Permissions::allow_all(),
             ..Configuration::default()
-        })
-        .await?;
+        },
+    )
+    .await?;
     // Sets the dispatcher for custom API requests.
     server
         .set_custom_api_dispatcher(ApiDispatcher {
@@ -66,13 +68,8 @@ impl IncrementCounterHandler for ApiDispatcher {
     async fn handle(&self, _permissions: &actionable::Permissions) -> anyhow::Result<Response> {
         let db = self.server.database::<()>("counter").await?;
 
-        // TODO implement increment. This has a race condition and should be implemented
-        // with an atomic operation.
-        let mut current_value: u64 = db.get_key("current-count").await?.unwrap_or_default();
-        current_value += 1;
-        db.set_key("current-count", &current_value).await?;
-
-        db.publish(COUNTER_CHANGED_TOPIC, &current_value).await?;
-        Ok(Response::CounterIncremented(current_value))
+        let new_value = db.increment_key_by("count", 1_u64).await?;
+        db.publish(COUNTER_CHANGED_TOPIC, &new_value).await?;
+        Ok(Response::CounterIncremented(new_value))
     }
 }
