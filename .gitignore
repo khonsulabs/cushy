@@ -4,4 +4,4 @@ Cargo.lock
 coverage/
 pkg/
 .vscode/
-*.pliantdb
+*.bonsaidb

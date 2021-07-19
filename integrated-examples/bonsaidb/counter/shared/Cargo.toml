@@ -1,9 +1,9 @@
 [package]
-name = "pliantdb-counter-shared"
+name = "bonsaidb-counter-shared"
 version = "0.1.0"
 authors = ["Jonathan Johnson <jon@khonsulabs.com>"]
 edition = "2018"
-description = "The shared types of a simple example using a PliantDb server backend."
+description = "The shared types of a simple example using a BonsaiDb server backend."
 license = "MIT OR Apache-2.0"
 publish = false
 
@@ -13,4 +13,4 @@ actionable-traits = []
 [dependencies]
 serde = { version="1", features=["derive"] }
 actionable = "0.1.0-dev.2"
-pliantdb = { version="0.1.0-dev.4" }
+bonsaidb = { version="0.1.0-dev.4" }

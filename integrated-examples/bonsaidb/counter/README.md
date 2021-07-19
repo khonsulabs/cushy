@@ -1,22 +1,22 @@
-# `PliantDb` + `Gooey` Example: Counter
+# `BonsaiDb` + `Gooey` Example: Counter
 
-This example shows how to create a [`PliantDb`](https://github.com/khonsulabs/pliantdb/) server with a custom API and use [`Gooey`](https://github.com/khonsulabs/gooey/) to create a user interface to call that API. The example is simple: a button that increments a counter.
+This example shows how to create a [`BonsaiDb`](https://github.com/khonsulabs/bonsaidb/) server with a custom API and use [`Gooey`](https://github.com/khonsulabs/gooey/) to create a user interface to call that API. The example is simple: a button that increments a counter.
 
-[![Example Screen Capture](https://khonsulabs.github.io/gooey/pliantdb-counter-example.webp)](https://khonsulabs.github.io/gooey/pliantdb-counter-example.webp)
+[![Example Screen Capture](https://khonsulabs.github.io/gooey/bonsaidb-counter-example.webp)](https://khonsulabs.github.io/gooey/bonsaidb-counter-example.webp)
 
 There are three crates in this example:
 
-- `pliantdb-counter-shared`: Contains the API definition that the server exposes.
-- `pliantdb-counter-server`: A `PliantDb` server.
-- `pliantdb-counter-client`: The `Gooey` client application.
+- `bonsaidb-counter-shared`: Contains the API definition that the server exposes.
+- `bonsaidb-counter-server`: A `BonsaiDb` server.
+- `bonsaidb-counter-client`: The `Gooey` client application.
 
 ## Running the server
 
-`cargo run --package pliantdb-counter-server`
+`cargo run --package bonsaidb-counter-server`
 
 ## Running the client (native)
 
-`cargo run --package pliantdb-counter-client`
+`cargo run --package bonsaidb-counter-client`
 
 ## Trying the browser client
 
@@ -36,11 +36,11 @@ These steps rely on these tools:
 
 ### Steps
 
-These steps are written to work if your current working directory is `{repository}/integrated-examples/pliantdb/counter`.
+These steps are written to work if your current working directory is `{repository}/integrated-examples/bonsaidb/counter`.
 
 1. Build the client:
 
-   `cargo xtask build-browser-example pliantdb-counter-client`
+   `cargo xtask build-browser-example bonsaidb-counter-client`
 
 2. Launch the HTTP server:
 

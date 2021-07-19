@@ -1,15 +1,15 @@
 [package]
-name = "pliantdb-counter-client"
+name = "bonsaidb-counter-client"
 version = "0.1.0"
 authors = ["Jonathan Johnson <jon@khonsulabs.com>"]
 edition = "2018"
-description = "The client portion of a simple example using a PliantDb server backend."
+description = "The client portion of a simple example using a BonsaiDb server backend."
 license = "MIT OR Apache-2.0"
 publish = false
 
 [dependencies]
-pliantdb-counter-shared = { path="../shared" }
-pliantdb = { version="0.1.0-dev.4", features=[
+bonsaidb-counter-shared = { path="../shared" }
+bonsaidb = { version="0.1.0-dev.4", features=[
     "client",
     "client-websockets",
     "client-pubsub",

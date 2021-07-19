@@ -27,23 +27,23 @@ fn main() -> anyhow::Result<()> {
 
 fn build_browser_example(name: String) -> Result<(), devx_cmd::Error> {
     let (index_path, browser_path) = match name.as_str() {
-        "pliantdb-counter-client" => {
+        "bonsaidb-counter-client" => {
             run!(
                 "cargo",
                 "build",
                 "--package",
-                "pliantdb-counter-client",
+                "bonsaidb-counter-client",
                 "--target",
                 "wasm32-unknown-unknown",
             )?;
             execute_wasm_bindgen(
-                "target/wasm32-unknown-unknown/debug/pliantdb-counter-client.wasm",
-                "integrated-examples/pliantdb/counter/browser/pkg/",
+                "target/wasm32-unknown-unknown/debug/bonsaidb-counter-client.wasm",
+                "integrated-examples/bonsaidb/counter/browser/pkg/",
             )?;
 
             (
                 String::from("index.html"),
-                String::from("integrated-examples/pliantdb/counter/browser"),
+                String::from("integrated-examples/bonsaidb/counter/browser"),
             )
         }
         regular_example => {

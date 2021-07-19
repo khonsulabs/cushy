@@ -1,27 +1,25 @@
 use std::path::Path;
 
-use pliantdb::{
-    core::{connection::ServerConnection, kv::Kv, permissions::Permissions, pubsub::PubSub, Error},
+use bonsaidb::{
+    core::{connection::ServerConnection, kv::Kv, permissions::Permissions, Error},
     server::{Backend, Configuration, CustomServer},
 };
-use pliantdb_counter_shared::{
-    ExampleApi, IncrementCounterHandler, Request, RequestDispatcher, Response,
-    COUNTER_CHANGED_TOPIC, DATABASE_NAME,
+use bonsaidb_counter_shared::{
+    ExampleApi, GetCounterHandler, IncrementCounterHandler, Request, RequestDispatcher, Response,
+    DATABASE_NAME,
 };
 
 /// The server's main entrypoint.
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Open a `PliantDb` server at the given path, allowing all actions to be
+    // Open a `BonsaiDb` server at the given path, allowing all actions to be
     // done over the network connections.
-    let server = CustomServer::<Example>::open(
-        Path::new("counter-example.pliantdb"),
-        Configuration {
+    let server =
+        CustomServer::<Example>::open(Path::new("counter-example.bonsaidb"), Configuration {
             default_permissions: Permissions::allow_all(),
             ..Configuration::default()
-        },
-    )
-    .await?;
+        })
+        .await?;
     // Sets the dispatcher for custom API requests.
     server
         .set_custom_api_dispatcher(ApiDispatcher {
@@ -45,6 +43,7 @@ async fn main() -> anyhow::Result<()> {
 /// The example database `Backend`.
 #[derive(Debug)]
 enum Example {}
+
 impl Backend for Example {
     type CustomApi = ExampleApi;
     type CustomApiDispatcher = ApiDispatcher;
@@ -63,13 +62,33 @@ impl RequestDispatcher for ApiDispatcher {
 }
 
 #[actionable::async_trait]
+impl GetCounterHandler for ApiDispatcher {
+    /// Returns the current counter value.
+    async fn handle(&self, _permissions: &actionable::Permissions) -> anyhow::Result<Response> {
+        println!("Returning current counter value.");
+        let db = self.server.database::<()>("counter").await.unwrap();
+
+        let value = db
+            .get_key("count")
+            .into_u64()
+            .await
+            .unwrap()
+            .unwrap_or_default();
+        Ok(Response::CounterValue(value))
+    }
+}
+
+#[actionable::async_trait]
 impl IncrementCounterHandler for ApiDispatcher {
     /// Increments the counter, and publishes a message with the new value.
     async fn handle(&self, _permissions: &actionable::Permissions) -> anyhow::Result<Response> {
         let db = self.server.database::<()>("counter").await?;
 
         let new_value = db.increment_key_by("count", 1_u64).await?;
-        db.publish(COUNTER_CHANGED_TOPIC, &new_value).await?;
-        Ok(Response::CounterIncremented(new_value))
+        self.server
+            .broadcast(Response::CounterValue(new_value))
+            .await;
+
+        Ok(Response::CounterValue(new_value))
     }
 }

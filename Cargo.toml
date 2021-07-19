@@ -7,13 +7,17 @@ members = [
     "core",
     "widgets",
     "xtask",
-    "integrated-examples/pliantdb/counter/server",
-    "integrated-examples/pliantdb/counter/client",
-    "integrated-examples/pliantdb/counter/shared",
+    "integrated-examples/bonsaidb/counter/server",
+    "integrated-examples/bonsaidb/counter/client",
+    "integrated-examples/bonsaidb/counter/shared",
 ]
 
-# [patch.crates-io]
+[patch.crates-io]
 # easygpu = { path = "../easygpu" }
+bonsaidb = { git="https://github.com/khonsulabs/bonsaidb.git", branch="main" }
+# bonsaidb = { path="../bonsaidb/bonsaidb" }
+actionable = { git="https://github.com/khonsulabs/actionable.git", branch="main" }
+# actionable = { path="../actionable/actionable", version="0.1.0-dev.3" }
 
 # [patch."https://github.com/khonsulabs/stylecs.git"]
 # stylecs = { path = "../stylecs/stylecs" }
@@ -24,5 +28,5 @@ members = [
 # [patch."https://github.com/khonsulabs/khonsu-tools.git"]
 # khonsu-tools = { path="../khonsu-tools" }
 
-# [patch."https://github.com/khonsulabs/pliantdb.git"]
-# pliantdb = { path="../pliantdb/pliantdb" }
+# [patch."https://github.com/khonsulabs/bonsaidb.git"]
+# bonsaidb = { path="../bonsaidb/bonsaidb" }

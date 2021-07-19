@@ -14,4 +14,4 @@
   - [Container](./widgets/container.md)
   - [Label](./widgets/label.md)
   - [Layout](./widgets/layout.md)
-- [Tutorial: Build a Database-driven App](./tutorials/pliantdb-counter/introduction.md)
+- [Tutorial: Build a Database-driven App](./tutorials/bonsaidb-counter/introduction.md)
