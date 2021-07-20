@@ -25,13 +25,13 @@
 use gooey_core::{
     euclid::{Point2D, Rect},
     palette::Srgba,
-    renderer::{Renderer, TextMetrics},
     styles::{
         ColorPair, FallbackComponent, FontSize, ForegroundColor, LineWidth, Style, SystemTheme,
         TextColor,
     },
     Pixels, Points,
 };
+use gooey_renderer::{Renderer, TextMetrics};
 pub use kludgine;
 use kludgine::prelude::*;
 

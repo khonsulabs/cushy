@@ -1,10 +1,24 @@
+//! Cross-platform rendering types.
+
+#![forbid(unsafe_code)]
+#![warn(
+    clippy::cargo,
+    missing_docs,
+    clippy::pedantic,
+    future_incompatible,
+    rust_2018_idioms
+)]
+#![allow(clippy::if_not_else)]
+#![cfg_attr(doc, warn(rustdoc::all))]
+
 use std::fmt::Debug;
 
-use euclid::{Length, Point2D, Rect, Scale, Size2D};
-use palette::Srgba;
-use stylecs::{FallbackComponent, Style};
-
-use crate::{styles::ColorPair, Pixels, Points};
+use gooey_core::{
+    euclid::{Length, Point2D, Rect, Scale, Size2D},
+    palette::Srgba,
+    styles::{ColorPair, FallbackComponent, Style},
+    Pixels, Points,
+};
 
 /// Implements drawing APIs.
 pub trait Renderer: Debug + Send + Sync + Sized + 'static {
@@ -37,7 +51,6 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
         style: &Style,
     );
     /// Measures `text` using `options`.
-    #[must_use]
     fn measure_text(&self, text: &str, style: &Style) -> TextMetrics<Points>;
 
     /// Strokes the outline of `rect` using `options`.
@@ -84,6 +97,8 @@ pub struct StrokeOptions {
 }
 
 /// A measurement of text.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[must_use]
 pub struct TextMetrics<U> {
     /// The width of the text.
     pub width: Length<f32, U>,

@@ -5,6 +5,8 @@ members = [
     "frontends/browser",
     "frontends/rasterizer",
     "core",
+    "renderer",
+    "text",
     "widgets",
     "xtask",
     "integrated-examples/bonsaidb/counter/server",

@@ -26,8 +26,8 @@ pub mod layout;
 
 #[cfg(feature = "frontend-rasterizer")]
 pub mod rasterized {
-    use gooey_core::{renderer::Renderer, Transmogrifiers};
-    use gooey_rasterizer::{make_rasterized, Rasterizer};
+    use gooey_core::Transmogrifiers;
+    use gooey_rasterizer::{make_rasterized, Rasterizer, Renderer};
 
     use crate::{
         button::ButtonTransmogrifier, container::ContainerTransmogrifier,

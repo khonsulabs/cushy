@@ -1,10 +1,11 @@
 use gooey_core::{
     euclid::{Length, Point2D, Rect, Size2D, Vector2D},
-    renderer::Renderer,
     styles::TextColor,
     Points, Transmogrifier, TransmogrifierContext,
 };
-use gooey_rasterizer::{winit::event::MouseButton, EventStatus, Rasterizer, WidgetRasterizer};
+use gooey_rasterizer::{
+    winit::event::MouseButton, EventStatus, Rasterizer, Renderer, WidgetRasterizer,
+};
 
 use crate::button::{
     Button, ButtonColor, ButtonCommand, ButtonTransmogrifier, InternalButtonEvent,

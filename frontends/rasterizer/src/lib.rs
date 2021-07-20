@@ -39,7 +39,7 @@ mod state;
 mod transmogrifier;
 
 #[doc(hidden)]
-pub use gooey_core::renderer::Renderer;
+pub use gooey_renderer::Renderer;
 use state::State;
 pub use winit;
 

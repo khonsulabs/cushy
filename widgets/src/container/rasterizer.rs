@@ -1,9 +1,8 @@
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
-    renderer::Renderer,
     Points, Transmogrifier, TransmogrifierContext,
 };
-use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
+use gooey_rasterizer::{Rasterizer, Renderer, WidgetRasterizer};
 
 use crate::container::{Container, ContainerTransmogrifier};
 

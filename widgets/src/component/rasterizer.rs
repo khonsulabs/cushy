@@ -1,8 +1,7 @@
 use gooey_core::{
-    euclid::Size2D, renderer::Renderer, Points, Transmogrifier, TransmogrifierContext, Widget,
-    WidgetRef,
+    euclid::Size2D, Points, Transmogrifier, TransmogrifierContext, Widget, WidgetRef,
 };
-use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
+use gooey_rasterizer::{Rasterizer, Renderer, WidgetRasterizer};
 
 use super::Component;
 use crate::component::{Behavior, ComponentTransmogrifier};
