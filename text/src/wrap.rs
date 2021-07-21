@@ -160,7 +160,7 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
             MeasuredTextInfo::Groups(groups) => {
                 let single_line = self.options.is_single_line();
                 for group in groups {
-                    if state.push_group(dbg!(group), single_line) && single_line {
+                    if state.push_group(group, single_line) && single_line {
                         println!("stopping iteration over groups");
                         break;
                     }
