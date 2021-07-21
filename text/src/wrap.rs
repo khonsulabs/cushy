@@ -161,7 +161,6 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
                 let single_line = self.options.is_single_line();
                 for group in groups {
                     if state.push_group(group, single_line) && single_line {
-                        println!("stopping iteration over groups");
                         break;
                     }
                 }
