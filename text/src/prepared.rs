@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use gooey_core::{
-    euclid::{Length, Point2D, Size2D, Vector2D},
-    styles::{Alignment, ForegroundColor, Style},
+    euclid::{Length, Point2D, Rect, Size2D, Vector2D},
+    styles::{Alignment, ColorPair, FallbackComponent, Style, VerticalAlignment},
     Points,
 };
 use gooey_renderer::{Renderer, TextMetrics};
@@ -30,23 +30,23 @@ impl PreparedText {
         Size2D::from_lengths(width, height)
     }
 
-    #[allow(clippy::needless_collect)] // false positive, needed to get rid of borrow.
-    pub(crate) fn align(&mut self, alignment: Alignment, width: Length<f32, Points>) {
-        let line_sizes = self
-            .lines
-            .iter()
-            .map(PreparedLine::size)
-            .collect::<Vec<_>>();
-        for (i, size) in line_sizes.into_iter().enumerate() {
-            match alignment {
+    pub(crate) fn align(&mut self, align_width: Length<f32, Points>) {
+        let mut last_alignment = Alignment::Left;
+        for line in &mut self.lines {
+            if let Some(span) = line.spans.first() {
+                if let Some(alignment) = span.style().get() {
+                    last_alignment = *alignment;
+                }
+            }
+            match last_alignment {
                 Alignment::Left => {
-                    self.lines[i].alignment_offset = Length::default();
+                    line.alignment_offset = Length::default();
                 }
                 Alignment::Center => {
-                    self.lines[i].alignment_offset = (width - Length::new(size.width)) / 2.;
+                    line.alignment_offset = (align_width - Length::new(line.size().width)) / 2.;
                 }
                 Alignment::Right => {
-                    self.lines[i].alignment_offset = width - Length::new(size.width);
+                    line.alignment_offset = align_width - Length::new(line.size().width);
                 }
             }
         }
@@ -56,7 +56,7 @@ impl PreparedText {
     /// will be rendered with an additional offset such that the top-left of the
     /// rendered bounding box will be `location`. Otherwise, the baseline of the
     /// first line will be `location`.
-    pub fn render<R: Renderer>(
+    pub fn render<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         scene: &R,
         location: Point2D<f32, Points>,
@@ -72,7 +72,7 @@ impl PreparedText {
             let cursor_position =
                 location + Vector2D::from_lengths(line.alignment_offset, current_line_baseline);
             for span in &line.spans {
-                scene.render_text::<ForegroundColor>(
+                scene.render_text::<F>(
                     &span.data.text,
                     cursor_position + Vector2D::from_lengths(span.location(), Length::default()),
                     &span.data.style,
@@ -82,6 +82,25 @@ impl PreparedText {
         }
 
         current_line_baseline
+    }
+
+    /// Renders this text within `bounds` honoring [`VerticalAlignment`] from
+    /// `style`. This does not affect the alignment of text, just the vertical
+    /// location of the text block rendered within `bounds`.
+    pub fn render_within<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
+        &self,
+        scene: &R,
+        bounds: Rect<f32, Points>,
+        style: &Style,
+    ) -> Length<f32, Points> {
+        let text_size = self.size();
+        let origin_y = match style.get::<VerticalAlignment>() {
+            Some(VerticalAlignment::Bottom) => bounds.size.height - text_size.height,
+            Some(VerticalAlignment::Center) => (bounds.size.height - text_size.height) / 2.,
+            Some(VerticalAlignment::Top) | None => 0.,
+        };
+
+        self.render::<F, R>(scene, Point2D::new(0., origin_y), true)
     }
 }
 

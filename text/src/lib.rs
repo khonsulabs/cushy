@@ -13,7 +13,11 @@
 
 use std::{fmt::Display, ops::Range};
 
-use gooey_core::{euclid::Point2D, styles::Style, Points};
+use gooey_core::{
+    euclid::Point2D,
+    styles::{ColorPair, FallbackComponent, Style},
+    Points,
+};
 use gooey_renderer::Renderer;
 use prepared::PreparedText;
 use wrap::{TextWrap, TextWrapper};
@@ -70,26 +74,26 @@ impl Text {
     }
 
     /// Renders this text at `location` in `renderer`. The top-left of the bounding box of the text will be at `location`.
-    pub fn render_at<R: Renderer>(
+    pub fn render_at<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
         location: Point2D<f32, Points>,
         wrapping: TextWrap,
     ) {
-        self.render_core(renderer, location, true, wrapping)
+        self.render_core::<F, R>(renderer, location, true, wrapping)
     }
 
     /// Renders this text at `location` in `renderer`. The baseline of the first line will start at `location`.
-    pub fn render_baseline_at<R: Renderer>(
+    pub fn render_baseline_at<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         scene: &R,
         location: Point2D<f32, Points>,
         wrapping: TextWrap,
     ) {
-        self.render_core(scene, location, false, wrapping)
+        self.render_core::<F, R>(scene, location, false, wrapping)
     }
 
-    fn render_core<R: Renderer>(
+    fn render_core<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         scene: &R,
         location: Point2D<f32, Points>,
@@ -97,7 +101,7 @@ impl Text {
         wrapping: TextWrap,
     ) {
         let prepared_text = self.wrap(scene, wrapping);
-        prepared_text.render(scene, location, offset_baseline);
+        prepared_text.render::<F, R>(scene, location, offset_baseline);
     }
 
     /// Removes text in `range`. Empty spans will be removed.

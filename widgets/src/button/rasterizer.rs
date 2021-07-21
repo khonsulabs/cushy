@@ -1,11 +1,12 @@
 use gooey_core::{
     euclid::{Length, Point2D, Rect, Size2D, Vector2D},
-    styles::TextColor,
+    styles::{Style, TextColor},
     Points, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
     winit::event::MouseButton, EventStatus, Rasterizer, Renderer, WidgetRasterizer,
 };
+use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
 use crate::button::{
     Button, ButtonColor, ButtonCommand, ButtonTransmogrifier, InternalButtonEvent,
@@ -31,15 +32,14 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         if let Some(scene) = context.frontend.renderer() {
             scene.fill_rect::<ButtonColor>(&scene.bounds(), context.style);
 
-            let text_size = scene.measure_text(&context.widget.label, context.style);
-
-            let center = scene.bounds().center();
-            scene.render_text::<TextColor>(
+            let wrapped = wrap_text(
                 &context.widget.label,
-                center - Vector2D::from_lengths(text_size.width, text_size.height()) / 2.
-                    + Vector2D::from_lengths(Length::default(), text_size.ascent),
                 context.style,
+                scene,
+                Length::new(scene.size().width),
             );
+
+            wrapped.render_within::<TextColor, _>(scene, scene.bounds(), context.style);
         }
     }
 
@@ -53,8 +53,13 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
             .renderer()
             .map_or_else(Size2D::default, |scene| {
                 // TODO should be wrapped width
-                let text_size = scene.measure_text(&context.widget.label, context.style);
-                (Vector2D::from_lengths(text_size.width, text_size.height())
+                let wrapped = wrap_text(
+                    &context.widget.label,
+                    context.style,
+                    scene,
+                    BUTTON_PADDING * 2.,
+                );
+                (wrapped.size().to_vector()
                     + Vector2D::from_lengths(BUTTON_PADDING * 2., BUTTON_PADDING * 2.))
                 .to_size()
             })
@@ -113,4 +118,16 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         }
         context.frontend.deactivate();
     }
+}
+
+fn wrap_text<R: Renderer>(
+    label: &str,
+    style: &Style,
+    renderer: &R,
+    width: Length<f32, Points>,
+) -> PreparedText {
+    let text = Text::span(label, style.clone());
+    text.wrap(renderer, TextWrap::SingleLine {
+        width: width - BUTTON_PADDING * 2.,
+    })
 }

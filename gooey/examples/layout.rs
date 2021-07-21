@@ -8,7 +8,11 @@ use gooey::{
     },
     App,
 };
-use gooey_core::{euclid::Length, StyledWidget};
+use gooey_core::{
+    euclid::Length,
+    styles::{Alignment, VerticalAlignment},
+    StyledWidget,
+};
 use gooey_widgets::layout::WidgetLayout;
 
 fn main() {
@@ -46,7 +50,12 @@ impl Behavior for Counter {
             )
             .with_registration(
                 CounterWidgets::Label,
-                builder.register_widget(CounterWidgets::Label, Label::new("0")),
+                builder.register_widget(
+                    CounterWidgets::Label,
+                    Label::new("0")
+                        .with(Alignment::Center)
+                        .with(VerticalAlignment::Center),
+                ),
                 WidgetLayout::default()
                     .with_right(Dimension::Exact(Length::new(0.)))
                     .with_top(Dimension::Percent(0.4))

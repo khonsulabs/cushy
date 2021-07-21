@@ -50,7 +50,7 @@ impl WebSysTransmogrifier for ButtonTransmogrifier {
     }
 
     fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
-        self.convert_colors_to_css(style, css)
+        self.convert_standard_components_to_css(style, css)
             .with_css_statement("border: none") // TODO support borders
     }
 }

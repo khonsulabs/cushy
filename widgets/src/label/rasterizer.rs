@@ -1,11 +1,12 @@
 use gooey_core::{
-    euclid::{Length, Point2D, Size2D, Vector2D},
-    styles::Alignment,
+    euclid::{Length, Size2D, Vector2D},
+    styles::Style,
     Points, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{Rasterizer, Renderer, WidgetRasterizer};
-use gooey_text::{wrap::TextWrap, Text};
+use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
+use super::LabelColor;
 use crate::label::{Label, LabelCommand, LabelTransmogrifier};
 
 const LABEL_PADDING: Length<f32, Points> = Length::new(5.);
@@ -27,18 +28,13 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
     fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
         if let Some(scene) = context.frontend.renderer() {
             // TODO switch to borrows?
-            let text = Text::span(&context.widget.label, context.style.clone());
-            let wrapped = text.wrap(scene, TextWrap::SingleLine {
-                width: Length::new(scene.size().width) - LABEL_PADDING * 2.,
-                alignment: Alignment::Center,
-                truncate: true,
-            });
-            let text_size = wrapped.size();
-            wrapped.render(
+            let wrapped = wrap_text(
+                &context.widget.label,
+                context.style,
                 scene,
-                Point2D::new(0., (scene.size().height - text_size.height) / 2.),
-                true,
+                Length::new(scene.size().width),
             );
+            wrapped.render_within::<LabelColor, _>(scene, scene.bounds(), context.style);
         }
     }
 
@@ -51,16 +47,30 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
             .frontend
             .renderer()
             .map_or_else(Size2D::default, |scene| {
-                let text = Text::span(&context.widget.label, context.style.clone());
-                let wrapped = text.wrap(scene, TextWrap::SingleLine {
-                    width: Length::new(constraints.width.unwrap_or_else(|| scene.size().width))
-                        - LABEL_PADDING * 2.,
-                    alignment: Alignment::Center,
-                    truncate: true,
-                });
+                let wrapped = wrap_text(
+                    &context.widget.label,
+                    context.style,
+                    scene,
+                    Length::new(constraints.width.unwrap_or_else(|| scene.size().width)),
+                );
                 (wrapped.size().to_vector()
                     + Vector2D::from_lengths(LABEL_PADDING * 2., LABEL_PADDING * 2.))
                 .to_size()
             })
     }
+}
+
+fn wrap_text<R: Renderer>(
+    label: &str,
+    style: &Style,
+    renderer: &R,
+    width: Length<f32, Points>,
+) -> PreparedText {
+    let text = Text::span(label, style.clone());
+    text.wrap(renderer, TextWrap::MultiLine {
+        size: Size2D::from_lengths(
+            width - LABEL_PADDING * 2.,
+            Length::new(renderer.size().height),
+        ),
+    })
 }

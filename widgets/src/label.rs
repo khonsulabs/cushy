@@ -47,7 +47,7 @@ impl Widget for Label {
 #[derive(Debug)]
 pub struct LabelTransmogrifier;
 
-/// The button's background color.
+/// The label's text color.
 #[derive(Debug, Clone)]
 pub struct LabelColor(pub ColorPair);
 impl StyleComponent for LabelColor {}

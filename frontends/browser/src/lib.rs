@@ -31,7 +31,7 @@ use std::{
 };
 
 use gooey_core::{
-    styles::{style_sheet::Classes, Style, StyleComponent},
+    styles::{style_sheet::Classes, Alignment, Style, StyleComponent, VerticalAlignment},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef, WidgetRegistration,
 };
@@ -222,10 +222,17 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
 
     #[allow(unused_variables)]
     fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
-        self.convert_colors_to_css(style, css)
+        self.convert_standard_components_to_css(style, css)
     }
 
-    #[allow(unused_variables)]
+    fn convert_standard_components_to_css(
+        &self,
+        style: &Style,
+        css: CssBlockBuilder,
+    ) -> CssBlockBuilder {
+        self.convert_alignment_to_css(style, self.convert_colors_to_css(style, css))
+    }
+
     fn convert_colors_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
         if let Some(color) = <Self::Widget as Widget>::text_color(style) {
             css = css.with_css_statement(format!("color: {}", color.light_color.as_css_string()));
@@ -235,6 +242,33 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
                 "background-color: {}",
                 color.light_color.as_css_string()
             ));
+        }
+        css
+    }
+
+    /// Converts [`Alignment`] and [`VerticalAlignment`] components to CSS
+    /// rules. Also emits `display: flex` if any alignments are set.
+    fn convert_alignment_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
+        let alignment = style.get::<Alignment>();
+        let vertical_alignment = style.get::<VerticalAlignment>();
+
+        if vertical_alignment.is_some() || alignment.is_some() {
+            css = css.with_css_statement("display: flex");
+        }
+
+        if let Some(alignment) = alignment {
+            css = css.with_css_statement(format!("justify-content: {}", match alignment {
+                Alignment::Left => "start",
+                Alignment::Center => "center",
+                Alignment::Right => "end",
+            },))
+        }
+        if let Some(vertical_alignment) = vertical_alignment {
+            css = css.with_css_statement(format!("align-items: {}", match vertical_alignment {
+                VerticalAlignment::Top => "start",
+                VerticalAlignment::Center => "center",
+                VerticalAlignment::Bottom => "end",
+            },))
         }
         css
     }

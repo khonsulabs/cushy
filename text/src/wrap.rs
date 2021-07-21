@@ -1,7 +1,6 @@
 use approx::relative_eq;
 use gooey_core::{
     euclid::{Length, Size2D},
-    styles::Alignment,
     Points,
 };
 use gooey_renderer::{Renderer, TextMetrics};
@@ -166,6 +165,9 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
                 }
 
                 self.prepared_text.lines = state.finish();
+                if let Some(width) = width {
+                    self.prepared_text.align(width);
+                }
             }
             MeasuredTextInfo::NoText(metrics) => {
                 self.prepared_text.lines.push(PreparedLine {
@@ -173,12 +175,6 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
                     alignment_offset: Length::default(),
                     spans: Vec::default(),
                 });
-            }
-        }
-
-        if let Some(alignment) = self.options.alignment() {
-            if let Some(max_width) = self.options.width() {
-                self.prepared_text.align(alignment, max_width);
             }
         }
 
@@ -195,17 +191,11 @@ pub enum TextWrap {
     SingleLine {
         /// The width of the line to render within.
         width: Length<f32, Points>,
-        /// If the text cannot fit within a single line, truncate the text.
-        truncate: bool,
-        /// Within `max_width`, use this `alignment`.
-        alignment: Alignment,
     },
     /// Render a multi-line text block.
     MultiLine {
-        /// The width of the text area.
+        /// The size of the text area.
         size: Size2D<f32, Points>,
-        /// Controls the alignment of the lines of text.
-        alignment: Alignment,
     },
 }
 
@@ -238,25 +228,6 @@ impl TextWrap {
         match self {
             Self::MultiLine { size, .. } => Some(Length::new(size.height)),
             _ => None,
-        }
-    }
-
-    /// Returns whether to truncate the text or not when rendering.
-    #[must_use]
-    pub fn truncate(&self) -> bool {
-        match self {
-            Self::SingleLine { truncate, .. } => *truncate,
-            _ => false,
-        }
-    }
-
-    /// Returns the alignment to use.
-    #[must_use]
-    pub fn alignment(&self) -> Option<Alignment> {
-        match self {
-            Self::NoWrap => None,
-            Self::MultiLine { alignment, .. } | Self::SingleLine { alignment, .. } =>
-                Some(*alignment),
         }
     }
 }
@@ -358,7 +329,6 @@ mod tests {
         )])
         .wrap(&scene, TextWrap::MultiLine {
             size: Size2D::new(80.0, f32::MAX),
-            alignment: Alignment::Left,
         });
         println!("Wrapped text: {:#?}", wrap);
         assert_eq!(wrap.lines.len(), 2);
@@ -382,7 +352,6 @@ mod tests {
         ])
         .wrap(&scene, TextWrap::MultiLine {
             size: Size2D::new(130.0, f32::MAX),
-            alignment: Alignment::Left,
         });
         assert_eq!(wrap.lines.len(), 2);
         assert_eq!(wrap.lines[0].spans.len(), 5);

@@ -2,7 +2,7 @@ use gooey_core::{
     palette::Hsla,
     styles::{
         style_sheet::{Rule, StyleSheet},
-        BackgroundColor, Color, ColorPair, TextColor,
+        Alignment, BackgroundColor, Color, ColorPair, TextColor, VerticalAlignment,
     },
     ROOT_CLASS,
 };
@@ -52,6 +52,8 @@ pub fn default_stylesheet() -> StyleSheet {
                     light_color: gray60,
                     dark_color: gray20,
                 }))
+                .with(Alignment::Center)
+                .with(VerticalAlignment::Center)
         }))
         .with(
             Rule::for_widget::<Button>()
