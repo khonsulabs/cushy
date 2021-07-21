@@ -2,11 +2,11 @@ use std::{any::TypeId, convert::TryFrom, ops::Deref};
 
 use gooey_core::{
     euclid::{Point2D, Rect, Size2D},
-    renderer::Renderer,
     styles::{BackgroundColor, Style},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Points, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetRegistration,
 };
+use gooey_renderer::Renderer;
 use winit::event::MouseButton;
 
 use crate::Rasterizer;

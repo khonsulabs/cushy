@@ -12,16 +12,18 @@ readme = "../README.md"
 
 [features]
 default = []
-frontend-rasterizer = ["gooey-rasterizer"]
+frontend-rasterizer = ["gooey-rasterizer", "gooey-text", "gooey-renderer"]
 frontend-browser = ["gooey-browser", "wasm-bindgen", "web-sys"]
 
 [dependencies]
-gooey-core = { path = "../core", version = "0.1.0-dev.0" }
-gooey-rasterizer = { path = "../frontends/rasterizer", version = "0.1.0-dev.0", optional = true }
-gooey-browser = { path = "../frontends/browser", version = "0.1.0-dev.0", optional = true }
+gooey-core = { path="../core", version="0.1.0-dev.0" }
+gooey-rasterizer = { path="../frontends/rasterizer", version="0.1.0-dev.0", optional=true }
+gooey-browser = { path="../frontends/browser", version="0.1.0-dev.0", optional=true }
+gooey-text = { path="../text", version="0.1.0-dev.0", optional=true }
+gooey-renderer = { path="../renderer", version="0.1.0-dev.0", optional=true }
 
-wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", features = [
+wasm-bindgen = { version="0.2", optional=true }
+web-sys = { version="0.3", features=[
     "Document",
     "CssStyleSheet",
     "CssRule",
@@ -33,6 +35,6 @@ web-sys = { version = "0.3", features = [
     "HtmlDivElement",
     "HtmlStyleElement",
     "HtmlHeadElement",
-], optional = true }
+], optional=true }
 flume = "0.10"
 log = "0.4"

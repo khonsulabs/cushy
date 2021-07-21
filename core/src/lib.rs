@@ -15,8 +15,6 @@
 
 mod frontend;
 mod gooey;
-/// Types used for drawing.
-pub mod renderer;
 /// Types used for styling.
 pub mod styles;
 mod widget;

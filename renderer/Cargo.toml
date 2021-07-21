@@ -1,0 +1,14 @@
+[package]
+name = "gooey-renderer"
+version = "0.1.0-dev.0"
+edition = "2018"
+description = "Cross-platform rendering functionality for gooey"
+repository = "https://github.com/khonsulabs/gooey"
+license = "MIT OR Apache-2.0"
+keywords = ["gui", "ui", "user interface"]
+categories = ["gui"]
+readme = "../README.md"
+
+
+[dependencies]
+gooey-core = { path="../core", version="0.1.0-dev.0" }

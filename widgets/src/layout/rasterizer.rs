@@ -1,9 +1,8 @@
 use gooey_core::{
     euclid::{Length, Point2D, Rect, Size2D, Vector2D},
-    renderer::Renderer,
     Points, Transmogrifier, TransmogrifierContext,
 };
-use gooey_rasterizer::{Rasterizer, WidgetRasterizer};
+use gooey_rasterizer::{Rasterizer, Renderer, WidgetRasterizer};
 
 use super::LayoutChild;
 use crate::layout::{Layout, LayoutTransmogrifier};
@@ -56,12 +55,11 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, Rect<f32, Points
             Length::new(constraints.width) - layout_surround.minimum_width(),
             Length::new(constraints.height) - layout_surround.minimum_height(),
         );
+        let layout_max_size = child.layout.size_in_points(child_constrained_size);
         // Constrain the child to whatever remains after the left/right/top/bottom
         // measurements
-        let child_constraints = Size2D::new(
-            Some(child_constrained_size.width),
-            Some(child_constrained_size.height),
-        );
+        let child_constraints =
+            Size2D::new(Some(layout_max_size.width), Some(layout_max_size.height));
         // Ask the child to measure
         let child_size = context
             .frontend
@@ -75,7 +73,7 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, Rect<f32, Points
 
         // If the layout has an explicit width/height, we should return it if it's a
         // value larger than what the child reported
-        let child_size = child_size.max(child.layout.size_in_points(child_constrained_size));
+        let child_size = child_size.max(layout_max_size);
         // If either top or left are Auto, we need to divide it equally with the
         // corresponding measurement if it's also auto.
         let child_left = layout_surround.left.unwrap_or_else(|| {
