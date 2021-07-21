@@ -61,16 +61,14 @@ impl TextMeasureState {
                     self.status = ParserStatus::TrailingPunctuation;
                 }
             },
-            Token::Whitespace(span) => match self.status {
-                ParserStatus::Whitespace => {
+            Token::Whitespace(span) =>
+                if let ParserStatus::Whitespace = self.status {
                     self.push_whitespace_span(span);
-                }
-                _ => {
+                } else {
                     self.commit_current_group();
                     self.push_whitespace_span(span);
                     self.status = ParserStatus::Whitespace;
-                }
-            },
+                },
         }
     }
 
@@ -118,11 +116,10 @@ impl MeasuredText {
             state.push_token(token);
         }
 
-        let info = if let Some(no_text_metrics) = state.no_text_metrics {
-            MeasuredTextInfo::NoText(no_text_metrics)
-        } else {
-            MeasuredTextInfo::Groups(state.finish())
-        };
+        let info = state.no_text_metrics.map_or_else(
+            || MeasuredTextInfo::Groups(state.finish()),
+            MeasuredTextInfo::NoText,
+        );
 
         MeasuredText { info }
     }

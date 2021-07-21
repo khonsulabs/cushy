@@ -29,7 +29,7 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
             // TODO switch to borrows?
             let text = Text::span(&context.widget.label, context.style.clone());
             let wrapped = text.wrap(scene, TextWrap::SingleLine {
-                max_width: Length::new(scene.size().width) - LABEL_PADDING * 2.,
+                width: Length::new(scene.size().width) - LABEL_PADDING * 2.,
                 alignment: Alignment::Center,
                 truncate: true,
             });
@@ -53,7 +53,7 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
             .map_or_else(Size2D::default, |scene| {
                 let text = Text::span(&context.widget.label, context.style.clone());
                 let wrapped = text.wrap(scene, TextWrap::SingleLine {
-                    max_width: Length::new(constraints.width.unwrap_or_else(|| scene.size().width))
+                    width: Length::new(constraints.width.unwrap_or_else(|| scene.size().width))
                         - LABEL_PADDING * 2.,
                     alignment: Alignment::Center,
                     truncate: true,

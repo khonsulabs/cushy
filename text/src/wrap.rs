@@ -1,5 +1,9 @@
 use approx::relative_eq;
-use gooey_core::{euclid::Length, styles::Alignment, Points};
+use gooey_core::{
+    euclid::{Length, Size2D},
+    styles::Alignment,
+    Points,
+};
 use gooey_renderer::{Renderer, TextMetrics};
 
 mod measured;
@@ -10,7 +14,7 @@ use crate::{
     Text,
 };
 
-pub struct TextWrapper<'a, R: Renderer> {
+pub(crate) struct TextWrapper<'a, R: Renderer> {
     options: TextWrap,
     scene: &'a R,
     prepared_text: PreparedText,
@@ -32,21 +36,25 @@ struct TextWrapState {
 }
 
 impl TextWrapState {
-    fn push_group(&mut self, group: SpanGroup) {
+    #[must_use]
+    fn push_group(&mut self, group: SpanGroup, single_line: bool) -> bool {
+        let mut new_line = false;
         if let SpanGroup::EndOfLine(metrics) = &group {
             self.update_vmetrics(*metrics);
             self.new_line();
+            true
         } else {
             let spans = group.spans();
             let total_width = spans
                 .iter()
-                .map(|s| s.data.metrics.width)
+                .map(|s| s.metrics().width)
                 .fold(Length::default(), |sum, width| sum + width);
 
             if let Some(width) = self.width {
                 let new_width = total_width + self.current_span_offset;
                 let remaining_width = width - new_width;
 
+                // If the value is negative and isn't zero (-0. is a valid float)
                 if !relative_eq!(remaining_width.get(), 0., epsilon = 0.001)
                     && remaining_width.get().is_sign_negative()
                 {
@@ -55,11 +63,16 @@ impl TextWrapState {
                         // For now, just render it anyways.
                     } else {
                         self.new_line();
+                        new_line = true;
+                        if single_line {
+                            return new_line;
+                        }
                     }
                 }
             }
             self.current_span_offset += total_width;
             self.current_groups.push(group);
+            new_line
         }
     }
 
@@ -76,8 +89,8 @@ impl TextWrapState {
     }
 
     fn position_span(&mut self, span: &mut PreparedSpan) {
-        let width = span.data.metrics.width;
-        span.location = self.current_span_offset;
+        let width = span.metrics().width;
+        span.set_location(self.current_span_offset);
         self.current_span_offset += width;
     }
 
@@ -96,7 +109,7 @@ impl TextWrapState {
 
         self.current_span_offset = Length::default();
         for span in &mut spans {
-            self.update_vmetrics(span.metrics());
+            self.update_vmetrics(*span.metrics());
             self.position_span(span)
         }
 
@@ -131,7 +144,7 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
     }
 
     fn wrap_text(mut self, text: &Text) -> PreparedText {
-        let width = self.options.max_width();
+        let width = self.options.width();
 
         let measured = MeasuredText::new(text, self.scene);
 
@@ -145,8 +158,12 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
 
         match measured.info {
             MeasuredTextInfo::Groups(groups) => {
+                let single_line = self.options.is_single_line();
                 for group in groups {
-                    state.push_group(group);
+                    if state.push_group(dbg!(group), single_line) && single_line {
+                        println!("stopping iteration over groups");
+                        break;
+                    }
                 }
 
                 self.prepared_text.lines = state.finish();
@@ -161,7 +178,7 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
         }
 
         if let Some(alignment) = self.options.alignment() {
-            if let Some(max_width) = self.options.max_width() {
+            if let Some(max_width) = self.options.width() {
                 self.prepared_text.align(alignment, max_width);
             }
         }
@@ -170,49 +187,62 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
     }
 }
 
+/// Text wrapping options.
 #[derive(Debug, Clone)]
 pub enum TextWrap {
+    /// Do not wrap the text.
     NoWrap,
+    /// Render the text in a single line. Do not render past `max_width`.
     SingleLine {
-        max_width: Length<f32, Points>,
+        /// The width of the line to render within.
+        width: Length<f32, Points>,
+        /// If the text cannot fit within a single line, truncate the text.
         truncate: bool,
+        /// Within `max_width`, use this `alignment`.
         alignment: Alignment,
     },
+    /// Render a multi-line text block.
     MultiLine {
-        width: Length<f32, Points>,
-        height: Length<f32, Points>,
+        /// The width of the text area.
+        size: Size2D<f32, Points>,
+        /// Controls the alignment of the lines of text.
         alignment: Alignment,
     },
 }
 
 impl TextWrap {
+    /// Returns true if this is a multiline wrap.
     #[must_use]
     pub fn is_multiline(&self) -> bool {
         matches!(self, Self::MultiLine { .. })
     }
 
+    /// Returns true if this is a single-line wrap.
     #[must_use]
     pub fn is_single_line(&self) -> bool {
         !self.is_multiline()
     }
 
+    /// Returns the width of the rendered area, if one was provided.
     #[must_use]
-    pub fn max_width(&self) -> Option<Length<f32, Points>> {
+    pub fn width(&self) -> Option<Length<f32, Points>> {
         match self {
-            Self::MultiLine { width, .. } => Some(*width),
-            Self::SingleLine { max_width, .. } => Some(*max_width),
+            Self::MultiLine { size, .. } => Some(Length::new(size.width)),
+            Self::SingleLine { width, .. } => Some(*width),
             Self::NoWrap => None,
         }
     }
 
+    /// Returns the height of the rendendered area, if one was provided.
     #[must_use]
     pub fn height(&self) -> Option<Length<f32, Points>> {
         match self {
-            Self::MultiLine { height, .. } => Some(*height),
+            Self::MultiLine { size, .. } => Some(Length::new(size.height)),
             _ => None,
         }
     }
 
+    /// Returns whether to truncate the text or not when rendering.
     #[must_use]
     pub fn truncate(&self) -> bool {
         match self {
@@ -221,6 +251,7 @@ impl TextWrap {
         }
     }
 
+    /// Returns the alignment to use.
     #[must_use]
     pub fn alignment(&self) -> Option<Alignment> {
         match self {
@@ -322,20 +353,19 @@ mod tests {
     /// This test should have "This line should " be on the first line and "wrap" on the second
     fn wrap_one_word() {
         let scene = MockTextRenderer;
-        let wrap = Text::new(vec![Span::new(
+        let wrap = Text::from(vec![Span::new(
             "This line should wrap",
             Style::new().with(FontSize::<Points>::new(12.)),
         )])
         .wrap(&scene, TextWrap::MultiLine {
-            width: Length::new(80.0),
-            height: Length::new(f32::MAX),
+            size: Size2D::new(80.0, f32::MAX),
             alignment: Alignment::Left,
         });
         println!("Wrapped text: {:#?}", wrap);
         assert_eq!(wrap.lines.len(), 2);
         assert_eq!(wrap.lines[0].spans.len(), 3); // "this"," ","line"
         assert_eq!(wrap.lines[1].spans.len(), 3); // "should"," ","wrap"
-        assert_eq!(wrap.lines[1].spans[0].data.text, "should");
+        assert_eq!(wrap.lines[1].spans[0].text(), "should");
     }
 
     #[test]
@@ -347,22 +377,21 @@ mod tests {
 
         let second_style = Style::new().with(FontSize::<Points>::new(10.));
 
-        let wrap = Text::new(vec![
+        let wrap = Text::from(vec![
             Span::new("This line should ", first_style),
             Span::new("wrap", second_style),
         ])
         .wrap(&scene, TextWrap::MultiLine {
-            width: Length::new(130.0),
-            height: Length::new(f32::MAX),
+            size: Size2D::new(130.0, f32::MAX),
             alignment: Alignment::Left,
         });
         assert_eq!(wrap.lines.len(), 2);
         assert_eq!(wrap.lines[0].spans.len(), 5);
         assert_eq!(wrap.lines[1].spans.len(), 1);
-        assert_eq!(wrap.lines[1].spans[0].data.text.len(), 4);
+        assert_eq!(wrap.lines[1].spans[0].text(), "wrap");
         assert_ne!(
-            wrap.lines[0].spans[0].data.metrics.ascent,
-            wrap.lines[1].spans[0].data.metrics.ascent
+            wrap.lines[0].spans[0].metrics().ascent,
+            wrap.lines[1].spans[0].metrics().ascent
         );
     }
 }

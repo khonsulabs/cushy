@@ -11,24 +11,30 @@
 #![allow(clippy::if_not_else, clippy::module_name_repetitions)]
 #![cfg_attr(doc, warn(rustdoc::all))]
 
-use std::ops::Range;
+use std::{fmt::Display, ops::Range};
 
 use gooey_core::{euclid::Point2D, styles::Style, Points};
 use gooey_renderer::Renderer;
 use prepared::PreparedText;
 use wrap::{TextWrap, TextWrapper};
 
+/// Measured and laid out text types ready to render.
 pub mod prepared;
 // pub mod rich;
+/// Text wrapping functionality.
 pub mod wrap;
 
+/// A styled String.
 #[derive(Debug, Clone, Default)]
 pub struct Span {
+    /// The text to draw.
     pub text: String,
+    /// The style to use when drawing.
     pub style: Style,
 }
 
 impl Span {
+    /// Returns a new span with `text` and `style`.
     pub fn new<S: Into<String>>(text: S, style: Style) -> Self {
         Self {
             text: text.into(),
@@ -37,6 +43,7 @@ impl Span {
     }
 }
 
+/// A sequence of [`Span`s].
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct Text {
@@ -52,27 +59,27 @@ impl Default for Text {
 }
 
 impl Text {
+    /// Returns a new `Text` with a single span created from `text` and `style`.
     pub fn span<S: Into<String>>(text: S, style: Style) -> Self {
-        Self::new(vec![Span::new(text, style)])
+        Self::from(vec![Span::new(text, style)])
     }
 
-    pub fn new(spans: Vec<Span>) -> Self {
-        Self { spans }
+    /// Calculates how to render this text and returns the results.
+    pub fn wrap<R: Renderer>(&self, renderer: &R, options: TextWrap) -> PreparedText {
+        TextWrapper::wrap(self, renderer, options)
     }
 
-    pub fn wrap<R: Renderer>(&self, scene: &R, options: TextWrap) -> PreparedText {
-        TextWrapper::wrap(self, scene, options)
-    }
-
+    /// Renders this text at `location` in `renderer`. The top-left of the bounding box of the text will be at `location`.
     pub fn render_at<R: Renderer>(
         &self,
-        scene: &R,
+        renderer: &R,
         location: Point2D<f32, Points>,
         wrapping: TextWrap,
     ) {
-        self.render_core(scene, location, true, wrapping)
+        self.render_core(renderer, location, true, wrapping)
     }
 
+    /// Renders this text at `location` in `renderer`. The baseline of the first line will start at `location`.
     pub fn render_baseline_at<R: Renderer>(
         &self,
         scene: &R,
@@ -93,28 +100,36 @@ impl Text {
         prepared_text.render(scene, location, offset_baseline);
     }
 
+    /// Removes text in `range`. Empty spans will be removed.
     pub fn remove_range(&mut self, range: Range<usize>) {
         self.for_each_in_range_mut(range, |span, relative_range| {
             span.text.replace_range(relative_range, "");
         })
     }
 
+    /// Inserts `value` at `offset`. Inserts into an existing span.
+    #[allow(clippy::range_plus_one)]
     pub fn insert_str(&mut self, offset: usize, value: &str) {
         self.for_each_in_range_mut(offset..offset + 1, |span, relative_range| {
             span.text.insert_str(relative_range.start, value);
         })
     }
 
+    /// Returns the total length, in bytes.
     #[must_use]
     pub fn len(&self) -> usize {
         self.spans.iter().map(|s| s.text.len()).sum()
     }
 
+    /// Returns true if there are no characters in this text.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Iterates over all spans within `range` and invokes `callback` with the
+    /// span and the applicable range within the span.
+    // TODO refactor to allow `RangeBounds`
     pub fn for_each_in_range<F: FnMut(&Span, Range<usize>)>(
         &self,
         range: Range<usize>,
@@ -139,10 +154,12 @@ impl Text {
         }
     }
 
-    pub fn for_each_in_range_mut<F: Fn(&mut Span, Range<usize>)>(
+    /// Iterates over all spans within `range` and invokes `callback` with the
+    /// span and the applicable range within the span.
+    pub fn for_each_in_range_mut<F: FnMut(&mut Span, Range<usize>)>(
         &mut self,
         range: Range<usize>,
-        callback: F,
+        mut callback: F,
     ) {
         let mut span_start = 0_usize;
         for span in &mut self.spans {
@@ -176,13 +193,18 @@ impl Text {
     }
 }
 
-impl ToString for Text {
-    fn to_string(&self) -> String {
-        self.spans
-            .iter()
-            .map(|s| s.text.as_str())
-            .collect::<Vec<_>>()
-            .join("")
+impl From<Vec<Span>> for Text {
+    fn from(spans: Vec<Span>) -> Self {
+        Self { spans }
+    }
+}
+
+impl Display for Text {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for span in &self.spans {
+            f.write_str(&span.text)?;
+        }
+        Ok(())
     }
 }
 
@@ -207,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_remove_multi_span_entire_first() {
-        let mut text = Text::new(vec![
+        let mut text = Text::from(vec![
             Span::new("1", Style::default()),
             Span::new("2", Style::default()),
             Span::new("3", Style::default()),
@@ -220,7 +242,7 @@ mod tests {
 
     #[test]
     fn test_remove_multi_span_entire_middle() {
-        let mut text = Text::new(vec![
+        let mut text = Text::from(vec![
             Span::new("1", Style::default()),
             Span::new("2", Style::default()),
             Span::new("3", Style::default()),
@@ -233,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_remove_multi_span_entire_last() {
-        let mut text = Text::new(vec![
+        let mut text = Text::from(vec![
             Span::new("1", Style::default()),
             Span::new("2", Style::default()),
             Span::new("3", Style::default()),
@@ -246,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_remove_multi_span_multi() {
-        let mut text = Text::new(vec![
+        let mut text = Text::from(vec![
             Span::new("123a", Style::default()),
             Span::new("b", Style::default()),
             Span::new("c456", Style::default()),
