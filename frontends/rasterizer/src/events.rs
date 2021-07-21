@@ -51,28 +51,33 @@ impl WindowEvent {
         match value {
             WinitWindowEvent::ReceivedCharacter(c) => Ok(Self::ReceiveCharacter(c)),
             WinitWindowEvent::Focused(is_focused) => Ok(Self::LayerChanged { is_focused }),
-            WinitWindowEvent::KeyboardInput { input, .. } =>
+            WinitWindowEvent::KeyboardInput { input, .. } => {
                 Ok(Self::Input(InputEvent::Keyboard {
                     key: input.virtual_keycode,
                     scancode: input.scancode,
                     state: input.state,
-                })),
+                }))
+            }
             WinitWindowEvent::ModifiersChanged(state) => Ok(Self::ModifiersChanged(state)),
-            WinitWindowEvent::CursorMoved { position, .. } =>
+            WinitWindowEvent::CursorMoved { position, .. } => {
                 Ok(Self::Input(InputEvent::MouseMoved {
                     position: Some(
                         Point2D::<f64, Pixels>::new(position.x, position.y).to_f32() / scale,
                     ),
-                })),
-            WinitWindowEvent::CursorLeft { .. } =>
-                Ok(Self::Input(InputEvent::MouseMoved { position: None })),
-            WinitWindowEvent::MouseWheel { delta, phase, .. } =>
+                }))
+            }
+            WinitWindowEvent::CursorLeft { .. } => {
+                Ok(Self::Input(InputEvent::MouseMoved { position: None }))
+            }
+            WinitWindowEvent::MouseWheel { delta, phase, .. } => {
                 Ok(Self::Input(InputEvent::MouseWheel {
                     delta,
                     touch_phase: phase,
-                })),
-            WinitWindowEvent::MouseInput { state, button, .. } =>
-                Ok(Self::Input(InputEvent::MouseButton { state, button })),
+                }))
+            }
+            WinitWindowEvent::MouseInput { state, button, .. } => {
+                Ok(Self::Input(InputEvent::MouseButton { state, button }))
+            }
             WinitWindowEvent::ThemeChanged(theme) => Ok(Self::SystemThemeChanged(match theme {
                 winit::window::Theme::Light => SystemTheme::Light,
                 winit::window::Theme::Dark => SystemTheme::Dark,

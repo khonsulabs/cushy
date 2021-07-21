@@ -164,8 +164,9 @@ impl<R: Renderer> Rasterizer<R> {
                 } => self.handle_keyboard_input(scancode, key, state),
                 InputEvent::MouseButton { button, state } => self.handle_mouse_input(state, button),
                 InputEvent::MouseMoved { position } => self.handle_cursor_moved(position),
-                InputEvent::MouseWheel { delta, touch_phase } =>
-                    self.handle_mouse_wheel(delta, touch_phase),
+                InputEvent::MouseWheel { delta, touch_phase } => {
+                    self.handle_mouse_wheel(delta, touch_phase)
+                }
             },
             WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
             WindowEvent::RedrawRequested => EventResult::redraw(),

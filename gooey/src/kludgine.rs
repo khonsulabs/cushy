@@ -135,8 +135,9 @@ impl Window for GooeyWindow {
             Event::MouseMoved { position } => GooeyInputEvent::MouseMoved {
                 position: position.map(Point::cast_unit),
             },
-            Event::MouseWheel { delta, touch_phase } =>
-                GooeyInputEvent::MouseWheel { delta, touch_phase },
+            Event::MouseWheel { delta, touch_phase } => {
+                GooeyInputEvent::MouseWheel { delta, touch_phase }
+            }
         };
         let result = self
             .ui

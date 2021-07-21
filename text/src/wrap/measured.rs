@@ -61,14 +61,15 @@ impl TextMeasureState {
                     self.status = ParserStatus::TrailingPunctuation;
                 }
             },
-            Token::Whitespace(span) =>
+            Token::Whitespace(span) => {
                 if let ParserStatus::Whitespace = self.status {
                     self.push_whitespace_span(span);
                 } else {
                     self.commit_current_group();
                     self.push_whitespace_span(span);
                     self.status = ParserStatus::Whitespace;
-                },
+                }
+            }
         }
     }
 

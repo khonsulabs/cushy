@@ -16,8 +16,9 @@ enum Args {
 fn main() -> anyhow::Result<()> {
     let args = Args::from_args();
     match args {
-        Args::BuildBrowserExample { name } =>
-            build_browser_example(name.unwrap_or_else(|| String::from("basic")))?,
+        Args::BuildBrowserExample { name } => {
+            build_browser_example(name.unwrap_or_else(|| String::from("basic")))?
+        }
         Args::GenerateCodeCoverageReport {
             install_dependencies,
         } => CodeCoverage::<CodeCoverageConfig>::execute(install_dependencies)?,
