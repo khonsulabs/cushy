@@ -33,7 +33,7 @@ use gooey_core::{
 };
 use gooey_renderer::{Renderer, TextMetrics};
 pub use kludgine;
-use kludgine::prelude::*;
+use kludgine::{core::winit::window::Theme, prelude::*};
 
 #[derive(Debug)]
 pub struct Kludgine {
@@ -60,7 +60,10 @@ impl Kludgine {
         text: &str,
         options: &Style,
     ) -> PreparedSpan {
-        let system_theme = options.get::<SystemTheme>().cloned().unwrap_or_default();
+        let system_theme = match self.target.system_theme() {
+            Theme::Light => SystemTheme::Light,
+            Theme::Dark => SystemTheme::Dark,
+        };
         Text::prepare(
             text,
             &bundled_fonts::ROBOTO,
@@ -75,7 +78,7 @@ impl Kludgine {
                     .get_with_fallback::<F>()
                     .copied()
                     .unwrap_or_else(|| Srgba::new(0., 0., 0., 1.).into())
-                    .themed_color(&system_theme)
+                    .themed_color(system_theme)
                     .0,
             ),
             &self.target,
@@ -83,7 +86,7 @@ impl Kludgine {
     }
 
     fn stroke_shape(&self, shape: Shape<Points>, style: &Style) {
-        let system_theme = style.get::<SystemTheme>().cloned().unwrap_or_default();
+        let system_theme = style.get::<SystemTheme>().copied().unwrap_or_default();
         shape
             .cast_unit()
             .stroke(
@@ -93,7 +96,7 @@ impl Kludgine {
                         .cloned()
                         .unwrap_or_else(|| ForegroundColor(Srgba::new(0., 0., 0., 1.).into()))
                         .0
-                        .themed_color(&system_theme)
+                        .themed_color(system_theme)
                         .0,
                 ))
                 .line_width(
@@ -176,14 +179,17 @@ impl Renderer for Kludgine {
         rect: &Rect<f32, Points>,
         style: &Style,
     ) {
-        let system_theme = style.get::<SystemTheme>().cloned().unwrap_or_default();
+        let system_theme = match self.target.system_theme() {
+            Theme::Light => SystemTheme::Light,
+            Theme::Dark => SystemTheme::Dark,
+        };
         Shape::rect(rect.cast_unit())
             .fill(Fill::new(Color::from(
                 style
                     .get_with_fallback::<F>()
                     .copied()
                     .unwrap_or_else(|| Srgba::new(1., 1., 1., 1.).into())
-                    .themed_color(&system_theme)
+                    .themed_color(system_theme)
                     .0,
             )))
             .render_at(Point2D::default(), &self.target);

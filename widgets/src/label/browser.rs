@@ -1,5 +1,5 @@
 use gooey_browser::{
-    utils::{widget_css_id, window_document, CssRule},
+    utils::{widget_css_id, window_document, CssRules},
     WebSys, WebSysTransmogrifier,
 };
 use gooey_core::TransmogrifierContext;
@@ -9,7 +9,7 @@ use web_sys::HtmlDivElement;
 use crate::label::{Label, LabelCommand, LabelTransmogrifier};
 
 impl gooey_core::Transmogrifier<WebSys> for LabelTransmogrifier {
-    type State = Option<CssRule>;
+    type State = Option<CssRules>;
     type Widget = Label;
 
     fn receive_command(

@@ -1,5 +1,5 @@
 use gooey_browser::{
-    utils::{widget_css_id, window_document, CssBlockBuilder, CssRule},
+    utils::{widget_css_id, window_document, CssBlockBuilder, CssRules},
     WebSys, WebSysTransmogrifier, WidgetClosure,
 };
 use gooey_core::{styles::Style, TransmogrifierContext, WidgetRef};
@@ -9,7 +9,7 @@ use web_sys::HtmlButtonElement;
 use crate::button::{Button, ButtonCommand, ButtonTransmogrifier, InternalButtonEvent};
 
 impl gooey_core::Transmogrifier<WebSys> for ButtonTransmogrifier {
-    type State = Option<CssRule>;
+    type State = Option<CssRules>;
     type Widget = Button;
 
     fn receive_command(

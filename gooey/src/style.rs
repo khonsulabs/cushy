@@ -2,7 +2,8 @@ use gooey_core::{
     palette::Hsla,
     styles::{
         style_sheet::{Rule, StyleSheet},
-        Alignment, BackgroundColor, Color, ColorPair, TextColor, VerticalAlignment,
+        Alignment, BackgroundColor, Color, ColorPair, ForegroundColor, TextColor,
+        VerticalAlignment,
     },
     ROOT_CLASS,
 };
@@ -37,10 +38,15 @@ pub fn default_stylesheet() -> StyleSheet {
 
     StyleSheet::default()
         .with(Rule::for_classes(ROOT_CLASS).with_styles(|style| {
-            style.with(BackgroundColor(ColorPair {
-                light_color: white,
-                dark_color: black,
-            }))
+            style
+                .with(BackgroundColor(ColorPair {
+                    light_color: white,
+                    dark_color: black,
+                }))
+                .with(ForegroundColor(ColorPair {
+                    light_color: black,
+                    dark_color: white,
+                }))
         }))
         .with(Rule::for_widget::<Button>().with_styles(|style| {
             style

@@ -31,23 +31,25 @@ use std::{
 };
 
 use gooey_core::{
-    styles::{style_sheet::Classes, Alignment, Style, StyleComponent, VerticalAlignment},
+    styles::{
+        style_sheet::Classes, Alignment, Style, StyleComponent, SystemTheme, VerticalAlignment,
+    },
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef, WidgetRegistration,
 };
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::{prelude::*, JsCast};
 
 pub mod utils;
 
-use utils::{set_widget_classes, set_widget_id, CssBlockBuilder, CssManager, CssRule};
-use web_sys::HtmlElement;
+use utils::{set_widget_classes, set_widget_id, CssBlockBuilder, CssManager, CssRules};
+use web_sys::{HtmlElement, MediaQueryListEvent};
 
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone)]
 pub struct WebSys {
     pub ui: Gooey<Self>,
-    styles: Arc<Vec<CssRule>>,
+    styles: Arc<Vec<CssRules>>,
 }
 
 impl WebSys {
@@ -90,11 +92,17 @@ impl WebSys {
             if let Some(transmogrifier) =
                 ui.transmogrifier_for_type_id(rule.widget_type_id.unwrap())
             {
-                let css = transmogrifier.convert_style_to_css(
-                    &rule.style,
-                    CssBlockBuilder::for_classes_and_rule(&transmogrifier.widget_classes(), rule),
-                );
-                styles.push(manager.register_rule(&css.to_string()));
+                for theme in [SystemTheme::Light, SystemTheme::Dark] {
+                    let css = transmogrifier.convert_style_to_css(
+                        &rule.style,
+                        CssBlockBuilder::for_classes_and_rule(
+                            &transmogrifier.widget_classes(),
+                            rule,
+                        )
+                        .with_theme(theme),
+                    );
+                    styles.push(manager.register_rule(&css.to_string()));
+                }
             }
         }
 
@@ -109,6 +117,33 @@ impl WebSys {
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
         let parent = document.get_element_by_id(id).expect("id not found");
+
+        let root_id = id.to_owned();
+        // Initialize with light theme
+        update_system_theme(&root_id, false);
+
+        // TODO This shouldn't leak, it should be stored somewhere, but since
+        // wasm-bindgen isn't Send+Sync, we can't store it in `self`. Also,
+        // todo: I don't know that the callback is being invoked. My testing has
+        // been done limited so far.
+        std::mem::forget(
+            window
+                .match_media("(prefers-color-scheme: dark)")
+                .ok()
+                .flatten()
+                .and_then(move |mql| {
+                    update_system_theme(&root_id, mql.matches());
+                    mql.add_listener_with_opt_callback(Some(
+                        Closure::wrap(Box::new(move |event: MediaQueryListEvent| {
+                            update_system_theme(&root_id, event.matches());
+                        }) as Box<dyn FnMut(_)>)
+                        .as_ref()
+                        .unchecked_ref(),
+                    ))
+                    .map(|_| mql)
+                    .ok()
+                }),
+        );
 
         self.with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
             if let Some(root_element) = transmogrifier.transmogrify(&mut context) {
@@ -133,6 +168,21 @@ impl WebSys {
                 callback(transmogrifier.as_ref(), context)
             })
     }
+}
+
+fn update_system_theme(root_id: &str, dark: bool) {
+    let (active_theme, inactive_theme) = if dark {
+        ("gooey-dark", "gooey-light")
+    } else {
+        ("gooey-light", "gooey-dark")
+    };
+
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    let parent = document.get_element_by_id(root_id).expect("id not found");
+    let class_list = parent.class_list();
+    drop(class_list.add_1(active_theme));
+    drop(class_list.remove_1(inactive_theme));
 }
 
 #[derive(Debug)]
@@ -191,33 +241,38 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         &self,
         element: &HtmlElement,
         context: &TransmogrifierContext<'_, Self, WebSys>,
-    ) -> Option<CssRule> {
+    ) -> Option<CssRules> {
         set_widget_id(element, context.registration.id().id);
         let mut classes = Self::widget_classes();
         if let Some(custom_classes) = context.style.get::<Classes>() {
             classes = classes.merge(custom_classes);
         }
         set_widget_classes(element, &classes);
-        let mut css = self.convert_style_to_css(
-            context.style,
-            CssBlockBuilder::for_id(context.registration.id().id),
-        );
+        let mut rules = None;
 
-        let style_sheet = context.frontend.gooey().stylesheet();
-        if let Some(rules) = style_sheet.rules_by_widget.get(&None) {
-            for &rule_index in rules {
-                let rule = &style_sheet.rules[rule_index];
-                if rule.widget_type_id.is_none() && rule.applies(context.ui_state, Some(&classes)) {
-                    css = self.convert_style_to_css(&rule.style, css);
+        for theme in [SystemTheme::Light, SystemTheme::Dark] {
+            let mut css = CssBlockBuilder::for_id(context.registration.id().id).with_theme(theme);
+            css = self.convert_style_to_css(context.style, css);
+
+            let style_sheet = context.frontend.gooey().stylesheet();
+            if let Some(rules) = style_sheet.rules_by_widget.get(&None) {
+                for &rule_index in rules {
+                    let rule = &style_sheet.rules[rule_index];
+                    if rule.widget_type_id.is_none()
+                        && rule.applies(context.ui_state, Some(&classes))
+                    {
+                        css = self.convert_style_to_css(&rule.style, css);
+                    }
                 }
             }
-        }
 
-        if css.is_empty() {
-            None
-        } else {
-            Some(CssManager::shared().register_rule(&css.to_string()))
+            let css = css.to_string();
+            rules = Some(rules.map_or_else(
+                || CssManager::shared().register_rule(&css),
+                |existing: CssRules| existing.and(&css),
+            ));
         }
+        rules
     }
 
     #[allow(unused_variables)]
@@ -235,13 +290,16 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
 
     fn convert_colors_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
         if let Some(color) = <Self::Widget as Widget>::text_color(style) {
-            css = css.with_css_statement(format!("color: {}", color.light_color.as_css_string()));
+            let color = color
+                .themed_color(css.theme.expect("theme is required"))
+                .as_css_string();
+            css = css.with_css_statement(format!("color: {}", color));
         }
         if let Some(color) = <Self::Widget as Widget>::background_color(style) {
-            css = css.with_css_statement(format!(
-                "background-color: {}",
-                color.light_color.as_css_string()
-            ));
+            let color = color
+                .themed_color(css.theme.expect("theme is required"))
+                .as_css_string();
+            css = css.with_css_statement(format!("background-color: {}", color));
         }
         css
     }

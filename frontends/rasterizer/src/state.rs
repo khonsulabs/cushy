@@ -5,7 +5,7 @@ use std::{
 
 use gooey_core::{
     euclid::{Point2D, Rect},
-    styles::style_sheet,
+    styles::{style_sheet, SystemTheme},
     Points, WidgetId,
 };
 use winit::event::MouseButton;
@@ -19,6 +19,7 @@ pub struct State {
 struct StateData {
     order: Vec<WidgetId>,
     bounds: HashMap<u32, Rect<f32, Points>>,
+    system_theme: SystemTheme,
 
     hover: HashSet<WidgetId>,
     focus: Option<WidgetId>,
@@ -120,6 +121,19 @@ impl State {
             data.focus = None;
             data.active = None;
             data.needs_redraw = true;
+        }
+    }
+
+    pub fn system_theme(&self) -> SystemTheme {
+        let data = self.data.lock().unwrap();
+        data.system_theme
+    }
+
+    pub fn set_system_theme(&self, system_theme: SystemTheme) {
+        let mut data = self.data.lock().unwrap();
+        if data.system_theme != system_theme {
+            data.needs_redraw = true;
+            data.system_theme = system_theme;
         }
     }
 

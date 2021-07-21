@@ -26,7 +26,7 @@ use gooey_core::{
     euclid::{Point2D, Rect},
     styles::{
         style_sheet::{self},
-        Style,
+        Style, SystemTheme,
     },
     AnyTransmogrifierContext, Gooey, Points, WidgetId,
 };
@@ -167,16 +167,24 @@ impl<R: Renderer> Rasterizer<R> {
                 InputEvent::MouseWheel { delta, touch_phase } =>
                     self.handle_mouse_wheel(delta, touch_phase),
             },
+            WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
             WindowEvent::RedrawRequested => EventResult::redraw(),
             WindowEvent::ReceiveCharacter(_)
             | WindowEvent::ModifiersChanged(_)
-            | WindowEvent::LayerChanged { .. }
-            | WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
+            | WindowEvent::LayerChanged { .. } => EventResult::ignored(),
         }
     }
 
     pub fn set_refresh_callback<F: RefreshCallback>(&mut self, callback: F) {
         self.refresh_callback = Some(Arc::new(callback))
+    }
+
+    pub fn system_theme(&self) -> SystemTheme {
+        self.state.system_theme()
+    }
+
+    pub fn set_system_theme(&self, theme: SystemTheme) {
+        self.state.set_system_theme(theme)
     }
 
     fn handle_cursor_moved(&self, position: Option<Point2D<f32, Points>>) -> EventResult {

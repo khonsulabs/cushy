@@ -112,7 +112,7 @@ impl DerefMut for Color {
 }
 
 /// The theme variant for the system.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SystemTheme {
     /// A light theme.
     Light,
@@ -171,7 +171,7 @@ impl From<Color> for ColorPair {
 impl ColorPair {
     /// Returns color corresponding to `system_theme`.
     #[must_use]
-    pub const fn themed_color(&self, system_theme: &SystemTheme) -> Color {
+    pub const fn themed_color(&self, system_theme: SystemTheme) -> Color {
         match system_theme {
             SystemTheme::Light => self.light_color,
             SystemTheme::Dark => self.dark_color,

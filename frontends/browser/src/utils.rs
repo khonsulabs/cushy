@@ -2,7 +2,7 @@ use std::fmt::Write;
 
 use gooey_core::styles::{
     style_sheet::{Classes, Rule},
-    StyleComponent,
+    StyleComponent, SystemTheme,
 };
 use wasm_bindgen::JsCast;
 use web_sys::{CssStyleSheet, HtmlElement, HtmlStyleElement};
@@ -54,46 +54,56 @@ impl CssManager {
         }
     }
 
-    #[must_use]
-    pub fn register_rule(&self, rule: &str) -> CssRule {
-        CssRule {
-            index: Some(self.sheet.insert_rule(rule).unwrap()),
+    pub fn register_rule(&self, rule: &str) -> CssRules {
+        CssRules {
+            index: vec![self.sheet.insert_rule(rule).unwrap()],
         }
     }
 
-    pub fn unregister_rule(&self, rule: &mut CssRule) {
-        if let Some(index) = rule.index.take() {
+    pub fn unregister_rule(&self, rule: &mut CssRules) {
+        for index in std::mem::take(&mut rule.index) {
             self.sheet.delete_rule(index).unwrap();
         }
     }
 }
 
 #[derive(Debug)]
-pub struct CssRule {
-    index: Option<u32>,
+#[must_use]
+pub struct CssRules {
+    index: Vec<u32>,
 }
 
 pub enum CssMapping {
     Color,
 }
 
-impl Drop for CssRule {
+impl Drop for CssRules {
     fn drop(&mut self) {
         CssManager::shared().unregister_rule(self);
     }
 }
 
+impl CssRules {
+    pub fn and(mut self, rule: &str) -> Self {
+        self.index
+            .push(CssManager::shared().sheet.insert_rule(rule).unwrap());
+        self
+    }
+}
+
+#[must_use]
 pub struct CssBlockBuilder {
     selector: String,
+    pub theme: Option<SystemTheme>,
     statements: Vec<String>,
 }
 
 impl CssBlockBuilder {
-    #[must_use]
     pub fn for_id(widget_id: u32) -> Self {
         Self {
             selector: format!("#{}", widget_css_id(widget_id)),
             statements: Vec::default(),
+            theme: None,
         }
     }
 
@@ -101,18 +111,18 @@ impl CssBlockBuilder {
         Self {
             selector: selector.to_string(),
             statements: Vec::default(),
+            theme: None,
         }
     }
 
-    #[must_use]
     pub fn for_classes(classes: &Classes) -> Self {
         Self {
             selector: format!(".{}", classes.to_vec().join(".")),
             statements: Vec::default(),
+            theme: None,
         }
     }
 
-    #[must_use]
     pub fn for_classes_and_rule(classes: &Classes, rule: &Rule) -> Self {
         let mut builder = rule.classes.as_ref().map_or_else(
             || Self::for_classes(classes),
@@ -136,6 +146,11 @@ impl CssBlockBuilder {
         self
     }
 
+    pub const fn with_theme(mut self, theme: SystemTheme) -> Self {
+        self.theme = Some(theme);
+        self
+    }
+
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.statements.is_empty()
@@ -144,12 +159,20 @@ impl CssBlockBuilder {
 
 impl std::fmt::Display for CssBlockBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(theme) = self.theme {
+            f.write_char('.')?;
+            f.write_str(match theme {
+                SystemTheme::Light => "gooey-light",
+                SystemTheme::Dark => "gooey-dark",
+            })?;
+            f.write_char(' ')?;
+        }
         f.write_str(&self.selector)?;
         f.write_char('{')?;
         for statement in &self.statements {
             f.write_str(statement)?;
             f.write_char(';')?;
         }
-        f.write_char('}')
+        f.write_str("}")
     }
 }

@@ -1,4 +1,8 @@
+use std::path::PathBuf;
+
 use gooey_core::StyledWidget;
+use gooey_rasterizer::winit::window::Theme;
+use platforms::target::{OS, TARGET_OS};
 
 use crate::{
     core::{Frontend, Gooey, Transmogrifiers, Widget, WidgetStorage},
@@ -47,6 +51,37 @@ struct GooeyWindow {
 impl WindowCreator for GooeyWindow {
     fn window_title() -> String {
         "Gooey - Kludgine".to_owned()
+    }
+
+    fn initial_system_theme() -> Theme {
+        // winit doesn't have a way on linux to detect dark mode
+        if TARGET_OS == OS::Linux {
+            gtk3_preferred_theme().unwrap_or(Theme::Light)
+        } else {
+            Theme::Light
+        }
+    }
+}
+
+fn gtk3_preferred_theme() -> Option<Theme> {
+    let settings_path = if let Ok(xdg_config_home) = std::env::var("XDG_CONFIG_HOME") {
+        PathBuf::from(xdg_config_home)
+            .join("gtk-3.0")
+            .join("settings.ini")
+    } else if let Ok(home) = std::env::var("HOME") {
+        PathBuf::from(home)
+            .join(".config")
+            .join("gtk-3.0")
+            .join("settings.ini")
+    } else {
+        return None;
+    };
+    let file_contents = std::fs::read_to_string(&settings_path).ok()?;
+    // TODO make this more forgiving to whitespace
+    if file_contents.contains("gtk-application-prefer-dark-theme=true") {
+        Some(Theme::Dark)
+    } else {
+        Some(Theme::Light)
     }
 }
 

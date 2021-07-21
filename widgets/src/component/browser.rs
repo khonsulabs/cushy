@@ -1,5 +1,5 @@
 use gooey_browser::{
-    utils::{window_document, CssRule},
+    utils::{window_document, CssRules},
     WebSys, WebSysTransmogrifier,
 };
 use gooey_core::{Transmogrifier, TransmogrifierContext, Widget, WidgetRef};
@@ -40,7 +40,7 @@ impl<B: Behavior> From<ComponentTransmogrifier<B>> for gooey_browser::Registered
 }
 
 impl<B: Behavior> Transmogrifier<WebSys> for ComponentTransmogrifier<B> {
-    type State = Option<CssRule>;
+    type State = Option<CssRules>;
     type Widget = Component<B>;
 
     fn initialize(

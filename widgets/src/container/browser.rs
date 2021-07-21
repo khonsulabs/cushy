@@ -1,5 +1,5 @@
 use gooey_browser::{
-    utils::{window_document, CssBlockBuilder, CssManager, CssRule},
+    utils::{window_document, CssBlockBuilder, CssManager, CssRules},
     WebSys, WebSysTransmogrifier,
 };
 use gooey_core::{euclid::Length, Points, Transmogrifier, TransmogrifierContext};
@@ -8,7 +8,7 @@ use wasm_bindgen::JsCast;
 use crate::container::{Container, ContainerTransmogrifier};
 
 impl Transmogrifier<WebSys> for ContainerTransmogrifier {
-    type State = Vec<CssRule>;
+    type State = Vec<CssRules>;
     type Widget = Container;
 }
 

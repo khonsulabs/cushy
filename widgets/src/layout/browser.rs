@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use gooey_browser::{
-    utils::{window_document, CssBlockBuilder, CssManager, CssRule},
+    utils::{window_document, CssBlockBuilder, CssManager, CssRules},
     WebSys, WebSysTransmogrifier,
 };
 use gooey_core::{Transmogrifier, TransmogrifierContext};
@@ -10,7 +10,7 @@ use wasm_bindgen::JsCast;
 use crate::layout::{Dimension, Layout, LayoutChildren, LayoutTransmogrifier, WidgetLayout};
 
 impl Transmogrifier<WebSys> for LayoutTransmogrifier {
-    type State = HashMap<Option<u32>, Vec<CssRule>>;
+    type State = HashMap<Option<u32>, Vec<CssRules>>;
     type Widget = Layout;
 }
 
