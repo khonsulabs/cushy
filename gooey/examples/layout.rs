@@ -33,14 +33,11 @@ impl Behavior for Counter {
 
     fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Layout> {
         Layout::build(builder)
-            .with_registration(
-                CounterWidgets::Button,
-                builder.register_widget(
-                    CounterWidgets::Button,
-                    Button::new(
-                        "Click Me!",
-                        builder.map_event(|_| CounterEvent::ButtonClicked),
-                    ),
+            .with(
+                None,
+                Button::new(
+                    "Click Me!",
+                    builder.map_event(|_| CounterEvent::ButtonClicked),
                 ),
                 WidgetLayout::default()
                     .with_left(Dimension::Exact(Length::new(0.)))
@@ -49,7 +46,7 @@ impl Behavior for Counter {
                     .with_width(Dimension::Percent(0.5)),
             )
             .with_registration(
-                CounterWidgets::Label,
+                Some(CounterWidgets::Label),
                 builder.register_widget(
                     CounterWidgets::Label,
                     Label::new("0")
@@ -85,7 +82,6 @@ impl Behavior for Counter {
 
 #[derive(Debug, Hash, Eq, PartialEq)]
 enum CounterWidgets {
-    Button,
     Label,
 }
 

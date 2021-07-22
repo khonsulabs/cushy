@@ -60,6 +60,11 @@ impl<B: Behavior> Component<B> {
             .and_then(WeakWidgetRegistration::upgrade)
     }
 
+    pub fn register_widget(&mut self, id: B::Widgets, registration: &WidgetRegistration) {
+        self.registered_widgets
+            .insert(id, WeakWidgetRegistration::from(registration));
+    }
+
     pub fn with_widget<OW: Widget, F: FnOnce(&OW, &Context<OW>) -> R, R>(
         &self,
         id: &B::Widgets,

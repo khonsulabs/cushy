@@ -13,6 +13,13 @@ pub fn window_document() -> web_sys::Document {
 }
 
 #[must_use]
+pub fn window_element_by_widget_id<T: JsCast>(widget_id: u32) -> Option<T> {
+    window_document()
+        .get_element_by_id(&widget_css_id(widget_id))
+        .and_then(|e| e.dyn_into::<T>().ok())
+}
+
+#[must_use]
 pub fn widget_css_id(widget_id: u32) -> String {
     format!("gooey-{}", widget_id)
 }

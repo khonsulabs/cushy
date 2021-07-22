@@ -168,7 +168,10 @@ impl<R: Renderer> Rasterizer<R> {
                     self.handle_mouse_wheel(delta, touch_phase)
                 }
             },
-            WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
+            WindowEvent::SystemThemeChanged(theme) => {
+                self.state.set_system_theme(theme);
+                EventResult::ignored()
+            }
             WindowEvent::RedrawRequested => EventResult::redraw(),
             WindowEvent::ReceiveCharacter(_)
             | WindowEvent::ModifiersChanged(_)
