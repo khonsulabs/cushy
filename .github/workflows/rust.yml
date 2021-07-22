@@ -42,7 +42,7 @@ jobs:
 
       - name: Run clippy
         run: |
-          cargo clippy
+          cargo clippy --all-targets --all-features
 
       - name: Run unit tests
         run: |
