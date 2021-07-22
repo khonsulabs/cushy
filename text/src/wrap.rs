@@ -109,7 +109,7 @@ impl TextWrapState {
         self.current_span_offset = Length::default();
         for span in &mut spans {
             self.update_vmetrics(*span.metrics());
-            self.position_span(span)
+            self.position_span(span);
         }
 
         if let Some(metrics) = self.current_vmetrics.take() {

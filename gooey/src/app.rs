@@ -52,7 +52,7 @@ impl App {
                 }
                 let _ = receiver.recv_async().await;
             } else if #[cfg(feature = "frontend-kludgine")] {
-                tokio::time::sleep(duration).await
+                tokio::time::sleep(duration).await;
             } else {
                 compile_error!("unsupported async configuration")
             }
@@ -64,6 +64,6 @@ impl App {
         self,
         initializer: C,
     ) {
-        crate::main_with(self.transmogrifiers, initializer)
+        crate::main_with(self.transmogrifiers, initializer);
     }
 }

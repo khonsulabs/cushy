@@ -40,7 +40,7 @@ pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> 
 pub fn kludgine_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
     initializer: C,
 ) {
-    kludgine_main_with(default_transmogrifiers(), initializer)
+    kludgine_main_with(default_transmogrifiers(), initializer);
 }
 
 struct GooeyWindow {

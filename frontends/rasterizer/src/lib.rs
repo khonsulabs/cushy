@@ -180,7 +180,7 @@ impl<R: Renderer> Rasterizer<R> {
     }
 
     pub fn set_refresh_callback<F: RefreshCallback>(&mut self, callback: F) {
-        self.refresh_callback = Some(Arc::new(callback))
+        self.refresh_callback = Some(Arc::new(callback));
     }
 
     pub fn system_theme(&self) -> SystemTheme {
@@ -188,7 +188,7 @@ impl<R: Renderer> Rasterizer<R> {
     }
 
     pub fn set_system_theme(&self, theme: SystemTheme) {
-        self.state.set_system_theme(theme)
+        self.state.set_system_theme(theme);
     }
 
     fn handle_cursor_moved(&self, position: Option<Point2D<f32, Points>>) -> EventResult {
@@ -460,6 +460,6 @@ where
     T: Fn() + Send + Sync + 'static,
 {
     fn refresh(&self) {
-        self()
+        self();
     }
 }

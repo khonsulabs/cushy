@@ -20,7 +20,7 @@ pub fn browser_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> S
         initializer,
     ));
     ui.gooey().process_widget_messages(&ui);
-    ui.install_in_id("gooey")
+    ui.install_in_id("gooey");
 }
 
 /// Runs a browser-based [`App`](crate::app::App) with the root widget from
@@ -30,5 +30,5 @@ pub fn browser_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> S
 pub fn browser_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
     initializer: C,
 ) {
-    browser_main_with(default_transmogrifiers(), initializer)
+    browser_main_with(default_transmogrifiers(), initializer);
 }
