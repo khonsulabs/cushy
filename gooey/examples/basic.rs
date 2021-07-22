@@ -46,7 +46,7 @@ impl Behavior for Counter {
             &CounterWidgets::Button,
             context,
             |button: &mut Button, context| {
-                button.set_label(component.behavior.count.to_string(), &context);
+                button.set_label(component.behavior.count.to_string(), context);
             },
         );
     }

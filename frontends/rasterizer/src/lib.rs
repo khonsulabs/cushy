@@ -168,16 +168,16 @@ impl<R: Renderer> Rasterizer<R> {
                     self.handle_mouse_wheel(delta, touch_phase)
                 }
             },
-            WindowEvent::SystemThemeChanged(_) => EventResult::ignored(),
             WindowEvent::RedrawRequested => EventResult::redraw(),
             WindowEvent::ReceiveCharacter(_)
+            | WindowEvent::SystemThemeChanged(_)
             | WindowEvent::ModifiersChanged(_)
             | WindowEvent::LayerChanged { .. } => EventResult::ignored(),
         }
     }
 
     pub fn set_refresh_callback<F: RefreshCallback>(&mut self, callback: F) {
-        self.refresh_callback = Some(Arc::new(callback))
+        self.refresh_callback = Some(Arc::new(callback));
     }
 
     pub fn system_theme(&self) -> SystemTheme {
@@ -185,7 +185,7 @@ impl<R: Renderer> Rasterizer<R> {
     }
 
     pub fn set_system_theme(&self, theme: SystemTheme) {
-        self.state.set_system_theme(theme)
+        self.state.set_system_theme(theme);
     }
 
     fn handle_cursor_moved(&self, position: Option<Point2D<f32, Points>>) -> EventResult {
@@ -457,6 +457,6 @@ where
     T: Fn() + Send + Sync + 'static,
 {
     fn refresh(&self) {
-        self()
+        self();
     }
 }

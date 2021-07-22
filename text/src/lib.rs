@@ -80,7 +80,7 @@ impl Text {
         location: Point2D<f32, Points>,
         wrapping: TextWrap,
     ) {
-        self.render_core::<F, R>(renderer, location, true, wrapping)
+        self.render_core::<F, R>(renderer, location, true, wrapping);
     }
 
     /// Renders this text at `location` in `renderer`. The baseline of the first line will start at `location`.
@@ -90,7 +90,7 @@ impl Text {
         location: Point2D<f32, Points>,
         wrapping: TextWrap,
     ) {
-        self.render_core::<F, R>(scene, location, false, wrapping)
+        self.render_core::<F, R>(scene, location, false, wrapping);
     }
 
     fn render_core<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
@@ -108,7 +108,7 @@ impl Text {
     pub fn remove_range(&mut self, range: Range<usize>) {
         self.for_each_in_range_mut(range, |span, relative_range| {
             span.text.replace_range(relative_range, "");
-        })
+        });
     }
 
     /// Inserts `value` at `offset`. Inserts into an existing span.
@@ -116,7 +116,7 @@ impl Text {
     pub fn insert_str(&mut self, offset: usize, value: &str) {
         self.for_each_in_range_mut(offset..offset + 1, |span, relative_range| {
             span.text.insert_str(relative_range.start, value);
-        })
+        });
     }
 
     /// Returns the total length, in bytes.
@@ -190,7 +190,7 @@ impl Text {
         if self.is_empty() {
             // If we have no actual text in this, keep the first span and dump the rest
             // Doing this operation separately allows the other branch to be a simple retain operation
-            self.spans.resize_with(1, || unreachable!())
+            self.spans.resize_with(1, || unreachable!());
         } else {
             self.spans.retain(|span| !span.text.is_empty());
         }

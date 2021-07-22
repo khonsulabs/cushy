@@ -33,12 +33,12 @@ struct StateData {
 impl State {
     pub fn new_frame(&self) {
         let mut data = self.data.lock().unwrap();
-        data.new_frame()
+        data.new_frame();
     }
 
     pub fn widget_rendered(&self, widget: WidgetId, bounds: Rect<f32, Points>) {
         let mut data = self.data.lock().unwrap();
-        data.widget_rendered(widget, bounds)
+        data.widget_rendered(widget, bounds);
     }
 
     pub fn widget_bounds(&self, widget: &WidgetId) -> Option<Rect<f32, Points>> {

@@ -51,6 +51,7 @@ struct TokenizerState {
     style: Arc<Style>,
     text: String,
     lexer_state: TokenizerStatus,
+    #[allow(dead_code)]
     caret: Length<f32, Points>,
 }
 

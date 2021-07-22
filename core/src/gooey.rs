@@ -95,7 +95,7 @@ impl<F: Frontend> Gooey<F> {
                     .expect("Missing widget state for root");
                 widget_state.with_state(transmogrifier, frontend, |state, widget| {
                     let style = widget_state.style.lock().unwrap();
-                    let channels = widget_state.channels.as_ref().as_ref();
+                    let channels = widget_state.channels.as_ref();
                     callback(
                         transmogrifier,
                         AnyTransmogrifierContext::new(
@@ -340,7 +340,7 @@ impl WidgetStorage {
             let mut state = self.data.state.write().unwrap();
             state.remove(&widget_id)
         };
-        drop(removed_value)
+        drop(removed_value);
     }
 
     /// Returns the state of the widget with id `widget_id`.
@@ -422,7 +422,7 @@ pub struct WidgetState {
     pub state: Arc<Mutex<Option<TransmogrifierState>>>,
 
     /// The channels to communicate with the widget.
-    pub channels: Arc<Box<dyn AnyChannels>>,
+    pub channels: Arc<dyn AnyChannels>,
 
     /// The widget's style.
     pub style: Arc<Mutex<Style>>,
@@ -440,7 +440,7 @@ impl WidgetState {
             widget: Arc::new(Mutex::new(Box::new(styled_widget.widget))),
             style: Arc::new(Mutex::new(styled_widget.style)),
             state: Arc::default(),
-            channels: Arc::new(Box::new(Channels::<W>::new(id))),
+            channels: Arc::new(Channels::<W>::new(id)),
         }
     }
 
@@ -482,7 +482,7 @@ impl WidgetState {
 
     #[must_use]
     pub(crate) fn any_channels(&self) -> &'_ dyn AnyChannels {
-        self.channels.as_ref().as_ref()
+        self.channels.as_ref()
     }
 
     /// Returns the channels used to communicate with this widget.
@@ -600,7 +600,7 @@ impl WidgetRegistration {
 
 impl Drop for WidgetRegistrationData {
     fn drop(&mut self) {
-        self.storage.unregister_id(self.id.id)
+        self.storage.unregister_id(self.id.id);
     }
 }
 

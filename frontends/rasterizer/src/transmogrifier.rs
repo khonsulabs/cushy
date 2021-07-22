@@ -41,7 +41,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                 renderer.fill_rect::<BackgroundColor>(
                     &renderer.bounds(),
                     &Style::default().with(BackgroundColor(color)),
-                )
+                );
             }
 
             self.render(TransmogrifierContext::new(
@@ -196,7 +196,7 @@ where
             TransmogrifierContext::try_from(context).unwrap(),
             bounds,
             parent_style,
-        )
+        );
     }
 
     fn content_size(
@@ -229,14 +229,14 @@ where
         <Self as WidgetRasterizer<R>>::hovered(
             self,
             TransmogrifierContext::try_from(context).unwrap(),
-        )
+        );
     }
 
     fn unhovered(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>) {
         <Self as WidgetRasterizer<R>>::unhovered(
             self,
             TransmogrifierContext::try_from(context).unwrap(),
-        )
+        );
     }
 
     fn mouse_move(
@@ -282,7 +282,7 @@ where
             button,
             location,
             rastered_size,
-        )
+        );
     }
 
     fn mouse_up(
@@ -298,7 +298,7 @@ where
             button,
             location,
             rastered_size,
-        )
+        );
     }
 }
 

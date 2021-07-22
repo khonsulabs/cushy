@@ -319,14 +319,14 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
                 Alignment::Left => "start",
                 Alignment::Center => "center",
                 Alignment::Right => "end",
-            },))
+            },));
         }
         if let Some(vertical_alignment) = vertical_alignment {
             css = css.with_css_statement(format!("align-items: {}", match vertical_alignment {
                 VerticalAlignment::Top => "start",
                 VerticalAlignment::Center => "center",
                 VerticalAlignment::Bottom => "end",
-            },))
+            },));
         }
         css
     }
@@ -374,7 +374,7 @@ where
 
 impl AnyTransmogrifier<WebSys> for RegisteredTransmogrifier {
     fn process_messages(&self, context: AnyTransmogrifierContext<'_, WebSys>) {
-        self.0.process_messages(context)
+        self.0.process_messages(context);
     }
 
     fn widget_type_id(&self) -> TypeId {

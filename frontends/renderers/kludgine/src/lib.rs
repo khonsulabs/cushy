@@ -108,7 +108,7 @@ impl Kludgine {
                         .cast_unit(),
                 ),
             )
-            .render_at(Point2D::default(), &self.target)
+            .render_at(Point2D::default(), &self.target);
     }
 }
 
