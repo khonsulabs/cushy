@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use gooey_core::{euclid::Length, styles::Style, Points};
+use gooey_core::{styles::Style, Points};
 use gooey_renderer::{Renderer, TextMetrics};
 
 use crate::{prepared::PreparedSpan, Text};
@@ -51,8 +51,6 @@ struct TokenizerState {
     style: Arc<Style>,
     text: String,
     lexer_state: TokenizerStatus,
-    #[allow(dead_code)]
-    caret: Length<f32, Points>,
 }
 
 impl TokenizerState {
@@ -61,7 +59,6 @@ impl TokenizerState {
             style: Arc::new(style),
             lexer_state: TokenizerStatus::AtSpanStart,
             text: String::default(),
-            caret: Length::default(),
         }
     }
 
@@ -73,7 +70,6 @@ impl TokenizerState {
             self.text.clear();
             let metrics = scene.measure_text(&text, &self.style);
             let span = PreparedSpan::new(self.style.clone(), text, metrics);
-            self.caret = Length::default();
 
             let token = match self.lexer_state {
                 TokenizerStatus::AtSpanStart => unreachable!(),
