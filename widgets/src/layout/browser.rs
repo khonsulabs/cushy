@@ -94,9 +94,10 @@ fn materialize_child(
         layout_child.registration.id(),
         |child_transmogrifier, mut child_context| {
             if let Some(child) = child_transmogrifier.transmogrify(&mut child_context) {
-                context.state.children.insert(
-                    layout_child.registration.id().id,
-                    BrowserChild {
+                context
+                    .state
+                    .children
+                    .insert(layout_child.registration.id().id, BrowserChild {
                         rules: vec![CssManager::shared().register_rule(
                             &apply_layout_rules(
                                 &layout_child.layout,
@@ -106,8 +107,7 @@ fn materialize_child(
                             .to_string(),
                         )],
                         element_id: child.id(),
-                    },
-                );
+                    });
                 container
                     .append_child(&child)
                     .expect("error appending child");

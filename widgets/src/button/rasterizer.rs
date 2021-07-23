@@ -39,14 +39,20 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
                 Length::new(scene.size().width),
             );
 
-            wrapped.render_within::<TextColor, _>(scene, scene.bounds(), context.style);
+            wrapped.render_within::<TextColor, _>(
+                scene,
+                scene
+                    .bounds()
+                    .inflate(-BUTTON_PADDING.get(), -BUTTON_PADDING.get()),
+                context.style,
+            );
         }
     }
 
     fn content_size(
         &self,
         context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        _constraints: Size2D<Option<f32>, Points>,
+        constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         context
             .frontend
@@ -57,7 +63,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
                     &context.widget.label,
                     context.style,
                     scene,
-                    BUTTON_PADDING * 2.,
+                    Length::new(constraints.width.unwrap_or_else(|| scene.size().width)),
                 );
                 (wrapped.size().to_vector()
                     + Vector2D::from_lengths(BUTTON_PADDING * 2., BUTTON_PADDING * 2.))

@@ -68,7 +68,6 @@ impl PreparedText {
             if offset_baseline || line_index > 0 {
                 current_line_baseline += line.metrics.ascent;
             }
-            let metrics = line.metrics;
             let cursor_position =
                 location + Vector2D::from_lengths(line.alignment_offset, current_line_baseline);
             for span in &line.spans {
@@ -78,7 +77,7 @@ impl PreparedText {
                     &span.data.style,
                 );
             }
-            current_line_baseline += metrics.line_gap - metrics.descent;
+            current_line_baseline += line.metrics.line_gap - line.metrics.descent;
         }
 
         current_line_baseline
@@ -100,7 +99,7 @@ impl PreparedText {
             Some(VerticalAlignment::Top) | None => 0.,
         };
 
-        self.render::<F, R>(scene, Point2D::new(0., origin_y), true)
+        self.render::<F, R>(scene, bounds.origin + Vector2D::new(0., origin_y), true)
     }
 }
 
