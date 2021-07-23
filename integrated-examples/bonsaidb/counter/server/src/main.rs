@@ -2,7 +2,7 @@ use std::path::Path;
 
 use bonsaidb::{
     core::{connection::ServerConnection, kv::Kv, permissions::Permissions, Error},
-    server::{Backend, Configuration, CustomServer},
+    server::{Backend, Configuration, ConnectedClient, CustomServer},
 };
 use bonsaidb_counter_shared::{
     ExampleApi, GetCounterHandler, IncrementCounterHandler, Request, RequestDispatcher, Response,
@@ -14,18 +14,14 @@ use bonsaidb_counter_shared::{
 async fn main() -> anyhow::Result<()> {
     // Open a `BonsaiDb` server at the given path, allowing all actions to be
     // done over the network connections.
-    let server =
-        CustomServer::<Example>::open(Path::new("counter-example.bonsaidb"), Configuration {
+    let server = CustomServer::<Example>::open(
+        Path::new("counter-example.bonsaidb"),
+        Configuration {
             default_permissions: Permissions::allow_all(),
             ..Configuration::default()
-        })
-        .await?;
-    // Sets the dispatcher for custom API requests.
-    server
-        .set_custom_api_dispatcher(ApiDispatcher {
-            server: server.clone(),
-        })
-        .await;
+        },
+    )
+    .await?;
     server.register_schema::<()>().await?;
     // Create the database if it doesn't exist.
     match server.create_database::<()>(DATABASE_NAME).await {
@@ -47,6 +43,15 @@ enum Example {}
 impl Backend for Example {
     type CustomApi = ExampleApi;
     type CustomApiDispatcher = ApiDispatcher;
+
+    fn dispatcher_for(
+        server: &CustomServer<Self>,
+        _client: &ConnectedClient<Self>,
+    ) -> ApiDispatcher {
+        ApiDispatcher {
+            server: server.clone(),
+        }
+    }
 }
 
 /// The dispatcher for API requests.
