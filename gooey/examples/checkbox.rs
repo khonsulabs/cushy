@@ -1,13 +1,12 @@
 use gooey::{
     core::{Context, StyledWidget},
     widgets::{
+        checkbox::Checkbox,
         component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
         container::Container,
     },
     App,
 };
-use gooey_core::styles::FontFamily;
-use gooey_widgets::checkbox::Checkbox;
 
 fn main() {
     App::default()
@@ -30,8 +29,7 @@ impl Behavior for Counter {
                 Checkbox::build()
                     .labeled("I'm a checkbox. Hear me roar.")
                     .on_clicked(builder.map_event(|_| CounterEvent::ButtonClicked))
-                    .finish()
-                    .with(FontFamily::from("Comic Sans")),
+                    .finish(),
             ),
         )
     }
@@ -42,11 +40,15 @@ impl Behavior for Counter {
         context: &Context<Component<Self>>,
     ) {
         let CounterEvent::ButtonClicked = event;
-        component.map_widget(
+        component.map_widget_mut(
             &CounterWidgets::Button,
             context,
-            |button: &Checkbox, _context| {
-                println!("Checkbox toggled: {:?}", button.checked());
+            |checkbox: &mut Checkbox, context| {
+                if checkbox.checked() {
+                    checkbox.set_label("I'm a checked checkbox now.", context);
+                } else {
+                    checkbox.set_label("I am no longer checked.", context);
+                }
             },
         );
     }

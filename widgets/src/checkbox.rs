@@ -38,6 +38,11 @@ impl Checkbox {
         self.checked
     }
 
+    pub fn set_label<S: Into<String>>(&mut self, label: S, context: &Context<Self>) {
+        self.label = label.into();
+        context.send_command(CheckboxCommand::LabelChanged);
+    }
+
     #[must_use]
     pub fn label(&self) -> &str {
         &self.label
