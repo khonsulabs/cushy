@@ -1,6 +1,6 @@
 use gooey_core::{
-    euclid::{Box2D, Point2D, Rect, Size2D, Vector2D},
-    styles::{Alignment, ForegroundColor},
+    euclid::{Point2D, Rect, Size2D, Vector2D},
+    styles::ForegroundColor,
     Points, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
@@ -69,52 +69,21 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
     fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
         if let Some(scene) = context.frontend.renderer() {
             let layout = calculate_layout(&context, scene, scene.size());
-            let (checkbox_rect, label_rect) = match context
-                .style
-                .get::<Alignment>()
-                .copied()
-                .unwrap_or_default()
-            {
-                Alignment::Left | Alignment::Center => {
-                    // Checkbox to the left
-                    (
-                        Rect::from_size(layout.checkbox_size),
-                        Rect::new(
-                            Point2D::new(layout.checkbox_size.width + LABEL_PADDING.get(), 0.),
-                            layout.label_size,
-                        ),
-                    )
-                }
-                Alignment::Right => {
-                    // Checkbox to the right
-                    (
-                        Rect::new(
-                            Point2D::new(layout.label_size.width + LABEL_PADDING.get(), 0.),
-                            layout.checkbox_size,
-                        ),
-                        Rect::from_size(layout.label_size),
-                    )
-                }
-            };
+            let checkbox_rect = Rect::from_size(layout.checkbox_size);
+            let label_rect = Rect::new(
+                Point2D::new(layout.checkbox_size.width + LABEL_PADDING.get(), 0.),
+                layout.label_size,
+            );
 
             scene.fill_rect::<ButtonColor>(&checkbox_rect, context.style);
 
             if context.widget.checked {
-                // Draw a simple X for now
-                let check_box = checkbox_rect
-                    .inflate(-LABEL_PADDING.get(), -LABEL_PADDING.get())
-                    .to_box2d();
-                // Round the x to pixel boundaries
-                let check_box_pixels = check_box * scene.scale();
-                let check_box =
-                    Box2D::new(check_box_pixels.min.floor(), check_box_pixels.max.floor())
-                        / scene.scale();
-                scene.stroke_line(check_box.min, check_box.max, context.style);
-                scene.stroke_line(
-                    Point2D::new(check_box.max.x, check_box.min.y),
-                    Point2D::new(check_box.min.x, check_box.max.y),
-                    context.style,
-                )
+                // Fill a square in the middle with the mark.
+                let check_box = checkbox_rect.inflate(
+                    -checkbox_rect.size.width / 3.,
+                    -checkbox_rect.size.width / 3.,
+                );
+                scene.fill_rect::<ForegroundColor>(&check_box, context.style);
             }
 
             layout
