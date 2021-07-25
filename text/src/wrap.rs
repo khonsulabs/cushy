@@ -1,4 +1,4 @@
-use approx::relative_eq;
+use approx::abs_diff_eq;
 use gooey_core::{
     euclid::{Length, Size2D},
     Points,
@@ -54,10 +54,10 @@ impl TextWrapState {
                 let remaining_width = width - new_width;
 
                 // If the value is negative and isn't zero (-0. is a valid float)
-                if !relative_eq!(remaining_width.get(), 0., epsilon = 0.001)
+                if !abs_diff_eq!(remaining_width.get(), 0., epsilon = 0.1)
                     && remaining_width.get().is_sign_negative()
                 {
-                    if relative_eq!(self.current_span_offset.get(), 0.) {
+                    if abs_diff_eq!(self.current_span_offset.get(), 0.) {
                         // TODO Split the group if it can't fit on a single line
                         // For now, just render it anyways.
                     } else {

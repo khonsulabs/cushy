@@ -19,6 +19,7 @@
 #![cfg_attr(doc, warn(rustdoc::all))]
 
 pub mod button;
+pub mod checkbox;
 pub mod component;
 pub mod container;
 pub mod label;
@@ -30,8 +31,9 @@ pub mod rasterized {
     use gooey_rasterizer::{make_rasterized, Rasterizer, Renderer};
 
     use crate::{
-        button::ButtonTransmogrifier, container::ContainerTransmogrifier,
-        label::LabelTransmogrifier, layout::LayoutTransmogrifier,
+        button::ButtonTransmogrifier, checkbox::CheckboxTransmogrifier,
+        container::ContainerTransmogrifier, label::LabelTransmogrifier,
+        layout::LayoutTransmogrifier,
     };
 
     pub fn register_transmogrifiers<R: Renderer>(
@@ -41,6 +43,7 @@ pub mod rasterized {
         drop(transmogrifiers.register_transmogrifier(ContainerTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(LabelTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(LayoutTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(CheckboxTransmogrifier));
     }
 
     #[must_use]
@@ -54,6 +57,7 @@ pub mod rasterized {
     make_rasterized!(ContainerTransmogrifier);
     make_rasterized!(LabelTransmogrifier);
     make_rasterized!(LayoutTransmogrifier);
+    make_rasterized!(CheckboxTransmogrifier);
 }
 
 #[cfg(feature = "frontend-browser")]
@@ -62,8 +66,9 @@ pub mod browser {
     use gooey_core::Transmogrifiers;
 
     use crate::{
-        button::ButtonTransmogrifier, container::ContainerTransmogrifier,
-        label::LabelTransmogrifier, layout::LayoutTransmogrifier,
+        button::ButtonTransmogrifier, checkbox::CheckboxTransmogrifier,
+        container::ContainerTransmogrifier, label::LabelTransmogrifier,
+        layout::LayoutTransmogrifier,
     };
 
     pub fn register_transmogrifiers(transmogrifiers: &mut Transmogrifiers<WebSys>) {
@@ -71,6 +76,7 @@ pub mod browser {
         drop(transmogrifiers.register_transmogrifier(ContainerTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(LabelTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(LayoutTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(CheckboxTransmogrifier));
     }
 
     #[must_use]
@@ -84,4 +90,5 @@ pub mod browser {
     make_browser!(ContainerTransmogrifier);
     make_browser!(LabelTransmogrifier);
     make_browser!(LayoutTransmogrifier);
+    make_browser!(CheckboxTransmogrifier);
 }

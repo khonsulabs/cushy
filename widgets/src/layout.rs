@@ -158,7 +158,6 @@ impl<K: LayoutKey> Builder<K> {
         self
     }
 
-    #[must_use]
     pub fn finish(self) -> StyledWidget<Layout> {
         StyledWidget::default_for(Layout {
             children: Box::new(self.children),

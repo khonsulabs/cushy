@@ -32,7 +32,8 @@ use std::{
 
 use gooey_core::{
     styles::{
-        style_sheet::Classes, Alignment, Style, StyleComponent, SystemTheme, VerticalAlignment,
+        style_sheet::{Classes, State},
+        Alignment, Style, StyleComponent, SystemTheme, VerticalAlignment,
     },
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef, WidgetRegistration,
@@ -79,6 +80,17 @@ impl WebSys {
                 &CssBlockBuilder::for_css_selector("#gooey")
                     .with_css_statement("margin: 0")
                     .with_css_statement("padding: 0")
+                    .to_string(),
+            ),
+            manager.register_rule(
+                &CssBlockBuilder::for_css_selector(".sr-only")
+                    .with_css_statement("position: absolute")
+                    .with_css_statement("height: 1px")
+                    .with_css_statement("width: 1px")
+                    .with_css_statement("clip: rect(0 0 0 0)")
+                    .with_css_statement("clip-path: inset(100%)")
+                    .with_css_statement("overflow: hidden")
+                    .with_css_statement("white-space: nowrap")
                     .to_string(),
             ),
         ];
@@ -251,28 +263,45 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         let mut rules = None;
 
         for theme in [SystemTheme::Light, SystemTheme::Dark] {
-            let mut css = CssBlockBuilder::for_id(context.registration.id().id).with_theme(theme);
-            css = self.convert_style_to_css(context.style, css);
+            for state in State::permutations() {
+                let mut css = CssBlockBuilder::for_id(context.registration.id().id)
+                    .and_state(&state)
+                    .with_theme(theme);
+                css = self.convert_style_to_css(context.style, css);
 
-            let style_sheet = context.frontend.gooey().stylesheet();
-            if let Some(rules) = style_sheet.rules_by_widget.get(&None) {
-                for &rule_index in rules {
-                    let rule = &style_sheet.rules[rule_index];
-                    if rule.widget_type_id.is_none()
-                        && rule.applies(context.ui_state, Some(&classes))
-                    {
-                        css = self.convert_style_to_css(&rule.style, css);
+                let style_sheet = context.frontend.gooey().stylesheet();
+                if let Some(rules) = style_sheet.rules_by_widget.get(&None) {
+                    for &rule_index in rules {
+                        let rule = &style_sheet.rules[rule_index];
+                        if rule.widget_type_id.is_none() && rule.applies(&state, Some(&classes)) {
+                            css = self.convert_style_to_css(&rule.style, css);
+                        }
                     }
                 }
-            }
 
-            let css = css.to_string();
-            rules = Some(rules.map_or_else(
-                || CssManager::shared().register_rule(&css),
-                |existing: CssRules| existing.and(&css),
-            ));
+                let css = css.to_string();
+                rules = Some(rules.map_or_else(
+                    || CssManager::shared().register_rule(&css),
+                    |existing: CssRules| existing.and(&css),
+                ));
+
+                if let Some(extra_rules) = self.additional_css_rules(theme, &state, context) {
+                    let rules = rules.as_mut().unwrap();
+                    rules.extend(extra_rules);
+                }
+            }
         }
         rules
+    }
+
+    #[allow(unused_variables)]
+    fn additional_css_rules(
+        &self,
+        theme: SystemTheme,
+        state: &State,
+        context: &TransmogrifierContext<'_, Self, WebSys>,
+    ) -> Option<CssRules> {
+        None
     }
 
     #[allow(unused_variables)]
@@ -333,7 +362,7 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
 
     #[must_use]
     fn widget_classes() -> Classes {
-        Classes::from(<<Self as Transmogrifier<WebSys>>::Widget as Widget>::CLASS)
+        <<Self as Transmogrifier<WebSys>>::Widget as Widget>::classes()
     }
 }
 

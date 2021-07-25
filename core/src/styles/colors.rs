@@ -182,7 +182,11 @@ impl ColorPair {
 /// The foreground color. Used for text and line/border drawing.
 #[derive(Debug, Clone)]
 pub struct ForegroundColor(pub ColorPair);
-impl StyleComponent for ForegroundColor {}
+impl StyleComponent for ForegroundColor {
+    fn should_be_inherited(&self) -> bool {
+        false
+    }
+}
 
 impl Default for ForegroundColor {
     fn default() -> Self {

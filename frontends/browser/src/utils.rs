@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use gooey_core::styles::{
-    style_sheet::{Classes, Rule},
+    style_sheet::{Classes, Rule, State},
     StyleComponent, SystemTheme,
 };
 use wasm_bindgen::JsCast;
@@ -10,6 +10,14 @@ use web_sys::{CssStyleSheet, HtmlElement, HtmlStyleElement};
 #[must_use]
 pub fn window_document() -> web_sys::Document {
     web_sys::window().unwrap().document().unwrap()
+}
+
+#[must_use]
+pub fn create_element<T: JsCast>(name: &str) -> T {
+    window_document()
+        .create_element(name)
+        .unwrap()
+        .unchecked_into::<T>()
 }
 
 #[must_use]
@@ -74,7 +82,7 @@ impl CssManager {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[must_use]
 pub struct CssRules {
     index: Vec<u32>,
@@ -95,6 +103,11 @@ impl CssRules {
         self.index
             .push(CssManager::shared().sheet.insert_rule(rule).unwrap());
         self
+    }
+
+    pub fn extend(&mut self, mut other: Self) {
+        let other = std::mem::take(&mut other.index);
+        self.index.extend(other.into_iter());
     }
 }
 
@@ -146,6 +159,30 @@ impl CssBlockBuilder {
         }
 
         builder
+    }
+
+    pub fn and_state(mut self, state: &State) -> Self {
+        self.selector += if state.active {
+            ":active"
+        } else {
+            ":not(:active)"
+        };
+        self.selector += if state.focused {
+            ":focus"
+        } else {
+            ":not(:focus)"
+        };
+        self.selector += if state.hovered {
+            ":hover"
+        } else {
+            ":not(:hover)"
+        };
+        self
+    }
+
+    pub fn and_additional_selector(mut self, selector: &str) -> Self {
+        self.selector.push_str(selector);
+        self
     }
 
     pub fn with_css_statement<S: ToString>(mut self, css: S) -> Self {
