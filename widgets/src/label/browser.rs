@@ -1,5 +1,5 @@
 use gooey_browser::{
-    utils::{widget_css_id, window_document, CssRules},
+    utils::{create_element, widget_css_id, window_document, CssRules},
     WebSys, WebSysTransmogrifier,
 };
 use gooey_core::TransmogrifierContext;
@@ -33,11 +33,7 @@ impl WebSysTransmogrifier for LabelTransmogrifier {
         &self,
         context: TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
-        let document = window_document();
-        let element = document
-            .create_element("div")
-            .expect("couldn't create div")
-            .unchecked_into::<HtmlDivElement>();
+        let element = create_element::<HtmlDivElement>("div");
         *context.state = self.initialize_widget_element(&element, &context);
         element.set_inner_text(&context.widget.label);
 

@@ -1,10 +1,12 @@
-use gooey_core::{Callback, Context, StyledWidget, Widget};
+use gooey_core::{euclid::Length, Callback, Context, Points, StyledWidget, Widget};
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;
 
 #[cfg(feature = "frontend-browser")]
 mod browser;
+
+pub const LABEL_PADDING: Length<f32, Points> = Length::new(5.);
 
 #[derive(Default, Debug)]
 pub struct Checkbox {
@@ -34,6 +36,11 @@ impl Checkbox {
     #[must_use]
     pub const fn checked(&self) -> bool {
         self.checked
+    }
+
+    #[must_use]
+    pub fn label(&self) -> &str {
+        &self.label
     }
 }
 

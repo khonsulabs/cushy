@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use gooey_browser::{
-    utils::{window_document, window_element_by_widget_id, CssBlockBuilder, CssManager, CssRules},
+    utils::{create_element, window_element_by_widget_id, CssBlockBuilder, CssManager, CssRules},
     WebSys, WebSysTransmogrifier,
 };
 use gooey_core::{Transmogrifier, TransmogrifierContext};
@@ -61,10 +61,7 @@ impl WebSysTransmogrifier for LayoutTransmogrifier {
     ) -> Option<web_sys::HtmlElement> {
         let css_manager = CssManager::shared();
 
-        let container = window_document()
-            .create_element("div")
-            .expect("error creating div")
-            .unchecked_into::<web_sys::HtmlDivElement>();
+        let container = create_element::<HtmlDivElement>("div");
         if let Some(rule) = self.initialize_widget_element(&container, &context) {
             context.state.css.push(rule);
         }

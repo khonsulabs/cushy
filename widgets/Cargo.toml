@@ -28,6 +28,7 @@ web-sys = { version="0.3", features=[
     "CssStyleSheet",
     "CssRule",
     "Node",
+    "NodeList",
     "HtmlElement",
     "Element",
     "CssStyleDeclaration",
@@ -35,6 +36,8 @@ web-sys = { version="0.3", features=[
     "HtmlDivElement",
     "HtmlStyleElement",
     "HtmlHeadElement",
+    "HtmlLabelElement",
+    "HtmlSpanElement",
 ], optional=true }
 flume = "0.10"
 log = "0.4"

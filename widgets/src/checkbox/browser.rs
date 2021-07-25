@@ -1,30 +1,41 @@
 use gooey_browser::{
-    utils::{widget_css_id, window_document, CssBlockBuilder, CssRules},
+    utils::{create_element, widget_css_id, window_document, CssBlockBuilder, CssRules},
     WebSys, WebSysTransmogrifier, WidgetClosure,
 };
 use gooey_core::{styles::Style, TransmogrifierContext, WidgetRef};
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlButtonElement, HtmlInputElement};
+use web_sys::{HtmlDivElement, HtmlInputElement, HtmlLabelElement};
 
-use super::CheckboxTransmogrifier;
-use crate::button::{Button, ButtonCommand, ButtonTransmogrifier, InternalButtonEvent};
+use crate::checkbox::{Checkbox, CheckboxCommand, CheckboxTransmogrifier, InternalCheckboxEvent};
 
 impl gooey_core::Transmogrifier<WebSys> for CheckboxTransmogrifier {
     type State = Option<CssRules>;
-    type Widget = Button;
+    type Widget = Checkbox;
 
     fn receive_command(
         &self,
-        command: ButtonCommand,
+        command: CheckboxCommand,
         context: &mut TransmogrifierContext<'_, Self, WebSys>,
     ) {
-        let document = window_document();
-        if let Some(element) = document
-            .get_element_by_id(&widget_css_id(context.registration.id().id))
-            .and_then(|e| e.dyn_into::<HtmlButtonElement>().ok())
-        {
-            let ButtonCommand::LabelChanged = command;
-            // element.set_inner_text(&context.widget.label);
+        match command {
+            CheckboxCommand::Toggled => {
+                if let Some(input) = window_document().get_element_by_id(&format!(
+                    "{}-input",
+                    widget_css_id(context.registration.id().id)
+                )) {
+                    let input = input.unchecked_into::<HtmlInputElement>();
+                    input.set_checked(context.widget.checked);
+                }
+            }
+            CheckboxCommand::LabelChanged => {
+                if let Some(span) = window_document().get_element_by_id(&format!(
+                    "{}-label",
+                    widget_css_id(context.registration.id().id)
+                )) {
+                    let span = span.unchecked_into::<HtmlDivElement>();
+                    span.set_inner_text(&context.widget.label);
+                }
+            }
         }
     }
 }
@@ -34,21 +45,41 @@ impl WebSysTransmogrifier for CheckboxTransmogrifier {
         &self,
         context: TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
-        let document = window_document();
-        let element = document
-            .create_element("input")
-            .expect("couldn't create button")
-            .unchecked_into::<HtmlInputElement>();
-        *context.state = self.initialize_widget_element(&element, &context);
-        // element.set_inner_text(&context.widget.label);
-        // element.set_type("checkbox");
+        // Create this html layout: <label><input /><div /></label>
+        let container = create_element::<HtmlLabelElement>("label");
+        let input = create_element::<HtmlInputElement>("input");
+        let label = create_element::<HtmlDivElement>("div");
+        input.set_id(&format!(
+            "{}-input",
+            widget_css_id(context.registration.id().id)
+        ));
+        input.set_type("checkbox");
+        container.append_child(&input).unwrap();
 
-        let closure = WidgetClosure::new::<WebSys, Button, _>(
-            WidgetRef::new(&context.registration, context.frontend.clone()).unwrap(),
-            || InternalButtonEvent::Clicked,
+        label.set_id(&format!(
+            "{}-label",
+            widget_css_id(context.registration.id().id)
+        ));
+        label.set_inner_text(&context.widget.label());
+        container.append_child(&label).unwrap();
+
+        let mut css = self
+            .initialize_widget_element(&container, &context)
+            .unwrap_or_default();
+        css = css.and(
+            &CssBlockBuilder::for_id(context.registration.id().id)
+                .with_css_statement("display: flex")
+                .with_css_statement("align-items: start")
+                .to_string(),
         );
-        element.set_onclick(Some(closure.into_js_value().unchecked_ref()));
-        Some(element.unchecked_into())
+        *context.state = Some(css);
+
+        let closure = WidgetClosure::new::<WebSys, Checkbox, _>(
+            WidgetRef::new(&context.registration, context.frontend.clone()).unwrap(),
+            || InternalCheckboxEvent::Clicked,
+        );
+        input.set_oninput(Some(closure.into_js_value().unchecked_ref()));
+        Some(container.unchecked_into())
     }
 
     fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {

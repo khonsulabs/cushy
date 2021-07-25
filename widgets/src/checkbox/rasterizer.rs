@@ -1,5 +1,5 @@
 use gooey_core::{
-    euclid::{Box2D, Length, Point2D, Rect, Size2D, Vector2D},
+    euclid::{Box2D, Point2D, Rect, Size2D, Vector2D},
     styles::{Alignment, ForegroundColor},
     Points, Transmogrifier, TransmogrifierContext,
 };
@@ -10,10 +10,10 @@ use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
 use crate::{
     button::ButtonColor,
-    checkbox::{Checkbox, CheckboxCommand, CheckboxTransmogrifier, InternalCheckboxEvent},
+    checkbox::{
+        Checkbox, CheckboxCommand, CheckboxTransmogrifier, InternalCheckboxEvent, LABEL_PADDING,
+    },
 };
-
-const BUTTON_PADDING: Length<f32, Points> = Length::new(5.);
 
 impl<R: Renderer> Transmogrifier<Rasterizer<R>> for CheckboxTransmogrifier {
     type State = ();
@@ -47,7 +47,7 @@ fn calculate_layout<R: Renderer>(
 
     // Measure the label, allowing the text to wrap within the remaining space.
     let label_size = Size2D::new(
-        (size.width - checkbox_size.width - BUTTON_PADDING.get()).max(0.),
+        (size.width - checkbox_size.width - LABEL_PADDING.get()).max(0.),
         size.height,
     );
     let label = Text::span(&context.widget.label, context.style.clone())
@@ -57,7 +57,7 @@ fn calculate_layout<R: Renderer>(
 
     LayoutState {
         content_size: (label_size.to_vector()
-            + Vector2D::new(checkbox_size.width + BUTTON_PADDING.get(), 0.))
+            + Vector2D::new(checkbox_size.width + LABEL_PADDING.get(), 0.))
         .to_size(),
         checkbox_size,
         label_size,
@@ -80,7 +80,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
                     (
                         Rect::from_size(layout.checkbox_size),
                         Rect::new(
-                            Point2D::new(layout.checkbox_size.width + BUTTON_PADDING.get(), 0.),
+                            Point2D::new(layout.checkbox_size.width + LABEL_PADDING.get(), 0.),
                             layout.label_size,
                         ),
                     )
@@ -89,7 +89,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
                     // Checkbox to the right
                     (
                         Rect::new(
-                            Point2D::new(layout.label_size.width + BUTTON_PADDING.get(), 0.),
+                            Point2D::new(layout.label_size.width + LABEL_PADDING.get(), 0.),
                             layout.checkbox_size,
                         ),
                         Rect::from_size(layout.label_size),
@@ -102,7 +102,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
             if context.widget.checked {
                 // Draw a simple X for now
                 let check_box = checkbox_rect
-                    .inflate(-BUTTON_PADDING.get(), -BUTTON_PADDING.get())
+                    .inflate(-LABEL_PADDING.get(), -LABEL_PADDING.get())
                     .to_box2d();
                 // Round the x to pixel boundaries
                 let check_box_pixels = check_box * scene.scale();

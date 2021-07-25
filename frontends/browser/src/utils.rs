@@ -13,6 +13,14 @@ pub fn window_document() -> web_sys::Document {
 }
 
 #[must_use]
+pub fn create_element<T: JsCast>(name: &str) -> T {
+    window_document()
+        .create_element(name)
+        .unwrap()
+        .unchecked_into::<T>()
+}
+
+#[must_use]
 pub fn window_element_by_widget_id<T: JsCast>(widget_id: u32) -> Option<T> {
     window_document()
         .get_element_by_id(&widget_css_id(widget_id))
@@ -74,7 +82,7 @@ impl CssManager {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[must_use]
 pub struct CssRules {
     index: Vec<u32>,

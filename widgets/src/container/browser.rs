@@ -1,9 +1,10 @@
 use gooey_browser::{
-    utils::{window_document, CssBlockBuilder, CssManager, CssRules},
+    utils::{create_element, CssBlockBuilder, CssManager, CssRules},
     WebSys, WebSysTransmogrifier,
 };
 use gooey_core::{euclid::Length, Points, Transmogrifier, TransmogrifierContext};
 use wasm_bindgen::JsCast;
+use web_sys::HtmlDivElement;
 
 use crate::container::{Container, ContainerTransmogrifier};
 
@@ -17,10 +18,7 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
         &self,
         context: TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<web_sys::HtmlElement> {
-        let container = window_document()
-            .create_element("div")
-            .expect("error creating div")
-            .unchecked_into::<web_sys::HtmlDivElement>();
+        let container = create_element::<HtmlDivElement>("div");
         let mut css_rules = Vec::new();
         if let Some(rule) = self.initialize_widget_element(&container, &context) {
             css_rules.push(rule);
