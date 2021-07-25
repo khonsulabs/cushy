@@ -6,7 +6,9 @@ use gooey_core::{styles::Style, TransmogrifierContext, WidgetRef};
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlDivElement, HtmlInputElement, HtmlLabelElement};
 
-use crate::checkbox::{Checkbox, CheckboxCommand, CheckboxTransmogrifier, InternalCheckboxEvent};
+use crate::checkbox::{
+    Checkbox, CheckboxCommand, CheckboxTransmogrifier, InternalCheckboxEvent, LABEL_PADDING,
+};
 
 impl gooey_core::Transmogrifier<WebSys> for CheckboxTransmogrifier {
     type State = Option<CssRules>;
@@ -49,29 +51,31 @@ impl WebSysTransmogrifier for CheckboxTransmogrifier {
         let container = create_element::<HtmlLabelElement>("label");
         let input = create_element::<HtmlInputElement>("input");
         let label = create_element::<HtmlDivElement>("div");
-        input.set_id(&format!(
-            "{}-input",
-            widget_css_id(context.registration.id().id)
-        ));
+        let input_id = format!("{}-input", widget_css_id(context.registration.id().id));
+        input.set_id(&input_id);
         input.set_type("checkbox");
         container.append_child(&input).unwrap();
 
-        label.set_id(&format!(
-            "{}-label",
-            widget_css_id(context.registration.id().id)
-        ));
+        let label_id = format!("{}-label", widget_css_id(context.registration.id().id));
+        label.set_id(&label_id);
         label.set_inner_text(&context.widget.label());
         container.append_child(&label).unwrap();
 
         let mut css = self
             .initialize_widget_element(&container, &context)
             .unwrap_or_default();
-        css = css.and(
-            &CssBlockBuilder::for_id(context.registration.id().id)
-                .with_css_statement("display: flex")
-                .with_css_statement("align-items: start")
-                .to_string(),
-        );
+        css = css
+            .and(
+                &CssBlockBuilder::for_id(context.registration.id().id)
+                    .with_css_statement("display: flex")
+                    .with_css_statement("align-items: start")
+                    .to_string(),
+            )
+            .and(
+                &CssBlockBuilder::for_css_selector(&format!("#{}", input_id))
+                    .with_css_statement(format!("margin-right: {:.03}pt", LABEL_PADDING.get()))
+                    .to_string(),
+            );
         *context.state = Some(css);
 
         let closure = WidgetClosure::new::<WebSys, Checkbox, _>(
