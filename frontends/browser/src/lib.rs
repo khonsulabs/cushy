@@ -82,6 +82,17 @@ impl WebSys {
                     .with_css_statement("padding: 0")
                     .to_string(),
             ),
+            manager.register_rule(
+                &CssBlockBuilder::for_css_selector(".sr-only")
+                    .with_css_statement("position: absolute")
+                    .with_css_statement("height: 1px")
+                    .with_css_statement("width: 1px")
+                    .with_css_statement("clip: rect(0 0 0 0)")
+                    .with_css_statement("clip-path: inset(100%)")
+                    .with_css_statement("overflow: hidden")
+                    .with_css_statement("white-space: nowrap")
+                    .to_string(),
+            ),
         ];
 
         for rule in ui
@@ -273,9 +284,24 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
                     || CssManager::shared().register_rule(&css),
                     |existing: CssRules| existing.and(&css),
                 ));
+
+                if let Some(extra_rules) = self.additional_css_rules(theme, &state, context) {
+                    let rules = rules.as_mut().unwrap();
+                    rules.extend(extra_rules);
+                }
             }
         }
         rules
+    }
+
+    #[allow(unused_variables)]
+    fn additional_css_rules(
+        &self,
+        theme: SystemTheme,
+        state: &State,
+        context: &TransmogrifierContext<'_, Self, WebSys>,
+    ) -> Option<CssRules> {
+        None
     }
 
     #[allow(unused_variables)]

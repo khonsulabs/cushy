@@ -104,6 +104,11 @@ impl CssRules {
             .push(CssManager::shared().sheet.insert_rule(rule).unwrap());
         self
     }
+
+    pub fn extend(&mut self, mut other: Self) {
+        let other = std::mem::take(&mut other.index);
+        self.index.extend(other.into_iter());
+    }
 }
 
 #[must_use]
@@ -172,6 +177,11 @@ impl CssBlockBuilder {
         } else {
             ":not(:hover)"
         };
+        self
+    }
+
+    pub fn and_additional_selector(mut self, selector: &str) -> Self {
+        self.selector.push_str(selector);
         self
     }
 
