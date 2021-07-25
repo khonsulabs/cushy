@@ -15,17 +15,18 @@ pub struct Container {
     pub padding: Surround<Points>,
 }
 
-impl Container {
-    pub fn new<W: Widget>(child: StyledWidget<W>, storage: &WidgetStorage) -> StyledWidget<Self> {
-        Self::from_registration(storage.register(child))
-    }
-
-    #[must_use]
-    pub fn from_registration(child: WidgetRegistration) -> StyledWidget<Self> {
-        StyledWidget::default_for(Self {
+impl From<WidgetRegistration> for Container {
+    fn from(child: WidgetRegistration) -> Self {
+        Self {
             child,
             padding: Surround::default(),
-        })
+        }
+    }
+}
+
+impl Container {
+    pub fn new<W: Widget>(child: StyledWidget<W>, storage: &WidgetStorage) -> StyledWidget<Self> {
+        StyledWidget::from(storage.register(child))
     }
 
     pub fn pad_left<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {

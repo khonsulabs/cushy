@@ -47,7 +47,7 @@ impl Behavior for Counter {
             )
             .with_registration(
                 Some(CounterWidgets::Label),
-                builder.register_widget(
+                builder.register(
                     CounterWidgets::Label,
                     Label::new("0")
                         .with(Alignment::Center)
@@ -70,7 +70,7 @@ impl Behavior for Counter {
         let CounterEvent::ButtonClicked = event;
         component.behavior.count += 1;
 
-        component.with_widget_mut(
+        component.map_widget_mut(
             &CounterWidgets::Label,
             context,
             |label: &mut Label, context| {

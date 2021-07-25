@@ -32,7 +32,8 @@ use std::{
 
 use gooey_core::{
     styles::{
-        style_sheet::Classes, Alignment, Style, StyleComponent, SystemTheme, VerticalAlignment,
+        style_sheet::{Classes, State},
+        Alignment, Style, StyleComponent, SystemTheme, VerticalAlignment,
     },
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef, WidgetRegistration,
@@ -251,26 +252,28 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         let mut rules = None;
 
         for theme in [SystemTheme::Light, SystemTheme::Dark] {
-            let mut css = CssBlockBuilder::for_id(context.registration.id().id).with_theme(theme);
-            css = self.convert_style_to_css(context.style, css);
+            for state in State::permutations() {
+                let mut css = CssBlockBuilder::for_id(context.registration.id().id)
+                    .and_state(&state)
+                    .with_theme(theme);
+                css = self.convert_style_to_css(context.style, css);
 
-            let style_sheet = context.frontend.gooey().stylesheet();
-            if let Some(rules) = style_sheet.rules_by_widget.get(&None) {
-                for &rule_index in rules {
-                    let rule = &style_sheet.rules[rule_index];
-                    if rule.widget_type_id.is_none()
-                        && rule.applies(context.ui_state, Some(&classes))
-                    {
-                        css = self.convert_style_to_css(&rule.style, css);
+                let style_sheet = context.frontend.gooey().stylesheet();
+                if let Some(rules) = style_sheet.rules_by_widget.get(&None) {
+                    for &rule_index in rules {
+                        let rule = &style_sheet.rules[rule_index];
+                        if rule.widget_type_id.is_none() && rule.applies(&state, Some(&classes)) {
+                            css = self.convert_style_to_css(&rule.style, css);
+                        }
                     }
                 }
-            }
 
-            let css = css.to_string();
-            rules = Some(rules.map_or_else(
-                || CssManager::shared().register_rule(&css),
-                |existing: CssRules| existing.and(&css),
-            ));
+                let css = css.to_string();
+                rules = Some(rules.map_or_else(
+                    || CssManager::shared().register_rule(&css),
+                    |existing: CssRules| existing.and(&css),
+                ));
+            }
         }
         rules
     }
@@ -333,7 +336,7 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
 
     #[must_use]
     fn widget_classes() -> Classes {
-        Classes::from(<<Self as Transmogrifier<WebSys>>::Widget as Widget>::CLASS)
+        <<Self as Transmogrifier<WebSys>>::Widget as Widget>::classes()
     }
 }
 

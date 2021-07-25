@@ -60,7 +60,7 @@ impl Behavior for Counter {
     type Widgets = CounterWidgets;
 
     fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Container> {
-        Container::from_registration(builder.register_widget(
+        StyledWidget::from(builder.register(
             CounterWidgets::Button,
             Button::new(
                 "Click Me!",

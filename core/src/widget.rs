@@ -9,7 +9,7 @@ use flume::{Receiver, Sender};
 use stylecs::Style;
 
 use crate::{
-    styles::{BackgroundColor, ColorPair, TextColor},
+    styles::{style_sheet::Classes, BackgroundColor, ColorPair, TextColor},
     AnyFrontend, Frontend, WeakWidgetRegistration, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
@@ -32,6 +32,12 @@ pub trait Widget: Debug + Send + Sync + Sized + 'static {
     /// ensure no conflicts. For example, the `gooey-widgets` crate prefixes all
     /// of the `CLASS` constants with `gooey-`.
     const CLASS: &'static str;
+
+    /// Returns all classes that apply styles for this widget.
+    #[must_use]
+    fn classes() -> Classes {
+        Classes::from(Self::CLASS)
+    }
 
     /// Called when an `event` from the transmogrifier was received.
     #[allow(unused_variables)]

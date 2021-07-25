@@ -86,7 +86,10 @@ impl Kludgine {
     }
 
     fn stroke_shape(&self, shape: Shape<Points>, style: &Style) {
-        let system_theme = style.get::<SystemTheme>().copied().unwrap_or_default();
+        let system_theme = match self.target.system_theme() {
+            Theme::Light => SystemTheme::Light,
+            Theme::Dark => SystemTheme::Dark,
+        };
         shape
             .cast_unit()
             .stroke(
@@ -135,12 +138,33 @@ impl Renderer for Kludgine {
     fn clip_to(&self, bounds: Rect<f32, Points>) -> Self {
         // Kludgine's clipping is scene-relative, but the bounds in this function is
         // relative to the current rendering location.
-        let scene_relative_bounds = bounds
+        let mut scene_relative_bounds = bounds
             .translate(self.target.offset.unwrap_or_default().cast_unit::<Pixels>() / self.scale());
+        if scene_relative_bounds.origin.x < 0. {
+            scene_relative_bounds.size.width += scene_relative_bounds.origin.x;
+            scene_relative_bounds.origin.x = 0.;
+        }
+        if scene_relative_bounds.origin.y < 0. {
+            scene_relative_bounds.size.height += scene_relative_bounds.origin.y;
+            scene_relative_bounds.origin.y = 0.;
+        }
+
+        if scene_relative_bounds.size.height < 0. {
+            scene_relative_bounds.size.height = 0.;
+        }
+
+        if scene_relative_bounds.size.width < 0. {
+            scene_relative_bounds.size.width = 0.;
+        }
 
         Self::from(
             self.target
-                .clipped_to((scene_relative_bounds * self.scale()).to_u32().cast_unit())
+                .clipped_to(
+                    (scene_relative_bounds * self.scale())
+                        .round_out()
+                        .to_u32()
+                        .cast_unit(),
+                )
                 .offset_by((bounds.origin.to_vector() * self.scale()).cast_unit()),
         )
     }

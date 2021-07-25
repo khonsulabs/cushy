@@ -1,6 +1,8 @@
 use gooey_core::{
-    styles::{BackgroundColor, ColorPair, FallbackComponent, Style, StyleComponent},
-    Callback, Context, StyledWidget, Widget,
+    styles::{
+        style_sheet::Classes, BackgroundColor, ColorPair, FallbackComponent, Style, StyleComponent,
+    },
+    Callback, Context, StyledWidget, Widget, SOLID_WIDGET_CLASS,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -44,6 +46,10 @@ impl Widget for Button {
     type Event = InternalButtonEvent;
 
     const CLASS: &'static str = "gooey-button";
+
+    fn classes() -> Classes {
+        Classes::from(vec![Self::CLASS, SOLID_WIDGET_CLASS])
+    }
 
     fn receive_event(&mut self, event: Self::Event, _context: &gooey_core::Context<Self>) {
         let InternalButtonEvent::Clicked = event;

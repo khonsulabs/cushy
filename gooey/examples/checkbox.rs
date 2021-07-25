@@ -1,12 +1,13 @@
 use gooey::{
     core::{Context, StyledWidget},
     widgets::{
-        button::Button,
         component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
         container::Container,
     },
     App,
 };
+use gooey_core::styles::FontFamily;
+use gooey_widgets::checkbox::Checkbox;
 
 fn main() {
     App::default()
@@ -15,9 +16,7 @@ fn main() {
 }
 
 #[derive(Default, Debug)]
-struct Counter {
-    count: u32,
-}
+struct Counter;
 
 impl Behavior for Counter {
     type Content = Container;
@@ -25,13 +24,16 @@ impl Behavior for Counter {
     type Widgets = CounterWidgets;
 
     fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Container> {
-        StyledWidget::from(builder.register(
-            CounterWidgets::Button,
-            Button::new(
-                "Click Me!",
-                builder.map_event(|_| CounterEvent::ButtonClicked),
+        StyledWidget::from(
+            builder.register(
+                CounterWidgets::Button,
+                Checkbox::build()
+                    .labeled("I'm a checkbox. Hear me roar.")
+                    .on_clicked(builder.map_event(|_| CounterEvent::ButtonClicked))
+                    .finish()
+                    .with(FontFamily::from("Comic Sans")),
             ),
-        ))
+        )
     }
 
     fn receive_event(
@@ -40,13 +42,11 @@ impl Behavior for Counter {
         context: &Context<Component<Self>>,
     ) {
         let CounterEvent::ButtonClicked = event;
-        component.behavior.count += 1;
-
-        component.map_widget_mut(
+        component.map_widget(
             &CounterWidgets::Button,
             context,
-            |button: &mut Button, context| {
-                button.set_label(component.behavior.count.to_string(), context);
+            |button: &Checkbox, _context| {
+                println!("Checkbox toggled: {:?}", button.checked());
             },
         );
     }

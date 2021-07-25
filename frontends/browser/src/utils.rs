@@ -1,7 +1,7 @@
 use std::fmt::Write;
 
 use gooey_core::styles::{
-    style_sheet::{Classes, Rule},
+    style_sheet::{Classes, Rule, State},
     StyleComponent, SystemTheme,
 };
 use wasm_bindgen::JsCast;
@@ -146,6 +146,25 @@ impl CssBlockBuilder {
         }
 
         builder
+    }
+
+    pub fn and_state(mut self, state: &State) -> Self {
+        self.selector += if state.active {
+            ":active"
+        } else {
+            ":not(:active)"
+        };
+        self.selector += if state.focused {
+            ":focus"
+        } else {
+            ":not(:focus)"
+        };
+        self.selector += if state.hovered {
+            ":hover"
+        } else {
+            ":not(:hover)"
+        };
+        self
     }
 
     pub fn with_css_statement<S: ToString>(mut self, css: S) -> Self {

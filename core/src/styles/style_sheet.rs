@@ -2,7 +2,7 @@ use std::{
     any::TypeId,
     borrow::Cow,
     collections::{HashMap, HashSet},
-    ops::Deref,
+    ops::{Deref, DerefMut},
 };
 
 use stylecs::{Style, StyleComponent};
@@ -17,18 +17,32 @@ pub struct StyleSheet {
 
     /// The rule indexes, organizd by widget [`TypeId`].
     pub rules_by_widget: HashMap<Option<TypeId>, Vec<usize>>,
+
+    /// The rule indexes, organizd by widget [`TypeId`].
+    pub rules_by_class: HashMap<Cow<'static, str>, Vec<usize>>,
 }
 
 impl StyleSheet {
-    /// Uses `W::CLASS` and any [`Classes`] components present in `style` to
-    /// apply style rules. The result will prefer the components specified
-    /// in `style`, but any components not specified will be provided by
-    /// rules that match the id or classes provided.
+    /// Uses `W::classes()` and any [`Classes`] component present in `style` to
+    /// apply style rules. The result will prefer the components specified in
+    /// `style`, but any components not specified will be provided by rules that
+    /// match the id or classes provided.
     #[must_use]
     pub fn effective_style_for<W: Widget>(&self, mut style: Style, state: &State) -> Style {
         let mut possible_rules = Vec::new();
         if let Some(rules) = self.rules_by_widget.get(&Some(TypeId::of::<W>())) {
             possible_rules.extend(rules.clone());
+        }
+
+        let mut effective_classes = W::classes();
+        if let Some(style_classes) = style.get::<Classes>() {
+            effective_classes.extend(style_classes.iter().cloned());
+        }
+
+        for class in effective_classes.iter() {
+            if let Some(rules) = self.rules_by_class.get(class) {
+                possible_rules.extend(rules.clone());
+            }
         }
 
         if let Some(rules) = self.rules_by_widget.get(&None) {
@@ -41,7 +55,7 @@ impl StyleSheet {
         for rule in possible_rules.into_iter().rev() {
             let rule = &self.rules[rule];
 
-            if rule.applies(state, style.get()) {
+            if rule.applies(state, Some(&effective_classes)) {
                 style = style.merge_with(&rule.style, false);
             }
         }
@@ -64,6 +78,13 @@ impl StyleSheet {
         let rules = self.rules_by_widget.entry(rule.widget_type_id).or_default();
         rules.push(index);
 
+        if let Some(classes) = &rule.classes {
+            for class in classes.iter() {
+                let rules = self.rules_by_class.entry(class.clone()).or_default();
+                rules.push(index);
+            }
+        }
+
         self.rules.push(rule);
     }
 
@@ -74,12 +95,17 @@ impl StyleSheet {
         let mut combined = Self {
             rules: Vec::with_capacity(self.rules.len() + other.rules.len()),
             rules_by_widget: other.rules_by_widget.clone(),
+            rules_by_class: other.rules_by_class.clone(),
         };
         combined.rules.extend(other.rules.iter().cloned());
         combined.rules.extend(self.rules.iter().cloned());
         let rule_offset = other.rules.len();
         for (&key, index) in &self.rules_by_widget {
             let class_rules = combined.rules_by_widget.entry(key).or_default();
+            class_rules.extend(index.iter().map(|&i| i + rule_offset));
+        }
+        for (key, index) in &self.rules_by_class {
+            let class_rules = combined.rules_by_class.entry(key.clone()).or_default();
             class_rules.extend(index.iter().map(|&i| i + rule_offset));
         }
 
@@ -273,11 +299,26 @@ impl Classes {
     }
 }
 
+impl IntoIterator for Classes {
+    type IntoIter = std::collections::hash_set::IntoIter<Cow<'static, str>>;
+    type Item = Cow<'static, str>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 impl Deref for Classes {
     type Target = HashSet<Cow<'static, str>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl DerefMut for Classes {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -328,6 +369,48 @@ pub struct State {
     /// Whether the element is active or not. For example, a push button
     /// actively being depressed.
     pub active: bool,
+}
+
+impl State {
+    /// Returns all possible states.
+    #[must_use]
+    pub fn permutations() -> Vec<Self> {
+        vec![
+            Self::default(),
+            Self {
+                hovered: true,
+                ..Self::default()
+            },
+            Self {
+                focused: true,
+                ..Self::default()
+            },
+            Self {
+                active: true,
+                ..Self::default()
+            },
+            Self {
+                hovered: true,
+                active: true,
+                ..Self::default()
+            },
+            Self {
+                hovered: true,
+                focused: true,
+                ..Self::default()
+            },
+            Self {
+                active: true,
+                focused: true,
+                ..Self::default()
+            },
+            Self {
+                hovered: true,
+                active: true,
+                focused: true,
+            },
+        ]
+    }
 }
 
 #[test]

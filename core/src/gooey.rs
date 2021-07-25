@@ -1,5 +1,6 @@
 use std::{
     any::TypeId,
+    borrow::Cow,
     collections::{HashMap, HashSet},
     marker::PhantomData,
     ops::Deref,
@@ -44,7 +45,12 @@ impl<F: Frontend> Gooey<F> {
         initializer: C,
     ) -> Self {
         let storage = WidgetStorage::default();
-        let root = initializer(&storage).with(Classes::from(ROOT_CLASS));
+        let mut root = initializer(&storage);
+        // Append the root class to the root widget.
+        let mut classes = root.style.get::<Classes>().cloned().unwrap_or_default();
+        classes.insert(Cow::from(ROOT_CLASS));
+        root.style.push(classes);
+
         let root = storage.register(root);
         Self {
             data: Arc::new(GooeyData {
@@ -384,6 +390,7 @@ impl WidgetStorage {
 
 /// A widget and its initial style information.
 #[derive(Debug)]
+#[must_use]
 pub struct StyledWidget<W: Widget> {
     /// The widget.
     pub widget: W,
@@ -391,15 +398,19 @@ pub struct StyledWidget<W: Widget> {
     pub style: Style,
 }
 
+impl<W: Widget + From<WidgetRegistration>> From<WidgetRegistration> for StyledWidget<W> {
+    fn from(widget: WidgetRegistration) -> Self {
+        Self::default_for(W::from(widget))
+    }
+}
+
 impl<W: Widget> StyledWidget<W> {
     /// Returns a new instance.
-    #[must_use]
     pub fn new(widget: W, style: Style) -> Self {
         Self { widget, style }
     }
 
     /// Returns a new instance with a default [`Style`].
-    #[must_use]
     pub fn default_for(widget: W) -> Self {
         Self::new(widget, Style::default())
     }

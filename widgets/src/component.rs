@@ -32,7 +32,7 @@ impl<B: Behavior> Component<B> {
     pub fn new(mut behavior: B, storage: &WidgetStorage) -> StyledWidget<Self> {
         let mut builder = ComponentBuilder::new(storage);
         let content = behavior.create_content(&mut builder);
-        let content = builder.register(content);
+        let content = storage.register(content);
         StyledWidget::default_for(Self {
             content,
             behavior,
@@ -42,7 +42,6 @@ impl<B: Behavior> Component<B> {
         })
     }
 
-    #[must_use]
     pub fn default_for(storage: &WidgetStorage) -> StyledWidget<Self>
     where
         B: Default,
@@ -65,7 +64,7 @@ impl<B: Behavior> Component<B> {
             .insert(id, WeakWidgetRegistration::from(registration));
     }
 
-    pub fn with_widget<OW: Widget, F: FnOnce(&OW, &Context<OW>) -> R, R>(
+    pub fn map_widget<OW: Widget, F: FnOnce(&OW, &Context<OW>) -> R, R>(
         &self,
         id: &B::Widgets,
         context: &Context<Self>,
@@ -75,7 +74,7 @@ impl<B: Behavior> Component<B> {
             .and_then(|widget| context.with_widget(widget.id(), with_fn))
     }
 
-    pub fn with_widget_mut<OW: Widget, F: FnOnce(&mut OW, &Context<OW>) -> R, R>(
+    pub fn map_widget_mut<OW: Widget, F: FnOnce(&mut OW, &Context<OW>) -> R, R>(
         &self,
         id: &B::Widgets,
         context: &Context<Self>,
@@ -171,7 +170,7 @@ impl<B: Behavior> ComponentBuilder<B> {
     /// Register a widget with storage.
     #[must_use]
     #[allow(clippy::missing_panics_doc)] // The unwrap is unreachable
-    pub fn register_widget<W: Widget + AnyWidget>(
+    pub fn register<W: Widget + AnyWidget>(
         &mut self,
         id: B::Widgets,
         widget: StyledWidget<W>,
