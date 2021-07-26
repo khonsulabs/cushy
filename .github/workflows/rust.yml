@@ -97,7 +97,8 @@ jobs:
             libxcb-render-util0-dev \
             libxcb-shape0-dev \
             libxcb-xfixes0-dev \
-            mesa-vulkan-drivers
+            mesa-vulkan-drivers \
+            ffmpeg
 
       - name: Run code coverage
         run: |
