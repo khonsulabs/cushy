@@ -74,7 +74,7 @@ jobs:
             
       - name: Generate Example Snapshots
         run: |
-          cargo test --examples --all-features
+          XDG_RUNTIME_DIR="/run/user/$(id -u)" cargo test --examples --all-features
           mv target/snapshots target/doc/
 
       - name: Deploy Docs
