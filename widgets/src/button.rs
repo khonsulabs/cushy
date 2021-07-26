@@ -29,6 +29,11 @@ impl Button {
         self.label = label.into();
         context.send_command(ButtonCommand::LabelChanged);
     }
+
+    #[must_use]
+    pub fn label(&self) -> &str {
+        self.label.as_str()
+    }
 }
 
 #[derive(Debug)]

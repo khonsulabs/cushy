@@ -11,14 +11,14 @@ use gooey::{
 use gooey_core::{
     euclid::Length,
     styles::{Alignment, VerticalAlignment},
-    StyledWidget,
+    StyledWidget, WidgetStorage,
 };
 use gooey_widgets::layout::WidgetLayout;
 
 fn main() {
-    App::default()
+    App::from_root(|storage: &WidgetStorage| Component::<Counter>::default_for(storage))
         .with(ComponentTransmogrifier::<Counter>::default())
-        .run(|storage| Component::<Counter>::default_for(storage))
+        .run()
 }
 
 #[derive(Default, Debug)]

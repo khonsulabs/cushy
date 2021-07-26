@@ -52,7 +52,7 @@ pub mod frontends {
     #[cfg(feature = "gooey-rasterizer")]
     #[doc(inline)]
     pub use gooey_rasterizer as rasterizer;
-    /// Available [`Renderers`](gooey_core::renderer::Renderer).
+    /// Available [`Renderers`](gooey_renderer::Renderer).
     pub mod renderers {
         #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
         #[doc(inline)]
@@ -63,26 +63,37 @@ use cfg_if::cfg_if;
 #[doc(inline)]
 pub use gooey_core as core;
 #[doc(inline)]
+pub use gooey_renderer as renderer;
+#[doc(inline)]
 pub use gooey_widgets as widgets;
+
+#[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
+mod headless;
+#[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
+pub use headless::{Headless, HeadlessError, Recorder};
 
 #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
 mod kludgine;
 #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
-pub use kludgine::{kludgine_main, kludgine_main_with};
+pub use kludgine::{kludgine_app, kludgine_main, kludgine_main_with, kludgine_run};
 
 #[cfg(feature = "frontend-browser")]
 mod browser;
 #[cfg(feature = "frontend-browser")]
-pub use browser::{browser_main, browser_main_with};
+pub use browser::{browser_app, browser_main, browser_main_with, browser_run};
 
 cfg_if! {
     if #[cfg(all(target_arch = "wasm32", feature = "frontend-browser"))] {
         pub use browser_main as main;
         pub use browser_main_with as main_with;
+        pub use browser_app as app;
+        pub use browser_run as run;
         pub type ActiveFrontend = gooey_browser::WebSys;
     } else if #[cfg(feature = "frontend-kludgine")] {
         pub use kludgine_main as main;
         pub use kludgine_main_with as main_with;
+        pub use kludgine_app as app;
+        pub use kludgine_run as run;
         /// The active frontend.
         pub type ActiveFrontend = gooey_rasterizer::Rasterizer<gooey_kludgine::Kludgine>;
     }

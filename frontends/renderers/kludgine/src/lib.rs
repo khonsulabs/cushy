@@ -1,4 +1,4 @@
-//! A [`Renderer`](gooey_core::renderer::Renderer) for `Gooey` that uses
+//! A [`Renderer`](gooey_renderer::Renderer) for `Gooey` that uses
 //! [`Kludgine`](https://github.com/kludgine/kludgine/) to draw. Under the hood,
 //! `Kludgine` uses `wgpu`, and in the future we [aim to support embedding
 //! `Gooey` into other `wgpu`

@@ -47,7 +47,7 @@ impl Span {
     }
 }
 
-/// A sequence of [`Span`s].
+/// A sequence of [`Spans`][Span].
 #[derive(Debug, Clone)]
 #[must_use]
 pub struct Text {

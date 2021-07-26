@@ -9,9 +9,9 @@ use gooey::{
 };
 
 fn main() {
-    App::default()
+    App::from_root(|storage| Component::<Counter>::default_for(storage))
         .with(ComponentTransmogrifier::<Counter>::default())
-        .run(|storage| Component::<Counter>::default_for(storage))
+        .run()
 }
 
 #[derive(Default, Debug)]

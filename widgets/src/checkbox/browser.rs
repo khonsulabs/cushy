@@ -3,7 +3,7 @@ use gooey_browser::{
     WebSys, WebSysTransmogrifier, WidgetClosure,
 };
 use gooey_core::{
-    styles::{style_sheet::State, ForegroundColor, Style, SystemTheme},
+    styles::{style_sheet::State, ForegroundColor, SystemTheme},
     Frontend, TransmogrifierContext, WidgetRef,
 };
 use wasm_bindgen::JsCast;

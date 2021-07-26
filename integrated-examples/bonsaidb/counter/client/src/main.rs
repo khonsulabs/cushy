@@ -22,14 +22,14 @@ fn main() {
     // Spawn an async task that processes commands sent by `command_sender`.
     App::spawn(process_database_commands(command_receiver));
 
-    App::default()
-        // Register our custom component's transmogrifier.
-        .with(ComponentTransmogrifier::<Counter>::default())
-        // Run the app using the widget returned by the initializer.
-        .run(|storage|
-            // The root widget is a `Component` with our component behavior
-            // `Counter`.
-            Component::new(Counter::new(command_sender), storage))
+    App::from_root(|storage|
+        // The root widget is a `Component` with our component behavior
+        // `Counter`.
+        Component::new(Counter::new(command_sender), storage))
+    // Register our custom component's transmogrifier.
+    .with(ComponentTransmogrifier::<Counter>::default())
+    // Run the app using the widget returned by the initializer.
+    .run()
 }
 
 /// The state of the `Counter` component.

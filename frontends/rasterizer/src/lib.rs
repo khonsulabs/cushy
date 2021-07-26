@@ -1,5 +1,5 @@
 //! A [`Frontend`](gooey_core::Frontend) for `Gooey` that rasterizes widgets
-//! using a [`Renderer`](gooey_core::renderer::Renderer).
+//! using a [`Renderer`](gooey_renderer::Renderer).
 
 #![forbid(unsafe_code)]
 #![warn(

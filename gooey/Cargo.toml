@@ -18,16 +18,24 @@ frontend-kludgine = [
     "gooey-rasterizer",
     "gooey-widgets/frontend-rasterizer",
     "platforms",
+    "image",
+    "png",
+    "tempfile",
 ]
 async = ["tokio", "wasm-bindgen-futures"]
 
 [dependencies]
 gooey-rasterizer = { path="../frontends/rasterizer", version="0.1.0-dev.0", optional=true }
 gooey-browser = { path="../frontends/browser", version="0.1.0-dev.0", optional=true }
+gooey-renderer = { path="../renderer", version="0.1.0-dev.0" }
 gooey-core = { path="../core", version="0.1.0-dev.0" }
 gooey-widgets = { path="../widgets", version="0.1.0-dev.0" }
 cfg-if = "1"
 platforms = { version="1", optional=true }
+image = { version="0.23", optional=true }
+png = { git="https://github.com/image-rs/image-png.git", optional=true }
+thiserror = "1"
+tempfile = { version="3", optional=true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = { version="0.4", optional=true }
@@ -38,6 +46,9 @@ flume = "0.10"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version="1", features=["full"], optional=true }
 gooey-kludgine = { path="../frontends/renderers/kludgine", version="0.1.0-dev.0", optional=true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+tokio = { version="1", features=["full"] }
 
 [dev-dependencies]
 wasm-bindgen = "0.2"

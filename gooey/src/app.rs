@@ -1,12 +1,30 @@
 use gooey_core::{Frontend, StyledWidget, Transmogrifiers, Widget, WidgetStorage};
 
 /// A cross-platform application.
-#[derive(Default, Debug)]
 pub struct App {
+    initializer: Box<dyn FnOnce(Transmogrifiers<crate::ActiveFrontend>) -> crate::ActiveFrontend>,
     transmogrifiers: Transmogrifiers<crate::ActiveFrontend>,
 }
 
 impl App {
+    /// Returns a new application using `initializer` to create a root widget and any custom `transmogrifiers`.
+    pub fn new<W: Widget, I: FnOnce(&WidgetStorage) -> StyledWidget<W> + 'static>(
+        initializer: I,
+        transmogrifiers: Transmogrifiers<crate::ActiveFrontend>,
+    ) -> Self {
+        Self {
+            initializer: Box::new(move |transmogrifiers| crate::app(transmogrifiers, initializer)),
+            transmogrifiers,
+        }
+    }
+
+    /// Returns a new application using `initializer` to create a root widget with no transmogrifiers.
+    pub fn from_root<W: Widget, I: FnOnce(&WidgetStorage) -> StyledWidget<W> + 'static>(
+        initializer: I,
+    ) -> Self {
+        Self::new(initializer, Transmogrifiers::default())
+    }
+
     /// Registers a [`Transmogrifier`](gooey_core::Transmogrifier). This will
     /// allow `T::Widget` to be used in this application.
     pub fn with<T: Into<<crate::ActiveFrontend as Frontend>::AnyTransmogrifier>>(
@@ -17,6 +35,22 @@ impl App {
             .register_transmogrifier(transmogrifier)
             .expect("a transmogrifier is already registered for this widget");
         self
+    }
+
+    /// Runs this application using the root widget provided by `initializer`.
+    pub fn run(self) {
+        let initializer = self.initializer;
+        let frontend = initializer(self.transmogrifiers);
+        crate::run(frontend);
+    }
+
+    /// Returns a headless renderer for this app. Only supported with feature
+    /// `frontend-kludgine` currently.
+    #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
+    pub fn headless(self) -> crate::Headless<crate::ActiveFrontend> {
+        let initializer = self.initializer;
+        let frontend = initializer(self.transmogrifiers);
+        crate::Headless::new(frontend)
     }
 
     /// Spawns an asynchronous task using the runtime that the `App` uses.
@@ -57,13 +91,5 @@ impl App {
                 compile_error!("unsupported async configuration")
             }
         }
-    }
-
-    /// Runs this application using the root widget provided by `initializer`.
-    pub fn run<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
-        self,
-        initializer: C,
-    ) {
-        crate::main_with(self.transmogrifiers, initializer);
     }
 }

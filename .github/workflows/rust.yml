@@ -47,6 +47,7 @@ jobs:
       - name: Run unit tests
         run: |
           cargo test --all-features
+          cargo test --examples --all-features
 
   docs:
     runs-on: ubuntu-latest
@@ -64,6 +65,11 @@ jobs:
       - name: Generate Docs
         run: |
           cargo doc --no-deps --all-features
+            
+      - name: Generate Example Snapshots
+        run: |
+          cargo test --examples --all-features
+          mv target/snapshots target/doc/
 
       - name: Deploy Docs
         uses: JamesIves/github-pages-deploy-action@releases/v4

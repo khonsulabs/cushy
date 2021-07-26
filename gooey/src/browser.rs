@@ -10,17 +10,10 @@ use crate::{
 /// widgets from [`gooey::widget`](crate::widgets) will use the built-in
 /// transmogrifiers.
 pub fn browser_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
-    mut transmogrifiers: Transmogrifiers<WebSys>,
+    transmogrifiers: Transmogrifiers<WebSys>,
     initializer: C,
 ) {
-    register_transmogrifiers(&mut transmogrifiers);
-    let mut ui = WebSys::new(Gooey::with(
-        transmogrifiers,
-        default_stylesheet(),
-        initializer,
-    ));
-    ui.gooey().process_widget_messages(&ui);
-    ui.install_in_id("gooey");
+    browser_run(browser_app(transmogrifiers, initializer));
 }
 
 /// Runs a browser-based [`App`](crate::app::App) with the root widget from
@@ -31,4 +24,24 @@ pub fn browser_main<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> Styled
     initializer: C,
 ) {
     browser_main_with(default_transmogrifiers(), initializer);
+}
+
+/// Returns an initialized frontend using the root widget returned from `initializer`.
+pub fn browser_app<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
+    mut transmogrifiers: Transmogrifiers<WebSys>,
+    initializer: C,
+) -> WebSys {
+    register_transmogrifiers(&mut transmogrifiers);
+    let ui = WebSys::new(Gooey::with(
+        transmogrifiers,
+        default_stylesheet(),
+        initializer,
+    ));
+    ui.gooey().process_widget_messages(&ui);
+    ui
+}
+
+/// Runs an initialized frontend.
+pub fn browser_run(mut ui: WebSys) {
+    ui.install_in_id("gooey");
 }

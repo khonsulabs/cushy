@@ -7,7 +7,7 @@ use gooey_core::{
 };
 use gooey_renderer::{Renderer, TextMetrics};
 
-/// A [`Text`] that has been measured and is ready to render.
+/// A [`Text`](crate::Text) that has been measured and is ready to render.
 #[derive(Default, Debug, Clone)]
 pub struct PreparedText {
     /// The prepared lines of text.
@@ -139,7 +139,7 @@ impl PreparedLine {
     }
 }
 
-/// A prepared [`Span`].
+/// A prepared [`Span`](crate::Span).
 #[derive(Clone, Debug)]
 #[must_use]
 pub struct PreparedSpan {
