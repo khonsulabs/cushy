@@ -123,9 +123,9 @@ mod tests {
                 .await?;
             recorder.pause(Duration::from_millis(1000));
 
-            recorder.save_mp4(harness::snapshot_path(
+            recorder.save_apng(harness::snapshot_path(
                 "basic",
-                &format!("Demo-{:?}.mp4", theme),
+                &format!("Demo-{:?}.png", theme),
             )?)?;
         }
         Ok(())

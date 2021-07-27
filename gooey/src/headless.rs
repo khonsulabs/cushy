@@ -93,16 +93,16 @@ impl Headless<Rasterizer<Kludgine>> {
             let right_edge_lower =
                 Rotation2D::new(Angle::degrees(-45.)).transform_point(left_edge_lower);
             let left_inner =
-                Rotation2D::new(Angle::degrees(-15.))
+                Rotation2D::new(Angle::degrees(-17.5))
                     .transform_point(Point2D::<f32, Points>::new(0., INNER_LENGTH));
             let right_inner =
-                Rotation2D::new(Angle::degrees(-30.))
+                Rotation2D::new(Angle::degrees(-27.5))
                     .transform_point(Point2D::<f32, Points>::new(0., INNER_LENGTH));
             let left_tail =
-                Rotation2D::new(Angle::degrees(-15.))
+                Rotation2D::new(Angle::degrees(-17.5))
                     .transform_point(Point2D::<f32, Points>::new(0., TAIL_LENGTH));
             let right_tail =
-                Rotation2D::new(Angle::degrees(-30.))
+                Rotation2D::new(Angle::degrees(-27.5))
                     .transform_point(Point2D::<f32, Points>::new(0., TAIL_LENGTH));
             Shape::polygon(vec![
                 Point2D::default(),
@@ -345,7 +345,7 @@ impl<'a> Recorder<'a> {
     /// # Panics
     ///
     /// Panics if ffmpeg errors and the output cannot be interpreted as utf8.
-    pub fn save_mp4<P: AsRef<Path>>(&self, path: P) -> Result<(), HeadlessError> {
+    pub fn save_webm<P: AsRef<Path>>(&self, path: P) -> Result<(), HeadlessError> {
         let (temp_file, temp_path) = NamedTempFile::new()?.into_parts();
         let mut encoder = png::Encoder::new(temp_file, self.size.width, self.size.height);
         encoder.set_color(png::ColorType::Rgb);
@@ -365,7 +365,11 @@ impl<'a> Recorder<'a> {
             .arg("-y")
             // x264
             .arg("-c:v")
-            .arg("libx264")
+            .arg("libvpx-vp9")
+            .arg("-crf")
+            .arg("37")
+            .arg("-b:v")
+            .arg("0")
             // output
             .arg(path.as_ref().as_os_str())
             .output()?;

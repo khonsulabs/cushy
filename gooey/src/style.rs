@@ -9,6 +9,7 @@ use gooey_core::{
 use gooey_widgets::{
     button::{Button, ButtonColor},
     checkbox::Checkbox,
+    label::Label,
 };
 
 /// The default [`StyleSheet`] for `Gooey`.
@@ -141,4 +142,10 @@ pub fn default_stylesheet() -> StyleSheet {
                         }))
                 }),
         )
+        .with(Rule::for_widget::<Label>().with_styles(|style| {
+            style.with(ForegroundColor(ColorPair {
+                light_color: gray10,
+                dark_color: gray90,
+            }))
+        }))
 }
