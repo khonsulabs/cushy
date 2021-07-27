@@ -24,6 +24,18 @@ frontend-kludgine = [
 ]
 async = ["tokio", "wasm-bindgen-futures"]
 
+[[example]]
+name = "basic"
+test = true
+
+[[example]]
+name = "checkbox"
+test = true
+
+[[example]]
+name = "layout"
+test = true
+
 [dependencies]
 gooey-rasterizer = { path="../frontends/rasterizer", version="0.1.0-dev.0", optional=true }
 gooey-browser = { path="../frontends/browser", version="0.1.0-dev.0", optional=true }
