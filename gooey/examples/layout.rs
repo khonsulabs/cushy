@@ -1,38 +1,31 @@
 use gooey::{
-    core::Context,
+    core::{
+        euclid::Length,
+        styles::{Alignment, VerticalAlignment},
+        Context, StyledWidget,
+    },
     widgets::{
         button::Button,
-        component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
+        component::{Behavior, Component, ComponentBuilder},
         label::Label,
-        layout::{Dimension, Layout},
+        layout::{Dimension, Layout, WidgetLayout},
     },
+    App,
 };
 use gooey_core::{
-    euclid::Length,
-    styles::{Alignment, VerticalAlignment},
-    StyledWidget, Transmogrifiers, WidgetStorage,
+    styles::{BackgroundColor, Color},
+    DefaultWidget,
 };
-use gooey_widgets::layout::WidgetLayout;
-use harness::UserInterface;
 
+#[cfg(test)]
 mod harness;
 
-impl UserInterface for Counter {
-    type Root = Component<Self>;
-
-    fn root_widget(storage: &WidgetStorage) -> StyledWidget<Self::Root> {
-        Component::<Counter>::default_for(storage)
-    }
-
-    fn transmogrifiers(transmogrifiers: &mut Transmogrifiers<gooey::ActiveFrontend>) {
-        transmogrifiers
-            .register_transmogrifier(ComponentTransmogrifier::<Counter>::default())
-            .unwrap();
-    }
+fn app() -> App {
+    App::from_root(|storage| Component::<Counter>::default_for(storage)).with_component::<Counter>()
 }
 
 fn main() {
-    Counter::run();
+    app().run();
 }
 
 #[derive(Default, Debug)]
@@ -53,25 +46,28 @@ impl Behavior for Counter {
                     "Click Me!",
                     builder.map_event(|_| CounterEvent::ButtonClicked),
                 ),
-                WidgetLayout::default()
-                    .with_left(Dimension::Exact(Length::new(0.)))
-                    .with_top(Dimension::Percent(0.4))
-                    .with_height(Dimension::Percent(0.2))
-                    .with_width(Dimension::Percent(0.5)),
+                WidgetLayout::build()
+                    .left(Dimension::Exact(Length::new(0.)))
+                    .top(Dimension::Percent(0.4))
+                    .height(Dimension::Percent(0.2))
+                    .width(Dimension::Percent(0.5))
+                    .finish(),
             )
             .with_registration(
-                Some(CounterWidgets::Label),
+                CounterWidgets::Label,
                 builder.register(
                     CounterWidgets::Label,
                     Label::new("0")
                         .with(Alignment::Center)
-                        .with(VerticalAlignment::Center),
+                        .with(VerticalAlignment::Center)
+                        .with(BackgroundColor(Color::new(1., 0., 0., 0.7).into())),
                 ),
-                WidgetLayout::default()
-                    .with_right(Dimension::Exact(Length::new(0.)))
-                    .with_top(Dimension::Percent(0.4))
-                    .with_height(Dimension::Percent(0.2))
-                    .with_width(Dimension::Percent(0.5)),
+                WidgetLayout::build()
+                    .right(Dimension::Exact(Length::new(0.)))
+                    .top(Dimension::Percent(0.4))
+                    .height(Dimension::Percent(0.2))
+                    .width(Dimension::Percent(0.5))
+                    .finish(),
             )
             .finish()
     }
@@ -82,13 +78,13 @@ impl Behavior for Counter {
         context: &Context<Component<Self>>,
     ) {
         let CounterEvent::ButtonClicked = event;
-        component.behavior.count += 1;
+        component.count += 1;
 
         component.map_widget_mut(
             &CounterWidgets::Label,
             context,
             |label: &mut Label, context| {
-                label.set_label(component.behavior.count.to_string(), context);
+                label.set_label(component.count.to_string(), context);
             },
         );
     }
@@ -120,7 +116,7 @@ mod tests {
     #[tokio::test]
     async fn demo() -> Result<(), HeadlessError> {
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
-            let mut headless = Counter::headless();
+            let mut headless = app().headless();
             let mut recorder = headless.begin_recording(Size2D::new(320, 240), theme, true, 30);
             recorder.set_cursor(Point2D::new(100., 200.));
             recorder.render_frame(Duration::from_millis(100)).await?;
@@ -134,7 +130,7 @@ mod tests {
                     i,
                     recorder
                         .map_root_widget(|component: &mut Component<Counter>, _context| {
-                            component.behavior.count
+                            component.count
                         })
                         .unwrap()
                 );

@@ -34,7 +34,6 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
 
 /// An interface for Frontend that doesn't requier knowledge of associated
 /// types.
-#[allow(clippy::module_name_repetitions)]
 pub trait AnyFrontend: AnySendSync {
     /// Clones the frontend, returning the clone in a box.
     #[must_use]

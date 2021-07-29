@@ -19,7 +19,7 @@ pub struct Button {
 
 impl Button {
     pub fn new<S: ToString>(label: S, clicked: Callback) -> StyledWidget<Self> {
-        StyledWidget::default_for(Self {
+        StyledWidget::from(Self {
             label: label.to_string(),
             clicked,
         })

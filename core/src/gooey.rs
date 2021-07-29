@@ -65,7 +65,6 @@ impl<F: Frontend> Gooey<F> {
     }
 
     /// Returns the root widget.
-    #[must_use]
     pub fn root_widget(&self) -> &WidgetRegistration {
         &self.data.root
     }
@@ -96,9 +95,7 @@ impl<F: Frontend> Gooey<F> {
             .map
             .get(&widget_id.type_id)
             .and_then(|transmogrifier| {
-                let widget_state = self
-                    .widget_state(widget_id.id)
-                    .expect("Missing widget state for root");
+                let widget_state = self.widget_state(widget_id.id)?;
                 widget_state.with_state(transmogrifier, frontend, |state, widget| {
                     let style = widget_state.style.lock().unwrap();
                     let channels = widget_state.channels.as_ref();
@@ -306,19 +303,41 @@ pub struct WidgetStorage {
 #[derive(Default, Debug)]
 struct WidgetStorageData {
     widget_id_generator: AtomicU32,
-    state: RwLock<HashMap<u32, WidgetState>>,
+    state: RwLock<HashMap<u32, Option<WidgetState>>>,
     widgets_with_messages: Mutex<HashSet<WidgetId>>,
 }
 
 impl WidgetStorage {
     /// Register a widget with storage.
-    #[must_use]
     #[allow(clippy::missing_panics_doc)] // The unwrap is unreachable
     pub fn register<W: Widget + AnyWidget>(
         &self,
         styled_widget: StyledWidget<W>,
     ) -> WidgetRegistration {
-        let mut styled_widget = Some(styled_widget);
+        let StyledWidget {
+            widget,
+            style,
+            registration,
+        } = styled_widget;
+        let registration = registration.unwrap_or_else(|| self.allocate::<W>());
+        let mut state = self.data.state.write().unwrap();
+        let state = state.entry(registration.id().id).or_default();
+        assert!(state.is_none(), "widget id in use");
+
+        *state = Some(WidgetState::new(widget, style, &registration));
+        registration
+    }
+
+    /// Allocates a widget registration. This allows obtaining a registration
+    /// before the widget has been created, allowing for a parent widget to pass
+    /// its id to its children during widget construction. Attempting to
+    /// interact with this widget before calling `register` with the created
+    /// widget will panic.
+    ///
+    /// # Panics
+    ///
+    /// Panics on internal locking failures.
+    pub fn allocate<W: Widget + AnyWidget>(&self) -> WidgetRegistration {
         loop {
             let next_id = self.data.widget_id_generator.fetch_add(1, Ordering::AcqRel);
             // Insert None if the slot is free, which is most likely the case.
@@ -328,9 +347,8 @@ impl WidgetStorage {
             let mut state = self.data.state.write().unwrap();
             state.entry(next_id).or_insert_with(|| {
                 let reg = WidgetRegistration::new::<W>(next_id, self);
-                let state = WidgetState::new(styled_widget.take().unwrap(), &reg);
                 widget_registration = Some(reg);
-                state
+                None
             });
             if let Some(widget_registration) = widget_registration {
                 return widget_registration;
@@ -357,7 +375,7 @@ impl WidgetStorage {
     #[must_use]
     pub fn widget_state(&self, widget_id: u32) -> Option<WidgetState> {
         let state = self.data.state.read().unwrap();
-        state.get(&widget_id).cloned()
+        state.get(&widget_id).cloned().flatten()
     }
 
     /// Executes `callback` with the widget state parameters.
@@ -371,7 +389,7 @@ impl WidgetStorage {
             state.values().cloned().collect::<Vec<_>>()
         };
 
-        for widget in widgets {
+        for widget in widgets.into_iter().flatten() {
             callback(widget);
         }
     }
@@ -396,23 +414,44 @@ pub struct StyledWidget<W: Widget> {
     pub widget: W,
     /// The style information.
     pub style: Style,
+    /// The pre-allocated registration, if any. See [`WidgetStorage::allocate()`] for more information.
+    pub registration: Option<WidgetRegistration>,
+}
+
+impl<W: Widget + Default> Default for StyledWidget<W> {
+    fn default() -> Self {
+        Self {
+            widget: W::default(),
+            style: Style::default(),
+            registration: None,
+        }
+    }
 }
 
 impl<W: Widget + From<WidgetRegistration>> From<WidgetRegistration> for StyledWidget<W> {
     fn from(widget: WidgetRegistration) -> Self {
-        Self::default_for(W::from(widget))
+        Self::from(W::from(widget))
+    }
+}
+
+impl<W: Widget> From<W> for StyledWidget<W> {
+    fn from(widget: W) -> Self {
+        Self {
+            widget,
+            style: Style::default(),
+            registration: None,
+        }
     }
 }
 
 impl<W: Widget> StyledWidget<W> {
     /// Returns a new instance.
-    pub fn new(widget: W, style: Style) -> Self {
-        Self { widget, style }
-    }
-
-    /// Returns a new instance with a default [`Style`].
-    pub fn default_for(widget: W) -> Self {
-        Self::new(widget, Style::default())
+    pub fn new(widget: W, style: Style, registration: Option<WidgetRegistration>) -> Self {
+        Self {
+            widget,
+            style,
+            registration,
+        }
     }
 
     /// Adds `component` to `style` and returns self.
@@ -442,14 +481,11 @@ pub struct WidgetState {
 impl WidgetState {
     /// Initializes a new widget state with `widget`, `id`, and `None` for the
     /// transmogrifier state.
-    pub fn new<W: Widget + AnyWidget>(
-        styled_widget: StyledWidget<W>,
-        id: &WidgetRegistration,
-    ) -> Self {
+    pub fn new<W: Widget + AnyWidget>(widget: W, style: Style, id: &WidgetRegistration) -> Self {
         Self {
             id: WeakWidgetRegistration::from(id),
-            widget: Arc::new(Mutex::new(Box::new(styled_widget.widget))),
-            style: Arc::new(Mutex::new(styled_widget.style)),
+            widget: Arc::new(Mutex::new(Box::new(widget))),
+            style: Arc::new(Mutex::new(style)),
             state: Arc::default(),
             channels: Arc::new(Channels::<W>::new(id)),
         }
@@ -546,6 +582,7 @@ impl WidgetState {
 
 /// References an initialized widget. On drop, frees the storage and id.
 #[derive(Clone, Debug)]
+#[must_use]
 pub struct WidgetRegistration {
     data: Arc<WidgetRegistrationData>,
 }
@@ -658,13 +695,26 @@ impl<W: Widget> WidgetRef<W> {
         frontend: Box<dyn AnyFrontend>,
     ) -> Option<Self> {
         if registration.id().type_id == TypeId::of::<W>() {
-            Some(Self {
-                registration: WeakWidgetRegistration::from(registration),
+            Some(Self::from_weak_registration(
+                WeakWidgetRegistration::from(registration),
                 frontend,
-                _phantom: PhantomData::default(),
-            })
+            ))
         } else {
             None
+        }
+    }
+
+    /// Creates a new reference from a [`WidgetRegistration`]. Returns None if
+    /// the `W` type doesn't match the type of the widget.
+    #[must_use]
+    pub fn from_weak_registration(
+        registration: WeakWidgetRegistration,
+        frontend: Box<dyn AnyFrontend>,
+    ) -> Self {
+        Self {
+            registration,
+            frontend,
+            _phantom: PhantomData::default(),
         }
     }
 

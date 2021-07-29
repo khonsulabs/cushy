@@ -2,31 +2,22 @@ use gooey::{
     core::{Context, StyledWidget},
     widgets::{
         button::Button,
-        component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
+        component::{Behavior, Component, ComponentBuilder},
         container::Container,
     },
+    App,
 };
-use gooey_core::{Transmogrifiers, WidgetStorage};
-use harness::UserInterface;
+use gooey_core::DefaultWidget;
 
+#[cfg(test)]
 mod harness;
 
-impl UserInterface for Counter {
-    type Root = Component<Self>;
-
-    fn root_widget(storage: &WidgetStorage) -> StyledWidget<Self::Root> {
-        Component::<Counter>::default_for(storage)
-    }
-
-    fn transmogrifiers(transmogrifiers: &mut Transmogrifiers<gooey::ActiveFrontend>) {
-        transmogrifiers
-            .register_transmogrifier(ComponentTransmogrifier::<Counter>::default())
-            .unwrap();
-    }
+fn app() -> App {
+    App::from_root(|storage| Component::<Counter>::default_for(storage)).with_component::<Counter>()
 }
 
 fn main() {
-    Counter::run();
+    app().run();
 }
 
 #[derive(Default, Debug)]
@@ -55,13 +46,13 @@ impl Behavior for Counter {
         context: &Context<Component<Self>>,
     ) {
         let CounterEvent::ButtonClicked = event;
-        component.behavior.count += 1;
+        component.count += 1;
 
         component.map_widget_mut(
             &CounterWidgets::Button,
             context,
             |button: &mut Button, context| {
-                button.set_label(component.behavior.count.to_string(), context);
+                button.set_label(component.count.to_string(), context);
             },
         );
     }
@@ -93,7 +84,7 @@ mod tests {
     #[tokio::test]
     async fn demo() -> Result<(), HeadlessError> {
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
-            let mut headless = Counter::headless();
+            let mut headless = app().headless();
             let mut recorder = headless.begin_recording(Size2D::new(320, 240), theme, true, 30);
             recorder.set_cursor(Point2D::new(100., 200.));
             recorder.render_frame(Duration::from_millis(100)).await?;

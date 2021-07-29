@@ -18,12 +18,15 @@
 )]
 #![cfg_attr(doc, warn(rustdoc::all))]
 
+pub use url;
+
 pub mod button;
 pub mod checkbox;
 pub mod component;
 pub mod container;
 pub mod label;
 pub mod layout;
+pub mod navigator;
 
 #[cfg(feature = "frontend-rasterizer")]
 pub mod rasterized {

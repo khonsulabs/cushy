@@ -16,7 +16,7 @@ pub struct Label {
 
 impl Label {
     pub fn new<S: ToString>(label: S) -> StyledWidget<Self> {
-        StyledWidget::default_for(Self {
+        StyledWidget::from(Self {
             label: label.to_string(),
         })
     }

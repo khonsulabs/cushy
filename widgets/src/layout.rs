@@ -114,7 +114,9 @@ impl<K: LayoutKey> ChildrenMap<K> {
 
     fn insert(&mut self, key: Option<K>, child: LayoutChild) {
         if let Some(key) = key {
-            self.keys_to_id.insert(key, child.registration.id().id);
+            if let Some(removed_widget) = self.keys_to_id.insert(key, child.registration.id().id) {
+                self.children.remove(&removed_widget);
+            }
         }
         self.children.insert(child.registration.id().id, child);
     }
@@ -137,21 +139,21 @@ impl<K: LayoutKey> Builder<K> {
 
     pub fn with<W: Widget>(
         self,
-        key: Option<K>,
+        key: impl Into<Option<K>>,
         widget: StyledWidget<W>,
         layout: WidgetLayout,
     ) -> Self {
         let widget = self.storage.register(widget);
-        self.with_registration(key, widget, layout)
+        self.with_registration(key.into(), widget, layout)
     }
 
     pub fn with_registration(
         mut self,
-        key: Option<K>,
+        key: impl Into<Option<K>>,
         registration: WidgetRegistration,
         layout: WidgetLayout,
     ) -> Self {
-        self.children.insert(key, LayoutChild {
+        self.children.insert(key.into(), LayoutChild {
             registration,
             layout,
         });
@@ -159,7 +161,7 @@ impl<K: LayoutKey> Builder<K> {
     }
 
     pub fn finish(self) -> StyledWidget<Layout> {
-        StyledWidget::default_for(Layout {
+        StyledWidget::from(Layout {
             children: Box::new(self.children),
         })
     }
@@ -170,6 +172,7 @@ pub trait LayoutKey: Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
 impl<T> LayoutKey for T where T: Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
 
 #[derive(Clone, Debug, Default)]
+#[must_use]
 pub struct WidgetLayout {
     pub left: Dimension,
     pub top: Dimension,
@@ -179,35 +182,25 @@ pub struct WidgetLayout {
     pub height: Dimension,
 }
 
+#[derive(Clone, Debug, Default)]
+#[must_use]
+pub struct WidgetLayoutBuilder {
+    layout: WidgetLayout,
+}
+
 impl WidgetLayout {
-    pub fn with_left<D: Into<Dimension>>(mut self, left: D) -> Self {
-        self.left = left.into();
-        self
+    pub fn build() -> WidgetLayoutBuilder {
+        WidgetLayoutBuilder::default()
     }
 
-    pub fn with_right<D: Into<Dimension>>(mut self, right: D) -> Self {
-        self.right = right.into();
-        self
-    }
-
-    pub fn with_top<D: Into<Dimension>>(mut self, top: D) -> Self {
-        self.top = top.into();
-        self
-    }
-
-    pub fn with_bottom<D: Into<Dimension>>(mut self, bottom: D) -> Self {
-        self.bottom = bottom.into();
-        self
-    }
-
-    pub fn with_width<D: Into<Dimension>>(mut self, width: D) -> Self {
-        self.width = width.into();
-        self
-    }
-
-    pub fn with_height<D: Into<Dimension>>(mut self, height: D) -> Self {
-        self.height = height.into();
-        self
+    pub fn fill() -> Self {
+        Self {
+            left: Dimension::zero(),
+            top: Dimension::zero(),
+            right: Dimension::zero(),
+            bottom: Dimension::zero(),
+            ..Self::default()
+        }
     }
 
     #[must_use]
@@ -240,14 +233,14 @@ impl WidgetLayout {
     pub fn width_in_points(&self, content_size: Size2D<f32, Points>) -> Length<f32, Points> {
         self.width
             .length(Length::new(content_size.width))
-            .unwrap_or_default()
+            .unwrap_or_else(|| Length::new(content_size.width))
     }
 
     #[must_use]
     pub fn height_in_points(&self, content_size: Size2D<f32, Points>) -> Length<f32, Points> {
         self.height
             .length(Length::new(content_size.height))
-            .unwrap_or_default()
+            .unwrap_or_else(|| Length::new(content_size.height))
     }
 
     #[must_use]
@@ -266,6 +259,70 @@ impl WidgetLayout {
             self.width_in_points(content_size),
             self.height_in_points(content_size),
         )
+    }
+}
+
+impl WidgetLayoutBuilder {
+    pub fn left<D: Into<Dimension>>(mut self, left: D) -> Self {
+        self.layout.left = left.into();
+        self
+    }
+
+    pub fn right<D: Into<Dimension>>(mut self, right: D) -> Self {
+        self.layout.right = right.into();
+        self
+    }
+
+    pub fn top<D: Into<Dimension>>(mut self, top: D) -> Self {
+        self.layout.top = top.into();
+        self
+    }
+
+    pub fn bottom<D: Into<Dimension>>(mut self, bottom: D) -> Self {
+        self.layout.bottom = bottom.into();
+        self
+    }
+
+    pub fn width<D: Into<Dimension>>(mut self, width: D) -> Self {
+        self.layout.width = width.into();
+        self
+    }
+
+    pub fn height<D: Into<Dimension>>(mut self, height: D) -> Self {
+        self.layout.height = height.into();
+        self
+    }
+
+    pub const fn fill_width(mut self) -> Self {
+        self.layout.left = Dimension::zero();
+        self.layout.right = Dimension::zero();
+        self.layout.width = Dimension::percent(1.);
+        self
+    }
+
+    pub fn horizontal_margins<D: Into<Dimension>>(mut self, margin: D) -> Self {
+        let margin = margin.into();
+        self.layout.left = margin;
+        self.layout.right = margin;
+        self
+    }
+
+    pub fn vertical_margins<D: Into<Dimension>>(mut self, margin: D) -> Self {
+        let margin = margin.into();
+        self.layout.top = margin;
+        self.layout.bottom = margin;
+        self
+    }
+
+    pub const fn fill_height(mut self) -> Self {
+        self.layout.top = Dimension::zero();
+        self.layout.bottom = Dimension::zero();
+        self.layout.height = Dimension::percent(1.);
+        self
+    }
+
+    pub const fn finish(self) -> WidgetLayout {
+        self.layout
     }
 }
 
@@ -312,11 +369,32 @@ impl Default for Dimension {
 
 impl Dimension {
     #[must_use]
+    pub const fn zero() -> Self {
+        Self::Exact(Length::new(0.))
+    }
+
+    #[must_use]
+    pub const fn exact(length: f32) -> Self {
+        Self::Exact(Length::new(length))
+    }
+
+    #[must_use]
+    pub const fn percent(percent: f32) -> Self {
+        Self::Percent(percent)
+    }
+
+    #[must_use]
     pub fn length(self, content_length: Length<f32, Points>) -> Option<Length<f32, Points>> {
         match self {
             Dimension::Auto => None,
             Dimension::Exact(measurement) => Some(measurement),
             Dimension::Percent(percent) => Some(content_length * percent),
         }
+    }
+}
+
+impl From<Length<f32, Points>> for Dimension {
+    fn from(length: Length<f32, Points>) -> Self {
+        Self::Exact(length)
     }
 }

@@ -53,6 +53,14 @@ pub fn default_stylesheet() -> StyleSheet {
                 dark_color: black,
             }))
         }))
+        .with(
+            Rule::for_classes("gooey-navigator-bar").with_styles(|style| {
+                style.with(BackgroundColor(ColorPair {
+                    light_color: gray90,
+                    dark_color: gray10,
+                }))
+            }),
+        )
         .with(Rule::for_classes(SOLID_WIDGET_CLASS).with_styles(|style| {
             style
                 .with(ForegroundColor(ColorPair {

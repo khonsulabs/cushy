@@ -10,7 +10,8 @@ use stylecs::Style;
 
 use crate::{
     styles::{style_sheet::Classes, BackgroundColor, ColorPair, TextColor},
-    AnyFrontend, Frontend, WeakWidgetRegistration, WidgetRef, WidgetRegistration, WidgetStorage,
+    AnyFrontend, Frontend, StyledWidget, WeakWidgetRegistration, WidgetRef, WidgetRegistration,
+    WidgetStorage,
 };
 
 mod transmogrifier_context;
@@ -61,11 +62,46 @@ pub trait Widget: Debug + Send + Sync + Sized + 'static {
     fn background_color(style: &Style) -> Option<&ColorPair> {
         style.get_with_fallback::<BackgroundColor>()
     }
+
+    /// Invokes `with_fn` with the widget `widget_id` and a `Context`. Returns the
+    /// result.
+    ///
+    /// Returns None if `OW` does not match the type of the widget contained.
+    fn map<OW: Widget, F: FnOnce(&OW, &Context<OW>) -> R, R>(
+        widget_id: &WidgetId,
+        context: &Context<Self>,
+        with_fn: F,
+    ) -> Option<R> {
+        context.map_widget(widget_id, with_fn)
+    }
+
+    /// Invokes `with_fn` with the widget `widget_id` and a `Context`. Returns the
+    /// result.
+    ///
+    /// Returns None if `OW` does not match the type of the widget contained.
+    fn map_mut<OW: Widget, F: FnOnce(&mut OW, &Context<OW>) -> R, R>(
+        widget_id: &WidgetId,
+        context: &Context<Self>,
+        with_fn: F,
+    ) -> Option<R> {
+        context.map_widget_mut(widget_id, with_fn)
+    }
+}
+
+/// A widget that can be created with defaults.
+pub trait DefaultWidget: Widget {
+    /// Returns a default widget.
+    fn default_for(storage: &WidgetStorage) -> StyledWidget<Self>;
+}
+
+impl<T: Widget + Default> DefaultWidget for T {
+    fn default_for(_storage: &WidgetStorage) -> StyledWidget<Self> {
+        StyledWidget::default()
+    }
 }
 
 /// A unique ID of a widget, with information about the widget type.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-#[allow(clippy::module_name_repetitions)]
 pub struct WidgetId {
     /// The unique id of the widget.
     pub id: u32,
@@ -99,7 +135,8 @@ pub trait Transmogrifier<F: Frontend>: Debug + Sized {
         context: &mut TransmogrifierContext<'_, Self, F>,
     ) {
         unimplemented!(
-            "widget tried to send a command, but the transmogrifier wasn't expecting one"
+            "{} tried to send a command, but the transmogrifier wasn't expecting one",
+            type_name::<Self>()
         )
     }
 
@@ -150,7 +187,6 @@ pub trait Transmogrifier<F: Frontend>: Debug + Sized {
 }
 
 /// A Widget without any associated types. Useful for implementing frontends.
-#[allow(clippy::module_name_repetitions)]
 pub trait AnyWidget: AnySendSync + 'static {
     /// Returns the [`TypeId`] of the widget.
     #[must_use]
@@ -262,11 +298,37 @@ impl<W: Widget> Context<W> {
         }
     }
 
+    /// Returns the registration of the widget that this context is for.
+    #[must_use]
+    pub fn widget(&self) -> WidgetRef<W> {
+        WidgetRef::from_weak_registration(self.widget.clone(), self.frontend.cloned())
+    }
+
+    /// Returns the registration of the widget that this context is for.
+    #[must_use]
+    pub fn registration(&self) -> &'_ WeakWidgetRegistration {
+        &self.widget
+    }
+
+    /// Maps the widget of this context.
+    pub fn map<F: FnOnce(&W, &Self) -> R, R>(&self, map: F) -> Option<R> {
+        self.registration()
+            .upgrade()
+            .and_then(|registration| self.map_widget(registration.id(), map))
+    }
+
+    /// Maps the widget of this context with mutability.
+    pub fn map_mut<F: FnOnce(&mut W, &Self) -> R, R>(&self, map: F) -> Option<R> {
+        self.registration()
+            .upgrade()
+            .and_then(|registration| self.map_widget_mut(registration.id(), map))
+    }
+
     /// Invokes `with_fn` with the widget `widget_id` and a `Context`. Returns the
     /// result.
     ///
     /// Returns None if `OW` does not match the type of the widget contained.
-    pub fn with_widget<OW: Widget, F: FnOnce(&OW, &Context<OW>) -> R, R>(
+    pub fn map_widget<OW: Widget, F: FnOnce(&OW, &Context<OW>) -> R, R>(
         &self,
         widget: &WidgetId,
         with_fn: F,
@@ -279,7 +341,7 @@ impl<W: Widget> Context<W> {
     /// result.
     ///
     /// Returns None if `OW` does not match the type of the widget contained.
-    pub fn with_widget_mut<OW: Widget, F: FnOnce(&mut OW, &Context<OW>) -> R, R>(
+    pub fn map_widget_mut<OW: Widget, F: FnOnce(&mut OW, &Context<OW>) -> R, R>(
         &self,
         widget_id: &WidgetId,
         with_fn: F,

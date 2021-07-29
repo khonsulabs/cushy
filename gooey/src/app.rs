@@ -1,6 +1,11 @@
 use gooey_core::{Frontend, StyledWidget, Transmogrifiers, Widget, WidgetStorage};
+use gooey_widgets::{
+    component::{Behavior, ComponentTransmogrifier},
+    navigator::{DefaultBarBehavior, Location, NavigatorBehavior},
+};
 
 /// A cross-platform application.
+#[must_use]
 pub struct App {
     initializer: Box<dyn FnOnce(Transmogrifiers<crate::ActiveFrontend>) -> crate::ActiveFrontend>,
     transmogrifiers: Transmogrifiers<crate::ActiveFrontend>,
@@ -33,6 +38,25 @@ impl App {
     ) -> Self {
         self.transmogrifiers
             .register_transmogrifier(transmogrifier)
+            .expect("a transmogrifier is already registered for this widget");
+        self
+    }
+
+    /// Registers the transmogrifier for a component with behavior `B`.
+    pub fn with_component<B: Behavior>(mut self) -> Self {
+        self.transmogrifiers
+            .register_transmogrifier(ComponentTransmogrifier::<B>::default())
+            .expect("a transmogrifier is already registered for this widget");
+        self
+    }
+
+    /// Registers the transmogrifier for a navigator with behavior `B`.
+    pub fn with_navigator<Loc: Location>(mut self) -> Self {
+        self.transmogrifiers
+            .register_transmogrifier(ComponentTransmogrifier::<NavigatorBehavior<Loc>>::default())
+            .expect("a transmogrifier is already registered for this widget");
+        self.transmogrifiers
+            .register_transmogrifier(ComponentTransmogrifier::<DefaultBarBehavior<Loc>>::default())
             .expect("a transmogrifier is already registered for this widget");
         self
     }

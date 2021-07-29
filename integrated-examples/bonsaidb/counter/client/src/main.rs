@@ -6,7 +6,7 @@ use gooey::{
     core::{Context, StyledWidget, WidgetId},
     widgets::{
         button::Button,
-        component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
+        component::{Behavior, Component, ComponentBuilder},
         container::Container,
     },
     App,
@@ -27,7 +27,7 @@ fn main() {
         // `Counter`.
         Component::new(Counter::new(command_sender), storage))
     // Register our custom component's transmogrifier.
-    .with(ComponentTransmogrifier::<Counter>::default())
+    .with_component::<Counter>()
     // Run the app using the widget returned by the initializer.
     .run()
 }
@@ -145,7 +145,7 @@ async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
         match Client::build("ws://127.0.0.1:8081".parse().unwrap())
             .with_custom_api_callback::<ExampleApi, _>(move |response| {
                 let Response::CounterValue(count) = response;
-                client_context.context.with_widget_mut(
+                client_context.context.map_widget_mut(
                     &client_context.button_id,
                     |button: &mut Button, context| {
                         button.set_label(count.to_string(), context);
@@ -167,7 +167,7 @@ async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
         Ok(Response::CounterValue(count)) => {
             context
                 .context
-                .with_widget_mut(&context.button_id, |button: &mut Button, context| {
+                .map_widget_mut(&context.button_id, |button: &mut Button, context| {
                     button.set_label(count.to_string(), context);
                 });
         }
@@ -196,7 +196,7 @@ async fn increment_counter(client: &Client<ExampleApi>, context: &DatabaseContex
         Ok(Response::CounterValue(count)) => {
             context
                 .context
-                .with_widget_mut(&context.button_id, |button: &mut Button, context| {
+                .map_widget_mut(&context.button_id, |button: &mut Button, context| {
                     button.set_label(count.to_string(), context);
                 });
         }

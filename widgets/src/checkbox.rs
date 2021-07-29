@@ -21,7 +21,7 @@ impl Checkbox {
     }
 
     pub fn new<S: Into<String>>(label: S, checked: bool, toggled: Callback) -> StyledWidget<Self> {
-        StyledWidget::default_for(Self {
+        StyledWidget::from(Self {
             label: label.into(),
             toggled,
             checked,
@@ -78,7 +78,7 @@ impl Builder {
     }
 
     pub fn finish(self) -> StyledWidget<Checkbox> {
-        StyledWidget::default_for(self.checkbox)
+        StyledWidget::from(self.checkbox)
     }
 }
 
