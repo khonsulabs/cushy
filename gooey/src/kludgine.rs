@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, process::Command};
 
 use gooey_core::StyledWidget;
 use gooey_rasterizer::winit::window::Theme;
@@ -66,7 +66,9 @@ impl WindowCreator for GooeyWindow {
     fn initial_system_theme() -> Theme {
         // winit doesn't have a way on linux to detect dark mode
         if TARGET_OS == OS::Linux {
-            gtk3_preferred_theme().unwrap_or(Theme::Light)
+            gtk3_preferred_theme()
+                .or_else(gtk2_theme)
+                .unwrap_or(Theme::Light)
         } else {
             Theme::Light
         }
@@ -92,6 +94,24 @@ fn gtk3_preferred_theme() -> Option<Theme> {
         Some(Theme::Dark)
     } else {
         Some(Theme::Light)
+    }
+}
+
+fn gtk2_theme() -> Option<Theme> {
+    let result = Command::new("gsettings")
+        .args(["get", "org.gnome.desktop.interface", "gtk-theme"])
+        .output()
+        .ok()?;
+    if result.status.success() {
+        let result = String::from_utf8(result.stdout).ok()?;
+        // gsettings wraps the output in single quotes
+        if result.trim().ends_with("-dark'") {
+            Some(Theme::Dark)
+        } else {
+            Some(Theme::Light)
+        }
+    } else {
+        None
     }
 }
 
