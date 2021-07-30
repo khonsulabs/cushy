@@ -61,7 +61,7 @@ impl Behavior for MainMenu {
         for (index, button) in self.buttons.iter().enumerate() {
             layout = layout.with(
                 None,
-                Button::new(button.title(), events.map_event(move |_| index)),
+                Button::new(button.title(), events.map(move |_| index)),
                 WidgetLayout::build()
                     .bottom(Dimension::zero())
                     .left(Dimension::percent(index as f32 * button_width))

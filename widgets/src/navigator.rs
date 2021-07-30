@@ -9,10 +9,8 @@ use gooey_core::{
 use url::Url;
 
 use crate::{
-    component::{
-        Behavior, Component, ComponentBuilder, ComponentCommand, ContentBuilder, EventMapper,
-    },
-    layout::{self, Dimension, Layout, WidgetLayout},
+    component::{Behavior, Component, ComponentCommand, Content, ContentBuilder, EventMapper},
+    layout::{Dimension, Layout, WidgetLayout},
 };
 
 mod bar;
@@ -59,11 +57,7 @@ impl<Loc: Location> NavigatorBehavior<Loc> {
     fn replace_content(component: &mut Component<Self>, context: &Context<Component<Self>>) {
         let location = component.back_stack.last().unwrap();
         let new_widget = location.materialize(context, context.registration().clone());
-        println!("Registering widget");
-        component.register_widget(Widgets::Content, &new_widget);
-        println!("mapping content");
         component.map_content_mut(context, |layout, context| {
-            println!("inserting registation");
             layout.insert_registration(
                 Some(Widgets::Content),
                 new_widget,
@@ -152,11 +146,11 @@ impl<Loc: Location> Behavior for NavigatorBehavior<Loc> {
 
     fn build_content(
         &mut self,
-        builder: layout::Builder<'_, Widgets, Event, ComponentBuilder<Self>>,
+        builder: <Self::Content as Content<Self>>::Builder,
         _events: &EventMapper<Self>,
     ) -> StyledWidget<Self::Content> {
         let initial_content = self.back_stack.last().unwrap();
-        let navigator = builder.component().unwrap();
+        let navigator = builder.related_storage().unwrap().widget();
         let initial_widget = initial_content.materialize(builder.storage(), navigator.clone());
         let bar = Loc::Bar::new(navigator, builder.storage());
         builder

@@ -73,7 +73,7 @@ impl Behavior for Demo {
             )
             .with(
                 None,
-                Button::new("Push", events.map_event(|_| Event::Push)),
+                Button::new("Push", events.map(|_| Event::Push)),
                 WidgetLayout::build()
                     .left(Dimension::percent(0.1))
                     .right(Dimension::percent(0.7))
@@ -83,7 +83,7 @@ impl Behavior for Demo {
             )
             .with(
                 None,
-                Button::new("Replace", events.map_event(|_| Event::Replace)),
+                Button::new("Replace", events.map(|_| Event::Replace)),
                 WidgetLayout::build()
                     .left(Dimension::percent(0.4))
                     .right(Dimension::percent(0.4))
@@ -93,7 +93,7 @@ impl Behavior for Demo {
             )
             .with(
                 None,
-                Button::new("Go Home", events.map_event(|_| Event::Home)),
+                Button::new("Go Home", events.map(|_| Event::Home)),
                 WidgetLayout::build()
                     .left(Dimension::percent(0.7))
                     .right(Dimension::percent(0.1))

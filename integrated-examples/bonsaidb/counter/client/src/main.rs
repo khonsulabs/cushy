@@ -67,10 +67,7 @@ impl Behavior for Counter {
         builder
             .child(
                 CounterWidgets::Button,
-                Button::new(
-                    "Click Me!",
-                    events.map_event(|_| CounterEvent::ButtonClicked),
-                ),
+                Button::new("Click Me!", events.map(|_| CounterEvent::ButtonClicked)),
             )
             .finish()
     }

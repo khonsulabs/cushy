@@ -103,7 +103,7 @@ impl Behavior for InfoPage {
 
         let button_width = 1. / self.buttons.len() as f32;
         for (index, button) in self.buttons.iter().enumerate() {
-            let callback = events.map_event(move |_| index);
+            let callback = events.map(move |_| index);
             layout = layout.with(
                 None,
                 Button::new(button.title(), callback),

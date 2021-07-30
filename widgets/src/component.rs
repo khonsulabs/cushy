@@ -4,14 +4,14 @@ use std::{
     fmt::Debug,
     marker::PhantomData,
     ops::{Deref, DerefMut},
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use gooey_core::{
     styles::{style_sheet::Classes, Style},
     AnyWidget, Callback, CallbackFn, Channels, Context, DefaultWidget, Frontend, Key, KeyedStorage,
-    KeyedWidgetStorage, StyledWidget, Transmogrifier, TransmogrifierContext,
-    WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
+    RelatedStorage, StyledWidget, Transmogrifier, TransmogrifierContext, WeakWidgetRegistration,
+    Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -25,7 +25,7 @@ pub struct Component<B: Behavior> {
     pub behavior: B,
     content: WidgetRegistration,
     content_widget: Option<WidgetRef<B::Content>>,
-    registered_widgets: HashMap<B::Widgets, WeakWidgetRegistration>,
+    registered_widgets: Arc<Mutex<HashMap<B::Widgets, WeakWidgetRegistration>>>,
     callback_widget: SettableWidgetRef<B>,
 }
 
@@ -38,10 +38,12 @@ impl<B: Behavior + Default> DefaultWidget for Component<B> {
 impl<B: Behavior> Component<B> {
     pub fn new(mut behavior: B, storage: &WidgetStorage) -> StyledWidget<Self> {
         let own_registration = storage.allocate::<Self>();
-        let mut builder = ComponentBuilder::new(storage, &own_registration);
+        let registered_widgets =
+            Arc::<Mutex<HashMap<B::Widgets, WeakWidgetRegistration>>>::default();
+        let builder =
+            ComponentBuilder::<B>::new(registered_widgets.clone(), storage, &own_registration);
+        let content_builder = <B::Content as Content<B>>::build(builder);
         let event_mapper = EventMapper::default();
-        let content_builder =
-            <B::Content as Content<'_, B>>::build(KeyedWidgetStorage::from(&mut builder));
         let content = behavior.build_content(content_builder, &event_mapper);
         let content = storage.register(content);
         StyledWidget::new(
@@ -49,7 +51,7 @@ impl<B: Behavior> Component<B> {
                 content,
                 behavior,
                 callback_widget: event_mapper.widget,
-                registered_widgets: builder.registered_widgets,
+                registered_widgets,
                 content_widget: None,
             },
             Style::default(),
@@ -62,14 +64,20 @@ impl<B: Behavior> Component<B> {
     }
 
     pub fn registered_widget(&self, id: &B::Widgets) -> Option<WidgetRegistration> {
-        self.registered_widgets
+        let registered_widgets = self.registered_widgets.lock().unwrap();
+        registered_widgets
             .get(id)
             .and_then(WeakWidgetRegistration::upgrade)
     }
 
     pub fn register_widget(&mut self, id: B::Widgets, registration: &WidgetRegistration) {
-        self.registered_widgets
-            .insert(id, WeakWidgetRegistration::from(registration));
+        let mut registered_widgets = self.registered_widgets.lock().unwrap();
+        registered_widgets.insert(id, WeakWidgetRegistration::from(registration));
+    }
+
+    pub fn remove(&mut self, id: &B::Widgets) {
+        let mut registered_widgets = self.registered_widgets.lock().unwrap();
+        registered_widgets.remove(id);
     }
 
     pub fn map_content<F: FnOnce(&B::Content, &Context<B::Content>) -> R, R>(
@@ -132,7 +140,7 @@ impl<B: Behavior> Default for ComponentTransmogrifier<B> {
 
 pub trait Behavior: Debug + Send + Sync + Sized + 'static {
     type Event: Debug + Send + Sync;
-    type Content: for<'a> Content<'a, Self>;
+    type Content: Content<Self>;
     type Widgets: Key;
 
     #[must_use]
@@ -142,7 +150,7 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
 
     fn build_content(
         &mut self,
-        builder: <Self::Content as Content<'_, Self>>::Builder,
+        builder: <Self::Content as Content<Self>>::Builder,
         events: &EventMapper<Self>,
     ) -> StyledWidget<Self::Content>;
 
@@ -156,24 +164,20 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
     );
 }
 
-pub trait Content<'a, B: Behavior>: Widget {
-    type Builder: ContentBuilder<'a, B::Widgets, B::Event, ComponentBuilder<B>>;
+pub trait Content<B: Behavior>: Widget {
+    type Builder: ContentBuilder<B::Widgets, ComponentBuilder<B>>;
 
     #[must_use]
-    fn build(
-        builder: KeyedWidgetStorage<'a, B::Widgets, B::Event, ComponentBuilder<B>>,
-    ) -> Self::Builder {
+    fn build(builder: ComponentBuilder<B>) -> Self::Builder {
         Self::Builder::new(builder)
     }
 }
 
-pub trait ContentBuilder<'a, K: Key, E: Debug + Send + Sync, S: KeyedStorage<K, E> + 'static>:
-    Debug + Send + Sync
-{
+pub trait ContentBuilder<K: Key, S: KeyedStorage<K> + 'static>: Debug + Send + Sync {
     fn storage(&self) -> &WidgetStorage;
-    fn component(&self) -> Option<WeakWidgetRegistration>;
+    fn related_storage(&self) -> Option<Box<dyn RelatedStorage<K>>>;
     #[must_use]
-    fn new(storage: impl Into<KeyedWidgetStorage<'a, K, E, S>>) -> Self;
+    fn new(storage: S) -> Self;
 }
 
 #[derive(Debug)]
@@ -232,13 +236,36 @@ pub enum InternalEvent<B: Behavior> {
 pub struct ComponentBuilder<B: Behavior> {
     component: WidgetRegistration,
     storage: WidgetStorage,
-    registered_widgets: HashMap<B::Widgets, WeakWidgetRegistration>,
+    registered_widgets: Arc<Mutex<HashMap<B::Widgets, WeakWidgetRegistration>>>,
     _phantom: PhantomData<B>,
 }
 
 #[derive(Debug)]
 pub struct EventMapper<B: Behavior> {
     widget: SettableWidgetRef<B>,
+}
+
+#[derive(Debug)]
+pub struct ComponentUpdater<B: Behavior> {
+    component: WeakWidgetRegistration,
+    registered_widgets: Arc<Mutex<HashMap<B::Widgets, WeakWidgetRegistration>>>,
+    _behavior: PhantomData<B>,
+}
+
+impl<B: Behavior> RelatedStorage<B::Widgets> for ComponentUpdater<B> {
+    fn widget(&self) -> WeakWidgetRegistration {
+        self.component.clone()
+    }
+
+    fn remove(&self, key: &B::Widgets) {
+        let mut registered_widgets = self.registered_widgets.lock().unwrap();
+        registered_widgets.remove(key);
+    }
+
+    fn register(&self, key: B::Widgets, registration: &WidgetRegistration) {
+        let mut registered_widgets = self.registered_widgets.lock().unwrap();
+        registered_widgets.insert(key, WeakWidgetRegistration::from(registration));
+    }
 }
 
 impl<B: Behavior> Default for EventMapper<B> {
@@ -250,7 +277,7 @@ impl<B: Behavior> Default for EventMapper<B> {
 }
 
 impl<B: Behavior> EventMapper<B> {
-    pub fn map_event<I: 'static, C: CallbackFn<I, <B as Behavior>::Event> + 'static>(
+    pub fn map<I: 'static, C: CallbackFn<I, <B as Behavior>::Event> + 'static>(
         &self,
         mapper: C,
     ) -> Callback<I, ()> {
@@ -265,11 +292,15 @@ impl<B: Behavior> EventMapper<B> {
 
 impl<B: Behavior> ComponentBuilder<B> {
     #[must_use]
-    pub fn new(storage: &WidgetStorage, component: &WidgetRegistration) -> Self {
+    pub fn new(
+        registered_widgets: Arc<Mutex<HashMap<B::Widgets, WeakWidgetRegistration>>>,
+        storage: &WidgetStorage,
+        component: &WidgetRegistration,
+    ) -> Self {
         Self {
+            registered_widgets,
             storage: storage.clone(),
             component: component.clone(),
-            registered_widgets: HashMap::default(),
             _phantom: PhantomData::default(),
         }
     }
@@ -281,8 +312,8 @@ impl<B: Behavior> ComponentBuilder<B> {
         widget: StyledWidget<W>,
     ) -> WidgetRegistration {
         let registration = self.storage.register(widget);
-        self.registered_widgets
-            .insert(id, WeakWidgetRegistration::from(&registration));
+        let mut registered_widgets = self.registered_widgets.lock().unwrap();
+        registered_widgets.insert(id, WeakWidgetRegistration::from(&registration));
         registration
     }
 
@@ -292,7 +323,7 @@ impl<B: Behavior> ComponentBuilder<B> {
 }
 
 #[allow(clippy::option_if_let_else)] // borrowing issues with self
-impl<B: Behavior> KeyedStorage<B::Widgets, B::Event> for ComponentBuilder<B> {
+impl<B: Behavior> KeyedStorage<B::Widgets> for ComponentBuilder<B> {
     fn register<W: Widget + AnyWidget>(
         &mut self,
         key: impl Into<Option<B::Widgets>>,
@@ -309,8 +340,12 @@ impl<B: Behavior> KeyedStorage<B::Widgets, B::Event> for ComponentBuilder<B> {
         &self.storage
     }
 
-    fn component(&self) -> Option<WeakWidgetRegistration> {
-        Some(WeakWidgetRegistration::from(&self.component))
+    fn related_storage(&self) -> Option<Box<dyn RelatedStorage<B::Widgets>>> {
+        Some(Box::new(ComponentUpdater::<B> {
+            component: WeakWidgetRegistration::from(&self.component),
+            registered_widgets: self.registered_widgets.clone(),
+            _behavior: PhantomData::default(),
+        }))
     }
 }
 

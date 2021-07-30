@@ -42,10 +42,7 @@ impl Behavior for Counter {
         builder
             .with(
                 None,
-                Button::new(
-                    "Click Me!",
-                    events.map_event(|_| CounterEvent::ButtonClicked),
-                ),
+                Button::new("Click Me!", events.map(|_| CounterEvent::ButtonClicked)),
                 WidgetLayout::build()
                     .left(Dimension::Exact(Length::new(0.)))
                     .top(Dimension::Percent(0.4))

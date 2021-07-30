@@ -1,8 +1,8 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, marker::PhantomData};
 
 use gooey_core::{
-    euclid::Length, styles::Surround, Frontend, Key, KeyedStorage, KeyedWidgetStorage, Points,
-    StyledWidget, WeakWidgetRegistration, Widget, WidgetRef, WidgetRegistration, WidgetStorage,
+    euclid::Length, styles::Surround, Frontend, Key, KeyedStorage, Points, RelatedStorage,
+    StyledWidget, Widget, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
 use crate::component::{Behavior, ComponentBuilder, Content, ContentBuilder};
@@ -45,18 +45,19 @@ impl Widget for Container {
     const CLASS: &'static str = "gooey-container";
 }
 
-impl<'a, B: Behavior> Content<'a, B> for Container {
-    type Builder = Builder<'a, B::Widgets, B::Event, ComponentBuilder<B>>;
+impl<B: Behavior> Content<B> for Container {
+    type Builder = Builder<B::Widgets, ComponentBuilder<B>>;
 }
 
 #[derive(Debug)]
-pub struct Builder<'a, K: Key, E, S: KeyedStorage<K, E>> {
-    storage: KeyedWidgetStorage<'a, K, E, S>,
+pub struct Builder<K: Key, S: KeyedStorage<K>> {
+    storage: S,
     child: Option<WidgetRegistration>,
     padding: Surround<Points>,
+    _phantom: PhantomData<K>,
 }
 
-impl<'a, K: Key, E, S: KeyedStorage<K, E>> Builder<'a, K, E, S> {
+impl<K: Key, S: KeyedStorage<K>> Builder<K, S> {
     pub fn child<W: Widget>(mut self, key: impl Into<Option<K>>, widget: StyledWidget<W>) -> Self {
         self.child = Some(self.storage.register(key.into(), widget));
         self
@@ -90,22 +91,21 @@ impl<'a, K: Key, E, S: KeyedStorage<K, E>> Builder<'a, K, E, S> {
     }
 }
 
-impl<'a, K: Key, E: Debug + Send + Sync, S: KeyedStorage<K, E> + 'static>
-    ContentBuilder<'a, K, E, S> for Builder<'a, K, E, S>
-{
+impl<K: Key, S: KeyedStorage<K> + 'static> ContentBuilder<K, S> for Builder<K, S> {
     fn storage(&self) -> &WidgetStorage {
         self.storage.storage()
     }
 
-    fn component(&self) -> Option<WeakWidgetRegistration> {
-        self.storage.component()
+    fn related_storage(&self) -> Option<Box<dyn RelatedStorage<K>>> {
+        self.storage.related_storage()
     }
 
-    fn new(storage: impl Into<KeyedWidgetStorage<'a, K, E, S>>) -> Self {
+    fn new(storage: S) -> Self {
         Self {
-            storage: storage.into(),
+            storage,
             child: None,
             padding: Surround::default(),
+            _phantom: PhantomData::default(),
         }
     }
 }

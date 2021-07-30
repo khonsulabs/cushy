@@ -99,7 +99,7 @@ impl<Loc: Location> Behavior for DefaultBarBehavior<Loc> {
 
     fn build_content(
         &mut self,
-        builder: <Self::Content as Content<'_, Self>>::Builder,
+        builder: <Self::Content as Content<Self>>::Builder,
         _events: &EventMapper<Self>,
     ) -> StyledWidget<Self::Content> {
         builder

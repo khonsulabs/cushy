@@ -5,7 +5,7 @@ use std::{
     fmt::Debug,
     hash::Hash,
     marker::PhantomData,
-    ops::{Deref, DerefMut},
+    ops::Deref,
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc, Mutex, RwLock, Weak,
@@ -409,7 +409,7 @@ impl WidgetStorage {
 }
 
 /// A type that registers widgets with an associated key.
-pub trait KeyedStorage<K: Key, E>: Debug + Send + Sync {
+pub trait KeyedStorage<K: Key>: Debug + Send + Sync {
     /// Register `styled_widget` with `key`.
     fn register<W: Widget + AnyWidget>(
         &mut self,
@@ -422,57 +422,57 @@ pub trait KeyedStorage<K: Key, E>: Debug + Send + Sync {
 
     /// If this storage is representing a component, this returns a weak
     /// registration that can be used to communicate with it.
-    fn component(&self) -> Option<WeakWidgetRegistration>;
+    fn related_storage(&self) -> Option<Box<dyn RelatedStorage<K>>>;
 }
 
-/// A [`KeyedStorage`] implementor that is either owned or borrowed. Similar to
-/// `std::cow::Cow` but doesn't require the storage type to be `Clone`.
-#[derive(Debug)]
-pub enum KeyedWidgetStorage<'a, K: Key, E, S: KeyedStorage<K, E>> {
-    /// An owned widget storage.
-    Owned(S, PhantomData<(K, E)>),
-    /// A borrowed widget storage.
-    Borrowed(&'a mut S),
-}
+// /// A [`KeyedStorage`] implementor that is either owned or borrowed. Similar to
+// /// `std::cow::Cow` but doesn't require the storage type to be `Clone`.
+// #[derive(Debug)]
+// pub enum KeyedWidgetStorage<'a, K: Key, E, S: KeyedStorage<K, E>> {
+//     /// An owned widget storage.
+//     Owned(S, PhantomData<(K, E)>),
+//     /// A borrowed widget storage.
+//     Borrowed(&'a mut S),
+// }
 
-impl<'a, K: Key, E, S: KeyedStorage<K, E>> From<S> for KeyedWidgetStorage<'a, K, E, S> {
-    fn from(owned: S) -> Self {
-        Self::Owned(owned, PhantomData::default())
-    }
-}
+// impl<'a, K: Key, E, S: KeyedStorage<K, E>> From<S> for KeyedWidgetStorage<'a, K, E, S> {
+//     fn from(owned: S) -> Self {
+//         Self::Owned(owned, PhantomData::default())
+//     }
+// }
 
-impl<'a, K: Key, E, S: KeyedStorage<K, E>> From<&'a mut S> for KeyedWidgetStorage<'a, K, E, S> {
-    fn from(borrowed: &'a mut S) -> Self {
-        Self::Borrowed(borrowed)
-    }
-}
+// impl<'a, K: Key, E, S: KeyedStorage<K, E>> From<&'a mut S> for KeyedWidgetStorage<'a, K, E, S> {
+//     fn from(borrowed: &'a mut S) -> Self {
+//         Self::Borrowed(borrowed)
+//     }
+// }
 
-impl<'a, K: Key, E, S: KeyedStorage<K, E>> Deref for KeyedWidgetStorage<'a, K, E, S> {
-    type Target = S;
+// impl<'a, K: Key, E, S: KeyedStorage<K, E>> Deref for KeyedWidgetStorage<'a, K, E, S> {
+//     type Target = S;
 
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Self::Owned(storage, _) => storage,
-            Self::Borrowed(borrowed) => borrowed,
-        }
-    }
-}
+//     fn deref(&self) -> &Self::Target {
+//         match self {
+//             Self::Owned(storage, _) => storage,
+//             Self::Borrowed(borrowed) => borrowed,
+//         }
+//     }
+// }
 
-impl<'a, K: Key, E, S: KeyedStorage<K, E>> DerefMut for KeyedWidgetStorage<'a, K, E, S> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            Self::Owned(storage, _) => storage,
-            Self::Borrowed(borrowed) => borrowed,
-        }
-    }
-}
+// impl<'a, K: Key, E, S: KeyedStorage<K, E>> DerefMut for KeyedWidgetStorage<'a, K, E, S> {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         match self {
+//             Self::Owned(storage, _) => storage,
+//             Self::Borrowed(borrowed) => borrowed,
+//         }
+//     }
+// }
 
 /// A key for a widget.
 pub trait Key: Clone + Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
 
 impl<T> Key for T where T: Clone + Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
 
-impl<K: Key, E> KeyedStorage<K, E> for WidgetStorage {
+impl<K: Key> KeyedStorage<K> for WidgetStorage {
     fn register<W: Widget + AnyWidget>(
         &mut self,
         _key: impl Into<Option<K>>,
@@ -485,9 +485,20 @@ impl<K: Key, E> KeyedStorage<K, E> for WidgetStorage {
         self
     }
 
-    fn component(&self) -> Option<WeakWidgetRegistration> {
+    fn related_storage(&self) -> Option<Box<dyn RelatedStorage<K>>> {
         None
     }
+}
+
+/// Related storage enables a widget to communicate in a limited way about
+/// widgets being inserted or removed.
+pub trait RelatedStorage<K: Key>: Debug + Send + Sync + 'static {
+    /// Returns the registration of the widget that this is from.
+    fn widget(&self) -> WeakWidgetRegistration;
+    /// Removes the widget with `key` from this storage.
+    fn remove(&self, key: &K);
+    /// Registers `widget` with `key`.
+    fn register(&self, key: K, widget: &WidgetRegistration);
 }
 
 /// A widget and its initial style information.

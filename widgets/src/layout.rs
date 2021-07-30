@@ -3,8 +3,8 @@ use std::{collections::HashMap, fmt::Debug};
 use gooey_core::{
     euclid::{Length, Size2D},
     styles::Surround,
-    AnySendSync, Context, Key, KeyedStorage, KeyedWidgetStorage, Points, StyledWidget,
-    WeakWidgetRegistration, Widget, WidgetId, WidgetRegistration, WidgetStorage,
+    AnySendSync, Context, Key, KeyedStorage, Points, RelatedStorage, StyledWidget, Widget,
+    WidgetId, WidgetRegistration, WidgetStorage,
 };
 
 use crate::component::{Behavior, ComponentBuilder, Content, ContentBuilder};
@@ -18,12 +18,13 @@ mod browser;
 #[derive(Debug)]
 pub struct Layout {
     children: Box<dyn LayoutChildren>,
+    related_storage: Option<Box<dyn AnySendSync>>,
 }
 
 impl Layout {
     #[must_use]
-    pub fn build<K: Key>(storage: &WidgetStorage) -> Builder<'static, K, (), WidgetStorage> {
-        Builder::new(KeyedWidgetStorage::from(storage.clone()))
+    pub fn build<K: Key>(storage: &WidgetStorage) -> Builder<K, WidgetStorage> {
+        Builder::new(storage.clone())
     }
 
     pub fn remove_child<K: Key>(&mut self, layout_key: &K, context: &Context<Self>) -> bool {
@@ -34,6 +35,15 @@ impl Layout {
             .downcast_mut::<ChildrenMap<K>>()
             .unwrap();
         children.remove(layout_key).map_or(false, |removed_child| {
+            if let Some(related_storage) = &mut self.related_storage {
+                let related_storage = related_storage
+                    .as_mut()
+                    .as_mut_any()
+                    .downcast_mut::<Box<dyn RelatedStorage<K>>>()
+                    .unwrap();
+                related_storage.remove(layout_key);
+            }
+
             context.send_command(LayoutCommand::ChildRemoved(
                 removed_child.registration.id().clone(),
             ));
@@ -66,6 +76,16 @@ impl Layout {
             .as_mut_any()
             .downcast_mut::<ChildrenMap<K>>()
             .unwrap();
+        if let Some(layout_key) = &layout_key {
+            if let Some(related_storage) = &mut self.related_storage {
+                let related_storage = related_storage
+                    .as_mut()
+                    .as_mut_any()
+                    .downcast_mut::<Box<dyn RelatedStorage<K>>>()
+                    .unwrap();
+                related_storage.register(layout_key.clone(), &registration);
+            }
+        }
         children.insert(layout_key, LayoutChild {
             registration,
             layout,
@@ -87,8 +107,8 @@ impl Widget for Layout {
 }
 
 #[derive(Debug)]
-pub struct Builder<'a, K: Key, E, S: KeyedStorage<K, E>> {
-    storage: KeyedWidgetStorage<'a, K, E, S>,
+pub struct Builder<K: Key, S: KeyedStorage<K>> {
+    storage: S,
     children: ChildrenMap<K>,
 }
 
@@ -130,7 +150,7 @@ pub struct LayoutChild {
     pub layout: WidgetLayout,
 }
 
-impl<'a, K: Key, E, S: KeyedStorage<K, E>> Builder<'a, K, E, S> {
+impl<K: Key, S: KeyedStorage<K>> Builder<K, S> {
     pub fn storage(&self) -> &WidgetStorage {
         self.storage.storage()
     }
@@ -162,6 +182,10 @@ impl<'a, K: Key, E, S: KeyedStorage<K, E>> Builder<'a, K, E, S> {
     pub fn finish(self) -> StyledWidget<Layout> {
         StyledWidget::from(Layout {
             children: Box::new(self.children),
+            related_storage: self
+                .storage
+                .related_storage()
+                .map(|storage| Box::new(storage) as Box<dyn AnySendSync>),
         })
     }
 }
@@ -394,22 +418,18 @@ impl From<Length<f32, Points>> for Dimension {
     }
 }
 
-impl<'a, B: Behavior> Content<'a, B> for Layout {
-    type Builder = Builder<'a, B::Widgets, B::Event, ComponentBuilder<B>>;
+impl<B: Behavior> Content<B> for Layout {
+    type Builder = Builder<B::Widgets, ComponentBuilder<B>>;
 
-    fn build(
-        storage: KeyedWidgetStorage<'a, B::Widgets, B::Event, ComponentBuilder<B>>,
-    ) -> Self::Builder {
+    fn build(storage: ComponentBuilder<B>) -> Self::Builder {
         Builder::new(storage)
     }
 }
 
-impl<'a, K: Key, E: Debug + Send + Sync, S: KeyedStorage<K, E> + 'static>
-    ContentBuilder<'a, K, E, S> for Builder<'a, K, E, S>
-{
-    fn new(storage: impl Into<KeyedWidgetStorage<'a, K, E, S>>) -> Self {
+impl<'a, K: Key, S: KeyedStorage<K> + 'static> ContentBuilder<K, S> for Builder<K, S> {
+    fn new(storage: S) -> Self {
         Self {
-            storage: storage.into(),
+            storage,
             children: ChildrenMap::default(),
         }
     }
@@ -418,7 +438,7 @@ impl<'a, K: Key, E: Debug + Send + Sync, S: KeyedStorage<K, E> + 'static>
         self.storage.storage()
     }
 
-    fn component(&self) -> Option<WeakWidgetRegistration> {
-        self.storage.component()
+    fn related_storage(&self) -> Option<Box<dyn RelatedStorage<K>>> {
+        self.storage.related_storage()
     }
 }

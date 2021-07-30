@@ -37,7 +37,7 @@ impl Behavior for Counter {
                 CounterWidgets::Button,
                 Checkbox::build()
                     .labeled("I'm a checkbox. Hear me roar.")
-                    .on_clicked(events.map_event(|_| CounterEvent::ButtonClicked))
+                    .on_clicked(events.map(|_| CounterEvent::ButtonClicked))
                     .finish(),
             )
             .finish()
