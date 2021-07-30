@@ -1,16 +1,18 @@
 use std::{borrow::Cow, fmt::Debug};
 
-use gooey_core::{
-    styles::{Alignment, VerticalAlignment},
-    WeakWidgetRegistration,
-};
-use gooey_widgets::{
-    button::Button,
-    component::{Behavior, Component},
-    label::Label,
-    layout::{Dimension, Layout, WidgetLayout},
-    navigator::{DefaultBar, Location, Navigator},
-    url::Url,
+use gooey::{
+    core::{
+        styles::{Alignment, VerticalAlignment},
+        WeakWidgetRegistration,
+    },
+    widgets::{
+        button::Button,
+        component::{Behavior, Component, Content, EventMapper},
+        label::Label,
+        layout::{Dimension, Layout, WidgetLayout},
+        navigator::{DefaultBar, Location, Navigator},
+        url::Url,
+    },
 };
 
 use crate::widget_explorer_screens::main_menu::MainMenu;
@@ -81,29 +83,30 @@ impl Behavior for InfoPage {
     type Event = usize;
     type Widgets = ();
 
-    fn create_content(
+    fn build_content(
         &mut self,
-        builder: &mut gooey_widgets::component::ComponentBuilder<Self>,
+        builder: <Self::Content as Content<Self>>::Builder,
+        events: &EventMapper<Self>,
     ) -> gooey_core::StyledWidget<Self::Content> {
-        let mut layout = Layout::build::<()>(builder) // TODO having to specify the type here sucks
-            .with(
-                None,
-                Label::new(&self.text)
-                    .with(Alignment::Center)
-                    .with(VerticalAlignment::Center),
-                WidgetLayout::build()
-                    .top(Dimension::zero())
-                    .right(Dimension::zero())
-                    .left(Dimension::zero())
-                    .height(Dimension::percent(80.))
-                    .finish(),
-            );
+        let mut layout = builder.with(
+            None,
+            Label::new(&self.text)
+                .with(Alignment::Center)
+                .with(VerticalAlignment::Center),
+            WidgetLayout::build()
+                .top(Dimension::zero())
+                .right(Dimension::zero())
+                .left(Dimension::zero())
+                .height(Dimension::percent(80.))
+                .finish(),
+        );
 
         let button_width = 1. / self.buttons.len() as f32;
         for (index, button) in self.buttons.iter().enumerate() {
+            let callback = events.map_event(move |_| index);
             layout = layout.with(
                 None,
-                Button::new(button.title(), builder.map_event(move |_| index)),
+                Button::new(button.title(), callback),
                 WidgetLayout::build()
                     .bottom(Dimension::zero())
                     .left(Dimension::percent(index as f32 * button_width))

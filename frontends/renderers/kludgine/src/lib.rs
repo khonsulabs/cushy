@@ -8,7 +8,6 @@
 #![warn(
     clippy::cargo,
     // TODO missing_docs,
-    clippy::nursery,
     clippy::pedantic,
     future_incompatible,
     rust_2018_idioms

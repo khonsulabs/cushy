@@ -8,7 +8,7 @@ use gooey_core::{
 use super::{Location, Navigator};
 use crate::{
     button::Button,
-    component::{Behavior, Component},
+    component::{Behavior, Component, Content, EventMapper},
     label::Label,
     layout::{Dimension, Layout, WidgetLayout},
 };
@@ -97,20 +97,18 @@ impl<Loc: Location> Behavior for DefaultBarBehavior<Loc> {
         Some(Classes::from("gooey-navigator-bar"))
     }
 
-    fn create_content(
+    fn build_content(
         &mut self,
-        builder: &mut crate::component::ComponentBuilder<Self>,
+        builder: <Self::Content as Content<'_, Self>>::Builder,
+        _events: &EventMapper<Self>,
     ) -> StyledWidget<Self::Content> {
-        Layout::build::<Widgets>(builder)
-            .with_registration(
+        builder
+            .with(
                 Widgets::Title,
-                builder.register(
-                    Widgets::Title,
-                    Label::new("")
-                        .with(Alignment::Center)
-                        .with(VerticalAlignment::Center)
-                        .with(FontSize::new(18.)),
-                ),
+                Label::new("")
+                    .with(Alignment::Center)
+                    .with(VerticalAlignment::Center)
+                    .with(FontSize::new(18.)),
                 WidgetLayout::fill(),
             )
             .finish()
@@ -131,7 +129,7 @@ impl<Loc: Location> Behavior for DefaultBarBehavior<Loc> {
     }
 }
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub enum Widgets {
     Title,
     BackButton,

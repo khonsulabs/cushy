@@ -1,13 +1,12 @@
 use gooey::{
-    core::{Context, StyledWidget},
+    core::{Context, DefaultWidget, StyledWidget},
     widgets::{
         checkbox::Checkbox,
-        component::{Behavior, Component, ComponentBuilder},
+        component::{Behavior, Component, Content, EventMapper},
         container::Container,
     },
     App,
 };
-use gooey_core::DefaultWidget;
 
 #[cfg(test)]
 mod harness;
@@ -28,16 +27,20 @@ impl Behavior for Counter {
     type Event = CounterEvent;
     type Widgets = CounterWidgets;
 
-    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Container> {
-        StyledWidget::from(
-            builder.register(
+    fn build_content(
+        &mut self,
+        builder: <Self::Content as Content<Self>>::Builder,
+        events: &EventMapper<Self>,
+    ) -> StyledWidget<Container> {
+        builder
+            .child(
                 CounterWidgets::Button,
                 Checkbox::build()
                     .labeled("I'm a checkbox. Hear me roar.")
-                    .on_clicked(builder.map_event(|_| CounterEvent::ButtonClicked))
+                    .on_clicked(events.map_event(|_| CounterEvent::ButtonClicked))
                     .finish(),
-            ),
-        )
+            )
+            .finish()
     }
 
     fn receive_event(
@@ -60,7 +63,7 @@ impl Behavior for Counter {
     }
 }
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 enum CounterWidgets {
     Button,
 }

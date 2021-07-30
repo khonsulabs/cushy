@@ -1,13 +1,12 @@
 use gooey::{
-    core::{Context, StyledWidget},
+    core::{Context, DefaultWidget, StyledWidget},
     widgets::{
         button::Button,
-        component::{Behavior, Component, ComponentBuilder},
+        component::{Behavior, Component, Content, EventMapper},
         container::Container,
     },
     App,
 };
-use gooey_core::DefaultWidget;
 
 #[cfg(test)]
 mod harness;
@@ -20,7 +19,7 @@ fn main() {
     app().run();
 }
 
-#[derive(Default, Debug)]
+#[derive(Clone, Default, Debug)]
 struct Counter {
     count: u32,
 }
@@ -30,14 +29,20 @@ impl Behavior for Counter {
     type Event = CounterEvent;
     type Widgets = CounterWidgets;
 
-    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Container> {
-        StyledWidget::from(builder.register(
-            CounterWidgets::Button,
-            Button::new(
-                "Click Me!",
-                builder.map_event(|_| CounterEvent::ButtonClicked),
-            ),
-        ))
+    fn build_content(
+        &mut self,
+        builder: <Self::Content as Content<Self>>::Builder,
+        events: &EventMapper<Self>,
+    ) -> StyledWidget<Container> {
+        builder
+            .child(
+                CounterWidgets::Button,
+                Button::new(
+                    "Click Me!",
+                    events.map_event(|_| CounterEvent::ButtonClicked),
+                ),
+            )
+            .finish()
     }
 
     fn receive_event(
@@ -58,7 +63,7 @@ impl Behavior for Counter {
     }
 }
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 enum CounterWidgets {
     Button,
 }

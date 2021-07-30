@@ -1,11 +1,13 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{collections::HashMap, fmt::Debug};
 
 use gooey_core::{
     euclid::{Length, Size2D},
     styles::Surround,
-    AnySendSync, Context, Points, StyledWidget, Widget, WidgetId, WidgetRegistration,
-    WidgetStorage,
+    AnySendSync, Context, Key, KeyedStorage, KeyedWidgetStorage, Points, StyledWidget,
+    WeakWidgetRegistration, Widget, WidgetId, WidgetRegistration, WidgetStorage,
 };
+
+use crate::component::{Behavior, ComponentBuilder, Content, ContentBuilder};
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;
@@ -20,11 +22,11 @@ pub struct Layout {
 
 impl Layout {
     #[must_use]
-    pub fn build<K: LayoutKey>(storage: &WidgetStorage) -> Builder<K> {
-        Builder::new(storage)
+    pub fn build<K: Key>(storage: &WidgetStorage) -> Builder<'static, K, (), WidgetStorage> {
+        Builder::new(KeyedWidgetStorage::from(storage.clone()))
     }
 
-    pub fn remove_child<K: LayoutKey>(&mut self, layout_key: &K, context: &Context<Self>) -> bool {
+    pub fn remove_child<K: Key>(&mut self, layout_key: &K, context: &Context<Self>) -> bool {
         let children = self
             .children
             .as_mut()
@@ -39,7 +41,7 @@ impl Layout {
         })
     }
 
-    pub fn insert<K: LayoutKey, W: Widget>(
+    pub fn insert<K: Key, W: Widget>(
         &mut self,
         layout_key: Option<K>,
         widget: StyledWidget<W>,
@@ -50,7 +52,7 @@ impl Layout {
         self.insert_registration(layout_key, registration, layout, context);
     }
 
-    pub fn insert_registration<K: LayoutKey>(
+    pub fn insert_registration<K: Key>(
         &mut self,
         layout_key: Option<K>,
         registration: WidgetRegistration,
@@ -85,8 +87,8 @@ impl Widget for Layout {
 }
 
 #[derive(Debug)]
-pub struct Builder<K: LayoutKey> {
-    storage: WidgetStorage,
+pub struct Builder<'a, K: Key, E, S: KeyedStorage<K, E>> {
+    storage: KeyedWidgetStorage<'a, K, E, S>,
     children: ChildrenMap<K>,
 }
 
@@ -105,7 +107,7 @@ impl<K> Default for ChildrenMap<K> {
     }
 }
 
-impl<K: LayoutKey> ChildrenMap<K> {
+impl<K: Key> ChildrenMap<K> {
     fn remove(&mut self, key: &K) -> Option<LayoutChild> {
         self.keys_to_id
             .remove(key)
@@ -128,23 +130,20 @@ pub struct LayoutChild {
     pub layout: WidgetLayout,
 }
 
-impl<K: LayoutKey> Builder<K> {
-    #[must_use]
-    pub fn new(storage: &WidgetStorage) -> Self {
-        Self {
-            storage: storage.clone(),
-            children: ChildrenMap::default(),
-        }
+impl<'a, K: Key, E, S: KeyedStorage<K, E>> Builder<'a, K, E, S> {
+    pub fn storage(&self) -> &WidgetStorage {
+        self.storage.storage()
     }
 
     pub fn with<W: Widget>(
-        self,
+        mut self,
         key: impl Into<Option<K>>,
         widget: StyledWidget<W>,
         layout: WidgetLayout,
     ) -> Self {
-        let widget = self.storage.register(widget);
-        self.with_registration(key.into(), widget, layout)
+        let key = key.into();
+        let widget = self.storage.register(key.clone(), widget);
+        self.with_registration(key, widget, layout)
     }
 
     pub fn with_registration(
@@ -166,10 +165,6 @@ impl<K: LayoutKey> Builder<K> {
         })
     }
 }
-
-pub trait LayoutKey: Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
-
-impl<T> LayoutKey for T where T: Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
 
 #[derive(Clone, Debug, Default)]
 #[must_use]
@@ -334,7 +329,7 @@ pub trait LayoutChildren: AnySendSync {
 #[derive(Debug)]
 pub struct LayoutTransmogrifier;
 
-impl<K: LayoutKey> LayoutChildren for ChildrenMap<K> {
+impl<K: Key> LayoutChildren for ChildrenMap<K> {
     fn layout_children(&self) -> Vec<LayoutChild> {
         self.children.values().cloned().collect()
     }
@@ -396,5 +391,34 @@ impl Dimension {
 impl From<Length<f32, Points>> for Dimension {
     fn from(length: Length<f32, Points>) -> Self {
         Self::Exact(length)
+    }
+}
+
+impl<'a, B: Behavior> Content<'a, B> for Layout {
+    type Builder = Builder<'a, B::Widgets, B::Event, ComponentBuilder<B>>;
+
+    fn build(
+        storage: KeyedWidgetStorage<'a, B::Widgets, B::Event, ComponentBuilder<B>>,
+    ) -> Self::Builder {
+        Builder::new(storage)
+    }
+}
+
+impl<'a, K: Key, E: Debug + Send + Sync, S: KeyedStorage<K, E> + 'static>
+    ContentBuilder<'a, K, E, S> for Builder<'a, K, E, S>
+{
+    fn new(storage: impl Into<KeyedWidgetStorage<'a, K, E, S>>) -> Self {
+        Self {
+            storage: storage.into(),
+            children: ChildrenMap::default(),
+        }
+    }
+
+    fn storage(&self) -> &WidgetStorage {
+        self.storage.storage()
+    }
+
+    fn component(&self) -> Option<WeakWidgetRegistration> {
+        self.storage.component()
     }
 }

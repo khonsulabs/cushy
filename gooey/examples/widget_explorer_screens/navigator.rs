@@ -1,13 +1,15 @@
-use gooey_core::{
-    styles::{Alignment, VerticalAlignment},
-    WeakWidgetRegistration,
-};
-use gooey_widgets::{
-    button::Button,
-    component::Behavior,
-    label::Label,
-    layout::{Dimension, Layout, WidgetLayout},
-    navigator::Navigator,
+use gooey::{
+    core::{
+        styles::{Alignment, VerticalAlignment},
+        WeakWidgetRegistration,
+    },
+    widgets::{
+        button::Button,
+        component::{Behavior, Content, EventMapper},
+        label::Label,
+        layout::{Dimension, Layout, WidgetLayout},
+        navigator::Navigator,
+    },
 };
 
 use super::Page;
@@ -38,11 +40,12 @@ impl Behavior for Demo {
     type Event = Event;
     type Widgets = ();
 
-    fn create_content(
+    fn build_content(
         &mut self,
-        builder: &mut gooey_widgets::component::ComponentBuilder<Self>,
+        builder: <Self::Content as Content<Self>>::Builder,
+        events: &EventMapper<Self>,
     ) -> gooey_core::StyledWidget<Self::Content> {
-        Layout::build::<()>(builder) // TODO having to specify the type here sucks
+        builder
             .with(
                 None,
                 Label::new(
@@ -70,7 +73,7 @@ impl Behavior for Demo {
             )
             .with(
                 None,
-                Button::new("Push", builder.map_event(|_| Event::Push)),
+                Button::new("Push", events.map_event(|_| Event::Push)),
                 WidgetLayout::build()
                     .left(Dimension::percent(0.1))
                     .right(Dimension::percent(0.7))
@@ -80,7 +83,7 @@ impl Behavior for Demo {
             )
             .with(
                 None,
-                Button::new("Replace", builder.map_event(|_| Event::Replace)),
+                Button::new("Replace", events.map_event(|_| Event::Replace)),
                 WidgetLayout::build()
                     .left(Dimension::percent(0.4))
                     .right(Dimension::percent(0.4))
@@ -90,7 +93,7 @@ impl Behavior for Demo {
             )
             .with(
                 None,
-                Button::new("Go Home", builder.map_event(|_| Event::Home)),
+                Button::new("Go Home", events.map_event(|_| Event::Home)),
                 WidgetLayout::build()
                     .left(Dimension::percent(0.7))
                     .right(Dimension::percent(0.1))

@@ -6,7 +6,7 @@ use gooey::{
     core::{Context, StyledWidget, WidgetId},
     widgets::{
         button::Button,
-        component::{Behavior, Component, ComponentBuilder},
+        component::{Behavior, Component, Content, EventMapper},
         container::Container,
     },
     App,
@@ -59,14 +59,20 @@ impl Behavior for Counter {
     /// An enum of child widgets.
     type Widgets = CounterWidgets;
 
-    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Container> {
-        StyledWidget::from(builder.register(
-            CounterWidgets::Button,
-            Button::new(
-                "Click Me!",
-                builder.map_event(|_| CounterEvent::ButtonClicked),
-            ),
-        ))
+    fn build_content(
+        &mut self,
+        builder: <Self::Content as Content<Self>>::Builder,
+        events: &EventMapper<Self>,
+    ) -> StyledWidget<Container> {
+        builder
+            .child(
+                CounterWidgets::Button,
+                Button::new(
+                    "Click Me!",
+                    events.map_event(|_| CounterEvent::ButtonClicked),
+                ),
+            )
+            .finish()
     }
 
     fn initialize(component: &mut Component<Self>, context: &Context<Component<Self>>) {
@@ -99,7 +105,7 @@ impl Behavior for Counter {
 
 /// This enum identifies widgets that you want to send commands to. If a widget
 /// doesn't need to receive commands, it doesn't need an entry in this enum.
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 enum CounterWidgets {
     /// The button that users click.
     Button,

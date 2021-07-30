@@ -1,20 +1,16 @@
 use gooey::{
     core::{
         euclid::Length,
-        styles::{Alignment, VerticalAlignment},
-        Context, StyledWidget,
+        styles::{Alignment, BackgroundColor, Color, VerticalAlignment},
+        Context, DefaultWidget, StyledWidget,
     },
     widgets::{
         button::Button,
-        component::{Behavior, Component, ComponentBuilder},
+        component::{Behavior, Component, Content, EventMapper},
         label::Label,
         layout::{Dimension, Layout, WidgetLayout},
     },
     App,
-};
-use gooey_core::{
-    styles::{BackgroundColor, Color},
-    DefaultWidget,
 };
 
 #[cfg(test)]
@@ -38,13 +34,17 @@ impl Behavior for Counter {
     type Event = CounterEvent;
     type Widgets = CounterWidgets;
 
-    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Layout> {
-        Layout::build(builder)
+    fn build_content(
+        &mut self,
+        builder: <Self::Content as Content<Self>>::Builder,
+        events: &EventMapper<Self>,
+    ) -> StyledWidget<Layout> {
+        builder
             .with(
                 None,
                 Button::new(
                     "Click Me!",
-                    builder.map_event(|_| CounterEvent::ButtonClicked),
+                    events.map_event(|_| CounterEvent::ButtonClicked),
                 ),
                 WidgetLayout::build()
                     .left(Dimension::Exact(Length::new(0.)))
@@ -53,15 +53,12 @@ impl Behavior for Counter {
                     .width(Dimension::Percent(0.5))
                     .finish(),
             )
-            .with_registration(
+            .with(
                 CounterWidgets::Label,
-                builder.register(
-                    CounterWidgets::Label,
-                    Label::new("0")
-                        .with(Alignment::Center)
-                        .with(VerticalAlignment::Center)
-                        .with(BackgroundColor(Color::new(1., 0., 0., 0.7).into())),
-                ),
+                Label::new("0")
+                    .with(Alignment::Center)
+                    .with(VerticalAlignment::Center)
+                    .with(BackgroundColor(Color::new(1., 0., 0., 0.7).into())),
                 WidgetLayout::build()
                     .right(Dimension::Exact(Length::new(0.)))
                     .top(Dimension::Percent(0.4))
@@ -90,7 +87,7 @@ impl Behavior for Counter {
     }
 }
 
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 enum CounterWidgets {
     Label,
 }

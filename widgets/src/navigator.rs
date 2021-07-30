@@ -9,8 +9,10 @@ use gooey_core::{
 use url::Url;
 
 use crate::{
-    component::{Behavior, Component, ComponentCommand},
-    layout::{Dimension, Layout, WidgetLayout},
+    component::{
+        Behavior, Component, ComponentBuilder, ComponentCommand, ContentBuilder, EventMapper,
+    },
+    layout::{self, Dimension, Layout, WidgetLayout},
 };
 
 mod bar;
@@ -148,17 +150,19 @@ impl<Loc: Location> Behavior for NavigatorBehavior<Loc> {
         Self::update_bar(component, context);
     }
 
-    fn create_content(
+    fn build_content(
         &mut self,
-        builder: &mut crate::component::ComponentBuilder<Self>,
+        builder: layout::Builder<'_, Widgets, Event, ComponentBuilder<Self>>,
+        _events: &EventMapper<Self>,
     ) -> StyledWidget<Self::Content> {
         let initial_content = self.back_stack.last().unwrap();
-        let navigator = WeakWidgetRegistration::from(builder.component());
-        let initial_widget = initial_content.materialize(builder, navigator.clone());
-        Layout::build(builder)
-            .with_registration(
+        let navigator = builder.component().unwrap();
+        let initial_widget = initial_content.materialize(builder.storage(), navigator.clone());
+        let bar = Loc::Bar::new(navigator, builder.storage());
+        builder
+            .with(
                 Widgets::Bar,
-                builder.register(Widgets::Bar, Loc::Bar::new(navigator, builder)),
+                bar,
                 WidgetLayout::build()
                     .top(Dimension::zero())
                     .height(Dimension::exact(44.))

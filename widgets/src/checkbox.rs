@@ -49,6 +49,7 @@ impl Checkbox {
     }
 }
 
+#[derive(Debug)]
 #[must_use]
 pub struct Builder {
     checkbox: Checkbox,
@@ -71,7 +72,6 @@ impl Builder {
         self
     }
 
-    #[allow(clippy::missing_const_for_fn)]
     pub fn on_clicked(mut self, clicked: Callback) -> Self {
         self.checkbox.toggled = clicked;
         self
