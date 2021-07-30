@@ -425,48 +425,6 @@ pub trait KeyedStorage<K: Key>: Debug + Send + Sync {
     fn related_storage(&self) -> Option<Box<dyn RelatedStorage<K>>>;
 }
 
-// /// A [`KeyedStorage`] implementor that is either owned or borrowed. Similar to
-// /// `std::cow::Cow` but doesn't require the storage type to be `Clone`.
-// #[derive(Debug)]
-// pub enum KeyedWidgetStorage<'a, K: Key, E, S: KeyedStorage<K, E>> {
-//     /// An owned widget storage.
-//     Owned(S, PhantomData<(K, E)>),
-//     /// A borrowed widget storage.
-//     Borrowed(&'a mut S),
-// }
-
-// impl<'a, K: Key, E, S: KeyedStorage<K, E>> From<S> for KeyedWidgetStorage<'a, K, E, S> {
-//     fn from(owned: S) -> Self {
-//         Self::Owned(owned, PhantomData::default())
-//     }
-// }
-
-// impl<'a, K: Key, E, S: KeyedStorage<K, E>> From<&'a mut S> for KeyedWidgetStorage<'a, K, E, S> {
-//     fn from(borrowed: &'a mut S) -> Self {
-//         Self::Borrowed(borrowed)
-//     }
-// }
-
-// impl<'a, K: Key, E, S: KeyedStorage<K, E>> Deref for KeyedWidgetStorage<'a, K, E, S> {
-//     type Target = S;
-
-//     fn deref(&self) -> &Self::Target {
-//         match self {
-//             Self::Owned(storage, _) => storage,
-//             Self::Borrowed(borrowed) => borrowed,
-//         }
-//     }
-// }
-
-// impl<'a, K: Key, E, S: KeyedStorage<K, E>> DerefMut for KeyedWidgetStorage<'a, K, E, S> {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         match self {
-//             Self::Owned(storage, _) => storage,
-//             Self::Borrowed(borrowed) => borrowed,
-//         }
-//     }
-// }
-
 /// A key for a widget.
 pub trait Key: Clone + Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
 
