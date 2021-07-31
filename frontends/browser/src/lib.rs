@@ -348,6 +348,11 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
                 Alignment::Center => "center",
                 Alignment::Right => "end",
             },));
+            css = css.with_css_statement(format!("text-align: {}", match alignment {
+                Alignment::Left => "left",
+                Alignment::Center => "center",
+                Alignment::Right => "right",
+            },));
         }
         if let Some(vertical_alignment) = vertical_alignment {
             css = css.with_css_statement(format!("align-items: {}", match vertical_alignment {
