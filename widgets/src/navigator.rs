@@ -6,7 +6,6 @@ use gooey_core::{
     styles::style_sheet::Classes, Context, DefaultWidget, StyledWidget, WeakWidgetRegistration,
     WidgetRegistration, WidgetStorage,
 };
-use url::Url;
 
 use crate::{
     component::{Behavior, Component, ComponentCommand, Content, ContentBuilder, EventMapper},
@@ -108,10 +107,6 @@ pub trait Location:
         storage: &WidgetStorage,
         navigator: WeakWidgetRegistration,
     ) -> WidgetRegistration;
-
-    fn serialize(&self) -> Url;
-
-    fn deserialize(url: Url) -> Self;
 
     fn navigator(storage: &WidgetStorage) -> StyledWidget<Component<NavigatorBehavior<Self>>> {
         Component::default_for(storage)

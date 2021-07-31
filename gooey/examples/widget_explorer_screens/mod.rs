@@ -11,7 +11,6 @@ use gooey::{
         label::Label,
         layout::{Dimension, Layout, WidgetLayout},
         navigator::{DefaultBar, Location, Navigator},
-        url::Url,
     },
 };
 
@@ -61,14 +60,6 @@ impl Location for Page {
             )),
         }
     }
-
-    fn serialize(&self) -> Url {
-        todo!()
-    }
-
-    fn deserialize(url: Url) -> Self {
-        todo!()
-    }
 }
 
 #[derive(Debug)]
@@ -110,9 +101,8 @@ impl Behavior for InfoPage {
                 WidgetLayout::build()
                     .bottom(Dimension::zero())
                     .left(Dimension::percent(index as f32 * button_width))
-                    .right(Dimension::percent(1. - (index + 1) as f32 * button_width))
+                    .right(Dimension::percent(button_width))
                     .height(Dimension::exact(44.))
-                    // .width(Dimension::percent(button_width))
                     .finish(),
             );
         }
