@@ -232,9 +232,9 @@ mod tests {
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(1000));
 
-            // recorder.map_root_widget(|navigator: &mut Navigator<Page>, _context| {
-            //     assert_eq!(navigator.back_stack(), &[Page::MainMenu,]);
-            // });
+            recorder.map_root_widget(|navigator: &mut Navigator<Page>, _context| {
+                assert_eq!(navigator.back_stack(), &[Page::MainMenu,]);
+            });
 
             recorder.save_apng(crate::harness::snapshot_path(
                 "widget-explorer",
