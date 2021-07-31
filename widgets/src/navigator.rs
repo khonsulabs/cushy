@@ -181,7 +181,7 @@ impl<Loc: Location> Behavior for NavigatorBehavior<Loc> {
 fn content_layout() -> WidgetLayout {
     WidgetLayout::build()
         .top(Dimension::exact(44.))
-        .left(Dimension::zero())
-        .right(Dimension::zero())
+        .bottom(Dimension::zero())
+        .fill_width()
         .finish()
 }

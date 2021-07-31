@@ -69,7 +69,6 @@ impl Layout {
         layout: WidgetLayout,
         context: &Context<Self>,
     ) {
-        context.send_command(LayoutCommand::ChildAdded(registration.clone()));
         let children = self
             .children
             .as_mut()
@@ -86,10 +85,16 @@ impl Layout {
                 related_storage.register(layout_key.clone(), &registration);
             }
         }
-        children.insert(layout_key, LayoutChild {
-            registration,
+        if let Some(old_child) = children.insert(layout_key, LayoutChild {
+            registration: registration.clone(),
             layout,
-        });
+        }) {
+            context.send_command(LayoutCommand::ChildRemoved(
+                old_child.registration.id().clone(),
+            ));
+        }
+
+        context.send_command(LayoutCommand::ChildAdded(registration));
     }
 }
 
@@ -134,13 +139,15 @@ impl<K: Key> ChildrenMap<K> {
             .and_then(|id| self.children.remove(&id))
     }
 
-    fn insert(&mut self, key: Option<K>, child: LayoutChild) {
+    fn insert(&mut self, key: Option<K>, child: LayoutChild) -> Option<LayoutChild> {
+        let mut old_child = None;
         if let Some(key) = key {
             if let Some(removed_widget) = self.keys_to_id.insert(key, child.registration.id().id) {
-                self.children.remove(&removed_widget);
+                old_child = self.children.remove(&removed_widget);
             }
         }
         self.children.insert(child.registration.id().id, child);
+        old_child
     }
 }
 

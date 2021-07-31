@@ -76,7 +76,7 @@ impl Behavior for Demo {
                 Button::new("Push", events.map(|_| Event::Push)),
                 WidgetLayout::build()
                     .left(Dimension::percent(0.1))
-                    .right(Dimension::percent(0.7))
+                    .width(Dimension::percent(0.2))
                     .bottom(Dimension::exact(BUTTON_PADDING))
                     .height(Dimension::exact(BUTTON_HEIGHT))
                     .finish(),
@@ -86,7 +86,7 @@ impl Behavior for Demo {
                 Button::new("Replace", events.map(|_| Event::Replace)),
                 WidgetLayout::build()
                     .left(Dimension::percent(0.4))
-                    .right(Dimension::percent(0.4))
+                    .width(Dimension::percent(0.2))
                     .bottom(Dimension::exact(BUTTON_PADDING))
                     .height(Dimension::exact(BUTTON_HEIGHT))
                     .finish(),
@@ -96,7 +96,7 @@ impl Behavior for Demo {
                 Button::new("Go Home", events.map(|_| Event::Home)),
                 WidgetLayout::build()
                     .left(Dimension::percent(0.7))
-                    .right(Dimension::percent(0.1))
+                    .width(Dimension::percent(0.2))
                     .bottom(Dimension::exact(BUTTON_PADDING))
                     .height(Dimension::exact(BUTTON_HEIGHT))
                     .finish(),

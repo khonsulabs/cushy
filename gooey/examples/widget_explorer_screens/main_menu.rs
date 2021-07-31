@@ -53,7 +53,7 @@ impl Behavior for MainMenu {
                 .top(Dimension::zero())
                 .right(Dimension::zero())
                 .left(Dimension::zero())
-                .height(Dimension::percent(80.))
+                .height(Dimension::percent(0.8))
                 .finish(),
         );
 
@@ -65,9 +65,8 @@ impl Behavior for MainMenu {
                 WidgetLayout::build()
                     .bottom(Dimension::zero())
                     .left(Dimension::percent(index as f32 * button_width))
-                    .right(Dimension::percent(1. - (index + 1) as f32 * button_width))
+                    .width(Dimension::percent(button_width))
                     .height(Dimension::exact(44.))
-                    // .width(Dimension::percent(button_width))
                     .finish(),
             );
         }
