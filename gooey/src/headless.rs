@@ -286,7 +286,7 @@ impl<'a> Recorder<'a> {
         duration: Duration,
     ) -> Result<(), HeadlessError> {
         let duration = duration.as_secs_f32();
-        let frames = (duration * f32::from(self.fps)).floor();
+        let frames = (duration * f32::from(self.fps)).floor().max(1.);
         let frame_duration = Duration::from_secs_f32(duration / frames);
         let origin = self.cursor.unwrap_or_else(|| Point2D::new(-16., -16.));
         let step = (location.to_vector() - origin.to_vector()) / frames;

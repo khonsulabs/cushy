@@ -6,7 +6,7 @@ use gooey::{
     core::{Context, StyledWidget, WidgetId},
     widgets::{
         button::Button,
-        component::{Behavior, Component, ComponentBuilder, ComponentTransmogrifier},
+        component::{Behavior, Component, Content, EventMapper},
         container::Container,
     },
     App,
@@ -27,7 +27,7 @@ fn main() {
         // `Counter`.
         Component::new(Counter::new(command_sender), storage))
     // Register our custom component's transmogrifier.
-    .with(ComponentTransmogrifier::<Counter>::default())
+    .with_component::<Counter>()
     // Run the app using the widget returned by the initializer.
     .run()
 }
@@ -59,14 +59,17 @@ impl Behavior for Counter {
     /// An enum of child widgets.
     type Widgets = CounterWidgets;
 
-    fn create_content(&mut self, builder: &mut ComponentBuilder<Self>) -> StyledWidget<Container> {
-        StyledWidget::from(builder.register(
-            CounterWidgets::Button,
-            Button::new(
-                "Click Me!",
-                builder.map_event(|_| CounterEvent::ButtonClicked),
-            ),
-        ))
+    fn build_content(
+        &mut self,
+        builder: <Self::Content as Content<Self>>::Builder,
+        events: &EventMapper<Self>,
+    ) -> StyledWidget<Container> {
+        builder
+            .child(
+                CounterWidgets::Button,
+                Button::new("Click Me!", events.map(|_| CounterEvent::ButtonClicked)),
+            )
+            .finish()
     }
 
     fn initialize(component: &mut Component<Self>, context: &Context<Component<Self>>) {
@@ -99,7 +102,7 @@ impl Behavior for Counter {
 
 /// This enum identifies widgets that you want to send commands to. If a widget
 /// doesn't need to receive commands, it doesn't need an entry in this enum.
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
 enum CounterWidgets {
     /// The button that users click.
     Button,
@@ -145,7 +148,7 @@ async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
         match Client::build("ws://127.0.0.1:8081".parse().unwrap())
             .with_custom_api_callback::<ExampleApi, _>(move |response| {
                 let Response::CounterValue(count) = response;
-                client_context.context.with_widget_mut(
+                client_context.context.map_widget_mut(
                     &client_context.button_id,
                     |button: &mut Button, context| {
                         button.set_label(count.to_string(), context);
@@ -167,7 +170,7 @@ async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
         Ok(Response::CounterValue(count)) => {
             context
                 .context
-                .with_widget_mut(&context.button_id, |button: &mut Button, context| {
+                .map_widget_mut(&context.button_id, |button: &mut Button, context| {
                     button.set_label(count.to_string(), context);
                 });
         }
@@ -196,7 +199,7 @@ async fn increment_counter(client: &Client<ExampleApi>, context: &DatabaseContex
         Ok(Response::CounterValue(count)) => {
             context
                 .context
-                .with_widget_mut(&context.button_id, |button: &mut Button, context| {
+                .map_widget_mut(&context.button_id, |button: &mut Button, context| {
                     button.set_label(count.to_string(), context);
                 });
         }

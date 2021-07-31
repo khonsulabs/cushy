@@ -5,12 +5,11 @@
 #![warn(
     clippy::cargo,
     missing_docs,
-    clippy::nursery,
     clippy::pedantic,
     future_incompatible,
     rust_2018_idioms
 )]
-#![allow(clippy::if_not_else)]
+#![allow(clippy::if_not_else, clippy::module_name_repetitions)]
 #![cfg_attr(doc, warn(rustdoc::all))]
 
 mod frontend;

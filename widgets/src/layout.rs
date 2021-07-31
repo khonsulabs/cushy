@@ -1,11 +1,13 @@
-use std::{collections::HashMap, fmt::Debug, hash::Hash};
+use std::{collections::HashMap, fmt::Debug};
 
 use gooey_core::{
     euclid::{Length, Size2D},
     styles::Surround,
-    AnySendSync, Context, Points, StyledWidget, Widget, WidgetId, WidgetRegistration,
-    WidgetStorage,
+    AnySendSync, Context, Key, KeyedStorage, Points, RelatedStorage, StyledWidget, Widget,
+    WidgetId, WidgetRegistration, WidgetStorage,
 };
+
+use crate::component::{Behavior, ComponentBuilder, Content, ContentBuilder};
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;
@@ -16,15 +18,16 @@ mod browser;
 #[derive(Debug)]
 pub struct Layout {
     children: Box<dyn LayoutChildren>,
+    related_storage: Option<Box<dyn AnySendSync>>,
 }
 
 impl Layout {
     #[must_use]
-    pub fn build<K: LayoutKey>(storage: &WidgetStorage) -> Builder<K> {
-        Builder::new(storage)
+    pub fn build<K: Key>(storage: &WidgetStorage) -> Builder<K, WidgetStorage> {
+        Builder::new(storage.clone())
     }
 
-    pub fn remove_child<K: LayoutKey>(&mut self, layout_key: &K, context: &Context<Self>) -> bool {
+    pub fn remove_child<K: Key>(&mut self, layout_key: &K, context: &Context<Self>) -> bool {
         let children = self
             .children
             .as_mut()
@@ -32,6 +35,15 @@ impl Layout {
             .downcast_mut::<ChildrenMap<K>>()
             .unwrap();
         children.remove(layout_key).map_or(false, |removed_child| {
+            if let Some(related_storage) = &mut self.related_storage {
+                let related_storage = related_storage
+                    .as_mut()
+                    .as_mut_any()
+                    .downcast_mut::<Box<dyn RelatedStorage<K>>>()
+                    .unwrap();
+                related_storage.remove(layout_key);
+            }
+
             context.send_command(LayoutCommand::ChildRemoved(
                 removed_child.registration.id().clone(),
             ));
@@ -39,7 +51,7 @@ impl Layout {
         })
     }
 
-    pub fn insert<K: LayoutKey, W: Widget>(
+    pub fn insert<K: Key, W: Widget>(
         &mut self,
         layout_key: Option<K>,
         widget: StyledWidget<W>,
@@ -50,24 +62,39 @@ impl Layout {
         self.insert_registration(layout_key, registration, layout, context);
     }
 
-    pub fn insert_registration<K: LayoutKey>(
+    pub fn insert_registration<K: Key>(
         &mut self,
         layout_key: Option<K>,
         registration: WidgetRegistration,
         layout: WidgetLayout,
         context: &Context<Self>,
     ) {
-        context.send_command(LayoutCommand::ChildAdded(registration.clone()));
         let children = self
             .children
             .as_mut()
             .as_mut_any()
             .downcast_mut::<ChildrenMap<K>>()
             .unwrap();
-        children.insert(layout_key, LayoutChild {
-            registration,
+        if let Some(layout_key) = &layout_key {
+            if let Some(related_storage) = &mut self.related_storage {
+                let related_storage = related_storage
+                    .as_mut()
+                    .as_mut_any()
+                    .downcast_mut::<Box<dyn RelatedStorage<K>>>()
+                    .unwrap();
+                related_storage.register(layout_key.clone(), &registration);
+            }
+        }
+        if let Some(old_child) = children.insert(layout_key, LayoutChild {
+            registration: registration.clone(),
             layout,
-        });
+        }) {
+            context.send_command(LayoutCommand::ChildRemoved(
+                old_child.registration.id().clone(),
+            ));
+        }
+
+        context.send_command(LayoutCommand::ChildAdded(registration));
     }
 }
 
@@ -85,8 +112,8 @@ impl Widget for Layout {
 }
 
 #[derive(Debug)]
-pub struct Builder<K: LayoutKey> {
-    storage: WidgetStorage,
+pub struct Builder<K: Key, S: KeyedStorage<K>> {
+    storage: S,
     children: ChildrenMap<K>,
 }
 
@@ -105,18 +132,22 @@ impl<K> Default for ChildrenMap<K> {
     }
 }
 
-impl<K: LayoutKey> ChildrenMap<K> {
+impl<K: Key> ChildrenMap<K> {
     fn remove(&mut self, key: &K) -> Option<LayoutChild> {
         self.keys_to_id
             .remove(key)
             .and_then(|id| self.children.remove(&id))
     }
 
-    fn insert(&mut self, key: Option<K>, child: LayoutChild) {
+    fn insert(&mut self, key: Option<K>, child: LayoutChild) -> Option<LayoutChild> {
+        let mut old_child = None;
         if let Some(key) = key {
-            self.keys_to_id.insert(key, child.registration.id().id);
+            if let Some(removed_widget) = self.keys_to_id.insert(key, child.registration.id().id) {
+                old_child = self.children.remove(&removed_widget);
+            }
         }
         self.children.insert(child.registration.id().id, child);
+        old_child
     }
 }
 
@@ -126,32 +157,29 @@ pub struct LayoutChild {
     pub layout: WidgetLayout,
 }
 
-impl<K: LayoutKey> Builder<K> {
-    #[must_use]
-    pub fn new(storage: &WidgetStorage) -> Self {
-        Self {
-            storage: storage.clone(),
-            children: ChildrenMap::default(),
-        }
+impl<K: Key, S: KeyedStorage<K>> Builder<K, S> {
+    pub fn storage(&self) -> &WidgetStorage {
+        self.storage.storage()
     }
 
     pub fn with<W: Widget>(
-        self,
-        key: Option<K>,
+        mut self,
+        key: impl Into<Option<K>>,
         widget: StyledWidget<W>,
         layout: WidgetLayout,
     ) -> Self {
-        let widget = self.storage.register(widget);
+        let key = key.into();
+        let widget = self.storage.register(key.clone(), widget);
         self.with_registration(key, widget, layout)
     }
 
     pub fn with_registration(
         mut self,
-        key: Option<K>,
+        key: impl Into<Option<K>>,
         registration: WidgetRegistration,
         layout: WidgetLayout,
     ) -> Self {
-        self.children.insert(key, LayoutChild {
+        self.children.insert(key.into(), LayoutChild {
             registration,
             layout,
         });
@@ -159,17 +187,18 @@ impl<K: LayoutKey> Builder<K> {
     }
 
     pub fn finish(self) -> StyledWidget<Layout> {
-        StyledWidget::default_for(Layout {
+        StyledWidget::from(Layout {
             children: Box::new(self.children),
+            related_storage: self
+                .storage
+                .related_storage()
+                .map(|storage| Box::new(storage) as Box<dyn AnySendSync>),
         })
     }
 }
 
-pub trait LayoutKey: Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
-
-impl<T> LayoutKey for T where T: Hash + Debug + Eq + PartialEq + Send + Sync + 'static {}
-
 #[derive(Clone, Debug, Default)]
+#[must_use]
 pub struct WidgetLayout {
     pub left: Dimension,
     pub top: Dimension,
@@ -179,35 +208,25 @@ pub struct WidgetLayout {
     pub height: Dimension,
 }
 
+#[derive(Clone, Debug, Default)]
+#[must_use]
+pub struct WidgetLayoutBuilder {
+    layout: WidgetLayout,
+}
+
 impl WidgetLayout {
-    pub fn with_left<D: Into<Dimension>>(mut self, left: D) -> Self {
-        self.left = left.into();
-        self
+    pub fn build() -> WidgetLayoutBuilder {
+        WidgetLayoutBuilder::default()
     }
 
-    pub fn with_right<D: Into<Dimension>>(mut self, right: D) -> Self {
-        self.right = right.into();
-        self
-    }
-
-    pub fn with_top<D: Into<Dimension>>(mut self, top: D) -> Self {
-        self.top = top.into();
-        self
-    }
-
-    pub fn with_bottom<D: Into<Dimension>>(mut self, bottom: D) -> Self {
-        self.bottom = bottom.into();
-        self
-    }
-
-    pub fn with_width<D: Into<Dimension>>(mut self, width: D) -> Self {
-        self.width = width.into();
-        self
-    }
-
-    pub fn with_height<D: Into<Dimension>>(mut self, height: D) -> Self {
-        self.height = height.into();
-        self
+    pub fn fill() -> Self {
+        Self {
+            left: Dimension::zero(),
+            top: Dimension::zero(),
+            right: Dimension::zero(),
+            bottom: Dimension::zero(),
+            ..Self::default()
+        }
     }
 
     #[must_use]
@@ -240,14 +259,14 @@ impl WidgetLayout {
     pub fn width_in_points(&self, content_size: Size2D<f32, Points>) -> Length<f32, Points> {
         self.width
             .length(Length::new(content_size.width))
-            .unwrap_or_default()
+            .unwrap_or_else(|| Length::new(content_size.width))
     }
 
     #[must_use]
     pub fn height_in_points(&self, content_size: Size2D<f32, Points>) -> Length<f32, Points> {
         self.height
             .length(Length::new(content_size.height))
-            .unwrap_or_default()
+            .unwrap_or_else(|| Length::new(content_size.height))
     }
 
     #[must_use]
@@ -269,6 +288,70 @@ impl WidgetLayout {
     }
 }
 
+impl WidgetLayoutBuilder {
+    pub fn left<D: Into<Dimension>>(mut self, left: D) -> Self {
+        self.layout.left = left.into();
+        self
+    }
+
+    pub fn right<D: Into<Dimension>>(mut self, right: D) -> Self {
+        self.layout.right = right.into();
+        self
+    }
+
+    pub fn top<D: Into<Dimension>>(mut self, top: D) -> Self {
+        self.layout.top = top.into();
+        self
+    }
+
+    pub fn bottom<D: Into<Dimension>>(mut self, bottom: D) -> Self {
+        self.layout.bottom = bottom.into();
+        self
+    }
+
+    pub fn width<D: Into<Dimension>>(mut self, width: D) -> Self {
+        self.layout.width = width.into();
+        self
+    }
+
+    pub fn height<D: Into<Dimension>>(mut self, height: D) -> Self {
+        self.layout.height = height.into();
+        self
+    }
+
+    pub const fn fill_width(mut self) -> Self {
+        self.layout.left = Dimension::zero();
+        self.layout.right = Dimension::zero();
+        self.layout.width = Dimension::percent(1.);
+        self
+    }
+
+    pub fn horizontal_margins<D: Into<Dimension>>(mut self, margin: D) -> Self {
+        let margin = margin.into();
+        self.layout.left = margin;
+        self.layout.right = margin;
+        self
+    }
+
+    pub fn vertical_margins<D: Into<Dimension>>(mut self, margin: D) -> Self {
+        let margin = margin.into();
+        self.layout.top = margin;
+        self.layout.bottom = margin;
+        self
+    }
+
+    pub const fn fill_height(mut self) -> Self {
+        self.layout.top = Dimension::zero();
+        self.layout.bottom = Dimension::zero();
+        self.layout.height = Dimension::percent(1.);
+        self
+    }
+
+    pub const fn finish(self) -> WidgetLayout {
+        self.layout
+    }
+}
+
 pub trait LayoutChildren: AnySendSync {
     fn layout_children(&self) -> Vec<LayoutChild>;
     fn child_by_widget_id(&self, widget_id: &WidgetId) -> Option<&LayoutChild>;
@@ -277,7 +360,7 @@ pub trait LayoutChildren: AnySendSync {
 #[derive(Debug)]
 pub struct LayoutTransmogrifier;
 
-impl<K: LayoutKey> LayoutChildren for ChildrenMap<K> {
+impl<K: Key> LayoutChildren for ChildrenMap<K> {
     fn layout_children(&self) -> Vec<LayoutChild> {
         self.children.values().cloned().collect()
     }
@@ -312,11 +395,57 @@ impl Default for Dimension {
 
 impl Dimension {
     #[must_use]
+    pub const fn zero() -> Self {
+        Self::Exact(Length::new(0.))
+    }
+
+    #[must_use]
+    pub const fn exact(length: f32) -> Self {
+        Self::Exact(Length::new(length))
+    }
+
+    #[must_use]
+    pub const fn percent(percent: f32) -> Self {
+        Self::Percent(percent)
+    }
+
+    #[must_use]
     pub fn length(self, content_length: Length<f32, Points>) -> Option<Length<f32, Points>> {
         match self {
             Dimension::Auto => None,
             Dimension::Exact(measurement) => Some(measurement),
             Dimension::Percent(percent) => Some(content_length * percent),
         }
+    }
+}
+
+impl From<Length<f32, Points>> for Dimension {
+    fn from(length: Length<f32, Points>) -> Self {
+        Self::Exact(length)
+    }
+}
+
+impl<B: Behavior> Content<B> for Layout {
+    type Builder = Builder<B::Widgets, ComponentBuilder<B>>;
+
+    fn build(storage: ComponentBuilder<B>) -> Self::Builder {
+        Builder::new(storage)
+    }
+}
+
+impl<'a, K: Key, S: KeyedStorage<K> + 'static> ContentBuilder<K, S> for Builder<K, S> {
+    fn new(storage: S) -> Self {
+        Self {
+            storage,
+            children: ChildrenMap::default(),
+        }
+    }
+
+    fn storage(&self) -> &WidgetStorage {
+        self.storage.storage()
+    }
+
+    fn related_storage(&self) -> Option<Box<dyn RelatedStorage<K>>> {
+        self.storage.related_storage()
     }
 }

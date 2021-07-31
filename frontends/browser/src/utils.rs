@@ -1,11 +1,36 @@
-use std::fmt::Write;
+use std::{
+    collections::HashSet,
+    convert::TryInto,
+    fmt::Write,
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Arc, Mutex,
+    },
+};
 
 use gooey_core::styles::{
     style_sheet::{Classes, Rule, State},
     StyleComponent, SystemTheme,
 };
+use once_cell::sync::OnceCell;
 use wasm_bindgen::JsCast;
 use web_sys::{CssStyleSheet, HtmlElement, HtmlStyleElement};
+
+static REGISTERED_CSS_RULES: OnceCell<Mutex<CssSheetState>> = OnceCell::new();
+static LAST_CSS_RULE_ID: AtomicU32 = AtomicU32::new(0);
+
+#[derive(Default)]
+struct CssSheetState {
+    taken_ids: HashSet<u32>,
+    rules: Vec<CssRule>,
+}
+
+#[derive(Debug, Clone)]
+struct CssRule {
+    id: u32,
+    #[cfg(debug_assertions)]
+    css: Arc<String>,
+}
 
 #[must_use]
 pub fn window_document() -> web_sys::Document {
@@ -69,15 +94,52 @@ impl CssManager {
         }
     }
 
+    fn internal_register_rule(&self, rule: &str) -> CssRule {
+        // The CssStyleSheet type manages rules by index, which are not stable
+        // when you begin removing existing entries. Thus, we create a unique id
+        // for each registered rule and keep our own Vec<> of rules that matches
+        // the order of the stylesheet rules. When removing, we can use the
+        // index we find the rule inside of the Vec.
+        let mut state = REGISTERED_CSS_RULES
+            .get_or_init(Mutex::default)
+            .lock()
+            .unwrap();
+        let id = loop {
+            let next_id = LAST_CSS_RULE_ID.fetch_add(1, Ordering::SeqCst);
+            if !state.taken_ids.contains(&next_id) {
+                break next_id;
+            }
+        };
+        state.taken_ids.insert(id);
+        let css_rule = CssRule {
+            id,
+            #[cfg(debug_assertions)]
+            css: Arc::new(rule.to_string()),
+        };
+        self.sheet
+            .insert_rule_with_index(rule, state.rules.len().try_into().unwrap())
+            .unwrap();
+        state.rules.push(css_rule.clone());
+
+        css_rule
+    }
+
     pub fn register_rule(&self, rule: &str) -> CssRules {
         CssRules {
-            index: vec![self.sheet.insert_rule(rule).unwrap()],
+            index: vec![self.internal_register_rule(rule)],
         }
     }
 
     pub fn unregister_rule(&self, rule: &mut CssRules) {
-        for index in std::mem::take(&mut rule.index) {
-            self.sheet.delete_rule(index).unwrap();
+        let mut state = REGISTERED_CSS_RULES.get().unwrap().lock().unwrap();
+        for rule in std::mem::take(&mut rule.index) {
+            let index = state
+                .rules
+                .binary_search_by_key(&rule.id, |rule| rule.id)
+                .unwrap();
+            state.rules.remove(index);
+            self.sheet.delete_rule(index.try_into().unwrap()).unwrap();
+            state.taken_ids.remove(&rule.id);
         }
     }
 }
@@ -85,7 +147,7 @@ impl CssManager {
 #[derive(Debug, Default)]
 #[must_use]
 pub struct CssRules {
-    index: Vec<u32>,
+    index: Vec<CssRule>,
 }
 
 pub enum CssMapping {
@@ -101,13 +163,13 @@ impl Drop for CssRules {
 impl CssRules {
     pub fn and(mut self, rule: &str) -> Self {
         self.index
-            .push(CssManager::shared().sheet.insert_rule(rule).unwrap());
+            .push(CssManager::shared().internal_register_rule(rule));
         self
     }
 
     pub fn extend(&mut self, mut other: Self) {
-        let other = std::mem::take(&mut other.index);
-        self.index.extend(other.into_iter());
+        let other_index = std::mem::take(&mut other.index);
+        self.index.extend(other_index.into_iter());
     }
 }
 

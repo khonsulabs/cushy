@@ -10,6 +10,14 @@ use crate::layout::{Layout, LayoutTransmogrifier};
 impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LayoutTransmogrifier {
     type State = ();
     type Widget = Layout;
+
+    fn receive_command(
+        &self,
+        _command: <Self::Widget as gooey_core::Widget>::Command,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+    ) {
+        context.frontend.set_needs_redraw();
+    }
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
@@ -51,15 +59,16 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, Rect<f32, Points
 ) {
     for child in context.widget.children.layout_children() {
         let layout_surround = child.layout.surround_in_points(constraints);
-        let child_constrained_size = Size2D::from_lengths(
-            Length::new(constraints.width) - layout_surround.minimum_width(),
-            Length::new(constraints.height) - layout_surround.minimum_height(),
-        );
-        let layout_max_size = child.layout.size_in_points(child_constrained_size);
+        let layout_max_size = child
+            .layout
+            .size_in_points(constraints)
+            .min(constraints - layout_surround.minimum_size());
+
         // Constrain the child to whatever remains after the left/right/top/bottom
         // measurements
         let child_constraints =
             Size2D::new(Some(layout_max_size.width), Some(layout_max_size.height));
+
         // Ask the child to measure
         let child_size = context
             .frontend
@@ -69,36 +78,32 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, Rect<f32, Points
                     transmogrifier.content_size(&mut child_context, child_constraints)
                 },
             )
-            .unwrap();
+            .expect("unknown transmogrifier");
 
         // If the layout has an explicit width/height, we should return it if it's a
         // value larger than what the child reported
         let child_size = child_size.max(layout_max_size);
-        // If either top or left are Auto, we need to divide it equally with the
-        // corresponding measurement if it's also auto.
+        let remaining_size = constraints - child_size;
+        // If either top or left are Auto, we look at bottom or right,
+        // respectively. If the corresponding dimension is also Auto, we divide
+        // the remaining amount in two. If the other dimension is specified,
+        // however, we subtract its measurement from the remaining value and use
+        // it as top/left.
         let child_left = layout_surround.left.unwrap_or_else(|| {
-            Length::new(child_size.width)
-                / count_autos(layout_surround.left, layout_surround.right) as f32
+            let remaining_width = Length::new(remaining_size.width);
+            layout_surround
+                .right
+                .map_or_else(|| remaining_width / 2., |right| remaining_width - right)
         });
         let child_top = layout_surround.top.unwrap_or_else(|| {
-            Length::new(child_size.height)
-                / count_autos(layout_surround.top, layout_surround.bottom) as f32
+            let remaining_height = Length::new(remaining_size.height);
+            layout_surround
+                .bottom
+                .map_or_else(|| remaining_height / 2., |bottom| remaining_height - bottom)
         });
         callback(
             &child,
             Rect::new(Point2D::from_lengths(child_left, child_top), child_size),
         );
-    }
-}
-
-const fn count_autos(a: Option<Length<f32, Points>>, b: Option<Length<f32, Points>>) -> usize {
-    count_auto(a) + count_auto(b)
-}
-
-const fn count_auto(a: Option<Length<f32, Points>>) -> usize {
-    if a.is_none() {
-        1
-    } else {
-        0
     }
 }

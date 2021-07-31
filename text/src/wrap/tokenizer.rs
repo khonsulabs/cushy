@@ -95,6 +95,11 @@ impl Tokenizer {
             for c in span.text.chars() {
                 if c.is_control() {
                     if c == '\n' {
+                        // Emit any pending token
+                        if let Some(token) = state.emit_token_if_needed(scene) {
+                            self.tokens.push(token);
+                        }
+
                         self.tokens.push(Token::EndOfLine(vmetrics));
                     }
                 } else {
