@@ -59,13 +59,16 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, Rect<f32, Points
 ) {
     for child in context.widget.children.layout_children() {
         let layout_surround = child.layout.surround_in_points(constraints);
-        let minimum_surround = layout_surround.minimum_size();
-        let child_constrained_size = constraints - minimum_surround;
-        let layout_max_size = child.layout.size_in_points(child_constrained_size);
+        let layout_max_size = child
+            .layout
+            .size_in_points(constraints)
+            .min(constraints - layout_surround.minimum_size());
+
         // Constrain the child to whatever remains after the left/right/top/bottom
         // measurements
         let child_constraints =
             Size2D::new(Some(layout_max_size.width), Some(layout_max_size.height));
+
         // Ask the child to measure
         let child_size = context
             .frontend
