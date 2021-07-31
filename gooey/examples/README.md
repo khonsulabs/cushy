@@ -18,6 +18,16 @@ Demonstrates using the layout widget.
 
 ![Layout (Light Theme)](./snapshots/layout/Demo-Light.png) ![Layout (Dark Theme)](./snapshots/layout/Demo-Dark.png)
 
+## Widget Explorer ([`widget-explorer.rs`](./widget-explorer.rs))
+
+An example that will eventually house many examples of how to use Gooey widgets.
+
+### Navigator ([`widget_explorer_screens/navigator.rs`](./widget_explorer_screens/navigator.rs))
+
+Demonstrates using the Navigator widget.
+
+![Layout (Light Theme)](./snapshots/widget-explorer/Navigator-Light.png) ![Layout (Dark Theme)](./snapshots/widget-explorer/Navigator-Dark.png)
+
 ## Updating the examples
 
 If examples are outdated, they can be regenerated using `cargo xtask generate-example-snapshots`. 

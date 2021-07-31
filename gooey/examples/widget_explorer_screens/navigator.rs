@@ -147,13 +147,16 @@ mod tests {
         euclid::{Point2D, Size2D},
         styles::SystemTheme,
     };
+    use gooey_widgets::navigator::Navigator;
+
+    use crate::widget_explorer_screens::Page;
 
     #[cfg(not(target_arch = "wasm32-unknown-unknown"))]
     #[tokio::test]
     async fn demo() -> Result<(), HeadlessError> {
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = crate::app().headless();
-            let mut recorder = headless.begin_recording(Size2D::new(480, 320), theme, true, 30);
+            let mut recorder = headless.begin_recording(Size2D::new(480, 320), theme, true, 15);
             recorder.set_cursor(Point2D::new(100., 200.));
 
             // Open the navigator demo
@@ -161,22 +164,11 @@ mod tests {
                 .move_cursor_to(Point2D::new(150., 300.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
-            recorder.pause(Duration::from_millis(300));
+            recorder.pause(Duration::from_millis(500));
 
-            // Push a new entry
-            recorder
-                .move_cursor_to(Point2D::new(130., 290.), Duration::from_millis(300))
-                .await?;
-            recorder.left_click().await?;
-            recorder.pause(Duration::from_millis(300));
-
-            // Push another new entry
-            // TODO This wiggle isn't just for aesthetics: newly created controls don't automatically get hover updates.
-            recorder
-                .move_cursor_to(Point2D::new(132., 293.), Duration::from_millis(50))
-                .await?;
-            recorder.left_click().await?;
-            recorder.pause(Duration::from_millis(300));
+            recorder.map_root_widget(|navigator: &mut Navigator<Page>, _context| {
+                assert_eq!(navigator.location(), &Page::Navigator { level: 0 });
+            });
 
             // Go back
             recorder
@@ -184,6 +176,17 @@ mod tests {
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(300));
+
+            recorder.map_root_widget(|navigator: &mut Navigator<Page>, _context| {
+                assert_eq!(navigator.location(), &Page::MainMenu);
+            });
+
+            // Enter back into the navigator demo
+            recorder
+                .move_cursor_to(Point2D::new(150., 300.), Duration::from_millis(300))
+                .await?;
+            recorder.left_click().await?;
+            recorder.pause(Duration::from_millis(500));
 
             // Push a few entries
             for i in 1_u8..3 {
@@ -197,12 +200,41 @@ mod tests {
                 recorder.pause(Duration::from_millis(100));
             }
 
+            recorder.map_root_widget(|navigator: &mut Navigator<Page>, _context| {
+                assert_eq!(navigator.back_stack(), &[
+                    Page::MainMenu,
+                    Page::Navigator { level: 0 },
+                    Page::Navigator { level: 1 },
+                    Page::Navigator { level: 2 },
+                ]);
+            });
+
+            // Replace the top
+            recorder
+                .move_cursor_to(Point2D::new(240., 290.), Duration::from_millis(10))
+                .await?;
+            recorder.left_click().await?;
+            recorder.pause(Duration::from_millis(500));
+
+            recorder.map_root_widget(|navigator: &mut Navigator<Page>, _context| {
+                assert_eq!(navigator.back_stack(), &[
+                    Page::MainMenu,
+                    Page::Navigator { level: 0 },
+                    Page::Navigator { level: 1 },
+                    Page::Navigator { level: 3 },
+                ]);
+            });
+
             // Go home
             recorder
                 .move_cursor_to(Point2D::new(420., 290.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(1000));
+
+            // recorder.map_root_widget(|navigator: &mut Navigator<Page>, _context| {
+            //     assert_eq!(navigator.back_stack(), &[Page::MainMenu,]);
+            // });
 
             recorder.save_apng(crate::harness::snapshot_path(
                 "widget-explorer",

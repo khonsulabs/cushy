@@ -53,6 +53,16 @@ impl<Loc: Location> NavigatorBehavior<Loc> {
         }
     }
 
+    #[must_use]
+    pub fn location(&self) -> &Loc {
+        self.back_stack.last().unwrap()
+    }
+
+    #[must_use]
+    pub fn back_stack(&self) -> &[Loc] {
+        &self.back_stack
+    }
+
     fn replace_content(component: &mut Component<Self>, context: &Context<Component<Self>>) {
         let location = component.back_stack.last().unwrap();
         let new_widget = location.materialize(context, context.registration().clone());
