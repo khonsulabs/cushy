@@ -23,22 +23,17 @@ impl Label {
 
     pub fn set_label(&mut self, label: impl Into<String>, context: &Context<Self>) {
         self.label = label.into();
-        context.send_command(LabelCommand::LabelChanged);
+        context.send_command(Command::LabelChanged);
     }
 }
 
 #[derive(Debug)]
-pub enum InternalButtonEvent {
-    Clicked,
-}
-
-#[derive(Debug)]
-pub enum LabelCommand {
+pub enum Command {
     LabelChanged,
 }
 
 impl Widget for Label {
-    type Command = LabelCommand;
+    type Command = Command;
     type Event = ();
 
     const CLASS: &'static str = "gooey-label";

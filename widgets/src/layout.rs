@@ -433,7 +433,7 @@ impl<B: Behavior> Content<B> for Layout {
     }
 }
 
-impl<'a, K: Key, S: KeyedStorage<K> + 'static> ContentBuilder<K, S> for Builder<K, S> {
+impl<'a, K: Key, S: KeyedStorage<K>> ContentBuilder<K, S> for Builder<K, S> {
     fn new(storage: S) -> Self {
         Self {
             storage,

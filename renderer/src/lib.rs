@@ -97,7 +97,7 @@ pub struct StrokeOptions {
 }
 
 /// A measurement of text.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[must_use]
 pub struct TextMetrics<U> {
     /// The width of the text.

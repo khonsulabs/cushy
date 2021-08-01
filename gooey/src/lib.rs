@@ -64,6 +64,8 @@ pub use gooey_core as core;
 #[doc(inline)]
 pub use gooey_renderer as renderer;
 #[doc(inline)]
+pub use gooey_text as text;
+#[doc(inline)]
 pub use gooey_widgets as widgets;
 
 #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]

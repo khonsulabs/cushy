@@ -106,6 +106,10 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
             }
         }
     }
+
+    fn theme(&self) -> SystemTheme {
+        self.state.system_theme()
+    }
 }
 
 impl<R: Renderer> Rasterizer<R> {
@@ -180,10 +184,6 @@ impl<R: Renderer> Rasterizer<R> {
 
     pub fn set_refresh_callback<F: RefreshCallback>(&mut self, callback: F) {
         self.refresh_callback = Some(Arc::new(callback));
-    }
-
-    pub fn system_theme(&self) -> SystemTheme {
-        self.state.system_theme()
     }
 
     pub fn set_system_theme(&self, theme: SystemTheme) {

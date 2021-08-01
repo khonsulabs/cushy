@@ -25,7 +25,7 @@ use std::{
     ops::Deref,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
 };
 
@@ -50,6 +50,7 @@ static INITIALIZED: AtomicBool = AtomicBool::new(false);
 pub struct WebSys {
     pub ui: Gooey<Self>,
     styles: Arc<Vec<CssRules>>,
+    theme: Arc<Mutex<SystemTheme>>,
 }
 
 impl WebSys {
@@ -120,6 +121,7 @@ impl WebSys {
         Self {
             ui,
             styles: Arc::new(styles),
+            theme: Arc::default(),
         }
     }
 
@@ -131,22 +133,23 @@ impl WebSys {
 
         let root_id = id.to_owned();
         // Initialize with light theme
-        update_system_theme(&root_id, false);
+        update_system_theme(&root_id, false, &self.theme);
 
         // TODO This shouldn't leak, it should be stored somewhere, but since
         // wasm-bindgen isn't Send+Sync, we can't store it in `self`. Also,
         // todo: I don't know that the callback is being invoked. My testing has
         // been done limited so far.
+        let theme = self.theme.clone();
         std::mem::forget(
             window
                 .match_media("(prefers-color-scheme: dark)")
                 .ok()
                 .flatten()
                 .and_then(move |mql| {
-                    update_system_theme(&root_id, mql.matches());
+                    update_system_theme(&root_id, mql.matches(), &theme);
                     mql.add_listener_with_opt_callback(Some(
                         Closure::wrap(Box::new(move |event: MediaQueryListEvent| {
-                            update_system_theme(&root_id, event.matches());
+                            update_system_theme(&root_id, event.matches(), &theme);
                         }) as Box<dyn FnMut(_)>)
                         .as_ref()
                         .unchecked_ref(),
@@ -181,12 +184,15 @@ impl WebSys {
     }
 }
 
-fn update_system_theme(root_id: &str, dark: bool) {
-    let (active_theme, inactive_theme) = if dark {
-        ("gooey-dark", "gooey-light")
+fn update_system_theme(root_id: &str, dark: bool, theme: &Mutex<SystemTheme>) {
+    let (system_theme, active_theme, inactive_theme) = if dark {
+        (SystemTheme::Dark, "gooey-dark", "gooey-light")
     } else {
-        ("gooey-light", "gooey-dark")
+        (SystemTheme::Light, "gooey-light", "gooey-dark")
     };
+
+    let mut theme = theme.lock().unwrap();
+    *theme = system_theme;
 
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
@@ -238,6 +244,11 @@ impl gooey_core::Frontend for WebSys {
         if !self.gooey().is_managed_code() {
             self.gooey().process_widget_messages(self);
         }
+    }
+
+    fn theme(&self) -> SystemTheme {
+        let theme = self.theme.lock().unwrap();
+        *theme
     }
 }
 

@@ -6,7 +6,7 @@ use gooey_core::TransmogrifierContext;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlDivElement;
 
-use crate::label::{Label, LabelCommand, LabelTransmogrifier};
+use crate::label::{Command, Label, LabelTransmogrifier};
 
 impl gooey_core::Transmogrifier<WebSys> for LabelTransmogrifier {
     type State = Option<CssRules>;
@@ -14,7 +14,7 @@ impl gooey_core::Transmogrifier<WebSys> for LabelTransmogrifier {
 
     fn receive_command(
         &self,
-        command: LabelCommand,
+        command: Command,
         context: &mut TransmogrifierContext<'_, Self, WebSys>,
     ) {
         let document = window_document();
@@ -22,7 +22,7 @@ impl gooey_core::Transmogrifier<WebSys> for LabelTransmogrifier {
             .get_element_by_id(&widget_css_id(context.registration.id().id))
             .and_then(|e| e.dyn_into::<HtmlDivElement>().ok())
         {
-            let LabelCommand::LabelChanged = command;
+            let Command::LabelChanged = command;
             element.set_inner_text(&context.widget.label);
         }
     }

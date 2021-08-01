@@ -1,9 +1,9 @@
 use std::{any::TypeId, convert::TryFrom, fmt::Debug};
 
 use crate::{
-    styles::style_sheet::State, AnySendSync, AnyTransmogrifierContext, AnyWidget, Gooey,
-    Transmogrifier, TransmogrifierContext, TransmogrifierState, WidgetId, WidgetRef,
-    WidgetRegistration, WidgetStorage,
+    styles::{style_sheet::State, SystemTheme},
+    AnySendSync, AnyTransmogrifierContext, AnyWidget, Gooey, Transmogrifier, TransmogrifierContext,
+    TransmogrifierState, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
 /// A frontend is an implementation of widgets and layouts.
@@ -15,6 +15,9 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
 
     /// Returns the underlying [`Gooey`] instance.
     fn gooey(&self) -> &'_ Gooey<Self>;
+
+    /// Returns the current system theme.
+    fn theme(&self) -> SystemTheme;
 
     /// Returns the [`State`] for the widget. Not all frontends track UI state,
     /// and this function is primarily used when building frontends.
@@ -41,6 +44,9 @@ pub trait AnyFrontend: AnySendSync {
     /// Returns the widget storage.
     #[must_use]
     fn storage(&self) -> &'_ WidgetStorage;
+
+    /// Returns the current system theme.
+    fn theme(&self) -> SystemTheme;
 
     /// Notifies the frontend that a widget has messages. Frontends should
     /// ensure that `process_widget_messages` is called at some point after this
@@ -92,6 +98,10 @@ where
     fn _exit_managed_code(&self, allow_process_messages: bool) {
         self.gooey().exit_managed_code(self, allow_process_messages);
         self.exit_managed_code();
+    }
+
+    fn theme(&self) -> SystemTheme {
+        self.theme()
     }
 }
 

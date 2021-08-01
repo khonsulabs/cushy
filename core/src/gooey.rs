@@ -409,7 +409,7 @@ impl WidgetStorage {
 }
 
 /// A type that registers widgets with an associated key.
-pub trait KeyedStorage<K: Key>: Debug + Send + Sync {
+pub trait KeyedStorage<K: Key>: Debug + Send + Sync + 'static {
     /// Register `styled_widget` with `key`.
     fn register<W: Widget + AnyWidget>(
         &mut self,

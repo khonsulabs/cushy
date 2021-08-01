@@ -91,7 +91,7 @@ impl<K: Key, S: KeyedStorage<K>> Builder<K, S> {
     }
 }
 
-impl<K: Key, S: KeyedStorage<K> + 'static> ContentBuilder<K, S> for Builder<K, S> {
+impl<K: Key, S: KeyedStorage<K>> ContentBuilder<K, S> for Builder<K, S> {
     fn storage(&self) -> &WidgetStorage {
         self.storage.storage()
     }

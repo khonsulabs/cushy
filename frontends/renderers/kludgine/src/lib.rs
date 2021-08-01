@@ -34,7 +34,7 @@ use gooey_renderer::{Renderer, TextMetrics};
 pub use kludgine;
 use kludgine::{core::winit::window::Theme, prelude::*};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Kludgine {
     target: Target,
 }

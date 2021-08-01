@@ -7,7 +7,7 @@ use gooey_rasterizer::{Rasterizer, Renderer, WidgetRasterizer};
 use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
 use super::LabelColor;
-use crate::label::{Label, LabelCommand, LabelTransmogrifier};
+use crate::label::{Command, Label, LabelTransmogrifier};
 
 const LABEL_PADDING: Length<f32, Points> = Length::new(5.);
 
@@ -17,7 +17,7 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LabelTransmogrifier {
 
     fn receive_command(
         &self,
-        _command: LabelCommand,
+        _command: Command,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
     ) {
         context.frontend.set_needs_redraw();

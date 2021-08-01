@@ -11,7 +11,7 @@ categories = ["gui"]
 readme = "../README.md"
 
 [features]
-default = ["frontend-kludgine"]
+default = ["frontend-kludgine", "frontend-browser"]
 frontend-browser = ["gooey-browser", "gooey-widgets/frontend-browser"]
 frontend-kludgine = [
     "gooey-kludgine",
@@ -44,6 +44,7 @@ test = true
 gooey-rasterizer = { path="../frontends/rasterizer", version="0.1.0-dev.0", optional=true }
 gooey-browser = { path="../frontends/browser", version="0.1.0-dev.0", optional=true }
 gooey-renderer = { path="../renderer", version="0.1.0-dev.0" }
+gooey-text = { path="../text", version="0.1.0-dev.0" }
 gooey-core = { path="../core", version="0.1.0-dev.0" }
 gooey-widgets = { path="../widgets", version="0.1.0-dev.0" }
 cfg-if = "1"
