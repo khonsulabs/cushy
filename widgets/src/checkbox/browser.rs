@@ -98,7 +98,7 @@ impl WebSysTransmogrifier for CheckboxTransmogrifier {
         let label = create_element::<HtmlDivElement>("div");
         let label_id = format!("{}-label", widget_css_id(context.registration.id().id));
         label.set_id(&label_id);
-        label.set_inner_text(&context.widget.label());
+        label.set_inner_text(context.widget.label());
         container.append_child(&label).unwrap();
 
         let mut css = self
@@ -142,7 +142,7 @@ impl WebSysTransmogrifier for CheckboxTransmogrifier {
             .frontend
             .gooey()
             .stylesheet()
-            .effective_style_for::<Checkbox>(context.style.clone(), &state);
+            .effective_style_for::<Checkbox>(context.style.clone(), state);
         let mut css = CssRules::default();
         if let Some(button_color) = state_style.get_with_fallback::<ButtonColor>() {
             let button_color = button_color.themed_color(theme);
@@ -151,7 +151,7 @@ impl WebSysTransmogrifier for CheckboxTransmogrifier {
                     "#{}-input",
                     widget_css_id(context.registration.id().id)
                 ))
-                .and_state(&state)
+                .and_state(state)
                 .and_additional_selector(&format!(
                     " + #{}-checkbox",
                     widget_css_id(context.registration.id().id)

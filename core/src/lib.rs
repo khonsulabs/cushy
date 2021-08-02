@@ -12,6 +12,7 @@
 #![allow(clippy::if_not_else, clippy::module_name_repetitions)]
 #![cfg_attr(doc, warn(rustdoc::all))]
 
+pub mod assets;
 mod frontend;
 mod gooey;
 /// Types used for styling.

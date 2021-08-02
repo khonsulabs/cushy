@@ -62,7 +62,7 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
             text,
             baseline_origin,
             &TextOptions::from_style::<F>(style, self.theme()),
-        )
+        );
     }
 
     /// Measures `text` using `options`.
@@ -92,7 +92,7 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
                 .copied()
                 .unwrap_or_else(|| ColorPair::from(Color::BLACK))
                 .themed_color(self.theme()),
-        )
+        );
     }
 
     /// Strokes the outline of `rect` using `options`.
@@ -104,7 +104,7 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
         rect: &Rect<f32, Points>,
         style: &Style,
     ) {
-        self.stroke_rect(rect, &StrokeOptions::from_style::<F>(style, self.theme()))
+        self.stroke_rect(rect, &StrokeOptions::from_style::<F>(style, self.theme()));
     }
 
     /// Draws a line between `point_a` and `point_b` using `options`.
@@ -126,7 +126,7 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
             point_a,
             point_b,
             &StrokeOptions::from_style::<F>(style, self.theme()),
-        )
+        );
     }
 }
 
