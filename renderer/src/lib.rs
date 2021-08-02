@@ -174,8 +174,7 @@ impl TextOptions {
                     .get_with_fallback::<TextColor>()
                     .copied()
                     .unwrap_or_else(|| Srgba::new(0., 0., 0., 1.).into())
-                    .themed_color(theme)
-                    .0,
+                    .themed_color(theme),
             )
             .finish()
     }
@@ -235,7 +234,7 @@ pub struct StrokeOptions {
 impl Default for StrokeOptions {
     fn default() -> Self {
         Self {
-            color: Color::new(0., 0., 0., 1.),
+            color: Color::BLACK,
             line_width: Length::new(1.),
         }
     }

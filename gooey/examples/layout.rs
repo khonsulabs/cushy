@@ -55,7 +55,7 @@ impl Behavior for Counter {
                 Label::new("0")
                     .with(Alignment::Center)
                     .with(VerticalAlignment::Center)
-                    .with(BackgroundColor(Color::new(1., 0., 0., 0.7).into())),
+                    .with(BackgroundColor(Color::WHITE.with_alpha(0.7).into())),
                 WidgetLayout::build()
                     .right(Dimension::Exact(Length::new(0.)))
                     .top(Dimension::Percent(0.4))

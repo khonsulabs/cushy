@@ -55,7 +55,12 @@ impl Kludgine {
             text,
             &bundled_fonts::ROBOTO,
             options.text_size.cast_unit(),
-            Color::from(options.color.0),
+            Color::new(
+                options.color.red,
+                options.color.green,
+                options.color.blue,
+                options.color.alpha,
+            ),
             &self.target,
         )
     }
@@ -64,8 +69,13 @@ impl Kludgine {
         shape
             .cast_unit()
             .stroke(
-                Stroke::new(Color::from(options.color.0))
-                    .line_width(options.line_width.cast_unit()),
+                Stroke::new(Color::new(
+                    options.color.red,
+                    options.color.green,
+                    options.color.blue,
+                    options.color.alpha,
+                ))
+                .line_width(options.line_width.cast_unit()),
             )
             .render_at(Point2D::default(), &self.target);
     }
@@ -163,7 +173,12 @@ impl Renderer for Kludgine {
 
     fn fill_rect(&self, rect: &Rect<f32, Points>, color: gooey_core::styles::Color) {
         Shape::rect(rect.cast_unit())
-            .fill(Fill::new(Color::from(color.0)))
+            .fill(Fill::new(Color::new(
+                color.red,
+                color.green,
+                color.blue,
+                color.alpha,
+            )))
             .render_at(Point2D::default(), &self.target);
     }
 
