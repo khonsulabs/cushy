@@ -133,7 +133,10 @@ fn wrap_text<R: Renderer>(
     width: Length<f32, Points>,
 ) -> PreparedText {
     let text = Text::span(label, style.clone());
-    text.wrap(renderer, TextWrap::SingleLine {
-        width: width - BUTTON_PADDING * 2.,
-    })
+    text.wrap(
+        renderer,
+        TextWrap::SingleLine {
+            width: width - BUTTON_PADDING * 2.,
+        },
+    )
 }

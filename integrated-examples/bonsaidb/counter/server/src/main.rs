@@ -14,12 +14,14 @@ use bonsaidb_counter_shared::{
 async fn main() -> anyhow::Result<()> {
     // Open a `BonsaiDb` server at the given path, allowing all actions to be
     // done over the network connections.
-    let server =
-        CustomServer::<Example>::open(Path::new("counter-example.bonsaidb"), Configuration {
+    let server = CustomServer::<Example>::open(
+        Path::new("counter-example.bonsaidb"),
+        Configuration {
             default_permissions: Permissions::allow_all(),
             ..Configuration::default()
-        })
-        .await?;
+        },
+    )
+    .await?;
     server.register_schema::<()>().await?;
     // Create the database if it doesn't exist.
     match server.create_database::<()>(DATABASE_NAME).await {

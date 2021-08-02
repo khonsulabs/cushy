@@ -14,7 +14,7 @@ imports_granularity = "Crate"
 # match_arm_blocks = false
 newline_style = "Unix"
 normalize_doc_attributes = true
-overflow_delimited_expr = true
+# overflow_delimited_expr = true -- causes inconsistencies with non-nightly
 reorder_impl_items = true
 # not compatible with stable
 #struct_field_align_threshold = 50

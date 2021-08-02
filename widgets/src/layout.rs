@@ -85,10 +85,13 @@ impl Layout {
                 related_storage.register(layout_key.clone(), &registration);
             }
         }
-        if let Some(old_child) = children.insert(layout_key, LayoutChild {
-            registration: registration.clone(),
-            layout,
-        }) {
+        if let Some(old_child) = children.insert(
+            layout_key,
+            LayoutChild {
+                registration: registration.clone(),
+                layout,
+            },
+        ) {
             context.send_command(LayoutCommand::ChildRemoved(
                 old_child.registration.id().clone(),
             ));
@@ -179,10 +182,13 @@ impl<K: Key, S: KeyedStorage<K>> Builder<K, S> {
         registration: WidgetRegistration,
         layout: WidgetLayout,
     ) -> Self {
-        self.children.insert(key.into(), LayoutChild {
-            registration,
-            layout,
-        });
+        self.children.insert(
+            key.into(),
+            LayoutChild {
+                registration,
+                layout,
+            },
+        );
         self
     }
 

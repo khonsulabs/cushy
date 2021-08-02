@@ -71,10 +71,13 @@ impl Headless<Rasterizer<Kludgine>> {
             .expect("No wgpu adapter found");
         let renderer = easygpu::renderer::Renderer::offscreen(&adapter).await?;
 
-        let mut target = Target::from(Scene::new(scene_sender, match theme {
-            SystemTheme::Light => Theme::Light,
-            SystemTheme::Dark => Theme::Dark,
-        }));
+        let mut target = Target::from(Scene::new(
+            scene_sender,
+            match theme {
+                SystemTheme::Light => Theme::Light,
+                SystemTheme::Dark => Theme::Dark,
+            },
+        ));
         target
             .scene_mut()
             .unwrap()

@@ -201,12 +201,15 @@ mod tests {
             }
 
             recorder.map_root_widget(|navigator: &mut Navigator<Page>, _context| {
-                assert_eq!(navigator.back_stack(), &[
-                    Page::MainMenu,
-                    Page::Navigator { level: 0 },
-                    Page::Navigator { level: 1 },
-                    Page::Navigator { level: 2 },
-                ]);
+                assert_eq!(
+                    navigator.back_stack(),
+                    &[
+                        Page::MainMenu,
+                        Page::Navigator { level: 0 },
+                        Page::Navigator { level: 1 },
+                        Page::Navigator { level: 2 },
+                    ]
+                );
             });
 
             // Replace the top
@@ -217,12 +220,15 @@ mod tests {
             recorder.pause(Duration::from_millis(500));
 
             recorder.map_root_widget(|navigator: &mut Navigator<Page>, _context| {
-                assert_eq!(navigator.back_stack(), &[
-                    Page::MainMenu,
-                    Page::Navigator { level: 0 },
-                    Page::Navigator { level: 1 },
-                    Page::Navigator { level: 3 },
-                ]);
+                assert_eq!(
+                    navigator.back_stack(),
+                    &[
+                        Page::MainMenu,
+                        Page::Navigator { level: 0 },
+                        Page::Navigator { level: 1 },
+                        Page::Navigator { level: 3 },
+                    ]
+                );
             });
 
             // Go home

@@ -318,9 +318,12 @@ mod tests {
             "This line should wrap",
             Style::new().with(FontSize::<Points>::new(12.)),
         )])
-        .wrap(&renderer, TextWrap::MultiLine {
-            size: Size2D::new(80.0, f32::MAX),
-        });
+        .wrap(
+            &renderer,
+            TextWrap::MultiLine {
+                size: Size2D::new(80.0, f32::MAX),
+            },
+        );
         println!("Wrapped text: {:#?}", wrap);
         assert_eq!(wrap.lines.len(), 2);
         assert_eq!(wrap.lines[0].spans.len(), 3); // "this"," ","line"
@@ -341,9 +344,12 @@ mod tests {
             Span::new("This line should ", first_style),
             Span::new("wrap", second_style),
         ])
-        .wrap(&renderer, TextWrap::MultiLine {
-            size: Size2D::new(130.0, f32::MAX),
-        });
+        .wrap(
+            &renderer,
+            TextWrap::MultiLine {
+                size: Size2D::new(130.0, f32::MAX),
+            },
+        );
         assert_eq!(wrap.lines.len(), 2);
         assert_eq!(wrap.lines[0].spans.len(), 5);
         assert_eq!(wrap.lines[1].spans.len(), 1);

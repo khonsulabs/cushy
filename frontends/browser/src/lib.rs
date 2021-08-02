@@ -354,23 +354,32 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         }
 
         if let Some(alignment) = alignment {
-            css = css.with_css_statement(format!("justify-content: {}", match alignment {
-                Alignment::Left => "start",
-                Alignment::Center => "center",
-                Alignment::Right => "end",
-            },));
-            css = css.with_css_statement(format!("text-align: {}", match alignment {
-                Alignment::Left => "left",
-                Alignment::Center => "center",
-                Alignment::Right => "right",
-            },));
+            css = css.with_css_statement(format!(
+                "justify-content: {}",
+                match alignment {
+                    Alignment::Left => "start",
+                    Alignment::Center => "center",
+                    Alignment::Right => "end",
+                },
+            ));
+            css = css.with_css_statement(format!(
+                "text-align: {}",
+                match alignment {
+                    Alignment::Left => "left",
+                    Alignment::Center => "center",
+                    Alignment::Right => "right",
+                },
+            ));
         }
         if let Some(vertical_alignment) = vertical_alignment {
-            css = css.with_css_statement(format!("align-items: {}", match vertical_alignment {
-                VerticalAlignment::Top => "start",
-                VerticalAlignment::Center => "center",
-                VerticalAlignment::Bottom => "end",
-            },));
+            css = css.with_css_statement(format!(
+                "align-items: {}",
+                match vertical_alignment {
+                    VerticalAlignment::Top => "start",
+                    VerticalAlignment::Center => "center",
+                    VerticalAlignment::Bottom => "end",
+                },
+            ));
         }
         css
     }

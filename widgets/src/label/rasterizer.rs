@@ -67,10 +67,13 @@ fn wrap_text<R: Renderer>(
     width: Length<f32, Points>,
 ) -> PreparedText {
     let text = Text::span(label, style.clone());
-    text.wrap(renderer, TextWrap::MultiLine {
-        size: Size2D::from_lengths(
-            width - LABEL_PADDING * 2.,
-            Length::new(renderer.size().height),
-        ),
-    })
+    text.wrap(
+        renderer,
+        TextWrap::MultiLine {
+            size: Size2D::from_lengths(
+                width - LABEL_PADDING * 2.,
+                Length::new(renderer.size().height),
+            ),
+        },
+    )
 }
