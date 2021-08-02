@@ -52,8 +52,11 @@ fn calculate_layout<R: Renderer>(
         (size.width - checkbox_size.width - LABEL_PADDING.get()).max(0.),
         size.height,
     );
-    let label = Text::span(&context.widget.label, context.style.clone())
-        .wrap(renderer, TextWrap::MultiLine { size: label_size });
+    let label = Text::span(&context.widget.label, context.style.clone()).wrap(
+        renderer,
+        TextWrap::MultiLine { size: label_size },
+        Some(context.style),
+    );
 
     let label_size = label.size();
 

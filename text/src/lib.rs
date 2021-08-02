@@ -11,7 +11,10 @@
 #![allow(clippy::if_not_else, clippy::module_name_repetitions)]
 #![cfg_attr(doc, warn(rustdoc::all))]
 
-use std::{fmt::Display, ops::Range};
+use std::{
+    fmt::Display,
+    ops::{Deref, Range},
+};
 
 use gooey_core::{
     euclid::Point2D,
@@ -69,8 +72,13 @@ impl Text {
     }
 
     /// Calculates how to render this text and returns the results.
-    pub fn wrap<R: Renderer>(&self, renderer: &R, options: TextWrap) -> PreparedText {
-        TextWrapper::wrap(self, renderer, options)
+    pub fn wrap<R: Renderer>(
+        &self,
+        renderer: &R,
+        options: TextWrap,
+        context_style: Option<&Style>,
+    ) -> PreparedText {
+        TextWrapper::wrap(self, renderer, options, context_style)
     }
 
     /// Renders this text at `location` in `renderer`. The top-left of the bounding box of the text will be at `location`.
@@ -79,8 +87,9 @@ impl Text {
         renderer: &R,
         location: Point2D<f32, Points>,
         wrapping: TextWrap,
+        context_style: Option<&Style>,
     ) {
-        self.render_core::<F, R>(renderer, location, true, wrapping);
+        self.render_core::<F, R>(renderer, location, true, wrapping, context_style);
     }
 
     /// Renders this text at `location` in `renderer`. The baseline of the first line will start at `location`.
@@ -89,8 +98,9 @@ impl Text {
         renderer: &R,
         location: Point2D<f32, Points>,
         wrapping: TextWrap,
+        context_style: Option<&Style>,
     ) {
-        self.render_core::<F, R>(renderer, location, false, wrapping);
+        self.render_core::<F, R>(renderer, location, false, wrapping, context_style);
     }
 
     fn render_core<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
@@ -99,8 +109,9 @@ impl Text {
         location: Point2D<f32, Points>,
         offset_baseline: bool,
         wrapping: TextWrap,
+        context_style: Option<&Style>,
     ) {
-        let prepared_text = self.wrap(renderer, wrapping);
+        let prepared_text = self.wrap(renderer, wrapping, context_style);
         prepared_text.render::<F, R>(renderer, location, offset_baseline);
     }
 
@@ -186,6 +197,12 @@ impl Text {
         self.cleanup_spans();
     }
 
+    /// Returns an iterator over the spans in this text.
+    #[must_use]
+    pub fn iter(&self) -> std::slice::Iter<'_, Span> {
+        self.spans.iter()
+    }
+
     fn cleanup_spans(&mut self) {
         if self.is_empty() {
             // If we have no actual text in this, keep the first span and dump the rest
@@ -197,9 +214,47 @@ impl Text {
     }
 }
 
+impl Deref for Text {
+    type Target = [Span];
+
+    fn deref(&self) -> &Self::Target {
+        &self.spans
+    }
+}
+
+impl AsRef<[Span]> for Text {
+    fn as_ref(&self) -> &[Span] {
+        &self.spans
+    }
+}
+
 impl From<Vec<Span>> for Text {
     fn from(spans: Vec<Span>) -> Self {
         Self { spans }
+    }
+}
+
+impl From<Span> for Text {
+    fn from(span: Span) -> Self {
+        Self::from(vec![span])
+    }
+}
+
+impl From<String> for Text {
+    fn from(span: String) -> Self {
+        Self::from(Span::new(span, Style::default()))
+    }
+}
+
+impl<'a> From<&'a str> for Text {
+    fn from(span: &'a str) -> Self {
+        Self::from(Span::new(span, Style::default()))
+    }
+}
+
+impl<'a> From<&'a String> for Text {
+    fn from(span: &'a String) -> Self {
+        Self::from(Span::new(span, Style::default()))
     }
 }
 

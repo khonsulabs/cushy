@@ -138,5 +138,6 @@ fn wrap_text<R: Renderer>(
         TextWrap::SingleLine {
             width: width - BUTTON_PADDING * 2.,
         },
+        Some(style),
     )
 }

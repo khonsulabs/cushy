@@ -84,13 +84,22 @@ impl TokenizerState {
 
 impl Tokenizer {
     // Text (Vec<Span>) -> Vec<Token{ PreparedSpan, TokenKind }>
-    pub(crate) fn prepare_spans<R: Renderer>(mut self, text: &Text, renderer: &R) -> Vec<Token> {
+    pub(crate) fn prepare_spans<R: Renderer>(
+        mut self,
+        text: &Text,
+        renderer: &R,
+        context_style: Option<&Style>,
+    ) -> Vec<Token> {
         let mut last_span_metrics = None;
         for span in &text.spans {
-            let vmetrics = renderer.measure_text_with_style("m", &span.style);
+            let style = context_style.map_or_else(
+                || span.style.clone(),
+                |inherited| span.style.merge_with(inherited, false),
+            );
+            let vmetrics = renderer.measure_text_with_style("m", &style);
             last_span_metrics = Some(vmetrics);
 
-            let mut state = TokenizerState::new(span.style.clone());
+            let mut state = TokenizerState::new(style);
 
             for c in span.text.chars() {
                 if c.is_control() {

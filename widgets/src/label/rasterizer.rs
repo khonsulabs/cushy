@@ -61,13 +61,12 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
 }
 
 fn wrap_text<R: Renderer>(
-    label: &str,
+    label: &Text,
     style: &Style,
     renderer: &R,
     width: Length<f32, Points>,
 ) -> PreparedText {
-    let text = Text::span(label, style.clone());
-    text.wrap(
+    label.wrap(
         renderer,
         TextWrap::MultiLine {
             size: Size2D::from_lengths(
@@ -75,5 +74,6 @@ fn wrap_text<R: Renderer>(
                 Length::new(renderer.size().height),
             ),
         },
+        Some(style),
     )
 }

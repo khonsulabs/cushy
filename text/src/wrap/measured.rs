@@ -1,4 +1,4 @@
-use gooey_core::Points;
+use gooey_core::{styles::Style, Points};
 use gooey_renderer::{Renderer, TextMetrics};
 
 use super::{ParserStatus, SpanGroup, Token, Tokenizer};
@@ -104,7 +104,7 @@ impl TextMeasureState {
 }
 
 impl MeasuredText {
-    pub fn new<R: Renderer>(text: &Text, renderer: &R) -> Self {
+    pub fn new<R: Renderer>(text: &Text, renderer: &R, context_style: Option<&Style>) -> Self {
         let mut state = TextMeasureState {
             no_text_metrics: None,
             current_group: None,
@@ -113,7 +113,7 @@ impl MeasuredText {
         };
 
         // Tokens -> "Words" (groups of characters, and where the breaks would happen)
-        for token in Tokenizer::default().prepare_spans(text, renderer) {
+        for token in Tokenizer::default().prepare_spans(text, renderer, context_style) {
             state.push_token(token);
         }
 

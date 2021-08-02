@@ -1,7 +1,7 @@
 use gooey::{
     core::{
         euclid::Length,
-        styles::{Alignment, BackgroundColor, Color, VerticalAlignment},
+        styles::{Alignment, FontSize, VerticalAlignment},
         Context, DefaultWidget, StyledWidget,
     },
     widgets::{
@@ -53,9 +53,9 @@ impl Behavior for Counter {
             .with(
                 CounterWidgets::Label,
                 Label::new("0")
+                    .with(FontSize::new(36.))
                     .with(Alignment::Center)
-                    .with(VerticalAlignment::Center)
-                    .with(BackgroundColor(Color::WHITE.with_alpha(0.7).into())),
+                    .with(VerticalAlignment::Center),
                 WidgetLayout::build()
                     .right(Dimension::Exact(Length::new(0.)))
                     .top(Dimension::Percent(0.4))
@@ -98,10 +98,12 @@ enum CounterEvent {
 mod tests {
     use std::time::Duration;
 
-    use gooey::HeadlessError;
-    use gooey_core::{
-        euclid::{Point2D, Size2D},
-        styles::SystemTheme,
+    use gooey::{
+        core::{
+            euclid::{Point2D, Size2D},
+            styles::SystemTheme,
+        },
+        HeadlessError,
     };
 
     use super::*;

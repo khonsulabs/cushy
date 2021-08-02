@@ -2,6 +2,7 @@ use gooey_core::{
     styles::{ColorPair, FallbackComponent, StyleComponent, TextColor},
     Context, StyledWidget, Widget,
 };
+use gooey_text::Text;
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;
@@ -11,17 +12,17 @@ mod browser;
 
 #[derive(Debug)]
 pub struct Label {
-    label: String,
+    label: Text,
 }
 
 impl Label {
-    pub fn new<S: ToString>(label: S) -> StyledWidget<Self> {
+    pub fn new<S: Into<Text>>(label: S) -> StyledWidget<Self> {
         StyledWidget::from(Self {
-            label: label.to_string(),
+            label: label.into(),
         })
     }
 
-    pub fn set_label(&mut self, label: impl Into<String>, context: &Context<Self>) {
+    pub fn set_label(&mut self, label: impl Into<Text>, context: &Context<Self>) {
         self.label = label.into();
         context.send_command(Command::LabelChanged);
     }

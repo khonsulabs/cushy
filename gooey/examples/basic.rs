@@ -74,10 +74,12 @@ enum CounterEvent {
 mod tests {
     use std::time::Duration;
 
-    use gooey::HeadlessError;
-    use gooey_core::{
-        euclid::{Point2D, Size2D},
-        styles::SystemTheme,
+    use gooey::{
+        core::{
+            euclid::{Point2D, Size2D},
+            styles::SystemTheme,
+        },
+        HeadlessError,
     };
 
     use super::*;

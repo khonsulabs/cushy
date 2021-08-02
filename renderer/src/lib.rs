@@ -163,7 +163,7 @@ impl TextOptions {
             )
             .text_size(
                 style
-                    .get::<FontSize<Points>>()
+                    .get::<FontSize>()
                     .copied()
                     .unwrap_or_else(|| FontSize::new(13.))
                     .get(),

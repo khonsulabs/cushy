@@ -4,22 +4,16 @@ use stylecs::StyleComponent;
 use crate::Points;
 
 /// The font size for drawing text.
-#[derive(Debug, Copy)]
-pub struct FontSize<Unit>(pub Length<f32, Unit>);
+#[derive(Debug, Copy, Clone)]
+pub struct FontSize(pub Length<f32, Points>);
 
-impl<Unit> Clone for FontSize<Unit> {
-    fn clone(&self) -> Self {
-        Self(self.0)
-    }
-}
-
-impl Default for FontSize<Points> {
+impl Default for FontSize {
     fn default() -> Self {
         Self::new(14.)
     }
 }
 
-impl<Unit> FontSize<Unit> {
+impl FontSize {
     /// Creates a new `FontSize` using `value` in `Unit`.
     #[must_use]
     pub const fn new(value: f32) -> Self {
@@ -28,15 +22,15 @@ impl<Unit> FontSize<Unit> {
 
     /// Returns the raw font size value.
     #[must_use]
-    pub fn get(&self) -> f32 {
+    pub fn get(self) -> f32 {
         self.0.get()
     }
 
     /// Returns the font size as a type-safe measurement.
     #[must_use]
-    pub const fn length(&self) -> Length<f32, Unit> {
+    pub const fn length(self) -> Length<f32, Points> {
         self.0
     }
 }
 
-impl StyleComponent for FontSize<Points> {}
+impl StyleComponent for FontSize {}

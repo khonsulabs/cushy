@@ -1,6 +1,7 @@
 use approx::abs_diff_eq;
 use gooey_core::{
     euclid::{Length, Size2D},
+    styles::Style,
     Points,
 };
 use gooey_renderer::{Renderer, TextMetrics};
@@ -16,6 +17,7 @@ use crate::{
 pub(crate) struct TextWrapper<'a, R: Renderer> {
     options: TextWrap,
     renderer: &'a R,
+    context_style: Option<&'a Style>,
     prepared_text: PreparedText,
 }
 
@@ -133,10 +135,16 @@ impl TextWrapState {
 }
 
 impl<'a, R: Renderer> TextWrapper<'a, R> {
-    pub fn wrap(text: &Text, renderer: &'a R, options: TextWrap) -> PreparedText {
+    pub fn wrap(
+        text: &Text,
+        renderer: &'a R,
+        options: TextWrap,
+        context_style: Option<&'a Style>,
+    ) -> PreparedText {
         TextWrapper {
             options,
             renderer,
+            context_style,
             prepared_text: PreparedText::default(),
         }
         .wrap_text(text)
@@ -145,7 +153,7 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
     fn wrap_text(mut self, text: &Text) -> PreparedText {
         let width = self.options.width();
 
-        let measured = MeasuredText::new(text, self.renderer);
+        let measured = MeasuredText::new(text, self.renderer, self.context_style);
 
         let mut state = TextWrapState {
             width,
@@ -323,13 +331,14 @@ mod tests {
         let renderer = MockTextRenderer;
         let wrap = Text::from(vec![Span::new(
             "This line should wrap",
-            Style::new().with(FontSize::<Points>::new(12.)),
+            Style::new().with(FontSize::new(12.)),
         )])
         .wrap(
             &renderer,
             TextWrap::MultiLine {
                 size: Size2D::new(80.0, f32::MAX),
             },
+            None,
         );
         println!("Wrapped text: {:#?}", wrap);
         assert_eq!(wrap.lines.len(), 2);
@@ -343,9 +352,9 @@ mod tests {
     fn wrap_one_word_different_span() {
         let renderer = MockTextRenderer;
 
-        let first_style = Style::new().with(FontSize::<Points>::new(12.));
+        let first_style = Style::new().with(FontSize::new(12.));
 
-        let second_style = Style::new().with(FontSize::<Points>::new(10.));
+        let second_style = Style::new().with(FontSize::new(10.));
 
         let wrap = Text::from(vec![
             Span::new("This line should ", first_style),
@@ -356,6 +365,7 @@ mod tests {
             TextWrap::MultiLine {
                 size: Size2D::new(130.0, f32::MAX),
             },
+            None,
         );
         assert_eq!(wrap.lines.len(), 2);
         assert_eq!(wrap.lines[0].spans.len(), 5);
