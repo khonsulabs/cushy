@@ -15,7 +15,6 @@ use std::fmt::Debug;
 
 use gooey_core::{
     euclid::{Length, Point2D, Rect, Scale, Size2D},
-    palette::Srgba,
     styles::{
         Color, ColorPair, FallbackComponent, FontFamily, FontSize, ForegroundColor, LineWidth,
         Style, SystemTheme,
@@ -91,7 +90,7 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
             style
                 .get_with_fallback::<F>()
                 .copied()
-                .unwrap_or_else(|| Srgba::new(1., 1., 1., 1.).into())
+                .unwrap_or_else(|| ColorPair::from(Color::BLACK))
                 .themed_color(self.theme()),
         )
     }
@@ -173,7 +172,7 @@ impl TextOptions {
                 style
                     .get_with_fallback::<TextColor>()
                     .copied()
-                    .unwrap_or_else(|| Srgba::new(0., 0., 0., 1.).into())
+                    .unwrap_or_else(|| ColorPair::from(Color::BLACK))
                     .themed_color(theme),
             )
             .finish()
@@ -256,7 +255,7 @@ impl StrokeOptions {
             color: style
                 .get_with_fallback::<F>()
                 .copied()
-                .unwrap_or_else(|| Srgba::new(0., 0., 0., 1.).into())
+                .unwrap_or_else(|| ColorPair::from(Color::BLACK))
                 .themed_color(theme),
             line_width: style
                 .get::<LineWidth<Points>>()
