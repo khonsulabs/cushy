@@ -301,12 +301,19 @@ mod tests {
             unimplemented!()
         }
 
+        #[allow(clippy::cast_precision_loss)]
         fn measure_text(
             &self,
-            _text: &str,
-            _options: &gooey_renderer::TextOptions,
+            text: &str,
+            options: &gooey_renderer::TextOptions,
         ) -> TextMetrics<Points> {
-            unimplemented!()
+            // Return a fixed width per character, based on the font size.;
+            TextMetrics {
+                width: options.text_size * text.len() as f32 * 0.6,
+                ascent: options.text_size * 0.8,
+                descent: -options.text_size * 0.2,
+                line_gap: options.text_size * 0.1,
+            }
         }
     }
 
