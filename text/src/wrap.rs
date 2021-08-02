@@ -15,7 +15,7 @@ use crate::{
 
 pub(crate) struct TextWrapper<'a, R: Renderer> {
     options: TextWrap,
-    scene: &'a R,
+    renderer: &'a R,
     prepared_text: PreparedText,
 }
 
@@ -133,10 +133,10 @@ impl TextWrapState {
 }
 
 impl<'a, R: Renderer> TextWrapper<'a, R> {
-    pub fn wrap(text: &Text, scene: &'a R, options: TextWrap) -> PreparedText {
+    pub fn wrap(text: &Text, renderer: &'a R, options: TextWrap) -> PreparedText {
         TextWrapper {
             options,
-            scene,
+            renderer,
             prepared_text: PreparedText::default(),
         }
         .wrap_text(text)
@@ -145,7 +145,7 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
     fn wrap_text(mut self, text: &Text) -> PreparedText {
         let width = self.options.width();
 
-        let measured = MeasuredText::new(text, self.scene);
+        let measured = MeasuredText::new(text, self.renderer);
 
         let mut state = TextWrapState {
             width,
@@ -235,9 +235,10 @@ impl TextWrap {
 #[cfg(test)]
 mod tests {
     use gooey_core::{
-        styles::{FontSize, Style},
+        styles::{FontSize, Style, SystemTheme},
         Pixels,
     };
+    use gooey_renderer::StrokeOptions;
 
     use super::*;
     use crate::Span;
@@ -246,6 +247,10 @@ mod tests {
     struct MockTextRenderer;
 
     impl Renderer for MockTextRenderer {
+        fn theme(&self) -> SystemTheme {
+            SystemTheme::default()
+        }
+
         fn size(&self) -> gooey_core::euclid::Size2D<f32, Points> {
             unimplemented!()
         }
@@ -262,49 +267,18 @@ mod tests {
             unimplemented!()
         }
 
-        fn render_text<
-            F: gooey_core::styles::FallbackComponent<Value = gooey_core::styles::ColorPair>,
-        >(
-            &self,
-            _text: &str,
-            _baseline_origin: gooey_core::euclid::Point2D<f32, Points>,
-            _style: &gooey_core::styles::Style,
-        ) {
-            unimplemented!()
-        }
-
-        #[allow(clippy::cast_precision_loss)]
-        fn measure_text(
-            &self,
-            text: &str,
-            style: &gooey_core::styles::Style,
-        ) -> TextMetrics<Points> {
-            // Return a fixed width per character, based on the font size.
-            let font_size = style
-                .get::<FontSize<Points>>()
-                .map_or_else(|| Length::new(14.), |size| size.0);
-            TextMetrics {
-                width: font_size * text.len() as f32 * 0.6,
-                ascent: font_size * 0.8,
-                descent: -font_size * 0.2,
-                line_gap: font_size * 0.1,
-            }
-        }
-
         fn stroke_rect(
             &self,
             _rect: &gooey_core::euclid::Rect<f32, Points>,
-            _style: &gooey_core::styles::Style,
+            _style: &StrokeOptions,
         ) {
             unimplemented!()
         }
 
-        fn fill_rect<
-            F: gooey_core::styles::FallbackComponent<Value = gooey_core::styles::ColorPair>,
-        >(
+        fn fill_rect(
             &self,
             _rect: &gooey_core::euclid::Rect<f32, Points>,
-            _style: &gooey_core::styles::Style,
+            _color: gooey_core::styles::Color,
         ) {
             unimplemented!()
         }
@@ -313,8 +287,25 @@ mod tests {
             &self,
             _point_a: gooey_core::euclid::Point2D<f32, Points>,
             _point_b: gooey_core::euclid::Point2D<f32, Points>,
-            _style: &gooey_core::styles::Style,
+            _style: &StrokeOptions,
         ) {
+            unimplemented!()
+        }
+
+        fn render_text(
+            &self,
+            _text: &str,
+            _baseline_origin: gooey_core::euclid::Point2D<f32, Points>,
+            _options: &gooey_renderer::TextOptions,
+        ) {
+            unimplemented!()
+        }
+
+        fn measure_text(
+            &self,
+            _text: &str,
+            _options: &gooey_renderer::TextOptions,
+        ) -> TextMetrics<Points> {
             unimplemented!()
         }
     }
@@ -322,12 +313,12 @@ mod tests {
     #[test]
     /// This test should have "This line should " be on the first line and "wrap" on the second
     fn wrap_one_word() {
-        let scene = MockTextRenderer;
+        let renderer = MockTextRenderer;
         let wrap = Text::from(vec![Span::new(
             "This line should wrap",
             Style::new().with(FontSize::<Points>::new(12.)),
         )])
-        .wrap(&scene, TextWrap::MultiLine {
+        .wrap(&renderer, TextWrap::MultiLine {
             size: Size2D::new(80.0, f32::MAX),
         });
         println!("Wrapped text: {:#?}", wrap);
@@ -340,7 +331,7 @@ mod tests {
     #[test]
     /// This test should have "This line should " be on the first line and "wrap" on the second
     fn wrap_one_word_different_span() {
-        let scene = MockTextRenderer;
+        let renderer = MockTextRenderer;
 
         let first_style = Style::new().with(FontSize::<Points>::new(12.));
 
@@ -350,7 +341,7 @@ mod tests {
             Span::new("This line should ", first_style),
             Span::new("wrap", second_style),
         ])
-        .wrap(&scene, TextWrap::MultiLine {
+        .wrap(&renderer, TextWrap::MultiLine {
             size: Size2D::new(130.0, f32::MAX),
         });
         assert_eq!(wrap.lines.len(), 2);

@@ -137,7 +137,7 @@ impl RichText {
         let data = self.data.read().await;
         let mut prepared = Vec::new();
         for paragraph in data.paragraphs.iter() {
-            prepared.push(paragraph.wrap(context.scene(), wrapping.clone()).await?);
+            prepared.push(paragraph.wrap(context.renderer(), wrapping.clone()).await?);
         }
         Ok(prepared)
     }

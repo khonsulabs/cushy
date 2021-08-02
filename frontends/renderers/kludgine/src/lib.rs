@@ -23,14 +23,10 @@
 
 use gooey_core::{
     euclid::{Point2D, Rect},
-    palette::Srgba,
-    styles::{
-        ColorPair, FallbackComponent, FontSize, ForegroundColor, LineWidth, Style, SystemTheme,
-        TextColor,
-    },
+    styles::SystemTheme,
     Pixels, Points,
 };
-use gooey_renderer::{Renderer, TextMetrics};
+use gooey_renderer::{Renderer, StrokeOptions, TextMetrics, TextOptions};
 pub use kludgine;
 use kludgine::{core::winit::window::Theme, prelude::*};
 
@@ -54,67 +50,35 @@ impl<'a> From<&'a Target> for Kludgine {
 }
 
 impl Kludgine {
-    fn prepare_text<F: FallbackComponent<Value = ColorPair>>(
-        &self,
-        text: &str,
-        options: &Style,
-    ) -> PreparedSpan {
-        let system_theme = match self.target.system_theme() {
-            Theme::Light => SystemTheme::Light,
-            Theme::Dark => SystemTheme::Dark,
-        };
+    fn prepare_text(&self, text: &str, options: &TextOptions) -> PreparedSpan {
         Text::prepare(
             text,
             &bundled_fonts::ROBOTO,
-            options
-                .get::<FontSize<Points>>()
-                .copied()
-                .unwrap_or_else(|| FontSize::new(13.))
-                .length()
-                .cast_unit(),
-            Color::from(
-                options
-                    .get_with_fallback::<F>()
-                    .copied()
-                    .unwrap_or_else(|| Srgba::new(0., 0., 0., 1.).into())
-                    .themed_color(system_theme)
-                    .0,
-            ),
+            options.text_size.cast_unit(),
+            Color::from(options.color.0),
             &self.target,
         )
     }
 
-    fn stroke_shape(&self, shape: Shape<Points>, style: &Style) {
-        let system_theme = match self.target.system_theme() {
-            Theme::Light => SystemTheme::Light,
-            Theme::Dark => SystemTheme::Dark,
-        };
+    fn stroke_shape(&self, shape: Shape<Points>, options: &StrokeOptions) {
         shape
             .cast_unit()
             .stroke(
-                Stroke::new(Color::from(
-                    style
-                        .get::<ForegroundColor>()
-                        .cloned()
-                        .unwrap_or_else(|| ForegroundColor(Srgba::new(0., 0., 0., 1.).into()))
-                        .0
-                        .themed_color(system_theme)
-                        .0,
-                ))
-                .line_width(
-                    style
-                        .get::<LineWidth<Points>>()
-                        .copied()
-                        .unwrap_or_else(|| LineWidth::new(1.))
-                        .length()
-                        .cast_unit(),
-                ),
+                Stroke::new(Color::from(options.color.0))
+                    .line_width(options.line_width.cast_unit()),
             )
             .render_at(Point2D::default(), &self.target);
     }
 }
 
 impl Renderer for Kludgine {
+    fn theme(&self) -> SystemTheme {
+        match self.target.system_theme() {
+            Theme::Light => SystemTheme::Light,
+            Theme::Dark => SystemTheme::Dark,
+        }
+    }
+
     fn size(&self) -> gooey_core::euclid::Size2D<f32, Points> {
         self.target.clip.map_or_else(
             || self.target.size().cast_unit::<Points>(),
@@ -172,19 +136,19 @@ impl Renderer for Kludgine {
         Scale::new(self.target.scale_factor().get())
     }
 
-    fn render_text<F: FallbackComponent<Value = ColorPair>>(
+    fn render_text(
         &self,
         text: &str,
         baseline_origin: Point2D<f32, Points>,
-        options: &Style,
+        options: &TextOptions,
     ) {
-        self.prepare_text::<F>(text, options)
+        self.prepare_text(text, options)
             .render_baseline_at(&self.target, baseline_origin.cast_unit())
             .unwrap();
     }
 
-    fn measure_text(&self, text: &str, options: &Style) -> TextMetrics<Points> {
-        let text = self.prepare_text::<TextColor>(text, options);
+    fn measure_text(&self, text: &str, options: &TextOptions) -> TextMetrics<Points> {
+        let text = self.prepare_text(text, options);
         TextMetrics {
             width: text.width.cast_unit::<Pixels>(),
             ascent: Length::new(text.metrics.ascent),
@@ -193,28 +157,13 @@ impl Renderer for Kludgine {
         } / self.scale()
     }
 
-    fn stroke_rect(&self, rect: &Rect<f32, Points>, style: &Style) {
-        self.stroke_shape(Shape::rect(*rect), style);
+    fn stroke_rect(&self, rect: &Rect<f32, Points>, options: &StrokeOptions) {
+        self.stroke_shape(Shape::rect(*rect), options);
     }
 
-    fn fill_rect<F: FallbackComponent<Value = ColorPair>>(
-        &self,
-        rect: &Rect<f32, Points>,
-        style: &Style,
-    ) {
-        let system_theme = match self.target.system_theme() {
-            Theme::Light => SystemTheme::Light,
-            Theme::Dark => SystemTheme::Dark,
-        };
+    fn fill_rect(&self, rect: &Rect<f32, Points>, color: gooey_core::styles::Color) {
         Shape::rect(rect.cast_unit())
-            .fill(Fill::new(Color::from(
-                style
-                    .get_with_fallback::<F>()
-                    .copied()
-                    .unwrap_or_else(|| Srgba::new(1., 1., 1., 1.).into())
-                    .themed_color(system_theme)
-                    .0,
-            )))
+            .fill(Fill::new(Color::from(color.0)))
             .render_at(Point2D::default(), &self.target);
     }
 
@@ -222,8 +171,8 @@ impl Renderer for Kludgine {
         &self,
         point_a: Point2D<f32, Points>,
         point_b: Point2D<f32, Points>,
-        style: &Style,
+        options: &StrokeOptions,
     ) {
-        self.stroke_shape(Shape::polygon(vec![point_a, point_b]), style);
+        self.stroke_shape(Shape::polygon(vec![point_a, point_b]), options);
     }
 }

@@ -38,7 +38,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
 
             if let Some(&color) = <Self::Widget as Widget>::background_color(&effective_style) {
                 let renderer = rasterizer.renderer().unwrap();
-                renderer.fill_rect::<BackgroundColor>(
+                renderer.fill_rect_with_style::<BackgroundColor>(
                     &renderer.bounds(),
                     &Style::default().with(BackgroundColor(color)),
                 );

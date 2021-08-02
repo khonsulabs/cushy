@@ -42,7 +42,9 @@ fn calculate_layout<R: Renderer>(
     size: Size2D<f32, Points>,
 ) -> LayoutState {
     // Determine the checkbox size by figuring out the line height
-    let line_height = renderer.measure_text("m", context.style).height();
+    let line_height = renderer
+        .measure_text_with_style("m", context.style)
+        .height();
     let checkbox_size = Size2D::from_lengths(line_height, line_height);
 
     // Measure the label, allowing the text to wrap within the remaining space.
@@ -67,15 +69,15 @@ fn calculate_layout<R: Renderer>(
 
 impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
     fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
-        if let Some(scene) = context.frontend.renderer() {
-            let layout = calculate_layout(&context, scene, scene.size());
+        if let Some(renderer) = context.frontend.renderer() {
+            let layout = calculate_layout(&context, renderer, renderer.size());
             let checkbox_rect = Rect::from_size(layout.checkbox_size);
             let label_rect = Rect::new(
                 Point2D::new(layout.checkbox_size.width + LABEL_PADDING.get(), 0.),
                 layout.label_size,
             );
 
-            scene.fill_rect::<ButtonColor>(&checkbox_rect, context.style);
+            renderer.fill_rect_with_style::<ButtonColor>(&checkbox_rect, context.style);
 
             if context.widget.checked {
                 // Fill a square in the middle with the mark.
@@ -83,12 +85,12 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
                     -checkbox_rect.size.width / 3.,
                     -checkbox_rect.size.width / 3.,
                 );
-                scene.fill_rect::<ForegroundColor>(&check_box, context.style);
+                renderer.fill_rect_with_style::<ForegroundColor>(&check_box, context.style);
             }
 
             layout
                 .label
-                .render_within::<ForegroundColor, _>(scene, label_rect, context.style);
+                .render_within::<ForegroundColor, _>(renderer, label_rect, context.style);
         }
     }
 

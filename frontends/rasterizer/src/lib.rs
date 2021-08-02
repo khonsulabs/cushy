@@ -123,20 +123,20 @@ impl<R: Renderer> Rasterizer<R> {
         }
     }
 
-    pub fn render(&self, scene: R) {
+    pub fn render(&self, renderer: R) {
         let _guard = self.ui.enter_managed_code(self);
         // Process messages after new_frame,
         self.ui.process_widget_messages(self);
 
         self.state.new_frame();
 
-        let size = scene.size();
+        let size = renderer.size();
 
         Self {
             ui: self.ui.clone(),
             state: self.state.clone(),
             refresh_callback: self.refresh_callback.clone(),
-            renderer: Some(scene),
+            renderer: Some(renderer),
         }
         .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
             transmogrifier.render_within(

@@ -62,13 +62,13 @@ impl TokenizerState {
         }
     }
 
-    fn emit_token_if_needed<R: Renderer>(&mut self, scene: &R) -> Option<Token> {
+    fn emit_token_if_needed<R: Renderer>(&mut self, renderer: &R) -> Option<Token> {
         if self.text.is_empty() {
             None
         } else {
             let text = self.text.clone();
             self.text.clear();
-            let metrics = scene.measure_text(&text, &self.style);
+            let metrics = renderer.measure_text_with_style(&text, &self.style);
             let span = PreparedSpan::new(self.style.clone(), text, metrics);
 
             let token = match self.lexer_state {
@@ -84,10 +84,10 @@ impl TokenizerState {
 
 impl Tokenizer {
     // Text (Vec<Span>) -> Vec<Token{ PreparedSpan, TokenKind }>
-    pub(crate) fn prepare_spans<R: Renderer>(mut self, text: &Text, scene: &R) -> Vec<Token> {
+    pub(crate) fn prepare_spans<R: Renderer>(mut self, text: &Text, renderer: &R) -> Vec<Token> {
         let mut last_span_metrics = None;
         for span in &text.spans {
-            let vmetrics = scene.measure_text("m", &span.style);
+            let vmetrics = renderer.measure_text_with_style("m", &span.style);
             last_span_metrics = Some(vmetrics);
 
             let mut state = TokenizerState::new(span.style.clone());
@@ -96,7 +96,7 @@ impl Tokenizer {
                 if c.is_control() {
                     if c == '\n' {
                         // Emit any pending token
-                        if let Some(token) = state.emit_token_if_needed(scene) {
+                        if let Some(token) = state.emit_token_if_needed(renderer) {
                             self.tokens.push(token);
                         }
 
@@ -112,7 +112,7 @@ impl Tokenizer {
                     };
 
                     if new_lexer_state != state.lexer_state {
-                        if let Some(token) = state.emit_token_if_needed(scene) {
+                        if let Some(token) = state.emit_token_if_needed(renderer) {
                             self.tokens.push(token);
                         }
                     }
@@ -123,7 +123,7 @@ impl Tokenizer {
                 }
             }
 
-            if let Some(token) = state.emit_token_if_needed(scene) {
+            if let Some(token) = state.emit_token_if_needed(renderer) {
                 self.tokens.push(token);
             }
         }

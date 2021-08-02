@@ -58,7 +58,7 @@ impl PreparedText {
     /// first line will be `location`.
     pub fn render<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
-        scene: &R,
+        renderer: &R,
         location: Point2D<f32, Points>,
         offset_baseline: bool,
     ) -> Length<f32, Points> {
@@ -71,7 +71,7 @@ impl PreparedText {
             let cursor_position =
                 location + Vector2D::from_lengths(line.alignment_offset, current_line_baseline);
             for span in &line.spans {
-                scene.render_text::<F>(
+                renderer.render_text_with_style::<F>(
                     &span.data.text,
                     cursor_position + Vector2D::from_lengths(span.location(), Length::default()),
                     &span.data.style,
@@ -88,7 +88,7 @@ impl PreparedText {
     /// location of the text block rendered within `bounds`.
     pub fn render_within<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
-        scene: &R,
+        renderer: &R,
         bounds: Rect<f32, Points>,
         style: &Style,
     ) -> Length<f32, Points> {
@@ -99,7 +99,7 @@ impl PreparedText {
             Some(VerticalAlignment::Top) | None => 0.,
         };
 
-        self.render::<F, R>(scene, bounds.origin + Vector2D::new(0., origin_y), true)
+        self.render::<F, R>(renderer, bounds.origin + Vector2D::new(0., origin_y), true)
     }
 }
 

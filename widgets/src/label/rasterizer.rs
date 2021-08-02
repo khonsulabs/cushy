@@ -26,15 +26,15 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LabelTransmogrifier {
 
 impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
     fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
-        if let Some(scene) = context.frontend.renderer() {
+        if let Some(renderer) = context.frontend.renderer() {
             // TODO switch to borrows?
             let wrapped = wrap_text(
                 &context.widget.label,
                 context.style,
-                scene,
-                Length::new(scene.size().width),
+                renderer,
+                Length::new(renderer.size().width),
             );
-            wrapped.render_within::<LabelColor, _>(scene, scene.bounds(), context.style);
+            wrapped.render_within::<LabelColor, _>(renderer, renderer.bounds(), context.style);
         }
     }
 
@@ -46,12 +46,12 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
         context
             .frontend
             .renderer()
-            .map_or_else(Size2D::default, |scene| {
+            .map_or_else(Size2D::default, |renderer| {
                 let wrapped = wrap_text(
                     &context.widget.label,
                     context.style,
-                    scene,
-                    Length::new(constraints.width.unwrap_or_else(|| scene.size().width)),
+                    renderer,
+                    Length::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
                 );
                 (wrapped.size().to_vector()
                     + Vector2D::from_lengths(LABEL_PADDING * 2., LABEL_PADDING * 2.))

@@ -29,19 +29,19 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
 
 impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
     fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
-        if let Some(scene) = context.frontend.renderer() {
-            scene.fill_rect::<ButtonColor>(&scene.bounds(), context.style);
+        if let Some(renderer) = context.frontend.renderer() {
+            renderer.fill_rect_with_style::<ButtonColor>(&renderer.bounds(), context.style);
 
             let wrapped = wrap_text(
                 &context.widget.label,
                 context.style,
-                scene,
-                Length::new(scene.size().width),
+                renderer,
+                Length::new(renderer.size().width),
             );
 
             wrapped.render_within::<TextColor, _>(
-                scene,
-                scene
+                renderer,
+                renderer
                     .bounds()
                     .inflate(-BUTTON_PADDING.get(), -BUTTON_PADDING.get()),
                 context.style,
@@ -57,13 +57,13 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         context
             .frontend
             .renderer()
-            .map_or_else(Size2D::default, |scene| {
+            .map_or_else(Size2D::default, |renderer| {
                 // TODO should be wrapped width
                 let wrapped = wrap_text(
                     &context.widget.label,
                     context.style,
-                    scene,
-                    Length::new(constraints.width.unwrap_or_else(|| scene.size().width)),
+                    renderer,
+                    Length::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
                 );
                 (wrapped.size().to_vector()
                     + Vector2D::from_lengths(BUTTON_PADDING * 2., BUTTON_PADDING * 2.))

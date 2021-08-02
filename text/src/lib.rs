@@ -86,22 +86,22 @@ impl Text {
     /// Renders this text at `location` in `renderer`. The baseline of the first line will start at `location`.
     pub fn render_baseline_at<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
-        scene: &R,
+        renderer: &R,
         location: Point2D<f32, Points>,
         wrapping: TextWrap,
     ) {
-        self.render_core::<F, R>(scene, location, false, wrapping);
+        self.render_core::<F, R>(renderer, location, false, wrapping);
     }
 
     fn render_core<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
-        scene: &R,
+        renderer: &R,
         location: Point2D<f32, Points>,
         offset_baseline: bool,
         wrapping: TextWrap,
     ) {
-        let prepared_text = self.wrap(scene, wrapping);
-        prepared_text.render::<F, R>(scene, location, offset_baseline);
+        let prepared_text = self.wrap(renderer, wrapping);
+        prepared_text.render::<F, R>(renderer, location, offset_baseline);
     }
 
     /// Removes text in `range`. Empty spans will be removed.
