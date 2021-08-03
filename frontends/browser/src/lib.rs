@@ -30,27 +30,33 @@ use std::{
 };
 
 use gooey_core::{
+    assets::Configuration,
     styles::{
         style_sheet::{Classes, State},
-        Alignment, Style, StyleComponent, SystemTheme, VerticalAlignment,
+        Alignment, FontFamily, FontSize, Style, StyleComponent, SystemTheme, VerticalAlignment,
     },
-    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
-    TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef, WidgetRegistration,
+    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Callback, Frontend, Gooey,
+    Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
+    WidgetRegistration,
 };
+use url::Url;
 use wasm_bindgen::{prelude::*, JsCast};
 
 pub mod utils;
 
 use utils::{set_widget_classes, set_widget_id, CssBlockBuilder, CssManager, CssRules};
-use web_sys::{HtmlElement, MediaQueryListEvent};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{HtmlElement, MediaQueryListEvent, Request, RequestInit, RequestMode, Response};
 
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone)]
 pub struct WebSys {
     pub ui: Gooey<Self>,
+    // TODO too many arcs, change this to a single substructure
     styles: Arc<Vec<CssRules>>,
     theme: Arc<Mutex<SystemTheme>>,
+    configuration: Arc<Configuration>,
 }
 
 impl WebSys {
@@ -64,7 +70,7 @@ impl WebSys {
     }
 
     #[must_use]
-    pub fn new(ui: Gooey<Self>) -> Self {
+    pub fn new(ui: Gooey<Self>, configuration: Configuration) -> Self {
         Self::initialize();
 
         let manager = CssManager::shared();
@@ -121,6 +127,7 @@ impl WebSys {
         Self {
             ui,
             styles: Arc::new(styles),
+            configuration: Arc::new(configuration),
             theme: Arc::default(),
         }
     }
@@ -250,6 +257,49 @@ impl gooey_core::Frontend for WebSys {
         let theme = self.theme.lock().unwrap();
         *theme
     }
+
+    fn load_asset(
+        &self,
+        asset: &gooey_core::assets::Asset,
+        completed: Callback<Vec<u8>>,
+        error: Callback<String>,
+    ) {
+        if let Some(url) = Frontend::asset_url(self, asset) {
+            let mut opts = RequestInit::new();
+            opts.method("GET");
+            opts.mode(RequestMode::Cors);
+
+            let request = Request::new_with_str_and_init(&url, &opts).unwrap();
+            let task_self = self.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                let resp_value =
+                    JsFuture::from(web_sys::window().unwrap().fetch_with_request(&request))
+                        .await
+                        .unwrap();
+                let resp: Response = resp_value.unchecked_into();
+                let array_buffer = JsFuture::from(resp.array_buffer().unwrap()).await.unwrap();
+                let uint8_array = js_sys::Uint8Array::new(&array_buffer);
+                let data = uint8_array.to_vec();
+
+                completed.invoke(data);
+                task_self.gooey().process_widget_messages(&task_self);
+            });
+        }
+    }
+
+    fn asset_url(&self, asset: &gooey_core::assets::Asset) -> Option<String> {
+        let mut url = Url::parse(
+            self.configuration
+                .asset_base_url
+                .as_deref()
+                .unwrap_or("http://localhost:8080/assets/"),
+        )
+        .expect("invalid asset base url");
+        for part in asset.path() {
+            url = url.join(part).expect("invalid asset path component");
+        }
+        Some(url.to_string())
+    }
 }
 
 pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
@@ -314,7 +364,6 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         None
     }
 
-    #[allow(unused_variables)]
     fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
         self.convert_standard_components_to_css(style, css)
     }
@@ -324,7 +373,10 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         style: &Style,
         css: CssBlockBuilder,
     ) -> CssBlockBuilder {
-        self.convert_alignment_to_css(style, self.convert_colors_to_css(style, css))
+        self.convert_font_to_css(
+            style,
+            self.convert_alignment_to_css(style, self.convert_colors_to_css(style, css)),
+        )
     }
 
     fn convert_colors_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
@@ -380,6 +432,18 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
                     VerticalAlignment::Bottom => "end",
                 },
             ));
+        }
+        css
+    }
+
+    fn convert_font_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
+        if let Some(size) = style.get::<FontSize>() {
+            // Accommodate for
+            css = css.with_css_statement(format!("font-size: {:.03}pt;", size.get()));
+        }
+
+        if let Some(family) = style.get::<FontFamily>() {
+            css = css.with_css_statement(format!("font-family: {};", family.0));
         }
         css
     }

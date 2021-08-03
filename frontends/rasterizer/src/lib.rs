@@ -22,12 +22,13 @@ use std::{collections::HashSet, sync::Arc};
 
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
+    assets::Configuration,
     euclid::{Point2D, Rect},
     styles::{
         style_sheet::{self},
         Style, SystemTheme,
     },
-    AnyTransmogrifierContext, Gooey, Points, WidgetId,
+    AnyTransmogrifierContext, Callback, Gooey, Points, WidgetId,
 };
 use winit::event::{
     ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
@@ -110,14 +111,40 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
     fn theme(&self) -> SystemTheme {
         self.state.system_theme()
     }
+
+    fn load_asset(
+        &self,
+        asset: &gooey_core::assets::Asset,
+        completed: Callback<Vec<u8>>,
+        error: Callback<String>,
+    ) {
+        let asset = asset.clone();
+        let mut asset_path = self.state.assets_path();
+        // TODO load this in a separate dedicated thread or async if enabled -- but we don't know about async at this layer
+        // spawning a thread to make this happen asynchronously
+        std::thread::spawn(move || {
+            for part in asset.path() {
+                asset_path = asset_path.join(part.as_ref());
+            }
+            match std::fs::read(asset_path) {
+                Ok(data) => completed.invoke(data),
+                // TODO fallback to HTTP if the file can't be found
+                Err(err) => error.invoke(format!("io error: {:?}", err)),
+            };
+        });
+    }
+
+    fn asset_url(&self, asset: &gooey_core::assets::Asset) -> Option<String> {
+        todo!()
+    }
 }
 
 impl<R: Renderer> Rasterizer<R> {
     #[must_use]
-    pub fn new(ui: Gooey<Self>) -> Self {
+    pub fn new(ui: Gooey<Self>, configuration: Configuration) -> Self {
         Self {
             ui: Arc::new(ui),
-            state: State::default(),
+            state: State::new(configuration),
             refresh_callback: None,
             renderer: None,
         }

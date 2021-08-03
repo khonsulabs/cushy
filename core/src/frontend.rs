@@ -1,9 +1,11 @@
 use std::{any::TypeId, convert::TryFrom, fmt::Debug};
 
 use crate::{
+    assets::Asset,
     styles::{style_sheet::State, SystemTheme},
-    AnySendSync, AnyTransmogrifierContext, AnyWidget, Gooey, Transmogrifier, TransmogrifierContext,
-    TransmogrifierState, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
+    AnySendSync, AnyTransmogrifierContext, AnyWidget, Callback, Gooey, Transmogrifier,
+    TransmogrifierContext, TransmogrifierState, WidgetId, WidgetRef, WidgetRegistration,
+    WidgetStorage,
 };
 
 /// A frontend is an implementation of widgets and layouts.
@@ -31,6 +33,12 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
     /// method is called.
     fn set_widget_has_messages(&self, widget: WidgetId);
 
+    /// Loads an asset asynchronously, executing `completed` with the binary data when loaded.
+    fn load_asset(&self, asset: &Asset, completed: Callback<Vec<u8>>, error: Callback<String>);
+
+    /// Returns the full Url for the asset, if available.
+    fn asset_url(&self, asset: &Asset) -> Option<String>;
+
     /// Executed when `Gooey` exits a managed code block.
     fn exit_managed_code(&self) {}
 }
@@ -56,6 +64,12 @@ pub trait AnyFrontend: AnySendSync {
     /// Marks that managed code is being executed. Can be nested. Automatically exited when the returned guard is dropped.
     #[must_use]
     fn enter_managed_code(&self) -> ManagedCodeGuard;
+
+    /// Loads an asset asynchronously, executing `completed` with the binary data when loaded.
+    fn load_asset(&self, asset: &Asset, completed: Callback<Vec<u8>>, error: Callback<String>);
+
+    /// Returns the full Url for the asset, if available.
+    fn asset_url(&self, asset: &Asset) -> Option<String>;
 
     /// Internal API used by `ManagedCodeGuard`. Do not call directly.
     #[doc(hidden)]
@@ -102,6 +116,14 @@ where
 
     fn theme(&self) -> SystemTheme {
         self.theme()
+    }
+
+    fn load_asset(&self, asset: &Asset, completed: Callback<Vec<u8>>, error: Callback<String>) {
+        self.load_asset(asset, completed, error);
+    }
+
+    fn asset_url(&self, asset: &Asset) -> Option<String> {
+        self.asset_url(asset)
     }
 }
 
