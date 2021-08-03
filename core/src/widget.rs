@@ -3,6 +3,7 @@ use std::{
     fmt::Debug,
     marker::PhantomData,
     ops::Deref,
+    sync::Arc,
 };
 
 use flume::{Receiver, Sender};
@@ -156,11 +157,7 @@ pub trait Transmogrifier<F: Frontend>: Debug + Sized {
                 transmogrifier_context.widget.receive_event(event, &context);
             }
 
-            while let Ok(command) = transmogrifier_context
-                .channels
-                .transmogrifier_command_receiver
-                .try_recv()
-            {
+            while let Ok(command) = transmogrifier_context.channels.command_receiver.try_recv() {
                 received_one_message = true;
                 self.receive_command(command, &mut transmogrifier_context);
             }
@@ -275,7 +272,7 @@ impl<W: Widget> Context<W> {
     pub fn new(channels: &Channels<W>, frontend: &dyn AnyFrontend) -> Self {
         Self {
             widget: channels.widget.clone(),
-            command_sender: channels.transmogrifier_command_sender.clone(),
+            command_sender: channels.command_sender.clone(),
             frontend: frontend.cloned(),
             _widget: PhantomData::default(),
         }
@@ -366,8 +363,6 @@ pub struct Channels<W: Widget> {
     widget: WeakWidgetRegistration,
     command_sender: Sender<W::Command>,
     command_receiver: Receiver<W::Command>,
-    transmogrifier_command_sender: Sender<W::Command>,
-    transmogrifier_command_receiver: Receiver<W::Command>,
     event_sender: Sender<W::Event>,
     event_receiver: Receiver<W::Event>,
     _phantom: PhantomData<W>,
@@ -379,8 +374,6 @@ impl<W: Widget> Clone for Channels<W> {
             widget: self.widget.clone(),
             command_sender: self.command_sender.clone(),
             command_receiver: self.command_receiver.clone(),
-            transmogrifier_command_sender: self.transmogrifier_command_sender.clone(),
-            transmogrifier_command_receiver: self.transmogrifier_command_receiver.clone(),
             event_sender: self.event_sender.clone(),
             event_receiver: self.event_receiver.clone(),
             _phantom: PhantomData::default(),
@@ -407,15 +400,12 @@ impl<W: Widget> Channels<W> {
     #[must_use]
     pub fn new(widget: &WidgetRegistration) -> Self {
         let (command_sender, command_receiver) = flume::unbounded();
-        let (transmogrifier_command_sender, transmogrifier_command_receiver) = flume::unbounded();
         let (event_sender, event_receiver) = flume::unbounded();
 
         Self {
             widget: WeakWidgetRegistration::from(widget),
             command_sender,
             command_receiver,
-            transmogrifier_command_sender,
-            transmogrifier_command_receiver,
             event_sender,
             event_receiver,
             _phantom: PhantomData::default(),
@@ -455,7 +445,7 @@ impl<W: Widget> Channels<W> {
 
 /// A callback that receives information `I`, and returns `R`.
 pub struct Callback<I = (), R = ()> {
-    callback: Option<Box<dyn CallbackFn<I, R>>>,
+    callback: Option<Arc<dyn CallbackFn<I, R>>>,
 }
 
 impl<I, R> Debug for Callback<I, R> {
@@ -476,6 +466,14 @@ impl<I, R> Default for Callback<I, R> {
     }
 }
 
+impl<I, R> Clone for Callback<I, R> {
+    fn clone(&self) -> Self {
+        Self {
+            callback: self.callback.clone(),
+        }
+    }
+}
+
 /// A callback implementation. Not typically directly implemented, as this trait
 /// is auto-implemented for any `Fn(I) -> R` types.
 pub trait CallbackFn<I, R>: Send + Sync {
@@ -487,7 +485,7 @@ impl<I, R> Callback<I, R> {
     /// Create a new callback with the provided function.
     pub fn new<C: CallbackFn<I, R> + 'static>(callback: C) -> Self {
         Self {
-            callback: Some(Box::new(callback)),
+            callback: Some(Arc::new(callback)),
         }
     }
 
