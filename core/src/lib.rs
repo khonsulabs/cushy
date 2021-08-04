@@ -12,6 +12,7 @@
 #![allow(clippy::if_not_else, clippy::module_name_repetitions)]
 #![cfg_attr(doc, warn(rustdoc::all))]
 
+/// Types used for handling assets.
 pub mod assets;
 mod frontend;
 mod gooey;
@@ -21,6 +22,7 @@ mod widget;
 
 pub use euclid;
 pub use palette;
+pub use url;
 
 pub use self::{frontend::*, gooey::*, widget::*};
 

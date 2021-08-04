@@ -22,7 +22,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
-    assets::{Configuration, Image},
+    assets::{self, Configuration, Image},
     euclid::{Point2D, Rect},
     styles::{
         style_sheet::{self},
@@ -139,8 +139,8 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
         });
     }
 
-    fn asset_url(&self, asset: &gooey_core::assets::Asset) -> Option<String> {
-        todo!()
+    fn asset_configuration(&self) -> &assets::Configuration {
+        self.state.configuration()
     }
 }
 

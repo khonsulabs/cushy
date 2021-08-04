@@ -30,7 +30,7 @@ use std::{
 };
 
 use gooey_core::{
-    assets::{Configuration, Image},
+    assets::{self, Configuration, Image},
     styles::{
         style_sheet::{Classes, State},
         Alignment, FontFamily, FontSize, Style, StyleComponent, SystemTheme, VerticalAlignment,
@@ -39,7 +39,6 @@ use gooey_core::{
     Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
     WidgetRegistration,
 };
-use url::Url;
 use wasm_bindgen::{prelude::*, JsCast};
 
 pub mod utils;
@@ -288,7 +287,7 @@ impl gooey_core::Frontend for WebSys {
                 })
                 .unchecked_into(),
             ));
-            element.set_src(&url);
+            element.set_src(&url.to_string());
 
             // Store it in the <head>
             // TODO need to clean this up if the image is dropped
@@ -300,19 +299,8 @@ impl gooey_core::Frontend for WebSys {
         }
     }
 
-    fn asset_url(&self, asset: &gooey_core::assets::Asset) -> Option<String> {
-        let mut url = Url::parse(
-            self.data
-                .configuration
-                .asset_base_url
-                .as_deref()
-                .unwrap_or("http://localhost:8080/assets/"),
-        )
-        .expect("invalid asset base url");
-        for part in asset.path() {
-            url = url.join(part).expect("invalid asset path component");
-        }
-        Some(url.to_string())
+    fn asset_configuration(&self) -> &assets::Configuration {
+        &self.data.configuration
     }
 }
 

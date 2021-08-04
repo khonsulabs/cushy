@@ -16,12 +16,11 @@ use crate::Configuration;
 #[derive(Clone, Default, Debug)]
 pub struct State {
     data: Arc<Mutex<Data>>,
+    configuration: Arc<Configuration>,
 }
 
 #[derive(Default, Debug)]
 struct Data {
-    configuration: Configuration,
-
     order: Vec<WidgetId>,
     bounds: HashMap<u32, Rect<f32, Points>>,
     system_theme: SystemTheme,
@@ -38,11 +37,13 @@ struct Data {
 impl State {
     pub fn new(configuration: Configuration) -> Self {
         Self {
-            data: Arc::new(Mutex::new(Data {
-                configuration,
-                ..Data::default()
-            })),
+            data: Arc::default(),
+            configuration: Arc::new(configuration),
         }
+    }
+
+    pub fn configuration(&self) -> &Configuration {
+        &self.configuration
     }
 
     pub fn new_frame(&self) {
@@ -176,8 +177,7 @@ impl State {
     }
 
     pub fn assets_path(&self) -> PathBuf {
-        let data = self.data.lock().unwrap();
-        let path = data
+        let path = self
             .configuration
             .assets_path
             .clone()
