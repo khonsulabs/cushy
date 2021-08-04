@@ -1,63 +1,133 @@
-#![allow(missing_docs)]
+use std::{
+    borrow::Cow,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
-use std::borrow::Cow;
+use url::Url;
 
-#[derive(Debug)]
+use crate::{AnyFrontend, AnySendSync, Callback};
+
+/// A loadable asset.
+#[derive(Debug, Clone)]
 #[must_use]
 pub struct Asset {
-    kind: Kind,
-    local_path: Vec<Cow<'static, str>>,
-    hosted_path: Cow<'static, str>,
+    data: Arc<Data>,
+}
+
+#[derive(Debug)]
+struct Data {
+    path: Vec<Cow<'static, str>>,
+    sha1sum: Option<[u8; 20]>,
 }
 
 impl Asset {
-    pub fn image() -> Builder {
-        Builder::new(Kind::Image)
+    /// Returns an asset [`Builder`].
+    pub fn build() -> Builder {
+        Builder::new()
     }
 
-    pub fn font() -> Builder {
-        Builder::new(Kind::Image)
-    }
-
-    pub fn kind(&self) -> Kind {
-        self.kind
+    /// Returns the path components.
+    #[must_use]
+    pub fn path(&self) -> &[Cow<'static, str>] {
+        &self.data.path
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-#[must_use]
-pub enum Kind {
-    Image,
-    Font,
-}
-
+/// Builds an [`Asset`]
 #[must_use]
 pub struct Builder {
-    asset: Asset,
+    asset: Data,
 }
 
 impl Builder {
-    fn new(kind: Kind) -> Self {
+    fn new() -> Self {
         Self {
-            asset: Asset {
-                kind,
-                local_path: Vec::new(),
-                hosted_path: Cow::from(""),
+            asset: Data {
+                sha1sum: None,
+                path: Vec::new(),
             },
         }
     }
 
-    pub fn local_path<S: Into<Cow<'static, str>>>(mut self, segments: Vec<S>) -> Self {
-        self.asset.local_path = segments.into_iter().map(Into::into).collect();
+    /// Sets the relative path of this asset.
+    pub fn path<S: Into<Cow<'static, str>>>(mut self, segments: Vec<S>) -> Self {
+        self.asset.path = segments.into_iter().map(Into::into).collect();
         self
     }
 
-    pub fn hosted_path<S: Into<Cow<'static, str>>>(mut self, path: S) -> Self {
-        self.asset.hosted_path = path.into();
+    /// Sets the sha1 checksum of the asset. This can be used by caches to
+    /// ensure a file is up-to-date and valid.
+    pub fn sha1sum(mut self, sha1sum: [u8; 20]) -> Self {
+        self.asset.sha1sum = Some(sha1sum);
         self
     }
 
-    pub fn build(self) -> Asset {
-        self.asset
+    /// Returns the build asset.
+    pub fn finish(self) -> Asset {
+        Asset {
+            data: Arc::new(self.asset),
+        }
     }
+}
+
+/// A loadable image asset.
+#[derive(Debug, Clone)]
+#[must_use]
+pub struct Image {
+    /// The asset definition for this image.
+    pub asset: Asset,
+    data: Arc<Mutex<Option<Box<dyn AnySendSync>>>>,
+}
+
+impl Image {
+    /// Loads the image. When loaded successfully, `on_loaded` will be invoked.
+    /// If an error occurs while loading, `on_error` will be invoked.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn load(
+        &self,
+        on_loaded: Callback<Image>,
+        on_error: Callback<String>,
+        frontend: &dyn AnyFrontend,
+    ) {
+        frontend.load_image(self, on_loaded, on_error);
+    }
+
+    /// Sets the internal frontend data for this image. Should not be used outside of developing a frontend.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn set_data<D: AnySendSync>(&self, new_data: D) {
+        let mut data = self.data.lock().unwrap();
+        *data = Some(Box::new(new_data) as Box<dyn AnySendSync>);
+    }
+
+    /// Maps the frontend data into `callback` returning the result of the
+    /// function. This is generally only useful when developing a frontend.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn map_data<R, F: FnOnce(Option<&mut dyn AnySendSync>) -> R>(&self, callback: F) -> R {
+        let mut data = self.data.lock().unwrap();
+        callback(data.as_deref_mut())
+    }
+}
+
+impl From<Asset> for Image {
+    fn from(asset: Asset) -> Self {
+        Self {
+            asset,
+            data: Arc::default(),
+        }
+    }
+}
+
+/// Configuration for loading assets.
+#[derive(Default, Debug)]
+pub struct Configuration {
+    /// The file path to load the assets from. If a relative path is provided,
+    /// it will be relative to the cargo workspace root or the executable, if
+    /// not executed by `cargo`.
+    ///
+    /// If not set, a folder named `assets` will be used.
+    pub assets_path: Option<PathBuf>,
+
+    /// The base url for assets to be loaded over http.
+    pub asset_base_url: Option<Url>,
 }

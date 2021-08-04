@@ -13,25 +13,31 @@ readme = "../../README.md"
 
 [dependencies]
 wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
 web-sys = { version="0.3", features=[
-    "Document",
-    "Node",
-    "HtmlElement",
-    "Element",
+    "Blob",
+    "CssRuleList",
     "CssStyleDeclaration",
+    "CssStyleSheet",
+    "Document",
+    "DomTokenList",
+    "Element",
+    "ErrorEvent",
+    "Headers",
     "HtmlButtonElement",
     "HtmlDivElement",
-    "CssStyleSheet",
-    "StyleSheet",
+    "HtmlElement",
     "HtmlHeadElement",
-    "HtmlStyleElement",
+    "HtmlImageElement",
     "HtmlInputElement",
+    "HtmlStyleElement",
     "MediaQueryList",
     "MediaQueryListEvent",
-    "DomTokenList",
+    "Node",
+    "StyleSheet",
     "Window",
-    "CssRuleList",
 ] }
+js-sys = "0.3"
 gooey-core = { path="../../core", version="0.1.0-dev.0" }
 console_error_panic_hook = "0.1"
 log = "0.4.6"

@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
@@ -10,13 +11,16 @@ use gooey_core::{
 };
 use winit::event::MouseButton;
 
+use crate::Configuration;
+
 #[derive(Clone, Default, Debug)]
 pub struct State {
-    data: Arc<Mutex<StateData>>,
+    data: Arc<Mutex<Data>>,
+    configuration: Arc<Configuration>,
 }
 
 #[derive(Default, Debug)]
-struct StateData {
+struct Data {
     order: Vec<WidgetId>,
     bounds: HashMap<u32, Rect<f32, Points>>,
     system_theme: SystemTheme,
@@ -31,6 +35,17 @@ struct StateData {
 }
 
 impl State {
+    pub fn new(configuration: Configuration) -> Self {
+        Self {
+            data: Arc::default(),
+            configuration: Arc::new(configuration),
+        }
+    }
+
+    pub fn configuration(&self) -> &Configuration {
+        &self.configuration
+    }
+
     pub fn new_frame(&self) {
         let mut data = self.data.lock().unwrap();
         data.new_frame();
@@ -160,9 +175,31 @@ impl State {
             focused: data.focus.as_ref() == Some(widget_id),
         }
     }
+
+    pub fn assets_path(&self) -> PathBuf {
+        let path = self
+            .configuration
+            .assets_path
+            .clone()
+            .unwrap_or_else(|| PathBuf::from("assets"));
+        if path.is_absolute() {
+            path
+        } else {
+            let base_path = if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+                PathBuf::from(manifest_dir)
+            } else {
+                std::env::current_exe()
+                    .unwrap()
+                    .parent()
+                    .unwrap()
+                    .to_owned()
+            };
+            base_path.join(path)
+        }
+    }
 }
 
-impl StateData {
+impl Data {
     pub fn new_frame(&mut self) {
         self.order.clear();
         self.bounds.clear();

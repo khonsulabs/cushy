@@ -1,9 +1,13 @@
 use std::{any::TypeId, convert::TryFrom, fmt::Debug};
 
+use url::Url;
+
 use crate::{
+    assets::{self, Asset, Image},
     styles::{style_sheet::State, SystemTheme},
-    AnySendSync, AnyTransmogrifierContext, AnyWidget, Gooey, Transmogrifier, TransmogrifierContext,
-    TransmogrifierState, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
+    AnySendSync, AnyTransmogrifierContext, AnyWidget, Callback, Gooey, Transmogrifier,
+    TransmogrifierContext, TransmogrifierState, WidgetId, WidgetRef, WidgetRegistration,
+    WidgetStorage,
 };
 
 /// A frontend is an implementation of widgets and layouts.
@@ -31,6 +35,25 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
     /// method is called.
     fn set_widget_has_messages(&self, widget: WidgetId);
 
+    /// Loads an image asynchronously, executing `completed` when loaded.
+    fn load_image(&self, asset: &Image, completed: Callback<Image>, error: Callback<String>);
+
+    /// Returns the full Url for the asset, if available.
+    fn asset_url(&self, asset: &Asset) -> Option<Url> {
+        let mut url = self
+            .asset_configuration()
+            .asset_base_url
+            .clone()
+            .unwrap_or_else(|| Url::parse("http://localhost:8080/assets/").unwrap());
+        for part in asset.path() {
+            url = url.join(part).expect("invalid asset path component");
+        }
+        Some(url)
+    }
+
+    /// Returns the asset configuration.
+    fn asset_configuration(&self) -> &assets::Configuration;
+
     /// Executed when `Gooey` exits a managed code block.
     fn exit_managed_code(&self) {}
 }
@@ -56,6 +79,12 @@ pub trait AnyFrontend: AnySendSync {
     /// Marks that managed code is being executed. Can be nested. Automatically exited when the returned guard is dropped.
     #[must_use]
     fn enter_managed_code(&self) -> ManagedCodeGuard;
+
+    /// Loads an image asynchronously, executing `completed` when loaded.
+    fn load_image(&self, asset: &Image, completed: Callback<Image>, error: Callback<String>);
+
+    /// Returns the full Url for the asset, if available.
+    fn asset_url(&self, asset: &Asset) -> Option<Url>;
 
     /// Internal API used by `ManagedCodeGuard`. Do not call directly.
     #[doc(hidden)]
@@ -102,6 +131,14 @@ where
 
     fn theme(&self) -> SystemTheme {
         self.theme()
+    }
+
+    fn load_image(&self, asset: &Image, completed: Callback<Image>, error: Callback<String>) {
+        self.load_image(asset, completed, error);
+    }
+
+    fn asset_url(&self, asset: &Asset) -> Option<Url> {
+        self.asset_url(asset)
     }
 }
 

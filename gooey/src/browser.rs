@@ -1,3 +1,5 @@
+use gooey_core::assets::Configuration;
+
 use crate::{
     core::{Frontend, Gooey, StyledWidget, Transmogrifiers, Widget, WidgetStorage},
     frontends::browser::WebSys,
@@ -32,11 +34,10 @@ pub fn browser_app<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledW
     initializer: C,
 ) -> WebSys {
     register_transmogrifiers(&mut transmogrifiers);
-    let ui = WebSys::new(Gooey::with(
-        transmogrifiers,
-        default_stylesheet(),
-        initializer,
-    ));
+    let ui = WebSys::new(
+        Gooey::with(transmogrifiers, default_stylesheet(), initializer),
+        Configuration::default(),
+    );
     ui.gooey().process_widget_messages(&ui);
     ui
 }

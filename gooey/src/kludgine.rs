@@ -1,6 +1,6 @@
 use std::{path::PathBuf, process::Command};
 
-use gooey_core::StyledWidget;
+use gooey_core::{assets::Configuration, StyledWidget};
 use gooey_rasterizer::winit::window::Theme;
 use platforms::target::{OS, TARGET_OS};
 
@@ -43,7 +43,7 @@ pub fn kludgine_app<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> Styled
 ) -> Rasterizer<Kludgine> {
     register_transmogrifiers(&mut transmogrifiers);
     let ui = Gooey::with(transmogrifiers, default_stylesheet(), initializer);
-    let ui = Rasterizer::<Kludgine>::new(ui);
+    let ui = Rasterizer::<Kludgine>::new(ui, Configuration::default());
     ui.gooey().process_widget_messages(&ui);
     ui
 }

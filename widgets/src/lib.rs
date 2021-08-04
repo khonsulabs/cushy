@@ -17,8 +17,6 @@
 )]
 #![cfg_attr(doc, warn(rustdoc::all))]
 
-pub use url;
-
 pub mod button;
 pub mod checkbox;
 pub mod component;

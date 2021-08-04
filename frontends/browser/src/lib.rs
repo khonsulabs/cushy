@@ -24,33 +24,46 @@ use std::{
     convert::TryFrom,
     ops::Deref,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
     },
 };
 
 use gooey_core::{
+    assets::{self, Configuration, Image},
     styles::{
         style_sheet::{Classes, State},
-        Alignment, Style, StyleComponent, SystemTheme, VerticalAlignment,
+        Alignment, FontFamily, FontSize, Style, StyleComponent, SystemTheme, VerticalAlignment,
     },
-    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Frontend, Gooey, Transmogrifier,
-    TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef, WidgetRegistration,
+    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Callback, Frontend, Gooey,
+    Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
+    WidgetRegistration,
 };
 use wasm_bindgen::{prelude::*, JsCast};
 
 pub mod utils;
 
-use utils::{set_widget_classes, set_widget_id, CssBlockBuilder, CssManager, CssRules};
-use web_sys::{HtmlElement, MediaQueryListEvent};
+use utils::{
+    create_element, set_widget_classes, set_widget_id, CssBlockBuilder, CssManager, CssRules,
+};
+use web_sys::{ErrorEvent, HtmlElement, HtmlImageElement, MediaQueryListEvent};
+
+use crate::utils::window_document;
 
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone)]
 pub struct WebSys {
     pub ui: Gooey<Self>,
-    styles: Arc<Vec<CssRules>>,
-    theme: Arc<Mutex<SystemTheme>>,
+    data: Arc<Data>,
+}
+
+#[derive(Debug)]
+struct Data {
+    styles: Vec<CssRules>,
+    theme: Mutex<SystemTheme>,
+    configuration: Configuration,
+    last_image_id: AtomicU64,
 }
 
 impl WebSys {
@@ -64,7 +77,7 @@ impl WebSys {
     }
 
     #[must_use]
-    pub fn new(ui: Gooey<Self>) -> Self {
+    pub fn new(ui: Gooey<Self>, configuration: Configuration) -> Self {
         Self::initialize();
 
         let manager = CssManager::shared();
@@ -120,8 +133,12 @@ impl WebSys {
 
         Self {
             ui,
-            styles: Arc::new(styles),
-            theme: Arc::default(),
+            data: Arc::new(Data {
+                styles,
+                configuration,
+                theme: Mutex::default(),
+                last_image_id: AtomicU64::new(0),
+            }),
         }
     }
 
@@ -133,23 +150,23 @@ impl WebSys {
 
         let root_id = id.to_owned();
         // Initialize with light theme
-        update_system_theme(&root_id, false, &self.theme);
+        update_system_theme(&root_id, false, &self.data.theme);
 
         // TODO This shouldn't leak, it should be stored somewhere, but since
         // wasm-bindgen isn't Send+Sync, we can't store it in `self`. Also,
         // todo: I don't know that the callback is being invoked. My testing has
         // been done limited so far.
-        let theme = self.theme.clone();
+        let data = self.data.clone();
         std::mem::forget(
             window
                 .match_media("(prefers-color-scheme: dark)")
                 .ok()
                 .flatten()
                 .and_then(move |mql| {
-                    update_system_theme(&root_id, mql.matches(), &theme);
+                    update_system_theme(&root_id, mql.matches(), &data.theme);
                     mql.add_listener_with_opt_callback(Some(
                         Closure::wrap(Box::new(move |event: MediaQueryListEvent| {
-                            update_system_theme(&root_id, event.matches(), &theme);
+                            update_system_theme(&root_id, event.matches(), &data.theme);
                         }) as Box<dyn FnMut(_)>)
                         .as_ref()
                         .unchecked_ref(),
@@ -247,8 +264,43 @@ impl gooey_core::Frontend for WebSys {
     }
 
     fn theme(&self) -> SystemTheme {
-        let theme = self.theme.lock().unwrap();
+        let theme = self.data.theme.lock().unwrap();
         *theme
+    }
+
+    fn load_image(&self, image: &Image, completed: Callback<Image>, error: Callback<String>) {
+        if let Some(url) = Frontend::asset_url(self, &image.asset) {
+            let element = create_element::<HtmlImageElement>("img");
+            let image_id = self.data.last_image_id.fetch_add(1, Ordering::SeqCst);
+            image.set_data(image_id);
+            element.set_id(&image.css_id().unwrap());
+            element.set_onerror(Some(
+                &Closure::once_into_js(move |e: ErrorEvent| {
+                    error.invoke(e.message());
+                })
+                .unchecked_into(),
+            ));
+            let completed_image = image.clone();
+            element.set_onload(Some(
+                &Closure::once_into_js(move || {
+                    completed.invoke(completed_image);
+                })
+                .unchecked_into(),
+            ));
+            element.set_src(&url.to_string());
+
+            // Store it in the <head>
+            // TODO need to clean this up if the image is dropped
+            window_document()
+                .head()
+                .unwrap()
+                .append_child(&element)
+                .unwrap();
+        }
+    }
+
+    fn asset_configuration(&self) -> &assets::Configuration {
+        &self.data.configuration
     }
 }
 
@@ -314,7 +366,6 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         None
     }
 
-    #[allow(unused_variables)]
     fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
         self.convert_standard_components_to_css(style, css)
     }
@@ -324,7 +375,10 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         style: &Style,
         css: CssBlockBuilder,
     ) -> CssBlockBuilder {
-        self.convert_alignment_to_css(style, self.convert_colors_to_css(style, css))
+        self.convert_font_to_css(
+            style,
+            self.convert_alignment_to_css(style, self.convert_colors_to_css(style, css)),
+        )
     }
 
     fn convert_colors_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
@@ -380,6 +434,18 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
                     VerticalAlignment::Bottom => "end",
                 },
             ));
+        }
+        css
+    }
+
+    fn convert_font_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
+        if let Some(size) = style.get::<FontSize>() {
+            // Accommodate for
+            css = css.with_css_statement(format!("font-size: {:.03}pt;", size.get()));
+        }
+
+        if let Some(family) = style.get::<FontFamily>() {
+            css = css.with_css_statement(format!("font-family: {};", family.0));
         }
         css
     }
@@ -467,5 +533,20 @@ impl WidgetClosure {
             let event = event_generator();
             widget.post_event::<F>(event);
         }) as Box<dyn FnMut()>)
+    }
+}
+
+pub trait ImageExt {
+    fn css_id(&self) -> Option<String>;
+}
+
+impl ImageExt for Image {
+    fn css_id(&self) -> Option<String> {
+        self.map_data(|opt_id| {
+            opt_id
+                .and_then(|id| id.as_any().downcast_ref::<u64>())
+                .copied()
+        })
+        .map(|id| format!("gooey-img-{}", id))
     }
 }

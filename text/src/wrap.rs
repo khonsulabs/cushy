@@ -323,6 +323,14 @@ mod tests {
                 line_gap: options.text_size * 0.1,
             }
         }
+
+        fn draw_image(
+            &self,
+            _image: &gooey_core::assets::Image,
+            _location: gooey_core::euclid::Point2D<f32, Points>,
+        ) {
+            unimplemented!()
+        }
     }
 
     #[test]

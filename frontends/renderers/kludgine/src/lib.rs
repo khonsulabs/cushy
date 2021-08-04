@@ -30,6 +30,7 @@ use gooey_core::{
     styles::SystemTheme,
     Pixels, Points,
 };
+use gooey_rasterizer::ImageExt;
 use gooey_renderer::{Renderer, StrokeOptions, TextMetrics, TextOptions};
 pub use kludgine;
 use kludgine::{core::winit::window::Theme, prelude::*};
@@ -193,5 +194,17 @@ impl Renderer for Kludgine {
         options: &StrokeOptions,
     ) {
         self.stroke_shape(Shape::polygon(vec![point_a, point_b]), options);
+    }
+
+    fn draw_image(&self, image: &gooey_core::assets::Image, location: Point2D<f32, Points>) {
+        if let Some(image) = image.as_rgba_image() {
+            let texture = Texture::new(image);
+            let sprite = SpriteSource::entire_texture(texture);
+            sprite.render_at(
+                &self.target,
+                location.cast_unit(),
+                SpriteRotation::default(),
+            );
+        }
     }
 }

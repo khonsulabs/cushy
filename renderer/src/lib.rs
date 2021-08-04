@@ -14,6 +14,7 @@
 use std::fmt::Debug;
 
 use gooey_core::{
+    assets::Image,
     euclid::{Length, Point2D, Rect, Scale, Size2D},
     styles::{
         Color, ColorPair, FallbackComponent, FontFamily, FontSize, ForegroundColor, LineWidth,
@@ -128,6 +129,9 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
             &StrokeOptions::from_style::<F>(style, self.theme()),
         );
     }
+
+    /// Draws an `image` at `location`.
+    fn draw_image(&self, image: &Image, location: Point2D<f32, Points>);
 }
 
 /// Text rendering and measurement options.
