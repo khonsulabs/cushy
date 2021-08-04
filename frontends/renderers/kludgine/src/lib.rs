@@ -3,6 +3,10 @@
 //! `Kludgine` uses `wgpu`, and in the future we [aim to support embedding
 //! `Gooey` into other `wgpu`
 //! applications](https://github.com/khonsulabs/kludgine/issues/51).
+//!
+//! ## User interface scaling (Points)
+//!
+//! Kludgine uses [`winit`](kludgine::core::winit) to determine the scaling ratio to use. For more information on the approaches taken, see the [`winit::dpi`](kludgine::core::winit::dpi) module.
 
 #![forbid(unsafe_code)]
 #![warn(
