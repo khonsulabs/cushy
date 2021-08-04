@@ -145,10 +145,7 @@ pub trait Transmogrifier<F: Frontend>: Debug + Sized {
     fn process_messages(&self, mut transmogrifier_context: TransmogrifierContext<'_, Self, F>) {
         // The frontend is initiating this call, so we should process events that the
         // Transmogrifier sends first.
-        let context = Context::new(
-            transmogrifier_context.channels,
-            transmogrifier_context.frontend,
-        );
+        let context = Context::from(&transmogrifier_context);
         let mut received_one_message = true;
         while received_one_message {
             received_one_message = false;
@@ -345,6 +342,14 @@ impl<W: Widget> Context<W> {
     ) -> Option<R> {
         self.widget_state(widget_id.id)
             .and_then(|state| state.with_widget_mut(self.frontend.as_ref(), with_fn))
+    }
+}
+
+impl<'a, 't, W: Widget, T: Transmogrifier<F, Widget = W>, F: Frontend>
+    From<&'a TransmogrifierContext<'t, T, F>> for Context<W>
+{
+    fn from(context: &'a TransmogrifierContext<'t, T, F>) -> Self {
+        Self::new(context.channels, context.frontend)
     }
 }
 

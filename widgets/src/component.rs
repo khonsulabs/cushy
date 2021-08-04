@@ -442,10 +442,9 @@ impl<B: Behavior> ComponentTransmogrifier<B> {
                     .unwrap()
                     .post_command::<F>(command);
             }
-            ComponentCommand::Behavior(event) => context.widget.receive_event(
-                InternalEvent::Content(event),
-                &Context::new(context.channels, context.frontend),
-            ),
+            ComponentCommand::Behavior(event) => context
+                .widget
+                .receive_event(InternalEvent::Content(event), &Context::from(&*context)),
         }
     }
 }
