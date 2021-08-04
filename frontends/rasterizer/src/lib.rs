@@ -22,7 +22,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
-    assets::Configuration,
+    assets::{Configuration, Image},
     euclid::{Point2D, Rect},
     styles::{
         style_sheet::{self},
@@ -30,6 +30,7 @@ use gooey_core::{
     },
     AnyTransmogrifierContext, Callback, Gooey, Points, WidgetId,
 };
+use image::{ImageFormat, RgbaImage};
 use winit::event::{
     ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
 };
@@ -112,24 +113,28 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
         self.state.system_theme()
     }
 
-    fn load_asset(
-        &self,
-        asset: &gooey_core::assets::Asset,
-        completed: Callback<Vec<u8>>,
-        error: Callback<String>,
-    ) {
-        let asset = asset.clone();
+    fn load_image(&self, image: &Image, completed: Callback<Image>, error: Callback<String>) {
+        let image = image.clone();
         let mut asset_path = self.state.assets_path();
         // TODO load this in a separate dedicated thread or async if enabled -- but we don't know about async at this layer
         // spawning a thread to make this happen asynchronously
         std::thread::spawn(move || {
-            for part in asset.path() {
+            for part in image.asset.path() {
                 asset_path = asset_path.join(part.as_ref());
             }
             match std::fs::read(asset_path) {
-                Ok(data) => completed.invoke(data),
+                Ok(data) => match load_image(&image, data) {
+                    Ok(_) => {
+                        completed.invoke(image);
+                    }
+                    Err(err) => {
+                        error.invoke(err);
+                    }
+                },
                 // TODO fallback to HTTP if the file can't be found
-                Err(err) => error.invoke(format!("io error: {:?}", err)),
+                Err(err) => {
+                    error.invoke(format!("io error: {:?}", err));
+                }
             };
         });
     }
@@ -137,6 +142,15 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
     fn asset_url(&self, asset: &gooey_core::assets::Asset) -> Option<String> {
         todo!()
     }
+}
+
+fn load_image(image: &Image, data: Vec<u8>) -> Result<(), String> {
+    let format = ImageFormat::from_path(image.asset.path().last().unwrap().as_ref())
+        .map_err(|err| format!("unknown image format: {:?}", err))?;
+    let loaded_image = image::load_from_memory_with_format(&data, format)
+        .map_err(|err| format!("error parsing image: {:?}", err))?;
+    image.set_data(Arc::new(loaded_image.to_rgba8()));
+    Ok(())
 }
 
 impl<R: Renderer> Rasterizer<R> {
@@ -487,5 +501,19 @@ where
 {
     fn refresh(&self) {
         self();
+    }
+}
+
+pub trait ImageExt {
+    fn as_rgba_image(&self) -> Option<Arc<RgbaImage>>;
+}
+
+impl ImageExt for Image {
+    fn as_rgba_image(&self) -> Option<Arc<RgbaImage>> {
+        self.map_data(|opt_data| {
+            opt_data
+                .and_then(|data| data.as_any().downcast_ref::<Arc<RgbaImage>>())
+                .map(Arc::clone)
+        })
     }
 }

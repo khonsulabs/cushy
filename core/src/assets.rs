@@ -6,11 +6,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use image::{ImageFormat, RgbaImage};
-
 use crate::{
     styles::{FontStyle, Weight},
-    AnyFrontend, Callback,
+    AnyFrontend, AnySendSync, Callback,
 };
 
 #[derive(Debug, Clone)]
@@ -79,7 +77,7 @@ pub struct Font {
 #[must_use]
 pub struct Image {
     pub asset: Asset,
-    data: Arc<Mutex<Option<Arc<RgbaImage>>>>,
+    data: Arc<Mutex<Option<Box<dyn AnySendSync>>>>,
 }
 
 impl Image {
@@ -97,37 +95,23 @@ impl Image {
         on_error: Callback<String>,
         frontend: &dyn AnyFrontend,
     ) {
-        let callback_image = self.clone();
-        let callback_error = on_error.clone();
-        frontend.load_asset(
-            &self.asset,
-            Callback::new(move |data: Vec<u8>| {
-                if let Err(err) = callback_image.load_data(&data) {
-                    callback_error.invoke(err);
-                } else {
-                    on_loaded.invoke(callback_image.clone());
-                }
-            }),
-            on_error,
-        );
+        frontend.load_image(self, on_loaded, on_error);
     }
 
-    fn load_data(&self, data: &[u8]) -> Result<(), String> {
-        let mut image_data = self.data.lock().unwrap();
-        let format = ImageFormat::from_path(self.asset.data.path.last().unwrap().as_ref())
-            .map_err(|err| format!("unknown image format: {:?}", err))?;
-        let image = image::load_from_memory_with_format(data, format)
-            .map_err(|err| format!("error parsing image: {:?}", err))?;
-        *image_data = Some(Arc::new(image.to_rgba8()));
-        Ok(())
+    pub fn set_data<D: AnySendSync>(&self, new_data: D) {
+        let mut data = self.data.lock().unwrap();
+        *data = Some(Box::new(new_data) as Box<dyn AnySendSync>);
     }
 
-    #[allow(clippy::missing_panics_doc)]
-    #[must_use]
-    pub fn as_rgba_image(&self) -> Option<Arc<RgbaImage>> {
-        let data = self.data.lock().unwrap();
-        data.as_ref().cloned()
+    pub fn map_data<R, F: FnOnce(Option<&mut dyn AnySendSync>) -> R>(&self, callback: F) -> R {
+        let mut data = self.data.lock().unwrap();
+        callback(data.as_deref_mut())
     }
+}
+
+pub trait FrontendImage: AnySendSync {
+    // TODO anyhow?
+    fn load_data(&mut self, data: Vec<u8>) -> Result<(), String>;
 }
 
 #[derive(Default, Debug)]

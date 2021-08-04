@@ -44,6 +44,7 @@ impl State {
             })),
         }
     }
+
     pub fn new_frame(&self) {
         let mut data = self.data.lock().unwrap();
         data.new_frame();

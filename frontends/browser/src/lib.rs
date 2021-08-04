@@ -24,13 +24,13 @@ use std::{
     convert::TryFrom,
     ops::Deref,
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
     },
 };
 
 use gooey_core::{
-    assets::Configuration,
+    assets::{Configuration, Image},
     styles::{
         style_sheet::{Classes, State},
         Alignment, FontFamily, FontSize, Style, StyleComponent, SystemTheme, VerticalAlignment,
@@ -44,19 +44,27 @@ use wasm_bindgen::{prelude::*, JsCast};
 
 pub mod utils;
 
-use utils::{set_widget_classes, set_widget_id, CssBlockBuilder, CssManager, CssRules};
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{HtmlElement, MediaQueryListEvent, Request, RequestInit, RequestMode, Response};
+use utils::{
+    create_element, set_widget_classes, set_widget_id, CssBlockBuilder, CssManager, CssRules,
+};
+use web_sys::{ErrorEvent, HtmlElement, HtmlImageElement, MediaQueryListEvent};
+
+use crate::utils::window_document;
 
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone)]
 pub struct WebSys {
     pub ui: Gooey<Self>,
-    // TODO too many arcs, change this to a single substructure
-    styles: Arc<Vec<CssRules>>,
-    theme: Arc<Mutex<SystemTheme>>,
-    configuration: Arc<Configuration>,
+    data: Arc<Data>,
+}
+
+#[derive(Debug)]
+struct Data {
+    styles: Vec<CssRules>,
+    theme: Mutex<SystemTheme>,
+    configuration: Configuration,
+    last_image_id: AtomicU64,
 }
 
 impl WebSys {
@@ -126,9 +134,12 @@ impl WebSys {
 
         Self {
             ui,
-            styles: Arc::new(styles),
-            configuration: Arc::new(configuration),
-            theme: Arc::default(),
+            data: Arc::new(Data {
+                styles,
+                configuration,
+                theme: Mutex::default(),
+                last_image_id: AtomicU64::new(0),
+            }),
         }
     }
 
@@ -140,23 +151,23 @@ impl WebSys {
 
         let root_id = id.to_owned();
         // Initialize with light theme
-        update_system_theme(&root_id, false, &self.theme);
+        update_system_theme(&root_id, false, &self.data.theme);
 
         // TODO This shouldn't leak, it should be stored somewhere, but since
         // wasm-bindgen isn't Send+Sync, we can't store it in `self`. Also,
         // todo: I don't know that the callback is being invoked. My testing has
         // been done limited so far.
-        let theme = self.theme.clone();
+        let data = self.data.clone();
         std::mem::forget(
             window
                 .match_media("(prefers-color-scheme: dark)")
                 .ok()
                 .flatten()
                 .and_then(move |mql| {
-                    update_system_theme(&root_id, mql.matches(), &theme);
+                    update_system_theme(&root_id, mql.matches(), &data.theme);
                     mql.add_listener_with_opt_callback(Some(
                         Closure::wrap(Box::new(move |event: MediaQueryListEvent| {
-                            update_system_theme(&root_id, event.matches(), &theme);
+                            update_system_theme(&root_id, event.matches(), &data.theme);
                         }) as Box<dyn FnMut(_)>)
                         .as_ref()
                         .unchecked_ref(),
@@ -254,42 +265,45 @@ impl gooey_core::Frontend for WebSys {
     }
 
     fn theme(&self) -> SystemTheme {
-        let theme = self.theme.lock().unwrap();
+        let theme = self.data.theme.lock().unwrap();
         *theme
     }
 
-    fn load_asset(
-        &self,
-        asset: &gooey_core::assets::Asset,
-        completed: Callback<Vec<u8>>,
-        error: Callback<String>,
-    ) {
-        if let Some(url) = Frontend::asset_url(self, asset) {
-            let mut opts = RequestInit::new();
-            opts.method("GET");
-            opts.mode(RequestMode::Cors);
+    fn load_image(&self, image: &Image, completed: Callback<Image>, error: Callback<String>) {
+        if let Some(url) = Frontend::asset_url(self, &image.asset) {
+            let element = create_element::<HtmlImageElement>("img");
+            let image_id = self.data.last_image_id.fetch_add(1, Ordering::SeqCst);
+            image.set_data(image_id);
+            element.set_id(&image.css_id().unwrap());
+            element.set_onerror(Some(
+                &Closure::once_into_js(move |e: ErrorEvent| {
+                    error.invoke(e.message());
+                })
+                .unchecked_into(),
+            ));
+            let completed_image = image.clone();
+            element.set_onload(Some(
+                &Closure::once_into_js(move || {
+                    completed.invoke(completed_image);
+                })
+                .unchecked_into(),
+            ));
+            element.set_src(&url);
 
-            let request = Request::new_with_str_and_init(&url, &opts).unwrap();
-            let task_self = self.clone();
-            wasm_bindgen_futures::spawn_local(async move {
-                let resp_value =
-                    JsFuture::from(web_sys::window().unwrap().fetch_with_request(&request))
-                        .await
-                        .unwrap();
-                let resp: Response = resp_value.unchecked_into();
-                let array_buffer = JsFuture::from(resp.array_buffer().unwrap()).await.unwrap();
-                let uint8_array = js_sys::Uint8Array::new(&array_buffer);
-                let data = uint8_array.to_vec();
-
-                completed.invoke(data);
-                task_self.gooey().process_widget_messages(&task_self);
-            });
+            // Store it in the <head>
+            // TODO need to clean this up if the image is dropped
+            window_document()
+                .head()
+                .unwrap()
+                .append_child(&element)
+                .unwrap();
         }
     }
 
     fn asset_url(&self, asset: &gooey_core::assets::Asset) -> Option<String> {
         let mut url = Url::parse(
-            self.configuration
+            self.data
+                .configuration
                 .asset_base_url
                 .as_deref()
                 .unwrap_or("http://localhost:8080/assets/"),
@@ -531,5 +545,20 @@ impl WidgetClosure {
             let event = event_generator();
             widget.post_event::<F>(event);
         }) as Box<dyn FnMut()>)
+    }
+}
+
+pub trait ImageExt {
+    fn css_id(&self) -> Option<String>;
+}
+
+impl ImageExt for Image {
+    fn css_id(&self) -> Option<String> {
+        self.map_data(|opt_id| {
+            opt_id
+                .and_then(|id| id.as_any().downcast_ref::<u64>())
+                .copied()
+        })
+        .map(|id| format!("gooey-img-{}", id))
     }
 }

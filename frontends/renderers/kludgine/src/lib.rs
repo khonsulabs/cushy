@@ -26,6 +26,7 @@ use gooey_core::{
     styles::SystemTheme,
     Pixels, Points,
 };
+use gooey_rasterizer::ImageExt;
 use gooey_renderer::{Renderer, StrokeOptions, TextMetrics, TextOptions};
 pub use kludgine;
 use kludgine::{core::winit::window::Theme, prelude::*};

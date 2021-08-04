@@ -1,7 +1,7 @@
 use std::{any::TypeId, convert::TryFrom, fmt::Debug};
 
 use crate::{
-    assets::Asset,
+    assets::{Asset, Image},
     styles::{style_sheet::State, SystemTheme},
     AnySendSync, AnyTransmogrifierContext, AnyWidget, Callback, Gooey, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, WidgetId, WidgetRef, WidgetRegistration,
@@ -33,8 +33,8 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
     /// method is called.
     fn set_widget_has_messages(&self, widget: WidgetId);
 
-    /// Loads an asset asynchronously, executing `completed` with the binary data when loaded.
-    fn load_asset(&self, asset: &Asset, completed: Callback<Vec<u8>>, error: Callback<String>);
+    /// Loads an image asynchronously, executing `completed` when loaded.
+    fn load_image(&self, asset: &Image, completed: Callback<Image>, error: Callback<String>);
 
     /// Returns the full Url for the asset, if available.
     fn asset_url(&self, asset: &Asset) -> Option<String>;
@@ -65,8 +65,8 @@ pub trait AnyFrontend: AnySendSync {
     #[must_use]
     fn enter_managed_code(&self) -> ManagedCodeGuard;
 
-    /// Loads an asset asynchronously, executing `completed` with the binary data when loaded.
-    fn load_asset(&self, asset: &Asset, completed: Callback<Vec<u8>>, error: Callback<String>);
+    /// Loads an image asynchronously, executing `completed` when loaded.
+    fn load_image(&self, asset: &Image, completed: Callback<Image>, error: Callback<String>);
 
     /// Returns the full Url for the asset, if available.
     fn asset_url(&self, asset: &Asset) -> Option<String>;
@@ -118,8 +118,8 @@ where
         self.theme()
     }
 
-    fn load_asset(&self, asset: &Asset, completed: Callback<Vec<u8>>, error: Callback<String>) {
-        self.load_asset(asset, completed, error);
+    fn load_image(&self, asset: &Image, completed: Callback<Image>, error: Callback<String>) {
+        self.load_image(asset, completed, error);
     }
 
     fn asset_url(&self, asset: &Asset) -> Option<String> {

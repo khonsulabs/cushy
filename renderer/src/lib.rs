@@ -130,6 +130,7 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
         );
     }
 
+    /// Draws an `image` at `location`.
     fn draw_image(&self, image: &Image, location: Point2D<f32, Points>);
 }
 

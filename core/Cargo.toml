@@ -17,5 +17,4 @@ euclid = "0.22"
 stylecs = { git="https://github.com/khonsulabs/stylecs.git", branch="main" }
 flume = "0.10"
 palette = "0.6"
-image = { version="0.23", default-features=false, features=["ico", "png", "jpeg"] }
 log = "0.4"
