@@ -272,7 +272,7 @@ impl gooey_core::Frontend for WebSys {
         if let Some(url) = Frontend::asset_url(self, &image.asset) {
             let element = create_element::<HtmlImageElement>("img");
             let image_id = self.data.last_image_id.fetch_add(1, Ordering::SeqCst);
-            image.set_data(image_id);
+            image.set_data(LoadedImageId(image_id));
             element.set_id(&image.css_id().unwrap());
             element.set_onerror(Some(
                 &Closure::once_into_js(move |e: ErrorEvent| {
@@ -290,7 +290,6 @@ impl gooey_core::Frontend for WebSys {
             element.set_src(&url.to_string());
 
             // Store it in the <head>
-            // TODO need to clean this up if the image is dropped
             window_document()
                 .head()
                 .unwrap()
@@ -301,6 +300,24 @@ impl gooey_core::Frontend for WebSys {
 
     fn asset_configuration(&self) -> &assets::Configuration {
         &self.data.configuration
+    }
+}
+
+#[derive(Debug)]
+struct LoadedImageId(u64);
+
+impl Drop for LoadedImageId {
+    fn drop(&mut self) {
+        let css_id = image_css_id(self.0);
+        if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
+            if let Some(element) = doc.get_element_by_id(&css_id) {
+                element.remove();
+            }
+        } else {
+            // This should only happen if an `Image` was passed to a separate
+            // thread, which is a no-no for Gooey at the moment.
+            log::error!("unable to clean up dropped image: {}", css_id);
+        }
     }
 }
 
@@ -547,6 +564,10 @@ impl ImageExt for Image {
                 .and_then(|id| id.as_any().downcast_ref::<u64>())
                 .copied()
         })
-        .map(|id| format!("gooey-img-{}", id))
+        .map(|id| image_css_id(id))
     }
+}
+
+fn image_css_id(id: u64) -> String {
+    format!("gooey-img-{}", id)
 }
