@@ -3,7 +3,7 @@ use gooey_widgets::navigator::Navigator;
 
 mod widget_explorer_screens;
 
-use widget_explorer_screens::{main_menu::MainMenu, navigator, InfoPage, Page};
+use widget_explorer_screens::{borders, main_menu::MainMenu, navigator, InfoPage, Page};
 
 #[cfg(test)]
 mod harness;
@@ -14,6 +14,7 @@ fn app() -> App {
         .with_component::<InfoPage>()
         .with_component::<MainMenu>()
         .with_component::<navigator::Demo>()
+        .with_component::<borders::Demo>()
 }
 
 fn main() {

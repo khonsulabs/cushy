@@ -1,5 +1,5 @@
 use gooey_core::{
-    euclid::{Length, Size2D, Vector2D},
+    euclid::{Length, Size2D},
     styles::Style,
     Points, Transmogrifier, TransmogrifierContext,
 };
@@ -8,8 +8,6 @@ use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
 use super::LabelColor;
 use crate::label::{Command, Label, LabelTransmogrifier};
-
-const LABEL_PADDING: Length<f32, Points> = Length::new(5.);
 
 impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LabelTransmogrifier {
     type State = ();
@@ -57,9 +55,7 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
                     renderer,
                     Length::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
                 );
-                (wrapped.size().to_vector()
-                    + Vector2D::from_lengths(LABEL_PADDING * 2., LABEL_PADDING * 2.))
-                .to_size()
+                wrapped.size()
             })
     }
 }
@@ -73,10 +69,7 @@ fn wrap_text<R: Renderer>(
     label.wrap(
         renderer,
         TextWrap::MultiLine {
-            size: Size2D::from_lengths(
-                width - LABEL_PADDING * 2.,
-                Length::new(renderer.size().height),
-            ),
+            size: Size2D::from_lengths(width, Length::new(renderer.size().height)),
         },
         Some(style),
     )

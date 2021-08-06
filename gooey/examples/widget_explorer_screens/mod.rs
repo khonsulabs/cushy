@@ -16,6 +16,7 @@ use gooey::{
 
 use crate::widget_explorer_screens::main_menu::MainMenu;
 
+pub mod borders;
 pub mod main_menu;
 pub mod navigator;
 
@@ -23,6 +24,7 @@ pub mod navigator;
 pub enum Page {
     MainMenu,
     Navigator { level: usize },
+    Borders,
 }
 
 impl Default for Page {
@@ -44,6 +46,7 @@ impl Location for Page {
                     Cow::from("Navigator Demo")
                 }
             }
+            Page::Borders => Cow::from("Borders"),
         }
     }
 
@@ -58,6 +61,7 @@ impl Location for Page {
                 navigator::Demo::new(navigator, *level),
                 storage,
             )),
+            Page::Borders => storage.register(Component::new(borders::Demo::default(), storage)),
         }
     }
 }

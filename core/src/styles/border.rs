@@ -25,11 +25,22 @@ impl Border {
 
 /// Options for a single side of a [`Border`].
 #[derive(Debug, Default, Clone)]
+#[must_use]
 pub struct BorderOptions {
     /// The width of the border.
     pub width: Length<f32, Points>,
     /// The color of the border.
     pub color: Color,
+}
+
+impl BorderOptions {
+    /// Returns a new border with `width` and `color`.
+    pub const fn new(width: f32, color: Color) -> Self {
+        Self {
+            width: Length::new(width),
+            color,
+        }
+    }
 }
 
 impl From<Length<f32, Points>> for BorderOptions {

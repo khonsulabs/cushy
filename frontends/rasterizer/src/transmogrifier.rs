@@ -119,10 +119,10 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         }
         if let Some(width) = bottom_width {
             renderer.fill_rect(
-                &dbg!(Rect::new(
+                &Rect::new(
                     Point2D::new(0., bounds.size.height - width.get()),
                     Size2D::new(bounds.size.width, width.get()),
-                )),
+                ),
                 border.bottom.as_ref().unwrap().color,
             );
         }

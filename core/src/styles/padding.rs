@@ -31,6 +31,17 @@ impl Padding {
     pub fn build() -> Builder {
         Builder::default()
     }
+
+    /// Returns an instance with uniform padding of `points` on all sides.
+    pub fn uniform(points: f32) -> Self {
+        Self::from(Length::new(points))
+    }
+}
+
+impl From<Length<f32, Points>> for Padding {
+    fn from(length: Length<f32, Points>) -> Self {
+        Self(Surround::from(Some(length)))
+    }
 }
 
 impl Deref for Padding {
