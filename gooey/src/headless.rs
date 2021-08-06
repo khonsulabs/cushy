@@ -78,10 +78,7 @@ impl Headless<Rasterizer<Kludgine>> {
                 SystemTheme::Dark => Theme::Dark,
             },
         ));
-        target
-            .scene_mut()
-            .unwrap()
-            .set_size(size.to_f32().cast_unit());
+        target.scene_mut().unwrap().set_size(size.cast_unit());
         target.scene_mut().unwrap().start_frame();
         self.frontend
             .gooey()

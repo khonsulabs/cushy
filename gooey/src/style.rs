@@ -1,7 +1,9 @@
 use gooey_core::{
+    euclid::Length,
     styles::{
         style_sheet::{Rule, StyleSheet},
-        Alignment, BackgroundColor, Color, ColorPair, ForegroundColor, VerticalAlignment,
+        Alignment, BackgroundColor, Color, ColorPair, ForegroundColor, Padding, Surround,
+        VerticalAlignment,
     },
     ROOT_CLASS, SOLID_WIDGET_CLASS,
 };
@@ -76,6 +78,7 @@ pub fn default_stylesheet() -> StyleSheet {
             style
                 .with(Alignment::Center)
                 .with(VerticalAlignment::Center)
+                .with(Padding(Surround::from(Some(Length::new(5.)))))
         }))
         .with(Rule::for_widget::<Checkbox>().with_styles(|style| {
             style

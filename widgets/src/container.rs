@@ -1,8 +1,8 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 use gooey_core::{
-    euclid::Length, styles::Surround, Frontend, Key, KeyedStorage, Points, RelatedStorage,
-    StyledWidget, Widget, WidgetRef, WidgetRegistration, WidgetStorage,
+    styles::Surround, Frontend, Key, KeyedStorage, Points, RelatedStorage, StyledWidget, Widget,
+    WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
 use crate::component::{Behavior, ComponentBuilder, Content, ContentBuilder};
@@ -16,15 +16,11 @@ mod browser;
 #[derive(Debug)]
 pub struct Container {
     pub child: WidgetRegistration,
-    pub padding: Surround<Points>,
 }
 
 impl From<WidgetRegistration> for Container {
     fn from(child: WidgetRegistration) -> Self {
-        Self {
-            child,
-            padding: Surround::default(),
-        }
+        Self { child }
     }
 }
 
@@ -63,30 +59,29 @@ impl<K: Key, S: KeyedStorage<K>> Builder<K, S> {
         self
     }
 
-    pub fn pad_left<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-        self.padding.left = Some(padding.into());
-        self
-    }
+    // pub fn pad_left<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
+    //     self.padding.left = Some(padding.into());
+    //     self
+    // }
 
-    pub fn pad_right<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-        self.padding.right = Some(padding.into());
-        self
-    }
+    // pub fn pad_right<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
+    //     self.padding.right = Some(padding.into());
+    //     self
+    // }
 
-    pub fn pad_top<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-        self.padding.top = Some(padding.into());
-        self
-    }
+    // pub fn pad_top<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
+    //     self.padding.top = Some(padding.into());
+    //     self
+    // }
 
-    pub fn pad_bottom<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-        self.padding.bottom = Some(padding.into());
-        self
-    }
+    // pub fn pad_bottom<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
+    //     self.padding.bottom = Some(padding.into());
+    //     self
+    // }
 
     pub fn finish(self) -> StyledWidget<Container> {
         StyledWidget::from(Container {
             child: self.child.expect("no child in container"),
-            padding: self.padding,
         })
     }
 }

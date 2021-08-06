@@ -1,29 +1,32 @@
 use gooey_core::{
     euclid::Size2D, Points, Transmogrifier, TransmogrifierContext, Widget, WidgetRef,
 };
-use gooey_rasterizer::{Rasterizer, Renderer, WidgetRasterizer};
+use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
 
 use super::Component;
 use crate::component::{Behavior, ComponentTransmogrifier};
 
 impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B> {
-    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
+    fn render(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        content_area: &ContentArea,
+    ) {
         context.frontend.with_transmogrifier(
             context.widget.content.id(),
             |child_transmogrifier, mut child_context| {
-                let bounds = context
-                    .frontend
-                    .renderer()
-                    .map(|r| r.bounds())
-                    .unwrap_or_default();
-                child_transmogrifier.render_within(&mut child_context, bounds, context.style);
+                child_transmogrifier.render_within(
+                    &mut child_context,
+                    content_area.bounds(),
+                    context.style,
+                );
             },
         );
     }
 
-    fn content_size(
+    fn measure_content(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         context
@@ -31,7 +34,9 @@ impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B
             .with_transmogrifier(
                 context.widget.content.id(),
                 |child_transmogrifier, mut child_context| {
-                    child_transmogrifier.content_size(&mut child_context, constraints)
+                    child_transmogrifier
+                        .content_size(&mut child_context, constraints)
+                        .total_size()
                 },
             )
             .unwrap_or_default()

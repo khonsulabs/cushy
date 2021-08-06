@@ -3,7 +3,7 @@ use gooey_core::{
     styles::Style,
     Points, Transmogrifier, TransmogrifierContext,
 };
-use gooey_rasterizer::{Rasterizer, Renderer, WidgetRasterizer};
+use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
 use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
 use super::LabelColor;
@@ -25,22 +25,26 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LabelTransmogrifier {
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
-    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
+    fn render(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        content_area: &ContentArea,
+    ) {
         if let Some(renderer) = context.frontend.renderer() {
             // TODO switch to borrows?
             let wrapped = wrap_text(
                 &context.widget.label,
                 context.style,
                 renderer,
-                Length::new(renderer.size().width),
+                Length::new(content_area.size.content.width),
             );
-            wrapped.render_within::<LabelColor, _>(renderer, renderer.bounds(), context.style);
+            wrapped.render_within::<LabelColor, _>(renderer, content_area.bounds(), context.style);
         }
     }
 
-    fn content_size(
+    fn measure_content(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         context

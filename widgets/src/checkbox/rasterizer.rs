@@ -4,7 +4,7 @@ use gooey_core::{
     Points, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
-    winit::event::MouseButton, EventStatus, Rasterizer, Renderer, WidgetRasterizer,
+    winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer, WidgetRasterizer,
 };
 use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
@@ -71,17 +71,17 @@ fn calculate_layout<R: Renderer>(
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
-    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
+    fn render(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        content_area: &ContentArea,
+    ) {
         if let Some(renderer) = context.frontend.renderer() {
-            let layout = calculate_layout(&context, renderer, renderer.size());
-            let checkbox_rect = Rect::from_size(layout.checkbox_size);
-            let label_rect = Rect::new(
-                Point2D::new(layout.checkbox_size.width + LABEL_PADDING.get(), 0.),
-                layout.label_size,
-            );
+            let layout = calculate_layout(context, renderer, content_area.size.content);
 
+            // Render the checkbox
+            let checkbox_rect = Rect::new(content_area.location, layout.checkbox_size);
             renderer.fill_rect_with_style::<ButtonColor>(&checkbox_rect, context.style);
-
             if context.widget.checked {
                 // Fill a square in the middle with the mark.
                 let check_box = checkbox_rect.inflate(
@@ -91,15 +91,21 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
                 renderer.fill_rect_with_style::<ForegroundColor>(&check_box, context.style);
             }
 
+            // Render the label
+            let label_rect = Rect::new(
+                Point2D::new(layout.checkbox_size.width + LABEL_PADDING.get(), 0.)
+                    + content_area.location.to_vector(),
+                layout.label_size,
+            );
             layout
                 .label
                 .render_within::<ForegroundColor, _>(renderer, label_rect, context.style);
         }
     }
 
-    fn content_size(
+    fn measure_content(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         // Always render a rect
@@ -109,7 +115,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
             .map_or_else(Size2D::default, |renderer| {
                 let renderer_size = renderer.size();
                 let layout = calculate_layout(
-                    &context,
+                    context,
                     renderer,
                     Size2D::new(
                         constraints.width.unwrap_or(renderer_size.width),
@@ -123,7 +129,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
 
     fn mouse_down(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
         _location: Point2D<f32, Points>,
         _rastered_size: Size2D<f32, Points>,
@@ -138,7 +144,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
 
     fn mouse_drag(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
@@ -152,7 +158,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
 
     fn mouse_up(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
         location: Option<Point2D<f32, Points>>,
         rastered_size: Size2D<f32, Points>,

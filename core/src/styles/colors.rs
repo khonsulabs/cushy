@@ -4,7 +4,7 @@ use palette::{FromColor, Hsl, Hsla, Hsv, Hsva, Srgb, Srgba};
 use stylecs::{FallbackComponent, StyleComponent};
 
 /// An Srgba color.
-#[derive(Default, Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[must_use]
 pub struct Color {
     /// The red channel. Valid values are from 0.0 to 1.0 inclusive.
@@ -15,6 +15,12 @@ pub struct Color {
     pub blue: f32,
     /// The alpha channel. Valid values are from 0.0 to 1.0 inclusive, where 1.0 is fully opaque.
     pub alpha: f32,
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Color::BLACK
+    }
 }
 
 impl Color {

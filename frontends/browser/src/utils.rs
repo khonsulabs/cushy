@@ -8,9 +8,13 @@ use std::{
     },
 };
 
-use gooey_core::styles::{
-    style_sheet::{Classes, Rule, State},
-    StyleComponent, SystemTheme,
+use gooey_core::{
+    euclid::{approxeq::ApproxEq, Length},
+    styles::{
+        border::{Border, BorderOptions},
+        style_sheet::{Classes, Rule, State},
+        Padding, StyleComponent, SystemTheme,
+    },
 };
 use once_cell::sync::OnceCell;
 use wasm_bindgen::JsCast;
@@ -255,6 +259,88 @@ impl CssBlockBuilder {
     pub const fn with_theme(mut self, theme: SystemTheme) -> Self {
         self.theme = Some(theme);
         self
+    }
+
+    pub fn with_padding(self, padding: &Padding) -> CssBlockBuilder {
+        let left = padding.left.unwrap_or_default();
+        let right = padding.right.unwrap_or_default();
+        let top = padding.top.unwrap_or_default();
+        let bottom = padding.bottom.unwrap_or_default();
+        if left.approx_eq(&right) {
+            if top.approx_eq(&bottom) {
+                if top.approx_eq(&left) {
+                    self.with_css_statement(&format!("padding: {:03}pt", top.get()))
+                } else {
+                    self.with_css_statement(&format!(
+                        "padding: {:03}pt {:03}pt",
+                        top.get(),
+                        left.get()
+                    ))
+                }
+            } else {
+                self.with_css_statement(&format!(
+                    "padding: {:03}pt {:03}pt {:03}pt",
+                    top.get(),
+                    left.get(),
+                    bottom.get(),
+                ))
+            }
+        } else {
+            self.with_css_statement(&format!(
+                "padding: {:03}pt {:03}pt {:03}pt {:03}pt",
+                top.get(),
+                left.get(),
+                bottom.get(),
+                right.get(),
+            ))
+        }
+    }
+
+    fn with_single_border(self, name: &str, options: &BorderOptions) -> Self {
+        if options.width.get() > 0. {
+            self.with_css_statement(&format!(
+                "border-{}: {:.03}pt solid {}",
+                name,
+                options.width.get(),
+                options.color.as_css_string()
+            ))
+        } else {
+            self.with_css_statement(&format!("border-{}: none", name))
+        }
+    }
+
+    pub fn with_border(self, border: &Border) -> Self {
+        let left = border.left.clone().unwrap_or_default();
+        let right = border.right.clone().unwrap_or_default();
+        let top = border.top.clone().unwrap_or_default();
+        let bottom = border.bottom.clone().unwrap_or_default();
+        let widths_are_same = left.width.clone().approx_eq(&right.width)
+            && top.width.approx_eq(&bottom.width)
+            && left.width.approx_eq(&top.width);
+        let has_border = !widths_are_same || !left.width.approx_eq(&Length::default());
+
+        if has_border {
+            let one_rule = widths_are_same
+                && left.color == right.color
+                && top.color == bottom.color
+                && left.color == top.color;
+
+            if one_rule {
+                self.with_css_statement(&format!(
+                    "border: {:.03}pt solid {}",
+                    left.width.get(),
+                    left.color.as_css_string(),
+                ))
+            } else {
+                self.with_single_border("left", &left)
+                    .with_single_border("right", &right)
+                    .with_single_border("top", &top)
+                    .with_single_border("bottom", &bottom)
+            }
+        } else {
+            // no border
+            self.with_css_statement("border: none")
+        }
     }
 
     #[must_use]

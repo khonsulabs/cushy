@@ -1,18 +1,14 @@
 use gooey_core::{
-    euclid::{Length, Point2D, Rect, Size2D, Vector2D},
+    euclid::{Length, Point2D, Rect, Size2D},
     styles::{Style, TextColor},
     Points, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
-    winit::event::MouseButton, EventStatus, Rasterizer, Renderer, WidgetRasterizer,
+    winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer, WidgetRasterizer,
 };
 use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
-use crate::button::{
-    Button, ButtonColor, ButtonCommand, ButtonTransmogrifier, InternalButtonEvent,
-};
-
-const BUTTON_PADDING: Length<f32, Points> = Length::new(5.);
+use crate::button::{Button, ButtonCommand, ButtonTransmogrifier, InternalButtonEvent};
 
 impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
     type State = ();
@@ -28,52 +24,45 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
-    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
+    fn render(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        content_area: &ContentArea,
+    ) {
         if let Some(renderer) = context.frontend.renderer() {
-            renderer.fill_rect_with_style::<ButtonColor>(&renderer.bounds(), context.style);
-
             let wrapped = wrap_text(
                 &context.widget.label,
                 context.style,
                 renderer,
-                Length::new(renderer.size().width),
+                Length::new(content_area.size.content.width),
             );
 
-            wrapped.render_within::<TextColor, _>(
-                renderer,
-                renderer
-                    .bounds()
-                    .inflate(-BUTTON_PADDING.get(), -BUTTON_PADDING.get()),
-                context.style,
-            );
+            wrapped.render_within::<TextColor, _>(renderer, content_area.bounds(), context.style);
         }
     }
 
-    fn content_size(
+    fn measure_content(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         context
             .frontend
             .renderer()
             .map_or_else(Size2D::default, |renderer| {
-                // TODO should be wrapped width
-                let wrapped = wrap_text(
+                wrap_text(
                     &context.widget.label,
                     context.style,
                     renderer,
                     Length::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
-                );
-                (wrapped.size().to_vector()
-                    + Vector2D::from_lengths(BUTTON_PADDING * 2., BUTTON_PADDING * 2.))
-                .to_size()
+                )
+                .size()
             })
     }
 
     fn mouse_down(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
         _location: Point2D<f32, Points>,
         _rastered_size: Size2D<f32, Points>,
@@ -88,7 +77,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
 
     fn mouse_drag(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
         location: Point2D<f32, Points>,
         rastered_size: Size2D<f32, Points>,
@@ -102,7 +91,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
 
     fn mouse_up(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
         location: Option<Point2D<f32, Points>>,
         rastered_size: Size2D<f32, Points>,
@@ -133,11 +122,5 @@ fn wrap_text<R: Renderer>(
     width: Length<f32, Points>,
 ) -> PreparedText {
     let text = Text::span(label, style.clone());
-    text.wrap(
-        renderer,
-        TextWrap::SingleLine {
-            width: width - BUTTON_PADDING * 2.,
-        },
-        Some(style),
-    )
+    text.wrap(renderer, TextWrap::SingleLine { width }, Some(style))
 }
