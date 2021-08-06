@@ -394,17 +394,15 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         style: &Style,
         mut css: CssBlockBuilder,
     ) -> CssBlockBuilder {
-        css = self.convert_font_to_css(
-            style,
-            self.convert_alignment_to_css(style, self.convert_colors_to_css(style, css)),
-        );
+        css = self
+            .convert_font_to_css(
+                style,
+                self.convert_alignment_to_css(style, self.convert_colors_to_css(style, css)),
+            )
+            .with_border(&style.get_or_default::<Border>());
 
         if let Some(padding) = style.get::<Padding>() {
             css = css.with_padding(padding);
-        }
-
-        if let Some(border) = style.get::<Border>() {
-            css = css.with_border(border);
         }
 
         css
