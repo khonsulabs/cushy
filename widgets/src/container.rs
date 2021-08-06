@@ -59,26 +59,6 @@ impl<K: Key, S: KeyedStorage<K>> Builder<K, S> {
         self
     }
 
-    // pub fn pad_left<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-    //     self.padding.left = Some(padding.into());
-    //     self
-    // }
-
-    // pub fn pad_right<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-    //     self.padding.right = Some(padding.into());
-    //     self
-    // }
-
-    // pub fn pad_top<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-    //     self.padding.top = Some(padding.into());
-    //     self
-    // }
-
-    // pub fn pad_bottom<F: Into<Length<f32, Points>>>(mut self, padding: F) -> Self {
-    //     self.padding.bottom = Some(padding.into());
-    //     self
-    // }
-
     pub fn finish(self) -> StyledWidget<Container> {
         StyledWidget::from(Container {
             child: self.child.expect("no child in container"),
