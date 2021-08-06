@@ -1,8 +1,8 @@
 use gooey_browser::{
-    utils::{widget_css_id, window_document, CssBlockBuilder, CssRules},
+    utils::{widget_css_id, window_document, CssRules},
     WebSys, WebSysTransmogrifier, WidgetClosure,
 };
-use gooey_core::{styles::Style, TransmogrifierContext, WidgetRef};
+use gooey_core::{TransmogrifierContext, WidgetRef};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlButtonElement;
 
@@ -47,10 +47,5 @@ impl WebSysTransmogrifier for ButtonTransmogrifier {
         );
         element.set_onclick(Some(closure.into_js_value().unchecked_ref()));
         Some(element.unchecked_into())
-    }
-
-    fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
-        self.convert_standard_components_to_css(style, css)
-            .with_css_statement("border: none") // TODO support borders
     }
 }

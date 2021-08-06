@@ -116,8 +116,12 @@ impl Renderer for Kludgine {
     fn clip_to(&self, bounds: Rect<f32, Points>) -> Self {
         // Kludgine's clipping is scene-relative, but the bounds in this function is
         // relative to the current rendering location.
-        let mut scene_relative_bounds = bounds
-            .translate(self.target.offset.unwrap_or_default().cast_unit::<Pixels>() / self.scale());
+        let mut scene_relative_bounds = bounds;
+        if let Some(offset) = self.target.offset {
+            scene_relative_bounds =
+                scene_relative_bounds.translate(offset.cast_unit::<Pixels>() / self.scale());
+        }
+
         if scene_relative_bounds.origin.x < 0. {
             scene_relative_bounds.size.width += scene_relative_bounds.origin.x;
             scene_relative_bounds.origin.x = 0.;
@@ -135,14 +139,11 @@ impl Renderer for Kludgine {
             scene_relative_bounds.size.width = 0.;
         }
 
+        let scene_relative_bounds = (scene_relative_bounds * self.scale()).round_out().to_u32();
+
         Self::from(
             self.target
-                .clipped_to(
-                    (scene_relative_bounds * self.scale())
-                        .round_out()
-                        .to_u32()
-                        .cast_unit(),
-                )
+                .clipped_to(scene_relative_bounds.cast_unit())
                 .offset_by((bounds.origin.to_vector() * self.scale()).cast_unit()),
         )
     }

@@ -2,7 +2,7 @@ use gooey_core::{
     euclid::{Length, Point2D, Rect, Size2D, Vector2D},
     Points, Transmogrifier, TransmogrifierContext,
 };
-use gooey_rasterizer::{Rasterizer, Renderer, WidgetRasterizer};
+use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
 
 use super::LayoutChild;
 use crate::layout::{Layout, LayoutTransmogrifier};
@@ -21,21 +21,29 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LayoutTransmogrifier {
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
-    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
+    fn render(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        content_area: &ContentArea,
+    ) {
         let context_size = context.frontend.renderer().unwrap().size();
-        for_each_measured_widget(&context, context_size, |layout, child_bounds| {
+        for_each_measured_widget(context, context_size, |layout, child_bounds| {
             context.frontend.with_transmogrifier(
                 layout.registration.id(),
                 |transmogrifier, mut child_context| {
-                    transmogrifier.render_within(&mut child_context, child_bounds, context.style);
+                    transmogrifier.render_within(
+                        &mut child_context,
+                        child_bounds.translate(content_area.location.to_vector()),
+                        context.style,
+                    );
                 },
             );
         });
     }
 
-    fn content_size(
+    fn measure_content(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         let mut extents = Vector2D::default();
@@ -44,7 +52,7 @@ impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
             constraints.width.unwrap_or(context_size.width),
             constraints.height.unwrap_or(context_size.height),
         );
-        for_each_measured_widget(&context, constrained_size, |_layout, child_bounds| {
+        for_each_measured_widget(context, constrained_size, |_layout, child_bounds| {
             extents = extents.max(child_bounds.max().to_vector());
         });
         extents.to_size()
@@ -75,7 +83,9 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, Rect<f32, Points
             .with_transmogrifier(
                 child.registration.id(),
                 |transmogrifier, mut child_context| {
-                    transmogrifier.content_size(&mut child_context, child_constraints)
+                    transmogrifier
+                        .content_size(&mut child_context, child_constraints)
+                        .total_size()
                 },
             )
             .expect("unknown transmogrifier");

@@ -28,6 +28,12 @@ Demonstrates using the Navigator widget.
 
 ![Layout (Light Theme)](./snapshots/widget-explorer/Navigator-Light.png) ![Layout (Dark Theme)](./snapshots/widget-explorer/Navigator-Dark.png)
 
+### Borders ([`widget_explorer_screens/borders.rs`](./widget_explorer_screens/borders.rs))
+
+Demonstrates borders and padding.
+
+![Borders (Light Theme)](./snapshots/widget-explorer/Borders-Light.png) ![Borders (Dark Theme)](./snapshots/widget-explorer/Borders-Dark.png)
+
 ## Updating the examples
 
-If examples are outdated, they can be regenerated using `cargo xtask generate-example-snapshots`. 
+If examples are outdated, they can be regenerated using `cargo xtask generate-example-snapshots`.

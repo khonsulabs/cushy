@@ -379,7 +379,7 @@ impl<R: Renderer> Rasterizer<R> {
         self.renderer.as_ref()
     }
 
-    pub fn rasterizerd_widget(&self, widget: WidgetId, bounds: Rect<f32, Points>) {
+    pub fn rasterized_widget(&self, widget: WidgetId, bounds: Rect<f32, Points>) {
         self.state.widget_rendered(widget, bounds);
     }
 

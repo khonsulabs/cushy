@@ -1,15 +1,13 @@
 use gooey_core::{
-    euclid::{Length, Size2D, Vector2D},
+    euclid::{Length, Size2D},
     styles::Style,
     Points, Transmogrifier, TransmogrifierContext,
 };
-use gooey_rasterizer::{Rasterizer, Renderer, WidgetRasterizer};
+use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
 use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
 use super::LabelColor;
 use crate::label::{Command, Label, LabelTransmogrifier};
-
-const LABEL_PADDING: Length<f32, Points> = Length::new(5.);
 
 impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LabelTransmogrifier {
     type State = ();
@@ -25,22 +23,26 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for LabelTransmogrifier {
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
-    fn render(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {
+    fn render(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        content_area: &ContentArea,
+    ) {
         if let Some(renderer) = context.frontend.renderer() {
             // TODO switch to borrows?
             let wrapped = wrap_text(
                 &context.widget.label,
                 context.style,
                 renderer,
-                Length::new(renderer.size().width),
+                Length::new(content_area.size.content.width),
             );
-            wrapped.render_within::<LabelColor, _>(renderer, renderer.bounds(), context.style);
+            wrapped.render_within::<LabelColor, _>(renderer, content_area.bounds(), context.style);
         }
     }
 
-    fn content_size(
+    fn measure_content(
         &self,
-        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size2D<Option<f32>, Points>,
     ) -> Size2D<f32, Points> {
         context
@@ -53,9 +55,7 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
                     renderer,
                     Length::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
                 );
-                (wrapped.size().to_vector()
-                    + Vector2D::from_lengths(LABEL_PADDING * 2., LABEL_PADDING * 2.))
-                .to_size()
+                wrapped.size()
             })
     }
 }
@@ -69,10 +69,7 @@ fn wrap_text<R: Renderer>(
     label.wrap(
         renderer,
         TextWrap::MultiLine {
-            size: Size2D::from_lengths(
-                width - LABEL_PADDING * 2.,
-                Length::new(renderer.size().height),
-            ),
+            size: Size2D::from_lengths(width, Length::new(renderer.size().height)),
         },
         Some(style),
     )

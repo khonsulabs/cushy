@@ -32,8 +32,10 @@ use std::{
 use gooey_core::{
     assets::{self, Configuration, Image},
     styles::{
+        border::Border,
         style_sheet::{Classes, State},
-        Alignment, FontFamily, FontSize, Style, StyleComponent, SystemTheme, VerticalAlignment,
+        Alignment, FontFamily, FontSize, Padding, Style, StyleComponent, SystemTheme,
+        VerticalAlignment,
     },
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Callback, Frontend, Gooey,
     Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
@@ -390,12 +392,20 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
     fn convert_standard_components_to_css(
         &self,
         style: &Style,
-        css: CssBlockBuilder,
+        mut css: CssBlockBuilder,
     ) -> CssBlockBuilder {
-        self.convert_font_to_css(
-            style,
-            self.convert_alignment_to_css(style, self.convert_colors_to_css(style, css)),
-        )
+        css = self
+            .convert_font_to_css(
+                style,
+                self.convert_alignment_to_css(style, self.convert_colors_to_css(style, css)),
+            )
+            .with_border(&style.get_or_default::<Border>());
+
+        if let Some(padding) = style.get::<Padding>() {
+            css = css.with_padding(padding);
+        }
+
+        css
     }
 
     fn convert_colors_to_css(&self, style: &Style, mut css: CssBlockBuilder) -> CssBlockBuilder {
@@ -564,7 +574,7 @@ impl ImageExt for Image {
                 .and_then(|id| id.as_any().downcast_ref::<u64>())
                 .copied()
         })
-        .map(|id| image_css_id(id))
+        .map(image_css_id)
     }
 }
 

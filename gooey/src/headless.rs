@@ -1,4 +1,10 @@
-use std::{convert::TryInto, ops::Deref, path::Path, process::Command, time::Duration};
+use std::{
+    convert::TryInto,
+    ops::{Deref, DerefMut},
+    path::Path,
+    process::Command,
+    time::Duration,
+};
 
 use gooey_core::{
     euclid::{Angle, Point2D, Rotation2D, Size2D},
@@ -39,7 +45,56 @@ impl<F: Frontend> Headless<F> {
 impl<R: Renderer> Headless<Rasterizer<R>> {
     /// Process an event. Only supported with a rasterizer frontend.
     pub fn simulate_event(&mut self, event: WindowEvent) -> EventResult {
-        self.frontend.handle_event(event)
+        let result = self.frontend.handle_event(event);
+        self.frontend
+            .gooey()
+            .process_widget_messages(&self.frontend);
+        result
+    }
+
+    /// Sets the location of the cursor to `position`. Does not render any frames.
+    pub fn set_cursor(&mut self, position: Point2D<f32, Points>) {
+        self.simulate_event(WindowEvent::Input(InputEvent::MouseMoved {
+            position: Some(position),
+        }));
+    }
+
+    /// Simulates a left click at the current cursor location.
+    pub fn left_click(&mut self) {
+        self.simulate_event(WindowEvent::Input(InputEvent::MouseButton {
+            button: MouseButton::Left,
+            state: ElementState::Pressed,
+        }));
+        self.simulate_event(WindowEvent::Input(InputEvent::MouseButton {
+            button: MouseButton::Left,
+            state: ElementState::Released,
+        }));
+    }
+
+    /// Looks up the root widget of the frontend and invokes `callback` with the widget and a context that can be used to interact with it. The result will be returned.
+    pub fn map_root_widget<W: Widget, Output, F: FnOnce(&mut W, Context<W>) -> Output>(
+        &self,
+        callback: F,
+    ) -> Option<Output> {
+        let root = self.frontend.gooey().root_widget();
+        self.frontend
+            .with_transmogrifier(root.id(), |_transmogrifier, context| {
+                callback(
+                    context
+                        .widget
+                        .as_mut_any()
+                        .downcast_mut::<W>()
+                        .expect("widget type mismatch"),
+                    Context::new(
+                        context
+                            .channels
+                            .as_any()
+                            .downcast_ref()
+                            .expect("widget type mismatch"),
+                        &self.frontend,
+                    ),
+                )
+            })
     }
 }
 
@@ -78,10 +133,7 @@ impl Headless<Rasterizer<Kludgine>> {
                 SystemTheme::Dark => Theme::Dark,
             },
         ));
-        target
-            .scene_mut()
-            .unwrap()
-            .set_size(size.to_f32().cast_unit());
+        target.scene_mut().unwrap().set_size(size.cast_unit());
         target.scene_mut().unwrap().start_frame();
         self.frontend
             .gooey()
@@ -142,32 +194,6 @@ impl Headless<Rasterizer<Kludgine>> {
     ) -> Recorder<'_> {
         Recorder::new(size, theme, render_cursor, fps, self)
     }
-
-    /// Looks up the root widget of the frontend and invokes `callback` with the widget and a context that can be used to interact with it. The result will be returned.
-    pub fn map_root_widget<W: Widget, Output, F: FnOnce(&mut W, Context<W>) -> Output>(
-        &self,
-        callback: F,
-    ) -> Option<Output> {
-        let root = self.frontend.gooey().root_widget();
-        self.frontend
-            .with_transmogrifier(root.id(), |_transmogrifier, context| {
-                callback(
-                    context
-                        .widget
-                        .as_mut_any()
-                        .downcast_mut::<W>()
-                        .expect("widget type mismatch"),
-                    Context::new(
-                        context
-                            .channels
-                            .as_any()
-                            .downcast_ref()
-                            .expect("widget type mismatch"),
-                        &self.frontend,
-                    ),
-                )
-            })
-    }
 }
 
 /// An easy-to-use,offscreen animation recorder.
@@ -190,6 +216,12 @@ impl<'a> Deref for Recorder<'a> {
     type Target = Headless<Rasterizer<Kludgine>>;
 
     fn deref(&self) -> &Self::Target {
+        self.headless
+    }
+}
+
+impl<'a> DerefMut for Recorder<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
         self.headless
     }
 }
@@ -250,13 +282,6 @@ impl<'a> Recorder<'a> {
             | WindowEvent::SystemThemeChanged(_) => {}
         }
         self.headless.simulate_event(event);
-    }
-
-    /// Sets the location of the cursor to `position`. Does not render any frames.
-    pub fn set_cursor(&mut self, position: Point2D<f32, Points>) {
-        self.simulate_event(WindowEvent::Input(InputEvent::MouseMoved {
-            position: Some(position),
-        }));
     }
 
     /// Extends the last frame to display for an additional `duration`.

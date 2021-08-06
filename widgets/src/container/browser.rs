@@ -2,7 +2,7 @@ use gooey_browser::{
     utils::{create_element, CssBlockBuilder, CssManager, CssRules},
     WebSys, WebSysTransmogrifier,
 };
-use gooey_core::{euclid::Length, Points, Transmogrifier, TransmogrifierContext};
+use gooey_core::{Transmogrifier, TransmogrifierContext};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlDivElement;
 
@@ -24,22 +24,11 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
             css_rules.push(rule);
         }
 
-        let mut container_css = CssBlockBuilder::for_id(context.registration.id().id)
+        let container_css = CssBlockBuilder::for_id(context.registration.id().id)
             .with_css_statement("display: flex")
             .with_css_statement("flex: 1")
             .with_css_statement("align-items: center")
             .with_css_statement("justify-content: center");
-        container_css =
-            append_padding_rule(container_css, "padding-left", context.widget.padding.left);
-        container_css =
-            append_padding_rule(container_css, "padding-right", context.widget.padding.right);
-        container_css =
-            append_padding_rule(container_css, "padding-top", context.widget.padding.top);
-        container_css = append_padding_rule(
-            container_css,
-            "padding-bottom",
-            context.widget.padding.bottom,
-        );
         css_rules.push(CssManager::shared().register_rule(&container_css.to_string()));
         *context.state = css_rules;
 
@@ -54,17 +43,5 @@ impl WebSysTransmogrifier for ContainerTransmogrifier {
                 container.unchecked_into()
             },
         )
-    }
-}
-
-fn append_padding_rule(
-    builder: CssBlockBuilder,
-    name: &str,
-    dimension: Option<Length<f32, Points>>,
-) -> CssBlockBuilder {
-    if let Some(dimension) = dimension {
-        builder.with_css_statement(format!("{}: {}pt", name, dimension.get()))
-    } else {
-        builder
     }
 }

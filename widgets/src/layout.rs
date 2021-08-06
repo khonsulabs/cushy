@@ -276,7 +276,10 @@ impl WidgetLayout {
     }
 
     #[must_use]
-    pub fn surround_in_points(&self, content_size: Size2D<f32, Points>) -> Surround<Points> {
+    pub fn surround_in_points(
+        &self,
+        content_size: Size2D<f32, Points>,
+    ) -> Surround<Length<f32, Points>> {
         Surround {
             left: self.left_in_points(content_size),
             top: self.top_in_points(content_size),
