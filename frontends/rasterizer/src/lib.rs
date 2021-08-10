@@ -276,12 +276,7 @@ impl<R: Renderer> Rasterizer<R> {
         for (button, handler) in self.state.mouse_button_handlers() {
             self.state.widget_area(&handler).and_then(|bounds| {
                 self.with_transmogrifier(&handler, |transmogrifier, mut context| {
-                    transmogrifier.mouse_drag(
-                        &mut context,
-                        button,
-                        position - bounds.location.to_vector(),
-                        &bounds,
-                    );
+                    transmogrifier.mouse_drag(&mut context, button, position, &bounds);
                 })
             });
         }
@@ -320,13 +315,13 @@ impl<R: Renderer> Rasterizer<R> {
                 if let Some(bounds) = self.state.widget_area(&hovered) {
                     let handled = self
                         .with_transmogrifier(&hovered, |transmogrifier, mut context| {
-                            let position = last_mouse_position - bounds.location.to_vector();
-                            let hit = transmogrifier.hit_test(&mut context, position, &bounds);
+                            let hit =
+                                transmogrifier.hit_test(&mut context, last_mouse_position, &bounds);
                             let handled = hit
                                 && transmogrifier.mouse_down(
                                     &mut context,
                                     button,
-                                    position,
+                                    last_mouse_position,
                                     &bounds,
                                 ) == EventStatus::Processed;
                             if handled {
@@ -357,9 +352,7 @@ impl<R: Renderer> Rasterizer<R> {
                         transmogrifier.mouse_up(
                             &mut context,
                             button,
-                            self.state
-                                .last_mouse_position()
-                                .map(|pos| pos - bounds.location.to_vector()),
+                            self.state.last_mouse_position(),
                             &bounds,
                         );
                         EventResult::processed()

@@ -216,12 +216,9 @@ impl Data {
         &self,
         location: Point2D<f32, Points>,
     ) -> impl Iterator<Item = &WidgetId> {
-        self.order.iter().rev().filter(move |id| {
-            self.area
-                .get(&id.id)
-                .unwrap()
-                .content_bounds()
-                .contains(location)
-        })
+        self.order
+            .iter()
+            .rev()
+            .filter(move |id| self.area.get(&id.id).unwrap().bounds().contains(location))
     }
 }
