@@ -59,6 +59,10 @@ impl Span {
         &self.text
     }
 
+    pub(crate) fn recache_length(&mut self) {
+        self.length = self.text.chars().count();
+    }
+
     /// The length in characters.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -141,6 +145,7 @@ impl Text {
     pub fn remove_range(&mut self, range: Range<usize>) {
         self.for_each_in_range_mut(range, |span, relative_range| {
             span.text.replace_range(relative_range, "");
+            span.recache_length();
         });
     }
 
@@ -149,6 +154,7 @@ impl Text {
     pub fn insert_str(&mut self, offset: usize, value: &str) {
         self.for_each_in_range_mut(offset..offset + 1, |span, relative_range| {
             span.text.insert_str(relative_range.start, value);
+            span.recache_length();
         });
     }
 
