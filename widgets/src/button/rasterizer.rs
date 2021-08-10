@@ -4,7 +4,8 @@ use gooey_core::{
     Points, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
-    winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer, WidgetRasterizer,
+    winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer,
+    TransmogrifierContextExt, WidgetRasterizer,
 };
 use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
@@ -37,7 +38,11 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
                 Length::new(content_area.size.content.width),
             );
 
-            wrapped.render_within::<TextColor, _>(renderer, content_area.bounds(), context.style);
+            wrapped.render_within::<TextColor, _>(
+                renderer,
+                content_area.content_bounds(),
+                context.style,
+            );
         }
     }
 
@@ -65,10 +70,10 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
         _location: Point2D<f32, Points>,
-        _rastered_size: Size2D<f32, Points>,
+        _area: &ContentArea,
     ) -> EventStatus {
         if button == MouseButton::Left {
-            context.frontend.activate(context.registration.id());
+            context.activate();
             EventStatus::Processed
         } else {
             EventStatus::Ignored
@@ -80,10 +85,10 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) {
-        if Rect::from_size(rastered_size).contains(location) {
-            context.frontend.activate(context.registration.id());
+        if area.bounds().contains(location) {
+            context.activate();
         } else {
             context.frontend.blur();
         }
@@ -94,10 +99,10 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
         location: Option<Point2D<f32, Points>>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) {
         if location
-            .map(|location| Rect::new(Point2D::default(), rastered_size).contains(location))
+            .map(|location| area.bounds().contains(location))
             .unwrap_or_default()
         {
             if let Some(widget) = context
@@ -111,7 +116,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
                     .post_event(InternalButtonEvent::Clicked);
             }
         }
-        context.frontend.deactivate();
+        context.deactivate();
     }
 }
 

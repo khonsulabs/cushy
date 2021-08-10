@@ -27,15 +27,16 @@ use wrap::{TextWrap, TextWrapper};
 
 /// Measured and laid out text types ready to render.
 pub mod prepared;
-// pub mod rich;
+/// Multi-paragraph rich-text editing and rendering.
+pub mod rich;
 /// Text wrapping functionality.
 pub mod wrap;
 
 /// A styled String.
 #[derive(Debug, Clone, Default)]
 pub struct Span {
-    /// The text to draw.
-    pub text: String,
+    text: String,
+    length: usize,
     /// The style to use when drawing.
     pub style: Style,
 }
@@ -43,10 +44,31 @@ pub struct Span {
 impl Span {
     /// Returns a new span with `text` and `style`.
     pub fn new<S: Into<String>>(text: S, style: Style) -> Self {
+        let text = text.into();
+        let length = text.chars().count();
         Self {
-            text: text.into(),
+            text,
+            length,
             style,
         }
+    }
+
+    /// The text to draw.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// The length in characters.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+    /// Returns if this span has no characters.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
     }
 }
 
@@ -130,10 +152,10 @@ impl Text {
         });
     }
 
-    /// Returns the total length, in bytes.
+    /// Returns the total length, in characters.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.spans.iter().map(|s| s.text.len()).sum()
+        self.spans.iter().map(Span::len).sum()
     }
 
     /// Returns true if there are no characters in this text.
@@ -152,7 +174,7 @@ impl Text {
     ) {
         let mut span_start = 0_usize;
         for span in &self.spans {
-            let span_len = span.text.len();
+            let span_len = span.len();
             let span_end = span_start + span_len;
 
             if span_end >= range.start {
@@ -178,7 +200,7 @@ impl Text {
     ) {
         let mut span_start = 0_usize;
         for span in &mut self.spans {
-            let span_len = span.text.len();
+            let span_len = span.len();
             let span_end = span_start + span_len;
 
             if span_end >= range.start {
@@ -209,7 +231,7 @@ impl Text {
             // Doing this operation separately allows the other branch to be a simple retain operation
             self.spans.resize_with(1, || unreachable!());
         } else {
-            self.spans.retain(|span| !span.text.is_empty());
+            self.spans.retain(|span| !span.is_empty());
         }
     }
 }

@@ -8,10 +8,11 @@ use std::{
     ops::Deref,
     sync::{
         atomic::{AtomicU32, Ordering},
-        Arc, Mutex, RwLock, Weak,
+        Arc, RwLock, Weak,
     },
 };
 
+use parking_lot::Mutex;
 use stylecs::{Style, StyleComponent};
 
 use crate::{
@@ -82,7 +83,7 @@ impl<F: Frontend> Gooey<F> {
 
     /// Executes `callback` with the transmogrifier and transmogrifier state as
     /// parameters.
-    #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
+    #[allow(clippy::missing_panics_doc)]
     pub fn with_transmogrifier<
         R,
         C: FnOnce(&'_ <F as Frontend>::AnyTransmogrifier, AnyTransmogrifierContext<'_, F>) -> R,
@@ -99,11 +100,14 @@ impl<F: Frontend> Gooey<F> {
             .and_then(|transmogrifier| {
                 let widget_state = self.widget_state(widget_id.id)?;
                 widget_state.with_state(transmogrifier, frontend, |state, widget| {
-                    let style = widget_state.style.lock().unwrap();
+                    let style = widget_state.style.lock();
                     let channels = widget_state.channels.as_ref();
                     callback(
                         transmogrifier,
                         AnyTransmogrifierContext::new(
+                            // unwrap is guranteed because this block can't
+                            // execute unless the widget registration is still
+                            // alive.
                             widget_state.id.upgrade().unwrap(),
                             state,
                             frontend,
@@ -119,7 +123,7 @@ impl<F: Frontend> Gooey<F> {
 
     /// Executes `callback` with the transmogrifier and transmogrifier state as
     /// parameters.
-    #[allow(clippy::missing_panics_doc)] // unwrap is guranteed due to get_or_initialize
+    #[allow(clippy::missing_panics_doc)]
     pub fn for_each_widget<
         C: FnMut(&'_ <F as Frontend>::AnyTransmogrifier, &mut dyn AnySendSync, &dyn AnyWidget),
     >(
@@ -128,6 +132,8 @@ impl<F: Frontend> Gooey<F> {
         mut callback: C,
     ) {
         self.data.storage.for_each_widget(|widget_state| {
+            // unwrap is guaranteed here because each widget that has been
+            // inserted already has interacted with the transmogrifier.
             let transmogrifier = self
                 .data
                 .transmogrifiers
@@ -150,8 +156,8 @@ impl<F: Frontend> Gooey<F> {
         // code to re-enter. Instead, the first process_widget_message will loop
         // to catch new widgets that have messages.
         let _guard = match self.data.processing_messages_lock.try_lock() {
-            Ok(guard) => guard,
-            Err(_) => return,
+            Some(guard) => guard,
+            None => return,
         };
 
         let mut managed_code_guard = self.enter_managed_code(frontend);
@@ -166,8 +172,7 @@ impl<F: Frontend> Gooey<F> {
         while chatter_limit > 0 {
             chatter_limit -= 1;
             let widgets_with_messages = {
-                let mut widgets_with_messages =
-                    self.data.storage.data.widgets_with_messages.lock().unwrap();
+                let mut widgets_with_messages = self.data.storage.data.widgets_with_messages.lock();
                 if widgets_with_messages.is_empty() {
                     break;
                 }
@@ -403,7 +408,7 @@ impl WidgetStorage {
     ///
     /// Panics if internal lock handling results in an error.
     pub fn set_widget_has_messages(&self, widget: WidgetId) {
-        let mut statuses = self.data.widgets_with_messages.lock().unwrap();
+        let mut statuses = self.data.widgets_with_messages.lock();
         statuses.insert(widget);
     }
 }
@@ -569,8 +574,8 @@ impl WidgetState {
         frontend: &F,
         callback: C,
     ) -> Option<R> {
-        let mut state = self.state.lock().unwrap();
-        let mut widget = self.widget.lock().unwrap();
+        let mut state = self.state.lock();
+        let mut widget = self.widget.lock();
         self.id.upgrade().map(|id| {
             let state = state.get_or_insert_with(|| {
                 transmogrifier.default_state_for(widget.as_mut(), &id, frontend)
@@ -602,7 +607,7 @@ impl WidgetState {
     ) -> Option<R> {
         let _guard = frontend.enter_managed_code();
         let result = {
-            let widget = self.widget.lock().ok()?;
+            let widget = self.widget.lock();
             let channels = self.channels::<W>()?;
             let context = Context::new(channels, frontend);
             Some(with_fn(widget.as_ref().as_any().downcast_ref()?, &context))
@@ -621,7 +626,7 @@ impl WidgetState {
     ) -> Option<R> {
         let _guard = frontend.enter_managed_code();
         let result = {
-            let mut widget = self.widget.lock().ok()?;
+            let mut widget = self.widget.lock();
             let channels = self.channels::<OW>()?;
             let context = Context::new(channels, frontend);
             Some(with_fn(

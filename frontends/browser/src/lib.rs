@@ -25,7 +25,7 @@ use std::{
     ops::Deref,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
-        Arc, Mutex,
+        Arc,
     },
 };
 
@@ -41,6 +41,7 @@ use gooey_core::{
     Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
     WidgetRegistration,
 };
+use parking_lot::Mutex;
 use wasm_bindgen::{prelude::*, JsCast};
 
 pub mod utils;
@@ -210,7 +211,7 @@ fn update_system_theme(root_id: &str, dark: bool, theme: &Mutex<SystemTheme>) {
         (SystemTheme::Light, "gooey-light", "gooey-dark")
     };
 
-    let mut theme = theme.lock().unwrap();
+    let mut theme = theme.lock();
     *theme = system_theme;
 
     let window = web_sys::window().unwrap();
@@ -266,7 +267,7 @@ impl gooey_core::Frontend for WebSys {
     }
 
     fn theme(&self) -> SystemTheme {
-        let theme = self.data.theme.lock().unwrap();
+        let theme = self.data.theme.lock();
         *theme
     }
 

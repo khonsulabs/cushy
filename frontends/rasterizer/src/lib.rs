@@ -28,7 +28,7 @@ use gooey_core::{
         style_sheet::{self},
         Style, SystemTheme,
     },
-    AnyTransmogrifierContext, Callback, Gooey, Points, WidgetId,
+    AnyTransmogrifierContext, Callback, Gooey, Points, TransmogrifierContext, WidgetId,
 };
 use image::{ImageFormat, RgbaImage};
 use winit::event::{
@@ -263,10 +263,10 @@ impl<R: Renderer> Rasterizer<R> {
             .into_iter()
             .filter(|id| {
                 self.state
-                    .widget_bounds(id)
+                    .widget_area(id)
                     .and_then(|bounds| {
                         self.with_transmogrifier(id, |transmogrifier, mut context| {
-                            transmogrifier.mouse_move(&mut context, position, bounds.size)
+                            transmogrifier.mouse_move(&mut context, position, &bounds)
                         })
                     })
                     .unwrap_or_default()
@@ -274,13 +274,13 @@ impl<R: Renderer> Rasterizer<R> {
             .collect::<HashSet<_>>();
 
         for (button, handler) in self.state.mouse_button_handlers() {
-            self.state.widget_bounds(&handler).and_then(|bounds| {
+            self.state.widget_area(&handler).and_then(|bounds| {
                 self.with_transmogrifier(&handler, |transmogrifier, mut context| {
                     transmogrifier.mouse_drag(
                         &mut context,
                         button,
-                        position - bounds.origin.to_vector(),
-                        bounds.size,
+                        position - bounds.location.to_vector(),
+                        &bounds,
                     );
                 })
             });
@@ -317,17 +317,17 @@ impl<R: Renderer> Rasterizer<R> {
 
         if let Some(last_mouse_position) = self.state.last_mouse_position() {
             for hovered in self.state.hover() {
-                if let Some(bounds) = self.state.widget_bounds(&hovered) {
+                if let Some(bounds) = self.state.widget_area(&hovered) {
                     let handled = self
                         .with_transmogrifier(&hovered, |transmogrifier, mut context| {
-                            let position = last_mouse_position - bounds.origin.to_vector();
-                            let hit = transmogrifier.hit_test(&mut context, position, bounds.size);
+                            let position = last_mouse_position - bounds.location.to_vector();
+                            let hit = transmogrifier.hit_test(&mut context, position, &bounds);
                             let handled = hit
                                 && transmogrifier.mouse_down(
                                     &mut context,
                                     button,
                                     position,
-                                    bounds.size,
+                                    &bounds,
                                 ) == EventStatus::Processed;
                             if handled {
                                 self.state.register_mouse_handler(button, hovered.clone());
@@ -352,15 +352,15 @@ impl<R: Renderer> Rasterizer<R> {
         self.state
             .take_mouse_button_handler(button)
             .and_then(|handler| {
-                self.state.widget_bounds(&handler).and_then(|bounds| {
+                self.state.widget_area(&handler).and_then(|bounds| {
                     self.with_transmogrifier(&handler, |transmogrifier, mut context| {
                         transmogrifier.mouse_up(
                             &mut context,
                             button,
                             self.state
                                 .last_mouse_position()
-                                .map(|pos| pos - bounds.origin.to_vector()),
-                            bounds.size,
+                                .map(|pos| pos - bounds.location.to_vector()),
+                            &bounds,
                         );
                         EventResult::processed()
                     })
@@ -379,8 +379,8 @@ impl<R: Renderer> Rasterizer<R> {
         self.renderer.as_ref()
     }
 
-    pub fn rasterized_widget(&self, widget: WidgetId, bounds: Rect<f32, Points>) {
-        self.state.widget_rendered(widget, bounds);
+    pub fn rasterized_widget(&self, widget: WidgetId, area: ContentArea) {
+        self.state.widget_rendered(widget, area);
     }
 
     /// Executes `callback` with the transmogrifier and transmogrifier state as
@@ -515,5 +515,37 @@ impl ImageExt for Image {
                 .and_then(|data| data.as_any().downcast_ref::<Arc<RgbaImage>>())
                 .map(Arc::clone)
         })
+    }
+}
+
+pub trait TransmogrifierContextExt {
+    fn activate(&self);
+    fn focus(&self);
+    fn is_focused(&self) -> bool;
+    fn deactivate(&self);
+    fn blur(&self);
+}
+
+impl<'a, T: WidgetRasterizer<R>, R: Renderer> TransmogrifierContextExt
+    for TransmogrifierContext<'a, T, Rasterizer<R>>
+{
+    fn activate(&self) {
+        self.frontend.activate(self.registration.id());
+    }
+
+    fn deactivate(&self) {
+        self.frontend.deactivate();
+    }
+
+    fn focus(&self) {
+        self.frontend.focus_on(self.registration.id());
+    }
+
+    fn blur(&self) {
+        self.frontend.blur();
+    }
+
+    fn is_focused(&self) -> bool {
+        self.frontend.focused_widget().as_ref() == Some(self.registration.id())
     }
 }

@@ -24,7 +24,7 @@ impl Border {
 }
 
 /// Options for a single side of a [`Border`].
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 #[must_use]
 pub struct BorderOptions {
     /// The width of the border.

@@ -21,6 +21,7 @@ pub mod button;
 pub mod checkbox;
 pub mod component;
 pub mod container;
+pub mod input;
 pub mod label;
 pub mod layout;
 pub mod navigator;

@@ -10,6 +10,7 @@ categories = ["gui"]
 readme = "../README.md"
 
 [dependencies]
-gooey-core = { path="../core", version="0.1.0-dev.0" }
-gooey-renderer = { path="../renderer", version="0.1.0-dev.0" }
+gooey-core = { path = "../core", version = "0.1.0-dev.0" }
+gooey-renderer = { path = "../renderer", version = "0.1.0-dev.0" }
 approx = "0.5"
+parking_lot = "0.11"

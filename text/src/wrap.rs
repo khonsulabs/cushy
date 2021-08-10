@@ -191,7 +191,7 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
 }
 
 /// Text wrapping options.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum TextWrap {
     /// Do not wrap the text.
     NoWrap,

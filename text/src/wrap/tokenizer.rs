@@ -49,6 +49,7 @@ pub(crate) struct Tokenizer {
 
 struct TokenizerState {
     style: Arc<Style>,
+    character_position: usize,
     text: String,
     lexer_state: TokenizerStatus,
 }
@@ -57,6 +58,7 @@ impl TokenizerState {
     pub(crate) fn new(style: Style) -> Self {
         Self {
             style: Arc::new(style),
+            character_position: 0,
             lexer_state: TokenizerStatus::AtSpanStart,
             text: String::default(),
         }
@@ -69,7 +71,8 @@ impl TokenizerState {
             let text = self.text.clone();
             self.text.clear();
             let metrics = renderer.measure_text_with_style(&text, &self.style);
-            let span = PreparedSpan::new(self.style.clone(), text, metrics);
+            let span =
+                PreparedSpan::new(self.style.clone(), text, self.character_position, metrics);
 
             let token = match self.lexer_state {
                 TokenizerStatus::AtSpanStart => unreachable!(),
@@ -130,6 +133,8 @@ impl Tokenizer {
 
                     state.text.push(c);
                 }
+
+                state.character_position += 1;
             }
 
             if let Some(token) = state.emit_token_if_needed(renderer) {

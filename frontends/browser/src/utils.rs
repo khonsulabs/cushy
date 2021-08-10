@@ -4,7 +4,7 @@ use std::{
     fmt::Write,
     sync::{
         atomic::{AtomicU32, Ordering},
-        Arc, Mutex,
+        Arc,
     },
 };
 
@@ -17,6 +17,7 @@ use gooey_core::{
     },
 };
 use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 use wasm_bindgen::JsCast;
 use web_sys::{CssStyleSheet, HtmlElement, HtmlStyleElement};
 
@@ -104,10 +105,7 @@ impl CssManager {
         // for each registered rule and keep our own Vec<> of rules that matches
         // the order of the stylesheet rules. When removing, we can use the
         // index we find the rule inside of the Vec.
-        let mut state = REGISTERED_CSS_RULES
-            .get_or_init(Mutex::default)
-            .lock()
-            .unwrap();
+        let mut state = REGISTERED_CSS_RULES.get_or_init(Mutex::default).lock();
         let id = loop {
             let next_id = LAST_CSS_RULE_ID.fetch_add(1, Ordering::SeqCst);
             if !state.taken_ids.contains(&next_id) {
@@ -135,7 +133,7 @@ impl CssManager {
     }
 
     pub fn unregister_rule(&self, rule: &mut CssRules) {
-        let mut state = REGISTERED_CSS_RULES.get().unwrap().lock().unwrap();
+        let mut state = REGISTERED_CSS_RULES.get().unwrap().lock();
         for rule in std::mem::take(&mut rule.index) {
             let index = state
                 .rules
@@ -310,11 +308,11 @@ impl CssBlockBuilder {
     }
 
     pub fn with_border(self, border: &Border) -> Self {
-        let left = border.left.clone().unwrap_or_default();
-        let right = border.right.clone().unwrap_or_default();
-        let top = border.top.clone().unwrap_or_default();
-        let bottom = border.bottom.clone().unwrap_or_default();
-        let widths_are_same = left.width.clone().approx_eq(&right.width)
+        let left = border.left.unwrap_or_default();
+        let right = border.right.unwrap_or_default();
+        let top = border.top.unwrap_or_default();
+        let bottom = border.bottom.unwrap_or_default();
+        let widths_are_same = left.width.approx_eq(&right.width)
             && top.width.approx_eq(&bottom.width)
             && left.width.approx_eq(&top.width);
         let has_border = !widths_are_same || !left.width.approx_eq(&Length::default());

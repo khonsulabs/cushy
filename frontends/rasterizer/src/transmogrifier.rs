@@ -1,7 +1,7 @@
 use std::{any::TypeId, convert::TryFrom, ops::Deref};
 
 use gooey_core::{
-    euclid::{Point2D, Rect, Size2D},
+    euclid::{Point2D, Rect, Size2D, Vector2D},
     styles::{border::Border, BackgroundColor, Padding, Style},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Points, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetRegistration,
@@ -48,6 +48,11 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                     border,
                 },
             };
+            rasterizer.rasterized_widget(
+                context.registration.id().clone(),
+                area.translate(bounds.origin.to_vector()),
+            );
+
             self.render_within_content_area(context, &rasterizer, &area, &effective_style);
         }
     }
@@ -59,11 +64,6 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         area: &ContentArea,
         effective_style: &Style,
     ) {
-        rasterizer.rasterized_widget(
-            context.registration.id().clone(),
-            rasterizer.renderer().unwrap().clip_bounds(),
-        );
-
         if let Some(&color) = <Self::Widget as Widget>::background_color(effective_style) {
             let renderer = rasterizer.renderer().unwrap();
             renderer.fill_rect_with_style::<BackgroundColor>(
@@ -208,7 +208,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) -> bool {
         true
     }
@@ -224,9 +224,9 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) -> bool {
-        self.hit_test(context, location, rastered_size)
+        self.hit_test(context, location, area)
     }
 
     #[allow(unused_variables)]
@@ -235,7 +235,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) -> EventStatus {
         EventStatus::Ignored
     }
@@ -246,7 +246,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) {
     }
 
@@ -256,7 +256,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
         location: Option<Point2D<f32, Points>>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) {
     }
 }
@@ -293,7 +293,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) -> bool;
 
     fn hovered(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>);
@@ -304,7 +304,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) -> bool;
 
     fn mouse_down(
@@ -312,7 +312,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) -> EventStatus;
 
     fn mouse_drag(
@@ -320,7 +320,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     );
 
     fn mouse_up(
@@ -328,7 +328,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
         location: Option<Point2D<f32, Points>>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     );
 }
 
@@ -395,13 +395,13 @@ where
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) -> bool {
         <Self as WidgetRasterizer<R>>::hit_test(
             self,
             &mut TransmogrifierContext::try_from(context).unwrap(),
             location,
-            rastered_size,
+            area,
         )
     }
 
@@ -423,13 +423,13 @@ where
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) -> bool {
         <Self as WidgetRasterizer<R>>::mouse_move(
             self,
             &mut TransmogrifierContext::try_from(context).unwrap(),
             location,
-            rastered_size,
+            area,
         )
     }
 
@@ -438,14 +438,14 @@ where
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) -> EventStatus {
         <Self as WidgetRasterizer<R>>::mouse_down(
             self,
             &mut TransmogrifierContext::try_from(context).unwrap(),
             button,
             location,
-            rastered_size,
+            area,
         )
     }
 
@@ -454,14 +454,14 @@ where
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
         location: Point2D<f32, Points>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) {
         <Self as WidgetRasterizer<R>>::mouse_drag(
             self,
             &mut TransmogrifierContext::try_from(context).unwrap(),
             button,
             location,
-            rastered_size,
+            area,
         );
     }
 
@@ -470,14 +470,14 @@ where
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
         location: Option<Point2D<f32, Points>>,
-        rastered_size: Size2D<f32, Points>,
+        area: &ContentArea,
     ) {
         <Self as WidgetRasterizer<R>>::mouse_up(
             self,
             &mut TransmogrifierContext::try_from(context).unwrap(),
             button,
             location,
-            rastered_size,
+            area,
         );
     }
 }
@@ -543,7 +543,7 @@ impl ContentSize {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[must_use]
 pub struct ContentArea {
     pub location: Point2D<f32, Points>,
@@ -562,8 +562,31 @@ impl ContentArea {
         }
     }
 
+    /// Returns the bounds of the content area.
+    #[must_use]
+    pub fn content_bounds(&self) -> Rect<f32, Points> {
+        Rect::new(self.location, self.size.content)
+    }
+
+    /// Returns the entire area including padding and border.
     #[must_use]
     pub fn bounds(&self) -> Rect<f32, Points> {
-        Rect::new(self.location, self.size.content)
+        Rect::new(
+            self.location
+                - Vector2D::new(
+                    self.size.border.left.map_or(0., |b| b.width.get())
+                        + self.size.padding.left.unwrap_or_default().get(),
+                    self.size.border.top.map_or(0., |b| b.width.get())
+                        + self.size.padding.top.unwrap_or_default().get(),
+                ),
+            self.size.content + self.size.border.minimum_size() + self.size.padding.minimum_size(),
+        )
+    }
+
+    pub fn translate(&self, by: Vector2D<f32, Points>) -> Self {
+        Self {
+            location: self.location + by,
+            size: self.size.clone(),
+        }
     }
 }

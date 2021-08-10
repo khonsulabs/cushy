@@ -148,10 +148,16 @@ pub struct PreparedSpan {
 
 impl PreparedSpan {
     /// Returns a new span with `style`, `text`, and `metrics`.
-    pub(crate) fn new(style: Arc<Style>, text: String, metrics: TextMetrics<Points>) -> Self {
+    pub(crate) fn new(
+        style: Arc<Style>,
+        text: String,
+        offset: usize,
+        metrics: TextMetrics<Points>,
+    ) -> Self {
         Self {
             data: Arc::new(PreparedSpanData {
                 location: Length::default(),
+                offset,
                 style,
                 text,
                 metrics,
@@ -185,11 +191,18 @@ impl PreparedSpan {
     pub fn text(&self) -> &str {
         &self.data.text
     }
+
+    /// Returns the offset, in characters, of this span.
+    #[must_use]
+    pub fn offset(&self) -> usize {
+        self.data.offset
+    }
 }
 
 #[derive(Clone, Debug)]
 struct PreparedSpanData {
     location: Length<f32, Points>,
+    offset: usize,
     style: Arc<Style>,
     text: String,
     metrics: TextMetrics<Points>,

@@ -14,8 +14,9 @@ readme = "../README.md"
 
 [dependencies]
 euclid = "0.22"
-stylecs = { git="https://github.com/khonsulabs/stylecs.git", branch="main" }
+stylecs = { git = "https://github.com/khonsulabs/stylecs.git", branch = "main" }
 flume = "0.10"
 palette = "0.6"
 log = "0.4"
 url = "2"
+parking_lot = "0.11"
