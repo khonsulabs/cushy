@@ -22,7 +22,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         bounds: Rect<f32, Points>,
         parent_style: &Style,
     ) {
-        if let Some(rasterizer) = context.frontend.clipped_to(bounds) {
+        if let Some(clipped) = context.frontend.clipped_to(bounds) {
             let effective_style = context
                 .frontend
                 .ui
@@ -48,12 +48,12 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                     border,
                 },
             };
-            rasterizer.rasterized_widget(
-                context.registration.id().clone(),
-                area.translate(bounds.origin.to_vector()),
-            );
 
-            self.render_within_content_area(context, &rasterizer, &area, &effective_style);
+            self.render_within_content_area(context, &clipped, &area, &effective_style);
+            clipped.rasterized_widget(
+                context.registration.id().clone(),
+                area.translate(clipped.renderer().unwrap().clip_bounds().origin.to_vector()),
+            );
         }
     }
 
@@ -529,7 +529,7 @@ pub enum EventStatus {
     Processed,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct ContentSize {
     pub content: Size2D<f32, Points>,
     pub padding: Padding,
@@ -543,7 +543,7 @@ impl ContentSize {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 #[must_use]
 pub struct ContentArea {
     pub location: Point2D<f32, Points>,

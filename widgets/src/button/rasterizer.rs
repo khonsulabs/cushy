@@ -1,5 +1,5 @@
 use gooey_core::{
-    euclid::{Length, Point2D, Rect, Size2D},
+    euclid::{Length, Point2D, Size2D},
     styles::{Style, TextColor},
     Points, Transmogrifier, TransmogrifierContext,
 };

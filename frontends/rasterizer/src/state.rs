@@ -5,7 +5,7 @@ use std::{
 };
 
 use gooey_core::{
-    euclid::{Point2D, Rect},
+    euclid::Point2D,
     styles::{style_sheet, SystemTheme},
     Points, WidgetId,
 };

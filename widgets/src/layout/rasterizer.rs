@@ -26,8 +26,8 @@ impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         content_area: &ContentArea,
     ) {
-        let context_size = context.frontend.renderer().unwrap().size();
-        for_each_measured_widget(context, context_size, |layout, child_bounds| {
+        let bounds = content_area.bounds();
+        for_each_measured_widget(context, bounds.size, |layout, child_bounds| {
             context.frontend.with_transmogrifier(
                 layout.registration.id(),
                 |transmogrifier, mut child_context| {

@@ -36,7 +36,11 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
                 renderer,
                 Length::new(content_area.size.content.width),
             );
-            wrapped.render_within::<LabelColor, _>(renderer, content_area.bounds(), context.style);
+            wrapped.render_within::<LabelColor, _>(
+                renderer,
+                content_area.content_bounds(),
+                context.style,
+            );
         }
     }
 

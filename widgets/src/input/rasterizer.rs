@@ -6,7 +6,7 @@ use std::{
 use gooey_core::{
     euclid::{Length, Point2D, Rect, Size2D},
     styles::{Color, Style, TextColor},
-    Context, Points, Transmogrifier, TransmogrifierContext,
+    Points, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
     winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer,
