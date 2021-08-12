@@ -20,7 +20,7 @@ mod gooey;
 pub mod styles;
 mod widget;
 
-pub use euclid;
+pub use figures;
 pub use palette;
 pub use url;
 

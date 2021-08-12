@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use gooey_core::{
-    euclid::{Length, Point2D, Rect, Size2D, Vector2D},
+    figures::{Figure, Point, Size, SizedRect, Vector},
     styles::{Alignment, ColorPair, FallbackComponent, Style, VerticalAlignment},
     Points,
 };
@@ -17,20 +17,20 @@ pub struct PreparedText {
 impl PreparedText {
     /// Returns the total size this text will occupy when rendered.
     #[must_use]
-    pub fn size(&self) -> Size2D<f32, Points> {
+    pub fn size(&self) -> Size<f32, Points> {
         let (width, height) = self.lines.iter().map(PreparedLine::size).fold(
-            (Length::default(), Length::default()),
+            (Figure::default(), Figure::default()),
             |(width, height), line_size| {
                 (
-                    width.max(Length::new(line_size.width)),
-                    height + Length::new(line_size.height),
+                    width.max(Figure::new(line_size.width)),
+                    height + Figure::new(line_size.height),
                 )
             },
         );
-        Size2D::from_lengths(width, height)
+        Size::from_figures(width, height)
     }
 
-    pub(crate) fn align(&mut self, align_width: Length<f32, Points>) {
+    pub(crate) fn align(&mut self, align_width: Figure<f32, Points>) {
         let mut last_alignment = Alignment::Left;
         for line in &mut self.lines {
             if let Some(span) = line.spans.first() {
@@ -40,13 +40,13 @@ impl PreparedText {
             }
             match last_alignment {
                 Alignment::Left => {
-                    line.alignment_offset = Length::default();
+                    line.alignment_offset = Figure::default();
                 }
                 Alignment::Center => {
-                    line.alignment_offset = (align_width - Length::new(line.size().width)) / 2.;
+                    line.alignment_offset = (align_width - Figure::new(line.size().width)) / 2.;
                 }
                 Alignment::Right => {
-                    line.alignment_offset = align_width - Length::new(line.size().width);
+                    line.alignment_offset = align_width - Figure::new(line.size().width);
                 }
             }
         }
@@ -59,21 +59,21 @@ impl PreparedText {
     pub fn render<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Points>,
         offset_baseline: bool,
-    ) -> Length<f32, Points> {
-        let mut current_line_baseline = Length::new(0.);
+    ) -> Figure<f32, Points> {
+        let mut current_line_baseline = Figure::new(0.);
 
         for (line_index, line) in self.lines.iter().enumerate() {
             if offset_baseline || line_index > 0 {
                 current_line_baseline += line.metrics.ascent;
             }
             let cursor_position =
-                location + Vector2D::from_lengths(line.alignment_offset, current_line_baseline);
+                location + Vector::from_figures(line.alignment_offset, current_line_baseline);
             for span in &line.spans {
                 renderer.render_text_with_style::<F>(
                     &span.data.text,
-                    cursor_position + Vector2D::from_lengths(span.location(), Length::default()),
+                    cursor_position + Vector::from_figures(span.location(), Figure::default()),
                     &span.data.style,
                 );
             }
@@ -89,9 +89,9 @@ impl PreparedText {
     pub fn render_within<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        bounds: Rect<f32, Points>,
+        bounds: SizedRect<f32, Points>,
         style: &Style,
-    ) -> Length<f32, Points> {
+    ) -> Figure<f32, Points> {
         let text_size = self.size();
         let origin_y = match style.get::<VerticalAlignment>() {
             Some(VerticalAlignment::Bottom) => bounds.size.height - text_size.height,
@@ -99,7 +99,7 @@ impl PreparedText {
             Some(VerticalAlignment::Top) | None => 0.,
         };
 
-        self.render::<F, R>(renderer, bounds.origin + Vector2D::new(0., origin_y), true)
+        self.render::<F, R>(renderer, bounds.origin + Vector::new(0., origin_y), true)
     }
 }
 
@@ -112,29 +112,29 @@ pub struct PreparedLine {
     pub metrics: TextMetrics<Points>,
     /// The offset of this line for the alignment. When rendering, each span's
     /// location is offset by this amount to account for [`Alignment`].
-    pub alignment_offset: Length<f32, Points>,
+    pub alignment_offset: Figure<f32, Points>,
 }
 
 impl PreparedLine {
     /// The size of the bounding box of this line.
     #[must_use]
-    pub fn size(&self) -> Size2D<f32, Points> {
+    pub fn size(&self) -> Size<f32, Points> {
         if self.spans.is_empty() {
-            Size2D::from_lengths(Length::default(), self.height())
+            Size::from_figures(Figure::default(), self.height())
         } else {
             let width = self
                 .spans
                 .iter()
                 .map(|s| s.data.metrics.width)
-                .fold(Length::default(), |sum, s| sum + s);
+                .fold(Figure::default(), |sum, s| sum + s);
 
-            Size2D::from_lengths(width, self.height())
+            Size::from_figures(width, self.height())
         }
     }
 
     /// The height of the line.
     #[must_use]
-    pub fn height(&self) -> Length<f32, Points> {
+    pub fn height(&self) -> Figure<f32, Points> {
         self.metrics.line_height()
     }
 }
@@ -156,7 +156,7 @@ impl PreparedSpan {
     ) -> Self {
         Self {
             data: Arc::new(PreparedSpanData {
-                location: Length::default(),
+                location: Figure::default(),
                 offset,
                 style,
                 text,
@@ -165,13 +165,13 @@ impl PreparedSpan {
         }
     }
 
-    pub(crate) fn set_location(&mut self, location: Length<f32, Points>) {
+    pub(crate) fn set_location(&mut self, location: Figure<f32, Points>) {
         Arc::make_mut(&mut self.data).location = location;
     }
 
     /// Returns the offset within the line of this text. Does not include alignment.
     #[must_use]
-    pub fn location(&self) -> Length<f32, Points> {
+    pub fn location(&self) -> Figure<f32, Points> {
         self.data.location
     }
 
@@ -201,7 +201,7 @@ impl PreparedSpan {
 
 #[derive(Clone, Debug)]
 struct PreparedSpanData {
-    location: Length<f32, Points>,
+    location: Figure<f32, Points>,
     offset: usize,
     style: Arc<Style>,
     text: String,

@@ -17,7 +17,7 @@ use std::{
 };
 
 use gooey_core::{
-    euclid::Point2D,
+    figures::Point,
     styles::{ColorPair, FallbackComponent, Style},
     Points,
 };
@@ -111,7 +111,7 @@ impl Text {
     pub fn render_at<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Points>,
         wrapping: TextWrap,
         context_style: Option<&Style>,
     ) {
@@ -122,7 +122,7 @@ impl Text {
     pub fn render_baseline_at<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Points>,
         wrapping: TextWrap,
         context_style: Option<&Style>,
     ) {
@@ -132,7 +132,7 @@ impl Text {
     fn render_core<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Points>,
         offset_baseline: bool,
         wrapping: TextWrap,
         context_style: Option<&Style>,

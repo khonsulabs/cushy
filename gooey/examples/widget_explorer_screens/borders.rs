@@ -91,26 +91,26 @@ impl Behavior for Demo {
 mod tests {
 
     use gooey::HeadlessError;
-    use gooey_core::{euclid::Size2D, styles::SystemTheme};
+    use gooey_core::{figures::Size, styles::SystemTheme};
 
     #[cfg(not(target_arch = "wasm32-unknown-unknown"))]
     #[tokio::test]
     async fn demo() -> Result<(), HeadlessError> {
-        use gooey_core::euclid::Point2D;
+        use gooey_core::figures::Point;
 
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = crate::app().headless();
 
             // This isn't an interactive recorder. For the events to work, the widgets positions must be known, but they aren't known until the first render.
             headless
-                .screenshot(Size2D::new(480, 320), theme, None)
+                .screenshot(Size::new(480, 320), theme, None)
                 .await?;
 
-            headless.set_cursor(Point2D::new(300., 300.));
+            headless.set_cursor(Point::new(300., 300.));
             headless.left_click();
 
             headless
-                .screenshot(Size2D::new(480, 320), theme, None)
+                .screenshot(Size::new(480, 320), theme, None)
                 .await?
                 .to_rgb8()
                 .save(crate::harness::snapshot_path(

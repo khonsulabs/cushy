@@ -1,6 +1,4 @@
-use gooey_core::{
-    euclid::Size2D, Points, Transmogrifier, TransmogrifierContext, Widget, WidgetRef,
-};
+use gooey_core::{figures::Size, Points, Transmogrifier, TransmogrifierContext, Widget, WidgetRef};
 use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
 
 use super::Component;
@@ -27,8 +25,8 @@ impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size2D<Option<f32>, Points>,
-    ) -> Size2D<f32, Points> {
+        constraints: Size<Option<f32>, Points>,
+    ) -> Size<f32, Points> {
         context
             .frontend
             .with_transmogrifier(

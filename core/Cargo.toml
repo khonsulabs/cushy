@@ -13,7 +13,7 @@ readme = "../README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-euclid = "0.22"
+figures = { git = "https://github.com/khonsulabs/figures.git", branch = "main" }
 stylecs = { git = "https://github.com/khonsulabs/stylecs.git", branch = "main" }
 flume = "0.10"
 palette = "0.6"

@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use euclid::Length;
+use figures::Figure;
 use stylecs::StyleComponent;
 
 use super::{Color, Surround};
@@ -28,7 +28,7 @@ impl Border {
 #[must_use]
 pub struct BorderOptions {
     /// The width of the border.
-    pub width: Length<f32, Points>,
+    pub width: Figure<f32, Points>,
     /// The color of the border.
     pub color: Color,
 }
@@ -37,14 +37,14 @@ impl BorderOptions {
     /// Returns a new border with `width` and `color`.
     pub const fn new(width: f32, color: Color) -> Self {
         Self {
-            width: Length::new(width),
+            width: Figure::new(width),
             color,
         }
     }
 }
 
-impl From<Length<f32, Points>> for BorderOptions {
-    fn from(width: Length<f32, Points>) -> Self {
+impl From<Figure<f32, Points>> for BorderOptions {
+    fn from(width: Figure<f32, Points>) -> Self {
         Self {
             width,
             color: Color::default(),
@@ -52,7 +52,7 @@ impl From<Length<f32, Points>> for BorderOptions {
     }
 }
 
-impl From<BorderOptions> for Length<f32, Points> {
+impl From<BorderOptions> for Figure<f32, Points> {
     fn from(opts: BorderOptions) -> Self {
         opts.width
     }

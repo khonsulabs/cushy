@@ -9,7 +9,7 @@ use std::{
 };
 
 use gooey_core::{
-    euclid::{approxeq::ApproxEq, Length},
+    figures::{Approx, Figure},
     styles::{
         border::{Border, BorderOptions},
         style_sheet::{Classes, Rule, State},
@@ -315,7 +315,7 @@ impl CssBlockBuilder {
         let widths_are_same = left.width.approx_eq(&right.width)
             && top.width.approx_eq(&bottom.width)
             && left.width.approx_eq(&top.width);
-        let has_border = !widths_are_same || !left.width.approx_eq(&Length::default());
+        let has_border = !widths_are_same || !left.width.approx_eq(&Figure::default());
 
         if has_border {
             let one_rule = widths_are_same

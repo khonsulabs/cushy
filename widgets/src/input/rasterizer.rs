@@ -4,7 +4,7 @@ use std::{
 };
 
 use gooey_core::{
-    euclid::{Length, Point2D, Rect, Size2D},
+    figures::{Figure, One, Point, Rectlike, Scale, Size, SizedRect, Vectorlike},
     styles::{Color, Style, TextColor},
     Points, Transmogrifier, TransmogrifierContext,
 };
@@ -63,14 +63,14 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             let scale = renderer.scale();
             let bounds = content_area.content_bounds();
 
-            let mut y = Length::default();
+            let mut y = Figure::<f32, Points>::default();
             let prepared = context
                 .state
                 .prepared_text(renderer, content_area.size.content);
             for paragraph in &prepared {
                 y += paragraph.render::<TextColor, _>(
                     renderer,
-                    Point2D::new(bounds.origin.x, bounds.origin.y + y.get()),
+                    Point::new(bounds.origin.x, bounds.origin.y + y.get()),
                     true,
                 );
             }
@@ -82,26 +82,30 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                 if let Some(start_position) = context
                     .state
                     .character_rect_for_position(renderer, selection_start)
+                    .map(|r| r.as_extents())
                 {
                     if let Some(end_position) = context
                         .state
                         .character_rect_for_position(renderer, selection_end)
+                        .map(|r| r.as_extents())
                     {
-                        if start_position.max_y() <= end_position.min_y() {
+                        if start_position.extent.y <= end_position.origin.y {
                             // Multi-line
                             // First line is start_position -> end of bounds
-                            let mut area = start_position.translate(bounds.origin.to_vector());
+                            let mut area = start_position
+                                .translate(bounds.origin.to_vector())
+                                .as_sized();
                             area.size.width = bounds.size.width - start_position.origin.x;
                             // TODO change to a SelectionColor component.
                             renderer.fill_rect(&area, Color::new(1., 0., 0., 0.3));
-                            if start_position.max_y() < end_position.min_y() {
+                            if start_position.extent.y < end_position.origin.y {
                                 // Draw a solid block for all the inner lines
                                 renderer.fill_rect(
-                                    &Rect::new(
-                                        Point2D::new(0., start_position.max_y()),
-                                        Size2D::new(
-                                            bounds.size.width,
-                                            end_position.min_y() - start_position.max_y(),
+                                    &SizedRect::new(
+                                        Point::new(0., start_position.extent.y),
+                                        Size::from_figures(
+                                            bounds.size.width(),
+                                            end_position.origin.y() - start_position.extent.y(),
                                         ),
                                     )
                                     .translate(bounds.origin.to_vector()),
@@ -110,16 +114,19 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                             }
                             // Last line is start of line -> start of end position
                             renderer.fill_rect(
-                                &Rect::new(
-                                    Point2D::new(0., end_position.min_y()),
-                                    Size2D::new(end_position.origin.x, end_position.size.height),
+                                &SizedRect::new(
+                                    Point::new(0., end_position.origin.y),
+                                    Size::from_figures(
+                                        end_position.origin.x(),
+                                        end_position.height(),
+                                    ),
                                 )
                                 .translate(bounds.origin.to_vector()),
                                 Color::new(1., 0., 0., 0.3),
                             );
                         } else {
                             // Single-line
-                            let mut area = start_position;
+                            let mut area = start_position.as_sized();
                             area.size.width = end_position.origin.x - start_position.origin.x;
                             renderer.fill_rect(
                                 &area.translate(bounds.origin.to_vector()),
@@ -135,11 +142,11 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                 {
                     // No selection, draw a caret
                     renderer.fill_rect(
-                        &Rect::new(
+                        &SizedRect::new(
                             bounds.origin,
-                            Size2D::from_lengths(
-                                Length::new(1.) / scale,
-                                Length::new(cursor_location.size.height),
+                            Size::from_figures(
+                                Figure::new(1.) / scale,
+                                Figure::new(cursor_location.size.height),
                             ),
                         ),
                         Color::RED,
@@ -152,17 +159,17 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size2D<Option<f32>, Points>,
-    ) -> Size2D<f32, Points> {
+        constraints: Size<Option<f32>, Points>,
+    ) -> Size<f32, Points> {
         context
             .frontend
             .renderer()
-            .map_or_else(Size2D::default, |renderer| {
+            .map_or_else(Size::default, |renderer| {
                 let wrapped = wrap_text(
                     &context.widget.value,
                     context.style,
                     renderer,
-                    Length::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
+                    Figure::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
                 );
                 wrapped.size()
             })
@@ -172,7 +179,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Points>,
         area: &ContentArea,
     ) -> EventStatus {
         if button == MouseButton::Left {
@@ -200,7 +207,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Points>,
         area: &ContentArea,
     ) {
         if button == MouseButton::Left {
@@ -228,12 +235,12 @@ fn wrap_text<R: Renderer>(
     label: &str,
     style: &Style,
     renderer: &R,
-    width: Length<f32, Points>,
+    width: Figure<f32, Points>,
 ) -> PreparedText {
     Text::span(label, style.clone()).wrap(
         renderer,
         TextWrap::MultiLine {
-            size: Size2D::from_lengths(width, Length::new(renderer.size().height)),
+            size: Size::from_figures(width, Figure::new(renderer.size().height)),
         },
         None,
     )
@@ -338,29 +345,28 @@ impl<R: Renderer> InputState<R> {
         copied_paragraphs.join("\n")
     }
 
-    fn prepared_text(&self, renderer: &R, constraints: Size2D<f32, Points>) -> Vec<PreparedText> {
+    fn prepared_text(&self, renderer: &R, constraints: Size<f32, Points>) -> Vec<PreparedText> {
         self.text.prepare(
             renderer,
             TextWrap::SingleLine {
-                width: Length::new(constraints.width),
+                width: Figure::new(constraints.width),
             },
         )
     }
 
     fn position_for_location(
         context: &mut InputTransmogrifierContext<'_, R>,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Points>,
     ) -> Option<RichTextPosition> {
         if let Some(prepared) = &context.state.prepared {
-            let mut y = Length::<f32, Points>::default();
+            let mut y = Figure::<f32, Points>::default();
             let scale = context
                 .frontend
                 .renderer()
-                .map(|r| r.scale())
-                .unwrap_or_default();
+                .map_or_else(Scale::one, |r| r.scale());
             for (paragraph_index, paragraph) in prepared.iter().enumerate() {
                 for line in &paragraph.lines {
-                    let line_bottom = y + Length::new(line.size().height) / scale;
+                    let line_bottom = y + Figure::new(line.size().height) / scale;
                     if location.y < line_bottom.get() {
                         // Click location was within this line
                         for span in &line.spans {
@@ -406,11 +412,11 @@ impl<R: Renderer> InputState<R> {
         &self,
         renderer: &R,
         position: RichTextPosition,
-    ) -> Option<Rect<f32, Points>> {
+    ) -> Option<SizedRect<f32, Points>> {
         let mut last_location = None;
         if let Some(prepared) = &self.prepared {
             let prepared = prepared.get(position.paragraph)?;
-            let mut line_top = Length::default();
+            let mut line_top = Figure::<f32, Points>::default();
             for line in &prepared.lines {
                 let line_height = line.height();
                 for span in &line.spans {
@@ -421,25 +427,25 @@ impl<R: Renderer> InputState<R> {
                         //     // Return a box of the width of the last character with the start of the character at the origin
                         //     for info in span.data.glyphs.iter() {
                         //         if info.source_offset >= position.offset {
-                        //             return Some(Rect::new(
-                        //                 Point::from_lengths(
+                        //             return Some(SizedRect::new(
+                        //                 Point::from_figures(
                         //                     (span.location.x() + info.location().x()) / scale,
                         //                     line_top + span.location.y() / scale,
                         //                 ),
-                        //                 Size::from_lengths(info.width() / scale, line_height),
+                        //                 Size::from_figures(info.width() / scale, line_height),
                         //             ));
                         //         }
                         //     }
                         // }
-                        // last_location = Some(Rect::new(
-                        //     Point2D::from_lengths(
+                        // last_location = Some(SizedRect::new(
+                        //     Point::from_figures(
                         //         (span.location()
                         //             + last_glyph.location().x()
                         //             + last_glyph.width())
                         //             / scale,
                         //         line_top + span.location.y() / scale,
                         //     ),
-                        //     Size::from_lengths(Default::default(), line_height),
+                        //     Size::from_figures(Default::default(), line_height),
                         // ));
                     }
                 }

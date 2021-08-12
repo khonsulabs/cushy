@@ -1,5 +1,5 @@
 use gooey_core::{
-    euclid::Length,
+    figures::Figure,
     styles::{
         style_sheet::{Rule, StyleSheet},
         Alignment, BackgroundColor, Color, ColorPair, ForegroundColor, Padding, Surround,
@@ -78,7 +78,7 @@ pub fn default_stylesheet() -> StyleSheet {
             style
                 .with(Alignment::Center)
                 .with(VerticalAlignment::Center)
-                .with(Padding(Surround::from(Some(Length::new(5.)))))
+                .with(Padding(Surround::from(Some(Figure::new(5.)))))
         }))
         .with(Rule::for_widget::<Checkbox>().with_styles(|style| {
             style

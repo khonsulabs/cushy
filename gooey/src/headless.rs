@@ -7,7 +7,7 @@ use std::{
 };
 
 use gooey_core::{
-    euclid::{Angle, Point2D, Rotation2D, Size2D},
+    figures::{Angle, Point, Size, Vectorlike},
     styles::SystemTheme,
     Context, Frontend, Pixels, Points, Widget,
 };
@@ -16,7 +16,9 @@ use gooey_kludgine::{
         self,
         core::{
             easygpu::{self, wgpu},
-            flume, FrameRenderer,
+            flume,
+            math::Scaled,
+            FrameRenderer,
         },
         prelude::{ElementState, Fill, MouseButton, Scene, Shape, Stroke, Target},
     },
@@ -53,7 +55,7 @@ impl<R: Renderer> Headless<Rasterizer<R>> {
     }
 
     /// Sets the location of the cursor to `position`. Does not render any frames.
-    pub fn set_cursor(&mut self, position: Point2D<f32, Points>) {
+    pub fn set_cursor(&mut self, position: Point<f32, Points>) {
         self.simulate_event(WindowEvent::Input(InputEvent::MouseMoved {
             position: Some(position),
         }));
@@ -110,9 +112,9 @@ impl Headless<Rasterizer<Kludgine>> {
     /// Returns any errors that arise during the rendering process.
     pub async fn screenshot(
         &self,
-        size: Size2D<u32, Pixels>,
+        size: Size<u32, Pixels>,
         theme: SystemTheme,
-        cursor: Option<Point2D<f32, Points>>,
+        cursor: Option<Point<f32, Points>>,
     ) -> Result<DynamicImage, HeadlessError> {
         let (scene_sender, scene_receiver) = flume::unbounded();
 
@@ -144,23 +146,18 @@ impl Headless<Rasterizer<Kludgine>> {
             const CURSOR_LENGTH: f32 = 16.;
             const INNER_LENGTH: f32 = 14.;
             const TAIL_LENGTH: f32 = 20.;
-            let left_edge_lower = Point2D::new(0., CURSOR_LENGTH);
-            let right_edge_lower =
-                Rotation2D::new(Angle::degrees(-45.)).transform_point(left_edge_lower);
+            let left_edge_lower = Point::new(0., CURSOR_LENGTH);
+            let right_edge_lower = Angle::Degrees(-45.).transform_point(left_edge_lower);
             let left_inner =
-                Rotation2D::new(Angle::degrees(-17.5))
-                    .transform_point(Point2D::<f32, Points>::new(0., INNER_LENGTH));
+                Angle::Degrees(-17.5).transform_point(Point::<f32, Scaled>::new(0., INNER_LENGTH));
             let right_inner =
-                Rotation2D::new(Angle::degrees(-27.5))
-                    .transform_point(Point2D::<f32, Points>::new(0., INNER_LENGTH));
+                Angle::Degrees(-27.5).transform_point(Point::<f32, Scaled>::new(0., INNER_LENGTH));
             let left_tail =
-                Rotation2D::new(Angle::degrees(-17.5))
-                    .transform_point(Point2D::<f32, Points>::new(0., TAIL_LENGTH));
+                Angle::Degrees(-17.5).transform_point(Point::<f32, Scaled>::new(0., TAIL_LENGTH));
             let right_tail =
-                Rotation2D::new(Angle::degrees(-27.5))
-                    .transform_point(Point2D::<f32, Points>::new(0., TAIL_LENGTH));
+                Angle::Degrees(-27.5).transform_point(Point::<f32, Scaled>::new(0., TAIL_LENGTH));
             Shape::polygon(vec![
-                Point2D::default(),
+                Point::default(),
                 left_edge_lower,
                 left_inner,
                 left_tail,
@@ -187,7 +184,7 @@ impl Headless<Rasterizer<Kludgine>> {
     /// Begins a recording session that generates an animation.
     pub fn begin_recording(
         &mut self,
-        size: Size2D<u32, Pixels>,
+        size: Size<u32, Pixels>,
         theme: SystemTheme,
         render_cursor: bool,
         fps: u16,
@@ -200,11 +197,11 @@ impl Headless<Rasterizer<Kludgine>> {
 pub struct Recorder<'a> {
     headless: &'a mut Headless<Rasterizer<Kludgine>>,
     frames: Vec<RecordedFrame>,
-    size: Size2D<u32, Pixels>,
+    size: Size<u32, Pixels>,
     theme: SystemTheme,
     render_cursor: bool,
     fps: u16,
-    cursor: Option<Point2D<f32, Points>>,
+    cursor: Option<Point<f32, Points>>,
 }
 
 struct RecordedFrame {
@@ -228,7 +225,7 @@ impl<'a> DerefMut for Recorder<'a> {
 
 impl<'a> Recorder<'a> {
     fn new(
-        size: Size2D<u32, Pixels>,
+        size: Size<u32, Pixels>,
         theme: SystemTheme,
         render_cursor: bool,
         fps: u16,
@@ -310,13 +307,13 @@ impl<'a> Recorder<'a> {
     )]
     pub async fn move_cursor_to(
         &mut self,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Points>,
         duration: Duration,
     ) -> Result<(), HeadlessError> {
         let duration = duration.as_secs_f32();
         let frames = (duration * f32::from(self.fps)).floor().max(1.);
         let frame_duration = Duration::from_secs_f32(duration / frames);
-        let origin = self.cursor.unwrap_or_else(|| Point2D::new(-16., -16.));
+        let origin = self.cursor.unwrap_or_else(|| Point::new(-16., -16.));
         let step = (location.to_vector() - origin.to_vector()) / frames;
         for frame in 1..=frames as u32 {
             self.simulate_event(WindowEvent::Input(InputEvent::MouseMoved {

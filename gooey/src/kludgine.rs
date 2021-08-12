@@ -163,7 +163,7 @@ impl Window for GooeyWindow {
             },
             Event::MouseButton { button, state } => GooeyInputEvent::MouseButton { button, state },
             Event::MouseMoved { position } => GooeyInputEvent::MouseMoved {
-                position: position.map(Point::cast_unit),
+                position: position.map(|p| p.cast_unit()),
             },
             Event::MouseWheel { delta, touch_phase } => {
                 GooeyInputEvent::MouseWheel { delta, touch_phase }

@@ -26,7 +26,7 @@
 #![cfg_attr(doc, warn(rustdoc::all))]
 
 use gooey_core::{
-    euclid::{Point2D, Rect},
+    figures::{Point, Rectlike, SizedRect, Vectorlike},
     styles::SystemTheme,
     Pixels, Points,
 };
@@ -82,7 +82,7 @@ impl Kludgine {
                 ))
                 .line_width(options.line_width.cast_unit()),
             )
-            .render_at(Point2D::default(), &self.target);
+            .render_at(Point::default(), &self.target);
     }
 }
 
@@ -94,15 +94,15 @@ impl Renderer for Kludgine {
         }
     }
 
-    fn size(&self) -> gooey_core::euclid::Size2D<f32, Points> {
+    fn size(&self) -> gooey_core::figures::Size<f32, Points> {
         self.target.clip.map_or_else(
             || self.target.size().cast_unit::<Points>(),
-            |c| c.size.to_f32().cast_unit::<Pixels>() / self.scale(),
+            |c| c.size.cast::<f32>().cast_unit::<Pixels>() / self.scale(),
         )
     }
 
-    fn clip_bounds(&self) -> Rect<f32, Points> {
-        Rect::new(
+    fn clip_bounds(&self) -> SizedRect<f32, Points> {
+        SizedRect::new(
             self.target
                 .offset
                 .unwrap_or_default()
@@ -113,7 +113,7 @@ impl Renderer for Kludgine {
         )
     }
 
-    fn clip_to(&self, bounds: Rect<f32, Points>) -> Self {
+    fn clip_to(&self, bounds: SizedRect<f32, Points>) -> Self {
         // Kludgine's clipping is scene-relative, but the bounds in this function is
         // relative to the current rendering location.
         let mut scene_relative_bounds = bounds;
@@ -139,7 +139,9 @@ impl Renderer for Kludgine {
             scene_relative_bounds.size.width = 0.;
         }
 
-        let scene_relative_bounds = (scene_relative_bounds * self.scale()).round_out().to_u32();
+        let scene_relative_bounds = (scene_relative_bounds * self.scale())
+            .round_out()
+            .cast::<u32>();
 
         Self::from(
             self.target
@@ -152,12 +154,7 @@ impl Renderer for Kludgine {
         Scale::new(self.target.scale_factor().get())
     }
 
-    fn render_text(
-        &self,
-        text: &str,
-        baseline_origin: Point2D<f32, Points>,
-        options: &TextOptions,
-    ) {
+    fn render_text(&self, text: &str, baseline_origin: Point<f32, Points>, options: &TextOptions) {
         self.prepare_text(text, options)
             .render_baseline_at(&self.target, baseline_origin.cast_unit())
             .unwrap();
@@ -167,17 +164,17 @@ impl Renderer for Kludgine {
         let text = self.prepare_text(text, options);
         TextMetrics {
             width: text.width.cast_unit::<Pixels>(),
-            ascent: Length::new(text.metrics.ascent),
-            descent: Length::new(text.metrics.descent),
-            line_gap: Length::new(text.metrics.line_gap),
+            ascent: Figure::new(text.metrics.ascent),
+            descent: Figure::new(text.metrics.descent),
+            line_gap: Figure::new(text.metrics.line_gap),
         } / self.scale()
     }
 
-    fn stroke_rect(&self, rect: &Rect<f32, Points>, options: &StrokeOptions) {
+    fn stroke_rect(&self, rect: &SizedRect<f32, Points>, options: &StrokeOptions) {
         self.stroke_shape(Shape::rect(*rect), options);
     }
 
-    fn fill_rect(&self, rect: &Rect<f32, Points>, color: gooey_core::styles::Color) {
+    fn fill_rect(&self, rect: &SizedRect<f32, Points>, color: gooey_core::styles::Color) {
         Shape::rect(rect.cast_unit())
             .fill(Fill::new(Color::new(
                 color.red,
@@ -185,19 +182,19 @@ impl Renderer for Kludgine {
                 color.blue,
                 color.alpha,
             )))
-            .render_at(Point2D::default(), &self.target);
+            .render_at(Point::default(), &self.target);
     }
 
     fn stroke_line(
         &self,
-        point_a: Point2D<f32, Points>,
-        point_b: Point2D<f32, Points>,
+        point_a: Point<f32, Points>,
+        point_b: Point<f32, Points>,
         options: &StrokeOptions,
     ) {
         self.stroke_shape(Shape::polygon(vec![point_a, point_b]), options);
     }
 
-    fn draw_image(&self, image: &gooey_core::assets::Image, location: Point2D<f32, Points>) {
+    fn draw_image(&self, image: &gooey_core::assets::Image, location: Point<f32, Points>) {
         if let Some(image) = image.as_rgba_image() {
             let texture = Texture::new(image);
             let sprite = SpriteSource::entire_texture(texture);

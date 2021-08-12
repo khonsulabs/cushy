@@ -1,11 +1,11 @@
-use euclid::Length;
+use figures::Figure;
 use stylecs::StyleComponent;
 
 use crate::Points;
 
 /// The font size for drawing text.
 #[derive(Debug, Copy, Clone)]
-pub struct FontSize(pub Length<f32, Points>);
+pub struct FontSize(pub Figure<f32, Points>);
 
 impl Default for FontSize {
     fn default() -> Self {
@@ -17,7 +17,7 @@ impl FontSize {
     /// Creates a new `FontSize` using `value` in `Unit`.
     #[must_use]
     pub const fn new(value: f32) -> Self {
-        Self(Length::new(value))
+        Self(Figure::new(value))
     }
 
     /// Returns the raw font size value.
@@ -28,7 +28,7 @@ impl FontSize {
 
     /// Returns the font size as a type-safe measurement.
     #[must_use]
-    pub const fn length(self) -> Length<f32, Points> {
+    pub const fn length(self) -> Figure<f32, Points> {
         self.0
     }
 }

@@ -79,7 +79,7 @@ mod tests {
 
     use gooey::{
         core::{
-            euclid::{Point2D, Size2D},
+            figures::{Point, Size},
             styles::SystemTheme,
         },
         HeadlessError,
@@ -92,11 +92,11 @@ mod tests {
     async fn demo() -> Result<(), HeadlessError> {
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = app().headless();
-            let mut recorder = headless.begin_recording(Size2D::new(320, 240), theme, true, 30);
-            recorder.set_cursor(Point2D::new(100., 200.));
+            let mut recorder = headless.begin_recording(Size::new(320, 240), theme, true, 30);
+            recorder.set_cursor(Point::new(100., 200.));
             recorder.render_frame(Duration::from_millis(100)).await?;
             recorder
-                .move_cursor_to(Point2D::new(160., 120.), Duration::from_millis(300))
+                .move_cursor_to(Point::new(160., 120.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
 
@@ -114,11 +114,11 @@ mod tests {
 
             // Wiggle the cursor to make the second click seem like a click.
             recorder
-                .move_cursor_to(Point2D::new(150., 140.), Duration::from_millis(100))
+                .move_cursor_to(Point::new(150., 140.), Duration::from_millis(100))
                 .await?;
             recorder.pause(Duration::from_millis(00));
             recorder
-                .move_cursor_to(Point2D::new(160., 120.), Duration::from_millis(200))
+                .move_cursor_to(Point::new(160., 120.), Duration::from_millis(200))
                 .await?;
 
             recorder.left_click().await?;
@@ -136,7 +136,7 @@ mod tests {
                 .unwrap());
 
             recorder
-                .move_cursor_to(Point2D::new(200., 180.), Duration::from_millis(300))
+                .move_cursor_to(Point::new(200., 180.), Duration::from_millis(300))
                 .await?;
             recorder.pause(Duration::from_millis(1000));
 

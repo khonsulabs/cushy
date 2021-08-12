@@ -1,6 +1,6 @@
 use approx::abs_diff_eq;
 use gooey_core::{
-    euclid::{Length, Size2D},
+    figures::{Figure, Size},
     styles::Style,
     Points,
 };
@@ -29,9 +29,9 @@ pub(crate) enum ParserStatus {
 }
 
 struct TextWrapState {
-    width: Option<Length<f32, Points>>,
+    width: Option<Figure<f32, Points>>,
     current_vmetrics: Option<TextMetrics<Points>>,
-    current_span_offset: Length<f32, Points>,
+    current_span_offset: Figure<f32, Points>,
     current_groups: Vec<SpanGroup>,
     lines: Vec<PreparedLine>,
 }
@@ -49,11 +49,11 @@ impl TextWrapState {
             let total_width = spans
                 .iter()
                 .map(|s| s.metrics().width)
-                .fold(Length::default(), |sum, width| sum + width);
+                .fold(Figure::default(), |sum, width| sum + width);
 
             if let Some(width) = self.width {
                 let new_width = total_width + self.current_span_offset;
-                let remaining_width = width - new_width;
+                let remaining_width: Figure<f32, Points> = width - new_width;
 
                 // If the value is negative and isn't zero (-0. is a valid float)
                 if !abs_diff_eq!(remaining_width.get(), 0., epsilon = 0.1)
@@ -83,7 +83,7 @@ impl TextWrapState {
                 ascent: metrics.ascent.max(new_metrics.ascent),
                 descent: metrics.descent.min(new_metrics.descent),
                 line_gap: metrics.line_gap.max(new_metrics.line_gap),
-                width: Length::default(),
+                width: Figure::default(),
             }),
             None => Some(new_metrics),
         }
@@ -108,7 +108,7 @@ impl TextWrapState {
             }
         }
 
-        self.current_span_offset = Length::default();
+        self.current_span_offset = Figure::default();
         for span in &mut spans {
             self.update_vmetrics(*span.metrics());
             self.position_span(span);
@@ -118,10 +118,10 @@ impl TextWrapState {
             self.lines.push(PreparedLine {
                 spans,
                 metrics,
-                alignment_offset: Length::default(),
+                alignment_offset: Figure::default(),
             });
         }
-        self.current_span_offset = Length::default();
+        self.current_span_offset = Figure::default();
         self.current_groups.clear();
     }
 
@@ -157,7 +157,7 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
 
         let mut state = TextWrapState {
             width,
-            current_span_offset: Length::default(),
+            current_span_offset: Figure::default(),
             current_vmetrics: None,
             current_groups: Vec::new(),
             lines: Vec::new(),
@@ -180,7 +180,7 @@ impl<'a, R: Renderer> TextWrapper<'a, R> {
             MeasuredTextInfo::NoText(metrics) => {
                 self.prepared_text.lines.push(PreparedLine {
                     metrics,
-                    alignment_offset: Length::default(),
+                    alignment_offset: Figure::default(),
                     spans: Vec::default(),
                 });
             }
@@ -198,12 +198,12 @@ pub enum TextWrap {
     /// Render the text in a single line. Do not render past `max_width`.
     SingleLine {
         /// The width of the line to render within.
-        width: Length<f32, Points>,
+        width: Figure<f32, Points>,
     },
     /// Render a multi-line text block.
     MultiLine {
         /// The size of the text area.
-        size: Size2D<f32, Points>,
+        size: Size<f32, Points>,
     },
 }
 
@@ -222,9 +222,9 @@ impl TextWrap {
 
     /// Returns the width of the rendered area, if one was provided.
     #[must_use]
-    pub fn width(&self) -> Option<Length<f32, Points>> {
+    pub fn width(&self) -> Option<Figure<f32, Points>> {
         match self {
-            Self::MultiLine { size, .. } => Some(Length::new(size.width)),
+            Self::MultiLine { size, .. } => Some(Figure::new(size.width)),
             Self::SingleLine { width, .. } => Some(*width),
             Self::NoWrap => None,
         }
@@ -232,9 +232,9 @@ impl TextWrap {
 
     /// Returns the height of the rendendered area, if one was provided.
     #[must_use]
-    pub fn height(&self) -> Option<Length<f32, Points>> {
+    pub fn height(&self) -> Option<Figure<f32, Points>> {
         match self {
-            Self::MultiLine { size, .. } => Some(Length::new(size.height)),
+            Self::MultiLine { size, .. } => Some(Figure::new(size.height)),
             _ => None,
         }
     }
@@ -259,25 +259,25 @@ mod tests {
             SystemTheme::default()
         }
 
-        fn size(&self) -> gooey_core::euclid::Size2D<f32, Points> {
+        fn size(&self) -> gooey_core::figures::Size<f32, Points> {
             unimplemented!()
         }
 
-        fn clip_to(&self, _bounds: gooey_core::euclid::Rect<f32, Points>) -> Self {
+        fn clip_to(&self, _bounds: gooey_core::figures::SizedRect<f32, Points>) -> Self {
             unimplemented!()
         }
 
-        fn clip_bounds(&self) -> gooey_core::euclid::Rect<f32, Points> {
+        fn clip_bounds(&self) -> gooey_core::figures::SizedRect<f32, Points> {
             unimplemented!()
         }
 
-        fn scale(&self) -> gooey_core::euclid::Scale<f32, Points, Pixels> {
+        fn scale(&self) -> gooey_core::figures::Scale<f32, Points, Pixels> {
             unimplemented!()
         }
 
         fn stroke_rect(
             &self,
-            _rect: &gooey_core::euclid::Rect<f32, Points>,
+            _rect: &gooey_core::figures::SizedRect<f32, Points>,
             _style: &StrokeOptions,
         ) {
             unimplemented!()
@@ -285,7 +285,7 @@ mod tests {
 
         fn fill_rect(
             &self,
-            _rect: &gooey_core::euclid::Rect<f32, Points>,
+            _rect: &gooey_core::figures::SizedRect<f32, Points>,
             _color: gooey_core::styles::Color,
         ) {
             unimplemented!()
@@ -293,8 +293,8 @@ mod tests {
 
         fn stroke_line(
             &self,
-            _point_a: gooey_core::euclid::Point2D<f32, Points>,
-            _point_b: gooey_core::euclid::Point2D<f32, Points>,
+            _point_a: gooey_core::figures::Point<f32, Points>,
+            _point_b: gooey_core::figures::Point<f32, Points>,
             _style: &StrokeOptions,
         ) {
             unimplemented!()
@@ -303,7 +303,7 @@ mod tests {
         fn render_text(
             &self,
             _text: &str,
-            _baseline_origin: gooey_core::euclid::Point2D<f32, Points>,
+            _baseline_origin: gooey_core::figures::Point<f32, Points>,
             _options: &gooey_renderer::TextOptions,
         ) {
             unimplemented!()
@@ -327,7 +327,7 @@ mod tests {
         fn draw_image(
             &self,
             _image: &gooey_core::assets::Image,
-            _location: gooey_core::euclid::Point2D<f32, Points>,
+            _location: gooey_core::figures::Point<f32, Points>,
         ) {
             unimplemented!()
         }
@@ -344,7 +344,7 @@ mod tests {
         .wrap(
             &renderer,
             TextWrap::MultiLine {
-                size: Size2D::new(80.0, f32::MAX),
+                size: Size::new(80.0, f32::MAX),
             },
             None,
         );
@@ -371,7 +371,7 @@ mod tests {
         .wrap(
             &renderer,
             TextWrap::MultiLine {
-                size: Size2D::new(130.0, f32::MAX),
+                size: Size::new(130.0, f32::MAX),
             },
             None,
         );

@@ -15,7 +15,7 @@ use std::fmt::Debug;
 
 use gooey_core::{
     assets::Image,
-    euclid::{Length, Point2D, Rect, Scale, Size2D},
+    figures::{Figure, Point, Scale, Size, SizedRect},
     styles::{
         Color, ColorPair, FallbackComponent, FontFamily, FontSize, ForegroundColor, LineWidth,
         Style, SystemTheme,
@@ -26,37 +26,37 @@ use gooey_core::{
 /// Implements drawing APIs.
 pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     /// The size of the area being drawn.
-    fn size(&self) -> Size2D<f32, Points>;
+    fn size(&self) -> Size<f32, Points>;
 
     /// Returns the current system theme.
     fn theme(&self) -> SystemTheme;
 
-    /// A [`Rect`] representing the area being drawn. Due to how rendering
+    /// A [`SizedRect`] representing the area being drawn. Due to how rendering
     /// works, the origin is always zero.
-    fn bounds(&self) -> Rect<f32, Points> {
-        Rect::new(Point2D::default(), self.size())
+    fn bounds(&self) -> SizedRect<f32, Points> {
+        SizedRect::new(Point::default(), self.size())
     }
 
     /// Returns a new renderer instance with the state such that each operation
     /// executes as if the origin is `bounds.origin`. The returned instance's
     /// `size()` should equal `bounds.size`.
-    fn clip_to(&self, bounds: Rect<f32, Points>) -> Self;
+    fn clip_to(&self, bounds: SizedRect<f32, Points>) -> Self;
 
-    /// A [`Rect`] representing the area being drawn. This rect should be offset
+    /// A [`SizedRect`] representing the area being drawn. This rect should be offset
     /// relative to the origin of the renderer.
-    fn clip_bounds(&self) -> Rect<f32, Points>;
+    fn clip_bounds(&self) -> SizedRect<f32, Points>;
 
     /// The scale when converting between [`Points`] and [`Pixels`].
     fn scale(&self) -> Scale<f32, Points, Pixels>;
 
     /// Renders `text` at `baseline_origin` with `options`.
-    fn render_text(&self, text: &str, baseline_origin: Point2D<f32, Points>, options: &TextOptions);
+    fn render_text(&self, text: &str, baseline_origin: Point<f32, Points>, options: &TextOptions);
 
     /// Renders `text` at `baseline_origin` with `options`.
     fn render_text_with_style<F: FallbackComponent<Value = ColorPair>>(
         &self,
         text: &str,
-        baseline_origin: Point2D<f32, Points>,
+        baseline_origin: Point<f32, Points>,
         style: &Style,
     ) {
         self.render_text(
@@ -78,12 +78,12 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     }
 
     /// Fills `rect` using `color`.
-    fn fill_rect(&self, rect: &Rect<f32, Points>, color: Color);
+    fn fill_rect(&self, rect: &SizedRect<f32, Points>, color: Color);
 
     /// Fills `rect` using `style`.
     fn fill_rect_with_style<F: FallbackComponent<Value = ColorPair>>(
         &self,
-        rect: &Rect<f32, Points>,
+        rect: &SizedRect<f32, Points>,
         style: &Style,
     ) {
         self.fill_rect(
@@ -97,12 +97,12 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     }
 
     /// Strokes the outline of `rect` using `options`.
-    fn stroke_rect(&self, rect: &Rect<f32, Points>, options: &StrokeOptions);
+    fn stroke_rect(&self, rect: &SizedRect<f32, Points>, options: &StrokeOptions);
 
     /// Strokes the outline of `rect` using `style`.
     fn stroke_rect_with_style<F: FallbackComponent<Value = ColorPair>>(
         &self,
-        rect: &Rect<f32, Points>,
+        rect: &SizedRect<f32, Points>,
         style: &Style,
     ) {
         self.stroke_rect(rect, &StrokeOptions::from_style::<F>(style, self.theme()));
@@ -111,16 +111,16 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     /// Draws a line between `point_a` and `point_b` using `options`.
     fn stroke_line(
         &self,
-        point_a: Point2D<f32, Points>,
-        point_b: Point2D<f32, Points>,
+        point_a: Point<f32, Points>,
+        point_b: Point<f32, Points>,
         options: &StrokeOptions,
     );
 
     /// Draws a line between `point_a` and `point_b` using `style`.
     fn stroke_line_with_style<F: FallbackComponent<Value = ColorPair>>(
         &self,
-        point_a: Point2D<f32, Points>,
-        point_b: Point2D<f32, Points>,
+        point_a: Point<f32, Points>,
+        point_b: Point<f32, Points>,
         style: &Style,
     ) {
         self.stroke_line(
@@ -131,7 +131,7 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     }
 
     /// Draws an `image` at `location`.
-    fn draw_image(&self, image: &Image, location: Point2D<f32, Points>);
+    fn draw_image(&self, image: &Image, location: Point<f32, Points>);
 }
 
 /// Text rendering and measurement options.
@@ -140,7 +140,7 @@ pub struct TextOptions {
     /// The font family to use.
     pub font_family: Option<String>,
     /// The text size, in [`Points`].
-    pub text_size: Length<f32, Points>,
+    pub text_size: Figure<f32, Points>,
     /// The color to render.
     pub color: Color,
 }
@@ -187,7 +187,7 @@ impl Default for TextOptions {
     fn default() -> Self {
         Self {
             font_family: None,
-            text_size: Length::new(13.),
+            text_size: Figure::new(13.),
             color: Color::default(),
         }
     }
@@ -209,7 +209,7 @@ impl TextOptionsBuilder {
 
     /// Sets the text size to `size_in_points`.
     pub fn text_size(mut self, size_in_points: f32) -> Self {
-        self.options.text_size = Length::new(size_in_points);
+        self.options.text_size = Figure::new(size_in_points);
         self
     }
 
@@ -231,14 +231,14 @@ pub struct StrokeOptions {
     /// The color to stroke.
     pub color: Color,
     /// The width of each line segment.
-    pub line_width: Length<f32, Points>,
+    pub line_width: Figure<f32, Points>,
 }
 
 impl Default for StrokeOptions {
     fn default() -> Self {
         Self {
             color: Color::BLACK,
-            line_width: Length::new(1.),
+            line_width: Figure::new(1.),
         }
     }
 }
@@ -280,7 +280,7 @@ pub struct StrokeOptionsBuilder {
 impl StrokeOptionsBuilder {
     /// Sets the width of the line stroked to `width_in_points`.
     pub fn line_width(mut self, width_in_points: f32) -> Self {
-        self.options.line_width = Length::new(width_in_points);
+        self.options.line_width = Figure::new(width_in_points);
         self
     }
 
@@ -301,20 +301,20 @@ impl StrokeOptionsBuilder {
 #[must_use]
 pub struct TextMetrics<U> {
     /// The width of the text.
-    pub width: Length<f32, U>,
+    pub width: Figure<f32, U>,
     /// The height above the baseline.
-    pub ascent: Length<f32, U>,
+    pub ascent: Figure<f32, U>,
     /// The height below the baseline. Typically a negative number.
-    pub descent: Length<f32, U>,
+    pub descent: Figure<f32, U>,
     /// The spacing expected between lines of text.
-    pub line_gap: Length<f32, U>,
+    pub line_gap: Figure<f32, U>,
 }
 
 impl<U> TextMetrics<U> {
     /// The height of the rendered text. This is computed by combining
     /// [`ascent`](TextMetrics::ascent) and [`descent`](TextMetrics::descent).
     #[must_use]
-    pub fn height(&self) -> Length<f32, U> {
+    pub fn height(&self) -> Figure<f32, U> {
         self.ascent - self.descent
     }
 
@@ -322,7 +322,7 @@ impl<U> TextMetrics<U> {
     /// [`height()`](TextMetrics::height) and
     /// [`line_gap`](TextMetrics::line_gap)
     #[must_use]
-    pub fn line_height(&self) -> Length<f32, U> {
+    pub fn line_height(&self) -> Figure<f32, U> {
         self.height() + self.line_gap
     }
 }

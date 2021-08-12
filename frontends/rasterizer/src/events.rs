@@ -1,5 +1,5 @@
 use gooey_core::{
-    euclid::{Point2D, Scale},
+    figures::{Point, Scale},
     styles::SystemTheme,
     Pixels, Points,
 };
@@ -24,7 +24,7 @@ pub enum InputEvent {
     },
     /// Mouse cursor event
     MouseMoved {
-        position: Option<Point2D<f32, Points>>,
+        position: Option<Point<f32, Points>>,
     },
     /// Mouse wheel event
     MouseWheel {
@@ -62,7 +62,7 @@ impl WindowEvent {
             WinitWindowEvent::CursorMoved { position, .. } => {
                 Ok(Self::Input(InputEvent::MouseMoved {
                     position: Some(
-                        Point2D::<f64, Pixels>::new(position.x, position.y).to_f32() / scale,
+                        Point::<f64, Pixels>::new(position.x, position.y).cast::<f32>() / scale,
                     ),
                 }))
             }

@@ -1,5 +1,5 @@
 use gooey_core::{
-    euclid::{Length, Point2D, Size2D},
+    figures::{Figure, Point, Rectlike, Size},
     styles::{Style, TextColor},
     Points, Transmogrifier, TransmogrifierContext,
 };
@@ -35,7 +35,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
                 &context.widget.label,
                 context.style,
                 renderer,
-                Length::new(content_area.size.content.width),
+                Figure::new(content_area.size.content.width),
             );
 
             wrapped.render_within::<TextColor, _>(
@@ -49,17 +49,17 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size2D<Option<f32>, Points>,
-    ) -> Size2D<f32, Points> {
+        constraints: Size<Option<f32>, Points>,
+    ) -> Size<f32, Points> {
         context
             .frontend
             .renderer()
-            .map_or_else(Size2D::default, |renderer| {
+            .map_or_else(Size::default, |renderer| {
                 wrap_text(
                     &context.widget.label,
                     context.style,
                     renderer,
-                    Length::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
+                    Figure::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
                 )
                 .size()
             })
@@ -69,7 +69,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
-        _location: Point2D<f32, Points>,
+        _location: Point<f32, Points>,
         _area: &ContentArea,
     ) -> EventStatus {
         if button == MouseButton::Left {
@@ -84,7 +84,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Points>,
         area: &ContentArea,
     ) {
         if area.bounds().contains(location) {
@@ -98,7 +98,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
-        location: Option<Point2D<f32, Points>>,
+        location: Option<Point<f32, Points>>,
         area: &ContentArea,
     ) {
         if location
@@ -124,7 +124,7 @@ fn wrap_text<R: Renderer>(
     label: &str,
     style: &Style,
     renderer: &R,
-    width: Length<f32, Points>,
+    width: Figure<f32, Points>,
 ) -> PreparedText {
     let text = Text::span(label, style.clone());
     text.wrap(renderer, TextWrap::SingleLine { width }, Some(style))
