@@ -1,5 +1,5 @@
 use gooey_core::{
-    figures::{Point, Size, SizedRect},
+    figures::{Point, Rect, Size},
     Points, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
@@ -32,7 +32,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
                 let remaining_size = content_area.size.content - child_content_area;
 
                 // TODO respect Alignment + Vertical alignment
-                let child_rect = SizedRect::new(
+                let child_rect = Rect::sized(
                     Point::new(remaining_size.width / 2., remaining_size.height / 2.),
                     child_content_area,
                 );

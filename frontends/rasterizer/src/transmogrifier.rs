@@ -1,7 +1,7 @@
 use std::{any::TypeId, convert::TryFrom, ops::Deref};
 
 use gooey_core::{
-    figures::{Point, Size, SizedRect, Vector, Vectorlike},
+    figures::{Point, Rect, Rectlike, Size, Vector, Vectorlike},
     styles::{border::Border, BackgroundColor, Padding, Style},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Points, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetRegistration,
@@ -19,10 +19,11 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     fn render_within(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        bounds: SizedRect<f32, Points>,
+        bounds: Rect<f32, Points>,
         parent_style: &Style,
     ) {
         if let Some(clipped) = context.frontend.clipped_to(bounds) {
+            let bounds = bounds.as_sized();
             let effective_style = context
                 .frontend
                 .ui
@@ -52,7 +53,14 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
             self.render_within_content_area(context, &clipped, &area, &effective_style);
             clipped.rasterized_widget(
                 context.registration.id().clone(),
-                area.translate(clipped.renderer().unwrap().clip_bounds().origin.to_vector()),
+                area.translate(
+                    clipped
+                        .renderer()
+                        .unwrap()
+                        .clip_bounds()
+                        .origin()
+                        .to_vector(),
+                ),
             );
         }
     }
@@ -109,17 +117,17 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
             .map(|o| o.width)
             .filter(|w| w.get() > 0.);
 
-        let bounds = renderer.bounds();
+        let bounds = renderer.bounds().as_sized();
         // The top and bottom borders will draw full width always
         if let Some(width) = top_width {
             renderer.fill_rect(
-                &SizedRect::new(bounds.origin, Size::new(bounds.size.width, width.get())),
+                &Rect::sized(bounds.origin, Size::new(bounds.size.width, width.get())),
                 border.top.as_ref().unwrap().color,
             );
         }
         if let Some(width) = bottom_width {
             renderer.fill_rect(
-                &SizedRect::new(
+                &Rect::sized(
                     Point::new(0., bounds.size.height - width.get()),
                     Size::new(bounds.size.width, width.get()),
                 ),
@@ -131,7 +139,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         // ensure no overlaps. This allows alpha borders to render properly.
         if let Some(width) = left_width {
             renderer.fill_rect(
-                &SizedRect::new(
+                &Rect::sized(
                     Point::new(0., top_width.unwrap_or_default().get()),
                     Size::new(
                         width.get(),
@@ -144,7 +152,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
 
         if let Some(width) = right_width {
             renderer.fill_rect(
-                &SizedRect::new(
+                &Rect::sized(
                     Point::new(
                         bounds.size.width - width.get(),
                         top_width.unwrap_or_default().get(),
@@ -265,7 +273,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
     fn render_within(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        bounds: SizedRect<f32, Points>,
+        bounds: Rect<f32, Points>,
         parent_style: &Style,
     );
 
@@ -340,7 +348,7 @@ where
     fn render_within(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        bounds: SizedRect<f32, Points>,
+        bounds: Rect<f32, Points>,
         parent_style: &Style,
     ) {
         <Self as WidgetRasterizer<R>>::render_within(
@@ -564,14 +572,14 @@ impl ContentArea {
 
     /// Returns the bounds of the content area.
     #[must_use]
-    pub fn content_bounds(&self) -> SizedRect<f32, Points> {
-        SizedRect::new(self.location, self.size.content)
+    pub fn content_bounds(&self) -> Rect<f32, Points> {
+        Rect::sized(self.location, self.size.content)
     }
 
     /// Returns the entire area including padding and border.
     #[must_use]
-    pub fn bounds(&self) -> SizedRect<f32, Points> {
-        SizedRect::new(
+    pub fn bounds(&self) -> Rect<f32, Points> {
+        Rect::sized(
             self.location
                 - Vector::new(
                     self.size.border.left.map_or(0., |b| b.width.get())

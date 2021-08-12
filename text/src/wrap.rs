@@ -263,11 +263,11 @@ mod tests {
             unimplemented!()
         }
 
-        fn clip_to(&self, _bounds: gooey_core::figures::SizedRect<f32, Points>) -> Self {
+        fn clip_to(&self, _bounds: gooey_core::figures::Rect<f32, Points>) -> Self {
             unimplemented!()
         }
 
-        fn clip_bounds(&self) -> gooey_core::figures::SizedRect<f32, Points> {
+        fn clip_bounds(&self) -> gooey_core::figures::Rect<f32, Points> {
             unimplemented!()
         }
 
@@ -277,7 +277,7 @@ mod tests {
 
         fn stroke_rect(
             &self,
-            _rect: &gooey_core::figures::SizedRect<f32, Points>,
+            _rect: &gooey_core::figures::Rect<f32, Points>,
             _style: &StrokeOptions,
         ) {
             unimplemented!()
@@ -285,7 +285,7 @@ mod tests {
 
         fn fill_rect(
             &self,
-            _rect: &gooey_core::figures::SizedRect<f32, Points>,
+            _rect: &gooey_core::figures::Rect<f32, Points>,
             _color: gooey_core::styles::Color,
         ) {
             unimplemented!()

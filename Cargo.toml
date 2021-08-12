@@ -18,8 +18,8 @@ resolver = "2"
 [patch.crates-io]
 # easygpu = { path = "../easygpu" }
 bonsaidb = { git = "https://github.com/khonsulabs/bonsaidb.git", branch = "main" }
-easygpu = { path = "../easygpu" }
-easygpu-lyon = { path = "../easygpu-lyon" }
+easygpu = { path = "../easygpu/easygpu" }
+easygpu-lyon = { path = "../easygpu/lyon" }
 # bonsaidb = { path="../bonsaidb/bonsaidb" }
 # actionable = { git="https://github.com/khonsulabs/actionable.git", branch="main" }
 # actionable = { path="../actionable/actionable", version="0.1.0-dev.3" }

@@ -15,7 +15,7 @@ use std::fmt::Debug;
 
 use gooey_core::{
     assets::Image,
-    figures::{Figure, Point, Scale, Size, SizedRect},
+    figures::{Figure, Point, Rect, Scale, Size},
     styles::{
         Color, ColorPair, FallbackComponent, FontFamily, FontSize, ForegroundColor, LineWidth,
         Style, SystemTheme,
@@ -33,18 +33,18 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
 
     /// A [`SizedRect`] representing the area being drawn. Due to how rendering
     /// works, the origin is always zero.
-    fn bounds(&self) -> SizedRect<f32, Points> {
-        SizedRect::new(Point::default(), self.size())
+    fn bounds(&self) -> Rect<f32, Points> {
+        Rect::sized(Point::default(), self.size())
     }
 
     /// Returns a new renderer instance with the state such that each operation
     /// executes as if the origin is `bounds.origin`. The returned instance's
     /// `size()` should equal `bounds.size`.
-    fn clip_to(&self, bounds: SizedRect<f32, Points>) -> Self;
+    fn clip_to(&self, bounds: Rect<f32, Points>) -> Self;
 
     /// A [`SizedRect`] representing the area being drawn. This rect should be offset
     /// relative to the origin of the renderer.
-    fn clip_bounds(&self) -> SizedRect<f32, Points>;
+    fn clip_bounds(&self) -> Rect<f32, Points>;
 
     /// The scale when converting between [`Points`] and [`Pixels`].
     fn scale(&self) -> Scale<f32, Points, Pixels>;
@@ -78,12 +78,12 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     }
 
     /// Fills `rect` using `color`.
-    fn fill_rect(&self, rect: &SizedRect<f32, Points>, color: Color);
+    fn fill_rect(&self, rect: &Rect<f32, Points>, color: Color);
 
     /// Fills `rect` using `style`.
     fn fill_rect_with_style<F: FallbackComponent<Value = ColorPair>>(
         &self,
-        rect: &SizedRect<f32, Points>,
+        rect: &Rect<f32, Points>,
         style: &Style,
     ) {
         self.fill_rect(
@@ -97,12 +97,12 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     }
 
     /// Strokes the outline of `rect` using `options`.
-    fn stroke_rect(&self, rect: &SizedRect<f32, Points>, options: &StrokeOptions);
+    fn stroke_rect(&self, rect: &Rect<f32, Points>, options: &StrokeOptions);
 
     /// Strokes the outline of `rect` using `style`.
     fn stroke_rect_with_style<F: FallbackComponent<Value = ColorPair>>(
         &self,
-        rect: &SizedRect<f32, Points>,
+        rect: &Rect<f32, Points>,
         style: &Style,
     ) {
         self.stroke_rect(rect, &StrokeOptions::from_style::<F>(style, self.theme()));

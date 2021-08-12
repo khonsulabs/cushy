@@ -4,7 +4,7 @@ use std::{
 };
 
 use gooey_core::{
-    figures::{Figure, One, Point, Rectlike, Scale, Size, SizedRect, Vectorlike},
+    figures::{Figure, One, Point, Rect, Rectlike, Scale, Size, SizedRect, Vectorlike},
     styles::{Color, Style, TextColor},
     Points, Transmogrifier, TransmogrifierContext,
 };
@@ -61,7 +61,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
     ) {
         if let Some(renderer) = context.frontend.renderer() {
             let scale = renderer.scale();
-            let bounds = content_area.content_bounds();
+            let bounds = content_area.content_bounds().as_sized();
 
             let mut y = Figure::<f32, Points>::default();
             let prepared = context
@@ -97,11 +97,11 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                                 .as_sized();
                             area.size.width = bounds.size.width - start_position.origin.x;
                             // TODO change to a SelectionColor component.
-                            renderer.fill_rect(&area, Color::new(1., 0., 0., 0.3));
+                            renderer.fill_rect(&area.as_rect(), Color::new(1., 0., 0., 0.3));
                             if start_position.extent.y < end_position.origin.y {
                                 // Draw a solid block for all the inner lines
                                 renderer.fill_rect(
-                                    &SizedRect::new(
+                                    &Rect::sized(
                                         Point::new(0., start_position.extent.y),
                                         Size::from_figures(
                                             bounds.size.width(),
@@ -114,7 +114,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                             }
                             // Last line is start of line -> start of end position
                             renderer.fill_rect(
-                                &SizedRect::new(
+                                &Rect::sized(
                                     Point::new(0., end_position.origin.y),
                                     Size::from_figures(
                                         end_position.origin.x(),
@@ -129,7 +129,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                             let mut area = start_position.as_sized();
                             area.size.width = end_position.origin.x - start_position.origin.x;
                             renderer.fill_rect(
-                                &area.translate(bounds.origin.to_vector()),
+                                &area.translate(bounds.origin.to_vector()).as_rect(),
                                 Color::new(1., 0., 0., 0.3),
                             );
                         }
@@ -142,7 +142,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                 {
                     // No selection, draw a caret
                     renderer.fill_rect(
-                        &SizedRect::new(
+                        &Rect::sized(
                             bounds.origin,
                             Size::from_figures(
                                 Figure::new(1.) / scale,
@@ -189,7 +189,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             let bounds = area.content_bounds();
 
             if let Some(location) =
-                InputState::position_for_location(context, location - bounds.origin.to_vector())
+                InputState::position_for_location(context, location - bounds.origin().to_vector())
             {
                 context.state.cursor.start = location;
                 context.state.cursor.end = None;
@@ -214,7 +214,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             context.state.cursor.blink_state.force_on();
             let bounds = area.content_bounds();
             if let Some(location) =
-                InputState::position_for_location(context, location - bounds.origin.to_vector())
+                InputState::position_for_location(context, location - bounds.origin().to_vector())
             {
                 if location == context.state.cursor.start {
                     if context.state.cursor.end != None {

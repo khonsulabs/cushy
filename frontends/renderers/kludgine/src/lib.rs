@@ -26,7 +26,7 @@
 #![cfg_attr(doc, warn(rustdoc::all))]
 
 use gooey_core::{
-    figures::{Point, Rectlike, SizedRect, Vectorlike},
+    figures::{Point, Rect, Rectlike, Vectorlike},
     styles::SystemTheme,
     Pixels, Points,
 };
@@ -59,7 +59,7 @@ impl Kludgine {
         Text::prepare(
             text,
             &bundled_fonts::ROBOTO,
-            options.text_size.cast_unit(),
+            options.text_size,
             Color::new(
                 options.color.red,
                 options.color.green,
@@ -80,7 +80,7 @@ impl Kludgine {
                     options.color.blue,
                     options.color.alpha,
                 ))
-                .line_width(options.line_width.cast_unit()),
+                .line_width(options.line_width),
             )
             .render_at(Point::default(), &self.target);
     }
@@ -96,13 +96,13 @@ impl Renderer for Kludgine {
 
     fn size(&self) -> gooey_core::figures::Size<f32, Points> {
         self.target.clip.map_or_else(
-            || self.target.size().cast_unit::<Points>(),
-            |c| c.size.cast::<f32>().cast_unit::<Pixels>() / self.scale(),
+            || self.target.size(),
+            |c| c.size.cast::<f32>() / self.scale(),
         )
     }
 
-    fn clip_bounds(&self) -> SizedRect<f32, Points> {
-        SizedRect::new(
+    fn clip_bounds(&self) -> Rect<f32, Points> {
+        Rect::sized(
             self.target
                 .offset
                 .unwrap_or_default()
@@ -113,9 +113,10 @@ impl Renderer for Kludgine {
         )
     }
 
-    fn clip_to(&self, bounds: SizedRect<f32, Points>) -> Self {
+    fn clip_to(&self, bounds: Rect<f32, Points>) -> Self {
         // Kludgine's clipping is scene-relative, but the bounds in this function is
         // relative to the current rendering location.
+        let bounds = bounds.as_sized();
         let mut scene_relative_bounds = bounds;
         if let Some(offset) = self.target.offset {
             scene_relative_bounds =
@@ -145,8 +146,8 @@ impl Renderer for Kludgine {
 
         Self::from(
             self.target
-                .clipped_to(scene_relative_bounds.cast_unit())
-                .offset_by((bounds.origin.to_vector() * self.scale()).cast_unit()),
+                .clipped_to(scene_relative_bounds)
+                .offset_by(bounds.origin.to_vector() * self.scale()),
         )
     }
 
@@ -170,12 +171,12 @@ impl Renderer for Kludgine {
         } / self.scale()
     }
 
-    fn stroke_rect(&self, rect: &SizedRect<f32, Points>, options: &StrokeOptions) {
-        self.stroke_shape(Shape::rect(*rect), options);
+    fn stroke_rect(&self, rect: &Rect<f32, Points>, options: &StrokeOptions) {
+        self.stroke_shape(Shape::rect(rect.as_sized()), options);
     }
 
-    fn fill_rect(&self, rect: &SizedRect<f32, Points>, color: gooey_core::styles::Color) {
-        Shape::rect(rect.cast_unit())
+    fn fill_rect(&self, rect: &Rect<f32, Points>, color: gooey_core::styles::Color) {
+        Shape::rect(rect.as_sized())
             .fill(Fill::new(Color::new(
                 color.red,
                 color.green,
@@ -198,11 +199,7 @@ impl Renderer for Kludgine {
         if let Some(image) = image.as_rgba_image() {
             let texture = Texture::new(image);
             let sprite = SpriteSource::entire_texture(texture);
-            sprite.render_at(
-                &self.target,
-                location.cast_unit(),
-                SpriteRotation::default(),
-            );
+            sprite.render_at(&self.target, location, SpriteRotation::default());
         }
     }
 }

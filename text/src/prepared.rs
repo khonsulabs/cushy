@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use gooey_core::{
-    figures::{Figure, Point, Size, SizedRect, Vector},
+    figures::{Figure, Point, Rect, Rectlike, Size, Vector},
     styles::{Alignment, ColorPair, FallbackComponent, Style, VerticalAlignment},
     Points,
 };
@@ -89,9 +89,10 @@ impl PreparedText {
     pub fn render_within<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        bounds: SizedRect<f32, Points>,
+        bounds: Rect<f32, Points>,
         style: &Style,
     ) -> Figure<f32, Points> {
+        let bounds = bounds.as_sized();
         let text_size = self.size();
         let origin_y = match style.get::<VerticalAlignment>() {
             Some(VerticalAlignment::Bottom) => bounds.size.height - text_size.height,

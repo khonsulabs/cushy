@@ -27,13 +27,15 @@ impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
         content_area: &ContentArea,
     ) {
         let bounds = content_area.bounds();
-        for_each_measured_widget(context, bounds.size, |layout, child_bounds| {
+        for_each_measured_widget(context, bounds.size(), |layout, child_bounds| {
             context.frontend.with_transmogrifier(
                 layout.registration.id(),
                 |transmogrifier, mut child_context| {
                     transmogrifier.render_within(
                         &mut child_context,
-                        child_bounds.translate(content_area.location.to_vector()),
+                        child_bounds
+                            .translate(content_area.location.to_vector())
+                            .as_rect(),
                         context.style,
                     );
                 },

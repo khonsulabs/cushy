@@ -23,7 +23,7 @@ use std::{collections::HashSet, sync::Arc};
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
     assets::{self, Configuration, Image},
-    figures::{Point, SizedRect},
+    figures::{Point, Rect},
     styles::{
         style_sheet::{self},
         Style, SystemTheme,
@@ -182,13 +182,13 @@ impl<R: Renderer> Rasterizer<R> {
         .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
             transmogrifier.render_within(
                 &mut context,
-                SizedRect::new(Point::default(), size),
+                Rect::sized(Point::default(), size),
                 &Style::default(),
             );
         });
     }
 
-    pub fn clipped_to(&self, clip: SizedRect<f32, Points>) -> Option<Self> {
+    pub fn clipped_to(&self, clip: Rect<f32, Points>) -> Option<Self> {
         self.renderer().map(|renderer| Self {
             ui: self.ui.clone(),
             state: self.state.clone(),

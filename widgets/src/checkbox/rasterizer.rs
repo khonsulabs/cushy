@@ -1,5 +1,5 @@
 use gooey_core::{
-    figures::{Point, Rectlike, Size, SizedRect, Vector, Vectorlike},
+    figures::{Point, Rect, Rectlike, Size, SizedRect, Vector, Vectorlike},
     styles::ForegroundColor,
     Points, Transmogrifier, TransmogrifierContext,
 };
@@ -82,18 +82,19 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
 
             // Render the checkbox
             let checkbox_rect = SizedRect::new(content_area.location, layout.checkbox_size);
-            renderer.fill_rect_with_style::<ButtonColor>(&checkbox_rect, context.style);
+            renderer.fill_rect_with_style::<ButtonColor>(&checkbox_rect.as_rect(), context.style);
             if context.widget.checked {
                 // Fill a square in the middle with the mark.
                 let check_box = checkbox_rect.inflate(Vector::new(
                     -checkbox_rect.size.width / 3.,
                     -checkbox_rect.size.width / 3.,
                 ));
-                renderer.fill_rect_with_style::<ForegroundColor>(&check_box, context.style);
+                renderer
+                    .fill_rect_with_style::<ForegroundColor>(&check_box.as_rect(), context.style);
             }
 
             // Render the label
-            let label_rect = SizedRect::new(
+            let label_rect = Rect::sized(
                 Point::new(layout.checkbox_size.width + LABEL_PADDING.get(), 0.)
                     + content_area.location.to_vector(),
                 layout.label_size,
