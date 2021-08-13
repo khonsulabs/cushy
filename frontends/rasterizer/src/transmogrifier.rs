@@ -39,7 +39,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                 .max(&Size::default());
             let remaining_width = bounds.size - content;
             // TODO support Alignment and VerticalAlignment
-            let location = (remaining_width.to_vector() / 2.).to_point();
+            let location = (remaining_width / 2.).to_point();
 
             let area = ContentArea {
                 location,

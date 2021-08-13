@@ -4,7 +4,7 @@ use std::{
 };
 
 use gooey_core::{
-    figures::{Figure, One, Point, Rect, Rectlike, Scale, Size, SizedRect, Vectorlike},
+    figures::{Figure, One, Point, Rect, Rectlike, Scale, Size, SizedRect},
     styles::{Color, Style, TextColor},
     Points, Transmogrifier, TransmogrifierContext,
 };
@@ -92,9 +92,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                         if start_position.extent.y <= end_position.origin.y {
                             // Multi-line
                             // First line is start_position -> end of bounds
-                            let mut area = start_position
-                                .translate(bounds.origin.to_vector())
-                                .as_sized();
+                            let mut area = start_position.translate(bounds.origin).as_sized();
                             area.size.width = bounds.size.width - start_position.origin.x;
                             // TODO change to a SelectionColor component.
                             renderer.fill_rect(&area.as_rect(), Color::new(1., 0., 0., 0.3));
@@ -108,7 +106,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                                             end_position.origin.y() - start_position.extent.y(),
                                         ),
                                     )
-                                    .translate(bounds.origin.to_vector()),
+                                    .translate(bounds.origin),
                                     Color::new(1., 0., 0., 0.3),
                                 );
                             }
@@ -121,7 +119,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                                         end_position.height(),
                                     ),
                                 )
-                                .translate(bounds.origin.to_vector()),
+                                .translate(bounds.origin),
                                 Color::new(1., 0., 0., 0.3),
                             );
                         } else {
@@ -129,7 +127,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                             let mut area = start_position.as_sized();
                             area.size.width = end_position.origin.x - start_position.origin.x;
                             renderer.fill_rect(
-                                &area.translate(bounds.origin.to_vector()).as_rect(),
+                                &area.translate(bounds.origin).as_rect(),
                                 Color::new(1., 0., 0., 0.3),
                             );
                         }
@@ -189,7 +187,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             let bounds = area.content_bounds();
 
             if let Some(location) =
-                InputState::position_for_location(context, location - bounds.origin().to_vector())
+                InputState::position_for_location(context, location - bounds.origin())
             {
                 context.state.cursor.start = location;
                 context.state.cursor.end = None;
@@ -214,7 +212,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             context.state.cursor.blink_state.force_on();
             let bounds = area.content_bounds();
             if let Some(location) =
-                InputState::position_for_location(context, location - bounds.origin().to_vector())
+                InputState::position_for_location(context, location - bounds.origin())
             {
                 if location == context.state.cursor.start {
                     if context.state.cursor.end != None {

@@ -33,9 +33,7 @@ impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
                 |transmogrifier, mut child_context| {
                     transmogrifier.render_within(
                         &mut child_context,
-                        child_bounds
-                            .translate(content_area.location.to_vector())
-                            .as_rect(),
+                        child_bounds.translate(content_area.location).as_rect(),
                         context.style,
                     );
                 },
