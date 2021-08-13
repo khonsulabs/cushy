@@ -23,7 +23,7 @@ impl PreparedText {
             |(width, height), line_size| {
                 (
                     width.max(Figure::new(line_size.width)),
-                    height + Figure::new(line_size.height),
+                    height + line_size.height,
                 )
             },
         );
@@ -43,10 +43,10 @@ impl PreparedText {
                     line.alignment_offset = Figure::default();
                 }
                 Alignment::Center => {
-                    line.alignment_offset = (align_width - Figure::new(line.size().width)) / 2.;
+                    line.alignment_offset = (align_width - line.size().width) / 2.;
                 }
                 Alignment::Right => {
-                    line.alignment_offset = align_width - Figure::new(line.size().width);
+                    line.alignment_offset = align_width - line.size().width;
                 }
             }
         }
