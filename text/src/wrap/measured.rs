@@ -1,4 +1,4 @@
-use gooey_core::{styles::Style, Points};
+use gooey_core::{styles::Style, Scaled};
 use gooey_renderer::{Renderer, TextMetrics};
 
 use super::{ParserStatus, SpanGroup, Token, Tokenizer};
@@ -12,14 +12,14 @@ pub struct MeasuredText {
 #[derive(Debug)]
 pub(crate) enum MeasuredTextInfo {
     Groups(Vec<SpanGroup>),
-    NoText(TextMetrics<Points>),
+    NoText(TextMetrics<Scaled>),
 }
 
 struct TextMeasureState {
     current_group: Option<SpanGroup>,
     status: ParserStatus,
     groups: Vec<SpanGroup>,
-    no_text_metrics: Option<TextMetrics<Points>>,
+    no_text_metrics: Option<TextMetrics<Scaled>>,
 }
 
 impl TextMeasureState {

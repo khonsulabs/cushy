@@ -2,7 +2,7 @@ use approx::abs_diff_eq;
 use gooey_core::{
     figures::{Figure, Size},
     styles::Style,
-    Points,
+    Scaled,
 };
 use gooey_renderer::{Renderer, TextMetrics};
 
@@ -29,9 +29,9 @@ pub(crate) enum ParserStatus {
 }
 
 struct TextWrapState {
-    width: Option<Figure<f32, Points>>,
-    current_vmetrics: Option<TextMetrics<Points>>,
-    current_span_offset: Figure<f32, Points>,
+    width: Option<Figure<f32, Scaled>>,
+    current_vmetrics: Option<TextMetrics<Scaled>>,
+    current_span_offset: Figure<f32, Scaled>,
     current_groups: Vec<SpanGroup>,
     lines: Vec<PreparedLine>,
 }
@@ -53,7 +53,7 @@ impl TextWrapState {
 
             if let Some(width) = self.width {
                 let new_width = total_width + self.current_span_offset;
-                let remaining_width: Figure<f32, Points> = width - new_width;
+                let remaining_width: Figure<f32, Scaled> = width - new_width;
 
                 // If the value is negative and isn't zero (-0. is a valid float)
                 if !abs_diff_eq!(remaining_width.get(), 0., epsilon = 0.1)
@@ -77,7 +77,7 @@ impl TextWrapState {
         }
     }
 
-    fn update_vmetrics(&mut self, new_metrics: TextMetrics<Points>) {
+    fn update_vmetrics(&mut self, new_metrics: TextMetrics<Scaled>) {
         self.current_vmetrics = match self.current_vmetrics {
             Some(metrics) => Some(TextMetrics {
                 ascent: metrics.ascent.max(new_metrics.ascent),
@@ -198,12 +198,12 @@ pub enum TextWrap {
     /// Render the text in a single line. Do not render past `max_width`.
     SingleLine {
         /// The width of the line to render within.
-        width: Figure<f32, Points>,
+        width: Figure<f32, Scaled>,
     },
     /// Render a multi-line text block.
     MultiLine {
         /// The size of the text area.
-        size: Size<f32, Points>,
+        size: Size<f32, Scaled>,
     },
 }
 
@@ -222,7 +222,7 @@ impl TextWrap {
 
     /// Returns the width of the rendered area, if one was provided.
     #[must_use]
-    pub fn width(&self) -> Option<Figure<f32, Points>> {
+    pub fn width(&self) -> Option<Figure<f32, Scaled>> {
         match self {
             Self::MultiLine { size, .. } => Some(Figure::new(size.width)),
             Self::SingleLine { width, .. } => Some(*width),
@@ -232,7 +232,7 @@ impl TextWrap {
 
     /// Returns the height of the rendendered area, if one was provided.
     #[must_use]
-    pub fn height(&self) -> Option<Figure<f32, Points>> {
+    pub fn height(&self) -> Option<Figure<f32, Scaled>> {
         match self {
             Self::MultiLine { size, .. } => Some(Figure::new(size.height)),
             _ => None,
@@ -243,8 +243,8 @@ impl TextWrap {
 #[cfg(test)]
 mod tests {
     use gooey_core::{
+        figures::DisplayScale,
         styles::{FontSize, Style, SystemTheme},
-        Pixels,
     };
     use gooey_renderer::StrokeOptions;
 
@@ -259,25 +259,25 @@ mod tests {
             SystemTheme::default()
         }
 
-        fn size(&self) -> gooey_core::figures::Size<f32, Points> {
+        fn size(&self) -> gooey_core::figures::Size<f32, Scaled> {
             unimplemented!()
         }
 
-        fn clip_to(&self, _bounds: gooey_core::figures::Rect<f32, Points>) -> Self {
+        fn clip_to(&self, _bounds: gooey_core::figures::Rect<f32, Scaled>) -> Self {
             unimplemented!()
         }
 
-        fn clip_bounds(&self) -> gooey_core::figures::Rect<f32, Points> {
+        fn clip_bounds(&self) -> gooey_core::figures::Rect<f32, Scaled> {
             unimplemented!()
         }
 
-        fn scale(&self) -> gooey_core::figures::Scale<f32, Points, Pixels> {
+        fn scale(&self) -> DisplayScale<f32> {
             unimplemented!()
         }
 
         fn stroke_rect(
             &self,
-            _rect: &gooey_core::figures::Rect<f32, Points>,
+            _rect: &gooey_core::figures::Rect<f32, Scaled>,
             _style: &StrokeOptions,
         ) {
             unimplemented!()
@@ -285,7 +285,7 @@ mod tests {
 
         fn fill_rect(
             &self,
-            _rect: &gooey_core::figures::Rect<f32, Points>,
+            _rect: &gooey_core::figures::Rect<f32, Scaled>,
             _color: gooey_core::styles::Color,
         ) {
             unimplemented!()
@@ -293,8 +293,8 @@ mod tests {
 
         fn stroke_line(
             &self,
-            _point_a: gooey_core::figures::Point<f32, Points>,
-            _point_b: gooey_core::figures::Point<f32, Points>,
+            _point_a: gooey_core::figures::Point<f32, Scaled>,
+            _point_b: gooey_core::figures::Point<f32, Scaled>,
             _style: &StrokeOptions,
         ) {
             unimplemented!()
@@ -303,7 +303,7 @@ mod tests {
         fn render_text(
             &self,
             _text: &str,
-            _baseline_origin: gooey_core::figures::Point<f32, Points>,
+            _baseline_origin: gooey_core::figures::Point<f32, Scaled>,
             _options: &gooey_renderer::TextOptions,
         ) {
             unimplemented!()
@@ -314,7 +314,7 @@ mod tests {
             &self,
             text: &str,
             options: &gooey_renderer::TextOptions,
-        ) -> TextMetrics<Points> {
+        ) -> TextMetrics<Scaled> {
             // Return a fixed width per character, based on the font size.;
             TextMetrics {
                 width: options.text_size * text.len() as f32 * 0.6,
@@ -327,7 +327,7 @@ mod tests {
         fn draw_image(
             &self,
             _image: &gooey_core::assets::Image,
-            _location: gooey_core::figures::Point<f32, Points>,
+            _location: gooey_core::figures::Point<f32, Scaled>,
         ) {
             unimplemented!()
         }

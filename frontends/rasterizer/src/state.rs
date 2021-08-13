@@ -7,7 +7,7 @@ use std::{
 use gooey_core::{
     figures::{Point, Rectlike},
     styles::{style_sheet, SystemTheme},
-    Points, WidgetId,
+    Scaled, WidgetId,
 };
 use parking_lot::Mutex;
 use winit::event::MouseButton;
@@ -30,7 +30,7 @@ struct Data {
     focus: Option<WidgetId>,
     active: Option<WidgetId>,
 
-    last_mouse_position: Option<Point<f32, Points>>,
+    last_mouse_position: Option<Point<f32, Scaled>>,
     mouse_button_handlers: HashMap<MouseButton, WidgetId>,
     needs_redraw: bool,
 }
@@ -62,7 +62,7 @@ impl State {
         data.area.get(&widget.id).cloned()
     }
 
-    pub fn widgets_under_point(&self, location: Point<f32, Points>) -> Vec<WidgetId> {
+    pub fn widgets_under_point(&self, location: Point<f32, Scaled>) -> Vec<WidgetId> {
         let data = self.data.lock();
         data.widgets_under_point(location).cloned().collect()
     }
@@ -77,12 +77,12 @@ impl State {
         data.needs_redraw
     }
 
-    pub fn set_last_mouse_position(&self, location: Option<Point<f32, Points>>) {
+    pub fn set_last_mouse_position(&self, location: Option<Point<f32, Scaled>>) {
         let mut data = self.data.lock();
         data.last_mouse_position = location;
     }
 
-    pub fn last_mouse_position(&self) -> Option<Point<f32, Points>> {
+    pub fn last_mouse_position(&self) -> Option<Point<f32, Scaled>> {
         let data = self.data.lock();
         data.last_mouse_position
     }
@@ -214,7 +214,7 @@ impl Data {
 
     pub fn widgets_under_point(
         &self,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
     ) -> impl Iterator<Item = &WidgetId> {
         self.order
             .iter()

@@ -1,6 +1,6 @@
 use gooey_core::{
     figures::{Point, Rect, Size},
-    Points, Transmogrifier, TransmogrifierContext,
+    Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
 
@@ -44,8 +44,8 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
-    ) -> Size<f32, Points> {
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled> {
         context
             .frontend
             .with_transmogrifier(

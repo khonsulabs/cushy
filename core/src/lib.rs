@@ -35,7 +35,7 @@ pub type Pixels = figures::Pixels;
 /// system user interface settings, and the browser's zoom level. Each
 /// [`Frontend`] will use its best available methods for translating `Points` to
 /// [`Pixels`] in a way that is consistent with other applications.
-pub type Points = figures::Scaled;
+pub type Scaled = figures::Scaled;
 
 /// The name of the class assigned to the root widget of a window.
 pub const ROOT_CLASS: &str = "gooey-root";

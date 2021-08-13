@@ -1,6 +1,6 @@
 use gooey_core::{
     figures::{Figure, Point, Rectlike, Size, SizedRect, Vector, Vectorlike},
-    Points, Transmogrifier, TransmogrifierContext,
+    Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
 
@@ -44,8 +44,8 @@ impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
-    ) -> Size<f32, Points> {
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled> {
         let mut extents = Vector::default();
         let context_size = context.frontend.renderer().unwrap().size();
         let constrained_size = Size::new(
@@ -60,9 +60,9 @@ impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
 }
 
 #[allow(clippy::cast_precision_loss)]
-fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, SizedRect<f32, Points>)>(
+fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, SizedRect<f32, Scaled>)>(
     context: &TransmogrifierContext<'_, LayoutTransmogrifier, Rasterizer<R>>,
-    constraints: Size<f32, Points>,
+    constraints: Size<f32, Scaled>,
     mut callback: F,
 ) {
     for child in context.widget.children.layout_children() {

@@ -9,16 +9,14 @@ use std::{
 use gooey_core::{
     figures::{Angle, Point, Size, Vectorlike},
     styles::SystemTheme,
-    Context, Frontend, Pixels, Points, Widget,
+    Context, Frontend, Pixels, Scaled, Widget,
 };
 use gooey_kludgine::{
     kludgine::{
         self,
         core::{
             easygpu::{self, wgpu},
-            flume,
-            math::Scaled,
-            FrameRenderer,
+            flume, FrameRenderer,
         },
         prelude::{ElementState, Fill, MouseButton, Scene, Shape, Stroke, Target},
     },
@@ -55,7 +53,7 @@ impl<R: Renderer> Headless<Rasterizer<R>> {
     }
 
     /// Sets the location of the cursor to `position`. Does not render any frames.
-    pub fn set_cursor(&mut self, position: Point<f32, Points>) {
+    pub fn set_cursor(&mut self, position: Point<f32, Scaled>) {
         self.simulate_event(WindowEvent::Input(InputEvent::MouseMoved {
             position: Some(position),
         }));
@@ -114,7 +112,7 @@ impl Headless<Rasterizer<Kludgine>> {
         &self,
         size: Size<u32, Pixels>,
         theme: SystemTheme,
-        cursor: Option<Point<f32, Points>>,
+        cursor: Option<Point<f32, Scaled>>,
     ) -> Result<DynamicImage, HeadlessError> {
         let (scene_sender, scene_receiver) = flume::unbounded();
 
@@ -201,7 +199,7 @@ pub struct Recorder<'a> {
     theme: SystemTheme,
     render_cursor: bool,
     fps: u16,
-    cursor: Option<Point<f32, Points>>,
+    cursor: Option<Point<f32, Scaled>>,
 }
 
 struct RecordedFrame {
@@ -307,7 +305,7 @@ impl<'a> Recorder<'a> {
     )]
     pub async fn move_cursor_to(
         &mut self,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         duration: Duration,
     ) -> Result<(), HeadlessError> {
         let duration = duration.as_secs_f32();

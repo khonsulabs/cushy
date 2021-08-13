@@ -1,9 +1,9 @@
 use figures::Figure;
 use stylecs::StyleComponent;
 
-use crate::Points;
+use crate::Scaled;
 
-/// The width of lines stroked/drawn. Default is `1.` [`Points`].
+/// The width of lines stroked/drawn. Default is `1.` [`Scaled`].
 #[derive(Debug, Copy)]
 pub struct LineWidth<Unit>(pub Figure<f32, Unit>);
 
@@ -13,7 +13,7 @@ impl<Unit> Clone for LineWidth<Unit> {
     }
 }
 
-impl Default for LineWidth<Points> {
+impl Default for LineWidth<Scaled> {
     fn default() -> Self {
         Self::new(1.)
     }
@@ -39,4 +39,4 @@ impl<Unit> LineWidth<Unit> {
     }
 }
 
-impl StyleComponent for LineWidth<Points> {}
+impl StyleComponent for LineWidth<Scaled> {}

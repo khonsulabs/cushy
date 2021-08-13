@@ -3,7 +3,7 @@ use std::{any::TypeId, convert::TryFrom, ops::Deref};
 use gooey_core::{
     figures::{Point, Rect, Rectlike, Size, Vector, Vectorlike},
     styles::{border::Border, BackgroundColor, Padding, Style},
-    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Points, Transmogrifier,
+    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Scaled, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetRegistration,
 };
 use gooey_renderer::Renderer;
@@ -19,7 +19,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     fn render_within(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        bounds: Rect<f32, Points>,
+        bounds: Rect<f32, Scaled>,
         parent_style: &Style,
     ) {
         if let Some(clipped) = context.frontend.clipped_to(bounds) {
@@ -178,13 +178,13 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
-    ) -> Size<f32, Points>;
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled>;
 
     fn content_size(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
+        constraints: Size<Option<f32>, Scaled>,
     ) -> ContentSize {
         let effective_style = context
             .frontend
@@ -215,7 +215,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     fn hit_test(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) -> bool {
         true
@@ -231,7 +231,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     fn mouse_move(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) -> bool {
         self.hit_test(context, location, area)
@@ -242,7 +242,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) -> EventStatus {
         EventStatus::Ignored
@@ -253,7 +253,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) {
     }
@@ -263,7 +263,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
-        location: Option<Point<f32, Points>>,
+        location: Option<Point<f32, Scaled>>,
         area: &ContentArea,
     ) {
     }
@@ -273,7 +273,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
     fn render_within(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        bounds: Rect<f32, Points>,
+        bounds: Rect<f32, Scaled>,
         parent_style: &Style,
     );
 
@@ -288,19 +288,19 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
     fn measure_content(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
-    ) -> Size<f32, Points>;
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled>;
 
     fn content_size(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
+        constraints: Size<Option<f32>, Scaled>,
     ) -> ContentSize;
 
     fn hit_test(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) -> bool;
 
@@ -311,7 +311,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
     fn mouse_move(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) -> bool;
 
@@ -319,7 +319,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) -> EventStatus;
 
@@ -327,7 +327,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     );
 
@@ -335,7 +335,7 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
-        location: Option<Point<f32, Points>>,
+        location: Option<Point<f32, Scaled>>,
         area: &ContentArea,
     );
 }
@@ -348,7 +348,7 @@ where
     fn render_within(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        bounds: Rect<f32, Points>,
+        bounds: Rect<f32, Scaled>,
         parent_style: &Style,
     ) {
         <Self as WidgetRasterizer<R>>::render_within(
@@ -378,8 +378,8 @@ where
     fn measure_content(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
-    ) -> Size<f32, Points> {
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled> {
         <Self as WidgetRasterizer<R>>::measure_content(
             self,
             &mut TransmogrifierContext::try_from(context).unwrap(),
@@ -390,7 +390,7 @@ where
     fn content_size(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
+        constraints: Size<Option<f32>, Scaled>,
     ) -> ContentSize {
         <Self as WidgetRasterizer<R>>::content_size(
             self,
@@ -402,7 +402,7 @@ where
     fn hit_test(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) -> bool {
         <Self as WidgetRasterizer<R>>::hit_test(
@@ -430,7 +430,7 @@ where
     fn mouse_move(
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) -> bool {
         <Self as WidgetRasterizer<R>>::mouse_move(
@@ -445,7 +445,7 @@ where
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) -> EventStatus {
         <Self as WidgetRasterizer<R>>::mouse_down(
@@ -461,7 +461,7 @@ where
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) {
         <Self as WidgetRasterizer<R>>::mouse_drag(
@@ -477,7 +477,7 @@ where
         &self,
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         button: MouseButton,
-        location: Option<Point<f32, Points>>,
+        location: Option<Point<f32, Scaled>>,
         area: &ContentArea,
     ) {
         <Self as WidgetRasterizer<R>>::mouse_up(
@@ -539,14 +539,14 @@ pub enum EventStatus {
 
 #[derive(Default, Debug, Clone)]
 pub struct ContentSize {
-    pub content: Size<f32, Points>,
+    pub content: Size<f32, Scaled>,
     pub padding: Padding,
     pub border: Border,
 }
 
 impl ContentSize {
     #[must_use]
-    pub fn total_size(&self) -> Size<f32, Points> {
+    pub fn total_size(&self) -> Size<f32, Scaled> {
         self.content + self.padding.minimum_size() + self.border.minimum_size()
     }
 }
@@ -554,12 +554,12 @@ impl ContentSize {
 #[derive(Default, Debug, Clone)]
 #[must_use]
 pub struct ContentArea {
-    pub location: Point<f32, Points>,
+    pub location: Point<f32, Scaled>,
     pub size: ContentSize,
 }
 
 impl ContentArea {
-    pub fn sized(size: Size<f32, Points>) -> Self {
+    pub fn sized(size: Size<f32, Scaled>) -> Self {
         Self {
             location: Point::default(),
             size: ContentSize {
@@ -572,13 +572,13 @@ impl ContentArea {
 
     /// Returns the bounds of the content area.
     #[must_use]
-    pub fn content_bounds(&self) -> Rect<f32, Points> {
+    pub fn content_bounds(&self) -> Rect<f32, Scaled> {
         Rect::sized(self.location, self.size.content)
     }
 
     /// Returns the entire area including padding and border.
     #[must_use]
-    pub fn bounds(&self) -> Rect<f32, Points> {
+    pub fn bounds(&self) -> Rect<f32, Scaled> {
         Rect::sized(
             self.location
                 - Vector::new(
@@ -591,7 +591,7 @@ impl ContentArea {
         )
     }
 
-    pub fn translate(&self, by: Vector<f32, Points>) -> Self {
+    pub fn translate(&self, by: Vector<f32, Scaled>) -> Self {
         Self {
             location: self.location + by,
             size: self.size.clone(),

@@ -1,4 +1,4 @@
-use gooey_core::{figures::Figure, Callback, Context, Points, StyledWidget, Widget};
+use gooey_core::{figures::Figure, Callback, Context, Scaled, StyledWidget, Widget};
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;
@@ -6,7 +6,7 @@ mod rasterizer;
 #[cfg(feature = "frontend-browser")]
 mod browser;
 
-pub const LABEL_PADDING: Figure<f32, Points> = Figure::new(5.);
+pub const LABEL_PADDING: Figure<f32, Scaled> = Figure::new(5.);
 
 #[derive(Default, Debug)]
 pub struct Checkbox {

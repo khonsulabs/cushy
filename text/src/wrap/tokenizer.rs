@@ -1,24 +1,24 @@
 use std::sync::Arc;
 
-use gooey_core::{styles::Style, Points};
+use gooey_core::{styles::Style, Scaled};
 use gooey_renderer::{Renderer, TextMetrics};
 
 use crate::{prepared::PreparedSpan, Text};
 
 #[derive(Debug)]
 pub(crate) enum Token {
-    EndOfLine(TextMetrics<Points>),
+    EndOfLine(TextMetrics<Scaled>),
     Characters(PreparedSpan),
     Punctuation(PreparedSpan),
     Whitespace(PreparedSpan),
-    NoText(Option<TextMetrics<Points>>),
+    NoText(Option<TextMetrics<Scaled>>),
 }
 
 #[derive(Debug)]
 pub(crate) enum SpanGroup {
     Spans(Vec<PreparedSpan>),
     Whitespace(Vec<PreparedSpan>),
-    EndOfLine(TextMetrics<Points>),
+    EndOfLine(TextMetrics<Scaled>),
 }
 
 impl SpanGroup {

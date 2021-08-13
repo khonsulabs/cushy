@@ -1,7 +1,7 @@
 use gooey_core::{
     figures::{Point, Rect, Rectlike, Size, SizedRect, Vector},
     styles::ForegroundColor,
-    Points, Transmogrifier, TransmogrifierContext,
+    Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
     winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer,
@@ -31,16 +31,16 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for CheckboxTransmogrifier {
 
 #[derive(Clone, Default, Debug)]
 pub struct LayoutState {
-    content_size: Size<f32, Points>,
-    checkbox_size: Size<f32, Points>,
-    label_size: Size<f32, Points>,
+    content_size: Size<f32, Scaled>,
+    checkbox_size: Size<f32, Scaled>,
+    label_size: Size<f32, Scaled>,
     label: PreparedText,
 }
 
 fn calculate_layout<R: Renderer>(
     context: &TransmogrifierContext<'_, CheckboxTransmogrifier, Rasterizer<R>>,
     renderer: &R,
-    size: Size<f32, Points>,
+    size: Size<f32, Scaled>,
 ) -> LayoutState {
     // Determine the checkbox size by figuring out the line height
     let line_height = renderer
@@ -106,8 +106,8 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
-    ) -> Size<f32, Points> {
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled> {
         // Always render a rect
         context
             .frontend
@@ -131,7 +131,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
-        _location: Point<f32, Points>,
+        _location: Point<f32, Scaled>,
         _area: &ContentArea,
     ) -> EventStatus {
         if button == MouseButton::Left {
@@ -146,7 +146,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) {
         if area.bounds().contains(location) {
@@ -160,7 +160,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
-        location: Option<Point<f32, Points>>,
+        location: Option<Point<f32, Scaled>>,
         area: &ContentArea,
     ) {
         if location

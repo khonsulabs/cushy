@@ -1,7 +1,7 @@
 use gooey_core::{
     figures::{Figure, Point, Rectlike, Size},
     styles::{Style, TextColor},
-    Points, Transmogrifier, TransmogrifierContext,
+    Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
     winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer,
@@ -49,8 +49,8 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
-    ) -> Size<f32, Points> {
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled> {
         context
             .frontend
             .renderer()
@@ -69,7 +69,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
-        _location: Point<f32, Points>,
+        _location: Point<f32, Scaled>,
         _area: &ContentArea,
     ) -> EventStatus {
         if button == MouseButton::Left {
@@ -84,7 +84,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) {
         if area.bounds().contains(location) {
@@ -98,7 +98,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         _button: MouseButton,
-        location: Option<Point<f32, Points>>,
+        location: Option<Point<f32, Scaled>>,
         area: &ContentArea,
     ) {
         if location
@@ -124,7 +124,7 @@ fn wrap_text<R: Renderer>(
     label: &str,
     style: &Style,
     renderer: &R,
-    width: Figure<f32, Points>,
+    width: Figure<f32, Scaled>,
 ) -> PreparedText {
     let text = Text::span(label, style.clone());
     text.wrap(renderer, TextWrap::SingleLine { width }, Some(style))

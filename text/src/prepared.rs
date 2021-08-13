@@ -3,7 +3,7 @@ use std::sync::Arc;
 use gooey_core::{
     figures::{Figure, Point, Rect, Rectlike, Size, Vector},
     styles::{Alignment, ColorPair, FallbackComponent, Style, VerticalAlignment},
-    Points,
+    Scaled,
 };
 use gooey_renderer::{Renderer, TextMetrics};
 
@@ -17,7 +17,7 @@ pub struct PreparedText {
 impl PreparedText {
     /// Returns the total size this text will occupy when rendered.
     #[must_use]
-    pub fn size(&self) -> Size<f32, Points> {
+    pub fn size(&self) -> Size<f32, Scaled> {
         let (width, height) = self.lines.iter().map(PreparedLine::size).fold(
             (Figure::default(), Figure::default()),
             |(width, height), line_size| {
@@ -30,7 +30,7 @@ impl PreparedText {
         Size::from_figures(width, height)
     }
 
-    pub(crate) fn align(&mut self, align_width: Figure<f32, Points>) {
+    pub(crate) fn align(&mut self, align_width: Figure<f32, Scaled>) {
         let mut last_alignment = Alignment::Left;
         for line in &mut self.lines {
             if let Some(span) = line.spans.first() {
@@ -59,9 +59,9 @@ impl PreparedText {
     pub fn render<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         offset_baseline: bool,
-    ) -> Figure<f32, Points> {
+    ) -> Figure<f32, Scaled> {
         let mut current_line_baseline = Figure::new(0.);
 
         for (line_index, line) in self.lines.iter().enumerate() {
@@ -89,9 +89,9 @@ impl PreparedText {
     pub fn render_within<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        bounds: Rect<f32, Points>,
+        bounds: Rect<f32, Scaled>,
         style: &Style,
-    ) -> Figure<f32, Points> {
+    ) -> Figure<f32, Scaled> {
         let bounds = bounds.as_sized();
         let text_size = self.size();
         let origin_y = match style.get::<VerticalAlignment>() {
@@ -110,16 +110,16 @@ pub struct PreparedLine {
     /// The spans that comprise this line.
     pub spans: Vec<PreparedSpan>,
     /// The metrics of the line as a whole.
-    pub metrics: TextMetrics<Points>,
+    pub metrics: TextMetrics<Scaled>,
     /// The offset of this line for the alignment. When rendering, each span's
     /// location is offset by this amount to account for [`Alignment`].
-    pub alignment_offset: Figure<f32, Points>,
+    pub alignment_offset: Figure<f32, Scaled>,
 }
 
 impl PreparedLine {
     /// The size of the bounding box of this line.
     #[must_use]
-    pub fn size(&self) -> Size<f32, Points> {
+    pub fn size(&self) -> Size<f32, Scaled> {
         if self.spans.is_empty() {
             Size::from_figures(Figure::default(), self.height())
         } else {
@@ -135,7 +135,7 @@ impl PreparedLine {
 
     /// The height of the line.
     #[must_use]
-    pub fn height(&self) -> Figure<f32, Points> {
+    pub fn height(&self) -> Figure<f32, Scaled> {
         self.metrics.line_height()
     }
 }
@@ -153,7 +153,7 @@ impl PreparedSpan {
         style: Arc<Style>,
         text: String,
         offset: usize,
-        metrics: TextMetrics<Points>,
+        metrics: TextMetrics<Scaled>,
     ) -> Self {
         Self {
             data: Arc::new(PreparedSpanData {
@@ -166,18 +166,18 @@ impl PreparedSpan {
         }
     }
 
-    pub(crate) fn set_location(&mut self, location: Figure<f32, Points>) {
+    pub(crate) fn set_location(&mut self, location: Figure<f32, Scaled>) {
         Arc::make_mut(&mut self.data).location = location;
     }
 
     /// Returns the offset within the line of this text. Does not include alignment.
     #[must_use]
-    pub fn location(&self) -> Figure<f32, Points> {
+    pub fn location(&self) -> Figure<f32, Scaled> {
         self.data.location
     }
 
     /// Returns the metrics of this span.
-    pub fn metrics(&self) -> &TextMetrics<Points> {
+    pub fn metrics(&self) -> &TextMetrics<Scaled> {
         &self.data.metrics
     }
 
@@ -202,9 +202,9 @@ impl PreparedSpan {
 
 #[derive(Clone, Debug)]
 struct PreparedSpanData {
-    location: Figure<f32, Points>,
+    location: Figure<f32, Scaled>,
     offset: usize,
     style: Arc<Style>,
     text: String,
-    metrics: TextMetrics<Points>,
+    metrics: TextMetrics<Scaled>,
 }

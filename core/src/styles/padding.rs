@@ -4,12 +4,12 @@ use figures::Figure;
 use stylecs::StyleComponent;
 
 use super::Surround;
-use crate::Points;
+use crate::Scaled;
 
 /// Adds padding (spacing) around a widget.
 #[derive(Debug, Clone, Default)]
 #[must_use]
-pub struct Padding(pub Surround<Figure<f32, Points>>);
+pub struct Padding(pub Surround<Figure<f32, Scaled>>);
 
 impl StyleComponent for Padding {
     fn should_be_inherited(&self) -> bool {
@@ -38,14 +38,14 @@ impl Padding {
     }
 }
 
-impl From<Figure<f32, Points>> for Padding {
-    fn from(length: Figure<f32, Points>) -> Self {
+impl From<Figure<f32, Scaled>> for Padding {
+    fn from(length: Figure<f32, Scaled>) -> Self {
         Self(Surround::from(Some(length)))
     }
 }
 
 impl Deref for Padding {
-    type Target = Surround<Figure<f32, Points>>;
+    type Target = Surround<Figure<f32, Scaled>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0

@@ -1,7 +1,7 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 use gooey_core::{
-    styles::Surround, Frontend, Key, KeyedStorage, Points, RelatedStorage, StyledWidget, Widget,
+    styles::Surround, Frontend, Key, KeyedStorage, RelatedStorage, Scaled, StyledWidget, Widget,
     WidgetRef, WidgetRegistration, WidgetStorage,
 };
 
@@ -49,7 +49,7 @@ impl<B: Behavior> Content<B> for Container {
 pub struct Builder<K: Key, S: KeyedStorage<K>> {
     storage: S,
     child: Option<WidgetRegistration>,
-    padding: Surround<Points>,
+    padding: Surround<Scaled>,
     _phantom: PhantomData<K>,
 }
 

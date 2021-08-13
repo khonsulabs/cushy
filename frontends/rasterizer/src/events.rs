@@ -1,7 +1,7 @@
 use gooey_core::{
     figures::{Point, Scale},
     styles::SystemTheme,
-    Pixels, Points,
+    Pixels, Scaled,
 };
 use winit::event::{
     ElementState, ModifiersState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase,
@@ -24,7 +24,7 @@ pub enum InputEvent {
     },
     /// Mouse cursor event
     MouseMoved {
-        position: Option<Point<f32, Points>>,
+        position: Option<Point<f32, Scaled>>,
     },
     /// Mouse wheel event
     MouseWheel {
@@ -46,7 +46,7 @@ pub enum WindowEvent {
 impl WindowEvent {
     pub fn from_winit_event(
         value: WinitWindowEvent<'_>,
-        scale: Scale<f32, Points, Pixels>,
+        scale: Scale<f32, Scaled, Pixels>,
     ) -> Result<Self, WinitWindowEvent<'_>> {
         match value {
             WinitWindowEvent::ReceivedCharacter(c) => Ok(Self::ReceiveCharacter(c)),

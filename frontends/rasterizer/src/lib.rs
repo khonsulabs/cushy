@@ -28,7 +28,7 @@ use gooey_core::{
         style_sheet::{self},
         Style, SystemTheme,
     },
-    AnyTransmogrifierContext, Callback, Gooey, Points, TransmogrifierContext, WidgetId,
+    AnyTransmogrifierContext, Callback, Gooey, Scaled, TransmogrifierContext, WidgetId,
 };
 use image::{ImageFormat, RgbaImage};
 use winit::event::{
@@ -188,7 +188,7 @@ impl<R: Renderer> Rasterizer<R> {
         });
     }
 
-    pub fn clipped_to(&self, clip: Rect<f32, Points>) -> Option<Self> {
+    pub fn clipped_to(&self, clip: Rect<f32, Scaled>) -> Option<Self> {
         self.renderer().map(|renderer| Self {
             ui: self.ui.clone(),
             state: self.state.clone(),
@@ -231,7 +231,7 @@ impl<R: Renderer> Rasterizer<R> {
         self.state.set_system_theme(theme);
     }
 
-    fn handle_cursor_moved(&self, position: Option<Point<f32, Points>>) -> EventResult {
+    fn handle_cursor_moved(&self, position: Option<Point<f32, Scaled>>) -> EventResult {
         self.state.set_last_mouse_position(position);
         self.invoke_drag_events(position);
         if let Some(position) = position {
@@ -244,7 +244,7 @@ impl<R: Renderer> Rasterizer<R> {
     }
 
     #[allow(clippy::unused_self)] // TODO needs implementing
-    fn invoke_drag_events(&self, _position: Option<Point<f32, Points>>) {}
+    fn invoke_drag_events(&self, _position: Option<Point<f32, Scaled>>) {}
 
     #[allow(clippy::unused_self)] // TODO needs implementing
     fn handle_keyboard_input(
@@ -256,7 +256,7 @@ impl<R: Renderer> Rasterizer<R> {
         EventResult::ignored()
     }
 
-    fn update_hover(&self, position: Point<f32, Points>) -> EventResult {
+    fn update_hover(&self, position: Point<f32, Scaled>) -> EventResult {
         let new_hover = self
             .state
             .widgets_under_point(position)

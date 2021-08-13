@@ -26,9 +26,9 @@
 #![cfg_attr(doc, warn(rustdoc::all))]
 
 use gooey_core::{
-    figures::{Point, Rect, Rectlike, Vectorlike},
+    figures::{DisplayScale, Displayable, Point, Rect, Rectlike, Vectorlike},
     styles::SystemTheme,
-    Pixels, Points,
+    Pixels, Scaled,
 };
 use gooey_rasterizer::ImageExt;
 use gooey_renderer::{Renderer, StrokeOptions, TextMetrics, TextOptions};
@@ -70,7 +70,7 @@ impl Kludgine {
         )
     }
 
-    fn stroke_shape(&self, shape: Shape<Points>, options: &StrokeOptions) {
+    fn stroke_shape(&self, shape: Shape<Scaled>, options: &StrokeOptions) {
         shape
             .cast_unit()
             .stroke(
@@ -94,33 +94,33 @@ impl Renderer for Kludgine {
         }
     }
 
-    fn size(&self) -> gooey_core::figures::Size<f32, Points> {
+    fn size(&self) -> gooey_core::figures::Size<f32, Scaled> {
         self.target.clip.map_or_else(
             || self.target.size(),
-            |c| c.size.cast::<f32>() / self.scale(),
+            |c| c.size.cast::<f32>().to_scaled(&self.scale()),
         )
     }
 
-    fn clip_bounds(&self) -> Rect<f32, Points> {
+    fn clip_bounds(&self) -> Rect<f32, Scaled> {
         Rect::sized(
             self.target
                 .offset
                 .unwrap_or_default()
                 .to_point()
                 .cast_unit::<Pixels>()
-                / self.scale(),
+                .to_scaled(&self.scale()),
             self.size(),
         )
     }
 
-    fn clip_to(&self, bounds: Rect<f32, Points>) -> Self {
+    fn clip_to(&self, bounds: Rect<f32, Scaled>) -> Self {
         // Kludgine's clipping is scene-relative, but the bounds in this function is
         // relative to the current rendering location.
         let bounds = bounds.as_sized();
         let mut scene_relative_bounds = bounds;
         if let Some(offset) = self.target.offset {
-            scene_relative_bounds =
-                scene_relative_bounds.translate(offset.cast_unit::<Pixels>() / self.scale());
+            scene_relative_bounds = scene_relative_bounds
+                .translate(offset.cast_unit::<Pixels>().to_scaled(&self.scale()));
         }
 
         if scene_relative_bounds.origin.x < 0. {
@@ -140,42 +140,43 @@ impl Renderer for Kludgine {
             scene_relative_bounds.size.width = 0.;
         }
 
-        let scene_relative_bounds = (scene_relative_bounds * self.scale())
+        let scene_relative_bounds = (scene_relative_bounds.to_pixels(&self.scale()))
             .round_out()
             .cast::<u32>();
 
         Self::from(
             self.target
                 .clipped_to(scene_relative_bounds)
-                .offset_by(bounds.origin.to_vector() * self.scale()),
+                .offset_by(bounds.origin.to_vector().to_pixels(&self.scale())),
         )
     }
 
-    fn scale(&self) -> Scale<f32, Points, gooey_core::Pixels> {
-        Scale::new(self.target.scale_factor().get())
+    fn scale(&self) -> DisplayScale<f32> {
+        *self.target.scale()
     }
 
-    fn render_text(&self, text: &str, baseline_origin: Point<f32, Points>, options: &TextOptions) {
+    fn render_text(&self, text: &str, baseline_origin: Point<f32, Scaled>, options: &TextOptions) {
         self.prepare_text(text, options)
             .render_baseline_at(&self.target, baseline_origin.cast_unit())
             .unwrap();
     }
 
-    fn measure_text(&self, text: &str, options: &TextOptions) -> TextMetrics<Points> {
+    fn measure_text(&self, text: &str, options: &TextOptions) -> TextMetrics<Scaled> {
         let text = self.prepare_text(text, options);
         TextMetrics {
             width: text.width.cast_unit::<Pixels>(),
             ascent: Figure::new(text.metrics.ascent),
             descent: Figure::new(text.metrics.descent),
             line_gap: Figure::new(text.metrics.line_gap),
-        } / self.scale()
+        }
+        .to_scaled(&self.scale())
     }
 
-    fn stroke_rect(&self, rect: &Rect<f32, Points>, options: &StrokeOptions) {
+    fn stroke_rect(&self, rect: &Rect<f32, Scaled>, options: &StrokeOptions) {
         self.stroke_shape(Shape::rect(rect.as_sized()), options);
     }
 
-    fn fill_rect(&self, rect: &Rect<f32, Points>, color: gooey_core::styles::Color) {
+    fn fill_rect(&self, rect: &Rect<f32, Scaled>, color: gooey_core::styles::Color) {
         Shape::rect(rect.as_sized())
             .fill(Fill::new(Color::new(
                 color.red,
@@ -188,14 +189,14 @@ impl Renderer for Kludgine {
 
     fn stroke_line(
         &self,
-        point_a: Point<f32, Points>,
-        point_b: Point<f32, Points>,
+        point_a: Point<f32, Scaled>,
+        point_b: Point<f32, Scaled>,
         options: &StrokeOptions,
     ) {
         self.stroke_shape(Shape::polygon(vec![point_a, point_b]), options);
     }
 
-    fn draw_image(&self, image: &gooey_core::assets::Image, location: Point<f32, Points>) {
+    fn draw_image(&self, image: &gooey_core::assets::Image, location: Point<f32, Scaled>) {
         if let Some(image) = image.as_rgba_image() {
             let texture = Texture::new(image);
             let sprite = SpriteSource::entire_texture(texture);

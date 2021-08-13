@@ -4,9 +4,9 @@ use std::{
 };
 
 use gooey_core::{
-    figures::{Figure, One, Point, Rect, Rectlike, Scale, Size, SizedRect},
+    figures::{DisplayScale, Displayable, Figure, One, Point, Rect, Rectlike, Size, SizedRect},
     styles::{Color, Style, TextColor},
-    Points, Transmogrifier, TransmogrifierContext,
+    Pixels, Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
     winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer,
@@ -63,7 +63,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             let scale = renderer.scale();
             let bounds = content_area.content_bounds().as_sized();
 
-            let mut y = Figure::<f32, Points>::default();
+            let mut y = Figure::<f32, Scaled>::default();
             let prepared = context
                 .state
                 .prepared_text(renderer, content_area.size.content);
@@ -143,7 +143,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                         &Rect::sized(
                             bounds.origin,
                             Size::from_figures(
-                                Figure::new(1.) / scale,
+                                Figure::<f32, Pixels>::new(1.).to_scaled(&scale),
                                 Figure::new(cursor_location.size.height),
                             ),
                         ),
@@ -157,8 +157,8 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
-    ) -> Size<f32, Points> {
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled> {
         context
             .frontend
             .renderer()
@@ -177,7 +177,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) -> EventStatus {
         if button == MouseButton::Left {
@@ -205,7 +205,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         button: MouseButton,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
         area: &ContentArea,
     ) {
         if button == MouseButton::Left {
@@ -233,7 +233,7 @@ fn wrap_text<R: Renderer>(
     label: &str,
     style: &Style,
     renderer: &R,
-    width: Figure<f32, Points>,
+    width: Figure<f32, Scaled>,
 ) -> PreparedText {
     Text::span(label, style.clone()).wrap(
         renderer,
@@ -343,7 +343,7 @@ impl<R: Renderer> InputState<R> {
         copied_paragraphs.join("\n")
     }
 
-    fn prepared_text(&self, renderer: &R, constraints: Size<f32, Points>) -> Vec<PreparedText> {
+    fn prepared_text(&self, renderer: &R, constraints: Size<f32, Scaled>) -> Vec<PreparedText> {
         self.text.prepare(
             renderer,
             TextWrap::SingleLine {
@@ -354,17 +354,17 @@ impl<R: Renderer> InputState<R> {
 
     fn position_for_location(
         context: &mut InputTransmogrifierContext<'_, R>,
-        location: Point<f32, Points>,
+        location: Point<f32, Scaled>,
     ) -> Option<RichTextPosition> {
         if let Some(prepared) = &context.state.prepared {
-            let mut y = Figure::<f32, Points>::default();
+            let mut y = Figure::<f32, Scaled>::default();
             let scale = context
                 .frontend
                 .renderer()
-                .map_or_else(Scale::one, |r| r.scale());
+                .map_or_else(DisplayScale::one, |r| r.scale());
             for (paragraph_index, paragraph) in prepared.iter().enumerate() {
                 for line in &paragraph.lines {
-                    let line_bottom = y + Figure::new(line.size().height) / scale;
+                    let line_bottom = y + line.size().height().to_scaled(&scale);
                     if location.y < line_bottom.get() {
                         // Click location was within this line
                         for span in &line.spans {
@@ -410,11 +410,11 @@ impl<R: Renderer> InputState<R> {
         &self,
         renderer: &R,
         position: RichTextPosition,
-    ) -> Option<SizedRect<f32, Points>> {
+    ) -> Option<SizedRect<f32, Scaled>> {
         let mut last_location = None;
         if let Some(prepared) = &self.prepared {
             let prepared = prepared.get(position.paragraph)?;
-            let mut line_top = Figure::<f32, Points>::default();
+            let mut line_top = Figure::<f32, Scaled>::default();
             for line in &prepared.lines {
                 let line_height = line.height();
                 for span in &line.spans {

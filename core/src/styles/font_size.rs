@@ -1,11 +1,11 @@
 use figures::Figure;
 use stylecs::StyleComponent;
 
-use crate::Points;
+use crate::Scaled;
 
 /// The font size for drawing text.
 #[derive(Debug, Copy, Clone)]
-pub struct FontSize(pub Figure<f32, Points>);
+pub struct FontSize(pub Figure<f32, Scaled>);
 
 impl Default for FontSize {
     fn default() -> Self {
@@ -28,7 +28,7 @@ impl FontSize {
 
     /// Returns the font size as a type-safe measurement.
     #[must_use]
-    pub const fn length(self) -> Figure<f32, Points> {
+    pub const fn length(self) -> Figure<f32, Scaled> {
         self.0
     }
 }

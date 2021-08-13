@@ -1,7 +1,7 @@
 use gooey_core::{
     figures::{Figure, Size},
     styles::Style,
-    Points, Transmogrifier, TransmogrifierContext,
+    Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
 use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
@@ -47,8 +47,8 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size<Option<f32>, Points>,
-    ) -> Size<f32, Points> {
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled> {
         context
             .frontend
             .renderer()
@@ -68,7 +68,7 @@ fn wrap_text<R: Renderer>(
     label: &Text,
     style: &Style,
     renderer: &R,
-    width: Figure<f32, Points>,
+    width: Figure<f32, Scaled>,
 ) -> PreparedText {
     label.wrap(
         renderer,

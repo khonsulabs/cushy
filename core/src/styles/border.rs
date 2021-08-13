@@ -4,7 +4,7 @@ use figures::Figure;
 use stylecs::StyleComponent;
 
 use super::{Color, Surround};
-use crate::Points;
+use crate::Scaled;
 
 /// A border around a widget.
 #[derive(Default, Debug, Clone)]
@@ -28,7 +28,7 @@ impl Border {
 #[must_use]
 pub struct BorderOptions {
     /// The width of the border.
-    pub width: Figure<f32, Points>,
+    pub width: Figure<f32, Scaled>,
     /// The color of the border.
     pub color: Color,
 }
@@ -43,8 +43,8 @@ impl BorderOptions {
     }
 }
 
-impl From<Figure<f32, Points>> for BorderOptions {
-    fn from(width: Figure<f32, Points>) -> Self {
+impl From<Figure<f32, Scaled>> for BorderOptions {
+    fn from(width: Figure<f32, Scaled>) -> Self {
         Self {
             width,
             color: Color::default(),
@@ -52,7 +52,7 @@ impl From<Figure<f32, Points>> for BorderOptions {
     }
 }
 
-impl From<BorderOptions> for Figure<f32, Points> {
+impl From<BorderOptions> for Figure<f32, Scaled> {
     fn from(opts: BorderOptions) -> Self {
         opts.width
     }
