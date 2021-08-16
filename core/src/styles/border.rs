@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use figures::Figure;
 use stylecs::StyleComponent;
 
-use super::{Color, Surround};
+use super::{ColorPair, Surround};
 use crate::Scaled;
 
 /// A border around a widget.
@@ -30,12 +30,12 @@ pub struct BorderOptions {
     /// The width of the border.
     pub width: Figure<f32, Scaled>,
     /// The color of the border.
-    pub color: Color,
+    pub color: ColorPair,
 }
 
 impl BorderOptions {
     /// Returns a new border with `width` and `color`.
-    pub const fn new(width: f32, color: Color) -> Self {
+    pub const fn new(width: f32, color: ColorPair) -> Self {
         Self {
             width: Figure::new(width),
             color,
@@ -47,7 +47,7 @@ impl From<Figure<f32, Scaled>> for BorderOptions {
     fn from(width: Figure<f32, Scaled>) -> Self {
         Self {
             width,
-            color: Color::default(),
+            color: ColorPair::default(),
         }
     }
 }

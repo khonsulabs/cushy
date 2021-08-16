@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 use gooey_core::{
     figures::{Figure, Point, Rect, Rectlike, Size, Vector},
@@ -61,6 +61,7 @@ impl PreparedText {
         renderer: &R,
         location: Point<f32, Scaled>,
         offset_baseline: bool,
+        context_style: Option<&Style>,
     ) -> Figure<f32, Scaled> {
         let mut current_line_baseline = Figure::new(0.);
 
@@ -71,10 +72,14 @@ impl PreparedText {
             let cursor_position =
                 location + Vector::from_figures(line.alignment_offset, current_line_baseline);
             for span in &line.spans {
+                let style = context_style.map_or_else(
+                    || Cow::Borrowed(span.data.style.as_ref()),
+                    |style| Cow::Owned(span.data.style.merge_with(style, false)),
+                );
                 renderer.render_text_with_style::<F>(
                     &span.data.text,
                     cursor_position + Vector::from_figures(span.location(), Figure::default()),
-                    &span.data.style,
+                    &style,
                 );
             }
             current_line_baseline += line.metrics.line_gap - line.metrics.descent;
@@ -100,7 +105,12 @@ impl PreparedText {
             Some(VerticalAlignment::Top) | None => 0.,
         };
 
-        self.render::<F, R>(renderer, bounds.origin + Vector::new(0., origin_y), true)
+        self.render::<F, R>(
+            renderer,
+            bounds.origin + Vector::new(0., origin_y),
+            true,
+            Some(style),
+        )
     }
 }
 
@@ -153,12 +163,14 @@ impl PreparedSpan {
         style: Arc<Style>,
         text: String,
         offset: usize,
+        length: usize,
         metrics: TextMetrics<Scaled>,
     ) -> Self {
         Self {
             data: Arc::new(PreparedSpanData {
                 location: Figure::default(),
                 offset,
+                length,
                 style,
                 text,
                 metrics,
@@ -198,12 +210,25 @@ impl PreparedSpan {
     pub fn offset(&self) -> usize {
         self.data.offset
     }
+
+    /// Returns the length, in characters, of this span.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.data.length
+    }
+
+    /// Returns the length, in characters, of this span.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data.length == 0
+    }
 }
 
 #[derive(Clone, Debug)]
 struct PreparedSpanData {
     location: Figure<f32, Scaled>,
     offset: usize,
+    length: usize,
     style: Arc<Style>,
     text: String,
     metrics: TextMetrics<Scaled>,

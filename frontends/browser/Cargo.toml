@@ -44,3 +44,6 @@ log = "0.4.6"
 wasm-logger = "0.2.0"
 once_cell = "1"
 parking_lot = "0.11"
+
+[target.'cfg(target_arch="wasm32")'.dependencies]
+parking_lot = { version = "0.11", features = ["wasm-bindgen"] }

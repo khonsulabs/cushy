@@ -7,7 +7,7 @@ use gooey_core::{
     TransmogrifierContext, TransmogrifierState, Widget, WidgetRegistration,
 };
 use gooey_renderer::Renderer;
-use winit::event::MouseButton;
+use winit::event::{ElementState, MouseButton, ScanCode, VirtualKeyCode};
 
 use crate::Rasterizer;
 
@@ -122,7 +122,12 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         if let Some(width) = top_width {
             renderer.fill_rect(
                 &Rect::sized(bounds.origin, Size::new(bounds.size.width, width.get())),
-                border.top.as_ref().unwrap().color,
+                border
+                    .top
+                    .as_ref()
+                    .unwrap()
+                    .color
+                    .themed_color(renderer.theme()),
             );
         }
         if let Some(width) = bottom_width {
@@ -131,7 +136,12 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                     Point::new(0., bounds.size.height - width.get()),
                     Size::new(bounds.size.width, width.get()),
                 ),
-                border.bottom.as_ref().unwrap().color,
+                border
+                    .bottom
+                    .as_ref()
+                    .unwrap()
+                    .color
+                    .themed_color(renderer.theme()),
             );
         }
 
@@ -146,7 +156,12 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                         bounds.size.height - bottom_width.unwrap_or_default().get(),
                     ),
                 ),
-                border.left.as_ref().unwrap().color,
+                border
+                    .left
+                    .as_ref()
+                    .unwrap()
+                    .color
+                    .themed_color(renderer.theme()),
             );
         }
 
@@ -162,7 +177,12 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                         bounds.size.height - bottom_width.unwrap_or_default().get(),
                     ),
                 ),
-                border.left.as_ref().unwrap().color,
+                border
+                    .left
+                    .as_ref()
+                    .unwrap()
+                    .color
+                    .themed_color(renderer.theme()),
             );
         }
     }
@@ -267,6 +287,26 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         area: &ContentArea,
     ) {
     }
+
+    #[allow(unused_variables)]
+    fn keyboard(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        scancode: ScanCode,
+        keycode: Option<VirtualKeyCode>,
+        state: ElementState,
+    ) -> EventStatus {
+        EventStatus::Ignored
+    }
+
+    #[allow(unused_variables)]
+    fn receive_character(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        character: char,
+    ) -> EventStatus {
+        EventStatus::Ignored
+    }
 }
 
 pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + Send + Sync {
@@ -338,6 +378,19 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         location: Option<Point<f32, Scaled>>,
         area: &ContentArea,
     );
+    fn keyboard(
+        &self,
+        context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
+        scancode: ScanCode,
+        keycode: Option<VirtualKeyCode>,
+        state: ElementState,
+    ) -> EventStatus;
+
+    fn receive_character(
+        &self,
+        context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
+        character: char,
+    ) -> EventStatus;
 }
 
 impl<T, R> AnyWidgetRasterizer<R> for T
@@ -487,6 +540,34 @@ where
             location,
             area,
         );
+    }
+
+    fn keyboard(
+        &self,
+        context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
+        scancode: ScanCode,
+        keycode: Option<VirtualKeyCode>,
+        state: ElementState,
+    ) -> EventStatus {
+        <Self as WidgetRasterizer<R>>::keyboard(
+            self,
+            &mut TransmogrifierContext::try_from(context).unwrap(),
+            scancode,
+            keycode,
+            state,
+        )
+    }
+
+    fn receive_character(
+        &self,
+        context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
+        character: char,
+    ) -> EventStatus {
+        <Self as WidgetRasterizer<R>>::receive_character(
+            self,
+            &mut TransmogrifierContext::try_from(context).unwrap(),
+            character,
+        )
     }
 }
 

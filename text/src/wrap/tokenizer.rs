@@ -51,6 +51,7 @@ struct TokenizerState {
     style: Arc<Style>,
     character_position: usize,
     text: String,
+    text_start: Option<usize>,
     lexer_state: TokenizerStatus,
 }
 
@@ -61,6 +62,7 @@ impl TokenizerState {
             character_position: 0,
             lexer_state: TokenizerStatus::AtSpanStart,
             text: String::default(),
+            text_start: None,
         }
     }
 
@@ -69,10 +71,12 @@ impl TokenizerState {
             None
         } else {
             let text = self.text.clone();
-            self.text.clear();
             let metrics = renderer.measure_text_with_style(&text, &self.style);
-            let span =
-                PreparedSpan::new(self.style.clone(), text, self.character_position, metrics);
+            let offset = self.text_start.unwrap_or(self.character_position);
+            let length = self.character_position - offset;
+            let span = PreparedSpan::new(self.style.clone(), text, offset, length, metrics);
+            self.text_start = None;
+            self.text.clear();
 
             let token = match self.lexer_state {
                 TokenizerStatus::AtSpanStart => unreachable!(),
@@ -132,6 +136,9 @@ impl Tokenizer {
                     state.lexer_state = new_lexer_state;
 
                     state.text.push(c);
+                    if state.text_start.is_none() {
+                        state.text_start = Some(state.character_position);
+                    }
                 }
 
                 state.character_position += 1;

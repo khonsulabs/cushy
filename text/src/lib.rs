@@ -138,7 +138,7 @@ impl Text {
         context_style: Option<&Style>,
     ) {
         let prepared_text = self.wrap(renderer, wrapping, context_style);
-        prepared_text.render::<F, R>(renderer, location, offset_baseline);
+        prepared_text.render::<F, R>(renderer, location, offset_baseline, context_style);
     }
 
     /// Removes text in `range`. Empty spans will be removed.

@@ -1,16 +1,19 @@
 use std::{
+    fmt::Debug,
     marker::PhantomData,
     time::{Duration, Instant},
 };
 
+use arboard::Clipboard;
 use gooey_core::{
-    figures::{DisplayScale, Displayable, Figure, One, Point, Rect, Rectlike, Size, SizedRect},
+    figures::{Displayable, Figure, Point, Rect, Rectlike, Size, SizedRect},
     styles::{Color, Style, TextColor},
     Pixels, Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
-    winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer,
-    TransmogrifierContextExt, WidgetRasterizer,
+    winit::event::{ElementState, MouseButton, ScanCode, VirtualKeyCode},
+    ContentArea, EventStatus, ModifiersStateExt, Rasterizer, Renderer, TransmogrifierContextExt,
+    WidgetRasterizer,
 };
 use gooey_text::{
     prepared::PreparedText,
@@ -27,6 +30,18 @@ const CURSOR_BLINK_MS: u64 = 500;
 impl<R: Renderer> Transmogrifier<Rasterizer<R>> for InputTransmogrifier {
     type State = InputState<R>;
     type Widget = Input;
+
+    fn initialize(
+        &self,
+        widget: &mut Self::Widget,
+        _reference: &gooey_core::WidgetRef<Self::Widget>,
+        _frontend: &Rasterizer<R>,
+    ) -> Self::State {
+        InputState {
+            text: RichText::from(widget.value.as_str()),
+            ..InputState::default()
+        }
+    }
 
     fn receive_command(
         &self,
@@ -59,6 +74,10 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         content_area: &ContentArea,
     ) {
+        if let Some(duration) = context.state.cursor.blink_state.update() {
+            context.frontend.schedule_redraw_in(duration);
+        }
+
         if let Some(renderer) = context.frontend.renderer() {
             let scale = renderer.scale();
             let bounds = content_area.content_bounds().as_sized();
@@ -72,6 +91,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                     renderer,
                     Point::new(bounds.origin.x, bounds.origin.y + y.get()),
                     true,
+                    Some(context.style),
                 );
             }
             context.state.prepared = Some(prepared);
@@ -141,7 +161,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                     // No selection, draw a caret
                     renderer.fill_rect(
                         &Rect::sized(
-                            bounds.origin,
+                            bounds.origin + cursor_location.origin,
                             Size::from_figures(
                                 Figure::<f32, Pixels>::new(1.).to_scaled(&scale),
                                 Figure::new(cursor_location.size.height),
@@ -227,6 +247,110 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             }
         }
     }
+
+    fn receive_character(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        character: char,
+    ) -> EventStatus {
+        match character {
+            '\x08' => {
+                if context.state.cursor.end.is_none() && context.state.cursor.start.offset > 0 {
+                    // Select the previous character
+                    context.state.cursor.end = Some(context.state.cursor.start);
+                    context.state.cursor.start = context
+                        .state
+                        .text
+                        .position_before(context.state.cursor.start);
+                }
+                InputState::replace_selection("", context);
+                EventStatus::Processed
+            }
+            character => {
+                if !character.is_control() {
+                    InputState::replace_selection(&character.to_string(), context);
+                    EventStatus::Processed
+                } else {
+                    EventStatus::Ignored
+                }
+            }
+        }
+    }
+
+    fn keyboard(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        _scancode: ScanCode,
+        keycode: Option<VirtualKeyCode>,
+        state: ElementState,
+    ) -> EventStatus {
+        if let Some(key) = keycode {
+            if matches!(state, ElementState::Pressed) {
+                // TODO handle modifiers
+                let handled = match key {
+                    VirtualKeyCode::Left => {
+                        InputState::set_selection(
+                            context,
+                            context
+                                .state
+                                .text
+                                .position_before(context.state.cursor.selection_start()),
+                            None,
+                        );
+                        true
+                    }
+                    VirtualKeyCode::Right => {
+                        InputState::set_selection(
+                            context,
+                            context
+                                .state
+                                .text
+                                .position_after(context.state.cursor.selection_start()),
+                            None,
+                        );
+                        true
+                    }
+                    VirtualKeyCode::A => {
+                        if context.frontend.keyboard_modifiers().primary() {
+                            InputState::set_selection(
+                                context,
+                                RichTextPosition::default(),
+                                Some(context.state.text.end()),
+                            );
+                        }
+                        true
+                    }
+                    VirtualKeyCode::V => {
+                        if context.frontend.keyboard_modifiers().primary() {
+                            InputState::paste(context);
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    VirtualKeyCode::X | VirtualKeyCode::C => {
+                        if context.frontend.keyboard_modifiers().primary()
+                            && InputState::copy(context)
+                            && key == VirtualKeyCode::X
+                        {
+                            InputState::replace_selection("", context);
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    // VirtualKeyCode::Up | VirtualKeyCode::Down |
+                    _ => false,
+                };
+                if handled {
+                    context.state.cursor.blink_state.force_on();
+                    context.frontend.set_needs_redraw();
+                    return EventStatus::Processed;
+                }
+            }
+        }
+        EventStatus::Ignored
+    }
 }
 
 fn wrap_text<R: Renderer>(
@@ -244,17 +368,28 @@ fn wrap_text<R: Renderer>(
     )
 }
 
-#[derive(Debug)]
 pub struct InputState<R> {
     text: RichText,
     cursor: Cursor,
     prepared: Option<Vec<PreparedText>>,
+    clipboard: Option<Clipboard>,
     _renderer: PhantomData<R>,
+}
+
+impl<R: Renderer> Debug for InputState<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InputState")
+            .field("text", &self.text)
+            .field("cursor", &self.cursor)
+            .field("prepared", &self.prepared)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<R: Renderer> Default for InputState<R> {
     fn default() -> Self {
         Self {
+            clipboard: Clipboard::new().ok(),
             text: RichText::default(),
             cursor: Cursor::default(),
             prepared: None,
@@ -267,42 +402,29 @@ type InputTransmogrifierContext<'a, R> =
     TransmogrifierContext<'a, InputTransmogrifier, Rasterizer<R>>;
 
 impl<R: Renderer> InputState<R> {
-    // /// pastes text from the clipboard into the field
-    // ///
-    // /// If feature `clipboard` isn't enabled, this function will return Ok(()).
-    // #[allow(unused_variables)] // when clipboard is disabled, `context` is unused
-    // async fn paste(&mut self, context: &mut Context) -> KludgineResult<()> {
-    //     #[cfg(feature = "clipboard")]
-    //     {
-    //         let mut clipboard = arboard::Clipboard::new()?;
+    fn paste(context: &mut InputTransmogrifierContext<'_, R>) {
+        if let Some(clipboard) = &mut context.state.clipboard {
+            // Convert Result to Option to get rid of the Box<dyn Error> before the await
+            let pasted = clipboard.get_text().ok();
+            if let Some(pasted) = pasted {
+                Self::replace_selection(&pasted, context);
+            }
+        }
+    }
 
-    //         // Convert Result to Option to get rid of the Box<dyn Error> before the await
-    //         let pasted = clipboard.get_text().ok();
-    //         if let Some(pasted) = pasted {
-    //             self.replace_selection(&pasted, context);
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
-
-    // /// copies the selected text to the clipboard.
-    // ///
-    // /// Returns whether text was successfully written to the clipboard. If
-    // /// feature `clipboard` isn't enabled, this function will always return
-    // /// Ok(false)
-    // async fn copy(&mut self) -> KludgineResult<bool> {
-    //     #[cfg(feature = "clipboard")]
-    //     {
-    //         let mut clipboard = arboard::Clipboard::new()?;
-
-    //         let selected = self.selected_string();
-
-    //         clipboard.set_text(selected)?;
-    //     }
-
-    //     return Ok(true);
-    // }
+    /// copies the selected text to the clipboard.
+    ///
+    /// Returns whether text was successfully written to the clipboard. If
+    /// feature `clipboard` isn't enabled, this function will always return
+    /// Ok(false)
+    fn copy(context: &mut InputTransmogrifierContext<'_, R>) -> bool {
+        let selected = context.state.selected_string();
+        context
+            .state
+            .clipboard
+            .as_mut()
+            .map_or(false, |clipboard| clipboard.set_text(selected).is_ok())
+    }
 
     pub fn replace_selection(replacement: &str, context: &mut InputTransmogrifierContext<'_, R>) {
         if context.state.cursor.end.is_some() {
@@ -335,7 +457,13 @@ impl<R: Renderer> InputState<R> {
             |paragraph, relative_range| {
                 let mut span_strings = Vec::new();
                 paragraph.for_each_in_range(relative_range, |span, relative_range| {
-                    span_strings.push(span.text()[relative_range].to_string());
+                    span_strings.push(
+                        span.text()
+                            .chars()
+                            .skip(relative_range.start)
+                            .take(relative_range.end - relative_range.start)
+                            .collect::<String>(),
+                    );
                 });
                 copied_paragraphs.push(span_strings.join(""));
             },
@@ -356,36 +484,40 @@ impl<R: Renderer> InputState<R> {
         context: &mut InputTransmogrifierContext<'_, R>,
         location: Point<f32, Scaled>,
     ) -> Option<RichTextPosition> {
-        if let Some(prepared) = &context.state.prepared {
+        if let (Some(prepared), Some(renderer)) =
+            (&context.state.prepared, context.frontend.renderer())
+        {
             let mut y = Figure::<f32, Scaled>::default();
-            let scale = context
-                .frontend
-                .renderer()
-                .map_or_else(DisplayScale::one, |r| r.scale());
             for (paragraph_index, paragraph) in prepared.iter().enumerate() {
                 for line in &paragraph.lines {
-                    let line_bottom = y + line.size().height().to_scaled(&scale);
+                    let line_bottom = y + line.size().height();
                     if location.y < line_bottom.get() {
                         // Click location was within this line
                         for span in &line.spans {
                             let span_end = span.location() + span.metrics().width;
                             if !span.text().is_empty() && location.x < span_end.get() {
                                 // Click was within this span
-                                todo!()
-                                // let relative_pixels = (location.x() - x) * scale;
-                                // for info in span.data.glyphs.iter() {
-                                //     if relative_pixels <= info.location().x() + info.width() {
-                                //         return Some(RichTextPosition {
-                                //             paragraph: paragraph_index,
-                                //             offset: info.source_offset,
-                                //         });
-                                //     }
-                                // }
+                                let relative_pixels = location.x() - span.location();
+                                let mut partial = String::with_capacity(span.text().len());
+                                let mut span_position = Figure::<f32, Scaled>::default();
+                                for (index, ch) in span.text().chars().enumerate() {
+                                    partial.push(ch);
+                                    let width = renderer
+                                        .measure_text_with_style(&partial, span.style())
+                                        .width;
+                                    if relative_pixels <= span_position + width {
+                                        return Some(RichTextPosition {
+                                            paragraph: paragraph_index,
+                                            offset: span.offset() + index,
+                                        });
+                                    }
+                                }
+                                span_position += span.metrics().width;
 
-                                // return Some(RichTextPosition {
-                                //     paragraph: paragraph_index,
-                                //     offset: span.data.glyphs.last().unwrap().source_offset,
-                                // });
+                                return Some(RichTextPosition {
+                                    paragraph: paragraph_index,
+                                    offset: span.offset() + span.len(),
+                                });
                             }
                         }
                         // Didn't match a span, return the last character of the line
@@ -419,32 +551,33 @@ impl<R: Renderer> InputState<R> {
                 let line_height = line.height();
                 for span in &line.spans {
                     if !span.text().is_empty() {
-                        // TODO measure this subset of text.
-                        // let last_glyph = span.data.glyphs.last().unwrap();
-                        // if position.offset <= last_glyph.source_offset {
-                        //     // Return a box of the width of the last character with the start of the character at the origin
-                        //     for info in span.data.glyphs.iter() {
-                        //         if info.source_offset >= position.offset {
-                        //             return Some(SizedRect::new(
-                        //                 Point::from_figures(
-                        //                     (span.location.x() + info.location().x()) / scale,
-                        //                     line_top + span.location.y() / scale,
-                        //                 ),
-                        //                 Size::from_figures(info.width() / scale, line_height),
-                        //             ));
-                        //         }
-                        //     }
-                        // }
-                        // last_location = Some(SizedRect::new(
-                        //     Point::from_figures(
-                        //         (span.location()
-                        //             + last_glyph.location().x()
-                        //             + last_glyph.width())
-                        //             / scale,
-                        //         line_top + span.location.y() / scale,
-                        //     ),
-                        //     Size::from_figures(Default::default(), line_height),
-                        // ));
+                        let mut last_width = Figure::default();
+                        if position.offset >= span.offset()
+                            && position.offset < span.offset() + span.len()
+                        {
+                            let mut measured = String::with_capacity(span.text().len());
+                            for (offset, ch) in span.text().chars().enumerate() {
+                                measured.push(ch);
+                                let new_measurement =
+                                    renderer.measure_text_with_style(&measured, span.style());
+                                if position.offset <= span.offset() + offset {
+                                    return Some(SizedRect::new(
+                                        Point::from_figures(last_width + span.location(), line_top),
+                                        Size::from_figures(
+                                            new_measurement.width - last_width,
+                                            line_height,
+                                        ),
+                                    ));
+                                }
+                                last_width = new_measurement.width;
+                            }
+                            unreachable!();
+                        }
+                        // Set the last location a 0-width rect at the end of the span.
+                        last_location = Some(SizedRect::new(
+                            Point::from_figures(span.location() + span.metrics().width, line_top),
+                            Size::from_figures(Figure::default(), line_height),
+                        ));
                     }
                 }
                 line_top += line_height;

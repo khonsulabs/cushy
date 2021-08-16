@@ -30,10 +30,10 @@ pub use self::{frontend::*, gooey::*, widget::*};
 pub type Pixels = figures::Pixels;
 
 /// A unit aiming to represent the scaled resolution of the display the
-/// interface is being displayed on. The ratio between [`Pixels`] and `Points`
+/// interface is being displayed on. The ratio between [`Pixels`] and `Scaled`
 /// can vary based on many things, including the display configuration, the
 /// system user interface settings, and the browser's zoom level. Each
-/// [`Frontend`] will use its best available methods for translating `Points` to
+/// [`Frontend`] will use its best available methods for translating `Scaled` to
 /// [`Pixels`] in a way that is consistent with other applications.
 pub type Scaled = figures::Scaled;
 

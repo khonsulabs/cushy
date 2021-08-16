@@ -164,8 +164,10 @@ impl RichText {
         let data = self.data.lock();
         let next_offset = position.offset + 1;
         if next_offset > data.paragraphs[position.paragraph].len() {
-            if data.paragraphs.len() > position.paragraph + 1 {
-                todo!("Need to support multiple paragraphs")
+            let next_paragraph = position.paragraph + 1;
+            if next_paragraph < data.paragraphs.len() {
+                position.paragraph = next_paragraph;
+                position.offset = 0;
             }
         } else {
             position.offset = next_offset;
@@ -178,7 +180,9 @@ impl RichText {
     pub fn position_before(&self, mut position: RichTextPosition) -> RichTextPosition {
         if position.offset == 0 {
             if position.paragraph > 0 {
-                todo!("Need to support multiple paragraphs")
+                let data = self.data.lock();
+                position.paragraph -= 1;
+                position.offset = data.paragraphs[position.paragraph].len();
             }
         } else {
             position.offset -= 1;

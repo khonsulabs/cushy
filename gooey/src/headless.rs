@@ -43,34 +43,6 @@ impl<F: Frontend> Headless<F> {
 }
 
 impl<R: Renderer> Headless<Rasterizer<R>> {
-    /// Process an event. Only supported with a rasterizer frontend.
-    pub fn simulate_event(&mut self, event: WindowEvent) -> EventResult {
-        let result = self.frontend.handle_event(event);
-        self.frontend
-            .gooey()
-            .process_widget_messages(&self.frontend);
-        result
-    }
-
-    /// Sets the location of the cursor to `position`. Does not render any frames.
-    pub fn set_cursor(&mut self, position: Point<f32, Scaled>) {
-        self.simulate_event(WindowEvent::Input(InputEvent::MouseMoved {
-            position: Some(position),
-        }));
-    }
-
-    /// Simulates a left click at the current cursor location.
-    pub fn left_click(&mut self) {
-        self.simulate_event(WindowEvent::Input(InputEvent::MouseButton {
-            button: MouseButton::Left,
-            state: ElementState::Pressed,
-        }));
-        self.simulate_event(WindowEvent::Input(InputEvent::MouseButton {
-            button: MouseButton::Left,
-            state: ElementState::Released,
-        }));
-    }
-
     /// Looks up the root widget of the frontend and invokes `callback` with the widget and a context that can be used to interact with it. The result will be returned.
     pub fn map_root_widget<W: Widget, Output, F: FnOnce(&mut W, Context<W>) -> Output>(
         &self,
@@ -99,6 +71,38 @@ impl<R: Renderer> Headless<Rasterizer<R>> {
 }
 
 impl Headless<Rasterizer<Kludgine>> {
+    /// Process an event. Only supported with a rasterizer frontend.
+    pub fn simulate_event(&mut self, event: WindowEvent) -> EventResult {
+        let (scene_sender, _) = flume::unbounded();
+        let result = self.frontend.handle_event(
+            event,
+            Kludgine::from(&Target::from(Scene::new(scene_sender, Theme::Light))),
+        );
+        self.frontend
+            .gooey()
+            .process_widget_messages(&self.frontend);
+        result
+    }
+
+    /// Sets the location of the cursor to `position`. Does not render any frames.
+    pub fn set_cursor(&mut self, position: Point<f32, Scaled>) {
+        self.simulate_event(WindowEvent::Input(InputEvent::MouseMoved {
+            position: Some(position),
+        }));
+    }
+
+    /// Simulates a left click at the current cursor location.
+    pub fn left_click(&mut self) {
+        self.simulate_event(WindowEvent::Input(InputEvent::MouseButton {
+            button: MouseButton::Left,
+            state: ElementState::Pressed,
+        }));
+        self.simulate_event(WindowEvent::Input(InputEvent::MouseButton {
+            button: MouseButton::Left,
+            state: ElementState::Released,
+        }));
+    }
+
     /// Captures a screenshot with the size and theme provided.
     ///
     /// # Panics
@@ -115,7 +119,6 @@ impl Headless<Rasterizer<Kludgine>> {
         cursor: Option<Point<f32, Scaled>>,
     ) -> Result<DynamicImage, HeadlessError> {
         let (scene_sender, scene_receiver) = flume::unbounded();
-
         let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -125,7 +128,6 @@ impl Headless<Rasterizer<Kludgine>> {
             .await
             .expect("No wgpu adapter found");
         let renderer = easygpu::renderer::Renderer::offscreen(&adapter).await?;
-
         let mut target = Target::from(Scene::new(
             scene_sender,
             match theme {

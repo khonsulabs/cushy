@@ -18,7 +18,11 @@
 )]
 #![cfg_attr(doc, warn(rustdoc::all))]
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::HashSet,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
@@ -31,8 +35,10 @@ use gooey_core::{
     AnyTransmogrifierContext, Callback, Gooey, Scaled, TransmogrifierContext, WidgetId,
 };
 use image::{ImageFormat, RgbaImage};
+use platforms::{target::OS, TARGET_OS};
 use winit::event::{
-    ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
+    ElementState, ModifiersState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase,
+    VirtualKeyCode,
 };
 
 pub mod events;
@@ -189,37 +195,40 @@ impl<R: Renderer> Rasterizer<R> {
     }
 
     pub fn clipped_to(&self, clip: Rect<f32, Scaled>) -> Option<Self> {
-        self.renderer().map(|renderer| Self {
-            ui: self.ui.clone(),
-            state: self.state.clone(),
-            refresh_callback: self.refresh_callback.clone(),
-            renderer: Some(renderer.clip_to(clip)),
-        })
+        self.renderer()
+            .map(|renderer| self.with_renderer(renderer.clip_to(clip)))
     }
 
-    pub fn handle_event(&mut self, event: WindowEvent) -> EventResult {
-        let _guard = self.ui.enter_managed_code(self);
+    pub fn handle_event(&self, event: WindowEvent, renderer: R) -> EventResult {
+        let rasterizer = self.with_renderer(renderer);
+        let _guard = rasterizer.ui.enter_managed_code(&rasterizer);
         match event {
             WindowEvent::Input(input_event) => match input_event {
                 InputEvent::Keyboard {
                     scancode,
                     key,
                     state,
-                } => self.handle_keyboard_input(scancode, key, state),
-                InputEvent::MouseButton { button, state } => self.handle_mouse_input(state, button),
-                InputEvent::MouseMoved { position } => self.handle_cursor_moved(position),
+                } => rasterizer.handle_keyboard_input(scancode, key, state),
+                InputEvent::MouseButton { button, state } => {
+                    rasterizer.handle_mouse_input(state, button)
+                }
+                InputEvent::MouseMoved { position } => rasterizer.handle_cursor_moved(position),
                 InputEvent::MouseWheel { delta, touch_phase } => {
-                    self.handle_mouse_wheel(delta, touch_phase)
+                    rasterizer.handle_mouse_wheel(delta, touch_phase)
                 }
             },
             WindowEvent::SystemThemeChanged(theme) => {
-                self.state.set_system_theme(theme);
+                rasterizer.state.set_system_theme(theme);
                 EventResult::ignored()
             }
             WindowEvent::RedrawRequested => EventResult::redraw(),
-            WindowEvent::ReceiveCharacter(_)
-            | WindowEvent::ModifiersChanged(_)
-            | WindowEvent::LayerChanged { .. } => EventResult::ignored(),
+            WindowEvent::ReceiveCharacter(ch) => rasterizer.handle_receive_character(ch),
+            WindowEvent::ModifiersChanged(modifiers) => {
+                rasterizer.state.set_keyboard_modifiers(modifiers);
+                // Report ignored since this isn't an event that we exclusively can handle.
+                EventResult::ignored()
+            }
+            WindowEvent::LayerChanged { .. } => EventResult::ignored(),
         }
     }
 
@@ -243,17 +252,54 @@ impl<R: Renderer> Rasterizer<R> {
         }
     }
 
+    fn with_renderer(&self, renderer: R) -> Self {
+        Self {
+            ui: self.ui.clone(),
+            state: self.state.clone(),
+            refresh_callback: self.refresh_callback.clone(),
+            renderer: Some(renderer),
+        }
+    }
+
     #[allow(clippy::unused_self)] // TODO needs implementing
     fn invoke_drag_events(&self, _position: Option<Point<f32, Scaled>>) {}
 
-    #[allow(clippy::unused_self)] // TODO needs implementing
+    #[allow(clippy::option_if_let_else)]
     fn handle_keyboard_input(
         &self,
-        _scancode: ScanCode,
-        _keycode: Option<VirtualKeyCode>,
-        _state: ElementState,
+        scancode: ScanCode,
+        keycode: Option<VirtualKeyCode>,
+        state: ElementState,
     ) -> EventResult {
-        EventResult::ignored()
+        if let Some(widget) = self.focused_widget() {
+            // give the widget an opportunity to process the input. If the
+            // widget doesn't handle it, pass the event up the render tree.
+            EventResult::from(
+                self.with_transmogrifier(&widget, |transmogrifier, mut context| {
+                    transmogrifier.keyboard(&mut context, scancode, keycode, state)
+                })
+                .expect("unknown transmogrifier"),
+            )
+        } else {
+            // TODO handle tab key
+            EventResult::ignored()
+        }
+    }
+
+    fn handle_receive_character(&self, character: char) -> EventResult {
+        self.focused_widget()
+            .map_or_else(EventResult::ignored, |widget| {
+                EventResult::from(
+                    self.with_transmogrifier(&widget, |transmogrifier, mut context| {
+                        transmogrifier.receive_character(&mut context, character)
+                    })
+                    .expect("unknown transmogrifier"),
+                )
+            })
+    }
+
+    pub fn keyboard_modifiers(&self) -> ModifiersState {
+        self.state.keyboard_modifiers()
     }
 
     fn update_hover(&self, position: Point<f32, Scaled>) -> EventResult {
@@ -406,6 +452,18 @@ impl<R: Renderer> Rasterizer<R> {
         self.state.needs_redraw()
     }
 
+    pub fn duration_until_next_redraw(&self) -> Option<Duration> {
+        self.state.duration_until_next_redraw()
+    }
+
+    pub fn schedule_redraw_in(&self, duration: Duration) {
+        self.state.schedule_redraw_in(duration);
+    }
+
+    pub fn schedule_redraw_at(&self, at: Instant) {
+        self.state.schedule_redraw_at(at);
+    }
+
     pub fn activate(&self, widget: &WidgetId) {
         self.state.set_active(Some(widget.clone()));
     }
@@ -434,6 +492,15 @@ impl<R: Renderer> Rasterizer<R> {
 pub struct EventResult {
     pub status: EventStatus,
     pub needs_redraw: bool,
+}
+
+impl From<EventStatus> for EventResult {
+    fn from(status: EventStatus) -> Self {
+        Self {
+            status,
+            needs_redraw: false,
+        }
+    }
 }
 
 impl EventResult {
@@ -540,5 +607,21 @@ impl<'a, T: WidgetRasterizer<R>, R: Renderer> TransmogrifierContextExt
 
     fn is_focused(&self) -> bool {
         self.frontend.focused_widget().as_ref() == Some(self.registration.id())
+    }
+}
+
+pub trait ModifiersStateExt {
+    /// Returns true if the primary OS modifier key is pressed. On Mac, this is
+    /// the Logo key. On all other platforms, this is the control key.
+    fn primary(&self) -> bool;
+}
+
+impl ModifiersStateExt for ModifiersState {
+    fn primary(&self) -> bool {
+        if TARGET_OS == OS::MacOS {
+            self.logo()
+        } else {
+            self.ctrl()
+        }
     }
 }

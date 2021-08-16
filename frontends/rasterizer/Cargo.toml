@@ -20,6 +20,7 @@ image = { version = "0.23", default-features = false, features = [
     "jpeg",
 ] }
 parking_lot = "0.11"
+platforms = { version = "1" }
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 winit = { version = "0.25", features = ["web-sys"] }

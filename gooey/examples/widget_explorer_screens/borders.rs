@@ -10,6 +10,7 @@ use gooey::{
         layout::{Dimension, Layout, WidgetLayout},
     },
 };
+use gooey_core::styles::ColorPair;
 
 #[derive(Debug, Default)]
 pub struct Demo {}
@@ -31,13 +32,18 @@ impl Behavior for Demo {
         _events: &EventMapper<Self>,
     ) -> gooey_core::StyledWidget<Self::Content> {
         let border_only = Container::new(
-            centered_label("Only Borders")
-                .with(Border::uniform(BorderOptions::new(2., Color::RED))),
+            centered_label("Only Borders").with(Border::uniform(BorderOptions::new(
+                2.,
+                ColorPair::from(Color::RED),
+            ))),
             builder.storage(),
         );
         let with_padding = Container::new(
             centered_label("With Padding")
-                .with(Border::uniform(BorderOptions::new(2., Color::RED)))
+                .with(Border::uniform(BorderOptions::new(
+                    2.,
+                    ColorPair::from(Color::RED),
+                )))
                 .with(Padding::uniform(10.)),
             builder.storage(),
         );

@@ -2,6 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 use gooey_core::{
@@ -10,7 +11,7 @@ use gooey_core::{
     Scaled, WidgetId,
 };
 use parking_lot::Mutex;
-use winit::event::MouseButton;
+use winit::event::{ModifiersState, MouseButton};
 
 use crate::{Configuration, ContentArea};
 
@@ -32,7 +33,40 @@ struct Data {
 
     last_mouse_position: Option<Point<f32, Scaled>>,
     mouse_button_handlers: HashMap<MouseButton, WidgetId>,
-    needs_redraw: bool,
+    redraw_status: RedrawStatus,
+
+    modifiers: ModifiersState,
+}
+
+#[derive(Debug)]
+enum RedrawStatus {
+    Clean,
+    Dirty,
+    Scheduled(Instant),
+}
+
+impl Default for RedrawStatus {
+    fn default() -> Self {
+        Self::Clean
+    }
+}
+
+impl RedrawStatus {
+    fn needs_redraw(&self) -> bool {
+        matches!(self, Self::Dirty)
+    }
+
+    fn duration_until_next_redraw(&self) -> Option<Duration> {
+        match self {
+            RedrawStatus::Clean => None,
+            RedrawStatus::Dirty => Some(Duration::new(0, 0)),
+            RedrawStatus::Scheduled(instant) => Some(
+                instant
+                    .checked_duration_since(Instant::now())
+                    .unwrap_or_default(),
+            ),
+        }
+    }
 }
 
 impl State {
@@ -69,12 +103,34 @@ impl State {
 
     pub fn set_needs_redraw(&self) {
         let mut data = self.data.lock();
-        data.needs_redraw = true;
+        data.redraw_status = RedrawStatus::Dirty;
     }
 
     pub fn needs_redraw(&self) -> bool {
         let data = self.data.lock();
-        data.needs_redraw
+        data.redraw_status.needs_redraw()
+    }
+
+    pub fn duration_until_next_redraw(&self) -> Option<Duration> {
+        let data = self.data.lock();
+        data.redraw_status.duration_until_next_redraw()
+    }
+
+    pub fn schedule_redraw_in(&self, duration: Duration) {
+        self.schedule_redraw_at(Instant::now() + duration);
+    }
+
+    pub fn schedule_redraw_at(&self, at: Instant) {
+        let mut data = self.data.lock();
+        match data.redraw_status {
+            RedrawStatus::Clean => {
+                data.redraw_status = RedrawStatus::Scheduled(at);
+            }
+            RedrawStatus::Dirty => {}
+            RedrawStatus::Scheduled(previous_at) => {
+                data.redraw_status = RedrawStatus::Scheduled(at.min(previous_at));
+            }
+        }
     }
 
     pub fn set_last_mouse_position(&self, location: Option<Point<f32, Scaled>>) {
@@ -100,7 +156,7 @@ impl State {
     pub fn set_hover(&self, hover: HashSet<WidgetId>) {
         let mut data = self.data.lock();
         if data.hover != hover {
-            data.needs_redraw = true;
+            data.redraw_status = RedrawStatus::Dirty;
             data.hover = hover;
         }
     }
@@ -113,7 +169,7 @@ impl State {
     pub fn set_active(&self, active: Option<WidgetId>) {
         let mut data = self.data.lock();
         if data.active != active {
-            data.needs_redraw = true;
+            data.redraw_status = RedrawStatus::Dirty;
             data.active = active;
         }
     }
@@ -126,7 +182,7 @@ impl State {
     pub fn set_focus(&self, focus: Option<WidgetId>) {
         let mut data = self.data.lock();
         if data.focus != focus {
-            data.needs_redraw = true;
+            data.redraw_status = RedrawStatus::Dirty;
             data.focus = focus;
         }
     }
@@ -136,7 +192,7 @@ impl State {
         if data.focus.is_some() || data.active.is_some() {
             data.focus = None;
             data.active = None;
-            data.needs_redraw = true;
+            data.redraw_status = RedrawStatus::Dirty;
         }
     }
 
@@ -148,7 +204,7 @@ impl State {
     pub fn set_system_theme(&self, system_theme: SystemTheme) {
         let mut data = self.data.lock();
         if data.system_theme != system_theme {
-            data.needs_redraw = true;
+            data.redraw_status = RedrawStatus::Dirty;
             data.system_theme = system_theme;
         }
     }
@@ -198,13 +254,23 @@ impl State {
             base_path.join(path)
         }
     }
+
+    pub fn set_keyboard_modifiers(&self, modifiers: ModifiersState) {
+        let mut data = self.data.lock();
+        data.modifiers = modifiers;
+    }
+
+    pub fn keyboard_modifiers(&self) -> ModifiersState {
+        let data = self.data.lock();
+        data.modifiers
+    }
 }
 
 impl Data {
     pub fn new_frame(&mut self) {
         self.order.clear();
         self.area.clear();
-        self.needs_redraw = false;
+        self.redraw_status = RedrawStatus::Clean;
     }
 
     pub fn widget_rendered(&mut self, widget: WidgetId, area: ContentArea) {

@@ -33,7 +33,7 @@ pub mod rasterized {
 
     use crate::{
         button::ButtonTransmogrifier, checkbox::CheckboxTransmogrifier,
-        container::ContainerTransmogrifier, label::LabelTransmogrifier,
+        container::ContainerTransmogrifier, input::InputTransmogrifier, label::LabelTransmogrifier,
         layout::LayoutTransmogrifier,
     };
 
@@ -45,6 +45,7 @@ pub mod rasterized {
         drop(transmogrifiers.register_transmogrifier(LabelTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(LayoutTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(CheckboxTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(InputTransmogrifier));
     }
 
     #[must_use]
@@ -59,6 +60,7 @@ pub mod rasterized {
     make_rasterized!(LabelTransmogrifier);
     make_rasterized!(LayoutTransmogrifier);
     make_rasterized!(CheckboxTransmogrifier);
+    make_rasterized!(InputTransmogrifier);
 }
 
 #[cfg(feature = "frontend-browser")]
@@ -68,7 +70,7 @@ pub mod browser {
 
     use crate::{
         button::ButtonTransmogrifier, checkbox::CheckboxTransmogrifier,
-        container::ContainerTransmogrifier, label::LabelTransmogrifier,
+        container::ContainerTransmogrifier, input::InputTransmogrifier, label::LabelTransmogrifier,
         layout::LayoutTransmogrifier,
     };
 
@@ -78,6 +80,7 @@ pub mod browser {
         drop(transmogrifiers.register_transmogrifier(LabelTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(LayoutTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(CheckboxTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(InputTransmogrifier));
     }
 
     #[must_use]
@@ -92,4 +95,5 @@ pub mod browser {
     make_browser!(LabelTransmogrifier);
     make_browser!(LayoutTransmogrifier);
     make_browser!(CheckboxTransmogrifier);
+    make_browser!(InputTransmogrifier);
 }
