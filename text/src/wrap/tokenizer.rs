@@ -1,24 +1,24 @@
 use std::sync::Arc;
 
-use gooey_core::{styles::Style, Points};
+use gooey_core::{styles::Style, Scaled};
 use gooey_renderer::{Renderer, TextMetrics};
 
 use crate::{prepared::PreparedSpan, Text};
 
 #[derive(Debug)]
 pub(crate) enum Token {
-    EndOfLine(TextMetrics<Points>),
+    EndOfLine(TextMetrics<Scaled>),
     Characters(PreparedSpan),
     Punctuation(PreparedSpan),
     Whitespace(PreparedSpan),
-    NoText(Option<TextMetrics<Points>>),
+    NoText(Option<TextMetrics<Scaled>>),
 }
 
 #[derive(Debug)]
 pub(crate) enum SpanGroup {
     Spans(Vec<PreparedSpan>),
     Whitespace(Vec<PreparedSpan>),
-    EndOfLine(TextMetrics<Points>),
+    EndOfLine(TextMetrics<Scaled>),
 }
 
 impl SpanGroup {
@@ -49,7 +49,9 @@ pub(crate) struct Tokenizer {
 
 struct TokenizerState {
     style: Arc<Style>,
+    character_position: usize,
     text: String,
+    text_start: Option<usize>,
     lexer_state: TokenizerStatus,
 }
 
@@ -57,8 +59,10 @@ impl TokenizerState {
     pub(crate) fn new(style: Style) -> Self {
         Self {
             style: Arc::new(style),
+            character_position: 0,
             lexer_state: TokenizerStatus::AtSpanStart,
             text: String::default(),
+            text_start: None,
         }
     }
 
@@ -67,9 +71,12 @@ impl TokenizerState {
             None
         } else {
             let text = self.text.clone();
-            self.text.clear();
             let metrics = renderer.measure_text_with_style(&text, &self.style);
-            let span = PreparedSpan::new(self.style.clone(), text, metrics);
+            let offset = self.text_start.unwrap_or(self.character_position);
+            let length = self.character_position - offset;
+            let span = PreparedSpan::new(self.style.clone(), text, offset, length, metrics);
+            self.text_start = None;
+            self.text.clear();
 
             let token = match self.lexer_state {
                 TokenizerStatus::AtSpanStart => unreachable!(),
@@ -129,7 +136,12 @@ impl Tokenizer {
                     state.lexer_state = new_lexer_state;
 
                     state.text.push(c);
+                    if state.text_start.is_none() {
+                        state.text_start = Some(state.character_position);
+                    }
                 }
+
+                state.character_position += 1;
             }
 
             if let Some(token) = state.emit_token_if_needed(renderer) {

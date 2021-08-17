@@ -17,9 +17,9 @@ use std::{
 };
 
 use gooey_core::{
-    euclid::Point2D,
+    figures::Point,
     styles::{ColorPair, FallbackComponent, Style},
-    Points,
+    Scaled,
 };
 use gooey_renderer::Renderer;
 use prepared::PreparedText;
@@ -27,15 +27,16 @@ use wrap::{TextWrap, TextWrapper};
 
 /// Measured and laid out text types ready to render.
 pub mod prepared;
-// pub mod rich;
+/// Multi-paragraph rich-text editing and rendering.
+pub mod rich;
 /// Text wrapping functionality.
 pub mod wrap;
 
 /// A styled String.
 #[derive(Debug, Clone, Default)]
 pub struct Span {
-    /// The text to draw.
-    pub text: String,
+    text: String,
+    length: usize,
     /// The style to use when drawing.
     pub style: Style,
 }
@@ -43,10 +44,35 @@ pub struct Span {
 impl Span {
     /// Returns a new span with `text` and `style`.
     pub fn new<S: Into<String>>(text: S, style: Style) -> Self {
+        let text = text.into();
+        let length = text.chars().count();
         Self {
-            text: text.into(),
+            text,
+            length,
             style,
         }
+    }
+
+    /// The text to draw.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub(crate) fn recache_length(&mut self) {
+        self.length = self.text.chars().count();
+    }
+
+    /// The length in characters.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+    /// Returns if this span has no characters.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
     }
 }
 
@@ -85,7 +111,7 @@ impl Text {
     pub fn render_at<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Scaled>,
         wrapping: TextWrap,
         context_style: Option<&Style>,
     ) {
@@ -96,7 +122,7 @@ impl Text {
     pub fn render_baseline_at<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Scaled>,
         wrapping: TextWrap,
         context_style: Option<&Style>,
     ) {
@@ -106,19 +132,20 @@ impl Text {
     fn render_core<F: FallbackComponent<Value = ColorPair>, R: Renderer>(
         &self,
         renderer: &R,
-        location: Point2D<f32, Points>,
+        location: Point<f32, Scaled>,
         offset_baseline: bool,
         wrapping: TextWrap,
         context_style: Option<&Style>,
     ) {
         let prepared_text = self.wrap(renderer, wrapping, context_style);
-        prepared_text.render::<F, R>(renderer, location, offset_baseline);
+        prepared_text.render::<F, R>(renderer, location, offset_baseline, context_style);
     }
 
     /// Removes text in `range`. Empty spans will be removed.
     pub fn remove_range(&mut self, range: Range<usize>) {
         self.for_each_in_range_mut(range, |span, relative_range| {
             span.text.replace_range(relative_range, "");
+            span.recache_length();
         });
     }
 
@@ -127,13 +154,14 @@ impl Text {
     pub fn insert_str(&mut self, offset: usize, value: &str) {
         self.for_each_in_range_mut(offset..offset + 1, |span, relative_range| {
             span.text.insert_str(relative_range.start, value);
+            span.recache_length();
         });
     }
 
-    /// Returns the total length, in bytes.
+    /// Returns the total length, in characters.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.spans.iter().map(|s| s.text.len()).sum()
+        self.spans.iter().map(Span::len).sum()
     }
 
     /// Returns true if there are no characters in this text.
@@ -152,7 +180,7 @@ impl Text {
     ) {
         let mut span_start = 0_usize;
         for span in &self.spans {
-            let span_len = span.text.len();
+            let span_len = span.len();
             let span_end = span_start + span_len;
 
             if span_end >= range.start {
@@ -178,7 +206,7 @@ impl Text {
     ) {
         let mut span_start = 0_usize;
         for span in &mut self.spans {
-            let span_len = span.text.len();
+            let span_len = span.len();
             let span_end = span_start + span_len;
 
             if span_end >= range.start {
@@ -209,7 +237,7 @@ impl Text {
             // Doing this operation separately allows the other branch to be a simple retain operation
             self.spans.resize_with(1, || unreachable!());
         } else {
-            self.spans.retain(|span| !span.text.is_empty());
+            self.spans.retain(|span| !span.is_empty());
         }
     }
 }

@@ -13,9 +13,13 @@ readme = "../README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-euclid = "0.22"
-stylecs = { git="https://github.com/khonsulabs/stylecs.git", branch="main" }
+figures = { git = "https://github.com/khonsulabs/figures.git", branch = "main" }
+stylecs = { git = "https://github.com/khonsulabs/stylecs.git", branch = "main" }
 flume = "0.10"
 palette = "0.6"
 log = "0.4"
 url = "2"
+parking_lot = "0.11"
+
+[target.'cfg(target_arch="wasm32")'.dependencies]
+parking_lot = { version = "0.11", features = ["wasm-bindgen"] }

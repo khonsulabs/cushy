@@ -1,9 +1,9 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, ops::Deref};
 
 use gooey_core::{
-    euclid::{Length, Size2D},
+    figures::{Figure, Size},
     styles::Surround,
-    AnySendSync, Context, Key, KeyedStorage, Points, RelatedStorage, StyledWidget, Widget,
+    AnySendSync, Context, Key, KeyedStorage, RelatedStorage, Scaled, StyledWidget, Widget,
     WidgetId, WidgetRegistration, WidgetStorage,
 };
 
@@ -160,6 +160,14 @@ pub struct LayoutChild {
     pub layout: WidgetLayout,
 }
 
+impl Deref for LayoutChild {
+    type Target = WidgetLayout;
+
+    fn deref(&self) -> &WidgetLayout {
+        &self.layout
+    }
+}
+
 impl<K: Key, S: KeyedStorage<K>> Builder<K, S> {
     pub fn storage(&self) -> &WidgetStorage {
         self.storage.storage()
@@ -236,50 +244,44 @@ impl WidgetLayout {
     }
 
     #[must_use]
-    pub fn left_in_points(&self, content_size: Size2D<f32, Points>) -> Option<Length<f32, Points>> {
-        self.left.length(Length::new(content_size.width))
+    pub fn left_in_points(&self, content_size: Size<f32, Scaled>) -> Option<Figure<f32, Scaled>> {
+        self.left.length(Figure::new(content_size.width))
     }
 
     #[must_use]
-    pub fn right_in_points(
-        &self,
-        content_size: Size2D<f32, Points>,
-    ) -> Option<Length<f32, Points>> {
-        self.right.length(Length::new(content_size.width))
+    pub fn right_in_points(&self, content_size: Size<f32, Scaled>) -> Option<Figure<f32, Scaled>> {
+        self.right.length(Figure::new(content_size.width))
     }
 
     #[must_use]
-    pub fn top_in_points(&self, content_size: Size2D<f32, Points>) -> Option<Length<f32, Points>> {
-        self.top.length(Length::new(content_size.height))
+    pub fn top_in_points(&self, content_size: Size<f32, Scaled>) -> Option<Figure<f32, Scaled>> {
+        self.top.length(Figure::new(content_size.height))
     }
 
     #[must_use]
-    pub fn bottom_in_points(
-        &self,
-        content_size: Size2D<f32, Points>,
-    ) -> Option<Length<f32, Points>> {
-        self.bottom.length(Length::new(content_size.height))
+    pub fn bottom_in_points(&self, content_size: Size<f32, Scaled>) -> Option<Figure<f32, Scaled>> {
+        self.bottom.length(Figure::new(content_size.height))
     }
 
     #[must_use]
-    pub fn width_in_points(&self, content_size: Size2D<f32, Points>) -> Length<f32, Points> {
+    pub fn width_in_points(&self, content_size: Size<f32, Scaled>) -> Figure<f32, Scaled> {
         self.width
-            .length(Length::new(content_size.width))
-            .unwrap_or_else(|| Length::new(content_size.width))
+            .length(Figure::new(content_size.width))
+            .unwrap_or_else(|| Figure::new(content_size.width))
     }
 
     #[must_use]
-    pub fn height_in_points(&self, content_size: Size2D<f32, Points>) -> Length<f32, Points> {
+    pub fn height_in_points(&self, content_size: Size<f32, Scaled>) -> Figure<f32, Scaled> {
         self.height
-            .length(Length::new(content_size.height))
-            .unwrap_or_else(|| Length::new(content_size.height))
+            .length(Figure::new(content_size.height))
+            .unwrap_or_else(|| Figure::new(content_size.height))
     }
 
     #[must_use]
     pub fn surround_in_points(
         &self,
-        content_size: Size2D<f32, Points>,
-    ) -> Surround<Length<f32, Points>> {
+        content_size: Size<f32, Scaled>,
+    ) -> Surround<Figure<f32, Scaled>> {
         Surround {
             left: self.left_in_points(content_size),
             top: self.top_in_points(content_size),
@@ -289,8 +291,8 @@ impl WidgetLayout {
     }
 
     #[must_use]
-    pub fn size_in_points(&self, content_size: Size2D<f32, Points>) -> Size2D<f32, Points> {
-        Size2D::from_lengths(
+    pub fn size_in_points(&self, content_size: Size<f32, Scaled>) -> Size<f32, Scaled> {
+        Size::from_figures(
             self.width_in_points(content_size),
             self.height_in_points(content_size),
         )
@@ -331,7 +333,6 @@ impl WidgetLayoutBuilder {
     pub const fn fill_width(mut self) -> Self {
         self.layout.left = Dimension::zero();
         self.layout.right = Dimension::zero();
-        self.layout.width = Dimension::percent(1.);
         self
     }
 
@@ -352,7 +353,6 @@ impl WidgetLayoutBuilder {
     pub const fn fill_height(mut self) -> Self {
         self.layout.top = Dimension::zero();
         self.layout.bottom = Dimension::zero();
-        self.layout.height = Dimension::percent(1.);
         self
     }
 
@@ -392,7 +392,7 @@ impl LayoutChildren for Layout {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Dimension {
     Auto,
-    Exact(Length<f32, Points>),
+    Exact(Figure<f32, Scaled>),
     Percent(f32),
 }
 
@@ -405,12 +405,12 @@ impl Default for Dimension {
 impl Dimension {
     #[must_use]
     pub const fn zero() -> Self {
-        Self::Exact(Length::new(0.))
+        Self::Exact(Figure::new(0.))
     }
 
     #[must_use]
     pub const fn exact(length: f32) -> Self {
-        Self::Exact(Length::new(length))
+        Self::Exact(Figure::new(length))
     }
 
     #[must_use]
@@ -419,7 +419,7 @@ impl Dimension {
     }
 
     #[must_use]
-    pub fn length(self, content_length: Length<f32, Points>) -> Option<Length<f32, Points>> {
+    pub fn length(self, content_length: Figure<f32, Scaled>) -> Option<Figure<f32, Scaled>> {
         match self {
             Dimension::Auto => None,
             Dimension::Exact(measurement) => Some(measurement),
@@ -428,8 +428,8 @@ impl Dimension {
     }
 }
 
-impl From<Length<f32, Points>> for Dimension {
-    fn from(length: Length<f32, Points>) -> Self {
+impl From<Figure<f32, Scaled>> for Dimension {
+    fn from(length: Figure<f32, Scaled>) -> Self {
         Self::Exact(length)
     }
 }

@@ -1,6 +1,6 @@
-use euclid::{Length, Size2D};
+use figures::{Figure, Size};
 
-use crate::Points;
+use crate::Scaled;
 
 /// Measurements that surrouned a box/rect.
 #[derive(Copy, Clone, PartialEq, Debug, Default)]
@@ -15,25 +15,25 @@ pub struct Surround<T> {
     pub bottom: Option<T>,
 }
 
-impl<T: Into<Length<f32, Points>> + Clone> Surround<T> {
+impl<T: Into<Figure<f32, Scaled>> + Clone> Surround<T> {
     /// Returns the minimum width that this surround will occupy.
     #[must_use]
-    pub fn minimum_width(&self) -> Length<f32, Points> {
+    pub fn minimum_width(&self) -> Figure<f32, Scaled> {
         self.left.clone().map(T::into).unwrap_or_default()
             + self.right.clone().map(T::into).unwrap_or_default()
     }
 
     /// Returns the minimum height that this surround will occupy.
     #[must_use]
-    pub fn minimum_height(&self) -> Length<f32, Points> {
+    pub fn minimum_height(&self) -> Figure<f32, Scaled> {
         self.top.clone().map(T::into).unwrap_or_default()
             + self.bottom.clone().map(T::into).unwrap_or_default()
     }
 
-    /// Returns the minimum [`Size2D`] that this surround will occupy.
+    /// Returns the minimum [`Size`] that this surround will occupy.
     #[must_use]
-    pub fn minimum_size(&self) -> Size2D<f32, Points> {
-        Size2D::from_lengths(self.minimum_width(), self.minimum_height())
+    pub fn minimum_size(&self) -> Size<f32, Scaled> {
+        Size::from_figures(self.minimum_width(), self.minimum_height())
     }
 }
 

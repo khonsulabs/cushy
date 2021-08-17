@@ -1,10 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
-use euclid::Length;
+use figures::Figure;
 use stylecs::StyleComponent;
 
-use super::{Color, Surround};
-use crate::Points;
+use super::{ColorPair, Surround};
+use crate::Scaled;
 
 /// A border around a widget.
 #[derive(Default, Debug, Clone)]
@@ -24,35 +24,35 @@ impl Border {
 }
 
 /// Options for a single side of a [`Border`].
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 #[must_use]
 pub struct BorderOptions {
     /// The width of the border.
-    pub width: Length<f32, Points>,
+    pub width: Figure<f32, Scaled>,
     /// The color of the border.
-    pub color: Color,
+    pub color: ColorPair,
 }
 
 impl BorderOptions {
     /// Returns a new border with `width` and `color`.
-    pub const fn new(width: f32, color: Color) -> Self {
+    pub const fn new(width: f32, color: ColorPair) -> Self {
         Self {
-            width: Length::new(width),
+            width: Figure::new(width),
             color,
         }
     }
 }
 
-impl From<Length<f32, Points>> for BorderOptions {
-    fn from(width: Length<f32, Points>) -> Self {
+impl From<Figure<f32, Scaled>> for BorderOptions {
+    fn from(width: Figure<f32, Scaled>) -> Self {
         Self {
             width,
-            color: Color::default(),
+            color: ColorPair::default(),
         }
     }
 }
 
-impl From<BorderOptions> for Length<f32, Points> {
+impl From<BorderOptions> for Figure<f32, Scaled> {
     fn from(opts: BorderOptions) -> Self {
         opts.width
     }

@@ -17,7 +17,9 @@ resolver = "2"
 
 [patch.crates-io]
 # easygpu = { path = "../easygpu" }
-bonsaidb = { git="https://github.com/khonsulabs/bonsaidb.git", branch="main" }
+bonsaidb = { git = "https://github.com/khonsulabs/bonsaidb.git", branch = "main" }
+easygpu = { git = "https://github.com/khonsulabs/easygpu.git", branch = "main" }
+easygpu-lyon = { git = "https://github.com/khonsulabs/easygpu.git", branch = "main" }
 # bonsaidb = { path="../bonsaidb/bonsaidb" }
 # actionable = { git="https://github.com/khonsulabs/actionable.git", branch="main" }
 # actionable = { path="../actionable/actionable", version="0.1.0-dev.3" }
@@ -27,6 +29,9 @@ bonsaidb = { git="https://github.com/khonsulabs/bonsaidb.git", branch="main" }
 
 # [patch."https://github.com/khonsulabs/kludgine.git"]
 # kludgine = { path = "../kludgine/kludgine" }
+
+# [patch."https://github.com/khonsulabs/figures.git"]
+# figures = { path = "../figures/figures" }
 
 # [patch."https://github.com/khonsulabs/khonsu-tools.git"]
 # khonsu-tools = { path="../khonsu-tools" }

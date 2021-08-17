@@ -10,6 +10,7 @@ use gooey::{
         layout::{Dimension, Layout, WidgetLayout},
     },
 };
+use gooey_core::styles::ColorPair;
 
 #[derive(Debug, Default)]
 pub struct Demo {}
@@ -31,13 +32,18 @@ impl Behavior for Demo {
         _events: &EventMapper<Self>,
     ) -> gooey_core::StyledWidget<Self::Content> {
         let border_only = Container::new(
-            centered_label("Only Borders")
-                .with(Border::uniform(BorderOptions::new(2., Color::RED))),
+            centered_label("Only Borders").with(Border::uniform(BorderOptions::new(
+                2.,
+                ColorPair::from(Color::RED),
+            ))),
             builder.storage(),
         );
         let with_padding = Container::new(
             centered_label("With Padding")
-                .with(Border::uniform(BorderOptions::new(2., Color::RED)))
+                .with(Border::uniform(BorderOptions::new(
+                    2.,
+                    ColorPair::from(Color::RED),
+                )))
                 .with(Padding::uniform(10.)),
             builder.storage(),
         );
@@ -91,26 +97,26 @@ impl Behavior for Demo {
 mod tests {
 
     use gooey::HeadlessError;
-    use gooey_core::{euclid::Size2D, styles::SystemTheme};
+    use gooey_core::{figures::Size, styles::SystemTheme};
 
     #[cfg(not(target_arch = "wasm32-unknown-unknown"))]
     #[tokio::test]
     async fn demo() -> Result<(), HeadlessError> {
-        use gooey_core::euclid::Point2D;
+        use gooey_core::figures::Point;
 
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = crate::app().headless();
 
             // This isn't an interactive recorder. For the events to work, the widgets positions must be known, but they aren't known until the first render.
             headless
-                .screenshot(Size2D::new(480, 320), theme, None)
+                .screenshot(Size::new(480, 320), theme, None)
                 .await?;
 
-            headless.set_cursor(Point2D::new(300., 300.));
+            headless.set_cursor(Point::new(300., 300.));
             headless.left_click();
 
             headless
-                .screenshot(Size2D::new(480, 320), theme, None)
+                .screenshot(Size::new(480, 320), theme, None)
                 .await?
                 .to_rgb8()
                 .save(crate::harness::snapshot_path(

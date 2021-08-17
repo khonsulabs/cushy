@@ -71,7 +71,7 @@ impl GetCounterHandler for ApiDispatcher {
     /// Returns the current counter value.
     async fn handle(&self, _permissions: &actionable::Permissions) -> anyhow::Result<Response> {
         println!("Returning current counter value.");
-        let db = self.server.database::<()>("counter").await.unwrap();
+        let db = self.server.database::<()>(DATABASE_NAME).await.unwrap();
 
         let value = db
             .get_key("count")
@@ -87,7 +87,7 @@ impl GetCounterHandler for ApiDispatcher {
 impl IncrementCounterHandler for ApiDispatcher {
     /// Increments the counter, and publishes a message with the new value.
     async fn handle(&self, _permissions: &actionable::Permissions) -> anyhow::Result<Response> {
-        let db = self.server.database::<()>("counter").await?;
+        let db = self.server.database::<()>(DATABASE_NAME).await?;
 
         let new_value = db.increment_key_by("count", 1_u64).await?;
         self.server

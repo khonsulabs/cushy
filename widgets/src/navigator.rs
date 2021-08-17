@@ -165,8 +165,7 @@ impl<Loc: Location> Behavior for NavigatorBehavior<Loc> {
                 WidgetLayout::build()
                     .top(Dimension::zero())
                     .height(Dimension::exact(44.))
-                    .left(Dimension::zero())
-                    .right(Dimension::zero())
+                    .fill_width()
                     .finish(),
             )
             .with_registration(Widgets::Content, initial_widget, content_layout())

@@ -1,6 +1,6 @@
 use gooey::{
     core::{
-        euclid::Length,
+        figures::Figure,
         styles::{Alignment, FontSize, VerticalAlignment},
         Context, DefaultWidget, StyledWidget,
     },
@@ -44,7 +44,7 @@ impl Behavior for Counter {
                 None,
                 Button::new("Click Me!", events.map(|_| CounterEvent::ButtonClicked)),
                 WidgetLayout::build()
-                    .left(Dimension::Exact(Length::new(0.)))
+                    .left(Dimension::Exact(Figure::new(0.)))
                     .top(Dimension::Percent(0.4))
                     .height(Dimension::Percent(0.2))
                     .width(Dimension::Percent(0.5))
@@ -57,7 +57,7 @@ impl Behavior for Counter {
                     .with(Alignment::Center)
                     .with(VerticalAlignment::Center),
                 WidgetLayout::build()
-                    .right(Dimension::Exact(Length::new(0.)))
+                    .right(Dimension::Exact(Figure::new(0.)))
                     .top(Dimension::Percent(0.4))
                     .height(Dimension::Percent(0.2))
                     .width(Dimension::Percent(0.5))
@@ -100,7 +100,7 @@ mod tests {
 
     use gooey::{
         core::{
-            euclid::{Point2D, Size2D},
+            figures::{Point, Size},
             styles::SystemTheme,
         },
         HeadlessError,
@@ -113,11 +113,11 @@ mod tests {
     async fn demo() -> Result<(), HeadlessError> {
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = app().headless();
-            let mut recorder = headless.begin_recording(Size2D::new(320, 240), theme, true, 30);
-            recorder.set_cursor(Point2D::new(100., 200.));
+            let mut recorder = headless.begin_recording(Size::new(320, 240), theme, true, 30);
+            recorder.set_cursor(Point::new(100., 200.));
             recorder.render_frame(Duration::from_millis(100)).await?;
             recorder
-                .move_cursor_to(Point2D::new(80., 120.), Duration::from_millis(300))
+                .move_cursor_to(Point::new(80., 120.), Duration::from_millis(300))
                 .await?;
 
             for i in 1_u32..5 {
@@ -133,7 +133,7 @@ mod tests {
             }
 
             recorder
-                .move_cursor_to(Point2D::new(200., 180.), Duration::from_millis(300))
+                .move_cursor_to(Point::new(200., 180.), Duration::from_millis(300))
                 .await?;
             recorder.pause(Duration::from_millis(1000));
 

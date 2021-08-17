@@ -4,7 +4,7 @@ use std::{
     fmt::Debug,
     marker::PhantomData,
     ops::{Deref, DerefMut},
-    sync::{Arc, Mutex, RwLock},
+    sync::Arc,
 };
 
 use gooey_core::{
@@ -13,6 +13,7 @@ use gooey_core::{
     RelatedStorage, StyledWidget, Transmogrifier, TransmogrifierContext, WeakWidgetRegistration,
     Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
 };
+use parking_lot::{Mutex, RwLock};
 
 #[cfg(feature = "gooey-rasterizer")]
 mod rasterizer;
@@ -64,19 +65,19 @@ impl<B: Behavior> Component<B> {
     }
 
     pub fn registered_widget(&self, id: &B::Widgets) -> Option<WidgetRegistration> {
-        let registered_widgets = self.registered_widgets.lock().unwrap();
+        let registered_widgets = self.registered_widgets.lock();
         registered_widgets
             .get(id)
             .and_then(WeakWidgetRegistration::upgrade)
     }
 
     pub fn register_widget(&mut self, id: B::Widgets, registration: &WidgetRegistration) {
-        let mut registered_widgets = self.registered_widgets.lock().unwrap();
+        let mut registered_widgets = self.registered_widgets.lock();
         registered_widgets.insert(id, WeakWidgetRegistration::from(registration));
     }
 
     pub fn remove(&mut self, id: &B::Widgets) {
-        let mut registered_widgets = self.registered_widgets.lock().unwrap();
+        let mut registered_widgets = self.registered_widgets.lock();
         registered_widgets.remove(id);
     }
 
@@ -258,12 +259,12 @@ impl<B: Behavior> RelatedStorage<B::Widgets> for ComponentUpdater<B> {
     }
 
     fn remove(&self, key: &B::Widgets) {
-        let mut registered_widgets = self.registered_widgets.lock().unwrap();
+        let mut registered_widgets = self.registered_widgets.lock();
         registered_widgets.remove(key);
     }
 
     fn register(&self, key: B::Widgets, registration: &WidgetRegistration) {
-        let mut registered_widgets = self.registered_widgets.lock().unwrap();
+        let mut registered_widgets = self.registered_widgets.lock();
         registered_widgets.insert(key, WeakWidgetRegistration::from(registration));
     }
 }
@@ -312,7 +313,7 @@ impl<B: Behavior> ComponentBuilder<B> {
         widget: StyledWidget<W>,
     ) -> WidgetRegistration {
         let registration = self.storage.register(widget);
-        let mut registered_widgets = self.registered_widgets.lock().unwrap();
+        let mut registered_widgets = self.registered_widgets.lock();
         registered_widgets.insert(id, WeakWidgetRegistration::from(&registration));
         registration
     }
@@ -397,7 +398,7 @@ impl<B: Behavior, I> Debug for MappedCallback<B, I> {
 
 impl<B: Behavior, I> CallbackFn<I, ()> for MappedCallback<B, I> {
     fn invoke(&self, info: I) {
-        let poster = self.widget.read().unwrap();
+        let poster = self.widget.read();
         let poster = poster.as_ref().unwrap();
         poster.post_event(self.mapper.invoke(info));
     }
@@ -414,7 +415,7 @@ impl<B: Behavior> ComponentTransmogrifier<B> {
         let channels = widget_state.channels::<Component<B>>().unwrap();
         B::initialize(component, &Context::new(channels, frontend));
 
-        let mut callback_widget = component.callback_widget.write().unwrap();
+        let mut callback_widget = component.callback_widget.write();
         *callback_widget = Some(Box::new(EventPoster {
             widget,
             channels: channels.clone(),

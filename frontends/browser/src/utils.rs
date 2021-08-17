@@ -4,19 +4,21 @@ use std::{
     fmt::Write,
     sync::{
         atomic::{AtomicU32, Ordering},
-        Arc, Mutex,
+        Arc,
     },
 };
 
 use gooey_core::{
-    euclid::{approxeq::ApproxEq, Length},
+    figures::{Approx, Figure},
     styles::{
-        border::{Border, BorderOptions},
+        border::Border,
         style_sheet::{Classes, Rule, State},
-        Padding, StyleComponent, SystemTheme,
+        Color, Padding, StyleComponent, SystemTheme,
     },
+    Scaled,
 };
 use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 use wasm_bindgen::JsCast;
 use web_sys::{CssStyleSheet, HtmlElement, HtmlStyleElement};
 
@@ -104,10 +106,7 @@ impl CssManager {
         // for each registered rule and keep our own Vec<> of rules that matches
         // the order of the stylesheet rules. When removing, we can use the
         // index we find the rule inside of the Vec.
-        let mut state = REGISTERED_CSS_RULES
-            .get_or_init(Mutex::default)
-            .lock()
-            .unwrap();
+        let mut state = REGISTERED_CSS_RULES.get_or_init(Mutex::default).lock();
         let id = loop {
             let next_id = LAST_CSS_RULE_ID.fetch_add(1, Ordering::SeqCst);
             if !state.taken_ids.contains(&next_id) {
@@ -135,7 +134,7 @@ impl CssManager {
     }
 
     pub fn unregister_rule(&self, rule: &mut CssRules) {
-        let mut state = REGISTERED_CSS_RULES.get().unwrap().lock().unwrap();
+        let mut state = REGISTERED_CSS_RULES.get().unwrap().lock();
         for rule in std::mem::take(&mut rule.index) {
             let index = state
                 .rules
@@ -296,13 +295,13 @@ impl CssBlockBuilder {
         }
     }
 
-    fn with_single_border(self, name: &str, options: &BorderOptions) -> Self {
-        if options.width.get() > 0. {
+    fn with_single_border(self, name: &str, width: Figure<f32, Scaled>, color: Color) -> Self {
+        if width.get() > 0. {
             self.with_css_statement(&format!(
                 "border-{}: {:.03}pt solid {}",
                 name,
-                options.width.get(),
-                options.color.as_css_string()
+                width.get(),
+                color.as_css_string()
             ))
         } else {
             self.with_css_statement(&format!("border-{}: none", name))
@@ -310,32 +309,36 @@ impl CssBlockBuilder {
     }
 
     pub fn with_border(self, border: &Border) -> Self {
-        let left = border.left.clone().unwrap_or_default();
-        let right = border.right.clone().unwrap_or_default();
-        let top = border.top.clone().unwrap_or_default();
-        let bottom = border.bottom.clone().unwrap_or_default();
-        let widths_are_same = left.width.clone().approx_eq(&right.width)
+        let left = border.left.unwrap_or_default();
+        let right = border.right.unwrap_or_default();
+        let top = border.top.unwrap_or_default();
+        let bottom = border.bottom.unwrap_or_default();
+        let widths_are_same = left.width.approx_eq(&right.width)
             && top.width.approx_eq(&bottom.width)
             && left.width.approx_eq(&top.width);
-        let has_border = !widths_are_same || !left.width.approx_eq(&Length::default());
+        let has_border = !widths_are_same || !left.width.approx_eq(&Figure::default());
 
         if has_border {
+            let left_color = left.color.themed_color(self.theme.unwrap_or_default());
+            let right_color = right.color.themed_color(self.theme.unwrap_or_default());
+            let top_color = top.color.themed_color(self.theme.unwrap_or_default());
+            let bottom_color = bottom.color.themed_color(self.theme.unwrap_or_default());
             let one_rule = widths_are_same
-                && left.color == right.color
-                && top.color == bottom.color
-                && left.color == top.color;
+                && left_color == right_color
+                && top_color == bottom_color
+                && left_color == top_color;
 
             if one_rule {
                 self.with_css_statement(&format!(
                     "border: {:.03}pt solid {}",
                     left.width.get(),
-                    left.color.as_css_string(),
+                    left_color.as_css_string(),
                 ))
             } else {
-                self.with_single_border("left", &left)
-                    .with_single_border("right", &right)
-                    .with_single_border("top", &top)
-                    .with_single_border("bottom", &bottom)
+                self.with_single_border("left", left.width, left_color)
+                    .with_single_border("right", right.width, right_color)
+                    .with_single_border("top", top.width, top_color)
+                    .with_single_border("bottom", bottom.width, bottom_color)
             }
         } else {
             // no border

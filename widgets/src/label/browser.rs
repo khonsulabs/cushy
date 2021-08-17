@@ -68,7 +68,7 @@ fn text_to_html(text: &Text, target: &HtmlElement, element_style: &Style, theme:
 
 fn span_to_html(span: &Span, target: &HtmlElement, element_style: &Style, theme: SystemTheme) {
     let element = create_element::<HtmlSpanElement>("span");
-    element.set_inner_text(&span.text);
+    element.set_inner_text(span.text());
     let mut style = String::new();
     if let Some(color) = span
         .style

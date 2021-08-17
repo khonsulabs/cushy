@@ -18,21 +18,27 @@
 )]
 #![cfg_attr(doc, warn(rustdoc::all))]
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::HashSet,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
     assets::{self, Configuration, Image},
-    euclid::{Point2D, Rect},
+    figures::{Point, Rect},
     styles::{
         style_sheet::{self},
         Style, SystemTheme,
     },
-    AnyTransmogrifierContext, Callback, Gooey, Points, WidgetId,
+    AnyTransmogrifierContext, Callback, Gooey, Scaled, TransmogrifierContext, WidgetId,
 };
 use image::{ImageFormat, RgbaImage};
+use platforms::{target::OS, TARGET_OS};
 use winit::event::{
-    ElementState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase, VirtualKeyCode,
+    ElementState, ModifiersState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase,
+    VirtualKeyCode,
 };
 
 pub mod events;
@@ -182,44 +188,47 @@ impl<R: Renderer> Rasterizer<R> {
         .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
             transmogrifier.render_within(
                 &mut context,
-                Rect::new(Point2D::default(), size),
+                Rect::sized(Point::default(), size),
                 &Style::default(),
             );
         });
     }
 
-    pub fn clipped_to(&self, clip: Rect<f32, Points>) -> Option<Self> {
-        self.renderer().map(|renderer| Self {
-            ui: self.ui.clone(),
-            state: self.state.clone(),
-            refresh_callback: self.refresh_callback.clone(),
-            renderer: Some(renderer.clip_to(clip)),
-        })
+    pub fn clipped_to(&self, clip: Rect<f32, Scaled>) -> Option<Self> {
+        self.renderer()
+            .map(|renderer| self.with_renderer(renderer.clip_to(clip)))
     }
 
-    pub fn handle_event(&mut self, event: WindowEvent) -> EventResult {
-        let _guard = self.ui.enter_managed_code(self);
+    pub fn handle_event(&self, event: WindowEvent, renderer: R) -> EventResult {
+        let rasterizer = self.with_renderer(renderer);
+        let _guard = rasterizer.ui.enter_managed_code(&rasterizer);
         match event {
             WindowEvent::Input(input_event) => match input_event {
                 InputEvent::Keyboard {
                     scancode,
                     key,
                     state,
-                } => self.handle_keyboard_input(scancode, key, state),
-                InputEvent::MouseButton { button, state } => self.handle_mouse_input(state, button),
-                InputEvent::MouseMoved { position } => self.handle_cursor_moved(position),
+                } => rasterizer.handle_keyboard_input(scancode, key, state),
+                InputEvent::MouseButton { button, state } => {
+                    rasterizer.handle_mouse_input(state, button)
+                }
+                InputEvent::MouseMoved { position } => rasterizer.handle_cursor_moved(position),
                 InputEvent::MouseWheel { delta, touch_phase } => {
-                    self.handle_mouse_wheel(delta, touch_phase)
+                    rasterizer.handle_mouse_wheel(delta, touch_phase)
                 }
             },
             WindowEvent::SystemThemeChanged(theme) => {
-                self.state.set_system_theme(theme);
+                rasterizer.state.set_system_theme(theme);
                 EventResult::ignored()
             }
             WindowEvent::RedrawRequested => EventResult::redraw(),
-            WindowEvent::ReceiveCharacter(_)
-            | WindowEvent::ModifiersChanged(_)
-            | WindowEvent::LayerChanged { .. } => EventResult::ignored(),
+            WindowEvent::ReceiveCharacter(ch) => rasterizer.handle_receive_character(ch),
+            WindowEvent::ModifiersChanged(modifiers) => {
+                rasterizer.state.set_keyboard_modifiers(modifiers);
+                // Report ignored since this isn't an event that we exclusively can handle.
+                EventResult::ignored()
+            }
+            WindowEvent::LayerChanged { .. } => EventResult::ignored(),
         }
     }
 
@@ -231,7 +240,7 @@ impl<R: Renderer> Rasterizer<R> {
         self.state.set_system_theme(theme);
     }
 
-    fn handle_cursor_moved(&self, position: Option<Point2D<f32, Points>>) -> EventResult {
+    fn handle_cursor_moved(&self, position: Option<Point<f32, Scaled>>) -> EventResult {
         self.state.set_last_mouse_position(position);
         self.invoke_drag_events(position);
         if let Some(position) = position {
@@ -243,30 +252,67 @@ impl<R: Renderer> Rasterizer<R> {
         }
     }
 
-    #[allow(clippy::unused_self)] // TODO needs implementing
-    fn invoke_drag_events(&self, _position: Option<Point2D<f32, Points>>) {}
-
-    #[allow(clippy::unused_self)] // TODO needs implementing
-    fn handle_keyboard_input(
-        &self,
-        _scancode: ScanCode,
-        _keycode: Option<VirtualKeyCode>,
-        _state: ElementState,
-    ) -> EventResult {
-        EventResult::ignored()
+    fn with_renderer(&self, renderer: R) -> Self {
+        Self {
+            ui: self.ui.clone(),
+            state: self.state.clone(),
+            refresh_callback: self.refresh_callback.clone(),
+            renderer: Some(renderer),
+        }
     }
 
-    fn update_hover(&self, position: Point2D<f32, Points>) -> EventResult {
+    #[allow(clippy::unused_self)] // TODO needs implementing
+    fn invoke_drag_events(&self, _position: Option<Point<f32, Scaled>>) {}
+
+    #[allow(clippy::option_if_let_else)]
+    fn handle_keyboard_input(
+        &self,
+        scancode: ScanCode,
+        keycode: Option<VirtualKeyCode>,
+        state: ElementState,
+    ) -> EventResult {
+        if let Some(widget) = self.focused_widget() {
+            // give the widget an opportunity to process the input. If the
+            // widget doesn't handle it, pass the event up the render tree.
+            EventResult::from(
+                self.with_transmogrifier(&widget, |transmogrifier, mut context| {
+                    transmogrifier.keyboard(&mut context, scancode, keycode, state)
+                })
+                .expect("unknown transmogrifier"),
+            )
+        } else {
+            // TODO handle tab key
+            EventResult::ignored()
+        }
+    }
+
+    fn handle_receive_character(&self, character: char) -> EventResult {
+        self.focused_widget()
+            .map_or_else(EventResult::ignored, |widget| {
+                EventResult::from(
+                    self.with_transmogrifier(&widget, |transmogrifier, mut context| {
+                        transmogrifier.receive_character(&mut context, character)
+                    })
+                    .expect("unknown transmogrifier"),
+                )
+            })
+    }
+
+    pub fn keyboard_modifiers(&self) -> ModifiersState {
+        self.state.keyboard_modifiers()
+    }
+
+    fn update_hover(&self, position: Point<f32, Scaled>) -> EventResult {
         let new_hover = self
             .state
             .widgets_under_point(position)
             .into_iter()
             .filter(|id| {
                 self.state
-                    .widget_bounds(id)
+                    .widget_area(id)
                     .and_then(|bounds| {
                         self.with_transmogrifier(id, |transmogrifier, mut context| {
-                            transmogrifier.mouse_move(&mut context, position, bounds.size)
+                            transmogrifier.mouse_move(&mut context, position, &bounds)
                         })
                     })
                     .unwrap_or_default()
@@ -274,14 +320,9 @@ impl<R: Renderer> Rasterizer<R> {
             .collect::<HashSet<_>>();
 
         for (button, handler) in self.state.mouse_button_handlers() {
-            self.state.widget_bounds(&handler).and_then(|bounds| {
+            self.state.widget_area(&handler).and_then(|bounds| {
                 self.with_transmogrifier(&handler, |transmogrifier, mut context| {
-                    transmogrifier.mouse_drag(
-                        &mut context,
-                        button,
-                        position - bounds.origin.to_vector(),
-                        bounds.size,
-                    );
+                    transmogrifier.mouse_drag(&mut context, button, position, &bounds);
                 })
             });
         }
@@ -317,17 +358,17 @@ impl<R: Renderer> Rasterizer<R> {
 
         if let Some(last_mouse_position) = self.state.last_mouse_position() {
             for hovered in self.state.hover() {
-                if let Some(bounds) = self.state.widget_bounds(&hovered) {
+                if let Some(bounds) = self.state.widget_area(&hovered) {
                     let handled = self
                         .with_transmogrifier(&hovered, |transmogrifier, mut context| {
-                            let position = last_mouse_position - bounds.origin.to_vector();
-                            let hit = transmogrifier.hit_test(&mut context, position, bounds.size);
+                            let hit =
+                                transmogrifier.hit_test(&mut context, last_mouse_position, &bounds);
                             let handled = hit
                                 && transmogrifier.mouse_down(
                                     &mut context,
                                     button,
-                                    position,
-                                    bounds.size,
+                                    last_mouse_position,
+                                    &bounds,
                                 ) == EventStatus::Processed;
                             if handled {
                                 self.state.register_mouse_handler(button, hovered.clone());
@@ -352,15 +393,13 @@ impl<R: Renderer> Rasterizer<R> {
         self.state
             .take_mouse_button_handler(button)
             .and_then(|handler| {
-                self.state.widget_bounds(&handler).and_then(|bounds| {
+                self.state.widget_area(&handler).and_then(|bounds| {
                     self.with_transmogrifier(&handler, |transmogrifier, mut context| {
                         transmogrifier.mouse_up(
                             &mut context,
                             button,
-                            self.state
-                                .last_mouse_position()
-                                .map(|pos| pos - bounds.origin.to_vector()),
-                            bounds.size,
+                            self.state.last_mouse_position(),
+                            &bounds,
                         );
                         EventResult::processed()
                     })
@@ -379,8 +418,8 @@ impl<R: Renderer> Rasterizer<R> {
         self.renderer.as_ref()
     }
 
-    pub fn rasterized_widget(&self, widget: WidgetId, bounds: Rect<f32, Points>) {
-        self.state.widget_rendered(widget, bounds);
+    pub fn rasterized_widget(&self, widget: WidgetId, area: ContentArea) {
+        self.state.widget_rendered(widget, area);
     }
 
     /// Executes `callback` with the transmogrifier and transmogrifier state as
@@ -413,6 +452,18 @@ impl<R: Renderer> Rasterizer<R> {
         self.state.needs_redraw()
     }
 
+    pub fn duration_until_next_redraw(&self) -> Option<Duration> {
+        self.state.duration_until_next_redraw()
+    }
+
+    pub fn schedule_redraw_in(&self, duration: Duration) {
+        self.state.schedule_redraw_in(duration);
+    }
+
+    pub fn schedule_redraw_at(&self, at: Instant) {
+        self.state.schedule_redraw_at(at);
+    }
+
     pub fn activate(&self, widget: &WidgetId) {
         self.state.set_active(Some(widget.clone()));
     }
@@ -441,6 +492,15 @@ impl<R: Renderer> Rasterizer<R> {
 pub struct EventResult {
     pub status: EventStatus,
     pub needs_redraw: bool,
+}
+
+impl From<EventStatus> for EventResult {
+    fn from(status: EventStatus) -> Self {
+        Self {
+            status,
+            needs_redraw: false,
+        }
+    }
 }
 
 impl EventResult {
@@ -515,5 +575,53 @@ impl ImageExt for Image {
                 .and_then(|data| data.as_any().downcast_ref::<Arc<RgbaImage>>())
                 .map(Arc::clone)
         })
+    }
+}
+
+pub trait TransmogrifierContextExt {
+    fn activate(&self);
+    fn focus(&self);
+    fn is_focused(&self) -> bool;
+    fn deactivate(&self);
+    fn blur(&self);
+}
+
+impl<'a, T: WidgetRasterizer<R>, R: Renderer> TransmogrifierContextExt
+    for TransmogrifierContext<'a, T, Rasterizer<R>>
+{
+    fn activate(&self) {
+        self.frontend.activate(self.registration.id());
+    }
+
+    fn deactivate(&self) {
+        self.frontend.deactivate();
+    }
+
+    fn focus(&self) {
+        self.frontend.focus_on(self.registration.id());
+    }
+
+    fn blur(&self) {
+        self.frontend.blur();
+    }
+
+    fn is_focused(&self) -> bool {
+        self.frontend.focused_widget().as_ref() == Some(self.registration.id())
+    }
+}
+
+pub trait ModifiersStateExt {
+    /// Returns true if the primary OS modifier key is pressed. On Mac, this is
+    /// the Logo key. On all other platforms, this is the control key.
+    fn primary(&self) -> bool;
+}
+
+impl ModifiersStateExt for ModifiersState {
+    fn primary(&self) -> bool {
+        if TARGET_OS == OS::MacOS {
+            self.logo()
+        } else {
+            self.ctrl()
+        }
     }
 }

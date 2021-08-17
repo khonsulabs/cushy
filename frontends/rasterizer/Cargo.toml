@@ -11,10 +11,19 @@ categories = ["gui"]
 readme = "../../README.md"
 
 [dependencies]
-gooey-core = { path="../../core", version="0.1.0-dev.0" }
-gooey-renderer = { path="../../renderer", version="0.1.0-dev.0" }
-winit = { version="0.25", default-features=false }
-image = { version="0.23", default-features=false, features=["ico", "png", "jpeg"] }
+gooey-core = { path = "../../core", version = "0.1.0-dev.0" }
+gooey-renderer = { path = "../../renderer", version = "0.1.0-dev.0" }
+winit = { version = "0.25", default-features = false }
+image = { version = "0.23", default-features = false, features = [
+    "ico",
+    "png",
+    "jpeg",
+] }
+parking_lot = "0.11"
+platforms = { version = "1" }
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
-winit = { version="0.25", features=["web-sys"] }
+winit = { version = "0.25", features = ["web-sys"] }
+
+[target.'cfg(not(target_arch="wasm32"))'.dependencies]
+winit = { version = "0.25", features = ["x11"] }

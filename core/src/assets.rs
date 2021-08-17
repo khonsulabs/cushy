@@ -1,9 +1,6 @@
-use std::{
-    borrow::Cow,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
+use std::{borrow::Cow, path::PathBuf, sync::Arc};
 
+use parking_lot::Mutex;
 use url::Url;
 
 use crate::{AnyFrontend, AnySendSync, Callback};
@@ -83,7 +80,6 @@ pub struct Image {
 impl Image {
     /// Loads the image. When loaded successfully, `on_loaded` will be invoked.
     /// If an error occurs while loading, `on_error` will be invoked.
-    #[allow(clippy::missing_panics_doc)]
     pub fn load(
         &self,
         on_loaded: Callback<Image>,
@@ -94,17 +90,15 @@ impl Image {
     }
 
     /// Sets the internal frontend data for this image. Should not be used outside of developing a frontend.
-    #[allow(clippy::missing_panics_doc)]
     pub fn set_data<D: AnySendSync>(&self, new_data: D) {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock();
         *data = Some(Box::new(new_data) as Box<dyn AnySendSync>);
     }
 
     /// Maps the frontend data into `callback` returning the result of the
     /// function. This is generally only useful when developing a frontend.
-    #[allow(clippy::missing_panics_doc)]
     pub fn map_data<R, F: FnOnce(Option<&mut dyn AnySendSync>) -> R>(&self, callback: F) -> R {
-        let mut data = self.data.lock().unwrap();
+        let mut data = self.data.lock();
         callback(data.as_deref_mut())
     }
 }

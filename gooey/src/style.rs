@@ -1,15 +1,16 @@
 use gooey_core::{
-    euclid::Length,
+    figures::Figure,
     styles::{
         style_sheet::{Rule, StyleSheet},
-        Alignment, BackgroundColor, Color, ColorPair, ForegroundColor, Padding, Surround,
-        VerticalAlignment,
+        Alignment, BackgroundColor, Border, BorderOptions, Color, ColorPair, ForegroundColor,
+        Padding, Surround, VerticalAlignment,
     },
     ROOT_CLASS, SOLID_WIDGET_CLASS,
 };
 use gooey_widgets::{
     button::{Button, ButtonColor},
     checkbox::Checkbox,
+    input::Input,
     label::Label,
 };
 
@@ -78,7 +79,7 @@ pub fn default_stylesheet() -> StyleSheet {
             style
                 .with(Alignment::Center)
                 .with(VerticalAlignment::Center)
-                .with(Padding(Surround::from(Some(Length::new(5.)))))
+                .with(Padding(Surround::from(Some(Figure::new(5.)))))
         }))
         .with(Rule::for_widget::<Checkbox>().with_styles(|style| {
             style
@@ -128,4 +129,36 @@ pub fn default_stylesheet() -> StyleSheet {
                 dark_color: Color::gray(0.9),
             }))
         }))
+        .with(Rule::for_widget::<Input>().with_styles(|style| {
+            style
+                .with(BackgroundColor(ColorPair {
+                    light_color: Color::WHITE,
+                    dark_color: Color::BLACK,
+                }))
+                .with(ForegroundColor(ColorPair {
+                    light_color: Color::BLACK,
+                    dark_color: Color::gray(0.8),
+                }))
+                .with(Border::uniform(BorderOptions::new(
+                    1.,
+                    ColorPair {
+                        light_color: Color::gray(0.5),
+                        dark_color: Color::gray(0.1),
+                    },
+                )))
+                .with(Padding(Surround::from(Some(Figure::new(5.)))))
+        }))
+        .with(
+            Rule::for_widget::<Input>()
+                .when_focused()
+                .with_styles(|style| {
+                    style.with(Border::uniform(BorderOptions::new(
+                        1.,
+                        ColorPair {
+                            light_color: Color::RED,
+                            dark_color: Color::RED,
+                        },
+                    )))
+                }),
+        )
 }

@@ -1,7 +1,7 @@
 use gooey_core::{
-    euclid::{Length, Size2D},
+    figures::{Figure, Size},
     styles::Style,
-    Points, Transmogrifier, TransmogrifierContext,
+    Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
 use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
@@ -34,26 +34,30 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
                 &context.widget.label,
                 context.style,
                 renderer,
-                Length::new(content_area.size.content.width),
+                Figure::new(content_area.size.content.width),
             );
-            wrapped.render_within::<LabelColor, _>(renderer, content_area.bounds(), context.style);
+            wrapped.render_within::<LabelColor, _>(
+                renderer,
+                content_area.content_bounds(),
+                context.style,
+            );
         }
     }
 
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size2D<Option<f32>, Points>,
-    ) -> Size2D<f32, Points> {
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled> {
         context
             .frontend
             .renderer()
-            .map_or_else(Size2D::default, |renderer| {
+            .map_or_else(Size::default, |renderer| {
                 let wrapped = wrap_text(
                     &context.widget.label,
                     context.style,
                     renderer,
-                    Length::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
+                    Figure::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
                 );
                 wrapped.size()
             })
@@ -64,12 +68,12 @@ fn wrap_text<R: Renderer>(
     label: &Text,
     style: &Style,
     renderer: &R,
-    width: Length<f32, Points>,
+    width: Figure<f32, Scaled>,
 ) -> PreparedText {
     label.wrap(
         renderer,
         TextWrap::MultiLine {
-            size: Size2D::from_lengths(width, Length::new(renderer.size().height)),
+            size: Size::from_figures(width, Figure::new(renderer.size().height)),
         },
         Some(style),
     )

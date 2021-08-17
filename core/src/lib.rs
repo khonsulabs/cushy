@@ -20,24 +20,22 @@ mod gooey;
 pub mod styles;
 mod widget;
 
-pub use euclid;
+pub use figures;
 pub use palette;
 pub use url;
 
 pub use self::{frontend::*, gooey::*, widget::*};
 
 /// A unit representing physical pixels on a display.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Pixels;
+pub type Pixels = figures::Pixels;
 
 /// A unit aiming to represent the scaled resolution of the display the
-/// interface is being displayed on. The ratio between [`Pixels`] and `Points`
+/// interface is being displayed on. The ratio between [`Pixels`] and `Scaled`
 /// can vary based on many things, including the display configuration, the
 /// system user interface settings, and the browser's zoom level. Each
-/// [`Frontend`] will use its best available methods for translating `Points` to
+/// [`Frontend`] will use its best available methods for translating `Scaled` to
 /// [`Pixels`] in a way that is consistent with other applications.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Points;
+pub type Scaled = figures::Scaled;
 
 /// The name of the class assigned to the root widget of a window.
 pub const ROOT_CLASS: &str = "gooey-root";

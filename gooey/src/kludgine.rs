@@ -1,7 +1,7 @@
 use std::{path::PathBuf, process::Command};
 
 use gooey_core::{assets::Configuration, StyledWidget};
-use gooey_rasterizer::winit::window::Theme;
+use gooey_rasterizer::winit::{event::ModifiersState, window::Theme};
 use platforms::target::{OS, TARGET_OS};
 
 use crate::{
@@ -127,11 +127,13 @@ impl Window for GooeyWindow {
         Ok(())
     }
 
-    fn render(&mut self, scene: &Target) -> kludgine::Result<()> {
+    fn render(&mut self, scene: &Target, status: &mut RedrawStatus) -> kludgine::Result<()> {
         self.ui.render(Kludgine::from(scene));
         self.ui.gooey().process_widget_messages(&self.ui);
         if self.ui.needs_redraw() {
-            self.redrawer.as_ref().unwrap().request_redraw();
+            status.set_needs_redraw();
+        } else if let Some(duration) = self.ui.duration_until_next_redraw() {
+            status.estimate_next_frame(duration);
         }
 
         Ok(())
@@ -141,6 +143,8 @@ impl Window for GooeyWindow {
         self.ui.gooey().process_widget_messages(&self.ui);
         if self.ui.needs_redraw() {
             status.set_needs_redraw();
+        } else if let Some(duration) = self.ui.duration_until_next_redraw() {
+            status.estimate_next_frame(duration);
         }
 
         Ok(())
@@ -150,28 +154,72 @@ impl Window for GooeyWindow {
         &mut self,
         input: InputEvent,
         status: &mut RedrawStatus,
+        scene: &Target,
     ) -> kludgine::Result<()> {
         let input = match input.event {
             Event::Keyboard {
                 scancode,
                 key,
                 state,
-            } => GooeyInputEvent::Keyboard {
-                scancode,
-                key,
-                state,
-            },
+            } => {
+                // When a keyboard event happens, refresh the modifiers.
+                let mut modifiers = ModifiersState::default();
+                let scene_modifiers = scene.modifiers_pressed();
+                if scene_modifiers.alt {
+                    modifiers |= ModifiersState::ALT;
+                }
+                if scene_modifiers.control {
+                    modifiers |= ModifiersState::CTRL;
+                }
+                if scene_modifiers.operating_system {
+                    modifiers |= ModifiersState::LOGO;
+                }
+                if scene_modifiers.shift {
+                    modifiers |= ModifiersState::SHIFT;
+                }
+                self.ui.handle_event(
+                    gooey_rasterizer::events::WindowEvent::ModifiersChanged(modifiers),
+                    Kludgine::from(scene),
+                );
+
+                GooeyInputEvent::Keyboard {
+                    scancode,
+                    key,
+                    state,
+                }
+            }
             Event::MouseButton { button, state } => GooeyInputEvent::MouseButton { button, state },
             Event::MouseMoved { position } => GooeyInputEvent::MouseMoved {
-                position: position.map(Point::cast_unit),
+                position: position.map(|p| p.cast_unit()),
             },
             Event::MouseWheel { delta, touch_phase } => {
                 GooeyInputEvent::MouseWheel { delta, touch_phase }
             }
         };
-        let result = self
-            .ui
-            .handle_event(gooey_rasterizer::events::WindowEvent::Input(input));
+        let result = self.ui.handle_event(
+            gooey_rasterizer::events::WindowEvent::Input(input),
+            Kludgine::from(scene),
+        );
+        self.ui.gooey().process_widget_messages(&self.ui);
+        if result.needs_redraw || self.ui.needs_redraw() {
+            status.set_needs_redraw();
+        }
+        Ok(())
+    }
+
+    fn receive_character(
+        &mut self,
+        character: char,
+        status: &mut RedrawStatus,
+        scene: &Target,
+    ) -> kludgine::app::Result<()>
+    where
+        Self: Sized,
+    {
+        let result = self.ui.handle_event(
+            gooey_rasterizer::events::WindowEvent::ReceiveCharacter(character),
+            Kludgine::from(scene),
+        );
         self.ui.gooey().process_widget_messages(&self.ui);
         if result.needs_redraw || self.ui.needs_redraw() {
             status.set_needs_redraw();

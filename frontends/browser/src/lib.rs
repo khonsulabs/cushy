@@ -25,7 +25,7 @@ use std::{
     ops::Deref,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
-        Arc, Mutex,
+        Arc,
     },
 };
 
@@ -41,6 +41,7 @@ use gooey_core::{
     Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
     WidgetRegistration,
 };
+use parking_lot::Mutex;
 use wasm_bindgen::{prelude::*, JsCast};
 
 pub mod utils;
@@ -210,7 +211,7 @@ fn update_system_theme(root_id: &str, dark: bool, theme: &Mutex<SystemTheme>) {
         (SystemTheme::Light, "gooey-light", "gooey-dark")
     };
 
-    let mut theme = theme.lock().unwrap();
+    let mut theme = theme.lock();
     *theme = system_theme;
 
     let window = web_sys::window().unwrap();
@@ -266,7 +267,7 @@ impl gooey_core::Frontend for WebSys {
     }
 
     fn theme(&self) -> SystemTheme {
-        let theme = self.data.theme.lock().unwrap();
+        let theme = self.data.theme.lock();
         *theme
     }
 
@@ -343,22 +344,16 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         set_widget_classes(element, &classes);
         let mut rules = None;
 
+        let style_sheet = context.frontend.gooey().stylesheet();
         for theme in [SystemTheme::Light, SystemTheme::Dark] {
             for state in State::permutations() {
                 let mut css = CssBlockBuilder::for_id(context.registration.id().id)
                     .and_state(&state)
                     .with_theme(theme);
-                css = self.convert_style_to_css(context.style, css);
 
-                let style_sheet = context.frontend.gooey().stylesheet();
-                if let Some(rules) = style_sheet.rules_by_widget.get(&None) {
-                    for &rule_index in rules {
-                        let rule = &style_sheet.rules[rule_index];
-                        if rule.widget_type_id.is_none() && rule.applies(&state, Some(&classes)) {
-                            css = self.convert_style_to_css(&rule.style, css);
-                        }
-                    }
-                }
+                let effective_style =
+                    style_sheet.effective_style_for::<Self::Widget>(context.style.clone(), &state);
+                css = self.convert_style_to_css(&effective_style, css);
 
                 let css = css.to_string();
                 rules = Some(rules.map_or_else(

@@ -24,7 +24,7 @@ impl MainMenu {
     pub fn new(navigator: WeakWidgetRegistration) -> Self {
         Self {
             navigator,
-            buttons: vec![Page::Navigator { level: 0 }, Page::Borders],
+            buttons: vec![Page::Navigator { level: 0 }, Page::Borders, Page::Input],
         }
     }
 }
@@ -51,8 +51,7 @@ impl Behavior for MainMenu {
             .with(VerticalAlignment::Center),
             WidgetLayout::build()
                 .top(Dimension::zero())
-                .right(Dimension::zero())
-                .left(Dimension::zero())
+                .fill_width()
                 .height(Dimension::percent(0.8))
                 .finish(),
         );

@@ -144,7 +144,7 @@ mod tests {
 
     use gooey::HeadlessError;
     use gooey_core::{
-        euclid::{Point2D, Size2D},
+        figures::{Point, Size},
         styles::SystemTheme,
     };
     use gooey_widgets::navigator::Navigator;
@@ -156,12 +156,12 @@ mod tests {
     async fn demo() -> Result<(), HeadlessError> {
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = crate::app().headless();
-            let mut recorder = headless.begin_recording(Size2D::new(480, 320), theme, true, 15);
-            recorder.set_cursor(Point2D::new(100., 200.));
+            let mut recorder = headless.begin_recording(Size::new(480, 320), theme, true, 15);
+            recorder.set_cursor(Point::new(100., 200.));
 
             // Open the navigator demo
             recorder
-                .move_cursor_to(Point2D::new(150., 300.), Duration::from_millis(300))
+                .move_cursor_to(Point::new(150., 300.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(500));
@@ -172,7 +172,7 @@ mod tests {
 
             // Go back
             recorder
-                .move_cursor_to(Point2D::new(30., 30.), Duration::from_millis(300))
+                .move_cursor_to(Point::new(30., 30.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(300));
@@ -183,7 +183,7 @@ mod tests {
 
             // Enter back into the navigator demo
             recorder
-                .move_cursor_to(Point2D::new(150., 300.), Duration::from_millis(300))
+                .move_cursor_to(Point::new(150., 300.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(500));
@@ -191,10 +191,7 @@ mod tests {
             // Push a few entries
             for i in 1_u8..3 {
                 recorder
-                    .move_cursor_to(
-                        Point2D::new(130. + i as f32, 290.),
-                        Duration::from_millis(10),
-                    )
+                    .move_cursor_to(Point::new(130. + i as f32, 290.), Duration::from_millis(10))
                     .await?;
                 recorder.left_click().await?;
                 recorder.pause(Duration::from_millis(100));
@@ -214,7 +211,7 @@ mod tests {
 
             // Replace the top
             recorder
-                .move_cursor_to(Point2D::new(240., 290.), Duration::from_millis(10))
+                .move_cursor_to(Point::new(240., 290.), Duration::from_millis(10))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(500));
@@ -233,7 +230,7 @@ mod tests {
 
             // Go home
             recorder
-                .move_cursor_to(Point2D::new(420., 290.), Duration::from_millis(300))
+                .move_cursor_to(Point::new(420., 290.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(1000));

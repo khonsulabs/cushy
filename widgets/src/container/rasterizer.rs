@@ -1,6 +1,6 @@
 use gooey_core::{
-    euclid::{Point2D, Rect, Size2D},
-    Points, Transmogrifier, TransmogrifierContext,
+    figures::{Point, Rect, Size},
+    Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{ContentArea, Rasterizer, Renderer, WidgetRasterizer};
 
@@ -23,7 +23,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
                 let child_content_area = child_transmogrifier
                     .content_size(
                         &mut child_context,
-                        Size2D::new(
+                        Size::new(
                             Some(content_area.size.content.width),
                             Some(content_area.size.content.height),
                         ),
@@ -32,8 +32,8 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
                 let remaining_size = content_area.size.content - child_content_area;
 
                 // TODO respect Alignment + Vertical alignment
-                let child_rect = Rect::new(
-                    Point2D::new(remaining_size.width / 2., remaining_size.height / 2.),
+                let child_rect = Rect::sized(
+                    Point::new(remaining_size.width / 2., remaining_size.height / 2.),
                     child_content_area,
                 );
                 child_transmogrifier.render_within(&mut child_context, child_rect, context.style);
@@ -44,8 +44,8 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
     fn measure_content(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-        constraints: Size2D<Option<f32>, Points>,
-    ) -> Size2D<f32, Points> {
+        constraints: Size<Option<f32>, Scaled>,
+    ) -> Size<f32, Scaled> {
         context
             .frontend
             .with_transmogrifier(
