@@ -18,7 +18,9 @@ mod weight;
 pub use self::{
     alignment::{Alignment, VerticalAlignment},
     border::{Border, BorderOptions},
-    colors::{BackgroundColor, Color, ColorPair, ForegroundColor, SystemTheme, TextColor},
+    colors::{
+        BackgroundColor, Color, ColorPair, ForegroundColor, SelectionColor, SystemTheme, TextColor,
+    },
     font_family::FontFamily,
     font_size::FontSize,
     font_style::FontStyle,

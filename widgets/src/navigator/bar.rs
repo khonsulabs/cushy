@@ -52,7 +52,10 @@ impl<Loc: Location> NavigatorBar for Component<DefaultBarBehavior<Loc>> {
                 .is_none()
             {
                 // Back button doesn't exist
-                let button = context.register(Button::new(label, self.map_event(|_| Event::Back)));
+                let button = context.register(
+                    Button::new(label, self.map_event(|_| Event::Back))
+                        .with(Classes::from("gooey-navigator-button")),
+                );
 
                 self.map_content_mut(context, |layout, context| {
                     layout.insert_registration(

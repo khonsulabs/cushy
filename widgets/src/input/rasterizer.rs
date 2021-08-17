@@ -8,7 +8,7 @@ use std::{
 use arboard::Clipboard;
 use gooey_core::{
     figures::{Displayable, Figure, Point, Rect, Rectlike, Size, SizedRect},
-    styles::{Color, Style, TextColor},
+    styles::{Color, SelectionColor, Style, TextColor},
     Pixels, Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
@@ -97,6 +97,12 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             }
             context.state.prepared = Some(prepared);
 
+            let selection_color = context
+                .style
+                .get_with_fallback::<SelectionColor>()
+                .map(|w| w.themed_color(renderer.theme()))
+                .unwrap_or_default();
+
             if let Some(end) = context.state.cursor.end {
                 let selection_start = context.state.cursor.start.min(end);
                 let selection_end = context.state.cursor.start.max(end);
@@ -110,6 +116,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                         .character_rect_for_position(renderer, selection_end)
                         .map(|r| r.as_extents())
                     {
+                        let transparent_selection = selection_color.with_alpha(0.3);
                         if start_position.extent.y <= end_position.origin.y {
                             // Multi-line
                             // First line is start_position -> end of bounds
@@ -128,7 +135,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                                         ),
                                     )
                                     .translate(bounds.origin),
-                                    Color::new(1., 0., 0., 0.3),
+                                    transparent_selection,
                                 );
                             }
                             // Last line is start of line -> start of end position
@@ -141,7 +148,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                                     ),
                                 )
                                 .translate(bounds.origin),
-                                Color::new(1., 0., 0., 0.3),
+                                transparent_selection,
                             );
                         } else {
                             // Single-line
@@ -149,7 +156,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                             area.size.width = end_position.origin.x - start_position.origin.x;
                             renderer.fill_rect(
                                 &area.translate(bounds.origin).as_rect(),
-                                Color::new(1., 0., 0., 0.3),
+                                transparent_selection,
                             );
                         }
                     }
@@ -168,7 +175,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                                 Figure::new(cursor_location.size.height),
                             ),
                         ),
-                        Color::RED,
+                        selection_color,
                     );
                 }
             }

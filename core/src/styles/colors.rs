@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Display};
 
-use palette::{FromColor, Hsl, Hsla, Hsv, Hsva, Srgb, Srgba};
+use palette::{FromColor, Hsl, Hsla, Hsv, Hsva, Lab, Laba, Shade, Srgb, Srgba};
 use stylecs::{FallbackComponent, StyleComponent};
 
 /// An Srgba color.
@@ -69,6 +69,20 @@ impl Color {
     /// replacing the current alpha with the parameter.
     pub const fn with_alpha(&self, alpha: f32) -> Self {
         Self::new(self.red, self.green, self.blue, alpha)
+    }
+
+    /// Returns this color after lightening it by `factor`. Uses the [`Laba`]
+    /// colorspace for luminance calcluations.
+    pub fn lighten(self, factor: f32) -> Self {
+        let lab = Laba::from(self);
+        Self::from(lab.lighten(factor))
+    }
+
+    /// Returns this color after darkening it by `factor`. Uses the [`Laba`]
+    /// colorspace for luminance calcluations.
+    pub fn darken(self, factor: f32) -> Self {
+        let lab = Laba::from(self);
+        Self::from(lab.darken(factor))
     }
 }
 
@@ -141,6 +155,30 @@ impl From<Color> for Srgb {
     }
 }
 
+impl From<Lab> for Color {
+    fn from(color: Lab) -> Self {
+        Self::from(Srgba::from_color(color))
+    }
+}
+
+impl From<Laba> for Color {
+    fn from(color: Laba) -> Self {
+        Self::from(Srgba::from_color(color))
+    }
+}
+
+impl From<Color> for Laba {
+    fn from(color: Color) -> Self {
+        Self::from_color(Srgba::from(color))
+    }
+}
+
+impl From<Color> for Lab {
+    fn from(color: Color) -> Self {
+        Self::from_color(Srgb::from(color))
+    }
+}
+
 /// The theme variant for the system.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SystemTheme {
@@ -165,6 +203,7 @@ impl Default for SystemTheme {
 
 /// A pair of colors, one for each [`SystemTheme`] variant.
 #[derive(Debug, Clone, Default, Copy)]
+#[must_use]
 pub struct ColorPair {
     /// The color used when the current system theme is [`SystemTheme::Light`].
     pub light_color: Color,
@@ -175,11 +214,28 @@ pub struct ColorPair {
 impl ColorPair {
     /// Returns a copy of the color pair, replacing each colors alpha channel
     /// with the value provided (0.0-1.0 range).
-    #[must_use]
     pub const fn with_alpha(mut self, alpha: f32) -> Self {
         self.light_color.alpha = alpha;
         self.dark_color.alpha = alpha;
         self
+    }
+
+    /// Returns this pair of colors after lightening the colors by `factor`.
+    /// Uses the [`Laba`] colorspace for luminance calcluations.
+    pub fn lighten(self, factor: f32) -> Self {
+        Self {
+            light_color: self.light_color.lighten(factor),
+            dark_color: self.dark_color.lighten(factor),
+        }
+    }
+
+    /// Returns this pair of colors after darkening the colors by `factor`. Uses
+    /// the [`Laba`] colorspace for luminance calcluations.
+    pub fn darken(self, factor: f32) -> Self {
+        Self {
+            light_color: self.light_color.darken(factor),
+            dark_color: self.dark_color.darken(factor),
+        }
     }
 }
 
@@ -595,4 +651,24 @@ impl Color {
     pub const YELLOW: Self = Self::new(1., 1., 0., 1.);
     /// Equivalent to the [CSS color keywords](https://developer.mozilla.org/en-US/docs/Web/CSS/color_value) of the same name.
     pub const YELLOWGREEN: Self = Self::new(154. / 255., 205. / 255., 50. / 255., 1.);
+}
+
+/// The color to highlight selections.
+#[derive(Debug, Clone)]
+pub struct SelectionColor(pub ColorPair);
+impl StyleComponent for SelectionColor {}
+
+impl From<SelectionColor> for ColorPair {
+    fn from(color: SelectionColor) -> Self {
+        color.0
+    }
+}
+
+impl FallbackComponent for SelectionColor {
+    type Fallback = ForegroundColor;
+    type Value = ColorPair;
+
+    fn value(&self) -> Option<&ColorPair> {
+        Some(&self.0)
+    }
 }
