@@ -24,7 +24,7 @@ impl MainMenu {
     pub fn new(navigator: WeakWidgetRegistration) -> Self {
         Self {
             navigator,
-            buttons: vec![Page::Navigator { level: 0 }, Page::Borders],
+            buttons: vec![Page::Navigator { level: 0 }, Page::Borders, Page::Input],
         }
     }
 }

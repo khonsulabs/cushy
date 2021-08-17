@@ -16,6 +16,10 @@ pub struct Input {
 }
 
 impl Input {
+    pub fn build() -> Builder {
+        Builder::default()
+    }
+
     pub fn new<S: Into<String>>(value: S, changed: Callback<()>) -> StyledWidget<Self> {
         StyledWidget::from(Self {
             value: value.into(),
@@ -62,3 +66,30 @@ impl Widget for Input {
 
 #[derive(Debug)]
 pub struct InputTransmogrifier;
+
+#[derive(Debug, Default)]
+#[must_use]
+pub struct Builder {
+    input: Input,
+}
+
+impl Builder {
+    pub fn value<S: Into<String>>(mut self, value: S) -> Self {
+        self.input.value = value.into();
+        self
+    }
+
+    pub fn on_changed(mut self, callback: Callback) -> Self {
+        self.input.changed = callback;
+        self
+    }
+
+    pub fn on_selection_changed(mut self, callback: Callback) -> Self {
+        self.input.selection_changed = callback;
+        self
+    }
+
+    pub fn finish(self) -> StyledWidget<Input> {
+        StyledWidget::from(self.input)
+    }
+}
