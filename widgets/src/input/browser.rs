@@ -1,8 +1,11 @@
 use gooey_browser::{
-    utils::{create_element, widget_css_id, window_document, CssRules},
+    utils::{create_element, widget_css_id, window_document, CssBlockBuilder, CssRules},
     WebSys, WebSysTransmogrifier,
 };
-use gooey_core::{Context, TransmogrifierContext};
+use gooey_core::{
+    styles::{Alignment, Style},
+    Context, TransmogrifierContext,
+};
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::HtmlInputElement;
 
@@ -55,7 +58,7 @@ impl WebSysTransmogrifier for InputTransmogrifier {
         element.set_value(&context.widget.value);
 
         let callback_context = Context::from(&context);
-        element.set_onchange(
+        element.set_oninput(
             Closure::wrap(Box::new(move || {
                 callback_context.map_mut(|input, context| {
                     if let Some(element) = input_element(context) {
@@ -64,7 +67,7 @@ impl WebSysTransmogrifier for InputTransmogrifier {
                     }
                 });
             }) as Box<dyn FnMut()>)
-            .as_ref()
+            .into_js_value()
             .dyn_ref(),
         );
 
@@ -93,11 +96,23 @@ impl WebSysTransmogrifier for InputTransmogrifier {
                     }
                 });
             }) as Box<dyn FnMut()>)
-            .as_ref()
+            .into_js_value()
             .dyn_ref(),
         );
 
         Some(element.unchecked_into())
+    }
+
+    fn convert_style_to_css(&self, style: &Style, css: CssBlockBuilder) -> CssBlockBuilder {
+        let horizontal_alignment = match style.get_or_default::<Alignment>() {
+            Alignment::Left => "left",
+            Alignment::Center => "center",
+            Alignment::Right => "right",
+        };
+        self.convert_standard_components_to_css(style, css)
+            .with_css_statement(&format!("text-align: {}", horizontal_alignment))
+            // hide the focus ring
+            .with_css_statement("outline: none")
     }
 }
 

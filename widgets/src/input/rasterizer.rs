@@ -4,6 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(not(target_arch = "wasm32"))]
 use arboard::Clipboard;
 use gooey_core::{
     figures::{Displayable, Figure, Point, Rect, Rectlike, Size, SizedRect},
@@ -320,6 +321,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                         }
                         true
                     }
+                    #[cfg(not(target_arch = "wasm32"))]
                     VirtualKeyCode::V => {
                         if context.frontend.keyboard_modifiers().primary() {
                             InputState::paste(context);
@@ -328,6 +330,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                             false
                         }
                     }
+                    #[cfg(not(target_arch = "wasm32"))]
                     VirtualKeyCode::X | VirtualKeyCode::C => {
                         if context.frontend.keyboard_modifiers().primary()
                             && InputState::copy(context)
@@ -372,6 +375,7 @@ pub struct InputState<R> {
     text: RichText,
     cursor: Cursor,
     prepared: Option<Vec<PreparedText>>,
+    #[cfg(not(target_arch = "wasm32"))]
     clipboard: Option<Clipboard>,
     _renderer: PhantomData<R>,
 }
@@ -389,6 +393,7 @@ impl<R: Renderer> Debug for InputState<R> {
 impl<R: Renderer> Default for InputState<R> {
     fn default() -> Self {
         Self {
+            #[cfg(not(target_arch = "wasm32"))]
             clipboard: Clipboard::new().ok(),
             text: RichText::default(),
             cursor: Cursor::default(),
@@ -402,6 +407,7 @@ type InputTransmogrifierContext<'a, R> =
     TransmogrifierContext<'a, InputTransmogrifier, Rasterizer<R>>;
 
 impl<R: Renderer> InputState<R> {
+    #[cfg(not(target_arch = "wasm32"))]
     fn paste(context: &mut InputTransmogrifierContext<'_, R>) {
         if let Some(clipboard) = &mut context.state.clipboard {
             // Convert Result to Option to get rid of the Box<dyn Error> before the await
@@ -417,6 +423,7 @@ impl<R: Renderer> InputState<R> {
     /// Returns whether text was successfully written to the clipboard. If
     /// feature `clipboard` isn't enabled, this function will always return
     /// Ok(false)
+    #[cfg(not(target_arch = "wasm32"))]
     fn copy(context: &mut InputTransmogrifierContext<'_, R>) -> bool {
         let selected = context.state.selected_string();
         context

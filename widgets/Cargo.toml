@@ -12,8 +12,8 @@ readme = "../README.md"
 
 [features]
 default = []
-frontend-rasterizer = ["gooey-rasterizer"]
-frontend-browser = ["gooey-browser", "wasm-bindgen", "web-sys", "arboard"]
+frontend-rasterizer = ["gooey-rasterizer", "arboard"]
+frontend-browser = ["gooey-browser", "wasm-bindgen", "web-sys"]
 
 [dependencies]
 gooey-core = { path = "../core", version = "0.1.0-dev.0" }

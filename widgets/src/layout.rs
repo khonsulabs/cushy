@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug, ops::Deref};
 
 use gooey_core::{
     figures::{Figure, Size},
@@ -158,6 +158,14 @@ impl<K: Key> ChildrenMap<K> {
 pub struct LayoutChild {
     pub registration: WidgetRegistration,
     pub layout: WidgetLayout,
+}
+
+impl Deref for LayoutChild {
+    type Target = WidgetLayout;
+
+    fn deref(&self) -> &WidgetLayout {
+        &self.layout
+    }
 }
 
 impl<K: Key, S: KeyedStorage<K>> Builder<K, S> {
@@ -325,7 +333,6 @@ impl WidgetLayoutBuilder {
     pub const fn fill_width(mut self) -> Self {
         self.layout.left = Dimension::zero();
         self.layout.right = Dimension::zero();
-        self.layout.width = Dimension::percent(1.);
         self
     }
 
@@ -346,7 +353,6 @@ impl WidgetLayoutBuilder {
     pub const fn fill_height(mut self) -> Self {
         self.layout.top = Dimension::zero();
         self.layout.bottom = Dimension::zero();
-        self.layout.height = Dimension::percent(1.);
         self
     }
 

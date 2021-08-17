@@ -131,6 +131,10 @@ pub fn default_stylesheet() -> StyleSheet {
         }))
         .with(Rule::for_widget::<Input>().with_styles(|style| {
             style
+                .with(BackgroundColor(ColorPair {
+                    light_color: Color::WHITE,
+                    dark_color: Color::BLACK,
+                }))
                 .with(ForegroundColor(ColorPair {
                     light_color: Color::BLACK,
                     dark_color: Color::gray(0.8),

@@ -33,17 +33,16 @@ impl Behavior for Demo {
                 WidgetLayout::build()
                     .top(Dimension::exact(16.))
                     .fill_width()
-                    .bottom(Dimension::exact(50.))
+                    .bottom(Dimension::percent(50.))
                     .finish(),
             )
             .with(
                 None,
                 Input::build().value("Lorem Ipsum").finish(),
                 WidgetLayout::build()
-                    .left(Dimension::percent(0.))
-                    .width(Dimension::percent(1.))
+                    .left(Dimension::percent(0.1))
+                    .width(Dimension::percent(0.8))
                     .bottom(Dimension::percent(0.25))
-                    .height(Dimension::percent(0.25))
                     .finish(),
             )
             .finish()

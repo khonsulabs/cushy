@@ -51,8 +51,7 @@ impl Behavior for MainMenu {
             .with(VerticalAlignment::Center),
             WidgetLayout::build()
                 .top(Dimension::zero())
-                .right(Dimension::zero())
-                .left(Dimension::zero())
+                .fill_width()
                 .height(Dimension::percent(0.8))
                 .finish(),
         );

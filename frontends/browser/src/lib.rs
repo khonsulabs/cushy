@@ -344,22 +344,16 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         set_widget_classes(element, &classes);
         let mut rules = None;
 
+        let style_sheet = context.frontend.gooey().stylesheet();
         for theme in [SystemTheme::Light, SystemTheme::Dark] {
             for state in State::permutations() {
                 let mut css = CssBlockBuilder::for_id(context.registration.id().id)
                     .and_state(&state)
                     .with_theme(theme);
-                css = self.convert_style_to_css(context.style, css);
 
-                let style_sheet = context.frontend.gooey().stylesheet();
-                if let Some(rules) = style_sheet.rules_by_widget.get(&None) {
-                    for &rule_index in rules {
-                        let rule = &style_sheet.rules[rule_index];
-                        if rule.widget_type_id.is_none() && rule.applies(&state, Some(&classes)) {
-                            css = self.convert_style_to_css(&rule.style, css);
-                        }
-                    }
-                }
+                let effective_style =
+                    style_sheet.effective_style_for::<Self::Widget>(context.style.clone(), &state);
+                css = self.convert_style_to_css(&effective_style, css);
 
                 let css = css.to_string();
                 rules = Some(rules.map_or_else(
