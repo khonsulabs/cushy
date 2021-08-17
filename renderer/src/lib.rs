@@ -31,7 +31,7 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     /// Returns the current system theme.
     fn theme(&self) -> SystemTheme;
 
-    /// A [`SizedRect`] representing the area being drawn. Due to how rendering
+    /// A [`Rect`] representing the area being drawn. Due to how rendering
     /// works, the origin is always zero.
     fn bounds(&self) -> Rect<f32, Scaled> {
         Rect::sized(Point::default(), self.size())
@@ -42,7 +42,7 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     /// `size()` should equal `bounds.size`.
     fn clip_to(&self, bounds: Rect<f32, Scaled>) -> Self;
 
-    /// A [`SizedRect`] representing the area being drawn. This rect should be offset
+    /// A [`Rect`] representing the area being drawn. This rect should be offset
     /// relative to the origin of the renderer.
     fn clip_bounds(&self) -> Rect<f32, Scaled>;
 

@@ -203,8 +203,8 @@ impl RichText {
     }
 
     /// Returns a clone of the paragraphs contained in this text. To access the
-    /// data without a copy, use [`for_each_in_range`] or
-    /// [`for_each_in_range_mut`].
+    /// data without a copy, use [`Self::for_each_in_range()`] or
+    /// [`Self::for_each_in_range_mut`].
     #[must_use]
     pub fn paragraphs(&self) -> Vec<Text> {
         let data = self.data.lock();
