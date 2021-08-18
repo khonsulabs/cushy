@@ -4,8 +4,8 @@ use gooey_core::{
     Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
-    winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer,
-    TransmogrifierContextExt, WidgetRasterizer,
+    winit::event::{ElementState, MouseButton, ScanCode, VirtualKeyCode},
+    ContentArea, EventStatus, Rasterizer, Renderer, TransmogrifierContextExt, WidgetRasterizer,
 };
 use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
@@ -90,7 +90,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         if area.bounds().contains(location) {
             context.activate();
         } else {
-            context.frontend.blur();
+            context.deactivate();
         }
     }
 
@@ -101,22 +101,35 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         location: Option<Point<f32, Scaled>>,
         area: &ContentArea,
     ) {
+        context.deactivate();
         if location
             .map(|location| area.bounds().contains(location))
             .unwrap_or_default()
         {
-            if let Some(widget) = context
-                .frontend
-                .ui
-                .widget_state(context.registration.id().id)
-            {
-                widget
-                    .channels::<Self::Widget>()
-                    .unwrap()
-                    .post_event(InternalButtonEvent::Clicked);
-            }
+            context.channels.post_event(InternalButtonEvent::Clicked);
+            context.focus();
         }
-        context.deactivate();
+    }
+
+    fn keyboard(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        _scancode: ScanCode,
+        keycode: Option<VirtualKeyCode>,
+        state: ElementState,
+    ) -> EventStatus {
+        match keycode {
+            Some(VirtualKeyCode::NumpadEnter | VirtualKeyCode::Return | VirtualKeyCode::Space) => {
+                if matches!(state, ElementState::Pressed) {
+                    context.activate();
+                } else {
+                    context.deactivate();
+                    context.channels.post_event(InternalButtonEvent::Clicked);
+                }
+                EventStatus::Processed
+            }
+            _ => EventStatus::Ignored,
+        }
     }
 }
 

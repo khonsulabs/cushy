@@ -19,7 +19,7 @@ pub use self::{
     alignment::{Alignment, VerticalAlignment},
     border::{Border, BorderOptions},
     colors::{
-        BackgroundColor, Color, ColorPair, ForegroundColor, SelectionColor, SystemTheme, TextColor,
+        BackgroundColor, Color, ColorPair, ForegroundColor, HighlightColor, SystemTheme, TextColor,
     },
     font_family::FontFamily,
     font_size::FontSize,

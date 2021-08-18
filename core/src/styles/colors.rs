@@ -655,16 +655,16 @@ impl Color {
 
 /// The color to highlight selections.
 #[derive(Debug, Clone)]
-pub struct SelectionColor(pub ColorPair);
-impl StyleComponent for SelectionColor {}
+pub struct HighlightColor(pub ColorPair);
+impl StyleComponent for HighlightColor {}
 
-impl From<SelectionColor> for ColorPair {
-    fn from(color: SelectionColor) -> Self {
+impl From<HighlightColor> for ColorPair {
+    fn from(color: HighlightColor) -> Self {
         color.0
     }
 }
 
-impl FallbackComponent for SelectionColor {
+impl FallbackComponent for HighlightColor {
     type Fallback = ForegroundColor;
     type Value = ColorPair;
 

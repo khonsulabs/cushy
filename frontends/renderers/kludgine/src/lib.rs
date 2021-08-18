@@ -70,9 +70,8 @@ impl Kludgine {
         )
     }
 
-    fn stroke_shape(&self, shape: Shape<Scaled>, options: &StrokeOptions) {
+    fn stroke_shape(&self, shape: Shape<Pixels>, options: &StrokeOptions) {
         shape
-            .cast_unit()
             .stroke(
                 Stroke::new(Color::new(
                     options.color.red,
@@ -82,7 +81,7 @@ impl Kludgine {
                 ))
                 .line_width(options.line_width),
             )
-            .render_at(Point::default(), &self.target);
+            .render(&self.target);
     }
 }
 
@@ -172,11 +171,23 @@ impl Renderer for Kludgine {
         .to_scaled(&self.scale())
     }
 
-    fn stroke_rect(&self, rect: &Rect<f32, Scaled>, options: &StrokeOptions) {
-        self.stroke_shape(Shape::rect(rect.as_sized()), options);
+    fn stroke_rect(
+        &self,
+        rect: &impl Displayable<f32, Pixels = Rect<f32, Pixels>>,
+        options: &StrokeOptions,
+    ) {
+        self.stroke_shape(
+            Shape::rect(rect.to_pixels(self.target.scale()).as_sized()),
+            options,
+        );
     }
 
-    fn fill_rect(&self, rect: &Rect<f32, Scaled>, color: gooey_core::styles::Color) {
+    fn fill_rect(
+        &self,
+        rect: &impl Displayable<f32, Pixels = Rect<f32, Pixels>>,
+        color: gooey_core::styles::Color,
+    ) {
+        let rect = rect.to_pixels(self.target.scale());
         Shape::rect(rect.as_sized())
             .fill(Fill::new(Color::new(
                 color.red,
@@ -184,16 +195,22 @@ impl Renderer for Kludgine {
                 color.blue,
                 color.alpha,
             )))
-            .render_at(Point::default(), &self.target);
+            .render(&self.target);
     }
 
-    fn stroke_line(
+    fn stroke_line<P: Displayable<f32, Pixels = Point<f32, Pixels>>>(
         &self,
-        point_a: Point<f32, Scaled>,
-        point_b: Point<f32, Scaled>,
+        point_a: P,
+        point_b: P,
         options: &StrokeOptions,
     ) {
-        self.stroke_shape(Shape::polygon(vec![point_a, point_b]), options);
+        self.stroke_shape(
+            Shape::polygon(vec![
+                point_a.to_pixels(self.target.scale()),
+                point_b.to_pixels(self.target.scale()),
+            ]),
+            options,
+        );
     }
 
     fn draw_image(&self, image: &gooey_core::assets::Image, location: Point<f32, Scaled>) {

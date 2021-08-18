@@ -114,7 +114,7 @@ impl StyleSheet {
 }
 
 /// A style rule.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Rule {
     /// The [`TypeId`] of the widget this rule is associated with.
     pub widget_type_id: Option<TypeId>,
@@ -139,11 +139,7 @@ impl Rule {
     pub fn for_widget<W: Widget>() -> Self {
         Self {
             widget_type_id: Some(TypeId::of::<W>()),
-            classes: None,
-            hovered: None,
-            focused: None,
-            active: None,
-            style: Style::default(),
+            ..Rule::default()
         }
     }
 
@@ -152,11 +148,7 @@ impl Rule {
     pub fn for_classes<C: Into<Classes>>(classes: C) -> Self {
         Self {
             classes: Some(classes.into()),
-            widget_type_id: None,
-            hovered: None,
-            focused: None,
-            active: None,
-            style: Style::default(),
+            ..Rule::default()
         }
     }
 

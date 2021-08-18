@@ -29,6 +29,7 @@ struct Data {
 
     hover: HashSet<WidgetId>,
     focus: Option<WidgetId>,
+    focus_events: Vec<FocusEvent>,
     active: Option<WidgetId>,
 
     last_mouse_position: Option<Point<f32, Scaled>>,
@@ -36,6 +37,20 @@ struct Data {
     redraw_status: RedrawStatus,
 
     modifiers: ModifiersState,
+}
+
+#[derive(Debug)]
+pub enum FocusEvent {
+    Focused(WidgetId),
+    Blurred(WidgetId),
+}
+
+impl FocusEvent {
+    pub const fn widget(&self) -> &WidgetId {
+        match self {
+            FocusEvent::Focused(widget) | FocusEvent::Blurred(widget) => widget,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -183,17 +198,39 @@ impl State {
         let mut data = self.data.lock();
         if data.focus != focus {
             data.redraw_status = RedrawStatus::Dirty;
-            data.focus = focus;
+            if let Some(focused) = focus.clone() {
+                data.focus_events.push(FocusEvent::Focused(focused));
+            }
+            if let Some(blurring) = std::mem::replace(&mut data.focus, focus) {
+                data.focus_events.push(FocusEvent::Blurred(blurring));
+            }
         }
     }
 
     pub fn blur(&self) {
         let mut data = self.data.lock();
+        if data.focus.is_some() {
+            if let Some(blurring) = data.focus.take() {
+                data.focus_events.push(FocusEvent::Blurred(blurring));
+            }
+            data.redraw_status = RedrawStatus::Dirty;
+        }
+    }
+
+    pub fn blur_and_deactivate(&self) {
+        let mut data = self.data.lock();
         if data.focus.is_some() || data.active.is_some() {
-            data.focus = None;
+            if let Some(blurring) = data.focus.take() {
+                data.focus_events.push(FocusEvent::Blurred(blurring));
+            }
             data.active = None;
             data.redraw_status = RedrawStatus::Dirty;
         }
+    }
+
+    pub fn focus_events(&self) -> Vec<FocusEvent> {
+        let mut data = self.data.lock();
+        std::mem::take(&mut data.focus_events)
     }
 
     pub fn system_theme(&self) -> SystemTheme {

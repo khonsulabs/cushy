@@ -74,7 +74,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     ) {
         if let Some(&color) = <Self::Widget as Widget>::background_color(effective_style) {
             let renderer = rasterizer.renderer().unwrap();
-            renderer.fill_rect_with_style::<BackgroundColor>(
+            renderer.fill_rect_with_style::<BackgroundColor, _>(
                 &renderer.bounds(),
                 &Style::default().with(BackgroundColor(color)),
             );
@@ -134,7 +134,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
             renderer.fill_rect(
                 &Rect::sized(
                     Point::new(0., bounds.size.height - width.get()),
-                    Size::new(bounds.size.width, width.get()),
+                    Size::from_figures(bounds.size.width(), width),
                 ),
                 border
                     .bottom
@@ -151,9 +151,9 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
             renderer.fill_rect(
                 &Rect::sized(
                     Point::new(0., top_width.unwrap_or_default().get()),
-                    Size::new(
-                        width.get(),
-                        bounds.size.height - bottom_width.unwrap_or_default().get(),
+                    Size::from_figures(
+                        width,
+                        bounds.size.height() - bottom_width.unwrap_or_default(),
                     ),
                 ),
                 border
@@ -168,13 +168,10 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         if let Some(width) = right_width {
             renderer.fill_rect(
                 &Rect::sized(
-                    Point::new(
-                        bounds.size.width - width.get(),
-                        top_width.unwrap_or_default().get(),
-                    ),
-                    Size::new(
-                        width.get(),
-                        bounds.size.height - bottom_width.unwrap_or_default().get(),
+                    Point::from_figures(bounds.size.width() - width, top_width.unwrap_or_default()),
+                    Size::from_figures(
+                        width,
+                        bounds.size.height() - bottom_width.unwrap_or_default(),
                     ),
                 ),
                 border
@@ -231,6 +228,14 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         }
     }
 
+    /// Executed when this widget receives input focus.
+    #[allow(unused_variables)]
+    fn focused(&self, context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>) {}
+
+    /// Executed when this widget loses input focus.
+    #[allow(unused_variables)]
+    fn blurred(&self, context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>) {}
+
     #[allow(unused_variables)]
     fn hit_test(
         &self,
@@ -242,10 +247,10 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
     }
 
     #[allow(unused_variables)]
-    fn hovered(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {}
+    fn hovered(&self, context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>) {}
 
     #[allow(unused_variables)]
-    fn unhovered(&self, context: TransmogrifierContext<'_, Self, Rasterizer<R>>) {}
+    fn unhovered(&self, context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>) {}
 
     #[allow(unused_variables)]
     fn mouse_move(
@@ -336,6 +341,10 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         constraints: Size<Option<f32>, Scaled>,
     ) -> ContentSize;
+
+    fn focused(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>);
+
+    fn blurred(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>);
 
     fn hit_test(
         &self,
@@ -469,14 +478,14 @@ where
     fn hovered(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>) {
         <Self as WidgetRasterizer<R>>::hovered(
             self,
-            TransmogrifierContext::try_from(context).unwrap(),
+            &mut TransmogrifierContext::try_from(context).unwrap(),
         );
     }
 
     fn unhovered(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>) {
         <Self as WidgetRasterizer<R>>::unhovered(
             self,
-            TransmogrifierContext::try_from(context).unwrap(),
+            &mut TransmogrifierContext::try_from(context).unwrap(),
         );
     }
 
@@ -568,6 +577,20 @@ where
             &mut TransmogrifierContext::try_from(context).unwrap(),
             character,
         )
+    }
+
+    fn focused(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>) {
+        <Self as WidgetRasterizer<R>>::focused(
+            self,
+            &mut TransmogrifierContext::try_from(context).unwrap(),
+        );
+    }
+
+    fn blurred(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>) {
+        <Self as WidgetRasterizer<R>>::blurred(
+            self,
+            &mut TransmogrifierContext::try_from(context).unwrap(),
+        );
     }
 }
 

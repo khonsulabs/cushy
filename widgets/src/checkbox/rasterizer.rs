@@ -1,11 +1,11 @@
 use gooey_core::{
-    figures::{Point, Rect, Rectlike, Size, SizedRect, Vector},
-    styles::ForegroundColor,
+    figures::{Displayable, Point, Rect, Rectlike, Size, SizedRect, Vector},
+    styles::{ForegroundColor, HighlightColor},
     Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
-    winit::event::MouseButton, ContentArea, EventStatus, Rasterizer, Renderer,
-    TransmogrifierContextExt, WidgetRasterizer,
+    winit::event::{ElementState, MouseButton, ScanCode, VirtualKeyCode},
+    ContentArea, EventStatus, Rasterizer, Renderer, TransmogrifierContextExt, WidgetRasterizer,
 };
 use gooey_text::{prepared::PreparedText, wrap::TextWrap, Text};
 
@@ -77,18 +77,33 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
     ) {
         if let Some(renderer) = context.frontend.renderer() {
             let layout = calculate_layout(context, renderer, content_area.size.content);
+            let scale = renderer.scale();
 
             // Render the checkbox
-            let checkbox_rect = SizedRect::new(content_area.location, layout.checkbox_size);
-            renderer.fill_rect_with_style::<ButtonColor>(&checkbox_rect.as_rect(), context.style);
+            let checkbox_rect = SizedRect::new(content_area.location, layout.checkbox_size)
+                .to_pixels(&scale)
+                .round_out();
+            renderer
+                .fill_rect_with_style::<ButtonColor, _>(&checkbox_rect.as_rect(), context.style);
+            if context.ui_state.focused {
+                renderer.stroke_rect_with_style::<HighlightColor, _>(
+                    &checkbox_rect.as_rect(),
+                    context.style,
+                );
+            }
             if context.widget.checked {
                 // Fill a square in the middle with the mark.
-                let check_box = checkbox_rect.inflate(Vector::new(
-                    -checkbox_rect.size.width / 3.,
-                    -checkbox_rect.size.width / 3.,
-                ));
-                renderer
-                    .fill_rect_with_style::<ForegroundColor>(&check_box.as_rect(), context.style);
+                let check_box = checkbox_rect.inflate(
+                    Vector::from_figures(
+                        -checkbox_rect.size.width() / 3.,
+                        -checkbox_rect.size.width() / 3.,
+                    )
+                    .to_pixels(&scale),
+                );
+                renderer.fill_rect_with_style::<ForegroundColor, _>(
+                    &check_box.as_rect(),
+                    context.style,
+                );
             }
 
             // Render the label
@@ -152,7 +167,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
         if area.bounds().contains(location) {
             context.activate();
         } else {
-            context.frontend.blur();
+            context.frontend.deactivate();
         }
     }
 
@@ -167,17 +182,30 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
             .map(|location| area.bounds().contains(location))
             .unwrap_or_default()
         {
-            if let Some(widget) = context
-                .frontend
-                .ui
-                .widget_state(context.registration.id().id)
-            {
-                widget
-                    .channels::<Self::Widget>()
-                    .unwrap()
-                    .post_event(InternalCheckboxEvent::Clicked);
-            }
+            context.channels.post_event(InternalCheckboxEvent::Clicked);
+            context.focus();
         }
         context.deactivate();
+    }
+
+    fn keyboard(
+        &self,
+        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        _scancode: ScanCode,
+        keycode: Option<VirtualKeyCode>,
+        state: ElementState,
+    ) -> EventStatus {
+        match keycode {
+            Some(VirtualKeyCode::NumpadEnter | VirtualKeyCode::Return | VirtualKeyCode::Space) => {
+                if matches!(state, ElementState::Pressed) {
+                    context.activate();
+                } else {
+                    context.deactivate();
+                    context.channels.post_event(InternalCheckboxEvent::Clicked);
+                }
+                EventStatus::Processed
+            }
+            _ => EventStatus::Ignored,
+        }
     }
 }

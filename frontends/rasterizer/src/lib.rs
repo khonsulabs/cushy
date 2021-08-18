@@ -51,6 +51,7 @@ use state::State;
 pub use winit;
 
 pub use self::transmogrifier::*;
+use crate::state::FocusEvent;
 
 pub struct Rasterizer<R: Renderer> {
     pub ui: Arc<Gooey<Self>>,
@@ -202,7 +203,7 @@ impl<R: Renderer> Rasterizer<R> {
     pub fn handle_event(&self, event: WindowEvent, renderer: R) -> EventResult {
         let rasterizer = self.with_renderer(renderer);
         let _guard = rasterizer.ui.enter_managed_code(&rasterizer);
-        match event {
+        let result = match event {
             WindowEvent::Input(input_event) => match input_event {
                 InputEvent::Keyboard {
                     scancode,
@@ -229,7 +230,18 @@ impl<R: Renderer> Rasterizer<R> {
                 EventResult::ignored()
             }
             WindowEvent::LayerChanged { .. } => EventResult::ignored(),
+        };
+
+        for focus_event in self.state.focus_events() {
+            self.with_transmogrifier(focus_event.widget(), |transmogrifier, mut context| {
+                match focus_event {
+                    FocusEvent::Focused(_) => transmogrifier.focused(&mut context),
+                    FocusEvent::Blurred(_) => transmogrifier.blurred(&mut context),
+                }
+            });
         }
+
+        result
     }
 
     pub fn set_refresh_callback<F: RefreshCallback>(&mut self, callback: F) {
@@ -487,6 +499,10 @@ impl<R: Renderer> Rasterizer<R> {
     pub fn blur(&self) {
         self.state.blur();
     }
+
+    pub fn blur_and_deactivate(&self) {
+        self.state.blur_and_deactivate();
+    }
 }
 
 pub struct EventResult {
@@ -580,9 +596,9 @@ impl ImageExt for Image {
 
 pub trait TransmogrifierContextExt {
     fn activate(&self);
-    fn focus(&self);
-    fn is_focused(&self) -> bool;
     fn deactivate(&self);
+    fn is_focused(&self) -> bool;
+    fn focus(&self);
     fn blur(&self);
 }
 
@@ -597,16 +613,16 @@ impl<'a, T: WidgetRasterizer<R>, R: Renderer> TransmogrifierContextExt
         self.frontend.deactivate();
     }
 
+    fn is_focused(&self) -> bool {
+        self.frontend.focused_widget().as_ref() == Some(self.registration.id())
+    }
+
     fn focus(&self) {
         self.frontend.focus_on(self.registration.id());
     }
 
     fn blur(&self) {
         self.frontend.blur();
-    }
-
-    fn is_focused(&self) -> bool {
-        self.frontend.focused_widget().as_ref() == Some(self.registration.id())
     }
 }
 

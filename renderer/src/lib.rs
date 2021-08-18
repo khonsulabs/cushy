@@ -78,12 +78,15 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     }
 
     /// Fills `rect` using `color`.
-    fn fill_rect(&self, rect: &Rect<f32, Scaled>, color: Color);
+    fn fill_rect(&self, rect: &impl Displayable<f32, Pixels = Rect<f32, Pixels>>, color: Color);
 
     /// Fills `rect` using `style`.
-    fn fill_rect_with_style<F: FallbackComponent<Value = ColorPair>>(
+    fn fill_rect_with_style<
+        F: FallbackComponent<Value = ColorPair>,
+        R: Displayable<f32, Pixels = Rect<f32, Pixels>>,
+    >(
         &self,
-        rect: &Rect<f32, Scaled>,
+        rect: &R,
         style: &Style,
     ) {
         self.fill_rect(
@@ -97,22 +100,29 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     }
 
     /// Strokes the outline of `rect` using `options`.
-    fn stroke_rect(&self, rect: &Rect<f32, Scaled>, options: &StrokeOptions);
+    fn stroke_rect(
+        &self,
+        rect: &impl Displayable<f32, Pixels = Rect<f32, Pixels>>,
+        options: &StrokeOptions,
+    );
 
     /// Strokes the outline of `rect` using `style`.
-    fn stroke_rect_with_style<F: FallbackComponent<Value = ColorPair>>(
+    fn stroke_rect_with_style<
+        F: FallbackComponent<Value = ColorPair>,
+        R: Displayable<f32, Pixels = Rect<f32, Pixels>>,
+    >(
         &self,
-        rect: &Rect<f32, Scaled>,
+        rect: &R,
         style: &Style,
     ) {
         self.stroke_rect(rect, &StrokeOptions::from_style::<F>(style, self.theme()));
     }
 
     /// Draws a line between `point_a` and `point_b` using `options`.
-    fn stroke_line(
+    fn stroke_line<P: Displayable<f32, Pixels = Point<f32, Pixels>>>(
         &self,
-        point_a: Point<f32, Scaled>,
-        point_b: Point<f32, Scaled>,
+        point_a: P,
+        point_b: P,
         options: &StrokeOptions,
     );
 

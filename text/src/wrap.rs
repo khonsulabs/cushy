@@ -243,8 +243,9 @@ impl TextWrap {
 #[cfg(test)]
 mod tests {
     use gooey_core::{
-        figures::DisplayScale,
+        figures::{DisplayScale, Displayable, Point, Rect},
         styles::{FontSize, Style, SystemTheme},
+        Pixels,
     };
     use gooey_renderer::StrokeOptions;
 
@@ -277,7 +278,7 @@ mod tests {
 
         fn stroke_rect(
             &self,
-            _rect: &gooey_core::figures::Rect<f32, Scaled>,
+            _rect: &impl Displayable<f32, Pixels = Rect<f32, Pixels>>,
             _style: &StrokeOptions,
         ) {
             unimplemented!()
@@ -285,17 +286,17 @@ mod tests {
 
         fn fill_rect(
             &self,
-            _rect: &gooey_core::figures::Rect<f32, Scaled>,
+            _rect: &impl Displayable<f32, Pixels = Rect<f32, Pixels>>,
             _color: gooey_core::styles::Color,
         ) {
             unimplemented!()
         }
 
-        fn stroke_line(
+        fn stroke_line<P: Displayable<f32, Pixels = Point<f32, Pixels>>>(
             &self,
-            _point_a: gooey_core::figures::Point<f32, Scaled>,
-            _point_b: gooey_core::figures::Point<f32, Scaled>,
-            _style: &StrokeOptions,
+            _point_a: P,
+            _point_b: P,
+            _options: &StrokeOptions,
         ) {
             unimplemented!()
         }

@@ -3,7 +3,7 @@ use gooey_core::{
     styles::{
         style_sheet::{Rule, StyleSheet},
         Alignment, BackgroundColor, Border, BorderOptions, Color, ColorPair, ForegroundColor,
-        Padding, SelectionColor, Surround, VerticalAlignment,
+        HighlightColor, Padding, Surround, VerticalAlignment,
     },
     ROOT_CLASS, SOLID_WIDGET_CLASS,
 };
@@ -25,6 +25,7 @@ pub fn default_stylesheet() -> StyleSheet {
 #[allow(clippy::too_many_lines)]
 pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
     StyleSheet::default()
+        .with(Rule::default().with_styles(|style| style.with(HighlightColor(P::primary()))))
         .with(
             Rule::for_classes(ROOT_CLASS)
                 .with_styles(|style| style.with(BackgroundColor(P::background()))),
@@ -70,6 +71,13 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
                     style
                         .with(ForegroundColor(P::foreground().darken(0.1)))
                         .with(BackgroundColor(P::control_background().darken(0.1)))
+                }),
+        )
+        .with(
+            Rule::for_classes(SOLID_WIDGET_CLASS)
+                .when_focused()
+                .with_styles(|style| {
+                    style.with(Border::uniform(BorderOptions::new(1., P::primary())))
                 }),
         )
         .with(Rule::for_widget::<Button>().with_styles(|style| {
@@ -120,9 +128,7 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
             Rule::for_widget::<Input>()
                 .when_focused()
                 .with_styles(|style| {
-                    style
-                        .with(Border::uniform(BorderOptions::new(1., P::primary())))
-                        .with(SelectionColor(P::primary()))
+                    style.with(Border::uniform(BorderOptions::new(1., P::primary())))
                 }),
         )
 }

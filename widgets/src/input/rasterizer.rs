@@ -8,7 +8,7 @@ use std::{
 use arboard::Clipboard;
 use gooey_core::{
     figures::{Displayable, Figure, Point, Rect, Rectlike, Size, SizedRect},
-    styles::{Color, SelectionColor, Style, TextColor},
+    styles::{Color, HighlightColor, Style, TextColor},
     Pixels, Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
@@ -99,7 +99,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
 
             let selection_color = context
                 .style
-                .get_with_fallback::<SelectionColor>()
+                .get_with_fallback::<HighlightColor>()
                 .map(|w| w.themed_color(renderer.theme()))
                 .unwrap_or_default();
 

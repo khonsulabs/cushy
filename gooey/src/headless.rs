@@ -167,7 +167,7 @@ impl Headless<Rasterizer<Kludgine>> {
             ])
             .fill(Fill::new(kludgine::core::Color::BLACK))
             .stroke(Stroke::new(kludgine::core::Color::WHITE))
-            .render_at(cursor.cast_unit(), &target);
+            .render_at(&cursor, &target);
         }
 
         target.scene_mut().unwrap().end_frame();
