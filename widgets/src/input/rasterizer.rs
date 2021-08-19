@@ -70,6 +70,13 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for InputTransmogrifier {
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
+    fn should_accept_focus(
+        &self,
+        _context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+    ) -> bool {
+        true
+    }
+
     fn render(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,

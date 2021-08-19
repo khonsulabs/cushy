@@ -578,6 +578,11 @@ impl WidgetState {
         let mut widget = self.widget.lock();
         self.id.upgrade().map(|id| {
             let state = state.get_or_insert_with(|| {
+                {
+                    let style = self.style.lock();
+                    frontend.widget_initialized(id.id(), &style);
+                }
+
                 transmogrifier.default_state_for(widget.as_mut(), &id, frontend)
             });
 

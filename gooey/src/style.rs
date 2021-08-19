@@ -25,7 +25,7 @@ pub fn default_stylesheet() -> StyleSheet {
 #[allow(clippy::too_many_lines)]
 pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
     StyleSheet::default()
-        .with(Rule::default().with_styles(|style| style.with(HighlightColor(P::primary()))))
+        .with(Rule::default().with_styles(|style| style.with(HighlightColor(P::secondary()))))
         .with(
             Rule::for_classes(ROOT_CLASS)
                 .with_styles(|style| style.with(BackgroundColor(P::background()))),
@@ -77,7 +77,7 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
             Rule::for_classes(SOLID_WIDGET_CLASS)
                 .when_focused()
                 .with_styles(|style| {
-                    style.with(Border::uniform(BorderOptions::new(1., P::primary())))
+                    style.with(Border::uniform(BorderOptions::new(1., P::secondary())))
                 }),
         )
         .with(Rule::for_widget::<Button>().with_styles(|style| {
@@ -128,7 +128,7 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
             Rule::for_widget::<Input>()
                 .when_focused()
                 .with_styles(|style| {
-                    style.with(Border::uniform(BorderOptions::new(1., P::primary())))
+                    style.with(Border::uniform(BorderOptions::new(1., P::secondary())))
                 }),
         )
 }
@@ -144,6 +144,8 @@ pub trait Palette {
     /// The primary color of the palette. Used to signify default actions, and
     /// is considered the primary accent color of the interface.
     fn primary() -> ColorPair;
+    /// The secondary color of the palette. Used for highlights and information.
+    fn secondary() -> ColorPair;
 
     /// The color to use for the background of solid widgets.
     fn control_background() -> ColorPair {
@@ -178,5 +180,9 @@ impl Palette for () {
 
     fn primary() -> ColorPair {
         ColorPair::from(Color::new_u8(9, 132, 227, 255))
+    }
+
+    fn secondary() -> ColorPair {
+        ColorPair::from(Color::new_u8(0, 206, 201, 255))
     }
 }

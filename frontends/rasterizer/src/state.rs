@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     path::PathBuf,
     sync::Arc,
@@ -7,7 +8,7 @@ use std::{
 
 use gooey_core::{
     figures::{Point, Rectlike},
-    styles::{style_sheet, SystemTheme},
+    styles::{style_sheet, SystemTheme, TabOrder},
     Scaled, WidgetId,
 };
 use parking_lot::Mutex;
@@ -24,7 +25,10 @@ pub struct State {
 #[derive(Default, Debug)]
 struct Data {
     order: Vec<WidgetId>,
+    ids: HashMap<u32, usize>,
     area: HashMap<u32, ContentArea>,
+    hierarchy: HashMap<Option<u32>, Vec<u32>>,
+    tab_orders: HashMap<u32, TabEntry>,
     system_theme: SystemTheme,
 
     hover: HashSet<WidgetId>,
@@ -101,9 +105,16 @@ impl State {
         data.new_frame();
     }
 
-    pub fn widget_rendered(&self, widget: WidgetId, area: ContentArea) {
+    pub fn widget_rendered(
+        &self,
+        widget: WidgetId,
+        area: ContentArea,
+        should_accept_focus: bool,
+        parent_id: Option<&WidgetId>,
+        tab_order: Option<TabOrder>,
+    ) {
         let mut data = self.data.lock();
-        data.widget_rendered(widget, area);
+        data.widget_rendered(widget, area, should_accept_focus, parent_id, tab_order);
     }
 
     pub fn widget_area(&self, widget: &WidgetId) -> Option<ContentArea> {
@@ -114,6 +125,16 @@ impl State {
     pub fn widgets_under_point(&self, location: Point<f32, Scaled>) -> Vec<WidgetId> {
         let data = self.data.lock();
         data.widgets_under_point(location).cloned().collect()
+    }
+
+    pub fn next_tab_entry(&self) -> Option<WidgetId> {
+        let data = self.data.lock();
+        data.next_tab_entry().cloned()
+    }
+
+    pub fn previous_tab_entry(&self) -> Option<WidgetId> {
+        let data = self.data.lock();
+        data.previous_tab_entry().cloned()
     }
 
     pub fn set_needs_redraw(&self) {
@@ -306,13 +327,102 @@ impl State {
 impl Data {
     pub fn new_frame(&mut self) {
         self.order.clear();
+        self.tab_orders.clear();
+        self.ids.clear();
+        self.hierarchy.clear();
         self.area.clear();
         self.redraw_status = RedrawStatus::Clean;
     }
 
-    pub fn widget_rendered(&mut self, widget: WidgetId, area: ContentArea) {
+    pub fn widget_rendered(
+        &mut self,
+        widget: WidgetId,
+        area: ContentArea,
+        should_accept_focus: bool,
+        parent_id: Option<&WidgetId>,
+        tab_order: Option<TabOrder>,
+    ) {
+        if should_accept_focus {
+            let tab_entry = TabEntry {
+                order_index: self.order.len(),
+                render_origin: area.location.cast(),
+                tab_order,
+            };
+            self.tab_orders.insert(widget.id, tab_entry);
+        }
+
+        let parent_children = self.hierarchy.entry(parent_id.map(|id| id.id)).or_default();
+        parent_children.push(widget.id);
+
         self.area.insert(widget.id, area);
+        self.ids.insert(widget.id, self.order.len());
         self.order.push(widget);
+    }
+
+    pub fn next_tab_entry(&self) -> Option<&WidgetId> {
+        // Start at the root and iterate over children until we find the current focus.
+        let mut stack = self.hierarchy.get(&None).cloned().unwrap_or_default();
+        let mut first = None;
+        let mut return_next = self.focus.is_none();
+        while let Some(id) = stack.pop() {
+            if let Some(tab_order) = self.tab_orders.get(&id) {
+                let widget_id = &self.order[tab_order.order_index];
+                if first.is_none() {
+                    first = Some(widget_id);
+                }
+
+                if return_next {
+                    return Some(widget_id);
+                } else if self.focus.as_ref() == Some(widget_id) {
+                    return_next = true;
+                }
+            }
+
+            if let Some(children) = self.hierarchy.get(&Some(id)) {
+                let mut tab_entries = children
+                    .iter()
+                    .map(|id| (*id, self.tab_orders.get(id)))
+                    .collect::<Vec<_>>();
+                tab_entries
+                    .sort_by_key(|(_, entry)| entry.map_or((1, None), |entry| (0, Some(entry))));
+                stack.extend(tab_entries.into_iter().map(|(id, _)| id).rev());
+            }
+        }
+
+        first
+    }
+
+    pub fn previous_tab_entry(&self) -> Option<&WidgetId> {
+        // Start at the root and iterate over children until we find the current focus.
+        let mut stack = self.hierarchy.get(&None).cloned().unwrap_or_default();
+        let mut first = None;
+        let mut return_next = self.focus.is_none();
+        while let Some(id) = stack.pop() {
+            if let Some(tab_order) = self.tab_orders.get(&id) {
+                let widget_id = &self.order[tab_order.order_index];
+                if first.is_none() {
+                    first = Some(widget_id);
+                }
+
+                if return_next {
+                    return Some(widget_id);
+                } else if self.focus.as_ref() == Some(widget_id) {
+                    return_next = true;
+                }
+            }
+
+            if let Some(children) = self.hierarchy.get(&Some(id)) {
+                let mut tab_entries = children
+                    .iter()
+                    .map(|id| (*id, self.tab_orders.get(id)))
+                    .collect::<Vec<_>>();
+                tab_entries
+                    .sort_by_key(|(_, entry)| entry.map_or((1, None), |entry| (0, Some(entry))));
+                stack.extend(tab_entries.into_iter().map(|(id, _)| id));
+            }
+        }
+
+        first
     }
 
     pub fn widgets_under_point(
@@ -323,5 +433,37 @@ impl Data {
             .iter()
             .rev()
             .filter(move |id| self.area.get(&id.id).unwrap().bounds().contains(location))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TabEntry {
+    order_index: usize,
+    render_origin: Point<i32, Scaled>,
+    tab_order: Option<TabOrder>,
+}
+
+impl PartialOrd for TabEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for TabEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // The order of comparison priority is:
+        // - TabOrder
+        // - y, if y is outside +/-10 Scaled
+        // - x
+        match (self.tab_order, other.tab_order) {
+            (Some(this_order), Some(other_order)) => this_order.cmp(&other_order),
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => match self.render_origin.y - other.render_origin.y {
+                i32::MIN..=-10 => Ordering::Less,
+                -9..=9 => self.render_origin.x.cmp(&other.render_origin.x),
+                10..=i32::MAX => Ordering::Greater,
+            },
+        }
     }
 }

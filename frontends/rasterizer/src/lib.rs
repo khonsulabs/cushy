@@ -30,7 +30,7 @@ use gooey_core::{
     figures::{Point, Rect},
     styles::{
         style_sheet::{self},
-        Style, SystemTheme,
+        Autofocus, Style, SystemTheme, TabOrder,
     },
     AnyTransmogrifierContext, Callback, Gooey, Scaled, TransmogrifierContext, WidgetId,
 };
@@ -149,6 +149,12 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
     fn asset_configuration(&self) -> &assets::Configuration {
         self.state.configuration()
     }
+
+    fn widget_initialized(&self, widget: &WidgetId, style: &Style) {
+        if style.get::<Autofocus>().is_some() {
+            self.focus_on(widget);
+        }
+    }
 }
 
 fn load_image(image: &Image, data: Vec<u8>) -> Result<(), String> {
@@ -190,6 +196,7 @@ impl<R: Renderer> Rasterizer<R> {
             transmogrifier.render_within(
                 &mut context,
                 Rect::sized(Point::default(), size),
+                None,
                 &Style::default(),
             );
         });
@@ -276,7 +283,6 @@ impl<R: Renderer> Rasterizer<R> {
     #[allow(clippy::unused_self)] // TODO needs implementing
     fn invoke_drag_events(&self, _position: Option<Point<f32, Scaled>>) {}
 
-    #[allow(clippy::option_if_let_else)]
     fn handle_keyboard_input(
         &self,
         scancode: ScanCode,
@@ -286,15 +292,27 @@ impl<R: Renderer> Rasterizer<R> {
         if let Some(widget) = self.focused_widget() {
             // give the widget an opportunity to process the input. If the
             // widget doesn't handle it, pass the event up the render tree.
-            EventResult::from(
-                self.with_transmogrifier(&widget, |transmogrifier, mut context| {
-                    transmogrifier.keyboard(&mut context, scancode, keycode, state)
-                })
-                .expect("unknown transmogrifier"),
-            )
-        } else {
-            // TODO handle tab key
-            EventResult::ignored()
+            let result = self.with_transmogrifier(&widget, |transmogrifier, mut context| {
+                transmogrifier.keyboard(&mut context, scancode, keycode, state)
+            });
+            if matches!(result, Some(EventStatus::Processed)) {
+                return EventResult::processed();
+            }
+        }
+
+        match (keycode, state) {
+            (Some(VirtualKeyCode::Tab), ElementState::Pressed) => {
+                if self.state.keyboard_modifiers() == ModifiersState::SHIFT {
+                    self.reverse_focus();
+                    EventResult::processed()
+                } else if self.state.keyboard_modifiers().is_empty() {
+                    self.advance_focus();
+                    EventResult::processed()
+                } else {
+                    EventResult::ignored()
+                }
+            }
+            _ => EventResult::ignored(),
         }
     }
 
@@ -430,8 +448,16 @@ impl<R: Renderer> Rasterizer<R> {
         self.renderer.as_ref()
     }
 
-    pub fn rasterized_widget(&self, widget: WidgetId, area: ContentArea) {
-        self.state.widget_rendered(widget, area);
+    pub fn rasterized_widget(
+        &self,
+        widget: WidgetId,
+        area: ContentArea,
+        should_accept_focus: bool,
+        parent_id: Option<&WidgetId>,
+        tab_order: Option<TabOrder>,
+    ) {
+        self.state
+            .widget_rendered(widget, area, should_accept_focus, parent_id, tab_order);
     }
 
     /// Executes `callback` with the transmogrifier and transmogrifier state as
@@ -502,6 +528,18 @@ impl<R: Renderer> Rasterizer<R> {
 
     pub fn blur_and_deactivate(&self) {
         self.state.blur_and_deactivate();
+    }
+
+    fn advance_focus(&self) {
+        if let Some(next) = self.state.next_tab_entry() {
+            self.focus_on(&next);
+        }
+    }
+
+    fn reverse_focus(&self) {
+        if let Some(previous) = self.state.previous_tab_entry() {
+            self.focus_on(&previous);
+        }
     }
 }
 

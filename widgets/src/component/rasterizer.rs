@@ -16,6 +16,7 @@ impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B
                 child_transmogrifier.render_within(
                     &mut child_context,
                     content_area.content_bounds(),
+                    Some(context.registration.id()),
                     context.style,
                 );
             },

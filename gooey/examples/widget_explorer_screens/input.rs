@@ -7,6 +7,7 @@ use gooey::{
         layout::{Dimension, Layout, WidgetLayout},
     },
 };
+use gooey_core::styles::Autofocus;
 
 #[derive(Debug, Default)]
 pub struct Demo {}
@@ -38,7 +39,7 @@ impl Behavior for Demo {
             )
             .with(
                 None,
-                Input::build().value("Lorem Ipsum").finish(),
+                Input::build().value("Lorem Ipsum").finish().with(Autofocus),
                 WidgetLayout::build()
                     .left(Dimension::percent(0.1))
                     .width(Dimension::percent(0.8))

@@ -25,6 +25,13 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for ButtonTransmogrifier {
 }
 
 impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
+    fn should_accept_focus(
+        &self,
+        _context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+    ) -> bool {
+        true
+    }
+
     fn render(
         &self,
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,

@@ -1,5 +1,6 @@
 use std::{any::TypeId, convert::TryFrom, fmt::Debug};
 
+use stylecs::Style;
 use url::Url;
 
 use crate::{
@@ -56,6 +57,10 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
 
     /// Executed when `Gooey` exits a managed code block.
     fn exit_managed_code(&self) {}
+
+    /// A widget is being initialized.
+    #[allow(unused_variables)]
+    fn widget_initialized(&self, widget: &WidgetId, style: &Style) {}
 }
 
 /// An interface for Frontend that doesn't requier knowledge of associated

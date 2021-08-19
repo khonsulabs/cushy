@@ -36,7 +36,12 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
                     Point::new(remaining_size.width / 2., remaining_size.height / 2.),
                     child_content_area,
                 );
-                child_transmogrifier.render_within(&mut child_context, child_rect, context.style);
+                child_transmogrifier.render_within(
+                    &mut child_context,
+                    child_rect,
+                    Some(context.registration.id()),
+                    context.style,
+                );
             },
         );
     }

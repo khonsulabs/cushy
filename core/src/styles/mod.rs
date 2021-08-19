@@ -4,6 +4,7 @@ mod alignment;
 /// Types for adding a border to a widget.
 pub mod border;
 mod colors;
+mod focus;
 mod font_family;
 mod font_size;
 mod font_style;
@@ -21,6 +22,7 @@ pub use self::{
     colors::{
         BackgroundColor, Color, ColorPair, ForegroundColor, HighlightColor, SystemTheme, TextColor,
     },
+    focus::{Autofocus, TabOrder},
     font_family::FontFamily,
     font_size::FontSize,
     font_style::FontStyle,
