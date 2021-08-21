@@ -16,7 +16,8 @@ members = [
 resolver = "2"
 
 [patch.crates-io]
-# easygpu = { path = "../easygpu" }
+# easygpu = { path = "../easygpu/easygpu" }
+# easygpu-lyon = { path = "../easygpu/lyon" }
 bonsaidb = { git = "https://github.com/khonsulabs/bonsaidb.git", branch = "main" }
 easygpu = { git = "https://github.com/khonsulabs/easygpu.git", branch = "main" }
 easygpu-lyon = { git = "https://github.com/khonsulabs/easygpu.git", branch = "main" }

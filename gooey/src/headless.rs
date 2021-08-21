@@ -119,7 +119,7 @@ impl Headless<Rasterizer<Kludgine>> {
         cursor: Option<Point<f32, Scaled>>,
     ) -> Result<DynamicImage, HeadlessError> {
         let (scene_sender, scene_receiver) = flume::unbounded();
-        let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+        let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::default(),
@@ -127,7 +127,7 @@ impl Headless<Rasterizer<Kludgine>> {
             })
             .await
             .expect("No wgpu adapter found");
-        let renderer = easygpu::renderer::Renderer::offscreen(&adapter).await?;
+        let renderer = easygpu::renderer::Renderer::offscreen(&adapter, 4).await?;
         let mut target = Target::from(Scene::new(
             scene_sender,
             match theme {
