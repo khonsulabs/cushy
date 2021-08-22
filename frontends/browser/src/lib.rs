@@ -34,8 +34,8 @@ use gooey_core::{
     styles::{
         border::Border,
         style_sheet::{Classes, State},
-        Alignment, FontFamily, FontSize, Padding, Style, StyleComponent, SystemTheme,
-        VerticalAlignment,
+        Alignment, Autofocus, FontFamily, FontSize, Padding, Style, StyleComponent, SystemTheme,
+        TabIndex, VerticalAlignment,
     },
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Callback, Frontend, Gooey,
     Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
@@ -47,7 +47,8 @@ use wasm_bindgen::{prelude::*, JsCast};
 pub mod utils;
 
 use utils::{
-    create_element, set_widget_classes, set_widget_id, CssBlockBuilder, CssManager, CssRules,
+    create_element, set_widget_classes, set_widget_id, window_element_by_widget_id,
+    CssBlockBuilder, CssManager, CssRules,
 };
 use web_sys::{ErrorEvent, HtmlElement, HtmlImageElement, MediaQueryListEvent};
 
@@ -336,7 +337,8 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         element: &HtmlElement,
         context: &TransmogrifierContext<'_, Self, WebSys>,
     ) -> Option<CssRules> {
-        set_widget_id(element, context.registration.id().id);
+        let widget_id = context.registration.id().id;
+        set_widget_id(element, widget_id);
         let mut classes = Self::widget_classes();
         if let Some(custom_classes) = context.style.get::<Classes>() {
             classes = classes.merge(custom_classes);
@@ -347,7 +349,7 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
         let style_sheet = context.frontend.gooey().stylesheet();
         for theme in [SystemTheme::Light, SystemTheme::Dark] {
             for state in State::permutations() {
-                let mut css = CssBlockBuilder::for_id(context.registration.id().id)
+                let mut css = CssBlockBuilder::for_id(widget_id)
                     .and_state(&state)
                     .with_theme(theme);
 
@@ -367,6 +369,40 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
                 }
             }
         }
+
+        if context.style.get::<Autofocus>().is_some() {
+            web_sys::window()
+                .unwrap()
+                .set_timeout_with_callback_and_timeout_and_arguments_0(
+                    Closure::once_into_js(move || {
+                        if let Some(element) = window_element_by_widget_id::<HtmlElement>(widget_id)
+                        {
+                            drop(element.focus());
+                        }
+                    })
+                    .as_ref()
+                    .unchecked_ref(),
+                    0,
+                )
+                .unwrap();
+        }
+
+        if let Some(index) = context.style.get::<TabIndex>() {
+            // In CSS, tab index is limited to the bounds of an i16. 0 has a
+            // special meaning, so we have to add 1 since TabIndex(0) is valid
+            // in Gooey.
+            let index = index
+                .0
+                .checked_add(1)
+                .and_then(|index| i16::try_from(index).ok())
+                .expect("tab index out of bounds");
+            element.set_tab_index(i32::from(index));
+        } else if <Self::Widget as Widget>::FOCUSABLE {
+            element.set_tab_index(0);
+        } else {
+            element.set_tab_index(-1);
+        }
+
         rules
     }
 

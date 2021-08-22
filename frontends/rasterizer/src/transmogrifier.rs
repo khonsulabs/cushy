@@ -2,7 +2,7 @@ use std::{any::TypeId, convert::TryFrom, ops::Deref};
 
 use gooey_core::{
     figures::{Point, Rect, Rectlike, Size, Vector, Vectorlike},
-    styles::{border::Border, BackgroundColor, Padding, Style, TabOrder},
+    styles::{border::Border, BackgroundColor, Padding, Style, TabIndex},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Scaled, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRegistration,
 };
@@ -62,9 +62,9 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                         .origin()
                         .to_vector(),
                 ),
-                self.should_accept_focus(context),
+                <Self::Widget as Widget>::FOCUSABLE,
                 parent_id,
-                context.style.get::<TabOrder>().copied(),
+                context.style.get::<TabIndex>().copied(),
             );
         }
     }
@@ -232,15 +232,6 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         }
     }
 
-    /// Return true to allow this widget to receive focus via tab-key navigation.
-    #[allow(unused_variables)]
-    fn should_accept_focus(
-        &self,
-        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
-    ) -> bool {
-        false
-    }
-
     /// Executed when this widget receives input focus.
     #[allow(unused_variables)]
     fn focused(&self, context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>) {}
@@ -355,11 +346,6 @@ pub trait AnyWidgetRasterizer<R: Renderer>: AnyTransmogrifier<Rasterizer<R>> + S
         context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
         constraints: Size<Option<f32>, Scaled>,
     ) -> ContentSize;
-
-    fn should_accept_focus(
-        &self,
-        context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-    ) -> bool;
 
     fn focused(&self, context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>);
 
@@ -597,16 +583,6 @@ where
             self,
             &mut TransmogrifierContext::try_from(context).unwrap(),
             character,
-        )
-    }
-
-    fn should_accept_focus(
-        &self,
-        context: &mut AnyTransmogrifierContext<'_, Rasterizer<R>>,
-    ) -> bool {
-        <Self as WidgetRasterizer<R>>::should_accept_focus(
-            self,
-            &mut TransmogrifierContext::try_from(context).unwrap(),
         )
     }
 

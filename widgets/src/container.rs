@@ -39,6 +39,7 @@ impl Widget for Container {
     type Event = ();
 
     const CLASS: &'static str = "gooey-container";
+    const FOCUSABLE: bool = false;
 }
 
 impl<B: Behavior> Content<B> for Container {

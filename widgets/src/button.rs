@@ -56,6 +56,7 @@ impl Widget for Button {
     type Event = InternalButtonEvent;
 
     const CLASS: &'static str = "gooey-button";
+    const FOCUSABLE: bool = true;
 
     fn classes() -> Classes {
         Classes::from(vec![Self::CLASS, SOLID_WIDGET_CLASS])
@@ -94,8 +95,8 @@ impl Builder {
         self
     }
 
-    pub fn finish(self) -> Button {
-        self.button
+    pub fn finish(self) -> StyledWidget<Button> {
+        StyledWidget::from(self.button)
     }
 }
 

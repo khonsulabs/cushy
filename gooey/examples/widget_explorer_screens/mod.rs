@@ -17,7 +17,7 @@ use gooey::{
 use crate::widget_explorer_screens::main_menu::MainMenu;
 
 pub mod borders;
-pub mod input;
+pub mod focus;
 pub mod main_menu;
 pub mod navigator;
 
@@ -26,7 +26,7 @@ pub enum Page {
     MainMenu,
     Navigator { level: usize },
     Borders,
-    Input,
+    Focus,
 }
 
 impl Default for Page {
@@ -49,7 +49,7 @@ impl Location for Page {
                 }
             }
             Page::Borders => Cow::from("Borders"),
-            Page::Input => Cow::from("Text Input"),
+            Page::Focus => Cow::from("Focus"),
         }
     }
 
@@ -65,7 +65,7 @@ impl Location for Page {
                 storage,
             )),
             Page::Borders => storage.register(Component::new(borders::Demo::default(), storage)),
-            Page::Input => storage.register(Component::new(input::Demo::default(), storage)),
+            Page::Focus => storage.register(Component::new(focus::Demo::default(), storage)),
         }
     }
 }

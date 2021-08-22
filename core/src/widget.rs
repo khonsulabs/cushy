@@ -41,6 +41,10 @@ pub trait Widget: Debug + Send + Sync + Sized + 'static {
         Classes::from(Self::CLASS)
     }
 
+    /// When true, the control is able to receive focus through focus
+    /// advancement, most commonly done when using the tab key.
+    const FOCUSABLE: bool;
+
     /// Called when an `event` from the transmogrifier was received.
     #[allow(unused_variables)]
     fn receive_event(&mut self, event: Self::Event, context: &Context<Self>) {

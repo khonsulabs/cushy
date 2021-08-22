@@ -11,11 +11,12 @@ impl StyleComponent for Autofocus {
     }
 }
 
-/// Indicates the order in which focus moves between Widgets on a screen.
+/// Indicates the index in the tab order for the window. The indicies must be
+/// consistent within the window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TabOrder(usize);
+pub struct TabIndex(pub usize);
 
-impl StyleComponent for TabOrder {
+impl StyleComponent for TabIndex {
     fn should_be_inherited(&self) -> bool {
         false
     }

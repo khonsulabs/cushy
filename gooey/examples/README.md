@@ -34,6 +34,12 @@ Demonstrates borders and padding.
 
 ![Borders (Light Theme)](./snapshots/widget-explorer/Borders-Light.png) ![Borders (Dark Theme)](./snapshots/widget-explorer/Borders-Dark.png)
 
+### Focus ([`widget_explorer_screens/focus.rs`](./widget_explorer_screens/focus.rs))
+
+Demonstrates [`TabIndex`](https://gooey.rs/main/gooey/core/styles/struct.TabIndex.html) and [`Autofocus`](https://gooey.rs/main/gooey/core/styles/struct.Autofocus.html).
+
+![Borders (Light Theme)](./snapshots/widget-explorer/Focus-Light.png) ![Borders (Dark Theme)](./snapshots/widget-explorer/Focus-Dark.png)
+
 ## Updating the examples
 
 If examples are outdated, they can be regenerated using `cargo xtask generate-example-snapshots`.

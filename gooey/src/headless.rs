@@ -18,13 +18,13 @@ use gooey_kludgine::{
             easygpu::{self, wgpu},
             flume, FrameRenderer,
         },
-        prelude::{ElementState, Fill, MouseButton, Scene, Shape, Stroke, Target},
+        prelude::{ElementState, Fill, MouseButton, Scene, Shape, Stroke, Target, VirtualKeyCode},
     },
     Kludgine,
 };
 use gooey_rasterizer::{
     events::{InputEvent, WindowEvent},
-    winit::window::Theme,
+    winit::{event::ModifiersState, window::Theme},
     EventResult, Rasterizer, Renderer,
 };
 use image::{DynamicImage, RgbImage};
@@ -340,6 +340,39 @@ impl<'a> Recorder<'a> {
             state: ElementState::Released,
         }));
         self.render_frame(Duration::from_millis(200)).await
+    }
+
+    /// Simulates a typing a key once.
+    ///
+    /// # Errors
+    ///
+    /// Returns any error that occurs while rendering.
+    pub async fn press_key(
+        &mut self,
+        key: VirtualKeyCode,
+        modifiers: impl Into<Option<ModifiersState>>,
+    ) -> Result<(), HeadlessError> {
+        let modifiers = modifiers.into();
+        if let Some(modifiers) = modifiers {
+            self.simulate_event(WindowEvent::ModifiersChanged(modifiers));
+        }
+
+        self.simulate_event(WindowEvent::Input(InputEvent::Keyboard {
+            scancode: 0,
+            key: Some(key),
+            state: ElementState::Pressed,
+        }));
+        self.render_frame(Duration::from_millis(75)).await?;
+        self.simulate_event(WindowEvent::Input(InputEvent::Keyboard {
+            scancode: 0,
+            key: Some(key),
+            state: ElementState::Released,
+        }));
+        if modifiers.is_some() {
+            self.simulate_event(WindowEvent::ModifiersChanged(ModifiersState::default()));
+        }
+
+        self.render_frame(Duration::from_millis(75)).await
     }
 
     /// Saves the current frames to `path` as an animated png.

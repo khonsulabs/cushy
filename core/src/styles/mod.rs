@@ -22,7 +22,7 @@ pub use self::{
     colors::{
         BackgroundColor, Color, ColorPair, ForegroundColor, HighlightColor, SystemTheme, TextColor,
     },
-    focus::{Autofocus, TabOrder},
+    focus::{Autofocus, TabIndex},
     font_family::FontFamily,
     font_size::FontSize,
     font_style::FontStyle,

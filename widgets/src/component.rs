@@ -192,6 +192,7 @@ impl<B: Behavior> Widget for Component<B> {
     type Event = InternalEvent<B>;
 
     const CLASS: &'static str = "gooey-component";
+    const FOCUSABLE: bool = false;
 
     fn classes() -> Classes {
         B::classes().map_or_else(

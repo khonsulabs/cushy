@@ -50,13 +50,21 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     fn scale(&self) -> DisplayScale<f32>;
 
     /// Renders `text` at `baseline_origin` with `options`.
-    fn render_text(&self, text: &str, baseline_origin: Point<f32, Scaled>, options: &TextOptions);
-
-    /// Renders `text` at `baseline_origin` with `options`.
-    fn render_text_with_style<F: FallbackComponent<Value = ColorPair>>(
+    fn render_text(
         &self,
         text: &str,
-        baseline_origin: Point<f32, Scaled>,
+        baseline_origin: impl Displayable<f32, Pixels = Point<f32, Pixels>>,
+        options: &TextOptions,
+    );
+
+    /// Renders `text` at `baseline_origin` with `options`.
+    fn render_text_with_style<
+        F: FallbackComponent<Value = ColorPair>,
+        P: Displayable<f32, Pixels = Point<f32, Pixels>>,
+    >(
+        &self,
+        text: &str,
+        baseline_origin: P,
         style: &Style,
     ) {
         self.render_text(

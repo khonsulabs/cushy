@@ -106,7 +106,6 @@ impl Renderer for Kludgine {
                 .offset
                 .unwrap_or_default()
                 .to_point()
-                .cast_unit::<Pixels>()
                 .to_scaled(&self.scale()),
             self.size(),
         )
@@ -118,8 +117,8 @@ impl Renderer for Kludgine {
         let bounds = bounds.as_sized();
         let mut scene_relative_bounds = bounds;
         if let Some(offset) = self.target.offset {
-            scene_relative_bounds = scene_relative_bounds
-                .translate(offset.cast_unit::<Pixels>().to_scaled(&self.scale()));
+            scene_relative_bounds =
+                scene_relative_bounds.translate(offset.to_scaled(&self.scale()));
         }
 
         if scene_relative_bounds.origin.x < 0. {
@@ -154,16 +153,21 @@ impl Renderer for Kludgine {
         *self.target.scale()
     }
 
-    fn render_text(&self, text: &str, baseline_origin: Point<f32, Scaled>, options: &TextOptions) {
+    fn render_text(
+        &self,
+        text: &str,
+        baseline_origin: impl Displayable<f32, Pixels = Point<f32, Pixels>>,
+        options: &TextOptions,
+    ) {
         self.prepare_text(text, options)
-            .render_baseline_at(&self.target, baseline_origin.cast_unit())
+            .render_baseline_at(&self.target, baseline_origin.to_pixels(self.target.scale()))
             .unwrap();
     }
 
     fn measure_text(&self, text: &str, options: &TextOptions) -> TextMetrics<Scaled> {
         let text = self.prepare_text(text, options);
         TextMetrics {
-            width: text.width.cast_unit::<Pixels>(),
+            width: text.width,
             ascent: Figure::new(text.metrics.ascent),
             descent: Figure::new(text.metrics.descent),
             line_gap: Figure::new(text.metrics.line_gap),

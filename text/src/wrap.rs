@@ -304,7 +304,7 @@ mod tests {
         fn render_text(
             &self,
             _text: &str,
-            _baseline_origin: gooey_core::figures::Point<f32, Scaled>,
+            _baseline_origin: impl Displayable<f32, Pixels = Point<f32, Pixels>>,
             _options: &gooey_renderer::TextOptions,
         ) {
             unimplemented!()

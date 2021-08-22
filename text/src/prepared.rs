@@ -1,7 +1,7 @@
 use std::{borrow::Cow, sync::Arc};
 
 use gooey_core::{
-    figures::{Figure, Point, Rect, Rectlike, Size, Vector},
+    figures::{Displayable, Figure, Point, Rect, Rectlike, Round, Size, Vector},
     styles::{Alignment, ColorPair, FallbackComponent, Style, VerticalAlignment},
     Scaled,
 };
@@ -76,11 +76,11 @@ impl PreparedText {
                     || Cow::Borrowed(span.data.style.as_ref()),
                     |style| Cow::Owned(span.data.style.merge_with(style, false)),
                 );
-                renderer.render_text_with_style::<F>(
-                    &span.data.text,
-                    cursor_position + Vector::from_figures(span.location(), Figure::default()),
-                    &style,
-                );
+                let span_location = (cursor_position
+                    + Vector::from_figures(span.location(), Figure::default()))
+                .to_pixels(&renderer.scale())
+                .round();
+                renderer.render_text_with_style::<F, _>(&span.data.text, span_location, &style);
             }
             current_line_baseline += line.metrics.line_gap - line.metrics.descent;
         }

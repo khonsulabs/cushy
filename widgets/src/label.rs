@@ -38,6 +38,7 @@ impl Widget for Label {
     type Event = ();
 
     const CLASS: &'static str = "gooey-label";
+    const FOCUSABLE: bool = false;
 }
 
 #[derive(Debug)]

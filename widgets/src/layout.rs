@@ -112,6 +112,7 @@ impl Widget for Layout {
     type Event = ();
 
     const CLASS: &'static str = "gooey-layout";
+    const FOCUSABLE: bool = false;
 }
 
 #[derive(Debug)]

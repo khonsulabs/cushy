@@ -62,6 +62,7 @@ impl Widget for Input {
     type Event = Event;
 
     const CLASS: &'static str = "gooey-input";
+    const FOCUSABLE: bool = true;
 }
 
 #[derive(Debug)]

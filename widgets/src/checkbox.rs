@@ -98,6 +98,7 @@ impl Widget for Checkbox {
     type Event = InternalCheckboxEvent;
 
     const CLASS: &'static str = "gooey-checkbox";
+    const FOCUSABLE: bool = true;
 
     fn receive_event(&mut self, event: Self::Event, context: &Context<Self>) {
         let InternalCheckboxEvent::Clicked = event;

@@ -8,7 +8,7 @@ use std::{
 
 use gooey_core::{
     figures::{Point, Rectlike},
-    styles::{style_sheet, SystemTheme, TabOrder},
+    styles::{style_sheet, SystemTheme, TabIndex},
     Scaled, WidgetId,
 };
 use parking_lot::Mutex;
@@ -111,7 +111,7 @@ impl State {
         area: ContentArea,
         should_accept_focus: bool,
         parent_id: Option<&WidgetId>,
-        tab_order: Option<TabOrder>,
+        tab_order: Option<TabIndex>,
     ) {
         let mut data = self.data.lock();
         data.widget_rendered(widget, area, should_accept_focus, parent_id, tab_order);
@@ -340,7 +340,7 @@ impl Data {
         area: ContentArea,
         should_accept_focus: bool,
         parent_id: Option<&WidgetId>,
-        tab_order: Option<TabOrder>,
+        tab_order: Option<TabIndex>,
     ) {
         if should_accept_focus {
             let tab_entry = TabEntry {
@@ -440,7 +440,7 @@ impl Data {
 struct TabEntry {
     order_index: usize,
     render_origin: Point<i32, Scaled>,
-    tab_order: Option<TabOrder>,
+    tab_order: Option<TabIndex>,
 }
 
 impl PartialOrd for TabEntry {

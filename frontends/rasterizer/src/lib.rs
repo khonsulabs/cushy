@@ -30,7 +30,7 @@ use gooey_core::{
     figures::{Point, Rect},
     styles::{
         style_sheet::{self},
-        Autofocus, Style, SystemTheme, TabOrder,
+        Autofocus, Style, SystemTheme, TabIndex,
     },
     AnyTransmogrifierContext, Callback, Gooey, Scaled, TransmogrifierContext, WidgetId,
 };
@@ -454,7 +454,7 @@ impl<R: Renderer> Rasterizer<R> {
         area: ContentArea,
         should_accept_focus: bool,
         parent_id: Option<&WidgetId>,
-        tab_order: Option<TabOrder>,
+        tab_order: Option<TabIndex>,
     ) {
         self.state
             .widget_rendered(widget, area, should_accept_focus, parent_id, tab_order);
