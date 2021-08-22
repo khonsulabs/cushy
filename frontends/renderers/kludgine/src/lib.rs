@@ -217,11 +217,15 @@ impl Renderer for Kludgine {
         );
     }
 
-    fn draw_image(&self, image: &gooey_core::assets::Image, location: Point<f32, Scaled>) {
+    fn draw_image(
+        &self,
+        image: &gooey_core::assets::Image,
+        location: impl Displayable<f32, Pixels = Point<f32, Pixels>>,
+    ) {
         if let Some(image) = image.as_rgba_image() {
             let texture = Texture::new(image);
             let sprite = SpriteSource::entire_texture(texture);
-            sprite.render_at(&self.target, location, SpriteRotation::default());
+            sprite.render_at(&self.target, location, SpriteRotation::none());
         }
     }
 }

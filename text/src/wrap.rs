@@ -328,7 +328,7 @@ mod tests {
         fn draw_image(
             &self,
             _image: &gooey_core::assets::Image,
-            _location: gooey_core::figures::Point<f32, Scaled>,
+            _location: impl Displayable<f32, Pixels = Point<f32, Pixels>>,
         ) {
             unimplemented!()
         }

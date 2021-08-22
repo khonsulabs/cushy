@@ -135,10 +135,13 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     );
 
     /// Draws a line between `point_a` and `point_b` using `style`.
-    fn stroke_line_with_style<F: FallbackComponent<Value = ColorPair>>(
+    fn stroke_line_with_style<
+        F: FallbackComponent<Value = ColorPair>,
+        P: Displayable<f32, Pixels = Point<f32, Pixels>>,
+    >(
         &self,
-        point_a: Point<f32, Scaled>,
-        point_b: Point<f32, Scaled>,
+        point_a: P,
+        point_b: P,
         style: &Style,
     ) {
         self.stroke_line(
@@ -149,7 +152,11 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     }
 
     /// Draws an `image` at `location`.
-    fn draw_image(&self, image: &Image, location: Point<f32, Scaled>);
+    fn draw_image(
+        &self,
+        image: &Image,
+        location: impl Displayable<f32, Pixels = Point<f32, Pixels>>,
+    );
 }
 
 /// Text rendering and measurement options.
