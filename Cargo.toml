@@ -19,8 +19,8 @@ resolver = "2"
 # easygpu = { path = "../easygpu/easygpu" }
 # easygpu-lyon = { path = "../easygpu/lyon" }
 bonsaidb = { git = "https://github.com/khonsulabs/bonsaidb.git", branch = "main" }
-easygpu = { git = "https://github.com/khonsulabs/easygpu.git", branch = "main" }
-easygpu-lyon = { git = "https://github.com/khonsulabs/easygpu.git", branch = "main" }
+# easygpu = { git = "https://github.com/khonsulabs/easygpu.git", branch = "main" }
+# easygpu-lyon = { git = "https://github.com/khonsulabs/easygpu.git", branch = "main" }
 # bonsaidb = { path="../bonsaidb/bonsaidb" }
 # actionable = { git="https://github.com/khonsulabs/actionable.git", branch="main" }
 # actionable = { path="../actionable/actionable", version="0.1.0-dev.3" }

@@ -10,10 +10,8 @@ keywords = ["gui", "ui", "user interface"]
 categories = ["gui"]
 readme = "../README.md"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-figures = { git = "https://github.com/khonsulabs/figures.git", branch = "main" }
+figures = "0.1"
 stylecs = { git = "https://github.com/khonsulabs/stylecs.git", branch = "main" }
 flume = "0.10"
 palette = "0.6"
