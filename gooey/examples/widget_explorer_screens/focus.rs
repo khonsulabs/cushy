@@ -28,7 +28,7 @@ impl Behavior for Demo {
                 None,
                 Label::new(
                     "This pane demonstrates tab ordering. The input field receives focus \
-                     automatically, but has TabIndex(2). The buttons are labeled with their tab \
+                     automatically, but has TabIndex(1). The buttons are labeled with their tab \
                      indexes.",
                 )
                 .with(Alignment::Center)
