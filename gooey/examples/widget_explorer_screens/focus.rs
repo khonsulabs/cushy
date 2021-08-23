@@ -66,6 +66,18 @@ impl Behavior for Demo {
             )
             .with(
                 None,
+                Button::build()
+                    .labeled("TabIndex(2)")
+                    .finish()
+                    .with(TabIndex(2)),
+                WidgetLayout::build()
+                    .left(Dimension::percent(BUTTON_WIDTH * 1.))
+                    .width(Dimension::percent(BUTTON_WIDTH))
+                    .bottom(Dimension::zero())
+                    .finish(),
+            )
+            .with(
+                None,
                 Button::build().labeled("No TabIndex").finish(),
                 WidgetLayout::build()
                     .left(Dimension::percent(BUTTON_WIDTH * 2.))
@@ -78,18 +90,6 @@ impl Behavior for Demo {
                 Button::build().labeled("No TabIndex").finish(),
                 WidgetLayout::build()
                     .left(Dimension::percent(BUTTON_WIDTH * 3.))
-                    .width(Dimension::percent(BUTTON_WIDTH))
-                    .bottom(Dimension::zero())
-                    .finish(),
-            )
-            .with(
-                None,
-                Button::build()
-                    .labeled("TabIndex(2)")
-                    .finish()
-                    .with(TabIndex(2)),
-                WidgetLayout::build()
-                    .left(Dimension::percent(BUTTON_WIDTH * 1.))
                     .width(Dimension::percent(BUTTON_WIDTH))
                     .bottom(Dimension::zero())
                     .finish(),
