@@ -23,6 +23,7 @@ gooey-rasterizer = { path = "../frontends/rasterizer", version = "0.1.0-dev.0", 
 gooey-browser = { path = "../frontends/browser", version = "0.1.0-dev.0", optional = true }
 
 arboard = { version = "2", optional = true }
+septem = "1.1"
 
 wasm-bindgen = { version = "0.2", optional = true }
 web-sys = { version = "0.3", features = [
@@ -40,6 +41,7 @@ web-sys = { version = "0.3", features = [
     "HtmlHeadElement",
     "HtmlLabelElement",
     "HtmlSpanElement",
+    "HtmlTableElement",
     "CssStyleDeclaration",
 ], optional = true }
 flume = "0.10"

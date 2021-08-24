@@ -259,9 +259,9 @@ impl<B: Behavior> RelatedStorage<B::Widgets> for ComponentUpdater<B> {
         self.component.clone()
     }
 
-    fn remove(&self, key: &B::Widgets) {
+    fn remove(&self, key: &B::Widgets) -> Option<WeakWidgetRegistration> {
         let mut registered_widgets = self.registered_widgets.lock();
-        registered_widgets.remove(key);
+        registered_widgets.remove(key)
     }
 
     fn register(&self, key: B::Widgets, registration: &WidgetRegistration) {

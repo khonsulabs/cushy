@@ -458,8 +458,8 @@ impl<K: Key> KeyedStorage<K> for WidgetStorage {
 pub trait RelatedStorage<K: Key>: Debug + Send + Sync + 'static {
     /// Returns the registration of the widget that this is from.
     fn widget(&self) -> WeakWidgetRegistration;
-    /// Removes the widget with `key` from this storage.
-    fn remove(&self, key: &K);
+    /// Removes the widget with `key` from this storage. Returns the removed registration if one was removed.
+    fn remove(&self, key: &K) -> Option<WeakWidgetRegistration>;
     /// Registers `widget` with `key`.
     fn register(&self, key: K, widget: &WidgetRegistration);
 }

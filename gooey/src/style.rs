@@ -12,6 +12,7 @@ use gooey_widgets::{
     checkbox::Checkbox,
     input::Input,
     label::Label,
+    list::{List, ListAdornmentSpacing},
 };
 
 /// The default [`StyleSheet`] for `Gooey`.
@@ -25,7 +26,11 @@ pub fn default_stylesheet() -> StyleSheet {
 #[allow(clippy::too_many_lines)]
 pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
     StyleSheet::default()
-        .with(Rule::default().with_styles(|style| style.with(HighlightColor(P::secondary()))))
+        .with(Rule::default().with_styles(|style| {
+            style
+                .with(HighlightColor(P::secondary()))
+                .with(ForegroundColor(P::foreground()))
+        }))
         .with(
             Rule::for_classes(ROOT_CLASS)
                 .with_styles(|style| style.with(BackgroundColor(P::background()))),
@@ -49,11 +54,10 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
                 .when_active()
                 .with_styles(|style| style.with(ButtonColor(P::navigator_button().darken(0.1)))),
         )
-        .with(Rule::for_classes(SOLID_WIDGET_CLASS).with_styles(|style| {
-            style
-                .with(ForegroundColor(P::foreground()))
-                .with(BackgroundColor(P::control_background()))
-        }))
+        .with(
+            Rule::for_classes(SOLID_WIDGET_CLASS)
+                .with_styles(|style| style.with(BackgroundColor(P::control_background()))),
+        )
         .with(
             Rule::for_classes(SOLID_WIDGET_CLASS)
                 .when_hovered()
@@ -86,11 +90,10 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
                 .with(VerticalAlignment::Center)
                 .with(Padding(Surround::from(Some(Figure::new(5.)))))
         }))
-        .with(Rule::for_widget::<Checkbox>().with_styles(|style| {
-            style
-                .with(ForegroundColor(P::foreground()))
-                .with(ButtonColor(P::control_background()))
-        }))
+        .with(
+            Rule::for_widget::<Checkbox>()
+                .with_styles(|style| style.with(ButtonColor(P::control_background()))),
+        )
         .with(
             Rule::for_widget::<Checkbox>()
                 .when_hovered()
@@ -117,7 +120,6 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
         .with(Rule::for_widget::<Input>().with_styles(|style| {
             style
                 .with(BackgroundColor(P::background()))
-                .with(ForegroundColor(P::foreground()))
                 .with(Border::uniform(BorderOptions::new(
                     1.,
                     P::control_background(),
@@ -130,6 +132,10 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
                 .with_styles(|style| {
                     style.with(Border::uniform(BorderOptions::new(1., P::secondary())))
                 }),
+        )
+        .with(
+            Rule::for_widget::<List>()
+                .with_styles(|style| style.with(ListAdornmentSpacing(Figure::new(5.)))),
         )
 }
 

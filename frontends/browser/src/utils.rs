@@ -273,14 +273,14 @@ impl CssBlockBuilder {
                     self.with_css_statement(&format!(
                         "padding: {:03}pt {:03}pt",
                         top.get(),
-                        left.get()
+                        right.get()
                     ))
                 }
             } else {
                 self.with_css_statement(&format!(
                     "padding: {:03}pt {:03}pt {:03}pt",
                     top.get(),
-                    left.get(),
+                    right.get(),
                     bottom.get(),
                 ))
             }
@@ -288,9 +288,9 @@ impl CssBlockBuilder {
             self.with_css_statement(&format!(
                 "padding: {:03}pt {:03}pt {:03}pt {:03}pt",
                 top.get(),
-                left.get(),
-                bottom.get(),
                 right.get(),
+                bottom.get(),
+                left.get(),
             ))
         }
     }

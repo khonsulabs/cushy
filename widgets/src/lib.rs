@@ -24,6 +24,7 @@ pub mod container;
 pub mod input;
 pub mod label;
 pub mod layout;
+pub mod list;
 pub mod navigator;
 
 #[cfg(feature = "frontend-rasterizer")]
@@ -34,7 +35,7 @@ pub mod rasterized {
     use crate::{
         button::ButtonTransmogrifier, checkbox::CheckboxTransmogrifier,
         container::ContainerTransmogrifier, input::InputTransmogrifier, label::LabelTransmogrifier,
-        layout::LayoutTransmogrifier,
+        layout::LayoutTransmogrifier, list::ListTransmogrifier,
     };
 
     pub fn register_transmogrifiers<R: Renderer>(
@@ -46,6 +47,7 @@ pub mod rasterized {
         drop(transmogrifiers.register_transmogrifier(LayoutTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(CheckboxTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(InputTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(ListTransmogrifier));
     }
 
     #[must_use]
@@ -61,6 +63,7 @@ pub mod rasterized {
     make_rasterized!(LayoutTransmogrifier);
     make_rasterized!(CheckboxTransmogrifier);
     make_rasterized!(InputTransmogrifier);
+    make_rasterized!(ListTransmogrifier);
 }
 
 #[cfg(feature = "frontend-browser")]
@@ -71,7 +74,7 @@ pub mod browser {
     use crate::{
         button::ButtonTransmogrifier, checkbox::CheckboxTransmogrifier,
         container::ContainerTransmogrifier, input::InputTransmogrifier, label::LabelTransmogrifier,
-        layout::LayoutTransmogrifier,
+        layout::LayoutTransmogrifier, list::ListTransmogrifier,
     };
 
     pub fn register_transmogrifiers(transmogrifiers: &mut Transmogrifiers<WebSys>) {
@@ -81,6 +84,7 @@ pub mod browser {
         drop(transmogrifiers.register_transmogrifier(LayoutTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(CheckboxTransmogrifier));
         drop(transmogrifiers.register_transmogrifier(InputTransmogrifier));
+        drop(transmogrifiers.register_transmogrifier(ListTransmogrifier));
     }
 
     #[must_use]
@@ -96,4 +100,5 @@ pub mod browser {
     make_browser!(LayoutTransmogrifier);
     make_browser!(CheckboxTransmogrifier);
     make_browser!(InputTransmogrifier);
+    make_browser!(ListTransmogrifier);
 }
