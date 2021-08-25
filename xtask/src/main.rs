@@ -38,9 +38,11 @@ fn build_browser_example(name: String) -> Result<(), devx_cmd::Error> {
                 "bonsaidb-counter-client",
                 "--target",
                 "wasm32-unknown-unknown",
+                "--target-dir",
+                "target/wasm",
             )?;
             execute_wasm_bindgen(
-                "target/wasm32-unknown-unknown/debug/bonsaidb-counter-client.wasm",
+                "target/wasm/wasm32-unknown-unknown/debug/bonsaidb-counter-client.wasm",
                 "integrated-examples/bonsaidb/counter/browser/pkg/",
             )?;
 
@@ -53,7 +55,7 @@ fn build_browser_example(name: String) -> Result<(), devx_cmd::Error> {
             build_regular_browser_example(regular_example)?;
             execute_wasm_bindgen(
                 &format!(
-                    "target/wasm32-unknown-unknown/debug/examples/{}.wasm",
+                    "target/wasm/wasm32-unknown-unknown/debug/examples/{}.wasm",
                     regular_example
                 ),
                 "gooey/examples/browser/pkg/",
@@ -92,6 +94,8 @@ fn build_regular_browser_example(name: &str) -> Result<(), devx_cmd::Error> {
         "frontend-browser",
         "--target",
         "wasm32-unknown-unknown",
+        "--target-dir",
+        "target/wasm",
     )
 }
 

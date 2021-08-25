@@ -8,9 +8,9 @@ use gooey_core::{Transmogrifier, TransmogrifierContext};
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlDivElement, HtmlElement};
 
+use super::LayoutChildren;
 use crate::layout::{
-    Dimension, Layout, LayoutChild, LayoutChildren, LayoutCommand, LayoutTransmogrifier,
-    WidgetLayout,
+    Dimension, Layout, LayoutChild, LayoutCommand, LayoutTransmogrifier, WidgetLayout,
 };
 
 #[derive(Default, Debug)]

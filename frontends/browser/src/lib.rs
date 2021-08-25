@@ -434,6 +434,8 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
 
         if let Some(padding) = style.get::<Padding>() {
             css = css.with_padding(padding);
+        } else {
+            css = css.with_css_statement("padding: 0");
         }
 
         css

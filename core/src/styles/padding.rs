@@ -15,15 +15,6 @@ impl StyleComponent for Padding {
     fn should_be_inherited(&self) -> bool {
         false
     }
-
-    fn merge(&self, other: &Self) -> Self {
-        Self(Surround {
-            left: self.left.or(other.left),
-            top: self.top.or(other.top),
-            right: self.right.or(other.right),
-            bottom: self.bottom.or(other.bottom),
-        })
-    }
 }
 
 impl Padding {
