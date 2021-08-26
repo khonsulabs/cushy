@@ -9,6 +9,7 @@ mod browser;
 #[derive(Debug, Default)]
 pub struct Input {
     value: String,
+    password: bool,
     selection_start: usize,
     selection_end: Option<usize>,
     changed: Callback<()>,
@@ -43,12 +44,25 @@ impl Input {
     pub fn value(&self) -> &str {
         &self.value
     }
+
+    #[must_use]
+    pub fn password_mode(&self) -> bool {
+        self.password
+    }
+
+    pub fn set_password_mode(&mut self, enabled: bool, context: &Context<Self>) {
+        if self.password != enabled {
+            self.password = enabled;
+            context.send_command(Command::PasswordModeSet);
+        }
+    }
 }
 
 #[derive(Debug)]
 pub enum Command {
     ValueSet,
     SelectionSet,
+    PasswordModeSet,
 }
 
 #[derive(Debug)]
@@ -77,6 +91,11 @@ pub struct Builder {
 impl Builder {
     pub fn value<S: Into<String>>(mut self, value: S) -> Self {
         self.input.value = value.into();
+        self
+    }
+
+    pub fn password(mut self) -> Self {
+        self.input.password = true;
         self
     }
 

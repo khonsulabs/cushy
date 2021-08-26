@@ -64,6 +64,7 @@ impl<R: Renderer> Transmogrifier<Rasterizer<R>> for InputTransmogrifier {
                     .selection_end
                     .map(|offset| context.state.text.position_of_character(offset));
             }
+            Command::PasswordModeSet => {}
         }
         context.frontend.set_needs_redraw();
     }
@@ -84,9 +85,11 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             let bounds = content_area.content_bounds().as_sized();
 
             let mut y = Figure::<f32, Scaled>::default();
-            let prepared = context
-                .state
-                .prepared_text(renderer, content_area.size.content);
+            let prepared = context.state.prepared_text(
+                renderer,
+                content_area.size.content,
+                context.widget.password_mode(),
+            );
             for paragraph in &prepared {
                 y += paragraph.render::<TextColor, _>(
                     renderer,
@@ -485,13 +488,32 @@ impl<R: Renderer> InputState<R> {
         copied_paragraphs.join("\n")
     }
 
-    fn prepared_text(&self, renderer: &R, constraints: Size<f32, Scaled>) -> Vec<PreparedText> {
-        self.text.prepare(
-            renderer,
-            TextWrap::SingleLine {
-                width: Figure::new(constraints.width),
-            },
-        )
+    fn prepared_text(
+        &self,
+        renderer: &R,
+        constraints: Size<f32, Scaled>,
+        password_mode: bool,
+    ) -> Vec<PreparedText> {
+        if password_mode {
+            // In password mode we render an obscuring character instead of the expected character.
+            let value = self.text.to_string();
+            let number_of_chars = value.chars().count();
+            let obscured = "\u{2022}".repeat(number_of_chars);
+            vec![Text::span(obscured, Style::default()).wrap(
+                renderer,
+                TextWrap::SingleLine {
+                    width: Figure::new(constraints.width),
+                },
+                None,
+            )]
+        } else {
+            self.text.prepare(
+                renderer,
+                TextWrap::SingleLine {
+                    width: Figure::new(constraints.width),
+                },
+            )
+        }
     }
 
     fn position_for_location(

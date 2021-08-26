@@ -43,6 +43,9 @@ impl gooey_core::Transmogrifier<WebSys> for InputTransmogrifier {
                             .unwrap();
                     }
                 }
+                Command::PasswordModeSet => {
+                    element.set_type(input_type(context.widget));
+                }
             }
         }
     }
@@ -56,6 +59,7 @@ impl WebSysTransmogrifier for InputTransmogrifier {
         let element = create_element::<HtmlInputElement>("input");
         *context.state = self.initialize_widget_element(&element, &context);
         element.set_value(&context.widget.value);
+        element.set_type(input_type(context.widget));
 
         let callback_context = Context::from(&context);
         element.set_oninput(
@@ -122,4 +126,12 @@ fn input_element(context: &Context<Input>) -> Option<HtmlInputElement> {
             context.registration().upgrade().unwrap().id().id,
         ))
         .map(JsCast::unchecked_into::<HtmlInputElement>)
+}
+
+fn input_type(input: &Input) -> &'static str {
+    if input.password_mode() {
+        "password"
+    } else {
+        "text"
+    }
 }
