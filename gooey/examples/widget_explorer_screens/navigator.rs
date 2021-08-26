@@ -110,31 +110,32 @@ impl Behavior for Demo {
         context: &gooey_core::Context<gooey_widgets::component::Component<Self>>,
     ) {
         let navigator = component.navigator.upgrade().expect("navigator not found");
-        context.map_widget_mut(
-            navigator.id(),
-            |navigator: &mut Navigator<Page>, context| match event {
-                Event::Push => {
-                    navigator.push(
-                        Page::Navigator {
-                            level: component.level + 1,
-                        },
-                        context,
-                    );
-                }
+        let navigator_state = context.widget_state(navigator.id()).unwrap();
+        let mut navigator = navigator_state
+            .lock::<Navigator<Page>>(context.frontend())
+            .unwrap();
+        match event {
+            Event::Push => {
+                navigator.widget.push(
+                    Page::Navigator {
+                        level: component.level + 1,
+                    },
+                    &navigator.context,
+                );
+            }
 
-                Event::Replace => {
-                    navigator.swap_to(
-                        Page::Navigator {
-                            level: component.level + 1,
-                        },
-                        context,
-                    );
-                }
-                Event::Home => {
-                    navigator.pop_to_root(context);
-                }
-            },
-        );
+            Event::Replace => {
+                navigator.widget.swap_to(
+                    Page::Navigator {
+                        level: component.level + 1,
+                    },
+                    &navigator.context,
+                );
+            }
+            Event::Home => {
+                navigator.widget.pop_to_root(&navigator.context);
+            }
+        }
     }
 }
 

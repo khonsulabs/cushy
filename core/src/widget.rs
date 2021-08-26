@@ -251,7 +251,7 @@ where
 #[derive(Debug)]
 pub struct Context<W: Widget> {
     /// The frontend that created this context.
-    pub frontend: Box<dyn AnyFrontend>,
+    frontend: Box<dyn AnyFrontend>,
     widget: WeakWidgetRegistration,
     command_sender: Sender<W::Command>,
     _widget: PhantomData<W>,
@@ -290,7 +290,7 @@ impl<W: Widget> Context<W> {
 
     /// Send `command` to the widget.
     pub fn send_command_to<OW: Widget>(&self, widget: &WidgetId, command: OW::Command) {
-        if let Some(state) = self.widget_state(widget.id) {
+        if let Some(state) = self.widget_state(widget) {
             let channels = state.channels::<OW>().expect("incorrect widget type");
             channels.post_command(command);
             self.frontend.set_widget_has_messages(widget.clone());
@@ -332,7 +332,7 @@ impl<W: Widget> Context<W> {
         widget: &WidgetId,
         with_fn: F,
     ) -> Option<R> {
-        self.widget_state(widget.id)
+        self.widget_state(widget)
             .and_then(|state| state.with_widget(self.frontend.as_ref(), with_fn))
     }
 
@@ -345,13 +345,19 @@ impl<W: Widget> Context<W> {
         widget_id: &WidgetId,
         with_fn: F,
     ) -> Option<R> {
-        self.widget_state(widget_id.id)
+        self.widget_state(widget_id)
             .and_then(|state| state.with_widget_mut(self.frontend.as_ref(), with_fn))
     }
 
     /// Returns an unscheduled timer that will invoke `callback` once after `period` elapses.
     pub fn timer(&self, period: Duration, callback: Callback) -> UnscheduledTimer<'_> {
         UnscheduledTimer::new(period, callback, self.frontend.as_ref())
+    }
+
+    /// Returns the frontend that created this context.
+    #[must_use]
+    pub fn frontend(&self) -> &dyn AnyFrontend {
+        self.frontend.as_ref()
     }
 }
 

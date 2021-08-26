@@ -125,12 +125,11 @@ impl Behavior for InfoPage {
     ) {
         let button = &component.buttons[event];
         if let Some(navigator) = component.navigator.upgrade() {
-            context.map_widget_mut(
-                navigator.id(),
-                |navigator: &mut Navigator<Page>, context| {
-                    navigator.push(button.clone(), context);
-                },
-            );
+            let navigator_state = context.widget_state(navigator.id()).unwrap();
+            let mut navigator = navigator_state
+                .lock::<Navigator<Page>>(context.frontend())
+                .unwrap();
+            navigator.widget.push(button.clone(), &navigator.context);
         }
     }
 }

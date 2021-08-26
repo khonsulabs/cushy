@@ -34,7 +34,7 @@ impl Behavior for Counter {
     ) -> StyledWidget<Container> {
         builder
             .child(
-                CounterWidgets::Button,
+                CounterWidgets::Checkbox,
                 Checkbox::build()
                     .labeled("I'm a checkbox. Hear me roar.")
                     .on_clicked(events.map(|_| CounterEvent::ButtonClicked))
@@ -49,23 +49,26 @@ impl Behavior for Counter {
         context: &Context<Component<Self>>,
     ) {
         let CounterEvent::ButtonClicked = event;
-        component.map_widget_mut(
-            &CounterWidgets::Button,
-            context,
-            |checkbox: &mut Checkbox, context| {
-                if checkbox.checked() {
-                    checkbox.set_label("I'm a checked checkbox now.", context);
-                } else {
-                    checkbox.set_label("I am no longer checked.", context);
-                }
-            },
-        );
+
+        let checkbox_state = component
+            .widget_state(&CounterWidgets::Checkbox, context)
+            .unwrap();
+        let mut checkbox = checkbox_state.lock::<Checkbox>(context.frontend()).unwrap();
+        if checkbox.widget.checked() {
+            checkbox
+                .widget
+                .set_label("I'm a checked checkbox now.", &checkbox.context);
+        } else {
+            checkbox
+                .widget
+                .set_label("I am no longer checked.", &checkbox.context);
+        }
     }
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 enum CounterWidgets {
-    Button,
+    Checkbox,
 }
 
 #[derive(Debug)]
@@ -104,7 +107,7 @@ mod tests {
                 .map_root_widget(|component: &mut Component<Counter>, context| {
                     component
                         .map_widget(
-                            &CounterWidgets::Button,
+                            &CounterWidgets::Checkbox,
                             &context,
                             |button: &Checkbox, _context| button.checked(),
                         )
@@ -127,7 +130,7 @@ mod tests {
                 .map_root_widget(|component: &mut Component<Counter>, context| {
                     component
                         .map_widget(
-                            &CounterWidgets::Button,
+                            &CounterWidgets::Checkbox,
                             &context,
                             |button: &Checkbox, _context| button.checked(),
                         )

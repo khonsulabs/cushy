@@ -62,13 +62,13 @@ impl Behavior for Counter {
         let CounterEvent::TimerFired = event;
         component.count += 1;
 
-        component.map_widget_mut(
-            &CounterWidgets::Label,
-            context,
-            |label: &mut Label, context| {
-                label.set_label(component.count.to_string(), context);
-            },
-        );
+        let label_state = component
+            .widget_state(&CounterWidgets::Label, context)
+            .unwrap();
+        let mut label = label_state.lock::<Label>(context.frontend()).unwrap();
+        label
+            .widget
+            .set_label(component.count.to_string(), &label.context);
     }
 }
 

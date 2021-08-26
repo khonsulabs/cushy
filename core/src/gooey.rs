@@ -12,7 +12,7 @@ use std::{
     },
 };
 
-use parking_lot::Mutex;
+use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
 use stylecs::{Style, StyleComponent};
 
 use crate::{
@@ -98,7 +98,7 @@ impl<F: Frontend> Gooey<F> {
             .map
             .get(&widget_id.type_id)
             .and_then(|transmogrifier| {
-                let widget_state = self.widget_state(widget_id.id)?;
+                let widget_state = self.widget_state(widget_id)?;
                 widget_state.with_state(transmogrifier, frontend, |state, widget| {
                     let style = widget_state.style.lock();
                     let channels = widget_state.channels.as_ref();
@@ -194,7 +194,7 @@ impl<F: Frontend> Gooey<F> {
         event: <W as Widget>::Event,
         frontend: &F,
     ) {
-        if let Some(state) = self.widget_state(widget_id.id) {
+        if let Some(state) = self.widget_state(widget_id) {
             let channels = state.channels::<W>().unwrap();
             channels.post_event(event);
             frontend.set_widget_has_messages(widget_id.clone());
@@ -210,7 +210,7 @@ impl<F: Frontend> Gooey<F> {
         event: <W as Widget>::Command,
         frontend: &F,
     ) {
-        if let Some(state) = self.widget_state(widget_id.id) {
+        if let Some(state) = self.widget_state(widget_id) {
             let channels = state.channels::<W>().unwrap();
             channels.post_command(event);
             frontend.set_widget_has_messages(widget_id.clone());
@@ -380,9 +380,9 @@ impl WidgetStorage {
     ///
     /// Panics if internal lock handling results in an error.
     #[must_use]
-    pub fn widget_state(&self, widget_id: u32) -> Option<WidgetState> {
+    pub fn widget_state(&self, widget_id: &WidgetId) -> Option<WidgetState> {
         let state = self.data.state.read().unwrap();
-        state.get(&widget_id).cloned().flatten()
+        state.get(&widget_id.id).cloned().flatten()
     }
 
     /// Executes `callback` with the widget state parameters.
@@ -641,6 +641,29 @@ impl WidgetState {
         };
         result
     }
+
+    /// Returns a [`WidgetGuard`] for this widget. Returns `None` if `OW` is the wrong type.
+    pub fn lock<'a, OW: Widget>(
+        &'a self,
+        frontend: &dyn AnyFrontend,
+    ) -> Option<WidgetGuard<'a, OW>> {
+        let widget = self.widget.lock();
+        let channels = self.channels::<OW>()?;
+        let context = Context::new(channels, frontend);
+        let widget =
+            MutexGuard::try_map(widget, |widget| widget.as_mut().as_mut_any().downcast_mut())
+                .ok()?;
+        Some(WidgetGuard { widget, context })
+    }
+}
+
+/// A locked widget reference. No other threads can operate on the widget while
+/// this value is alive.
+pub struct WidgetGuard<'a, W: Widget> {
+    /// The locked widget.
+    pub widget: MappedMutexGuard<'a, W>,
+    /// The context that can be used to call methods on `widget`.
+    pub context: Context<W>,
 }
 
 /// References an initialized widget. On drop, frees the storage and id.

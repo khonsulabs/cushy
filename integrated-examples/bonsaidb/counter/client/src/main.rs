@@ -135,25 +135,20 @@ struct DatabaseContext {
 
 /// Processes each command from `receiver` as it becomes available.
 async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
-    let context = match receiver.recv_async().await.unwrap() {
+    let database = match receiver.recv_async().await.unwrap() {
         DatabaseCommand::Initialize(context) => context,
         _ => unreachable!(),
     };
 
     // Connect to the locally running server. `cargo run --package server`
     // launches the server.
-    let loop_context = context.clone();
+    let loop_context = database.clone();
     let client = loop {
         let client_context = loop_context.clone();
         match Client::build("ws://127.0.0.1:8081".parse().unwrap())
             .with_custom_api_callback::<ExampleApi, _>(move |response| {
                 let Response::CounterValue(count) = response;
-                client_context.context.map_widget_mut(
-                    &client_context.button_id,
-                    |button: &mut Button, context| {
-                        button.set_label(count.to_string(), context);
-                    },
-                );
+                update_counter_label(&client_context, count);
             })
             .finish()
             .await
@@ -168,11 +163,7 @@ async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
 
     match client.send_api_request(Request::GetCounter).await {
         Ok(Response::CounterValue(count)) => {
-            context
-                .context
-                .map_widget_mut(&context.button_id, |button: &mut Button, context| {
-                    button.set_label(count.to_string(), context);
-                });
+            update_counter_label(&database, count);
         }
         Err(err) => {
             log::error!("Error retrieving current counter value: {:?}", err);
@@ -184,7 +175,7 @@ async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
     while let Ok(command) = receiver.recv_async().await {
         match command {
             DatabaseCommand::Increment => {
-                increment_counter(&client, &context).await;
+                increment_counter(&client, &database).await;
             }
             DatabaseCommand::Initialize(_) => unreachable!(),
         }
@@ -197,15 +188,19 @@ async fn increment_counter(client: &Client<ExampleApi>, context: &DatabaseContex
     // api using your own enums.
     match client.send_api_request(Request::IncrementCounter).await {
         Ok(Response::CounterValue(count)) => {
-            context
-                .context
-                .map_widget_mut(&context.button_id, |button: &mut Button, context| {
-                    button.set_label(count.to_string(), context);
-                });
+            update_counter_label(context, count);
         }
         Err(err) => {
             log::error!("Error sending request: {:?}", err);
             eprintln!("Error sending request: {:?}", err);
         }
     }
+}
+
+fn update_counter_label(database: &DatabaseContext, count: u64) {
+    let button_state = database.context.widget_state(&database.button_id).unwrap();
+    let mut button = button_state
+        .lock::<Button>(database.context.frontend())
+        .unwrap();
+    button.widget.set_label(count.to_string(), &button.context);
 }

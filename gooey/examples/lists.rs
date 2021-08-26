@@ -7,19 +7,15 @@
 //! replaced with something better eventually.
 
 use gooey::{
-    core::{Context, DefaultWidget, StyledWidget},
-    widgets::component::{Behavior, Component, Content, EventMapper},
+    core::{Callback, Context, DefaultWidget, StyledWidget},
+    widgets::{
+        button::Button,
+        component::{Behavior, Component, Content, EventMapper},
+        label::Label,
+        list::{List, OrderedListKind},
+    },
     App,
 };
-use gooey_core::Callback;
-use gooey_widgets::{
-    button::Button,
-    label::Label,
-    list::{List, OrderedListKind},
-};
-
-#[cfg(test)]
-mod harness;
 
 fn app() -> App {
     App::from_root(|storage| Component::<Lists>::default_for(storage)).with_component::<Lists>()

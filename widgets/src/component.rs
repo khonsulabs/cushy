@@ -11,7 +11,7 @@ use gooey_core::{
     styles::{style_sheet::Classes, Style},
     AnyWidget, Callback, CallbackFn, Channels, Context, DefaultWidget, Frontend, Key, KeyedStorage,
     RelatedStorage, StyledWidget, Transmogrifier, TransmogrifierContext, WeakWidgetRegistration,
-    Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetStorage,
+    Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetState, WidgetStorage,
 };
 use parking_lot::{Mutex, RwLock};
 
@@ -115,6 +115,11 @@ impl<B: Behavior> Component<B> {
     ) -> Option<R> {
         self.registered_widget(id)
             .and_then(|widget| context.map_widget_mut(widget.id(), with_fn))
+    }
+
+    pub fn widget_state(&self, id: &B::Widgets, context: &Context<Self>) -> Option<WidgetState> {
+        self.registered_widget(id)
+            .and_then(|widget| context.widget_state(widget.id()))
     }
 
     pub fn map_event<I: 'static, C: CallbackFn<I, <B as Behavior>::Event> + 'static>(
@@ -412,7 +417,7 @@ impl<B: Behavior> ComponentTransmogrifier<B> {
         frontend: &F,
     ) {
         let widget = widget.registration().unwrap().id().clone();
-        let widget_state = frontend.gooey().widget_state(widget.id).unwrap();
+        let widget_state = frontend.gooey().widget_state(&widget).unwrap();
         let channels = widget_state.channels::<Component<B>>().unwrap();
         B::initialize(component, &Context::new(channels, frontend));
 
