@@ -219,7 +219,7 @@ impl<B: Behavior> Content<B> for List {
     }
 }
 
-impl<'a, K: Key, S: KeyedStorage<K>> ContentBuilder<K, S> for Builder<K, S> {
+impl<'a, K: Key, S: KeyedStorage<K>> ContentBuilder<List, K, S> for Builder<K, S> {
     fn new(storage: S) -> Self {
         Self {
             storage,
@@ -235,6 +235,14 @@ impl<'a, K: Key, S: KeyedStorage<K>> ContentBuilder<K, S> for Builder<K, S> {
 
     fn related_storage(&self) -> Option<Box<dyn RelatedStorage<K>>> {
         self.storage.related_storage()
+    }
+}
+
+impl<K: Key, S: KeyedStorage<K>> gooey_core::Builder for Builder<K, S> {
+    type Output = StyledWidget<List>;
+
+    fn finish(self) -> Self::Output {
+        Builder::finish(self)
     }
 }
 

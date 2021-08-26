@@ -1,5 +1,5 @@
 use std::{
-    any::TypeId,
+    any::{type_name, TypeId},
     borrow::Cow,
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -95,32 +95,31 @@ impl<F: Frontend> Gooey<F> {
         frontend: &F,
         callback: C,
     ) -> Option<R> {
-        self.data
-            .transmogrifiers
-            .map
-            .get(&widget_id.type_id)
-            .and_then(|transmogrifier| {
-                let widget_state = self.widget_state(widget_id)?;
-                widget_state.with_state(transmogrifier, frontend, |state, widget| {
-                    let style = widget_state.style.lock();
-                    let channels = widget_state.channels.as_ref();
-                    callback(
-                        transmogrifier,
-                        AnyTransmogrifierContext::new(
-                            // unwrap is guranteed because this block can't
-                            // execute unless the widget registration is still
-                            // alive.
-                            widget_state.id.upgrade().unwrap(),
-                            state,
-                            frontend,
-                            widget,
-                            channels,
-                            &style,
-                            &frontend.ui_state_for(widget_id),
-                        ),
-                    )
-                })
-            })
+        let transmogrifier = match self.data.transmogrifiers.map.get(&widget_id.type_id) {
+            Some(transmogrifer) => transmogrifer,
+            None => panic!("No transmogrifier registered for {}", widget_id.type_name),
+        };
+
+        let widget_state = self.widget_state(widget_id)?;
+        widget_state.with_state(transmogrifier, frontend, |state, widget| {
+            let style = widget_state.style.lock();
+            let channels = widget_state.channels.as_ref();
+            callback(
+                transmogrifier,
+                AnyTransmogrifierContext::new(
+                    // unwrap is guranteed because this block can't
+                    // execute unless the widget registration is still
+                    // alive.
+                    widget_state.id.upgrade().unwrap(),
+                    state,
+                    frontend,
+                    widget,
+                    channels,
+                    &style,
+                    &frontend.ui_state_for(widget_id),
+                ),
+            )
+        })
     }
 
     /// Executes `callback` with the transmogrifier and transmogrifier state as
@@ -741,6 +740,7 @@ impl WidgetRegistration {
                 id: WidgetId {
                     id,
                     type_id: TypeId::of::<W>(),
+                    type_name: type_name::<W>(),
                 },
                 storage: storage.clone(),
             }),

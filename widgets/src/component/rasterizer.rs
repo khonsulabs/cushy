@@ -38,7 +38,7 @@ impl<R: Renderer, B: Behavior> WidgetRasterizer<R> for ComponentTransmogrifier<B
                         .total_size()
                 },
             )
-            .unwrap()
+            .unwrap_or_default()
     }
 }
 

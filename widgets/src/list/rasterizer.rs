@@ -60,7 +60,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ListTransmogrifier {
                     content_area.location + Vector::from_figures(offset_amount, Figure::default()),
                 );
 
-                if let Some(indicator) = indicators.next().unwrap() {
+                if let Some(indicator) = indicators.next().flatten() {
                     indicator.render::<TextColor, _>(
                         renderer,
                         child_bounds.origin
@@ -142,7 +142,7 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&WidgetRegistration, SizedRect
                         .total_size();
                     Size::new(constraints.width, child_size.height)
                 })
-                .expect("unknown transmogrifier")
+                .unwrap_or_default()
         },
         callback,
     );

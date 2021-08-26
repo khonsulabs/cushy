@@ -91,7 +91,7 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&LayoutChild, SizedRect<f32, S
                             .total_size()
                     },
                 )
-                .expect("unknown transmogrifier")
+                .unwrap_or_default()
         },
         callback,
     );

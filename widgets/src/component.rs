@@ -9,10 +9,10 @@ use std::{
 
 use gooey_core::{
     styles::{style_sheet::Classes, Style},
-    AnyWidget, Callback, CallbackFn, Channels, Context, DefaultWidget, Frontend, Key, KeyedStorage,
-    LocalizationParameters, RelatedStorage, StyledWidget, Transmogrifier, TransmogrifierContext,
-    WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetState,
-    WidgetStorage,
+    AnyWidget, Builder, Callback, CallbackFn, Channels, Context, DefaultWidget, Frontend, Key,
+    KeyedStorage, LocalizationParameters, RelatedStorage, StyledWidget, Transmogrifier,
+    TransmogrifierContext, WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration,
+    WidgetState, WidgetStorage,
 };
 use parking_lot::{Mutex, RwLock};
 
@@ -172,7 +172,7 @@ pub trait Behavior: Debug + Send + Sync + Sized + 'static {
 }
 
 pub trait Content<B: Behavior>: Widget {
-    type Builder: ContentBuilder<B::Widgets, ComponentBuilder<B>>;
+    type Builder: ContentBuilder<Self, B::Widgets, ComponentBuilder<B>>;
 
     #[must_use]
     fn build(builder: ComponentBuilder<B>) -> Self::Builder {
@@ -180,7 +180,9 @@ pub trait Content<B: Behavior>: Widget {
     }
 }
 
-pub trait ContentBuilder<K: Key, S: KeyedStorage<K> + 'static>: Debug + Send + Sync {
+pub trait ContentBuilder<W: Widget, K: Key, S: KeyedStorage<K> + 'static>:
+    Builder<Output = StyledWidget<W>> + Debug + Send + Sync
+{
     fn storage(&self) -> &WidgetStorage;
     fn related_storage(&self) -> Option<Box<dyn RelatedStorage<K>>>;
     #[must_use]
@@ -394,9 +396,11 @@ impl<B: Behavior, F: Frontend> AnyEventPoster<B> for EventPoster<B, F> {
     fn post_event(&self, event: B::Event) {
         self.channels.post_event(InternalEvent::Content(event));
         self.frontend.set_widget_has_messages(self.widget.clone());
-        self.frontend
-            .gooey()
-            .process_widget_messages(&self.frontend);
+        if !self.frontend.gooey().is_managed_code() {
+            self.frontend
+                .gooey()
+                .process_widget_messages(&self.frontend);
+        }
     }
 }
 

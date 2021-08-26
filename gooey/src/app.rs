@@ -6,6 +6,7 @@ use gooey_core::{
 };
 use gooey_widgets::{
     component::{Behavior, ComponentTransmogrifier},
+    form::{Form, Model},
     navigator::{DefaultBarBehavior, Location, NavigatorBehavior},
 };
 use sys_locale::get_locale;
@@ -108,6 +109,14 @@ impl App {
     /// application's startup.
     pub fn initial_language(mut self, language: LanguageIdentifier) -> Self {
         self.language = language;
+        self
+    }
+
+    /// Registers the transmogrifier for a form with model `M`.
+    pub fn with_form<M: Model>(mut self) -> Self {
+        self.transmogrifiers
+            .register_transmogrifier(ComponentTransmogrifier::<Form<M>>::default())
+            .expect("a transmogrifier is already registered for this widget");
         self
     }
 

@@ -329,7 +329,7 @@ impl<R: Renderer> Rasterizer<R> {
                     self.with_transmogrifier(&widget, |transmogrifier, mut context| {
                         transmogrifier.receive_character(&mut context, character)
                     })
-                    .expect("unknown transmogrifier"),
+                    .unwrap_or(EventStatus::Ignored),
                 )
             })
     }

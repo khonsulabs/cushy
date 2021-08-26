@@ -67,7 +67,7 @@ impl<K: Key, S: KeyedStorage<K>> Builder<K, S> {
     }
 }
 
-impl<K: Key, S: KeyedStorage<K>> ContentBuilder<K, S> for Builder<K, S> {
+impl<K: Key, S: KeyedStorage<K>> ContentBuilder<Container, K, S> for Builder<K, S> {
     fn storage(&self) -> &WidgetStorage {
         self.storage.storage()
     }
@@ -83,6 +83,14 @@ impl<K: Key, S: KeyedStorage<K>> ContentBuilder<K, S> for Builder<K, S> {
             padding: Surround::default(),
             _phantom: PhantomData::default(),
         }
+    }
+}
+
+impl<K: Key, S: KeyedStorage<K>> gooey_core::Builder for Builder<K, S> {
+    type Output = StyledWidget<Container>;
+
+    fn finish(self) -> Self::Output {
+        Builder::finish(self)
     }
 }
 

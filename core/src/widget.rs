@@ -113,6 +113,8 @@ pub struct WidgetId {
     pub id: u32,
     /// The [`TypeId`] of the [`Widget`] type.
     pub type_id: TypeId,
+    /// The type name of the widget.
+    pub type_name: &'static str,
 }
 
 /// Transforms a Widget into whatever is needed for [`Frontend`] `F`.
@@ -523,4 +525,12 @@ where
     fn invoke(&self, info: I) -> R {
         self(info)
     }
+}
+
+/// Provides the standard interface for all builder-pattern builders in Gooey.
+pub trait Builder {
+    /// The built type.
+    type Output;
+    /// Finish building and return the built result.
+    fn finish(self) -> Self::Output;
 }
