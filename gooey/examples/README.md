@@ -18,6 +18,12 @@ Demonstrates using the layout widget.
 
 ![Layout (Light Theme)](./snapshots/layout/Demo-Light.png) ![Layout (Dark Theme)](./snapshots/layout/Demo-Dark.png)
 
+## Timer ([`timer.rs`](./timer.rs))
+
+Demonstrates using a Timer.
+
+![Timer (Light Theme)](./snapshots/timer/Demo-Light.png) ![Timer (Dark Theme)](./snapshots/timer/Demo-Dark.png)
+
 ## Widget Explorer ([`widget-explorer.rs`](./widget-explorer.rs))
 
 An example that will eventually house many examples of how to use Gooey widgets.
