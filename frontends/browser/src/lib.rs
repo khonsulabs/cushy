@@ -27,6 +27,7 @@ use std::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc,
     },
+    time::Duration,
 };
 
 use gooey_core::{
@@ -37,8 +38,8 @@ use gooey_core::{
         Alignment, Autofocus, FontFamily, FontSize, Padding, Style, StyleComponent, SystemTheme,
         TabIndex, VerticalAlignment,
     },
-    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Callback, Frontend, Gooey,
-    Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
+    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Callback, Frontend, Gooey, NativeTimer,
+    Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
     WidgetRegistration,
 };
 use parking_lot::Mutex;
@@ -305,7 +306,63 @@ impl gooey_core::Frontend for WebSys {
     fn asset_configuration(&self) -> &assets::Configuration {
         &self.data.configuration
     }
+
+    fn schedule_timer(
+        &self,
+        callback: Callback,
+        period: std::time::Duration,
+        repeating: bool,
+    ) -> Timer {
+        let browser = BrowserTimer {
+            timeout_id: 0,
+            callback,
+            period,
+            repeating,
+        };
+        let timer = Timer::from_native(browser);
+        schedule_timer(&timer, period);
+        timer
+    }
 }
+
+fn schedule_timer(timer: &Timer, period: Duration) {
+    let weak_timer = timer.downgrade();
+    // TODO this should be refactored to reuse the same closure rather than rescheduling it.
+    let timeout_id = web_sys::window()
+        .unwrap()
+        .set_timeout_with_callback_and_timeout_and_arguments_0(
+            Closure::once_into_js(move || {
+                if let Some(timer) = weak_timer.upgrade() {
+                    let reschedule = {
+                        let native = timer.native::<BrowserTimer>().unwrap();
+                        native.callback.invoke(());
+
+                        native.repeating
+                    };
+
+                    if reschedule {
+                        schedule_timer(&timer, period);
+                    }
+                }
+            })
+            .as_ref()
+            .unchecked_ref(),
+            i32::try_from(period.as_millis()).unwrap_or(i32::MAX),
+        )
+        .unwrap();
+    let mut native = timer.native::<BrowserTimer>().unwrap();
+    native.timeout_id = timeout_id;
+}
+
+#[derive(Debug)]
+struct BrowserTimer {
+    timeout_id: i32,
+    callback: Callback,
+    period: Duration,
+    repeating: bool,
+}
+
+impl NativeTimer for BrowserTimer {}
 
 #[derive(Debug)]
 struct LoadedImageId(u64);

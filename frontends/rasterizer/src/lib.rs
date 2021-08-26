@@ -32,10 +32,11 @@ use gooey_core::{
         style_sheet::{self},
         Autofocus, Style, SystemTheme, TabIndex,
     },
-    AnyTransmogrifierContext, Callback, Gooey, Scaled, TransmogrifierContext, WidgetId,
+    AnyTransmogrifierContext, Callback, Gooey, Scaled, Timer, TransmogrifierContext, WidgetId,
 };
 use image::{ImageFormat, RgbaImage};
 use platforms::{target::OS, TARGET_OS};
+use timer::ThreadTimer;
 use winit::event::{
     ElementState, ModifiersState, MouseButton, MouseScrollDelta, ScanCode, TouchPhase,
     VirtualKeyCode,
@@ -43,6 +44,7 @@ use winit::event::{
 
 pub mod events;
 mod state;
+mod timer;
 mod transmogrifier;
 
 #[doc(hidden)]
@@ -154,6 +156,10 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
         if style.get::<Autofocus>().is_some() {
             self.focus_on(widget);
         }
+    }
+
+    fn schedule_timer(&self, callback: Callback, duration: Duration, repeating: bool) -> Timer {
+        ThreadTimer::schedule(callback, duration, repeating)
     }
 }
 

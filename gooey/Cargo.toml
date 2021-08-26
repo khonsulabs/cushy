@@ -40,6 +40,10 @@ test = true
 name = "widget-explorer"
 test = true
 
+[[example]]
+name = "timer"
+test = true
+
 [dependencies]
 gooey-rasterizer = { path = "../frontends/rasterizer", version = "0.1.0-dev.0", optional = true }
 gooey-browser = { path = "../frontends/browser", version = "0.1.0-dev.0", optional = true }

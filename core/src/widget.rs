@@ -4,6 +4,7 @@ use std::{
     marker::PhantomData,
     ops::Deref,
     sync::Arc,
+    time::Duration,
 };
 
 use flume::{Receiver, Sender};
@@ -11,8 +12,8 @@ use stylecs::Style;
 
 use crate::{
     styles::{style_sheet::Classes, BackgroundColor, ColorPair, TextColor},
-    AnyFrontend, Frontend, StyledWidget, WeakWidgetRegistration, WidgetRef, WidgetRegistration,
-    WidgetStorage,
+    AnyFrontend, Frontend, StyledWidget, UnscheduledTimer, WeakWidgetRegistration, WidgetRef,
+    WidgetRegistration, WidgetStorage,
 };
 
 mod transmogrifier_context;
@@ -346,6 +347,11 @@ impl<W: Widget> Context<W> {
     ) -> Option<R> {
         self.widget_state(widget_id.id)
             .and_then(|state| state.with_widget_mut(self.frontend.as_ref(), with_fn))
+    }
+
+    /// Returns an unscheduled timer that will invoke `callback` once after `period` elapses.
+    pub fn timer(&self, period: Duration, callback: Callback) -> UnscheduledTimer<'_> {
+        UnscheduledTimer::new(period, callback, self.frontend.as_ref())
     }
 }
 

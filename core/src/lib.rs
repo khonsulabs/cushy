@@ -18,13 +18,14 @@ mod frontend;
 mod gooey;
 /// Types used for styling.
 pub mod styles;
+mod timer;
 mod widget;
 
 pub use figures;
 pub use palette;
 pub use url;
 
-pub use self::{frontend::*, gooey::*, widget::*};
+pub use self::{frontend::*, gooey::*, timer::*, widget::*};
 
 /// A unit representing physical pixels on a display.
 pub type Pixels = figures::Pixels;

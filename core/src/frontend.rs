@@ -1,4 +1,4 @@
-use std::{any::TypeId, convert::TryFrom, fmt::Debug};
+use std::{any::TypeId, convert::TryFrom, fmt::Debug, time::Duration};
 
 use stylecs::Style;
 use url::Url;
@@ -6,7 +6,7 @@ use url::Url;
 use crate::{
     assets::{self, Asset, Image},
     styles::{style_sheet::State, SystemTheme},
-    AnySendSync, AnyTransmogrifierContext, AnyWidget, Callback, Gooey, Transmogrifier,
+    AnySendSync, AnyTransmogrifierContext, AnyWidget, Callback, Gooey, Timer, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, WidgetId, WidgetRef, WidgetRegistration,
     WidgetStorage,
 };
@@ -58,6 +58,9 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
     /// Executed when `Gooey` exits a managed code block.
     fn exit_managed_code(&self) {}
 
+    /// Schedules a timer that invokes `callback` after `duration`, and repeats if `repeating` is true.
+    fn schedule_timer(&self, callback: Callback, duration: Duration, repeating: bool) -> Timer;
+
     /// A widget is being initialized.
     #[allow(unused_variables)]
     fn widget_initialized(&self, widget: &WidgetId, style: &Style) {}
@@ -90,6 +93,9 @@ pub trait AnyFrontend: AnySendSync {
 
     /// Returns the full Url for the asset, if available.
     fn asset_url(&self, asset: &Asset) -> Option<Url>;
+
+    /// Schedules a timer that invokes `callback` after `duration`, and repeats if `repeating` is true.
+    fn schedule_timer(&self, callback: Callback, duration: Duration, repeating: bool) -> Timer;
 
     /// Internal API used by `ManagedCodeGuard`. Do not call directly.
     #[doc(hidden)]
@@ -144,6 +150,10 @@ where
 
     fn asset_url(&self, asset: &Asset) -> Option<Url> {
         self.asset_url(asset)
+    }
+
+    fn schedule_timer(&self, callback: Callback, duration: Duration, repeating: bool) -> Timer {
+        self.schedule_timer(callback, duration, repeating)
     }
 }
 
