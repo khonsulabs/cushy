@@ -1,24 +1,57 @@
-use gooey_core::{Frontend, StyledWidget, Transmogrifiers, Widget, WidgetStorage};
+use std::{str::FromStr, sync::Arc};
+
+use gooey_core::{
+    unic_langid::LanguageIdentifier, AppContext, Frontend, Localizer, StyledWidget,
+    Transmogrifiers, Widget, WidgetStorage,
+};
 use gooey_widgets::{
     component::{Behavior, ComponentTransmogrifier},
     navigator::{DefaultBarBehavior, Location, NavigatorBehavior},
 };
+use sys_locale::get_locale;
+
+type InitializerFn =
+    dyn FnOnce(Transmogrifiers<crate::ActiveFrontend>, AppContext) -> crate::ActiveFrontend;
 
 /// A cross-platform application.
 #[must_use]
 pub struct App {
-    initializer: Box<dyn FnOnce(Transmogrifiers<crate::ActiveFrontend>) -> crate::ActiveFrontend>,
+    initializer: Box<InitializerFn>,
+    language: LanguageIdentifier,
+    localizer: Arc<dyn Localizer>,
     transmogrifiers: Transmogrifiers<crate::ActiveFrontend>,
 }
 
 impl App {
     /// Returns a new application using `initializer` to create a root widget and any custom `transmogrifiers`.
+    // Panic is only going to happen if unic-langid can't parse "en-US".
+    #[allow(clippy::missing_panics_doc)]
     pub fn new<W: Widget, I: FnOnce(&WidgetStorage) -> StyledWidget<W> + 'static>(
         initializer: I,
         transmogrifiers: Transmogrifiers<crate::ActiveFrontend>,
     ) -> Self {
+        let language = locale_from_environment()
+            .or_else(|| {
+                get_locale().and_then(|identifier| match identifier.parse() {
+                    Ok(language) => Some(language),
+                    Err(err) => {
+                        log::error!(
+                            "Detected locale {}, but encountered error parsing: {:?}. Defaulting \
+                             to en-US.",
+                            identifier,
+                            err
+                        );
+                        None
+                    }
+                })
+            })
+            .unwrap_or_else(|| "en-US".parse().unwrap());
         Self {
-            initializer: Box::new(move |transmogrifiers| crate::app(transmogrifiers, initializer)),
+            initializer: Box::new(move |transmogrifiers, context| {
+                crate::app(transmogrifiers, initializer, context)
+            }),
+            localizer: Arc::new(()),
+            language,
             transmogrifiers,
         }
     }
@@ -61,10 +94,30 @@ impl App {
         self
     }
 
+    /// Enables localization through the provided localizer.
+    pub fn localizer<L: Localizer>(mut self, localizer: L) -> Self {
+        self.localizer = Arc::new(localizer);
+        self
+    }
+
+    /// Sets the initial language for localization. By default, the language is
+    /// auto-detected using a combination of
+    /// [`sys-locale`](https://crates.io/crates/sys-locale) and environment
+    /// variables, so this should only be used in situations where you want to
+    /// ensure the user is presented a specific language during your
+    /// application's startup.
+    pub fn initial_language(mut self, language: LanguageIdentifier) -> Self {
+        self.language = language;
+        self
+    }
+
     /// Runs this application using the root widget provided by `initializer`.
     pub fn run(self) {
         let initializer = self.initializer;
-        let frontend = initializer(self.transmogrifiers);
+        let frontend = initializer(
+            self.transmogrifiers,
+            AppContext::new(self.language, self.localizer),
+        );
         crate::run(frontend);
     }
 
@@ -73,7 +126,10 @@ impl App {
     #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
     pub fn headless(self) -> crate::Headless<crate::ActiveFrontend> {
         let initializer = self.initializer;
-        let frontend = initializer(self.transmogrifiers);
+        let frontend = initializer(
+            self.transmogrifiers,
+            AppContext::new(self.language, self.localizer),
+        );
         crate::Headless::new(frontend)
     }
 
@@ -116,4 +172,10 @@ impl App {
             }
         }
     }
+}
+
+fn locale_from_environment() -> Option<LanguageIdentifier> {
+    std::env::var("LANG")
+        .ok()
+        .and_then(|lang| LanguageIdentifier::from_str(&lang).ok())
 }

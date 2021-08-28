@@ -6,9 +6,9 @@ use url::Url;
 use crate::{
     assets::{self, Asset, Image},
     styles::{style_sheet::State, SystemTheme},
-    AnySendSync, AnyTransmogrifierContext, AnyWidget, Callback, Gooey, Timer, Transmogrifier,
-    TransmogrifierContext, TransmogrifierState, WidgetId, WidgetRef, WidgetRegistration,
-    WidgetStorage,
+    AnySendSync, AnyTransmogrifierContext, AnyWidget, Callback, Gooey, LocalizationParameters,
+    Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState, WidgetId, WidgetRef,
+    WidgetRegistration, WidgetStorage,
 };
 
 /// A frontend is an implementation of widgets and layouts.
@@ -64,6 +64,16 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
     /// A widget is being initialized.
     #[allow(unused_variables)]
     fn widget_initialized(&self, widget: &WidgetId, style: &Style) {}
+
+    /// Localizes `key` with `parameters`.
+    #[must_use]
+    fn localize<'a>(
+        &self,
+        key: &str,
+        parameters: impl Into<Option<LocalizationParameters<'a>>>,
+    ) -> String {
+        self.gooey().localize(key, parameters)
+    }
 }
 
 /// An interface for Frontend that doesn't requier knowledge of associated
@@ -96,6 +106,10 @@ pub trait AnyFrontend: AnySendSync {
 
     /// Schedules a timer that invokes `callback` after `duration`, and repeats if `repeating` is true.
     fn schedule_timer(&self, callback: Callback, duration: Duration, repeating: bool) -> Timer;
+
+    /// Localizes `key` with `parameters`.
+    #[must_use]
+    fn localize<'a>(&self, key: &str, parameters: Option<LocalizationParameters<'a>>) -> String;
 
     /// Internal API used by `ManagedCodeGuard`. Do not call directly.
     #[doc(hidden)]
@@ -154,6 +168,10 @@ where
 
     fn schedule_timer(&self, callback: Callback, duration: Duration, repeating: bool) -> Timer {
         self.schedule_timer(callback, duration, repeating)
+    }
+
+    fn localize<'a>(&self, key: &str, parameters: Option<LocalizationParameters<'a>>) -> String {
+        self.localize(key, parameters)
     }
 }
 

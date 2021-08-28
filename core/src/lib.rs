@@ -23,6 +23,7 @@ mod widget;
 
 pub use figures;
 pub use palette;
+pub use unic_langid;
 pub use url;
 
 pub use self::{frontend::*, gooey::*, timer::*, widget::*};

@@ -1,0 +1,18 @@
+[package]
+name = "gooey-fluent"
+version = "0.1.0-dev.0"
+edition = "2018"
+description = "Localization support for Gooey using Project Fluent."
+repository = "https://github.com/khonsulabs/gooey"
+license = "MIT OR Apache-2.0"
+keywords = ["gui", "ui", "user interface", "localization"]
+categories = ["gui"]
+readme = "../README.md"
+
+[dependencies]
+fluent = "0.16"
+fluent-langneg = "0.13"
+gooey-core = { version = "0.1.0-dev.0", path = "../core" }
+parking_lot = "0.11"
+intl-memoizer = "0.5"
+log = "0.4"

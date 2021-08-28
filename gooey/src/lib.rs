@@ -4,7 +4,7 @@
 //! ## Feature Flags
 //!
 //! This crate has several feature flags to control what features are enabled.
-//! The default feature flags are `["frontend-kludgine"]`.
+//! The default feature flags are `["frontend-kludgine", "frontend-browser", "fluent"]`.
 //!
 //! * `frontend-browser`: Enables the `frontends::browser` module, which is
 //!   `gooey-browser` re-exported.
@@ -12,6 +12,8 @@
 //!   `frontends::renderers::kludgine` module. These are re-exports of
 //!   `gooey-rasterizer` and `gooey-kludgine` respectively.
 //! * `async`: Enables the `App::spawn()` function.
+//! * `fluent`: Enables using [`fluent`](https://crates.io/crates/fluent) for
+//!   localization.
 //!
 //! ## Top-level exports
 //!
@@ -61,6 +63,9 @@ pub mod frontends {
 use cfg_if::cfg_if;
 #[doc(inline)]
 pub use gooey_core as core;
+#[cfg(feature = "fluent")]
+#[doc(inline)]
+pub use gooey_fluent as fluent;
 #[doc(inline)]
 pub use gooey_renderer as renderer;
 #[doc(inline)]

@@ -5,7 +5,7 @@ use std::{
     fmt::Debug,
     hash::Hash,
     marker::PhantomData,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     sync::{
         atomic::{AtomicU32, Ordering},
         Arc, RwLock, Weak,
@@ -14,6 +14,7 @@ use std::{
 
 use parking_lot::{MappedMutexGuard, Mutex, MutexGuard};
 use stylecs::{Style, StyleComponent};
+use unic_langid::LanguageIdentifier;
 
 use crate::{
     styles::style_sheet::{Classes, StyleSheet},
@@ -46,8 +47,9 @@ impl<F: Frontend> Gooey<F> {
         transmogrifiers: Transmogrifiers<F>,
         stylesheet: StyleSheet,
         initializer: C,
+        context: AppContext,
     ) -> Self {
-        let storage = WidgetStorage::default();
+        let storage = WidgetStorage::new(context);
         let mut root = initializer(&storage);
         // Append the root class to the root widget.
         let mut classes = root.style.get::<Classes>().cloned().unwrap_or_default();
@@ -250,6 +252,16 @@ impl<F: Frontend> Gooey<F> {
     pub fn is_managed_code(&self) -> bool {
         self.data.inside_event_loop.load(Ordering::SeqCst) > 0
     }
+
+    /// Localizes `key` with `parameters`.
+    #[must_use]
+    pub fn localize<'a>(
+        &self,
+        key: &str,
+        parameters: impl Into<Option<LocalizationParameters<'a>>>,
+    ) -> String {
+        self.data.storage.localize(key, parameters)
+    }
 }
 
 impl<F: Frontend> Deref for Gooey<F> {
@@ -302,9 +314,10 @@ impl<F: Frontend> Default for Transmogrifiers<F> {
 }
 
 /// Generic-type-less widget storage.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct WidgetStorage {
     data: Arc<WidgetStorageData>,
+    app: AppContext,
 }
 
 #[derive(Default, Debug)]
@@ -315,6 +328,15 @@ struct WidgetStorageData {
 }
 
 impl WidgetStorage {
+    /// Returns a new instance for the context provided.
+    #[must_use]
+    pub fn new(context: AppContext) -> Self {
+        Self {
+            data: Arc::default(),
+            app: context,
+        }
+    }
+
     /// Register a widget with storage.
     #[allow(clippy::missing_panics_doc)] // The unwrap is unreachable
     pub fn register<W: Widget + AnyWidget>(
@@ -410,6 +432,16 @@ impl WidgetStorage {
     pub fn set_widget_has_messages(&self, widget: WidgetId) {
         let mut statuses = self.data.widgets_with_messages.lock();
         statuses.insert(widget);
+    }
+
+    /// Localizes `key` with `parameters`.
+    #[must_use]
+    pub fn localize<'a>(
+        &self,
+        key: &str,
+        parameters: impl Into<Option<LocalizationParameters<'a>>>,
+    ) -> String {
+        self.app.localize(key, parameters)
     }
 }
 
@@ -838,5 +870,138 @@ impl<W: Widget> WidgetRef<W> {
                 .gooey()
                 .post_command::<W>(registration.id(), command, frontend);
         }
+    }
+}
+
+/// A type that provides localization (multi-lingual representations of text).
+pub trait Localizer: Send + Sync + Debug + 'static {
+    /// Localizes `key` with `parameters` and returns a string in the user's
+    /// preferred locale.
+    fn localize<'a>(
+        &self,
+        key: &str,
+        parameters: Option<LocalizationParameters<'a>>,
+        language: &LanguageIdentifier,
+    ) -> String;
+}
+
+impl Localizer for () {
+    /// Returns `key.to_string()`, ignoring the remaining parameters.
+    fn localize<'a>(
+        &self,
+        key: &str,
+        _parameters: Option<LocalizationParameters<'a>>,
+        _language: &LanguageIdentifier,
+    ) -> String {
+        key.to_string()
+    }
+}
+
+/// A context used during initialization of a window or application.
+#[derive(Debug, Clone)]
+pub struct AppContext {
+    localizer: Arc<dyn Localizer>,
+    language: Arc<RwLock<LanguageIdentifier>>,
+}
+
+impl AppContext {
+    /// Returns a new context with the language and localizer provided.
+    #[must_use]
+    pub fn new(initial_language: LanguageIdentifier, localizer: Arc<dyn Localizer>) -> Self {
+        Self {
+            language: Arc::new(RwLock::new(initial_language)),
+            localizer,
+        }
+    }
+
+    /// Localizes `key` with `parameters`.
+    #[must_use]
+    // For this usage of RwLock, panics should not be possible.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn localize<'a>(
+        &self,
+        key: &str,
+        parameters: impl Into<Option<LocalizationParameters<'a>>>,
+    ) -> String {
+        let language = self.language.read().unwrap();
+        self.localizer.localize(key, parameters.into(), &language)
+    }
+}
+
+/// A parameter used in localization.
+#[derive(Debug, Clone)]
+pub enum LocalizationParameter<'a> {
+    /// A string value.
+    String(Cow<'a, str>),
+    /// A numeric value.
+    Numeric(f64),
+}
+
+impl<'a> From<f64> for LocalizationParameter<'a> {
+    fn from(value: f64) -> Self {
+        Self::Numeric(value)
+    }
+}
+
+impl<'a> From<&'a str> for LocalizationParameter<'a> {
+    fn from(value: &'a str) -> Self {
+        Self::String(Cow::Borrowed(value))
+    }
+}
+
+impl<'a> From<String> for LocalizationParameter<'a> {
+    fn from(value: String) -> Self {
+        Self::String(Cow::Owned(value))
+    }
+}
+
+/// Parameters used in localization strings.
+#[derive(Debug, Clone, Default)]
+#[must_use]
+pub struct LocalizationParameters<'a>(HashMap<String, LocalizationParameter<'a>>);
+
+impl<'a> From<HashMap<String, LocalizationParameter<'a>>> for LocalizationParameters<'a> {
+    fn from(parameters: HashMap<String, LocalizationParameter<'a>>) -> Self {
+        Self(parameters)
+    }
+}
+
+impl<'a> LocalizationParameters<'a> {
+    /// Returns an empty set of parameters.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Builder-style method for adding a new parameter.
+    pub fn with(
+        mut self,
+        name: impl Into<String>,
+        parameter: impl Into<LocalizationParameter<'a>>,
+    ) -> Self {
+        self.insert(name.into(), parameter.into());
+        self
+    }
+}
+
+impl<'a> Deref for LocalizationParameters<'a> {
+    type Target = HashMap<String, LocalizationParameter<'a>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> DerefMut for LocalizationParameters<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<'a> IntoIterator for LocalizationParameters<'a> {
+    type IntoIter = std::collections::hash_map::IntoIter<String, LocalizationParameter<'a>>;
+    type Item = (String, LocalizationParameter<'a>);
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }

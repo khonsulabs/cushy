@@ -10,8 +10,9 @@ use std::{
 use gooey_core::{
     styles::{style_sheet::Classes, Style},
     AnyWidget, Callback, CallbackFn, Channels, Context, DefaultWidget, Frontend, Key, KeyedStorage,
-    RelatedStorage, StyledWidget, Transmogrifier, TransmogrifierContext, WeakWidgetRegistration,
-    Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetState, WidgetStorage,
+    LocalizationParameters, RelatedStorage, StyledWidget, Transmogrifier, TransmogrifierContext,
+    WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration, WidgetState,
+    WidgetStorage,
 };
 use parking_lot::{Mutex, RwLock};
 
@@ -184,6 +185,16 @@ pub trait ContentBuilder<K: Key, S: KeyedStorage<K> + 'static>: Debug + Send + S
     fn related_storage(&self) -> Option<Box<dyn RelatedStorage<K>>>;
     #[must_use]
     fn new(storage: S) -> Self;
+
+    /// Localizes `key` with `parameters`.
+    #[must_use]
+    fn localize<'a>(
+        &self,
+        key: &str,
+        parameters: impl Into<Option<LocalizationParameters<'a>>>,
+    ) -> String {
+        self.storage().localize(key, parameters)
+    }
 }
 
 #[derive(Debug)]
