@@ -76,8 +76,11 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
         context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
         content_area: &ContentArea,
     ) {
-        if let Some(duration) = context.state.cursor.blink_state.update() {
-            context.frontend.schedule_redraw_in(duration);
+        if context.ui_state.focused && context.state.cursor.end.is_none() {
+            // Update the blinking cursor.
+            if let Some(duration) = context.state.cursor.blink_state.update() {
+                context.frontend.schedule_redraw_in(duration);
+            }
         }
 
         if let Some(renderer) = context.frontend.renderer() {
