@@ -9,6 +9,7 @@ members = [
     "text",
     "widgets",
     "xtask",
+    "fluent",
     "integrated-examples/bonsaidb/counter/server",
     "integrated-examples/bonsaidb/counter/client",
     "integrated-examples/bonsaidb/counter/shared",
