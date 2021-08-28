@@ -21,7 +21,7 @@ fn app() -> App {
         .add_resource(
             FluentResource::try_new(String::from(
                 r#"hello = Hello, {$user -> 
-                        [unknown] User 
+                        [unknown] Friend 
                         *[other] {$user}
                     }!"#,
             ))
@@ -30,11 +30,27 @@ fn app() -> App {
         .unwrap();
     let mut spanish = FluentBundle::new_concurrent(vec!["es-MX".parse().unwrap()]);
     spanish
-        .add_resource(FluentResource::try_new(String::from("hello = Hola, {$user}!")).unwrap())
+        .add_resource(
+            FluentResource::try_new(String::from(
+                r#"hello = Hola, {$user -> 
+                        [unknown] Amigo 
+                        *[other] {$user}
+                    }!"#,
+            ))
+            .unwrap(),
+        )
         .unwrap();
     let mut german = FluentBundle::new_concurrent(vec!["de-DE".parse().unwrap()]);
     german
-        .add_resource(FluentResource::try_new(String::from("hello = Hallo, {$user}!")).unwrap())
+        .add_resource(
+            FluentResource::try_new(String::from(
+                r#"hello = Hallo, {$user -> 
+                        [unknown] Freund 
+                        *[other] {$user}
+                    }!"#,
+            ))
+            .unwrap(),
+        )
         .unwrap();
     App::from_root(|storage| Component::<Localization>::default_for(storage))
         .with_component::<Localization>()
