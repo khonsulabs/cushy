@@ -21,7 +21,7 @@ fn app() -> App {
         .add_resource(
             FluentResource::try_new(String::from(
                 r#"hello = Hello, {$user -> 
-                        [unknown] Friend 
+                        [friend] Friend 
                         *[other] {$user}
                     }!"#,
             ))
@@ -33,7 +33,7 @@ fn app() -> App {
         .add_resource(
             FluentResource::try_new(String::from(
                 r#"hello = Hola, {$user -> 
-                        [unknown] Amigo 
+                        [friend] Amigo 
                         *[other] {$user}
                     }!"#,
             ))
@@ -45,7 +45,7 @@ fn app() -> App {
         .add_resource(
             FluentResource::try_new(String::from(
                 r#"hello = Hallo, {$user -> 
-                        [unknown] Freund 
+                        [friend] Freund 
                         *[other] {$user}
                     }!"#,
             ))
@@ -77,7 +77,10 @@ impl Behavior for Localization {
         builder: <Self::Content as Content<Self>>::Builder,
         _events: &EventMapper<Self>,
     ) -> StyledWidget<Container> {
-        let user = std::env::var("USER").unwrap_or_else(|_| String::from("unknown"));
+        let user = std::env::var("USER")
+            .ok()
+            .filter(|username| !username.is_empty())
+            .unwrap_or_else(|| String::from("friend"));
         let label =
             Label::new(builder.localize("hello", LocalizationParameters::new().with("user", user)));
         builder.child(None, label).finish()
