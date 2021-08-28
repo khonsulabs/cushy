@@ -1,11 +1,10 @@
 use std::{convert::TryFrom, marker::PhantomData, sync::Arc};
 
-use gooey_core::{WidgetRegistration, WidgetStorage};
+use gooey_core::{LocalizableError, WidgetRegistration, WidgetStorage};
 use parking_lot::Mutex;
 
 use super::{
-    Accessor, ChangeEvent, Form, FormEvent, FormEventStatus, FormWidget, LocalizableError, Model,
-    UpgradeableAccessor,
+    Accessor, ChangeEvent, Form, FormEvent, FormEventStatus, FormWidget, Model, UpgradeableAccessor,
 };
 use crate::{
     component::{Component, EventMapper},

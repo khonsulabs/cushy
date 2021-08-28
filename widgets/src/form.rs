@@ -1,12 +1,8 @@
-use std::{
-    collections::HashMap, convert::Infallible, fmt::Debug, marker::PhantomData, ops::Deref,
-    sync::Arc,
-};
+use std::{collections::HashMap, fmt::Debug, marker::PhantomData, ops::Deref, sync::Arc};
 
 use gooey_core::{
-    styles::{style_sheet::Classes, Padding},
-    AnySendSync, AppContext, Builder as _, Callback, Context, Key, StyledWidget,
-    WidgetRegistration, WidgetStorage,
+    styles::style_sheet::Classes, AnySendSync, AppContext, Builder as _, Callback, Context, Key,
+    StyledWidget, WidgetRegistration, WidgetStorage,
 };
 
 mod text_field;
@@ -381,12 +377,6 @@ impl<M: Model, K: Send + Sync + 'static> Accessor<M, K> for SimpleAccessor<M, K>
         self.accessor.set(model, new_value);
     }
 }
-
-pub trait LocalizableError: std::error::Error + 'static {
-    // TODO hook this up with localization
-}
-
-impl LocalizableError for Infallible {}
 
 pub trait FormKey: Key {
     fn label(&self, context: &AppContext) -> Option<String>;

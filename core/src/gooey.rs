@@ -2,6 +2,7 @@ use std::{
     any::{type_name, TypeId},
     borrow::Cow,
     collections::{HashMap, HashSet},
+    convert::Infallible,
     fmt::Debug,
     hash::Hash,
     marker::PhantomData,
@@ -1011,3 +1012,47 @@ impl<'a> IntoIterator for LocalizationParameters<'a> {
         self.0.into_iter()
     }
 }
+
+/// An error that can be localized.
+pub trait LocalizableError: std::error::Error + 'static {
+    /// Returns the localized, human-readable version of this error.
+    fn localize(&self, context: &AppContext) -> String;
+}
+
+impl LocalizableError for Infallible {
+    fn localize(&self, _context: &AppContext) -> String {
+        unreachable!()
+    }
+}
+
+/// Enables using `Display` to convert an error to a string. This macro is
+/// provided to make it easy to implement on types from other crates. For your
+/// own types, it might be preferred to use `impl NonLocalizedError for MyError
+/// {}`.
+#[macro_export]
+macro_rules! use_display_to_localize_error {
+    ($err:ty) => {
+        impl LocalizableError for $err {
+            fn localize(&self, _context: &AppContext) -> String {
+                self.to_string()
+            }
+        }
+    };
+}
+
+/// A trait that uses `Display` to convert the error to a String, avoiding any
+/// localization.
+pub trait NonLocalizedError: std::error::Error + 'static {}
+
+impl<T> LocalizableError for T
+where
+    T: NonLocalizedError,
+{
+    fn localize(&self, _context: &AppContext) -> String {
+        self.to_string()
+    }
+}
+
+impl NonLocalizedError for std::num::ParseFloatError {}
+impl NonLocalizedError for std::net::AddrParseError {}
+impl NonLocalizedError for std::str::ParseBoolError {}
