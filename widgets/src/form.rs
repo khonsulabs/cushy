@@ -4,8 +4,9 @@ use std::{
 };
 
 use gooey_core::{
-    AnySendSync, Builder as _, Callback, Context, Key, StyledWidget, WidgetRegistration,
-    WidgetStorage,
+    styles::{style_sheet::Classes, Padding},
+    AnySendSync, AppContext, Builder as _, Callback, Context, Key, StyledWidget,
+    WidgetRegistration, WidgetStorage,
 };
 
 mod text_field;
@@ -15,8 +16,11 @@ pub use text_field::TextField;
 
 use crate::{
     component::{Behavior, Component, Content, EventMapper},
+    label::Label,
     list::List,
 };
+
+pub static LABEL_CLASS: &str = "gooey-form-label";
 
 #[derive(Debug)]
 pub struct Form<M: Model> {
@@ -145,7 +149,7 @@ impl<'a, M: Model> Builder<'a, M> {
 }
 
 pub trait Model: Sized + Debug + Send + Sync + 'static {
-    type Fields: Key;
+    type Fields: FormKey;
 }
 
 impl<M: Model> Behavior for Form<M> {
@@ -161,6 +165,9 @@ impl<M: Model> Behavior for Form<M> {
         builder = builder.unadorned();
         for key in &self.order {
             let instance = self.fields.get_mut(key).unwrap();
+            if let Some(label) = key.label(builder.storage().app()) {
+                builder = builder.with(Label::new(label).with(Classes::from(LABEL_CLASS)));
+            }
             let widget =
                 instance
                     .field
@@ -380,3 +387,7 @@ pub trait LocalizableError: std::error::Error + 'static {
 }
 
 impl LocalizableError for Infallible {}
+
+pub trait FormKey: Key {
+    fn label(&self, context: &AppContext) -> Option<String>;
+}

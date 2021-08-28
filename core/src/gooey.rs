@@ -433,6 +433,12 @@ impl WidgetStorage {
         statuses.insert(widget);
     }
 
+    /// Returns the application context for this interface.
+    #[must_use]
+    pub const fn app(&self) -> &AppContext {
+        &self.app
+    }
+
     /// Localizes `key` with `parameters`.
     #[must_use]
     pub fn localize<'a>(

@@ -3,11 +3,11 @@ use gooey::{
     widgets::{
         component::{Behavior, Component, Content, ContentBuilder, EventMapper},
         container::Container,
-        form::{Form, FormWidget, Model, TextField},
+        form::{ChangeEvent, Form, FormWidget, Model, TextField},
     },
     App,
 };
-use gooey_widgets::form::ChangeEvent;
+use gooey_widgets::form::FormKey;
 
 #[cfg(test)]
 mod harness;
@@ -149,5 +149,14 @@ mod tests {
             )?)?;
         }
         Ok(())
+    }
+}
+
+impl FormKey for SignInFields {
+    fn label(&self, context: &gooey_core::AppContext) -> Option<String> {
+        Some(match self {
+            SignInFields::Username => context.localize("Username", None),
+            SignInFields::Password => context.localize("Password", None),
+        })
     }
 }

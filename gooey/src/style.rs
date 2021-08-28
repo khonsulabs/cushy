@@ -10,6 +10,7 @@ use gooey_core::{
 use gooey_widgets::{
     button::{Button, ButtonColor},
     checkbox::Checkbox,
+    form,
     input::Input,
     label::Label,
     list::{List, ListAdornmentSpacing},
@@ -136,6 +137,10 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
         .with(
             Rule::for_widget::<List>()
                 .with_styles(|style| style.with(ListAdornmentSpacing(Figure::new(5.)))),
+        )
+        .with(
+            Rule::for_classes(form::LABEL_CLASS)
+                .with_styles(|style| style.with(Padding::build().top(10.).bottom(5.).finish())),
         )
 }
 
