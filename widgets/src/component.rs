@@ -342,17 +342,15 @@ impl<B: Behavior> ComponentBuilder<B> {
     }
 }
 
-#[allow(clippy::option_if_let_else)] // borrowing issues with self
 impl<B: Behavior> KeyedStorage<B::Widgets> for ComponentBuilder<B> {
     fn register<W: Widget + AnyWidget>(
         &mut self,
         key: impl Into<Option<B::Widgets>>,
         styled_widget: StyledWidget<W>,
     ) -> WidgetRegistration {
-        if let Some(key) = key.into() {
-            Self::register(self, key, styled_widget)
-        } else {
-            self.storage.register(styled_widget)
+        match key.into() {
+            Some(key) => Self::register(self, key, styled_widget),
+            None => self.storage.register(styled_widget),
         }
     }
 

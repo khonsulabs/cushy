@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, str::FromStr, sync::Arc};
 
 use gooey_core::{LocalizableError, WidgetRegistration, WidgetStorage};
 use parking_lot::Mutex;
@@ -11,7 +11,7 @@ use crate::{
     input::Input,
 };
 
-pub struct TextField<M: Model, S: TryFrom<String, Error = E> + ToString, E> {
+pub struct TextField<M: Model, S: FromStr<Err = E> + ToString, E> {
     password: bool,
     accessor: UpgradeableAccessor<M, S>,
     key: Option<M::Fields>,
@@ -19,11 +19,8 @@ pub struct TextField<M: Model, S: TryFrom<String, Error = E> + ToString, E> {
     _model: PhantomData<M>,
 }
 
-impl<
-        M: Model,
-        S: TryFrom<String, Error = E> + ToString + Send + Sync + 'static,
-        E: LocalizableError,
-    > FormWidget<M> for TextField<M, S, E>
+impl<M: Model, S: FromStr<Err = E> + ToString + Send + Sync + 'static, E: LocalizableError>
+    FormWidget<M> for TextField<M, S, E>
 {
     type Builder = Builder<M, S, E>;
     type Event = Event;
@@ -54,20 +51,17 @@ impl<
         context: &gooey_core::Context<Component<Form<M>>>,
     ) -> FormEventStatus {
         let Event::InputChanged = event;
-        let value = context
+        context
             .map_widget::<Input, _, _>(self.input.as_ref().unwrap().id(), |input, _context| {
-                input.value().to_string()
-            });
-
-        value.map_or(FormEventStatus::Unchanged, |value| {
-            match S::try_from(value) {
-                Ok(value) => {
-                    self.accessor.as_field().set(value);
-                    FormEventStatus::Changed(ChangeEvent::Valid)
+                match S::from_str(input.value()) {
+                    Ok(value) => {
+                        self.accessor.as_field().set(value);
+                        FormEventStatus::Changed(ChangeEvent::Valid)
+                    }
+                    Err(_) => FormEventStatus::Changed(ChangeEvent::Invalid),
                 }
-                Err(_) => FormEventStatus::Changed(ChangeEvent::Invalid),
-            }
-        })
+            })
+            .unwrap_or(FormEventStatus::Unchanged)
     }
 
     fn build<A: Accessor<M, Self::Kind>>(accessor: A) -> Self::Builder {
@@ -80,13 +74,11 @@ pub enum Event {
     InputChanged,
 }
 
-pub struct Builder<M: Model, S: TryFrom<String, Error = E> + ToString, E> {
+pub struct Builder<M: Model, S: FromStr<Err = E> + ToString, E> {
     field: TextField<M, S, E>,
 }
 
-impl<M: Model, S: TryFrom<String, Error = E> + ToString + Send + Sync + 'static, E>
-    Builder<M, S, E>
-{
+impl<M: Model, S: FromStr<Err = E> + ToString + Send + Sync + 'static, E> Builder<M, S, E> {
     pub fn new<A: Accessor<M, S>>(accessor: A) -> Self {
         Self {
             field: TextField {
@@ -109,11 +101,8 @@ impl<M: Model, S: TryFrom<String, Error = E> + ToString + Send + Sync + 'static,
     }
 }
 
-impl<
-        M: Model,
-        S: TryFrom<String, Error = E> + ToString + Send + Sync + 'static,
-        E: LocalizableError,
-    > gooey_core::Builder for Builder<M, S, E>
+impl<M: Model, S: FromStr<Err = E> + ToString + Send + Sync + 'static, E: LocalizableError>
+    gooey_core::Builder for Builder<M, S, E>
 {
     type Output = TextField<M, S, E>;
 

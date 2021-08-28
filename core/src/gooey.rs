@@ -1053,6 +1053,7 @@ where
     }
 }
 
+impl NonLocalizedError for std::num::ParseIntError {}
 impl NonLocalizedError for std::num::ParseFloatError {}
 impl NonLocalizedError for std::net::AddrParseError {}
 impl NonLocalizedError for std::str::ParseBoolError {}
