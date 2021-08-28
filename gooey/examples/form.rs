@@ -60,7 +60,9 @@ impl Behavior for Counter {
             )
             .field(
                 SignInFields::Password,
-                TextField::simple(|model: &mut SignIn| &mut model.password),
+                TextField::build_simple(|model: &mut SignIn| &mut model.password)
+                    .password()
+                    .finish(),
             )
             .on_changed(events.map(FormEvent::FormChanged))
             .finish();

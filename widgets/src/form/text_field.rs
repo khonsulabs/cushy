@@ -13,6 +13,7 @@ use crate::{
 };
 
 pub struct TextField<M: Model, S: TryFrom<String, Error = E> + ToString, E> {
+    password: bool,
     accessor: UpgradeableAccessor<M, S>,
     key: Option<M::Fields>,
     input: Option<WidgetRegistration>,
@@ -38,10 +39,13 @@ impl<
     ) -> WidgetRegistration {
         self.accessor.upgrade(model);
         self.key = Some(key.clone());
-        self.input = Some(storage.register(Input::new(
-            self.accessor.as_field().get().to_string(),
-            events.map(move |_| FormEvent::field(key.clone(), Event::InputChanged)),
-        )));
+        let mut input = Input::build()
+            .value(self.accessor.as_field().get().to_string())
+            .on_changed(events.map(move |_| FormEvent::field(key.clone(), Event::InputChanged)));
+        if self.password {
+            input = input.password();
+        }
+        self.input = Some(storage.register(input.finish()));
         self.input.clone().unwrap()
     }
 
@@ -87,12 +91,18 @@ impl<M: Model, S: TryFrom<String, Error = E> + ToString + Send + Sync + 'static,
     pub fn new<A: Accessor<M, S>>(accessor: A) -> Self {
         Self {
             field: TextField {
+                password: false,
                 accessor: UpgradeableAccessor::new(accessor),
                 key: None,
                 input: None,
                 _model: PhantomData,
             },
         }
+    }
+
+    pub fn password(mut self) -> Self {
+        self.field.password = true;
+        self
     }
 
     pub fn finish(self) -> TextField<M, S, E> {
