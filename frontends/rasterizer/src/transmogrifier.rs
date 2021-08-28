@@ -36,11 +36,16 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
             let border = effective_style.get_or_default::<Border>();
             let padding = effective_style.get_or_default::<Padding>();
 
+            let location = Point::from_figures(
+                border.left.map(|l| l.width).unwrap_or_default(),
+                border.top.map(|l| l.width).unwrap_or_default(),
+            ) + Vector::from_figures(
+                padding.left.unwrap_or_default(),
+                padding.top.unwrap_or_default(),
+            );
+
             let content = (bounds.size - border.minimum_size() - padding.minimum_size())
                 .max(&Size::default());
-            let remaining_width = bounds.size - content;
-            // TODO support Alignment and VerticalAlignment
-            let location = (remaining_width / 2.).to_point();
 
             let area = ContentArea {
                 location,
