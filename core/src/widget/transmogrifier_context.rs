@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, marker::PhantomData};
+use std::{borrow::Cow, convert::TryFrom, marker::PhantomData};
 
 use crate::{
     styles::{style_sheet::State, Style},
@@ -18,7 +18,7 @@ pub struct TransmogrifierContext<'a, T: Transmogrifier<F>, F: Frontend> {
     /// The widget.
     pub widget: &'a mut <T as Transmogrifier<F>>::Widget,
     /// The effective widget style.
-    pub style: &'a Style,
+    pub style: Cow<'a, Style>,
     /// The current user interface state for this widget, if applicable for the
     /// frontend and function in question.
     pub ui_state: &'a State,
@@ -43,11 +43,32 @@ impl<'a, T: Transmogrifier<F>, F: Frontend> TransmogrifierContext<'a, T, F> {
             state,
             frontend,
             widget,
-            style,
+            style: Cow::Borrowed(style),
             ui_state,
             channels,
             _transmogrifier: PhantomData::default(),
         }
+    }
+
+    /// Returns `self` after swapping the style with the one provided.
+    #[must_use]
+    pub fn with_style(self, style: Style) -> Self {
+        Self {
+            registration: self.registration.clone(),
+            state: self.state,
+            frontend: self.frontend,
+            widget: self.widget,
+            style: Cow::Owned(style),
+            ui_state: self.ui_state,
+            channels: self.channels,
+            _transmogrifier: PhantomData,
+        }
+    }
+
+    /// Returns the style as a reference.
+    #[must_use]
+    pub fn style(&self) -> &Style {
+        &self.style
     }
 }
 

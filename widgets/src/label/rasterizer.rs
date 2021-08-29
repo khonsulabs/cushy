@@ -32,14 +32,14 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
             // TODO switch to borrows?
             let wrapped = wrap_text(
                 &context.widget.label,
-                context.style,
+                context.style(),
                 renderer,
                 Figure::new(content_area.size.content.width),
             );
             wrapped.render_within::<LabelColor, _>(
                 renderer,
                 content_area.content_bounds(),
-                context.style,
+                context.style(),
             );
         }
     }
@@ -55,7 +55,7 @@ impl<R: Renderer> WidgetRasterizer<R> for LabelTransmogrifier {
             .map_or_else(Size::default, |renderer| {
                 let wrapped = wrap_text(
                     &context.widget.label,
-                    context.style,
+                    context.style(),
                     renderer,
                     Figure::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
                 );

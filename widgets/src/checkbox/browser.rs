@@ -142,7 +142,7 @@ impl WebSysTransmogrifier for CheckboxTransmogrifier {
             .frontend
             .gooey()
             .stylesheet()
-            .effective_style_for::<Checkbox>(context.style.clone(), state);
+            .effective_style_for::<Checkbox>(context.style().clone(), state);
         let mut css = CssRules::default();
         if let Some(button_color) = state_style.get_with_fallback::<ButtonColor>() {
             let button_color = button_color.themed_color(theme);

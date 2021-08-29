@@ -8,7 +8,7 @@ use gooey_core::{
     ROOT_CLASS, SOLID_WIDGET_CLASS,
 };
 use gooey_widgets::{
-    button::{Button, ButtonColor},
+    button::{Button, ButtonColor, ButtonImageSpacing},
     checkbox::Checkbox,
     input::Input,
     label::Label,
@@ -89,6 +89,7 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
                 .with(Alignment::Center)
                 .with(VerticalAlignment::Center)
                 .with(Padding(Surround::from(Some(Figure::new(5.)))))
+                .with(ButtonImageSpacing(Figure::new(5.)))
         }))
         .with(
             Rule::for_widget::<Checkbox>()

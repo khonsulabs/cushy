@@ -26,13 +26,14 @@ use std::{
 
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
-    assets::{self, Configuration, Image},
-    figures::{Point, Rect},
+    assets::{self, Configuration, FrontendImage, Image},
+    figures::{Point, Rect, Size},
     styles::{
         style_sheet::{self},
         Autofocus, Style, SystemTheme, TabIndex,
     },
-    AnyTransmogrifierContext, Callback, Gooey, Scaled, Timer, TransmogrifierContext, WidgetId,
+    AnyTransmogrifierContext, Callback, Gooey, Pixels, Scaled, Timer, TransmogrifierContext,
+    WidgetId,
 };
 use image::{ImageFormat, RgbaImage};
 use platforms::{target::OS, TARGET_OS};
@@ -168,8 +169,17 @@ fn load_image(image: &Image, data: Vec<u8>) -> Result<(), String> {
         .map_err(|err| format!("unknown image format: {:?}", err))?;
     let loaded_image = image::load_from_memory_with_format(&data, format)
         .map_err(|err| format!("error parsing image: {:?}", err))?;
-    image.set_data(Arc::new(loaded_image.to_rgba8()));
+    image.set_data(RasterizerImage(Arc::new(loaded_image.to_rgba8())));
     Ok(())
+}
+
+#[derive(Clone, Debug)]
+struct RasterizerImage(Arc<RgbaImage>);
+
+impl FrontendImage for RasterizerImage {
+    fn size(&self) -> Option<Size<u32, Pixels>> {
+        Some(Size::new(self.0.width(), self.0.height()))
+    }
 }
 
 impl<R: Renderer> Rasterizer<R> {
@@ -632,8 +642,8 @@ impl ImageExt for Image {
     fn as_rgba_image(&self) -> Option<Arc<RgbaImage>> {
         self.map_data(|opt_data| {
             opt_data
-                .and_then(|data| data.as_any().downcast_ref::<Arc<RgbaImage>>())
-                .map(Arc::clone)
+                .and_then(|data| data.as_any().downcast_ref::<RasterizerImage>())
+                .map(|img| img.0.clone())
         })
     }
 }

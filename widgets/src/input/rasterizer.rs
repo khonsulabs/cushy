@@ -95,7 +95,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                     renderer,
                     Point::new(bounds.origin.x, bounds.origin.y + y.get()),
                     true,
-                    Some(context.style),
+                    Some(context.style()),
                 );
             }
             context.state.prepared = Some(prepared);
@@ -196,7 +196,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             .map_or_else(Size::default, |renderer| {
                 let wrapped = wrap_text(
                     &context.widget.value,
-                    context.style,
+                    context.style(),
                     renderer,
                     Figure::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
                 );

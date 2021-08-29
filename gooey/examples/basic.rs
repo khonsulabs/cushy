@@ -1,5 +1,8 @@
 use gooey::{
-    core::{Context, DefaultWidget, StyledWidget},
+    core::{
+        assets::{Asset, Image},
+        Context, DefaultWidget, StyledWidget,
+    },
     widgets::{
         button::Button,
         component::{Behavior, Component, Content, EventMapper},
@@ -37,7 +40,11 @@ impl Behavior for Counter {
         builder
             .child(
                 CounterWidgets::Button,
-                Button::new("Click Me!", events.map(|_| CounterEvent::ButtonClicked)),
+                Button::build()
+                    .labeled("Click the gooey cinnamon rolls!")
+                    .on_clicked(events.map(|_| CounterEvent::ButtonClicked))
+                    .image(Image::from(Asset::build().path(vec!["rolls.jpg"]).finish()))
+                    .finish(),
             )
             .finish()
     }

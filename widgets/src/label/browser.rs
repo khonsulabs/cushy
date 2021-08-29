@@ -35,7 +35,7 @@ impl gooey_core::Transmogrifier<WebSys> for LabelTransmogrifier {
             text_to_html(
                 &context.widget.label,
                 &element,
-                context.style,
+                context.style(),
                 context.frontend.theme(),
             );
         }
@@ -52,7 +52,7 @@ impl WebSysTransmogrifier for LabelTransmogrifier {
         text_to_html(
             &context.widget.label,
             &element,
-            context.style,
+            context.style(),
             context.frontend.theme(),
         );
 

@@ -1,8 +1,10 @@
 use gooey_core::{
+    assets::Image,
+    figures::Figure,
     styles::{
         style_sheet::Classes, BackgroundColor, ColorPair, FallbackComponent, Style, StyleComponent,
     },
-    Callback, Context, StyledWidget, Widget, SOLID_WIDGET_CLASS,
+    Callback, Context, Scaled, StyledWidget, Widget, SOLID_WIDGET_CLASS,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -15,6 +17,7 @@ mod browser;
 #[must_use]
 pub struct Button {
     label: String,
+    image: Option<Image>,
     clicked: Callback,
 }
 
@@ -26,6 +29,7 @@ impl Button {
     pub fn new<S: ToString>(label: S, clicked: Callback) -> StyledWidget<Self> {
         StyledWidget::from(Self {
             label: label.to_string(),
+            image: None,
             clicked,
         })
     }
@@ -33,6 +37,11 @@ impl Button {
     pub fn set_label(&mut self, label: impl Into<String>, context: &Context<Self>) {
         self.label = label.into();
         context.send_command(ButtonCommand::LabelChanged);
+    }
+
+    pub fn set_image(&mut self, image: Option<Image>, context: &Context<Self>) {
+        self.image = image;
+        context.send_command(ButtonCommand::ImageChanged);
     }
 
     #[must_use]
@@ -49,6 +58,7 @@ pub enum InternalButtonEvent {
 #[derive(Debug)]
 pub enum ButtonCommand {
     LabelChanged,
+    ImageChanged,
 }
 
 impl Widget for Button {
@@ -90,6 +100,11 @@ impl Builder {
         self
     }
 
+    pub fn image(mut self, image: Image) -> Self {
+        self.button.image = Some(image);
+        self
+    }
+
     pub fn on_clicked(mut self, callback: Callback) -> Self {
         self.button.clicked = callback;
         self
@@ -122,3 +137,8 @@ impl FallbackComponent for ButtonColor {
         Some(&self.0)
     }
 }
+
+#[derive(Default, Debug, Clone)]
+pub struct ButtonImageSpacing(pub Figure<f32, Scaled>);
+
+impl StyleComponent for ButtonImageSpacing {}

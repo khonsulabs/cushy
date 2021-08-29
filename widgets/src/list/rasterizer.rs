@@ -38,7 +38,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ListTransmogrifier {
                 &context.widget.kind,
                 context.widget.children.len(),
                 renderer,
-                context.style,
+                context.style.as_ref(),
             )
             .collect::<Vec<_>>();
         let max_indicator_width = indicators
@@ -69,7 +69,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ListTransmogrifier {
                                 Figure::default(),
                             ),
                         true,
-                        Some(context.style),
+                        Some(context.style()),
                     );
                 }
 
@@ -80,7 +80,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ListTransmogrifier {
                             &mut child_context,
                             child_bounds.as_rect(),
                             Some(context.registration.id()),
-                            context.style,
+                            context.style(),
                         );
                     },
                 );
@@ -104,7 +104,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ListTransmogrifier {
                 &context.widget.kind,
                 context.widget.children.len(),
                 renderer,
-                context.style,
+                context.style.as_ref(),
             )
             .filter_map(|text| text.as_ref().map(|t| t.size().width()))
             .reduce(Figure::max);

@@ -64,7 +64,7 @@ impl WebSysTransmogrifier for ListTransmogrifier {
             .frontend
             .gooey()
             .stylesheet()
-            .effective_style_for::<Self::Widget>(context.style.clone(), &State::default());
+            .effective_style_for::<Self::Widget>(context.style().clone(), &State::default());
         let spacing = effective_style.get_or_default::<ListAdornmentSpacing>();
         let css = self
             .initialize_widget_element(&container, &context)

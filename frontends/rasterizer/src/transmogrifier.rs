@@ -204,7 +204,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
 
     fn content_size(
         &self,
-        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size<Option<f32>, Scaled>,
     ) -> ContentSize {
         let effective_style = context
@@ -212,7 +212,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
             .ui
             .stylesheet()
             .effective_style_for::<<Self as Transmogrifier<Rasterizer<R>>>::Widget>(
-                context.style.clone(),
+                context.style().clone(),
                 context.ui_state,
             );
         let padding = effective_style.get_or_default::<Padding>();
@@ -225,8 +225,9 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                 height - border.minimum_height().get() - padding.minimum_height().get()
             }),
         );
+        let mut temp_context = context.with_style(effective_style);
         ContentSize {
-            content: self.measure_content(context, constraints),
+            content: self.measure_content(&mut temp_context, constraints),
             padding,
             border,
         }
@@ -463,7 +464,7 @@ where
     ) -> ContentSize {
         <Self as WidgetRasterizer<R>>::content_size(
             self,
-            &mut TransmogrifierContext::try_from(context).unwrap(),
+            TransmogrifierContext::try_from(context).unwrap(),
             constraints,
         )
     }

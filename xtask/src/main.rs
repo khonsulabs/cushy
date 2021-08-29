@@ -1,4 +1,5 @@
 use devx_cmd::run;
+use fs_extra::dir::CopyOptions;
 use khonsu_tools::{anyhow, code_coverage::CodeCoverage};
 use structopt::StructOpt;
 
@@ -28,7 +29,7 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_browser_example(name: String) -> Result<(), devx_cmd::Error> {
+fn build_browser_example(name: String) -> Result<(), anyhow::Error> {
     let (index_path, browser_path) = match name.as_str() {
         "bonsaidb-counter-client" => {
             run!(
@@ -82,7 +83,7 @@ fn build_browser_example(name: String) -> Result<(), devx_cmd::Error> {
     Ok(())
 }
 
-fn build_regular_browser_example(name: &str) -> Result<(), devx_cmd::Error> {
+fn build_regular_browser_example(name: &str) -> Result<(), anyhow::Error> {
     println!("Executing cargo build");
     run!(
         "cargo",
@@ -96,7 +97,19 @@ fn build_regular_browser_example(name: &str) -> Result<(), devx_cmd::Error> {
         "wasm32-unknown-unknown",
         "--target-dir",
         "target/wasm",
-    )
+    )?;
+
+    fs_extra::copy_items(
+        &["gooey/assets"],
+        &"gooey/examples/browser/assets",
+        &CopyOptions {
+            skip_exist: true,
+            copy_inside: true,
+            ..CopyOptions::default()
+        },
+    )?;
+
+    Ok(())
 }
 
 fn execute_wasm_bindgen(wasm_path: &str, out_path: &str) -> Result<(), devx_cmd::Error> {

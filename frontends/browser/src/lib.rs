@@ -31,7 +31,8 @@ use std::{
 };
 
 use gooey_core::{
-    assets::{self, Configuration, Image},
+    assets::{self, Configuration, FrontendImage, Image},
+    figures::Size,
     styles::{
         border::Border,
         style_sheet::{Classes, State},
@@ -278,7 +279,7 @@ impl gooey_core::Frontend for WebSys {
             let element = create_element::<HtmlImageElement>("img");
             let image_id = self.data.last_image_id.fetch_add(1, Ordering::SeqCst);
             image.set_data(LoadedImageId(image_id));
-            element.set_id(&image.css_id().unwrap());
+            element.set_id(&image.css_id().expect("type error"));
             element.set_onerror(Some(
                 &Closure::once_into_js(move |e: ErrorEvent| {
                     error.invoke(e.message());
@@ -364,21 +365,33 @@ struct BrowserTimer {
 
 impl NativeTimer for BrowserTimer {}
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct LoadedImageId(u64);
 
 impl Drop for LoadedImageId {
     fn drop(&mut self) {
         let css_id = image_css_id(self.0);
-        if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
-            if let Some(element) = doc.get_element_by_id(&css_id) {
-                element.remove();
-            }
+        if let Some(element) = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|doc| doc.get_element_by_id(&css_id))
+        {
+            element.remove();
         } else {
             // This should only happen if an `Image` was passed to a separate
             // thread, which is a no-no for Gooey at the moment.
             log::error!("unable to clean up dropped image: {}", css_id);
         }
+    }
+}
+
+impl FrontendImage for LoadedImageId {
+    fn size(&self) -> Option<gooey_core::figures::Size<u32, gooey_core::Pixels>> {
+        let css_id = image_css_id(self.0);
+        web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|doc| doc.get_element_by_id(&css_id))
+            .and_then(|img| img.dyn_into::<HtmlImageElement>().ok())
+            .map(|img| Size::new(img.width() as u32, img.height() as u32))
     }
 }
 
@@ -410,8 +423,8 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
                     .and_state(&state)
                     .with_theme(theme);
 
-                let effective_style =
-                    style_sheet.effective_style_for::<Self::Widget>(context.style.clone(), &state);
+                let effective_style = style_sheet
+                    .effective_style_for::<Self::Widget>(context.style().clone(), &state);
                 css = self.convert_style_to_css(&effective_style, css);
 
                 let css = css.to_string();
@@ -661,8 +674,8 @@ impl ImageExt for Image {
     fn css_id(&self) -> Option<String> {
         self.map_data(|opt_id| {
             opt_id
-                .and_then(|id| id.as_any().downcast_ref::<u64>())
-                .copied()
+                .and_then(|id| id.as_any().downcast_ref::<LoadedImageId>())
+                .map(|id| id.0)
         })
         .map(image_css_id)
     }

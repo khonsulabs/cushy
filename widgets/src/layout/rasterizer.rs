@@ -37,7 +37,7 @@ impl<R: Renderer> WidgetRasterizer<R> for LayoutTransmogrifier {
                         &mut child_context,
                         child_bounds.translate(content_area.location).as_rect(),
                         Some(context.registration.id()),
-                        context.style,
+                        context.style(),
                     );
                 },
             );
