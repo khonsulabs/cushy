@@ -209,12 +209,7 @@ impl<R: Renderer> Rasterizer<R> {
             renderer: Some(renderer),
         }
         .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
-            transmogrifier.render_within(
-                &mut context,
-                Rect::sized(Point::default(), size),
-                None,
-                &Style::default(),
-            );
+            transmogrifier.render_within(&mut context, Rect::from(size), None, &Style::default());
         });
     }
 

@@ -146,7 +146,7 @@ impl Headless<Rasterizer<Kludgine>> {
             const CURSOR_LENGTH: f32 = 16.;
             const INNER_LENGTH: f32 = 14.;
             const TAIL_LENGTH: f32 = 20.;
-            let left_edge_lower = Point::new(0., CURSOR_LENGTH);
+            let left_edge_lower = Point::from_y(CURSOR_LENGTH);
             let right_edge_lower = Angle::Degrees(-45.).transform_point(left_edge_lower);
             let left_inner =
                 Angle::Degrees(-17.5).transform_point(Point::<f32, Scaled>::new(0., INNER_LENGTH));

@@ -137,7 +137,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         if let Some(width) = bottom_width {
             renderer.fill_rect(
                 &Rect::sized(
-                    Point::new(0., bounds.size.height - width.get()),
+                    Point::from_y(bounds.size.height - width.get()),
                     Size::from_figures(bounds.size.width(), width),
                 ),
                 border
@@ -154,7 +154,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         if let Some(width) = left_width {
             renderer.fill_rect(
                 &Rect::sized(
-                    Point::new(0., top_width.unwrap_or_default().get()),
+                    Point::from_y(top_width.unwrap_or_default().get()),
                     Size::from_figures(
                         width,
                         bounds.size.height() - bottom_width.unwrap_or_default(),

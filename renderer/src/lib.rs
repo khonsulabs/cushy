@@ -34,7 +34,7 @@ pub trait Renderer: Debug + Send + Sync + Sized + 'static {
     /// A [`Rect`] representing the area being drawn. Due to how rendering
     /// works, the origin is always zero.
     fn bounds(&self) -> Rect<f32, Scaled> {
-        Rect::sized(Point::default(), self.size())
+        Rect::from(self.size())
     }
 
     /// Returns a new renderer instance with the state such that each operation

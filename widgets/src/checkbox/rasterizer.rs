@@ -62,7 +62,7 @@ fn calculate_layout<R: Renderer>(
     let label_size = label.size();
 
     LayoutState {
-        content_size: label_size + Vector::new(checkbox_size.width + LABEL_PADDING.get(), 0.),
+        content_size: label_size + Vector::from_x(checkbox_size.width + LABEL_PADDING.get()),
         checkbox_size,
         label_size,
         label,
@@ -108,7 +108,7 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
 
             // Render the label
             let label_rect = Rect::sized(
-                Point::new(layout.checkbox_size.width + LABEL_PADDING.get(), 0.)
+                Point::from_x(layout.checkbox_size.width + LABEL_PADDING.get())
                     + content_area.location,
                 layout.label_size,
             );

@@ -53,7 +53,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
                 wrapped.render_within::<TextColor, _>(
                     renderer,
                     Rect::sized(
-                        Point::new(0., image_size.height + spacing.0.get()),
+                        Point::from_y(image_size.height + spacing.0.get()),
                         Size::new(
                             content_area.size.content.width,
                             content_area.size.content.height - image_size.height - spacing.0.get(),
