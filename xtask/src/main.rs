@@ -12,7 +12,6 @@ enum Args {
         #[structopt(long = "install-dependencies")]
         install_dependencies: bool,
     },
-    GenerateExampleSnapshots,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -24,7 +23,6 @@ fn main() -> anyhow::Result<()> {
         Args::GenerateCodeCoverageReport {
             install_dependencies,
         } => CodeCoverage::<CodeCoverageConfig>::execute(install_dependencies)?,
-        Args::GenerateExampleSnapshots => generate_example_snapshots()?,
     };
     Ok(())
 }
@@ -131,10 +129,4 @@ impl khonsu_tools::code_coverage::Config for CodeCoverageConfig {
     fn ignore_paths() -> Vec<String> {
         vec![String::from("gooey/examples/*")]
     }
-}
-
-fn generate_example_snapshots() -> Result<(), devx_cmd::Error> {
-    println!("Executing wasm-bindgen (cargo install wasm-bindgen if you don't have this)");
-    run!("cargo", "test", "--examples", "--all-features")?;
-    run!("cp", "-r", "target/snapshots", "gooey/examples/")
 }
