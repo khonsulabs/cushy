@@ -38,6 +38,9 @@ name = "layout"
 test = true
 
 [[example]]
+name = "swapper"
+
+[[example]]
 name = "widget-explorer"
 test = true
 
