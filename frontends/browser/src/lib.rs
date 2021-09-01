@@ -53,9 +53,10 @@ use gooey_core::{
         Alignment, Autofocus, FontFamily, FontSize, Intent, Padding, Style, StyleComponent,
         SystemTheme, TabIndex, VerticalAlignment,
     },
-    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Callback, Frontend, Gooey, NativeTimer,
-    Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState, WeakWidgetRegistration,
-    Widget, WidgetId, WidgetRef, WidgetRegistration, Window,
+    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, AnyWindowBuilder, Callback, Frontend,
+    Gooey, NativeTimer, Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState,
+    WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration, Window,
+    WindowConfiguration,
 };
 use parking_lot::Mutex;
 use wasm_bindgen::{prelude::*, JsCast};
@@ -174,7 +175,8 @@ impl WebSys {
         }
     }
 
-    pub fn install_in_id(&mut self, id: &str) {
+    pub fn install_in_id(&mut self, id: &str, _window_config: WindowConfiguration) {
+        // TODO handle window_config
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
@@ -401,6 +403,10 @@ impl gooey_core::Frontend for WebSys {
 
     fn window(&self) -> Option<&dyn gooey_core::Window> {
         Some(self)
+    }
+
+    fn open(&self, _window: Box<dyn AnyWindowBuilder>) -> bool {
+        false
     }
 }
 

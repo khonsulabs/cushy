@@ -1,7 +1,8 @@
-use std::{self, path::PathBuf, process::Command};
+use std::{self, path::PathBuf, process::Command, sync::Arc};
 
-use gooey_core::{assets::Configuration, AppContext, StyledWidget};
+use gooey_core::{assets::Configuration, AnyWindowBuilder, AppContext, WindowConfiguration};
 use gooey_rasterizer::winit::{event::ModifiersState, window::Theme};
+use kludgine::app::OpenableWindow;
 use platforms::target::{OS, TARGET_OS};
 
 use crate::{
@@ -21,54 +22,90 @@ use crate::{
 /// the root widget from `initializer`. Unless overriden by `transmogrifier`,
 /// all widgets from [`gooey::widget`](crate::widgets) will use the built-in
 /// transmogrifiers.
-pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
+#[allow(clippy::missing_panics_doc)]
+pub fn kludgine_main_with<W: Widget + Send + Sync>(
     transmogrifiers: Transmogrifiers<Rasterizer<Kludgine>>,
-    initializer: C,
+    mut initial_window: gooey_core::WindowBuilder<W>,
     context: AppContext,
 ) {
-    kludgine_run(kludgine_app(transmogrifiers, initializer, context));
+    kludgine_run(
+        kludgine_app(transmogrifiers, &mut initial_window, context),
+        initial_window.configuration,
+    );
 }
 
 /// Runs a `Kludgine`-based [`App`](crate::app::App) with the root widget from
 /// `initializer`. All widgets from [`gooey::widget`](crate::widgets) will be
 /// usable. If you wish to use other widgets, use `browser_main_with` and
 /// provide the transmogrifiers for the widgets you wish to use.
-pub fn kludgine_main<W: Widget, C: Fn(&WidgetStorage) -> StyledWidget<W>>(
-    initializer: C,
-    context: AppContext,
-) {
-    kludgine_main_with(default_transmogrifiers(), &initializer, context);
+pub fn kludgine_main<W: Widget>(initial_window: gooey_core::WindowBuilder<W>, context: AppContext) {
+    kludgine_main_with(default_transmogrifiers(), initial_window, context);
 }
 
 /// Returns an initialized frontend using the root widget returned from `initializer`.
-pub fn kludgine_app<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
+pub fn kludgine_app(
     mut transmogrifiers: Transmogrifiers<Rasterizer<Kludgine>>,
-    initializer: C,
+    builder: &mut dyn AnyWindowBuilder,
     context: AppContext,
 ) -> Rasterizer<Kludgine> {
     register_transmogrifiers(&mut transmogrifiers);
-    let ui = Gooey::with(transmogrifiers, default_stylesheet(), initializer, context);
-    let ui = Rasterizer::<Kludgine>::new(ui, Configuration::default());
+    let transmogrifiers = Arc::new(transmogrifiers);
+    let storage = WidgetStorage::new(context);
+    let ui = Gooey::new(
+        transmogrifiers.clone(),
+        default_stylesheet(),
+        builder.build(&storage),
+        storage,
+    );
+    initialize_rasterizer(ui, transmogrifiers)
+}
+
+fn initialize_rasterizer(
+    ui: Gooey<Rasterizer<Kludgine>>,
+    transmogrifiers: Arc<Transmogrifiers<Rasterizer<Kludgine>>>,
+) -> Rasterizer<Kludgine> {
+    let mut ui = Rasterizer::<Kludgine>::new(ui, Configuration::default());
+    ui.set_window_creator(move |context, builder| {
+        let storage = WidgetStorage::new(context);
+        let root = builder.build(&storage);
+        let ui = Gooey::new(transmogrifiers.clone(), default_stylesheet(), root, storage);
+        let ui = initialize_rasterizer(ui, transmogrifiers.clone());
+        GooeyWindow {
+            ui,
+            redrawer: None,
+            window_config: builder.configuration(),
+        }
+        .open();
+    });
     ui.gooey().process_widget_messages(&ui);
     ui
 }
 
 /// Runs an initialized frontend.
-pub fn kludgine_run(ui: Rasterizer<Kludgine>) {
-    SingleWindowApplication::run(GooeyWindow { ui, redrawer: None });
+pub fn kludgine_run(ui: Rasterizer<Kludgine>, window_config: WindowConfiguration) {
+    SingleWindowApplication::run(GooeyWindow {
+        ui,
+        redrawer: None,
+        window_config,
+    });
 }
 
 struct GooeyWindow {
     ui: Rasterizer<Kludgine>,
     redrawer: Option<RedrawRequester>,
+    window_config: WindowConfiguration,
 }
 
 impl WindowCreator for GooeyWindow {
-    fn window_title() -> String {
-        "Gooey - Kludgine".to_owned()
+    fn window_title(&self) -> String {
+        self.window_config
+            .title
+            .as_ref()
+            .map_or("Gooey - Kludgine", String::as_str)
+            .to_owned()
     }
 
-    fn initial_system_theme() -> Theme {
+    fn initial_system_theme(&self) -> Theme {
         // winit doesn't have a way on linux to detect dark mode
         if TARGET_OS == OS::Linux {
             gtk3_preferred_theme()
@@ -76,6 +113,25 @@ impl WindowCreator for GooeyWindow {
                 .unwrap_or(Theme::Light)
         } else {
             Theme::Light
+        }
+    }
+
+    #[allow(clippy::option_if_let_else)]
+    fn get_window_builder(&self) -> WindowBuilder {
+        let builder = WindowBuilder::default()
+            .with_title(self.window_title())
+            .with_initial_system_theme(self.initial_system_theme())
+            .with_size(self.initial_size())
+            .with_resizable(self.resizable())
+            .with_maximized(self.maximized())
+            .with_visible(self.visible())
+            .with_transparent(self.transparent())
+            .with_decorations(self.decorations())
+            .with_always_on_top(self.always_on_top());
+        if let Some(position) = self.window_config.position {
+            builder.with_position(position)
+        } else {
+            builder
         }
     }
 }

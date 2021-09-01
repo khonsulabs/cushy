@@ -32,8 +32,8 @@ use gooey_core::{
         style_sheet::{self},
         Autofocus, Intent, Style, SystemTheme, TabIndex,
     },
-    AnyTransmogrifierContext, Callback, Gooey, Pixels, Scaled, Timer, TransmogrifierContext,
-    WidgetId, Window, WindowRef,
+    AnyFrontend, AnyTransmogrifierContext, AnyWindowBuilder, AppContext, Callback, Gooey, Pixels,
+    Scaled, Timer, TransmogrifierContext, WidgetId, Window, WindowRef,
 };
 use image::{ImageFormat, RgbaImage};
 use platforms::{target::OS, TARGET_OS};
@@ -56,9 +56,12 @@ pub use winit;
 pub use self::transmogrifier::*;
 use crate::state::FocusEvent;
 
+pub type WindowCreator = dyn Fn(AppContext, &mut dyn AnyWindowBuilder) + Send + Sync + 'static;
+
 pub struct Rasterizer<R: Renderer> {
     pub ui: Arc<Gooey<Self>>,
     state: State,
+    window_creator: Option<Arc<WindowCreator>>,
     refresh_callback: Option<Arc<dyn RefreshCallback>>,
     renderer: Option<R>,
     window: Option<WindowRef>,
@@ -88,6 +91,7 @@ impl<R: Renderer> Clone for Rasterizer<R> {
             state: self.state.clone(),
             refresh_callback: self.refresh_callback.clone(),
             window: self.window.clone(),
+            window_creator: self.window_creator.clone(),
             renderer: None,
         }
     }
@@ -168,6 +172,15 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
     fn window(&self) -> Option<&dyn gooey_core::Window> {
         self.window.as_deref()
     }
+
+    fn open(&self, mut window: Box<dyn AnyWindowBuilder>) -> bool {
+        self.window_creator
+            .as_ref()
+            .map_or(false, |window_creator| {
+                window_creator(self.storage().app().clone(), window.as_mut());
+                true
+            })
+    }
 }
 
 fn load_image(image: &Image, data: Vec<u8>) -> Result<(), String> {
@@ -194,6 +207,7 @@ impl<R: Renderer> Rasterizer<R> {
         Self {
             ui: Arc::new(ui),
             state: State::new(configuration),
+            window_creator: None,
             refresh_callback: None,
             renderer: None,
             window: None,
@@ -213,6 +227,7 @@ impl<R: Renderer> Rasterizer<R> {
             ui: self.ui.clone(),
             state: self.state.clone(),
             refresh_callback: self.refresh_callback.clone(),
+            window_creator: self.window_creator.clone(),
             renderer: Some(renderer),
             window: None,
         }
@@ -270,6 +285,15 @@ impl<R: Renderer> Rasterizer<R> {
         result
     }
 
+    pub fn set_window_creator<
+        F: Fn(AppContext, &mut dyn AnyWindowBuilder) + Send + Sync + 'static,
+    >(
+        &mut self,
+        window_creator: F,
+    ) {
+        self.window_creator = Some(Arc::new(window_creator));
+    }
+
     pub fn set_window<W: Window>(&mut self, window: W) {
         self.window = Some(Arc::new(window));
     }
@@ -301,6 +325,7 @@ impl<R: Renderer> Rasterizer<R> {
             refresh_callback: self.refresh_callback.clone(),
             renderer: Some(renderer),
             window: self.window.clone(),
+            window_creator: self.window_creator.clone(),
         }
     }
 

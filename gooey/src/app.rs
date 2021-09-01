@@ -1,8 +1,8 @@
 use std::{str::FromStr, sync::Arc};
 
 use gooey_core::{
-    unic_langid::LanguageIdentifier, AppContext, Frontend, Localizer, StyledWidget,
-    Transmogrifiers, Widget, WidgetStorage,
+    unic_langid::LanguageIdentifier, AnyWindowBuilder, AppContext, Frontend, Localizer,
+    StyledWidget, Transmogrifiers, Widget, WidgetStorage, WindowBuilder,
 };
 use gooey_widgets::{
     component::{Behavior, ComponentTransmogrifier},
@@ -10,12 +10,16 @@ use gooey_widgets::{
 };
 use sys_locale::get_locale;
 
-type InitializerFn =
-    dyn FnOnce(Transmogrifiers<crate::ActiveFrontend>, AppContext) -> crate::ActiveFrontend;
+type InitializerFn = dyn FnOnce(
+    Transmogrifiers<crate::ActiveFrontend>,
+    AppContext,
+    &mut dyn AnyWindowBuilder,
+) -> crate::ActiveFrontend;
 
 /// A cross-platform application.
 #[must_use]
 pub struct App {
+    initial_window: Box<dyn AnyWindowBuilder>,
     initializer: Box<InitializerFn>,
     language: LanguageIdentifier,
     localizer: Arc<dyn Localizer>,
@@ -47,9 +51,14 @@ impl App {
             })
             .unwrap_or_else(|| "en-US".parse().unwrap());
         Self {
-            initializer: Box::new(move |transmogrifiers, context| {
-                crate::app(transmogrifiers, initializer, context)
+            initializer: Box::new(move |transmogrifiers, context, window| {
+                let builder = window
+                    .as_mut_any()
+                    .downcast_mut::<WindowBuilder<W>>()
+                    .unwrap();
+                crate::app(transmogrifiers, builder, context)
             }),
+            initial_window: Box::new(WindowBuilder::new(initializer)),
             localizer: Arc::new(()),
             language,
             transmogrifiers,
@@ -114,11 +123,13 @@ impl App {
     /// Runs this application using the root widget provided by `initializer`.
     pub fn run(self) {
         let initializer = self.initializer;
+        let mut initial_window = self.initial_window;
         let frontend = initializer(
             self.transmogrifiers,
             AppContext::new(self.language, self.localizer),
+            initial_window.as_mut(),
         );
-        crate::run(frontend);
+        crate::run(frontend, initial_window.configuration());
     }
 
     /// Returns a headless renderer for this app. Only supported with feature
@@ -126,9 +137,11 @@ impl App {
     #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
     pub fn headless(self) -> crate::Headless<crate::ActiveFrontend> {
         let initializer = self.initializer;
+        let mut initial_window = self.initial_window;
         let frontend = initializer(
             self.transmogrifiers,
             AppContext::new(self.language, self.localizer),
+            initial_window.as_mut(),
         );
         crate::Headless::new(frontend)
     }
