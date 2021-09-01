@@ -1,4 +1,4 @@
-use std::{path::PathBuf, process::Command};
+use std::{self, path::PathBuf, process::Command};
 
 use gooey_core::{assets::Configuration, AppContext, StyledWidget};
 use gooey_rasterizer::winit::{event::ModifiersState, window::Theme};
@@ -83,12 +83,12 @@ impl WindowCreator for GooeyWindow {
 fn gtk3_preferred_theme() -> Option<Theme> {
     let settings_path = if let Ok(xdg_config_home) = std::env::var("XDG_CONFIG_HOME") {
         PathBuf::from(xdg_config_home)
-            .join("gtk-3.0")
+            .join("gtk-3.window")
             .join("settings.ini")
     } else if let Ok(home) = std::env::var("HOME") {
         PathBuf::from(home)
             .join(".config")
-            .join("gtk-3.0")
+            .join("gtk-3.window")
             .join("settings.ini")
     } else {
         return None;
@@ -121,18 +121,29 @@ fn gtk2_theme() -> Option<Theme> {
 }
 
 impl Window for GooeyWindow {
-    fn initialize(&mut self, _scene: &Target, redrawer: RedrawRequester) -> kludgine::Result<()>
+    fn initialize(
+        &mut self,
+        _scene: &Target,
+        redrawer: RedrawRequester,
+        window: WindowHandle,
+    ) -> kludgine::Result<()>
     where
         Self: Sized,
     {
         self.redrawer = Some(redrawer.clone());
+        self.ui.set_window(KludgineWindow { window });
         self.ui.set_refresh_callback(move || {
             redrawer.awaken();
         });
         Ok(())
     }
 
-    fn render(&mut self, scene: &Target, status: &mut RedrawStatus) -> kludgine::Result<()> {
+    fn render(
+        &mut self,
+        scene: &Target,
+        status: &mut RedrawStatus,
+        _window: WindowHandle,
+    ) -> kludgine::Result<()> {
         self.ui.render(Kludgine::from(scene));
         self.ui.gooey().process_widget_messages(&self.ui);
         if self.ui.needs_redraw() {
@@ -144,7 +155,12 @@ impl Window for GooeyWindow {
         Ok(())
     }
 
-    fn update(&mut self, _scene: &Target, status: &mut RedrawStatus) -> kludgine::Result<()> {
+    fn update(
+        &mut self,
+        _scene: &Target,
+        status: &mut RedrawStatus,
+        _window: WindowHandle,
+    ) -> kludgine::Result<()> {
         self.ui.gooey().process_widget_messages(&self.ui);
         if self.ui.needs_redraw() {
             status.set_needs_redraw();
@@ -160,6 +176,7 @@ impl Window for GooeyWindow {
         input: InputEvent,
         status: &mut RedrawStatus,
         scene: &Target,
+        _window: WindowHandle,
     ) -> kludgine::Result<()> {
         let input = match input.event {
             Event::Keyboard {
@@ -217,6 +234,7 @@ impl Window for GooeyWindow {
         character: char,
         status: &mut RedrawStatus,
         scene: &Target,
+        _window: WindowHandle,
     ) -> kludgine::app::Result<()>
     where
         Self: Sized,
@@ -230,5 +248,59 @@ impl Window for GooeyWindow {
             status.set_needs_redraw();
         }
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct KludgineWindow {
+    window: WindowHandle,
+}
+
+impl gooey_core::Window for KludgineWindow {
+    fn set_title(&self, title: &str) {
+        self.window.set_title(title);
+    }
+
+    fn inner_size(&self) -> gooey_core::figures::Size<u32, gooey_core::Pixels> {
+        self.window.inner_size()
+    }
+
+    fn set_inner_size(&self, new_size: gooey_core::figures::Size<u32, gooey_core::Pixels>) {
+        self.window.set_inner_size(new_size);
+    }
+
+    fn set_outer_position(
+        &self,
+        new_position: gooey_core::figures::Point<i32, gooey_core::Pixels>,
+    ) {
+        self.window.set_outer_position(new_position);
+    }
+
+    fn inner_position(&self) -> gooey_core::figures::Point<i32, gooey_core::Pixels> {
+        self.window.inner_position()
+    }
+
+    fn set_always_on_top(&self, always: bool) {
+        self.window.set_always_on_top(always);
+    }
+
+    fn maximized(&self) -> bool {
+        self.window.maximized()
+    }
+
+    fn set_maximized(&self, maximized: bool) {
+        self.window.set_maximized(maximized);
+    }
+
+    fn set_minimized(&self, minimized: bool) {
+        self.window.set_minimized(minimized);
+    }
+
+    fn close(&self) {
+        self.window.request_close();
+    }
+
+    fn outer_position(&self) -> gooey_core::figures::Point<i32, gooey_core::Pixels> {
+        self.inner_position()
     }
 }

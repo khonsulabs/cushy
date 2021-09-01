@@ -33,7 +33,7 @@ use gooey_core::{
         Autofocus, Intent, Style, SystemTheme, TabIndex,
     },
     AnyTransmogrifierContext, Callback, Gooey, Pixels, Scaled, Timer, TransmogrifierContext,
-    WidgetId,
+    WidgetId, Window, WindowRef,
 };
 use image::{ImageFormat, RgbaImage};
 use platforms::{target::OS, TARGET_OS};
@@ -61,6 +61,7 @@ pub struct Rasterizer<R: Renderer> {
     state: State,
     refresh_callback: Option<Arc<dyn RefreshCallback>>,
     renderer: Option<R>,
+    window: Option<WindowRef>,
 }
 
 impl<R: Renderer> std::fmt::Debug for Rasterizer<R> {
@@ -86,6 +87,7 @@ impl<R: Renderer> Clone for Rasterizer<R> {
             ui: self.ui.clone(),
             state: self.state.clone(),
             refresh_callback: self.refresh_callback.clone(),
+            window: self.window.clone(),
             renderer: None,
         }
     }
@@ -162,6 +164,10 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
     fn schedule_timer(&self, callback: Callback, duration: Duration, repeating: bool) -> Timer {
         ThreadTimer::schedule(callback, duration, repeating)
     }
+
+    fn window(&self) -> Option<&dyn gooey_core::Window> {
+        self.window.as_deref()
+    }
 }
 
 fn load_image(image: &Image, data: Vec<u8>) -> Result<(), String> {
@@ -190,6 +196,7 @@ impl<R: Renderer> Rasterizer<R> {
             state: State::new(configuration),
             refresh_callback: None,
             renderer: None,
+            window: None,
         }
     }
 
@@ -207,6 +214,7 @@ impl<R: Renderer> Rasterizer<R> {
             state: self.state.clone(),
             refresh_callback: self.refresh_callback.clone(),
             renderer: Some(renderer),
+            window: None,
         }
         .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
             transmogrifier.render_within(&mut context, Rect::from(size), None, &Style::default());
@@ -262,6 +270,10 @@ impl<R: Renderer> Rasterizer<R> {
         result
     }
 
+    pub fn set_window<W: Window>(&mut self, window: W) {
+        self.window = Some(Arc::new(window));
+    }
+
     pub fn set_refresh_callback<F: RefreshCallback>(&mut self, callback: F) {
         self.refresh_callback = Some(Arc::new(callback));
     }
@@ -288,6 +300,7 @@ impl<R: Renderer> Rasterizer<R> {
             state: self.state.clone(),
             refresh_callback: self.refresh_callback.clone(),
             renderer: Some(renderer),
+            window: self.window.clone(),
         }
     }
 

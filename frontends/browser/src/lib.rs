@@ -381,6 +381,10 @@ impl gooey_core::Frontend for WebSys {
         schedule_timer(&timer, period);
         timer
     }
+
+    fn window(&self) -> Option<&dyn gooey_core::Window> {
+        todo!("implement a way to access basic window information")
+    }
 }
 
 fn schedule_timer(timer: &Timer, period: Duration) {

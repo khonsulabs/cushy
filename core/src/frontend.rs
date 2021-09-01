@@ -6,9 +6,9 @@ use url::Url;
 use crate::{
     assets::{self, Asset, Image},
     styles::{style_sheet::State, SystemTheme},
-    AnySendSync, AnyTransmogrifierContext, AnyWidget, Callback, Gooey, LocalizationParameters,
-    Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState, WidgetId, WidgetRef,
-    WidgetRegistration, WidgetStorage,
+    AnySendSync, AnyTransmogrifierContext, AnyWidget, AppContext, Callback, Gooey,
+    LocalizationParameters, Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState,
+    WidgetId, WidgetRef, WidgetRegistration, WidgetStorage, Window,
 };
 
 /// A frontend is an implementation of widgets and layouts.
@@ -65,6 +65,9 @@ pub trait Frontend: Clone + Debug + Send + Sync + 'static {
     #[allow(unused_variables)]
     fn widget_initialized(&self, widget: &WidgetId, style: &Style) {}
 
+    /// Returns the window for this interface, if present.
+    fn window(&self) -> Option<&dyn Window>;
+
     /// Localizes `key` with `parameters`.
     #[must_use]
     fn localize<'a>(
@@ -85,6 +88,14 @@ pub trait AnyFrontend: AnySendSync {
     /// Returns the widget storage.
     #[must_use]
     fn storage(&self) -> &'_ WidgetStorage;
+
+    /// Returns the current application context.
+    fn app(&self) -> &AppContext {
+        self.storage().app()
+    }
+
+    /// Returns the window for this frontend instance.
+    fn window(&self) -> Option<&dyn Window>;
 
     /// Returns the current system theme.
     fn theme(&self) -> SystemTheme;
@@ -172,6 +183,10 @@ where
 
     fn localize<'a>(&self, key: &str, parameters: Option<LocalizationParameters<'a>>) -> String {
         self.localize(key, parameters)
+    }
+
+    fn window(&self) -> Option<&dyn Window> {
+        self.window()
     }
 }
 

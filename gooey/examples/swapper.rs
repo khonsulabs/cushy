@@ -1,10 +1,7 @@
 //! An example showing how to swap between two components with a parent component.
 
 use gooey::{
-    core::{
-        assets::{Asset, Image},
-        Context, DefaultWidget, StyledWidget,
-    },
+    core::{Context, DefaultWidget, StyledWidget},
     widgets::{
         button::Button,
         component::{Behavior, Component, Content, EventMapper},
@@ -13,7 +10,6 @@ use gooey::{
     App,
 };
 use gooey_core::{Callback, WidgetRegistration, WidgetStorage};
-use gooey_rasterizer::WidgetRasterizer;
 use gooey_widgets::layout::{Layout, WidgetLayout};
 
 #[cfg(test)]
@@ -76,7 +72,7 @@ impl Behavior for Counter {
         component.map_content_mut(context, |layout: &mut Layout, context| {
             layout.insert_registration(
                 Some(()),
-                page.build_content(&context.frontend().storage(), &component.event_mapper()),
+                page.build_content(context.frontend().storage(), &component.event_mapper()),
                 WidgetLayout::build().fill_width().fill_height().finish(),
                 context,
             );
@@ -144,7 +140,7 @@ impl Behavior for AppPage {
     fn receive_event(
         component: &mut Component<Self>,
         event: Self::Event,
-        context: &Context<Component<Self>>,
+        _context: &Context<Component<Self>>,
     ) {
         let AppEvent::SwapToSettings = event;
         component.behavior.swap_to_settings.invoke(());
@@ -182,7 +178,7 @@ impl Behavior for Settings {
     fn receive_event(
         component: &mut Component<Self>,
         event: Self::Event,
-        context: &Context<Component<Self>>,
+        _context: &Context<Component<Self>>,
     ) {
         let SettingsEvent::SwapToApp = event;
         component.behavior.swap_to_app.invoke(());

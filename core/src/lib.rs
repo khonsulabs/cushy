@@ -20,13 +20,14 @@ mod gooey;
 pub mod styles;
 mod timer;
 mod widget;
+mod window;
 
 pub use figures;
 pub use palette;
 pub use unic_langid;
 pub use url;
 
-pub use self::{frontend::*, gooey::*, timer::*, widget::*};
+pub use self::{frontend::*, gooey::*, timer::*, widget::*, window::*};
 
 /// A unit representing physical pixels on a display.
 pub type Pixels = figures::Pixels;

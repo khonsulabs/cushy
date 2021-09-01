@@ -81,7 +81,7 @@ pub use headless::{Headless, HeadlessError, Recorder};
 #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
 mod kludgine;
 #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
-pub use kludgine::{kludgine_app, kludgine_main, kludgine_main_with, kludgine_run};
+pub use crate::kludgine::{kludgine_app, kludgine_main, kludgine_main_with, kludgine_run};
 
 #[cfg(feature = "frontend-browser")]
 mod browser;

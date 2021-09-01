@@ -2,7 +2,8 @@ use std::{borrow::Cow, convert::TryFrom, marker::PhantomData};
 
 use crate::{
     styles::{style_sheet::State, Style},
-    AnyChannels, AnySendSync, AnyWidget, Channels, Frontend, Transmogrifier, WidgetRegistration,
+    AnyChannels, AnyFrontend, AnySendSync, AnyWidget, AppContext, Channels, Frontend,
+    Transmogrifier, WidgetRegistration, Window,
 };
 
 /// A context passed into [`Transmogrifier`] functions with access to useful
@@ -69,6 +70,18 @@ impl<'a, T: Transmogrifier<F>, F: Frontend> TransmogrifierContext<'a, T, F> {
     #[must_use]
     pub fn style(&self) -> &Style {
         &self.style
+    }
+
+    /// Returns the current application context.
+    #[must_use]
+    pub fn app(&self) -> &AppContext {
+        self.frontend.storage().app()
+    }
+
+    /// Returns the window for this context.
+    #[must_use]
+    pub fn window(&self) -> Option<&dyn Window> {
+        self.frontend.window()
     }
 }
 

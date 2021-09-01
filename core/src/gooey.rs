@@ -43,7 +43,7 @@ struct GooeyData<F: Frontend> {
 
 impl<F: Frontend> Gooey<F> {
     /// Creates a user interface using `root`.
-    pub fn with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
+    pub fn with<W: Widget, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
         transmogrifiers: Transmogrifiers<F>,
         stylesheet: StyleSheet,
         initializer: C,
@@ -328,13 +328,19 @@ struct WidgetStorageData {
 }
 
 impl WidgetStorage {
-    /// Returns a new instance for the context provided.
+    /// Returns a new instance for the window provided.
     #[must_use]
-    pub fn new(context: AppContext) -> Self {
+    pub fn new(window: AppContext) -> Self {
         Self {
             data: Arc::default(),
-            app: context,
+            app: window,
         }
+    }
+
+    /// Returns the application.
+    #[must_use]
+    pub fn app(&self) -> &AppContext {
+        &self.app
     }
 
     /// Register a widget with storage.
