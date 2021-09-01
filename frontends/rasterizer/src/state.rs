@@ -8,7 +8,7 @@ use std::{
 
 use gooey_core::{
     figures::{Point, Rectlike},
-    styles::{style_sheet, SystemTheme, TabIndex},
+    styles::{style_sheet, Intent, SystemTheme, TabIndex},
     Scaled, WidgetId,
 };
 use parking_lot::Mutex;
@@ -30,6 +30,9 @@ struct Data {
     hierarchy: HashMap<Option<u32>, Vec<u32>>,
     tab_orders: HashMap<u32, TabEntry>,
     system_theme: SystemTheme,
+
+    default: Option<WidgetId>,
+    cancel: Option<WidgetId>,
 
     hover: HashSet<WidgetId>,
     focus: Option<WidgetId>,
@@ -112,9 +115,17 @@ impl State {
         should_accept_focus: bool,
         parent_id: Option<&WidgetId>,
         tab_order: Option<TabIndex>,
+        intent: Option<Intent>,
     ) {
         let mut data = self.data.lock();
-        data.widget_rendered(widget, area, should_accept_focus, parent_id, tab_order);
+        data.widget_rendered(
+            widget,
+            area,
+            should_accept_focus,
+            parent_id,
+            tab_order,
+            intent,
+        );
     }
 
     pub fn widget_area(&self, widget: &WidgetId) -> Option<ContentArea> {
@@ -249,6 +260,17 @@ impl State {
         }
     }
 
+    pub fn default_widget(&self) -> Option<WidgetId> {
+        let data = self.data.lock();
+        data.default.clone()
+    }
+
+    // We are tracking this state, but it doesn't seem prudent to actually hook it to a keyboard shortcut.
+    pub fn cancel_widget(&self) -> Option<WidgetId> {
+        let data = self.data.lock();
+        data.cancel.clone()
+    }
+
     pub fn focus_events(&self) -> Vec<FocusEvent> {
         let mut data = self.data.lock();
         std::mem::take(&mut data.focus_events)
@@ -326,6 +348,8 @@ impl State {
 
 impl Data {
     pub fn new_frame(&mut self) {
+        self.default = None;
+        self.cancel = None;
         self.order.clear();
         self.tab_orders.clear();
         self.ids.clear();
@@ -341,6 +365,7 @@ impl Data {
         should_accept_focus: bool,
         parent_id: Option<&WidgetId>,
         tab_order: Option<TabIndex>,
+        intent: Option<Intent>,
     ) {
         if should_accept_focus {
             let tab_entry = TabEntry {
@@ -356,6 +381,16 @@ impl Data {
 
         self.area.insert(widget.id, area);
         self.ids.insert(widget.id, self.order.len());
+        if let Some(intent) = intent {
+            match intent {
+                Intent::Default => {
+                    self.default = Some(widget.clone());
+                }
+                Intent::Cancel => {
+                    self.cancel = Some(widget.clone());
+                }
+            }
+        }
         self.order.push(widget);
     }
 

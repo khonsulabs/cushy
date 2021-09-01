@@ -44,3 +44,7 @@ pub const ROOT_CLASS: &str = "gooey-root";
 
 /// The name of the class assigned to widgets that have a solid background
 pub const SOLID_WIDGET_CLASS: &str = "gooey-solid";
+
+/// The name of the class assigned to widgets that have a solid background but
+/// should be colored with the primary UI color.
+pub const PRIMARY_WIDGET_CLASS: &str = "gooey-primary";

@@ -30,7 +30,7 @@ use gooey_core::{
     figures::{Point, Rect, Size},
     styles::{
         style_sheet::{self},
-        Autofocus, Style, SystemTheme, TabIndex,
+        Autofocus, Intent, Style, SystemTheme, TabIndex,
     },
     AnyTransmogrifierContext, Callback, Gooey, Pixels, Scaled, Timer, TransmogrifierContext,
     WidgetId,
@@ -323,6 +323,40 @@ impl<R: Renderer> Rasterizer<R> {
                     EventResult::ignored()
                 }
             }
+            (Some(VirtualKeyCode::Return | VirtualKeyCode::NumpadEnter), state) => self
+                .state
+                .default_widget()
+                .and_then(|submit| {
+                    self.with_transmogrifier(&submit, |transmogrifier, mut context| {
+                        EventResult::from(transmogrifier.keyboard(
+                            &mut context,
+                            scancode,
+                            keycode,
+                            state,
+                        ))
+                    })
+                })
+                .unwrap_or_else(EventResult::ignored),
+            (Some(VirtualKeyCode::Escape), _) => self
+                .state
+                .cancel_widget()
+                .and_then(|submit| {
+                    // Give the cancel widget a chance to handle the key
+                    self.with_transmogrifier(&submit, |transmogrifier, mut context| {
+                        EventResult::from(transmogrifier.keyboard(
+                            &mut context,
+                            scancode,
+                            keycode,
+                            state,
+                        ))
+                    })
+                })
+                .unwrap_or_else(|| {
+                    self.state.focus().map_or_else(EventResult::ignored, |_| {
+                        self.blur();
+                        EventResult::processed()
+                    })
+                }),
             _ => EventResult::ignored(),
         }
     }
@@ -466,9 +500,16 @@ impl<R: Renderer> Rasterizer<R> {
         should_accept_focus: bool,
         parent_id: Option<&WidgetId>,
         tab_order: Option<TabIndex>,
+        intent: Option<Intent>,
     ) {
-        self.state
-            .widget_rendered(widget, area, should_accept_focus, parent_id, tab_order);
+        self.state.widget_rendered(
+            widget,
+            area,
+            should_accept_focus,
+            parent_id,
+            tab_order,
+            intent,
+        );
     }
 
     /// Executes `callback` with the transmogrifier and transmogrifier state as

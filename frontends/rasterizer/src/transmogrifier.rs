@@ -2,7 +2,7 @@ use std::{any::TypeId, convert::TryFrom, ops::Deref};
 
 use gooey_core::{
     figures::{Point, Rect, Rectlike, Size, Vector, Vectorlike},
-    styles::{border::Border, BackgroundColor, Padding, Style, TabIndex},
+    styles::{border::Border, BackgroundColor, Intent, Padding, Style, TabIndex},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Scaled, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRegistration,
 };
@@ -65,6 +65,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                 <Self::Widget as Widget>::FOCUSABLE,
                 parent_id,
                 context.style.get::<TabIndex>().copied(),
+                effective_style.get::<Intent>().copied(),
             );
         }
     }

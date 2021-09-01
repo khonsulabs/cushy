@@ -8,6 +8,7 @@ mod focus;
 mod font_family;
 mod font_size;
 mod font_style;
+mod intent;
 mod lines;
 /// Types for adding padding to a widget.
 pub mod padding;
@@ -26,6 +27,7 @@ pub use self::{
     font_family::FontFamily,
     font_size::FontSize,
     font_style::FontStyle,
+    intent::Intent,
     lines::LineWidth,
     padding::Padding,
     surround::Surround,

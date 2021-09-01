@@ -2,9 +2,10 @@ use gooey_core::{
     assets::Image,
     figures::Figure,
     styles::{
-        style_sheet::Classes, BackgroundColor, ColorPair, FallbackComponent, Style, StyleComponent,
+        style_sheet::Classes, BackgroundColor, ColorPair, FallbackComponent, Intent, Style,
+        StyleComponent,
     },
-    Callback, Context, Scaled, StyledWidget, Widget, SOLID_WIDGET_CLASS,
+    Callback, Context, Scaled, StyledWidget, Widget, PRIMARY_WIDGET_CLASS, SOLID_WIDGET_CLASS,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -86,12 +87,14 @@ impl Widget for Button {
 #[must_use]
 pub struct Builder {
     button: Button,
+    intent: Option<Intent>,
 }
 
 impl Builder {
     fn new() -> Self {
         Self {
             button: Button::default(),
+            intent: None,
         }
     }
 
@@ -110,8 +113,27 @@ impl Builder {
         self
     }
 
+    pub fn default(mut self) -> Self {
+        self.intent = Some(Intent::Default);
+        self
+    }
+
+    pub fn cancel(mut self) -> Self {
+        self.intent = Some(Intent::Cancel);
+        self
+    }
+
     pub fn finish(self) -> StyledWidget<Button> {
-        StyledWidget::from(self.button)
+        let mut widget = StyledWidget::from(self.button);
+        match self.intent {
+            Some(intent) => {
+                if matches!(intent, Intent::Default) {
+                    widget = widget.with(Classes::from(PRIMARY_WIDGET_CLASS));
+                }
+                widget.with(intent)
+            }
+            None => widget,
+        }
     }
 }
 

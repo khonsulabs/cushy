@@ -21,6 +21,7 @@
 
 use std::{
     any::TypeId,
+    collections::HashMap,
     convert::TryFrom,
     ops::Deref,
     sync::{
@@ -36,12 +37,12 @@ use gooey_core::{
     styles::{
         border::Border,
         style_sheet::{Classes, State},
-        Alignment, Autofocus, FontFamily, FontSize, Padding, Style, StyleComponent, SystemTheme,
-        TabIndex, VerticalAlignment,
+        Alignment, Autofocus, FontFamily, FontSize, Intent, Padding, Style, StyleComponent,
+        SystemTheme, TabIndex, VerticalAlignment,
     },
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Callback, Frontend, Gooey, NativeTimer,
-    Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
-    WidgetRegistration,
+    Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState, WeakWidgetRegistration,
+    Widget, WidgetId, WidgetRef, WidgetRegistration,
 };
 use parking_lot::Mutex;
 use wasm_bindgen::{prelude::*, JsCast};
@@ -52,7 +53,7 @@ use utils::{
     create_element, set_widget_classes, set_widget_id, window_element_by_widget_id,
     CssBlockBuilder, CssManager, CssRules,
 };
-use web_sys::{ErrorEvent, HtmlElement, HtmlImageElement, MediaQueryListEvent};
+use web_sys::{ErrorEvent, HtmlElement, HtmlImageElement, KeyboardEvent, MediaQueryListEvent};
 
 use crate::utils::window_document;
 
@@ -68,8 +69,15 @@ pub struct WebSys {
 struct Data {
     styles: Vec<CssRules>,
     theme: Mutex<SystemTheme>,
+    intent_callbacks: Mutex<HashMap<Intent, Vec<CallbackWidget>>>,
     configuration: Configuration,
     last_image_id: AtomicU64,
+}
+
+#[derive(Debug)]
+struct CallbackWidget {
+    widget: WeakWidgetRegistration,
+    callback: Callback,
 }
 
 impl WebSys {
@@ -143,6 +151,7 @@ impl WebSys {
                 styles,
                 configuration,
                 theme: Mutex::default(),
+                intent_callbacks: Mutex::default(),
                 last_image_id: AtomicU64::new(0),
             }),
         }
@@ -182,6 +191,40 @@ impl WebSys {
                 }),
         );
 
+        // Install a keyboard handler in the window for handling enter/escape keypresses
+        let data = self.data.clone();
+        document.set_onkeydown(
+            Closure::wrap(Box::new(move |event: KeyboardEvent| {
+                let intent = match event.key().as_str() {
+                    "Enter" | "Return" => Intent::Default,
+                    "Escape" => Intent::Cancel,
+                    _ => return,
+                };
+                let mut intent_callbacks = data.intent_callbacks.lock();
+                if let Some(potential_handlers) = intent_callbacks.get_mut(&intent) {
+                    // Widgets report themselves as handlers when they initially
+                    // transmogrify. The order of this execution is such that
+                    // the earliest widgets should be closer to the root. This
+                    // isn't perfect at all, but putting multiple submit buttons
+                    // on the same layer should be discouraged.
+                    while !potential_handlers.is_empty() {
+                        let handler = potential_handlers.last().unwrap();
+                        // Check that the widget is still alive.
+                        if handler.widget.upgrade().is_some() {
+                            handler.callback.invoke(());
+                            event.prevent_default();
+                            break;
+                        }
+
+                        // If the widget is dead, pop it off the queue.
+                        potential_handlers.pop();
+                    }
+                }
+            }) as Box<dyn FnMut(KeyboardEvent)>)
+            .into_js_value()
+            .dyn_ref(),
+        );
+
         self.with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
             if let Some(root_element) = transmogrifier.transmogrify(&mut context) {
                 parent.append_child(&root_element).unwrap();
@@ -204,6 +247,20 @@ impl WebSys {
             .with_transmogrifier(widget_id, self, |transmogrifier, context| {
                 callback(transmogrifier.as_ref(), context)
             })
+    }
+
+    pub fn register_intent_handler(
+        &self,
+        intent: Intent,
+        widget: &WidgetRegistration,
+        callback: Callback,
+    ) {
+        let mut intent_callbacks = self.data.intent_callbacks.lock();
+        let callbacks = intent_callbacks.entry(intent).or_default();
+        callbacks.push(CallbackWidget {
+            widget: WeakWidgetRegistration::from(widget),
+            callback,
+        });
     }
 }
 

@@ -1,6 +1,6 @@
 use gooey_core::{
     figures::{Figure, Point, Rect, Rectlike, Size},
-    styles::{Style, TextColor},
+    styles::{Intent, Style, TextColor},
     Callback, Context, Frontend, Scaled, Transmogrifier, TransmogrifierContext,
 };
 use gooey_rasterizer::{
@@ -168,17 +168,26 @@ impl<R: Renderer> WidgetRasterizer<R> for ButtonTransmogrifier {
         keycode: Option<VirtualKeyCode>,
         state: ElementState,
     ) -> EventStatus {
-        match dbg!(keycode) {
+        let should_activate = match keycode {
             Some(VirtualKeyCode::NumpadEnter | VirtualKeyCode::Return | VirtualKeyCode::Space) => {
-                if matches!(state, ElementState::Pressed) {
-                    context.activate();
-                } else {
-                    context.deactivate();
-                    context.channels.post_event(InternalButtonEvent::Clicked);
-                }
-                EventStatus::Processed
+                true
             }
-            _ => EventStatus::Ignored,
+            Some(VirtualKeyCode::Escape) => {
+                matches!(context.style.get::<Intent>(), Some(&Intent::Cancel))
+            }
+            _ => false,
+        };
+
+        if should_activate {
+            if matches!(state, ElementState::Pressed) {
+                context.activate();
+            } else {
+                context.deactivate();
+                context.channels.post_event(InternalButtonEvent::Clicked);
+            }
+            EventStatus::Processed
+        } else {
+            EventStatus::Ignored
         }
     }
 }

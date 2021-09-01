@@ -94,6 +94,7 @@ cfg_if! {
         pub use browser_main_with as main_with;
         pub use browser_app as app;
         pub use browser_run as run;
+        /// The active frontend.
         pub type ActiveFrontend = gooey_browser::WebSys;
     } else if #[cfg(feature = "frontend-kludgine")] {
         pub use kludgine_main as main;

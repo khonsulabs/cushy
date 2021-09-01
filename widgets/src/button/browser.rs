@@ -2,7 +2,10 @@ use gooey_browser::{
     utils::{create_element, widget_css_id, window_document, CssBlockBuilder, CssRules},
     WebSys, WebSysTransmogrifier, WidgetClosure,
 };
-use gooey_core::{styles::Style, Callback, Context, Frontend, TransmogrifierContext, WidgetRef};
+use gooey_core::{
+    styles::{Intent, Style},
+    Callback, Context, Frontend, TransmogrifierContext, WidgetRef,
+};
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlButtonElement, HtmlDivElement, HtmlImageElement};
 
@@ -50,6 +53,15 @@ impl WebSysTransmogrifier for ButtonTransmogrifier {
             || InternalButtonEvent::Clicked,
         );
         element.set_onclick(Some(closure.into_js_value().unchecked_ref()));
+
+        if let Some(intent) = context.style.get::<Intent>().copied() {
+            context.frontend.register_intent_handler(
+                intent,
+                &context.registration,
+                context.widget.clicked.clone(),
+            );
+        }
+
         Some(element.unchecked_into())
     }
 
