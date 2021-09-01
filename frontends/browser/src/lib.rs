@@ -1,5 +1,18 @@
 //! A [`Frontend`](gooey_core::Frontend) for `Gooey` that targets web browsers
 //! by creating DOM elements using `web-sys` and `wasm-bindgen`.
+//!
+//! ## [`Window`] implementation
+//!
+//! The [`Window`] implementation in this frontend is limited by the browser's APIs. Of
+//! note:
+//!
+//! - [`maximized()`](Window::maximized) and [`set_maximized()`](Window::set_maximized) interact with the fullscreen APIs.
+//! - [`inner_position()`](Window::inner_position) and [`outer_position()`](Window::outer_position) are equivalent. This also means
+//!   that [`set_outer_position()`](Window::set_outer_position) actually sets the inner position.
+//! - Controlling the browser window (closing, resizing, moving) is dependent
+//!   upon the browser allowing the operation. This generally is only possible
+//!   if the window is opened via a javascript API and has no other tabs within
+//!   in.
 
 #![forbid(unsafe_code)]
 #![warn(
@@ -33,7 +46,7 @@ use std::{
 
 use gooey_core::{
     assets::{self, Configuration, FrontendImage, Image},
-    figures::Size,
+    figures::{Point, Size},
     styles::{
         border::Border,
         style_sheet::{Classes, State},
@@ -42,7 +55,7 @@ use gooey_core::{
     },
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Callback, Frontend, Gooey, NativeTimer,
     Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState, WeakWidgetRegistration,
-    Widget, WidgetId, WidgetRef, WidgetRegistration,
+    Widget, WidgetId, WidgetRef, WidgetRegistration, Window,
 };
 use parking_lot::Mutex;
 use wasm_bindgen::{prelude::*, JsCast};
@@ -50,15 +63,19 @@ use wasm_bindgen::{prelude::*, JsCast};
 pub mod utils;
 
 use utils::{
-    create_element, set_widget_classes, set_widget_id, window_element_by_widget_id,
+    create_element, set_widget_classes, set_widget_id, widget_css_id, window_element_by_widget_id,
     CssBlockBuilder, CssManager, CssRules,
 };
-use web_sys::{ErrorEvent, HtmlElement, HtmlImageElement, KeyboardEvent, MediaQueryListEvent};
+use web_sys::{
+    window, ErrorEvent, HtmlElement, HtmlImageElement, KeyboardEvent, MediaQueryListEvent,
+};
 
 use crate::utils::window_document;
 
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 
+/// `WebSys` is a [`Frontend`] implementor that implements Gooey interfaces
+/// through `web-sys` in a web browser.
 #[derive(Debug, Clone)]
 pub struct WebSys {
     pub ui: Gooey<Self>,
@@ -383,7 +400,7 @@ impl gooey_core::Frontend for WebSys {
     }
 
     fn window(&self) -> Option<&dyn gooey_core::Window> {
-        todo!("implement a way to access basic window information")
+        Some(self)
     }
 }
 
@@ -744,4 +761,78 @@ impl ImageExt for Image {
 
 fn image_css_id(id: u64) -> String {
     format!("gooey-img-{}", id)
+}
+impl Window for WebSys {
+    fn set_title(&self, title: &str) {
+        let document = window_document();
+        document.set_title(title);
+    }
+
+    fn inner_size(&self) -> Size<u32, gooey_core::Pixels> {
+        let window = window().unwrap();
+        let width = window
+            .inner_width()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or_default();
+        let height = window
+            .inner_height()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or_default();
+
+        Size::new(width, height).try_cast().unwrap_or_default()
+    }
+
+    fn set_inner_size(&self, new_size: Size<u32, gooey_core::Pixels>) {
+        let window = window().unwrap();
+        drop(window.resize_to(
+            i32::try_from(new_size.width).unwrap(),
+            i32::try_from(new_size.height).unwrap(),
+        ));
+    }
+
+    fn set_outer_position(&self, new_position: Point<i32, gooey_core::Pixels>) {
+        let window = window().unwrap();
+        drop(window.move_to(new_position.x, new_position.y));
+    }
+
+    fn inner_position(&self) -> Point<i32, gooey_core::Pixels> {
+        let window = window().unwrap();
+        let x = window
+            .screen_x()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or_default();
+        let y = window
+            .screen_y()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or_default();
+
+        Point::new(x, y).try_cast().unwrap_or_default()
+    }
+
+    fn set_always_on_top(&self, _always: bool) {}
+
+    fn maximized(&self) -> bool {
+        window_document().fullscreen()
+    }
+
+    fn set_maximized(&self, maximized: bool) {
+        if maximized {
+            let body = window_document()
+                .get_element_by_id(&widget_css_id(self.ui.root_widget().id().id))
+                .unwrap();
+            drop(body.request_fullscreen());
+        } else {
+            window_document().exit_fullscreen();
+        }
+    }
+
+    fn set_minimized(&self, _minimized: bool) {}
+
+    fn close(&self) {
+        drop(window().unwrap().close());
+    }
 }
