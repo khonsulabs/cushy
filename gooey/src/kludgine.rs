@@ -134,6 +134,30 @@ impl WindowCreator for GooeyWindow {
             builder
         }
     }
+    
+    fn initial_size(&self) -> Size<u32, gooey_core::figures::Pixels> {
+        self.window_config.size
+    }
+
+    fn resizable(&self) -> bool {
+        self.window_config.resizable
+    }
+
+    fn maximized(&self) -> bool {
+        self.window_config.maximized
+    }
+
+    fn transparent(&self) -> bool {
+        self.window_config.transparent
+    }
+
+    fn decorations(&self) -> bool {
+        self.window_config.decorations
+    }
+
+    fn always_on_top(&self) -> bool {
+        self.window_config.always_on_top
+    }
 }
 
 fn gtk3_preferred_theme() -> Option<Theme> {
