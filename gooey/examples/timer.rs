@@ -96,18 +96,22 @@ mod tests {
     #[cfg(not(target_arch = "wasm32-unknown-unknown"))]
     #[tokio::test]
     async fn demo() -> Result<(), HeadlessError> {
+        use std::time::Instant;
+
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = app().headless();
             let mut recorder = headless.begin_recording(Size::new(320, 240), theme, false, 30);
             const ONE_SECOND: Duration = Duration::from_millis(1000);
+            let start = Instant::now();
             recorder.render_frame(ONE_SECOND).await?;
             for _ in 0..5 {
                 tokio::time::sleep(ONE_SECOND).await;
                 recorder.render_frame(ONE_SECOND).await?;
             }
 
+            let elapsed = Instant::now() - start;
             assert_eq!(
-                5,
+                elapsed.as_secs() as u32,
                 recorder
                     .map_root_widget(|component: &mut Component<Counter>, _context| {
                         component.behavior.count
