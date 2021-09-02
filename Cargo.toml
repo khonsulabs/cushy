@@ -26,7 +26,7 @@ bonsaidb = { git = "https://github.com/khonsulabs/bonsaidb.git", branch = "main"
 # actionable = { git="https://github.com/khonsulabs/actionable.git", branch="main" }
 # actionable = { path="../actionable/actionable", version="0.1.0-dev.3" }
 # kludgine = { path = "../kludgine/kludgine", version = "0.1.0-dev.0" }
-kludgine = { git = "https://github.com/khonsulabs/kludgine.git", branch = "main", version = "0.1.0-dev.0" }
+# kludgine = { git = "https://github.com/khonsulabs/kludgine.git", branch = "main", version = "0.1.0-dev.0" }
 
 # [patch."https://github.com/khonsulabs/stylecs.git"]
 # stylecs = { path = "../stylecs/stylecs" }
