@@ -85,9 +85,9 @@ impl Headless<Rasterizer<Kludgine>> {
     }
 
     /// Sets the location of the cursor to `position`. Does not render any frames.
-    pub fn set_cursor(&mut self, position: Point<f32, Scaled>) {
+    pub fn set_cursor(&mut self, position: impl Into<Point<f32, Scaled>>) {
         self.simulate_event(WindowEvent::Input(InputEvent::MouseMoved {
-            position: Some(position),
+            position: Some(position.into()),
         }));
     }
 
@@ -307,14 +307,14 @@ impl<'a> Recorder<'a> {
     )]
     pub async fn move_cursor_to(
         &mut self,
-        location: Point<f32, Scaled>,
+        location: impl Into<Point<f32, Scaled>>,
         duration: Duration,
     ) -> Result<(), HeadlessError> {
         let duration = duration.as_secs_f32();
         let frames = (duration * f32::from(self.fps)).floor().max(1.);
         let frame_duration = Duration::from_secs_f32(duration / frames);
         let origin = self.cursor.unwrap_or_else(|| Point::new(-16., -16.));
-        let step = (location.to_vector() - origin.to_vector()) / frames;
+        let step = (location.into().to_vector() - origin.to_vector()) / frames;
         for frame in 1..=frames as u32 {
             self.simulate_event(WindowEvent::Input(InputEvent::MouseMoved {
                 position: Some(origin + step * frame as f32),

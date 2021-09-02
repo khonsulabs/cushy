@@ -116,17 +116,16 @@ mod tests {
     async fn demo() -> Result<(), HeadlessError> {
         use std::time::Duration;
 
-        use gooey_core::figures::Point;
         use gooey_rasterizer::winit::event::{ModifiersState, VirtualKeyCode};
 
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = crate::app().headless();
             let mut recorder = headless.begin_recording(Size::new(480, 320), theme, true, 15);
-            recorder.set_cursor(Point::new(100., 200.));
+            recorder.set_cursor((100., 200.));
 
             // Open the focus demo
             recorder
-                .move_cursor_to(Point::new(400., 300.), Duration::from_millis(300))
+                .move_cursor_to((400., 300.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(500));

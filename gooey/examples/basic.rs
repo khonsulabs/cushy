@@ -82,10 +82,7 @@ mod tests {
     use std::time::Duration;
 
     use gooey::{
-        core::{
-            figures::{Point, Size},
-            styles::SystemTheme,
-        },
+        core::{figures::Size, styles::SystemTheme},
         HeadlessError,
     };
 
@@ -97,10 +94,10 @@ mod tests {
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = app().headless();
             let mut recorder = headless.begin_recording(Size::new(320, 240), theme, true, 30);
-            recorder.set_cursor(Point::new(100., 200.));
+            recorder.set_cursor((100., 200.));
             recorder.render_frame(Duration::from_millis(100)).await?;
             recorder
-                .move_cursor_to(Point::new(160., 130.), Duration::from_millis(300))
+                .move_cursor_to((160., 130.), Duration::from_millis(300))
                 .await?;
             recorder.pause(Duration::from_millis(250));
             recorder.left_click().await?;
@@ -121,7 +118,7 @@ mod tests {
             );
 
             recorder
-                .move_cursor_to(Point::new(200., 180.), Duration::from_millis(300))
+                .move_cursor_to((200., 180.), Duration::from_millis(300))
                 .await?;
             recorder.pause(Duration::from_millis(1000));
 

@@ -1,12 +1,11 @@
+#[cfg(debug_assertions)]
+use std::sync::Arc;
 use std::{
     collections::HashSet,
     convert::TryInto,
     fmt::Write,
     sync::atomic::{AtomicU32, Ordering},
 };
-
-#[cfg(debug_assertions)]
-use std::sync::Arc;
 
 use gooey_core::{
     figures::{Approx, Figure},

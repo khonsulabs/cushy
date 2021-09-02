@@ -1,9 +1,11 @@
+use std::{any::Any, borrow::Cow, fmt::Debug};
+
+use figures::{Point, Points, Size};
+
 use crate::{
     styles::style_sheet::Classes, AnyFrontend, Pixels, StyledWidget, Widget, WidgetRegistration,
     WidgetStorage, ROOT_CLASS,
 };
-use figures::{Point, Points, Size};
-use std::{any::Any, borrow::Cow, fmt::Debug};
 
 type InitializerFn<W> = dyn FnOnce(&WidgetStorage) -> StyledWidget<W>;
 
@@ -80,14 +82,14 @@ impl<W: Widget> WindowBuilder<W> {
     }
 
     /// Sets the window's position (in screen coordinates).
-    pub fn position(mut self, location: Point<i32, Pixels>) -> Self {
-        self.configuration.position = Some(location);
+    pub fn position(mut self, location: impl Into<Point<i32, Pixels>>) -> Self {
+        self.configuration.position = Some(location.into());
         self
     }
 
     /// Sets the window's size.
-    pub fn size(mut self, size: Size<u32, Points>) -> Self {
-        self.configuration.size = size;
+    pub fn size(mut self, size: impl Into<Size<u32, Points>>) -> Self {
+        self.configuration.size = size.into();
         self
     }
 
