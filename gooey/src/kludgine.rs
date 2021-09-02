@@ -139,12 +139,12 @@ impl WindowCreator for GooeyWindow {
 fn gtk3_preferred_theme() -> Option<Theme> {
     let settings_path = if let Ok(xdg_config_home) = std::env::var("XDG_CONFIG_HOME") {
         PathBuf::from(xdg_config_home)
-            .join("gtk-3.window")
+            .join("gtk-3.0")
             .join("settings.ini")
     } else if let Ok(home) = std::env::var("HOME") {
         PathBuf::from(home)
             .join(".config")
-            .join("gtk-3.window")
+            .join("gtk-3.0")
             .join("settings.ini")
     } else {
         return None;
