@@ -26,7 +26,7 @@ use std::{
 
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
-    assets::{self, Configuration, FrontendImage, Image},
+    assets::{self, Asset, Configuration, FrontendImage, Image},
     figures::{Point, Rect, Size},
     styles::{
         style_sheet::{self},
@@ -710,6 +710,7 @@ where
 
 pub trait ImageExt {
     fn as_rgba_image(&self) -> Option<Arc<RgbaImage>>;
+    fn from_rgba_image(image: RgbaImage) -> Image;
 }
 
 impl ImageExt for Image {
@@ -719,6 +720,12 @@ impl ImageExt for Image {
                 .and_then(|data| data.as_any().downcast_ref::<RasterizerImage>())
                 .map(|img| img.0.clone())
         })
+    }
+
+    fn from_rgba_image(image: RgbaImage) -> Image {
+        let asset = Image::from(Asset::build().finish());
+        asset.set_data(RasterizerImage(Arc::new(image)));
+        asset
     }
 }
 
