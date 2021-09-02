@@ -1,10 +1,9 @@
-use std::{any::Any, borrow::Cow, fmt::Debug};
-
 use crate::{
-    figures::{Point, Size},
-    styles::style_sheet::Classes,
-    AnyFrontend, Pixels, StyledWidget, Widget, WidgetRegistration, WidgetStorage, ROOT_CLASS,
+    styles::style_sheet::Classes, AnyFrontend, Pixels, StyledWidget, Widget, WidgetRegistration,
+    WidgetStorage, ROOT_CLASS,
 };
+use figures::{Point, Points, Size};
+use std::{any::Any, borrow::Cow, fmt::Debug};
 
 type InitializerFn<W> = dyn FnOnce(&WidgetStorage) -> StyledWidget<W>;
 
@@ -28,10 +27,8 @@ pub struct WindowConfiguration {
     /// top-left of the primary display. Coordinates can be negative.
     pub position: Option<Point<i32, Pixels>>,
     /// The initial size of the window. The default value is `Size::new(1024,
-    /// 768)`. This measurement is in pixels, and cannot be done in another
-    /// scale easily because the resolution depends on the display that the
-    /// window is instantiated on.
-    pub size: Size<u32, Pixels>,
+    /// 768)`.
+    pub size: Size<u32, Points>,
     /// If true, the window can be resized by the user. Defaults to true.
     pub resizable: bool,
     /// If true, the window will start maximized. Defaults to false.
@@ -89,7 +86,7 @@ impl<W: Widget> WindowBuilder<W> {
     }
 
     /// Sets the window's size.
-    pub fn size(mut self, size: Size<u32, Pixels>) -> Self {
+    pub fn size(mut self, size: Size<u32, Points>) -> Self {
         self.configuration.size = size;
         self
     }

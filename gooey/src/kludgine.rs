@@ -1,6 +1,10 @@
 use std::{self, path::PathBuf, process::Command, sync::Arc};
 
-use gooey_core::{assets::Configuration, AnyWindowBuilder, AppContext, WindowConfiguration};
+use gooey_core::{
+    assets::Configuration,
+    figures::{Pixels, Points},
+    AnyWindowBuilder, AppContext, WindowConfiguration,
+};
 use gooey_rasterizer::winit::{event::ModifiersState, window::Theme};
 use kludgine::app::OpenableWindow;
 use platforms::target::{OS, TARGET_OS};
@@ -116,26 +120,11 @@ impl WindowCreator for GooeyWindow {
         }
     }
 
-    #[allow(clippy::option_if_let_else)]
-    fn get_window_builder(&self) -> WindowBuilder {
-        let builder = WindowBuilder::default()
-            .with_title(self.window_title())
-            .with_initial_system_theme(self.initial_system_theme())
-            .with_size(self.initial_size())
-            .with_resizable(self.resizable())
-            .with_maximized(self.maximized())
-            .with_visible(self.visible())
-            .with_transparent(self.transparent())
-            .with_decorations(self.decorations())
-            .with_always_on_top(self.always_on_top());
-        if let Some(position) = self.window_config.position {
-            builder.with_position(position)
-        } else {
-            builder
-        }
+    fn initial_position(&self) -> Option<Point<i32, Pixels>> {
+        self.window_config.position
     }
-    
-    fn initial_size(&self) -> Size<u32, gooey_core::figures::Pixels> {
+
+    fn initial_size(&self) -> Size<u32, Points> {
         self.window_config.size
     }
 
