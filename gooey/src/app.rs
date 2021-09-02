@@ -30,8 +30,8 @@ impl App {
     /// Returns a new application using `initializer` to create a root widget and any custom `transmogrifiers`.
     // Panic is only going to happen if unic-langid can't parse "en-US".
     #[allow(clippy::missing_panics_doc)]
-    pub fn new<W: Widget, I: FnOnce(&WidgetStorage) -> StyledWidget<W> + 'static>(
-        initializer: I,
+    pub fn new<W: Widget>(
+        initial_window: WindowBuilder<W>,
         transmogrifiers: Transmogrifiers<crate::ActiveFrontend>,
     ) -> Self {
         let language = locale_from_environment()
@@ -58,7 +58,7 @@ impl App {
                     .unwrap();
                 crate::app(transmogrifiers, builder, context)
             }),
-            initial_window: Box::new(WindowBuilder::new(initializer)),
+            initial_window: Box::new(initial_window),
             localizer: Arc::new(()),
             language,
             transmogrifiers,
@@ -69,7 +69,7 @@ impl App {
     pub fn from_root<W: Widget, I: FnOnce(&WidgetStorage) -> StyledWidget<W> + 'static>(
         initializer: I,
     ) -> Self {
-        Self::new(initializer, Transmogrifiers::default())
+        Self::new(WindowBuilder::new(initializer), Transmogrifiers::default())
     }
 
     /// Registers a [`Transmogrifier`](gooey_core::Transmogrifier). This will
@@ -184,6 +184,12 @@ impl App {
                 compile_error!("unsupported async configuration")
             }
         }
+    }
+}
+
+impl<W: Widget> From<WindowBuilder<W>> for App {
+    fn from(window: WindowBuilder<W>) -> Self {
+        Self::new(window, Transmogrifiers::default())
     }
 }
 

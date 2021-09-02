@@ -1,9 +1,20 @@
 //! This example shows off how to open multiple windows and how callbacks can be
 //! used to communicate between components on separate windows safely.
+//!
+//! This example is contrived, but shows the flexibility (and fragility) of
+//! using callbacks for communicating between windows. The "Count w/ Parent"
+//! button sends and message to the window that created it to count with its
+//! parents as well. This will recurse down to the original window that spawned
+//! that series of windows. If the base window spawns two separate windows,
+//! however, both of their "Count w/ Parent" buttons will not interact with each
+//! other since they don't know about each other -- only about the window that
+//! spawned them.
+
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use gooey::{
     core::{
-        figures::Figure,
+        figures::{Figure, Vector},
         styles::{Alignment, FontSize, VerticalAlignment},
         Callback, Context, DefaultWidget, StyledWidget, WindowBuilder,
     },
@@ -16,8 +27,14 @@ use gooey::{
     App,
 };
 
+static WINDOW_COUNTER: AtomicU32 = AtomicU32::new(1);
+
 fn app() -> App {
-    App::from_root(|storage| Component::<Counter>::default_for(storage)).with_component::<Counter>()
+    App::from(
+        WindowBuilder::new(|storage| Component::<Counter>::default_for(storage))
+            .title("MultiWindow Demo - Window 0"),
+    )
+    .with_component::<Counter>()
 }
 
 fn main() {
@@ -26,6 +43,7 @@ fn main() {
 
 #[derive(Default, Debug)]
 struct Counter {
+    id: u32,
     count: u32,
     previous_window_callback: Option<Callback>,
 }
@@ -98,17 +116,22 @@ impl Behavior for Counter {
         match event {
             CounterEvent::NewWindow => {
                 let count = component.count;
+                let parent_id = component.id;
+                let new_id = WINDOW_COUNTER.fetch_add(1, Ordering::SeqCst);
                 let previous_window_callback =
                     Some(component.map_event(|_| CounterEvent::CountWithParent));
                 WindowBuilder::new(move |storage| {
                     Component::<Counter>::new(
                         Counter {
+                            id: new_id,
                             count,
                             previous_window_callback,
                         },
                         storage,
                     )
                 })
+                .position(context.window().unwrap().inner_position() + Vector::new(32, 32))
+                .title(format!("{} - Child of {}", new_id, parent_id))
                 .open(context.frontend());
             }
             CounterEvent::CountSolo => {
@@ -142,56 +165,4 @@ enum CounterEvent {
     NewWindow,
     CountSolo,
     CountWithParent,
-}
-
-#[cfg(test)]
-mod tests {
-    use std::time::Duration;
-
-    use gooey::{
-        core::{
-            figures::{Point, Size},
-            styles::SystemTheme,
-        },
-        HeadlessError,
-    };
-
-    use super::*;
-
-    #[cfg(not(target_arch = "wasm32-unknown-unknown"))]
-    #[tokio::test]
-    async fn demo() -> Result<(), HeadlessError> {
-        for theme in [SystemTheme::Dark, SystemTheme::Light] {
-            let mut headless = app().headless();
-            let mut recorder = headless.begin_recording(Size::new(320, 240), theme, true, 30);
-            recorder.set_cursor(Point::new(100., 200.));
-            recorder.render_frame(Duration::from_millis(100)).await?;
-            recorder
-                .move_cursor_to(Point::new(80., 120.), Duration::from_millis(300))
-                .await?;
-
-            for i in 1_u32..5 {
-                recorder.left_click().await?;
-                assert_eq!(
-                    i,
-                    recorder
-                        .map_root_widget(|component: &mut Component<Counter>, _context| {
-                            component.count
-                        })
-                        .unwrap()
-                );
-            }
-
-            recorder
-                .move_cursor_to(Point::new(200., 180.), Duration::from_millis(300))
-                .await?;
-            recorder.pause(Duration::from_millis(1000));
-
-            recorder.save_apng(harness::snapshot_path(
-                "layout",
-                &format!("Demo-{:?}.png", theme),
-            )?)?;
-        }
-        Ok(())
-    }
 }

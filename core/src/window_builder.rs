@@ -82,6 +82,12 @@ impl<W: Widget> WindowBuilder<W> {
         self
     }
 
+    /// Sets the window's position (in screen coordinates).
+    pub fn position(mut self, location: Point<i32, Pixels>) -> Self {
+        self.configuration.position = Some(location);
+        self
+    }
+
     /// Sets the window's size.
     pub fn size(mut self, size: Size<u32, Pixels>) -> Self {
         self.configuration.size = size;
