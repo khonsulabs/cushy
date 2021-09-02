@@ -18,7 +18,6 @@ use crate::{
             Kludgine,
         },
     },
-    style::default_stylesheet,
     widgets::rasterized::{default_transmogrifiers, register_transmogrifiers},
 };
 
@@ -55,12 +54,7 @@ pub fn kludgine_app(
     register_transmogrifiers(&mut transmogrifiers);
     let transmogrifiers = Arc::new(transmogrifiers);
     let storage = WidgetStorage::new(context);
-    let ui = Gooey::new(
-        transmogrifiers.clone(),
-        default_stylesheet(),
-        builder.build(&storage),
-        storage,
-    );
+    let ui = Gooey::new(transmogrifiers.clone(), builder.build(&storage), storage);
     initialize_rasterizer(ui, transmogrifiers)
 }
 
@@ -72,7 +66,7 @@ fn initialize_rasterizer(
     ui.set_window_creator(move |context, builder| {
         let storage = WidgetStorage::new(context);
         let root = builder.build(&storage);
-        let ui = Gooey::new(transmogrifiers.clone(), default_stylesheet(), root, storage);
+        let ui = Gooey::new(transmogrifiers.clone(), root, storage);
         let ui = initialize_rasterizer(ui, transmogrifiers.clone());
         GooeyWindow {
             ui,

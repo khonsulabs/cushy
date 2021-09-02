@@ -1,14 +1,16 @@
 use std::{str::FromStr, sync::Arc};
 
 use gooey_core::{
-    unic_langid::LanguageIdentifier, AnyWindowBuilder, AppContext, Frontend, Localizer,
-    StyledWidget, Transmogrifiers, Widget, WidgetStorage, WindowBuilder,
+    styles::style_sheet::StyleSheet, unic_langid::LanguageIdentifier, AnyWindowBuilder, AppContext,
+    Frontend, Localizer, StyledWidget, Transmogrifiers, Widget, WidgetStorage, WindowBuilder,
 };
 use gooey_widgets::{
     component::{Behavior, ComponentTransmogrifier},
     navigator::{DefaultBarBehavior, Location, NavigatorBehavior},
 };
 use sys_locale::get_locale;
+
+use crate::style::default_stylesheet;
 
 type InitializerFn = dyn FnOnce(
     Transmogrifiers<crate::ActiveFrontend>,
@@ -21,6 +23,7 @@ type InitializerFn = dyn FnOnce(
 pub struct App {
     initial_window: Box<dyn AnyWindowBuilder>,
     initializer: Box<InitializerFn>,
+    stylesheet: Option<StyleSheet>,
     language: LanguageIdentifier,
     localizer: Arc<dyn Localizer>,
     transmogrifiers: Transmogrifiers<crate::ActiveFrontend>,
@@ -62,6 +65,7 @@ impl App {
             localizer: Arc::new(()),
             language,
             transmogrifiers,
+            stylesheet: None,
         }
     }
 
@@ -103,6 +107,13 @@ impl App {
         self
     }
 
+    /// Sets the stylesheet for this application. If not specified,
+    /// [`default_stylesheet()`] is used.
+    pub fn stylesheet(mut self, stylesheet: StyleSheet) -> Self {
+        self.stylesheet = Some(stylesheet);
+        self
+    }
+
     /// Enables localization through the provided localizer.
     pub fn localizer<L: Localizer>(mut self, localizer: L) -> Self {
         self.localizer = Arc::new(localizer);
@@ -126,7 +137,11 @@ impl App {
         let mut initial_window = self.initial_window;
         let frontend = initializer(
             self.transmogrifiers,
-            AppContext::new(self.language, self.localizer),
+            AppContext::new(
+                self.stylesheet.unwrap_or_else(default_stylesheet),
+                self.language,
+                self.localizer,
+            ),
             initial_window.as_mut(),
         );
         crate::run(frontend, initial_window.configuration());
@@ -140,7 +155,11 @@ impl App {
         let mut initial_window = self.initial_window;
         let frontend = initializer(
             self.transmogrifiers,
-            AppContext::new(self.language, self.localizer),
+            AppContext::new(
+                self.stylesheet.unwrap_or_else(default_stylesheet),
+                self.language,
+                self.localizer,
+            ),
             initial_window.as_mut(),
         );
         crate::Headless::new(frontend)

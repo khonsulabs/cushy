@@ -5,7 +5,6 @@ use gooey_core::{assets::Configuration, AnyWindowBuilder, AppContext, WindowConf
 use crate::{
     core::{Frontend, Gooey, Transmogrifiers, Widget, WidgetStorage},
     frontends::browser::WebSys,
-    style::default_stylesheet,
     widgets::browser::{default_transmogrifiers, register_transmogrifiers},
 };
 
@@ -45,12 +44,7 @@ pub fn browser_app(
     let transmogrifiers = Arc::new(transmogrifiers);
     let storage = WidgetStorage::new(context);
     let ui = WebSys::new(
-        Gooey::new(
-            transmogrifiers,
-            default_stylesheet(),
-            builder.build(&storage),
-            storage,
-        ),
+        Gooey::new(transmogrifiers, builder.build(&storage), storage),
         Configuration::default(),
     );
     ui.gooey().process_widget_messages(&ui);

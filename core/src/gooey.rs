@@ -36,7 +36,6 @@ struct GooeyData<F: Frontend> {
     root: WidgetRegistration,
     storage: WidgetStorage,
     processing_messages_lock: Mutex<()>,
-    stylesheet: StyleSheet,
     inside_event_loop: AtomicU32,
 }
 
@@ -45,7 +44,6 @@ impl<F: Frontend> Gooey<F> {
     #[must_use]
     pub fn new(
         transmogrifiers: Arc<Transmogrifiers<F>>,
-        stylesheet: StyleSheet,
         root: WidgetRegistration,
         storage: WidgetStorage,
     ) -> Self {
@@ -54,7 +52,6 @@ impl<F: Frontend> Gooey<F> {
                 transmogrifiers,
                 storage,
                 root,
-                stylesheet,
                 processing_messages_lock: Mutex::default(),
                 inside_event_loop: AtomicU32::default(),
             }),
@@ -217,7 +214,7 @@ impl<F: Frontend> Gooey<F> {
     /// Returns the root widget.
     #[must_use]
     pub fn stylesheet(&self) -> &StyleSheet {
-        &self.data.stylesheet
+        self.app().stylesheet()
     }
 
     /// Enters a region of managed code. Automatically exits the region when the returned guard is dropped.
@@ -898,6 +895,7 @@ impl Localizer for () {
 /// A context used during initialization of a window or application.
 #[derive(Debug, Clone)]
 pub struct AppContext {
+    stylesheet: Arc<StyleSheet>,
     localizer: Arc<dyn Localizer>,
     language: Arc<RwLock<LanguageIdentifier>>,
 }
@@ -905,8 +903,13 @@ pub struct AppContext {
 impl AppContext {
     /// Returns a new context with the language and localizer provided.
     #[must_use]
-    pub fn new(initial_language: LanguageIdentifier, localizer: Arc<dyn Localizer>) -> Self {
+    pub fn new(
+        stylesheet: StyleSheet,
+        initial_language: LanguageIdentifier,
+        localizer: Arc<dyn Localizer>,
+    ) -> Self {
         Self {
+            stylesheet: Arc::new(stylesheet),
             language: Arc::new(RwLock::new(initial_language)),
             localizer,
         }
@@ -923,6 +926,12 @@ impl AppContext {
     ) -> String {
         let language = self.language.read().unwrap();
         self.localizer.localize(key, parameters.into(), &language)
+    }
+
+    /// Returns the stylesheet for the application.
+    #[must_use]
+    pub fn stylesheet(&self) -> &StyleSheet {
+        &self.stylesheet
     }
 }
 
