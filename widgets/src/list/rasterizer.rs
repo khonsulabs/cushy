@@ -59,7 +59,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ListTransmogrifier {
                 child_bounds =
                     child_bounds.translate(content_area.location + Vector::from_x(offset_amount));
 
-                if let Some(indicator) = indicators.next().flatten() {
+                if let Some(indicator) = indicators.next().unwrap() {
                     indicator.render::<TextColor, _>(
                         renderer,
                         child_bounds.origin - Vector::from_x(spacing + indicator.size().width()),
@@ -219,13 +219,15 @@ impl<'a, R: Renderer> Iterator for PreparedLabelIterator<'a, R> {
     type Item = Option<PreparedText>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.labels.next()?.map(|label| {
-            self.state.indicator(
-                self.labels.value,
-                label.as_ref(),
-                self.renderer,
-                self.context_style,
-            )
+        self.labels.next().map(|opt_label| {
+            opt_label.and_then(|label| {
+                self.state.indicator(
+                    self.labels.value,
+                    label.as_ref(),
+                    self.renderer,
+                    self.context_style,
+                )
+            })
         })
     }
 }
