@@ -134,6 +134,12 @@ impl<B: Behavior> Component<B> {
         };
         Callback::new(mapped_callback)
     }
+
+    pub fn event_mapper(&self) -> EventMapper<B> {
+        EventMapper {
+            widget: self.callback_widget.clone(),
+        }
+    }
 }
 
 #[derive(Debug)]

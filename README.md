@@ -24,6 +24,38 @@ That being said, this repository provides two frontend implementations:
 * [Documentation](https://gooey.rs/main/gooey/)
 * [User's Guide](https://gooey.rs/guide/)
 
+## Getting Started
+
+To use gooey, your project must be using [the new features
+resolver](https://doc.rust-lang.org/cargo/reference/features.html#feature-resolver-version-2). The two
+lines to add to your `Cargo.toml` look like this:
+
+```toml
+[lib]
+resolver = "2"
+
+[dependencies]
+gooey = { git = "https://github.com/khonsulabs/gooey.git", branch = "main" }
+```
+
+The `resolver` requirement is inherited from `wgpu`. This setting [will become
+the default in the 2021
+edition](https://github.com/rust-lang/cargo/issues/9048).
+
+Gooey is under active development, and sometimes features in
+[Kludgine][kludgine] haven't been released yet. If you have issues building,
+check this project's [Cargo.toml](./Cargo.toml) for a patch statement, like
+this:
+
+```toml
+[patch.crates-io]
+kludgine = { git = "https://github.com/khonsulabs/kludgine.git", branch = "main", version = "0.1.0-dev.0" }
+```
+
+Adding this to your project's Cargo.toml will switch from using the released
+`crates.io` version of Kludgine to the main branch on git. This will not be a
+normal occurrence as Gooey reaches more maturity.
+
 ## Architecture
 
 ![gooey architecture](./Gooey.png)

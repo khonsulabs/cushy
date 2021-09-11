@@ -44,7 +44,7 @@ fn calculate_layout<R: Renderer>(
 ) -> LayoutState {
     // Determine the checkbox size by figuring out the line height
     let line_height = renderer
-        .measure_text_with_style("m", context.style)
+        .measure_text_with_style("m", context.style())
         .height();
     let checkbox_size = Size::from_figures(line_height, line_height);
 
@@ -53,16 +53,16 @@ fn calculate_layout<R: Renderer>(
         (size.width - checkbox_size.width - LABEL_PADDING.get()).max(0.),
         size.height,
     );
-    let label = Text::span(&context.widget.label, context.style.clone()).wrap(
+    let label = Text::span(&context.widget.label, context.style().clone()).wrap(
         renderer,
         TextWrap::MultiLine { size: label_size },
-        Some(context.style),
+        Some(context.style()),
     );
 
     let label_size = label.size();
 
     LayoutState {
-        content_size: label_size + Vector::new(checkbox_size.width + LABEL_PADDING.get(), 0.),
+        content_size: label_size + Vector::from_x(checkbox_size.width + LABEL_PADDING.get()),
         checkbox_size,
         label_size,
         label,
@@ -84,11 +84,11 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
                 .to_pixels(&scale)
                 .round_out();
             renderer
-                .fill_rect_with_style::<ButtonColor, _>(&checkbox_rect.as_rect(), context.style);
+                .fill_rect_with_style::<ButtonColor, _>(&checkbox_rect.as_rect(), context.style());
             if context.ui_state.focused {
                 renderer.stroke_rect_with_style::<HighlightColor, _>(
                     &checkbox_rect.as_rect(),
-                    context.style,
+                    context.style(),
                 );
             }
             if context.widget.checked {
@@ -102,19 +102,19 @@ impl<R: Renderer> WidgetRasterizer<R> for CheckboxTransmogrifier {
                 );
                 renderer.fill_rect_with_style::<ForegroundColor, _>(
                     &check_box.as_rect(),
-                    context.style,
+                    context.style(),
                 );
             }
 
             // Render the label
             let label_rect = Rect::sized(
-                Point::new(layout.checkbox_size.width + LABEL_PADDING.get(), 0.)
+                Point::from_x(layout.checkbox_size.width + LABEL_PADDING.get())
                     + content_area.location,
                 layout.label_size,
             );
             layout
                 .label
-                .render_within::<ForegroundColor, _>(renderer, label_rect, context.style);
+                .render_within::<ForegroundColor, _>(renderer, label_rect, context.style());
         }
     }
 

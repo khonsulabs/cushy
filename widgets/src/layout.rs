@@ -435,6 +435,19 @@ impl From<Figure<f32, Scaled>> for Dimension {
     }
 }
 
+impl From<f32> for Dimension {
+    fn from(f: f32) -> Self {
+        Figure::new(f).into()
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+impl From<i32> for Dimension {
+    fn from(i: i32) -> Self {
+        Figure::new(i as f32).into()
+    }
+}
+
 impl<B: Behavior> Content<B> for Layout {
     type Builder = Builder<B::Widgets, ComponentBuilder<B>>;
 

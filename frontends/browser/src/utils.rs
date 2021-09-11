@@ -1,11 +1,10 @@
+#[cfg(debug_assertions)]
+use std::sync::Arc;
 use std::{
     collections::HashSet,
     convert::TryInto,
     fmt::Write,
-    sync::{
-        atomic::{AtomicU32, Ordering},
-        Arc,
-    },
+    sync::atomic::{AtomicU32, Ordering},
 };
 
 use gooey_core::{

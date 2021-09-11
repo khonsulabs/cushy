@@ -5,10 +5,10 @@ use gooey_core::{
         Alignment, BackgroundColor, Border, BorderOptions, Color, ColorPair, ForegroundColor,
         HighlightColor, Padding, Surround, VerticalAlignment,
     },
-    ROOT_CLASS, SOLID_WIDGET_CLASS,
+    PRIMARY_WIDGET_CLASS, ROOT_CLASS, SOLID_WIDGET_CLASS,
 };
 use gooey_widgets::{
-    button::{Button, ButtonColor},
+    button::{Button, ButtonColor, ButtonImageSpacing},
     checkbox::Checkbox,
     form,
     input::Input,
@@ -85,11 +85,42 @@ pub fn stylesheet_for_palette<P: Palette>() -> StyleSheet {
                     style.with(Border::uniform(BorderOptions::new(1., P::secondary())))
                 }),
         )
+        .with(
+            Rule::for_classes(PRIMARY_WIDGET_CLASS)
+                .with_styles(|style| style.with(BackgroundColor(P::primary()))),
+        )
+        .with(
+            Rule::for_classes(PRIMARY_WIDGET_CLASS)
+                .when_hovered()
+                .when_not_active()
+                .with_styles(|style| {
+                    style
+                        .with(ForegroundColor(P::foreground().lighten(0.2)))
+                        .with(BackgroundColor(P::primary().lighten(0.2)))
+                }),
+        )
+        .with(
+            Rule::for_classes(PRIMARY_WIDGET_CLASS)
+                .when_active()
+                .with_styles(|style| {
+                    style
+                        .with(ForegroundColor(P::foreground().darken(0.1)))
+                        .with(BackgroundColor(P::primary().darken(0.1)))
+                }),
+        )
+        .with(
+            Rule::for_classes(PRIMARY_WIDGET_CLASS)
+                .when_focused()
+                .with_styles(|style| {
+                    style.with(Border::uniform(BorderOptions::new(1., P::secondary())))
+                }),
+        )
         .with(Rule::for_widget::<Button>().with_styles(|style| {
             style
                 .with(Alignment::Center)
                 .with(VerticalAlignment::Center)
                 .with(Padding(Surround::from(Some(Figure::new(5.)))))
+                .with(ButtonImageSpacing(Figure::new(5.)))
         }))
         .with(
             Rule::for_widget::<Checkbox>()

@@ -11,7 +11,7 @@ categories = ["gui"]
 readme = "../README.md"
 
 [dependencies]
-figures = "0.1"
+figures = ">=0.1.2"
 stylecs = { git = "https://github.com/khonsulabs/stylecs.git", branch = "main" }
 flume = "0.10"
 palette = "0.6"

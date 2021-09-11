@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use gooey_core::{
-    figures::{Figure, Point, Rectlike, Size, SizedRect, Vector, Zero},
+    figures::{Figure, Point, Rectlike, Size, SizedRect, Vector},
     styles::{Style, TextColor},
     Scaled, Transmogrifier, TransmogrifierContext, WidgetRegistration,
 };
@@ -38,7 +38,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ListTransmogrifier {
                 &context.widget.kind,
                 context.widget.children.len(),
                 renderer,
-                context.style,
+                context.style.as_ref(),
             )
             .collect::<Vec<_>>();
         let max_indicator_width = indicators
@@ -54,22 +54,17 @@ impl<R: Renderer> WidgetRasterizer<R> for ListTransmogrifier {
         let mut indicators = indicators.into_iter();
         for_each_measured_widget(
             context,
-            bounds.size() - Vector::from_figures(offset_amount, Figure::default()),
+            bounds.size() - Vector::from_x(offset_amount),
             |child, mut child_bounds| {
-                child_bounds = child_bounds.translate(
-                    content_area.location + Vector::from_figures(offset_amount, Figure::default()),
-                );
+                child_bounds =
+                    child_bounds.translate(content_area.location + Vector::from_x(offset_amount));
 
                 if let Some(indicator) = indicators.next().flatten() {
                     indicator.render::<TextColor, _>(
                         renderer,
-                        child_bounds.origin
-                            - Vector::from_figures(
-                                spacing + indicator.size().width(),
-                                Figure::default(),
-                            ),
+                        child_bounds.origin - Vector::from_x(spacing + indicator.size().width()),
                         true,
-                        Some(context.style),
+                        Some(context.style()),
                     );
                 }
 
@@ -80,7 +75,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ListTransmogrifier {
                             &mut child_context,
                             child_bounds.as_rect(),
                             Some(context.registration.id()),
-                            context.style,
+                            context.style(),
                         );
                     },
                 );
@@ -104,7 +99,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ListTransmogrifier {
                 &context.widget.kind,
                 context.widget.children.len(),
                 renderer,
-                context.style,
+                context.style.as_ref(),
             )
             .filter_map(|text| text.as_ref().map(|t| t.size().width()))
             .reduce(Figure::max);
@@ -138,7 +133,10 @@ fn for_each_measured_widget<R: Renderer, F: FnMut(&WidgetRegistration, SizedRect
                 .frontend
                 .with_transmogrifier(child.id(), |transmogrifier, mut child_context| {
                     let child_size = transmogrifier
-                        .content_size(&mut child_context, Size::new(Some(constraints.width), None))
+                        .content_size(
+                            &mut child_context,
+                            Size::from_width(Some(constraints.width)),
+                        )
                         .total_size();
                     Size::new(constraints.width, child_size.height)
                 })
@@ -160,10 +158,7 @@ fn for_each_widget<
     let mut top = Figure::default();
     for child in children {
         let child_size = child_measurer(child).max(&Size::default());
-        callback(
-            child,
-            SizedRect::new(Point::from_figures(Figure::zero(), top), child_size),
-        );
+        callback(child, SizedRect::new(Point::from_y(top), child_size));
         top += child_size.height();
     }
 }
@@ -224,13 +219,15 @@ impl<'a, R: Renderer> Iterator for PreparedLabelIterator<'a, R> {
     type Item = Option<PreparedText>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.labels.next()?.map(|label| {
-            self.state.indicator(
-                self.labels.value,
-                label.as_ref(),
-                self.renderer,
-                self.context_style,
-            )
+        self.labels.next().map(|opt_label| {
+            opt_label.and_then(|label| {
+                self.state.indicator(
+                    self.labels.value,
+                    label.as_ref(),
+                    self.renderer,
+                    self.context_style,
+                )
+            })
         })
     }
 }

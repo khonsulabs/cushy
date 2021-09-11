@@ -81,7 +81,7 @@ pub use headless::{Headless, HeadlessError, Recorder};
 #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
 mod kludgine;
 #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
-pub use kludgine::{kludgine_app, kludgine_main, kludgine_main_with, kludgine_run};
+pub use crate::kludgine::{kludgine_app, kludgine_main, kludgine_main_with, kludgine_run};
 
 #[cfg(feature = "frontend-browser")]
 mod browser;
@@ -94,6 +94,7 @@ cfg_if! {
         pub use browser_main_with as main_with;
         pub use browser_app as app;
         pub use browser_run as run;
+        /// The active frontend.
         pub type ActiveFrontend = gooey_browser::WebSys;
     } else if #[cfg(feature = "frontend-kludgine")] {
         pub use kludgine_main as main;

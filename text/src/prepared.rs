@@ -76,10 +76,9 @@ impl PreparedText {
                     || Cow::Borrowed(span.data.style.as_ref()),
                     |style| Cow::Owned(span.data.style.merge_with(style, false)),
                 );
-                let span_location = (cursor_position
-                    + Vector::from_figures(span.location(), Figure::default()))
-                .to_pixels(&renderer.scale())
-                .round();
+                let span_location = (cursor_position + Vector::from_x(span.location()))
+                    .to_pixels(&renderer.scale())
+                    .round();
                 renderer.render_text_with_style::<F, _>(&span.data.text, span_location, &style);
             }
             current_line_baseline += line.metrics.line_gap - line.metrics.descent;
@@ -107,7 +106,7 @@ impl PreparedText {
 
         self.render::<F, R>(
             renderer,
-            bounds.origin + Vector::new(0., origin_y),
+            bounds.origin + Vector::from_y(origin_y),
             true,
             Some(style),
         )
@@ -131,7 +130,7 @@ impl PreparedLine {
     #[must_use]
     pub fn size(&self) -> Size<f32, Scaled> {
         if self.spans.is_empty() {
-            Size::from_figures(Figure::default(), self.height())
+            Size::from_height(self.height())
         } else {
             let width = self
                 .spans

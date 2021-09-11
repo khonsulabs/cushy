@@ -1,4 +1,5 @@
 use devx_cmd::run;
+use fs_extra::dir::CopyOptions;
 use khonsu_tools::{anyhow, code_coverage::CodeCoverage};
 use structopt::StructOpt;
 
@@ -11,7 +12,6 @@ enum Args {
         #[structopt(long = "install-dependencies")]
         install_dependencies: bool,
     },
-    GenerateExampleSnapshots,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -23,12 +23,11 @@ fn main() -> anyhow::Result<()> {
         Args::GenerateCodeCoverageReport {
             install_dependencies,
         } => CodeCoverage::<CodeCoverageConfig>::execute(install_dependencies)?,
-        Args::GenerateExampleSnapshots => generate_example_snapshots()?,
     };
     Ok(())
 }
 
-fn build_browser_example(name: String) -> Result<(), devx_cmd::Error> {
+fn build_browser_example(name: String) -> Result<(), anyhow::Error> {
     let (index_path, browser_path) = match name.as_str() {
         "bonsaidb-counter-client" => {
             run!(
@@ -82,7 +81,7 @@ fn build_browser_example(name: String) -> Result<(), devx_cmd::Error> {
     Ok(())
 }
 
-fn build_regular_browser_example(name: &str) -> Result<(), devx_cmd::Error> {
+fn build_regular_browser_example(name: &str) -> Result<(), anyhow::Error> {
     println!("Executing cargo build");
     run!(
         "cargo",
@@ -96,7 +95,19 @@ fn build_regular_browser_example(name: &str) -> Result<(), devx_cmd::Error> {
         "wasm32-unknown-unknown",
         "--target-dir",
         "target/wasm",
-    )
+    )?;
+
+    fs_extra::copy_items(
+        &["gooey/assets"],
+        &"gooey/examples/browser/assets",
+        &CopyOptions {
+            skip_exist: true,
+            copy_inside: true,
+            ..CopyOptions::default()
+        },
+    )?;
+
+    Ok(())
 }
 
 fn execute_wasm_bindgen(wasm_path: &str, out_path: &str) -> Result<(), devx_cmd::Error> {
@@ -118,10 +129,4 @@ impl khonsu_tools::code_coverage::Config for CodeCoverageConfig {
     fn ignore_paths() -> Vec<String> {
         vec![String::from("gooey/examples/*")]
     }
-}
-
-fn generate_example_snapshots() -> Result<(), devx_cmd::Error> {
-    println!("Executing wasm-bindgen (cargo install wasm-bindgen if you don't have this)");
-    run!("cargo", "test", "--examples", "--all-features")?;
-    run!("cp", "-r", "target/snapshots", "gooey/examples/")
 }

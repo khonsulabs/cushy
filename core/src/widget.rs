@@ -12,8 +12,8 @@ use stylecs::Style;
 
 use crate::{
     styles::{style_sheet::Classes, BackgroundColor, ColorPair, TextColor},
-    AnyFrontend, Frontend, StyledWidget, UnscheduledTimer, WeakWidgetRegistration, WidgetRef,
-    WidgetRegistration, WidgetStorage,
+    AnyFrontend, AppContext, Frontend, StyledWidget, UnscheduledTimer, WeakWidgetRegistration,
+    WidgetRef, WidgetRegistration, WidgetStorage, Window,
 };
 
 mod transmogrifier_context;
@@ -280,6 +280,18 @@ impl<W: Widget> Context<W> {
             frontend: frontend.cloned(),
             _widget: PhantomData::default(),
         }
+    }
+
+    /// Returns the current application context.
+    #[must_use]
+    pub fn app(&self) -> &AppContext {
+        self.frontend.storage().app()
+    }
+
+    /// Returns the window for this context.
+    #[must_use]
+    pub fn window(&self) -> Option<&dyn Window> {
+        self.frontend.window()
     }
 
     /// Send `command` to the transmogrifier.

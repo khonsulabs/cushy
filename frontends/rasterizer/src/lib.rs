@@ -26,13 +26,14 @@ use std::{
 
 use events::{InputEvent, WindowEvent};
 use gooey_core::{
-    assets::{self, Configuration, Image},
-    figures::{Point, Rect},
+    assets::{self, Asset, Configuration, FrontendImage, Image},
+    figures::{Point, Rect, Size},
     styles::{
         style_sheet::{self},
-        Autofocus, Style, SystemTheme, TabIndex,
+        Autofocus, Intent, Style, SystemTheme, TabIndex,
     },
-    AnyTransmogrifierContext, Callback, Gooey, Scaled, Timer, TransmogrifierContext, WidgetId,
+    AnyFrontend, AnyTransmogrifierContext, AnyWindowBuilder, AppContext, Callback, Gooey, Pixels,
+    Scaled, Timer, TransmogrifierContext, WidgetId, Window, WindowRef,
 };
 use image::{ImageFormat, RgbaImage};
 use platforms::{target::OS, TARGET_OS};
@@ -55,11 +56,15 @@ pub use winit;
 pub use self::transmogrifier::*;
 use crate::state::FocusEvent;
 
+pub type WindowCreator = dyn Fn(AppContext, &mut dyn AnyWindowBuilder) + Send + Sync + 'static;
+
 pub struct Rasterizer<R: Renderer> {
     pub ui: Arc<Gooey<Self>>,
     state: State,
+    window_creator: Option<Arc<WindowCreator>>,
     refresh_callback: Option<Arc<dyn RefreshCallback>>,
     renderer: Option<R>,
+    window: Option<WindowRef>,
 }
 
 impl<R: Renderer> std::fmt::Debug for Rasterizer<R> {
@@ -85,6 +90,8 @@ impl<R: Renderer> Clone for Rasterizer<R> {
             ui: self.ui.clone(),
             state: self.state.clone(),
             refresh_callback: self.refresh_callback.clone(),
+            window: self.window.clone(),
+            window_creator: self.window_creator.clone(),
             renderer: None,
         }
     }
@@ -161,6 +168,19 @@ impl<R: Renderer> gooey_core::Frontend for Rasterizer<R> {
     fn schedule_timer(&self, callback: Callback, duration: Duration, repeating: bool) -> Timer {
         ThreadTimer::schedule(callback, duration, repeating)
     }
+
+    fn window(&self) -> Option<&dyn gooey_core::Window> {
+        self.window.as_deref()
+    }
+
+    fn open(&self, mut window: Box<dyn AnyWindowBuilder>) -> bool {
+        self.window_creator
+            .as_ref()
+            .map_or(false, |window_creator| {
+                window_creator(self.storage().app().clone(), window.as_mut());
+                true
+            })
+    }
 }
 
 fn load_image(image: &Image, data: Vec<u8>) -> Result<(), String> {
@@ -168,8 +188,17 @@ fn load_image(image: &Image, data: Vec<u8>) -> Result<(), String> {
         .map_err(|err| format!("unknown image format: {:?}", err))?;
     let loaded_image = image::load_from_memory_with_format(&data, format)
         .map_err(|err| format!("error parsing image: {:?}", err))?;
-    image.set_data(Arc::new(loaded_image.to_rgba8()));
+    image.set_data(RasterizerImage(Arc::new(loaded_image.to_rgba8())));
     Ok(())
+}
+
+#[derive(Clone, Debug)]
+struct RasterizerImage(Arc<RgbaImage>);
+
+impl FrontendImage for RasterizerImage {
+    fn size(&self) -> Option<Size<u32, Pixels>> {
+        Some(Size::new(self.0.width(), self.0.height()))
+    }
 }
 
 impl<R: Renderer> Rasterizer<R> {
@@ -178,8 +207,10 @@ impl<R: Renderer> Rasterizer<R> {
         Self {
             ui: Arc::new(ui),
             state: State::new(configuration),
+            window_creator: None,
             refresh_callback: None,
             renderer: None,
+            window: None,
         }
     }
 
@@ -196,15 +227,12 @@ impl<R: Renderer> Rasterizer<R> {
             ui: self.ui.clone(),
             state: self.state.clone(),
             refresh_callback: self.refresh_callback.clone(),
+            window_creator: self.window_creator.clone(),
             renderer: Some(renderer),
+            window: None,
         }
         .with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
-            transmogrifier.render_within(
-                &mut context,
-                Rect::sized(Point::default(), size),
-                None,
-                &Style::default(),
-            );
+            transmogrifier.render_within(&mut context, Rect::from(size), None, &Style::default());
         });
     }
 
@@ -257,6 +285,19 @@ impl<R: Renderer> Rasterizer<R> {
         result
     }
 
+    pub fn set_window_creator<
+        F: Fn(AppContext, &mut dyn AnyWindowBuilder) + Send + Sync + 'static,
+    >(
+        &mut self,
+        window_creator: F,
+    ) {
+        self.window_creator = Some(Arc::new(window_creator));
+    }
+
+    pub fn set_window<W: Window>(&mut self, window: W) {
+        self.window = Some(Arc::new(window));
+    }
+
     pub fn set_refresh_callback<F: RefreshCallback>(&mut self, callback: F) {
         self.refresh_callback = Some(Arc::new(callback));
     }
@@ -283,6 +324,8 @@ impl<R: Renderer> Rasterizer<R> {
             state: self.state.clone(),
             refresh_callback: self.refresh_callback.clone(),
             renderer: Some(renderer),
+            window: self.window.clone(),
+            window_creator: self.window_creator.clone(),
         }
     }
 
@@ -318,6 +361,40 @@ impl<R: Renderer> Rasterizer<R> {
                     EventResult::ignored()
                 }
             }
+            (Some(VirtualKeyCode::Return | VirtualKeyCode::NumpadEnter), state) => self
+                .state
+                .default_widget()
+                .and_then(|submit| {
+                    self.with_transmogrifier(&submit, |transmogrifier, mut context| {
+                        EventResult::from(transmogrifier.keyboard(
+                            &mut context,
+                            scancode,
+                            keycode,
+                            state,
+                        ))
+                    })
+                })
+                .unwrap_or_else(EventResult::ignored),
+            (Some(VirtualKeyCode::Escape), _) => self
+                .state
+                .cancel_widget()
+                .and_then(|submit| {
+                    // Give the cancel widget a chance to handle the key
+                    self.with_transmogrifier(&submit, |transmogrifier, mut context| {
+                        EventResult::from(transmogrifier.keyboard(
+                            &mut context,
+                            scancode,
+                            keycode,
+                            state,
+                        ))
+                    })
+                })
+                .unwrap_or_else(|| {
+                    self.state.focus().map_or_else(EventResult::ignored, |_| {
+                        self.blur();
+                        EventResult::processed()
+                    })
+                }),
             _ => EventResult::ignored(),
         }
     }
@@ -461,9 +538,16 @@ impl<R: Renderer> Rasterizer<R> {
         should_accept_focus: bool,
         parent_id: Option<&WidgetId>,
         tab_order: Option<TabIndex>,
+        intent: Option<Intent>,
     ) {
-        self.state
-            .widget_rendered(widget, area, should_accept_focus, parent_id, tab_order);
+        self.state.widget_rendered(
+            widget,
+            area,
+            should_accept_focus,
+            parent_id,
+            tab_order,
+            intent,
+        );
     }
 
     /// Executes `callback` with the transmogrifier and transmogrifier state as
@@ -626,15 +710,22 @@ where
 
 pub trait ImageExt {
     fn as_rgba_image(&self) -> Option<Arc<RgbaImage>>;
+    fn from_rgba_image(image: RgbaImage) -> Image;
 }
 
 impl ImageExt for Image {
     fn as_rgba_image(&self) -> Option<Arc<RgbaImage>> {
         self.map_data(|opt_data| {
             opt_data
-                .and_then(|data| data.as_any().downcast_ref::<Arc<RgbaImage>>())
-                .map(Arc::clone)
+                .and_then(|data| data.as_any().downcast_ref::<RasterizerImage>())
+                .map(|img| img.0.clone())
         })
+    }
+
+    fn from_rgba_image(image: RgbaImage) -> Image {
+        let asset = Image::from(Asset::build().finish());
+        asset.set_data(RasterizerImage(Arc::new(image)));
+        asset
     }
 }
 

@@ -102,8 +102,6 @@ mod tests {
     #[cfg(not(target_arch = "wasm32-unknown-unknown"))]
     #[tokio::test]
     async fn demo() -> Result<(), HeadlessError> {
-        use gooey_core::figures::Point;
-
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = crate::app().headless();
 
@@ -112,7 +110,7 @@ mod tests {
                 .screenshot(Size::new(480, 320), theme, None)
                 .await?;
 
-            headless.set_cursor(Point::new(300., 300.));
+            headless.set_cursor((300., 300.));
             headless.left_click();
 
             headless

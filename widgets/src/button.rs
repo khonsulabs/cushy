@@ -1,8 +1,11 @@
 use gooey_core::{
+    assets::Image,
+    figures::Figure,
     styles::{
-        style_sheet::Classes, BackgroundColor, ColorPair, FallbackComponent, Style, StyleComponent,
+        style_sheet::Classes, BackgroundColor, ColorPair, FallbackComponent, Intent, Style,
+        StyleComponent,
     },
-    Callback, Context, StyledWidget, Widget, SOLID_WIDGET_CLASS,
+    Callback, Context, Scaled, StyledWidget, Widget, PRIMARY_WIDGET_CLASS, SOLID_WIDGET_CLASS,
 };
 
 #[cfg(feature = "gooey-rasterizer")]
@@ -15,6 +18,7 @@ mod browser;
 #[must_use]
 pub struct Button {
     label: String,
+    image: Option<Image>,
     clicked: Callback,
 }
 
@@ -26,6 +30,7 @@ impl Button {
     pub fn new<S: ToString>(label: S, clicked: Callback) -> StyledWidget<Self> {
         StyledWidget::from(Self {
             label: label.to_string(),
+            image: None,
             clicked,
         })
     }
@@ -33,6 +38,11 @@ impl Button {
     pub fn set_label(&mut self, label: impl Into<String>, context: &Context<Self>) {
         self.label = label.into();
         context.send_command(ButtonCommand::LabelChanged);
+    }
+
+    pub fn set_image(&mut self, image: Option<Image>, context: &Context<Self>) {
+        self.image = image;
+        context.send_command(ButtonCommand::ImageChanged);
     }
 
     #[must_use]
@@ -49,6 +59,7 @@ pub enum InternalButtonEvent {
 #[derive(Debug)]
 pub enum ButtonCommand {
     LabelChanged,
+    ImageChanged,
 }
 
 impl Widget for Button {
@@ -76,12 +87,14 @@ impl Widget for Button {
 #[must_use]
 pub struct Builder {
     button: Button,
+    intent: Option<Intent>,
 }
 
 impl Builder {
     fn new() -> Self {
         Self {
             button: Button::default(),
+            intent: None,
         }
     }
 
@@ -90,13 +103,37 @@ impl Builder {
         self
     }
 
+    pub fn image(mut self, image: Image) -> Self {
+        self.button.image = Some(image);
+        self
+    }
+
     pub fn on_clicked(mut self, callback: Callback) -> Self {
         self.button.clicked = callback;
         self
     }
 
+    pub fn default(mut self) -> Self {
+        self.intent = Some(Intent::Default);
+        self
+    }
+
+    pub fn cancel(mut self) -> Self {
+        self.intent = Some(Intent::Cancel);
+        self
+    }
+
     pub fn finish(self) -> StyledWidget<Button> {
-        StyledWidget::from(self.button)
+        let mut widget = StyledWidget::from(self.button);
+        match self.intent {
+            Some(intent) => {
+                if matches!(intent, Intent::Default) {
+                    widget = widget.with(Classes::from(PRIMARY_WIDGET_CLASS));
+                }
+                widget.with(intent)
+            }
+            None => widget,
+        }
     }
 }
 
@@ -122,3 +159,8 @@ impl FallbackComponent for ButtonColor {
         Some(&self.0)
     }
 }
+
+#[derive(Default, Debug, Clone)]
+pub struct ButtonImageSpacing(pub Figure<f32, Scaled>);
+
+impl StyleComponent for ButtonImageSpacing {}

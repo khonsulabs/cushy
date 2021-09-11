@@ -20,13 +20,15 @@ mod gooey;
 pub mod styles;
 mod timer;
 mod widget;
+mod window;
+mod window_builder;
 
 pub use figures;
 pub use palette;
 pub use unic_langid;
 pub use url;
 
-pub use self::{frontend::*, gooey::*, timer::*, widget::*};
+pub use self::{frontend::*, gooey::*, timer::*, widget::*, window::*, window_builder::*};
 
 /// A unit representing physical pixels on a display.
 pub type Pixels = figures::Pixels;
@@ -44,3 +46,7 @@ pub const ROOT_CLASS: &str = "gooey-root";
 
 /// The name of the class assigned to widgets that have a solid background
 pub const SOLID_WIDGET_CLASS: &str = "gooey-solid";
+
+/// The name of the class assigned to widgets that have a solid background but
+/// should be colored with the primary UI color.
+pub const PRIMARY_WIDGET_CLASS: &str = "gooey-primary";

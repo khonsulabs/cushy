@@ -5,3 +5,4 @@ coverage/
 pkg/
 .vscode/
 *.bonsaidb
+gooey/examples/browser/assets

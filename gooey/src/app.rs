@@ -1,8 +1,8 @@
 use std::{str::FromStr, sync::Arc};
 
 use gooey_core::{
-    unic_langid::LanguageIdentifier, AppContext, Frontend, Localizer, StyledWidget,
-    Transmogrifiers, Widget, WidgetStorage,
+    styles::style_sheet::StyleSheet, unic_langid::LanguageIdentifier, AnyWindowBuilder, AppContext,
+    Frontend, Localizer, StyledWidget, Transmogrifiers, Widget, WidgetStorage, WindowBuilder,
 };
 use gooey_widgets::{
     component::{Behavior, ComponentTransmogrifier},
@@ -11,13 +11,20 @@ use gooey_widgets::{
 };
 use sys_locale::get_locale;
 
-type InitializerFn =
-    dyn FnOnce(Transmogrifiers<crate::ActiveFrontend>, AppContext) -> crate::ActiveFrontend;
+use crate::style::default_stylesheet;
+
+type InitializerFn = dyn FnOnce(
+    Transmogrifiers<crate::ActiveFrontend>,
+    AppContext,
+    &mut dyn AnyWindowBuilder,
+) -> crate::ActiveFrontend;
 
 /// A cross-platform application.
 #[must_use]
 pub struct App {
+    initial_window: Box<dyn AnyWindowBuilder>,
     initializer: Box<InitializerFn>,
+    stylesheet: Option<StyleSheet>,
     language: LanguageIdentifier,
     localizer: Arc<dyn Localizer>,
     transmogrifiers: Transmogrifiers<crate::ActiveFrontend>,
@@ -27,8 +34,8 @@ impl App {
     /// Returns a new application using `initializer` to create a root widget and any custom `transmogrifiers`.
     // Panic is only going to happen if unic-langid can't parse "en-US".
     #[allow(clippy::missing_panics_doc)]
-    pub fn new<W: Widget, I: FnOnce(&WidgetStorage) -> StyledWidget<W> + 'static>(
-        initializer: I,
+    pub fn new<W: Widget>(
+        initial_window: WindowBuilder<W>,
         transmogrifiers: Transmogrifiers<crate::ActiveFrontend>,
     ) -> Self {
         let language = locale_from_environment()
@@ -48,12 +55,18 @@ impl App {
             })
             .unwrap_or_else(|| "en-US".parse().unwrap());
         Self {
-            initializer: Box::new(move |transmogrifiers, context| {
-                crate::app(transmogrifiers, initializer, context)
+            initializer: Box::new(move |transmogrifiers, context, window| {
+                let builder = window
+                    .as_mut_any()
+                    .downcast_mut::<WindowBuilder<W>>()
+                    .unwrap();
+                crate::app(transmogrifiers, builder, context)
             }),
+            initial_window: Box::new(initial_window),
             localizer: Arc::new(()),
             language,
             transmogrifiers,
+            stylesheet: None,
         }
     }
 
@@ -61,7 +74,7 @@ impl App {
     pub fn from_root<W: Widget, I: FnOnce(&WidgetStorage) -> StyledWidget<W> + 'static>(
         initializer: I,
     ) -> Self {
-        Self::new(initializer, Transmogrifiers::default())
+        Self::new(WindowBuilder::new(initializer), Transmogrifiers::default())
     }
 
     /// Registers a [`Transmogrifier`](gooey_core::Transmogrifier). This will
@@ -95,6 +108,13 @@ impl App {
         self
     }
 
+    /// Sets the stylesheet for this application. If not specified,
+    /// [`default_stylesheet()`] is used.
+    pub fn stylesheet(mut self, stylesheet: StyleSheet) -> Self {
+        self.stylesheet = Some(stylesheet);
+        self
+    }
+
     /// Enables localization through the provided localizer.
     pub fn localizer<L: Localizer>(mut self, localizer: L) -> Self {
         self.localizer = Arc::new(localizer);
@@ -123,11 +143,17 @@ impl App {
     /// Runs this application using the root widget provided by `initializer`.
     pub fn run(self) {
         let initializer = self.initializer;
+        let mut initial_window = self.initial_window;
         let frontend = initializer(
             self.transmogrifiers,
-            AppContext::new(self.language, self.localizer),
+            AppContext::new(
+                self.stylesheet.unwrap_or_else(default_stylesheet),
+                self.language,
+                self.localizer,
+            ),
+            initial_window.as_mut(),
         );
-        crate::run(frontend);
+        crate::run(frontend, initial_window.configuration());
     }
 
     /// Returns a headless renderer for this app. Only supported with feature
@@ -135,9 +161,15 @@ impl App {
     #[cfg(all(feature = "frontend-kludgine", not(target_arch = "wasm32")))]
     pub fn headless(self) -> crate::Headless<crate::ActiveFrontend> {
         let initializer = self.initializer;
+        let mut initial_window = self.initial_window;
         let frontend = initializer(
             self.transmogrifiers,
-            AppContext::new(self.language, self.localizer),
+            AppContext::new(
+                self.stylesheet.unwrap_or_else(default_stylesheet),
+                self.language,
+                self.localizer,
+            ),
+            initial_window.as_mut(),
         );
         crate::Headless::new(frontend)
     }
@@ -180,6 +212,12 @@ impl App {
                 compile_error!("unsupported async configuration")
             }
         }
+    }
+}
+
+impl<W: Widget> From<WindowBuilder<W>> for App {
+    fn from(window: WindowBuilder<W>) -> Self {
+        Self::new(window, Transmogrifiers::default())
     }
 }
 

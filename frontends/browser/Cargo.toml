@@ -36,6 +36,7 @@ web-sys = { version = "0.3", features = [
     "Node",
     "StyleSheet",
     "Window",
+    "KeyboardEvent",
 ] }
 js-sys = "0.3"
 gooey-core = { path = "../../core", version = "0.1.0-dev.0" }

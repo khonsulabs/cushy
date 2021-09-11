@@ -2,7 +2,7 @@ use std::{any::TypeId, convert::TryFrom, ops::Deref};
 
 use gooey_core::{
     figures::{Point, Rect, Rectlike, Size, Vector, Vectorlike},
-    styles::{border::Border, BackgroundColor, Padding, Style, TabIndex},
+    styles::{border::Border, BackgroundColor, Intent, Padding, Style, TabIndex},
     AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Scaled, Transmogrifier,
     TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRegistration,
 };
@@ -70,6 +70,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                 <Self::Widget as Widget>::FOCUSABLE,
                 parent_id,
                 context.style.get::<TabIndex>().copied(),
+                effective_style.get::<Intent>().copied(),
             );
         }
     }
@@ -142,7 +143,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         if let Some(width) = bottom_width {
             renderer.fill_rect(
                 &Rect::sized(
-                    Point::new(0., bounds.size.height - width.get()),
+                    Point::from_y(bounds.size.height - width.get()),
                     Size::from_figures(bounds.size.width(), width),
                 ),
                 border
@@ -159,7 +160,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
         if let Some(width) = left_width {
             renderer.fill_rect(
                 &Rect::sized(
-                    Point::new(0., top_width.unwrap_or_default().get()),
+                    Point::from_y(top_width.unwrap_or_default().get()),
                     Size::from_figures(
                         width,
                         bounds.size.height() - bottom_width.unwrap_or_default(),
@@ -209,7 +210,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
 
     fn content_size(
         &self,
-        context: &mut TransmogrifierContext<'_, Self, Rasterizer<R>>,
+        context: TransmogrifierContext<'_, Self, Rasterizer<R>>,
         constraints: Size<Option<f32>, Scaled>,
     ) -> ContentSize {
         let effective_style = context
@@ -217,7 +218,7 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
             .ui
             .stylesheet()
             .effective_style_for::<<Self as Transmogrifier<Rasterizer<R>>>::Widget>(
-                context.style.clone(),
+                context.style().clone(),
                 context.ui_state,
             );
         let padding = effective_style.get_or_default::<Padding>();
@@ -230,8 +231,9 @@ pub trait WidgetRasterizer<R: Renderer>: Transmogrifier<Rasterizer<R>> + Sized +
                 height - border.minimum_height().get() - padding.minimum_height().get()
             }),
         );
+        let mut temp_context = context.with_style(effective_style);
         ContentSize {
-            content: self.measure_content(context, constraints),
+            content: self.measure_content(&mut temp_context, constraints),
             padding,
             border,
         }
@@ -468,7 +470,7 @@ where
     ) -> ContentSize {
         <Self as WidgetRasterizer<R>>::content_size(
             self,
-            &mut TransmogrifierContext::try_from(context).unwrap(),
+            TransmogrifierContext::try_from(context).unwrap(),
             constraints,
         )
     }

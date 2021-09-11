@@ -1,9 +1,10 @@
 use std::{borrow::Cow, path::PathBuf, sync::Arc};
 
+use figures::Size;
 use parking_lot::Mutex;
 use url::Url;
 
-use crate::{AnyFrontend, AnySendSync, Callback};
+use crate::{AnyFrontend, AnySendSync, Callback, Pixels};
 
 /// A loadable asset.
 #[derive(Debug, Clone)]
@@ -74,7 +75,7 @@ impl Builder {
 pub struct Image {
     /// The asset definition for this image.
     pub asset: Asset,
-    data: Arc<Mutex<Option<Box<dyn AnySendSync>>>>,
+    data: Arc<Mutex<Option<Box<dyn FrontendImage>>>>,
 }
 
 impl Image {
@@ -90,17 +91,30 @@ impl Image {
     }
 
     /// Sets the internal frontend data for this image. Should not be used outside of developing a frontend.
-    pub fn set_data<D: AnySendSync>(&self, new_data: D) {
+    pub fn set_data<D: FrontendImage>(&self, new_data: D) {
         let mut data = self.data.lock();
-        *data = Some(Box::new(new_data) as Box<dyn AnySendSync>);
+        *data = Some(Box::new(new_data));
     }
 
     /// Maps the frontend data into `callback` returning the result of the
     /// function. This is generally only useful when developing a frontend.
-    pub fn map_data<R, F: FnOnce(Option<&mut dyn AnySendSync>) -> R>(&self, callback: F) -> R {
+    pub fn map_data<R, F: FnOnce(Option<&mut dyn FrontendImage>) -> R>(&self, callback: F) -> R {
         let mut data = self.data.lock();
         callback(data.as_deref_mut())
     }
+
+    /// Returns the size of the image, if it is known.
+    #[must_use]
+    pub fn size(&self) -> Option<Size<u32, Pixels>> {
+        let data = self.data.lock();
+        data.as_ref().and_then(|d| d.size())
+    }
+}
+
+/// An implementation of an [`Image`] for a frontend.
+pub trait FrontendImage: AnySendSync {
+    /// Returns the size of the image, if it is known.
+    fn size(&self) -> Option<Size<u32, Pixels>>;
 }
 
 impl From<Asset> for Image {

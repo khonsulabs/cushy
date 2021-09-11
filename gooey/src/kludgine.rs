@@ -1,7 +1,12 @@
-use std::{path::PathBuf, process::Command};
+use std::{self, path::PathBuf, process::Command, sync::Arc};
 
-use gooey_core::{assets::Configuration, AppContext, StyledWidget};
+use gooey_core::{
+    assets::Configuration,
+    figures::{Pixels, Points},
+    AnyWindowBuilder, AppContext, WindowConfiguration,
+};
 use gooey_rasterizer::winit::{event::ModifiersState, window::Theme};
+use kludgine::app::OpenableWindow;
 use platforms::target::{OS, TARGET_OS};
 
 use crate::{
@@ -13,7 +18,6 @@ use crate::{
             Kludgine,
         },
     },
-    style::default_stylesheet,
     widgets::rasterized::{default_transmogrifiers, register_transmogrifiers},
 };
 
@@ -21,54 +25,85 @@ use crate::{
 /// the root widget from `initializer`. Unless overriden by `transmogrifier`,
 /// all widgets from [`gooey::widget`](crate::widgets) will use the built-in
 /// transmogrifiers.
-pub fn kludgine_main_with<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
+#[allow(clippy::missing_panics_doc)]
+pub fn kludgine_main_with<W: Widget + Send + Sync>(
     transmogrifiers: Transmogrifiers<Rasterizer<Kludgine>>,
-    initializer: C,
+    mut initial_window: gooey_core::WindowBuilder<W>,
     context: AppContext,
 ) {
-    kludgine_run(kludgine_app(transmogrifiers, initializer, context));
+    kludgine_run(
+        kludgine_app(transmogrifiers, &mut initial_window, context),
+        initial_window.configuration,
+    );
 }
 
 /// Runs a `Kludgine`-based [`App`](crate::app::App) with the root widget from
 /// `initializer`. All widgets from [`gooey::widget`](crate::widgets) will be
 /// usable. If you wish to use other widgets, use `browser_main_with` and
 /// provide the transmogrifiers for the widgets you wish to use.
-pub fn kludgine_main<W: Widget, C: Fn(&WidgetStorage) -> StyledWidget<W>>(
-    initializer: C,
-    context: AppContext,
-) {
-    kludgine_main_with(default_transmogrifiers(), &initializer, context);
+pub fn kludgine_main<W: Widget>(initial_window: gooey_core::WindowBuilder<W>, context: AppContext) {
+    kludgine_main_with(default_transmogrifiers(), initial_window, context);
 }
 
 /// Returns an initialized frontend using the root widget returned from `initializer`.
-pub fn kludgine_app<W: Widget + Send + Sync, C: FnOnce(&WidgetStorage) -> StyledWidget<W>>(
+pub fn kludgine_app(
     mut transmogrifiers: Transmogrifiers<Rasterizer<Kludgine>>,
-    initializer: C,
+    builder: &mut dyn AnyWindowBuilder,
     context: AppContext,
 ) -> Rasterizer<Kludgine> {
     register_transmogrifiers(&mut transmogrifiers);
-    let ui = Gooey::with(transmogrifiers, default_stylesheet(), initializer, context);
-    let ui = Rasterizer::<Kludgine>::new(ui, Configuration::default());
+    let transmogrifiers = Arc::new(transmogrifiers);
+    let storage = WidgetStorage::new(context);
+    let ui = Gooey::new(transmogrifiers.clone(), builder.build(&storage), storage);
+    initialize_rasterizer(ui, transmogrifiers)
+}
+
+fn initialize_rasterizer(
+    ui: Gooey<Rasterizer<Kludgine>>,
+    transmogrifiers: Arc<Transmogrifiers<Rasterizer<Kludgine>>>,
+) -> Rasterizer<Kludgine> {
+    let mut ui = Rasterizer::<Kludgine>::new(ui, Configuration::default());
+    ui.set_window_creator(move |context, builder| {
+        let storage = WidgetStorage::new(context);
+        let root = builder.build(&storage);
+        let ui = Gooey::new(transmogrifiers.clone(), root, storage);
+        let ui = initialize_rasterizer(ui, transmogrifiers.clone());
+        GooeyWindow {
+            ui,
+            redrawer: None,
+            window_config: builder.configuration(),
+        }
+        .open();
+    });
     ui.gooey().process_widget_messages(&ui);
     ui
 }
 
 /// Runs an initialized frontend.
-pub fn kludgine_run(ui: Rasterizer<Kludgine>) {
-    SingleWindowApplication::run(GooeyWindow { ui, redrawer: None });
+pub fn kludgine_run(ui: Rasterizer<Kludgine>, window_config: WindowConfiguration) {
+    SingleWindowApplication::run(GooeyWindow {
+        ui,
+        redrawer: None,
+        window_config,
+    });
 }
 
 struct GooeyWindow {
     ui: Rasterizer<Kludgine>,
     redrawer: Option<RedrawRequester>,
+    window_config: WindowConfiguration,
 }
 
 impl WindowCreator for GooeyWindow {
-    fn window_title() -> String {
-        "Gooey - Kludgine".to_owned()
+    fn window_title(&self) -> String {
+        self.window_config
+            .title
+            .as_ref()
+            .map_or("Gooey - Kludgine", String::as_str)
+            .to_owned()
     }
 
-    fn initial_system_theme() -> Theme {
+    fn initial_system_theme(&self) -> Theme {
         // winit doesn't have a way on linux to detect dark mode
         if TARGET_OS == OS::Linux {
             gtk3_preferred_theme()
@@ -77,6 +112,34 @@ impl WindowCreator for GooeyWindow {
         } else {
             Theme::Light
         }
+    }
+
+    fn initial_position(&self) -> Option<Point<i32, Pixels>> {
+        self.window_config.position
+    }
+
+    fn initial_size(&self) -> Size<u32, Points> {
+        self.window_config.size
+    }
+
+    fn resizable(&self) -> bool {
+        self.window_config.resizable
+    }
+
+    fn maximized(&self) -> bool {
+        self.window_config.maximized
+    }
+
+    fn transparent(&self) -> bool {
+        self.window_config.transparent
+    }
+
+    fn decorations(&self) -> bool {
+        self.window_config.decorations
+    }
+
+    fn always_on_top(&self) -> bool {
+        self.window_config.always_on_top
     }
 }
 
@@ -121,18 +184,29 @@ fn gtk2_theme() -> Option<Theme> {
 }
 
 impl Window for GooeyWindow {
-    fn initialize(&mut self, _scene: &Target, redrawer: RedrawRequester) -> kludgine::Result<()>
+    fn initialize(
+        &mut self,
+        _scene: &Target,
+        redrawer: RedrawRequester,
+        window: WindowHandle,
+    ) -> kludgine::Result<()>
     where
         Self: Sized,
     {
         self.redrawer = Some(redrawer.clone());
+        self.ui.set_window(KludgineWindow { window });
         self.ui.set_refresh_callback(move || {
             redrawer.awaken();
         });
         Ok(())
     }
 
-    fn render(&mut self, scene: &Target, status: &mut RedrawStatus) -> kludgine::Result<()> {
+    fn render(
+        &mut self,
+        scene: &Target,
+        status: &mut RedrawStatus,
+        _window: WindowHandle,
+    ) -> kludgine::Result<()> {
         self.ui.render(Kludgine::from(scene));
         self.ui.gooey().process_widget_messages(&self.ui);
         if self.ui.needs_redraw() {
@@ -144,7 +218,12 @@ impl Window for GooeyWindow {
         Ok(())
     }
 
-    fn update(&mut self, _scene: &Target, status: &mut RedrawStatus) -> kludgine::Result<()> {
+    fn update(
+        &mut self,
+        _scene: &Target,
+        status: &mut RedrawStatus,
+        _window: WindowHandle,
+    ) -> kludgine::Result<()> {
         self.ui.gooey().process_widget_messages(&self.ui);
         if self.ui.needs_redraw() {
             status.set_needs_redraw();
@@ -160,6 +239,7 @@ impl Window for GooeyWindow {
         input: InputEvent,
         status: &mut RedrawStatus,
         scene: &Target,
+        _window: WindowHandle,
     ) -> kludgine::Result<()> {
         let input = match input.event {
             Event::Keyboard {
@@ -217,6 +297,7 @@ impl Window for GooeyWindow {
         character: char,
         status: &mut RedrawStatus,
         scene: &Target,
+        _window: WindowHandle,
     ) -> kludgine::app::Result<()>
     where
         Self: Sized,
@@ -230,5 +311,59 @@ impl Window for GooeyWindow {
             status.set_needs_redraw();
         }
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct KludgineWindow {
+    window: WindowHandle,
+}
+
+impl gooey_core::Window for KludgineWindow {
+    fn set_title(&self, title: &str) {
+        self.window.set_title(title);
+    }
+
+    fn inner_size(&self) -> gooey_core::figures::Size<u32, gooey_core::Pixels> {
+        self.window.inner_size()
+    }
+
+    fn set_inner_size(&self, new_size: gooey_core::figures::Size<u32, gooey_core::Pixels>) {
+        self.window.set_inner_size(new_size);
+    }
+
+    fn set_outer_position(
+        &self,
+        new_position: gooey_core::figures::Point<i32, gooey_core::Pixels>,
+    ) {
+        self.window.set_outer_position(new_position);
+    }
+
+    fn inner_position(&self) -> gooey_core::figures::Point<i32, gooey_core::Pixels> {
+        self.window.inner_position()
+    }
+
+    fn set_always_on_top(&self, always: bool) {
+        self.window.set_always_on_top(always);
+    }
+
+    fn maximized(&self) -> bool {
+        self.window.maximized()
+    }
+
+    fn set_maximized(&self, maximized: bool) {
+        self.window.set_maximized(maximized);
+    }
+
+    fn set_minimized(&self, minimized: bool) {
+        self.window.set_minimized(minimized);
+    }
+
+    fn close(&self) {
+        self.window.request_close();
+    }
+
+    fn outer_position(&self) -> gooey_core::figures::Point<i32, gooey_core::Pixels> {
+        self.inner_position()
     }
 }

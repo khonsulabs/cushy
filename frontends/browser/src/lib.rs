@@ -1,5 +1,18 @@
 //! A [`Frontend`](gooey_core::Frontend) for `Gooey` that targets web browsers
 //! by creating DOM elements using `web-sys` and `wasm-bindgen`.
+//!
+//! ## [`Window`] implementation
+//!
+//! The [`Window`] implementation in this frontend is limited by the browser's APIs. Of
+//! note:
+//!
+//! - [`maximized()`](Window::maximized) and [`set_maximized()`](Window::set_maximized) interact with the fullscreen APIs.
+//! - [`inner_position()`](Window::inner_position) and [`outer_position()`](Window::outer_position) are equivalent. This also means
+//!   that [`set_outer_position()`](Window::set_outer_position) actually sets the inner position.
+//! - Controlling the browser window (closing, resizing, moving) is dependent
+//!   upon the browser allowing the operation. This generally is only possible
+//!   if the window is opened via a javascript API and has no other tabs within
+//!   in.
 
 #![forbid(unsafe_code)]
 #![warn(
@@ -21,6 +34,7 @@
 
 use std::{
     any::TypeId,
+    collections::HashMap,
     convert::TryFrom,
     ops::Deref,
     sync::{
@@ -31,16 +45,18 @@ use std::{
 };
 
 use gooey_core::{
-    assets::{self, Configuration, Image},
+    assets::{self, Configuration, FrontendImage, Image},
+    figures::{Point, Size},
     styles::{
         border::Border,
         style_sheet::{Classes, State},
-        Alignment, Autofocus, FontFamily, FontSize, Padding, Style, StyleComponent, SystemTheme,
-        TabIndex, VerticalAlignment,
+        Alignment, Autofocus, FontFamily, FontSize, Intent, Padding, Style, StyleComponent,
+        SystemTheme, TabIndex, VerticalAlignment,
     },
-    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, Callback, Frontend, Gooey, NativeTimer,
-    Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState, Widget, WidgetId, WidgetRef,
-    WidgetRegistration,
+    AnyTransmogrifier, AnyTransmogrifierContext, AnyWidget, AnyWindowBuilder, Callback, Frontend,
+    Gooey, NativeTimer, Timer, Transmogrifier, TransmogrifierContext, TransmogrifierState,
+    WeakWidgetRegistration, Widget, WidgetId, WidgetRef, WidgetRegistration, Window,
+    WindowConfiguration,
 };
 use parking_lot::Mutex;
 use wasm_bindgen::{prelude::*, JsCast};
@@ -48,15 +64,19 @@ use wasm_bindgen::{prelude::*, JsCast};
 pub mod utils;
 
 use utils::{
-    create_element, set_widget_classes, set_widget_id, window_element_by_widget_id,
+    create_element, set_widget_classes, set_widget_id, widget_css_id, window_element_by_widget_id,
     CssBlockBuilder, CssManager, CssRules,
 };
-use web_sys::{ErrorEvent, HtmlElement, HtmlImageElement, MediaQueryListEvent};
+use web_sys::{
+    window, ErrorEvent, HtmlElement, HtmlImageElement, KeyboardEvent, MediaQueryListEvent,
+};
 
 use crate::utils::window_document;
 
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 
+/// `WebSys` is a [`Frontend`] implementor that implements Gooey interfaces
+/// through `web-sys` in a web browser.
 #[derive(Debug, Clone)]
 pub struct WebSys {
     pub ui: Gooey<Self>,
@@ -67,8 +87,15 @@ pub struct WebSys {
 struct Data {
     styles: Vec<CssRules>,
     theme: Mutex<SystemTheme>,
+    intent_callbacks: Mutex<HashMap<Intent, Vec<CallbackWidget>>>,
     configuration: Configuration,
     last_image_id: AtomicU64,
+}
+
+#[derive(Debug)]
+struct CallbackWidget {
+    widget: WeakWidgetRegistration,
+    callback: Callback,
 }
 
 impl WebSys {
@@ -142,12 +169,14 @@ impl WebSys {
                 styles,
                 configuration,
                 theme: Mutex::default(),
+                intent_callbacks: Mutex::default(),
                 last_image_id: AtomicU64::new(0),
             }),
         }
     }
 
-    pub fn install_in_id(&mut self, id: &str) {
+    pub fn install_in_id(&mut self, id: &str, _window_config: WindowConfiguration) {
+        // TODO handle window_config
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
@@ -181,6 +210,40 @@ impl WebSys {
                 }),
         );
 
+        // Install a keyboard handler in the window for handling enter/escape keypresses
+        let data = self.data.clone();
+        document.set_onkeydown(
+            Closure::wrap(Box::new(move |event: KeyboardEvent| {
+                let intent = match event.key().as_str() {
+                    "Enter" | "Return" => Intent::Default,
+                    "Escape" => Intent::Cancel,
+                    _ => return,
+                };
+                let mut intent_callbacks = data.intent_callbacks.lock();
+                if let Some(potential_handlers) = intent_callbacks.get_mut(&intent) {
+                    // Widgets report themselves as handlers when they initially
+                    // transmogrify. The order of this execution is such that
+                    // the earliest widgets should be closer to the root. This
+                    // isn't perfect at all, but putting multiple submit buttons
+                    // on the same layer should be discouraged.
+                    while !potential_handlers.is_empty() {
+                        let handler = potential_handlers.last().unwrap();
+                        // Check that the widget is still alive.
+                        if handler.widget.upgrade().is_some() {
+                            handler.callback.invoke(());
+                            event.prevent_default();
+                            break;
+                        }
+
+                        // If the widget is dead, pop it off the queue.
+                        potential_handlers.pop();
+                    }
+                }
+            }) as Box<dyn FnMut(KeyboardEvent)>)
+            .into_js_value()
+            .dyn_ref(),
+        );
+
         self.with_transmogrifier(self.ui.root_widget().id(), |transmogrifier, mut context| {
             if let Some(root_element) = transmogrifier.transmogrify(&mut context) {
                 parent.append_child(&root_element).unwrap();
@@ -203,6 +266,20 @@ impl WebSys {
             .with_transmogrifier(widget_id, self, |transmogrifier, context| {
                 callback(transmogrifier.as_ref(), context)
             })
+    }
+
+    pub fn register_intent_handler(
+        &self,
+        intent: Intent,
+        widget: &WidgetRegistration,
+        callback: Callback,
+    ) {
+        let mut intent_callbacks = self.data.intent_callbacks.lock();
+        let callbacks = intent_callbacks.entry(intent).or_default();
+        callbacks.push(CallbackWidget {
+            widget: WeakWidgetRegistration::from(widget),
+            callback,
+        });
     }
 }
 
@@ -278,7 +355,7 @@ impl gooey_core::Frontend for WebSys {
             let element = create_element::<HtmlImageElement>("img");
             let image_id = self.data.last_image_id.fetch_add(1, Ordering::SeqCst);
             image.set_data(LoadedImageId(image_id));
-            element.set_id(&image.css_id().unwrap());
+            element.set_id(&image.css_id().expect("type error"));
             element.set_onerror(Some(
                 &Closure::once_into_js(move |e: ErrorEvent| {
                     error.invoke(e.message());
@@ -323,6 +400,14 @@ impl gooey_core::Frontend for WebSys {
         schedule_timer(&timer, period);
         timer
     }
+
+    fn window(&self) -> Option<&dyn gooey_core::Window> {
+        Some(self)
+    }
+
+    fn open(&self, _window: Box<dyn AnyWindowBuilder>) -> bool {
+        false
+    }
 }
 
 fn schedule_timer(timer: &Timer, period: Duration) {
@@ -364,21 +449,33 @@ struct BrowserTimer {
 
 impl NativeTimer for BrowserTimer {}
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct LoadedImageId(u64);
 
 impl Drop for LoadedImageId {
     fn drop(&mut self) {
         let css_id = image_css_id(self.0);
-        if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
-            if let Some(element) = doc.get_element_by_id(&css_id) {
-                element.remove();
-            }
+        if let Some(element) = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|doc| doc.get_element_by_id(&css_id))
+        {
+            element.remove();
         } else {
             // This should only happen if an `Image` was passed to a separate
             // thread, which is a no-no for Gooey at the moment.
             log::error!("unable to clean up dropped image: {}", css_id);
         }
+    }
+}
+
+impl FrontendImage for LoadedImageId {
+    fn size(&self) -> Option<gooey_core::figures::Size<u32, gooey_core::Pixels>> {
+        let css_id = image_css_id(self.0);
+        web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|doc| doc.get_element_by_id(&css_id))
+            .and_then(|img| img.dyn_into::<HtmlImageElement>().ok())
+            .map(|img| Size::new(img.width() as u32, img.height() as u32))
     }
 }
 
@@ -410,8 +507,8 @@ pub trait WebSysTransmogrifier: Transmogrifier<WebSys> {
                     .and_state(&state)
                     .with_theme(theme);
 
-                let effective_style =
-                    style_sheet.effective_style_for::<Self::Widget>(context.style.clone(), &state);
+                let effective_style = style_sheet
+                    .effective_style_for::<Self::Widget>(context.style().clone(), &state);
                 css = self.convert_style_to_css(&effective_style, css);
 
                 let css = css.to_string();
@@ -661,8 +758,8 @@ impl ImageExt for Image {
     fn css_id(&self) -> Option<String> {
         self.map_data(|opt_id| {
             opt_id
-                .and_then(|id| id.as_any().downcast_ref::<u64>())
-                .copied()
+                .and_then(|id| id.as_any().downcast_ref::<LoadedImageId>())
+                .map(|id| id.0)
         })
         .map(image_css_id)
     }
@@ -670,4 +767,78 @@ impl ImageExt for Image {
 
 fn image_css_id(id: u64) -> String {
     format!("gooey-img-{}", id)
+}
+impl Window for WebSys {
+    fn set_title(&self, title: &str) {
+        let document = window_document();
+        document.set_title(title);
+    }
+
+    fn inner_size(&self) -> Size<u32, gooey_core::Pixels> {
+        let window = window().unwrap();
+        let width = window
+            .inner_width()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or_default();
+        let height = window
+            .inner_height()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or_default();
+
+        Size::new(width, height).try_cast().unwrap_or_default()
+    }
+
+    fn set_inner_size(&self, new_size: Size<u32, gooey_core::Pixels>) {
+        let window = window().unwrap();
+        drop(window.resize_to(
+            i32::try_from(new_size.width).unwrap(),
+            i32::try_from(new_size.height).unwrap(),
+        ));
+    }
+
+    fn set_outer_position(&self, new_position: Point<i32, gooey_core::Pixels>) {
+        let window = window().unwrap();
+        drop(window.move_to(new_position.x, new_position.y));
+    }
+
+    fn inner_position(&self) -> Point<i32, gooey_core::Pixels> {
+        let window = window().unwrap();
+        let x = window
+            .screen_x()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or_default();
+        let y = window
+            .screen_y()
+            .ok()
+            .and_then(|v| v.as_f64())
+            .unwrap_or_default();
+
+        Point::new(x, y).try_cast().unwrap_or_default()
+    }
+
+    fn set_always_on_top(&self, _always: bool) {}
+
+    fn maximized(&self) -> bool {
+        window_document().fullscreen()
+    }
+
+    fn set_maximized(&self, maximized: bool) {
+        if maximized {
+            let body = window_document()
+                .get_element_by_id(&widget_css_id(self.ui.root_widget().id().id))
+                .unwrap();
+            drop(body.request_fullscreen());
+        } else {
+            window_document().exit_fullscreen();
+        }
+    }
+
+    fn set_minimized(&self, _minimized: bool) {}
+
+    fn close(&self) {
+        drop(window().unwrap().close());
+    }
 }

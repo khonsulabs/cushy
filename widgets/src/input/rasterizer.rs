@@ -98,7 +98,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                     renderer,
                     Point::new(bounds.origin.x, bounds.origin.y + y.get()),
                     true,
-                    Some(context.style),
+                    Some(context.style()),
                 );
             }
             context.state.prepared = Some(prepared);
@@ -134,7 +134,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                                 // Draw a solid block for all the inner lines
                                 renderer.fill_rect(
                                     &Rect::sized(
-                                        Point::new(0., start_position.extent.y),
+                                        Point::from_y(start_position.extent.y),
                                         Size::from_figures(
                                             bounds.size.width(),
                                             end_position.origin.y() - start_position.extent.y(),
@@ -147,7 +147,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
                             // Last line is start of line -> start of end position
                             renderer.fill_rect(
                                 &Rect::sized(
-                                    Point::new(0., end_position.origin.y),
+                                    Point::from_y(end_position.origin.y),
                                     Size::from_figures(
                                         end_position.origin.x(),
                                         end_position.height(),
@@ -199,7 +199,7 @@ impl<R: Renderer> WidgetRasterizer<R> for InputTransmogrifier {
             .map_or_else(Size::default, |renderer| {
                 let wrapped = wrap_text(
                     &context.widget.value,
-                    context.style,
+                    context.style(),
                     renderer,
                     Figure::new(constraints.width.unwrap_or_else(|| renderer.size().width)),
                 );
@@ -615,7 +615,7 @@ impl<R: Renderer> InputState<R> {
                         // Set the last location a 0-width rect at the end of the span.
                         last_location = Some(SizedRect::new(
                             Point::from_figures(span.location() + span.metrics().width, line_top),
-                            Size::from_figures(Figure::default(), line_height),
+                            Size::from_height(line_height),
                         ));
                     }
                 }

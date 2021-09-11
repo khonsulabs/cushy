@@ -158,11 +158,11 @@ mod tests {
         for theme in [SystemTheme::Dark, SystemTheme::Light] {
             let mut headless = crate::app().headless();
             let mut recorder = headless.begin_recording(Size::new(480, 320), theme, true, 15);
-            recorder.set_cursor(Point::new(100., 200.));
+            recorder.set_cursor((100., 200.));
 
             // Open the navigator demo
             recorder
-                .move_cursor_to(Point::new(150., 300.), Duration::from_millis(300))
+                .move_cursor_to((150., 300.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(500));
@@ -173,7 +173,7 @@ mod tests {
 
             // Go back
             recorder
-                .move_cursor_to(Point::new(30., 30.), Duration::from_millis(300))
+                .move_cursor_to((30., 30.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(300));
@@ -184,7 +184,7 @@ mod tests {
 
             // Enter back into the navigator demo
             recorder
-                .move_cursor_to(Point::new(150., 300.), Duration::from_millis(300))
+                .move_cursor_to((150., 300.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(500));
@@ -212,7 +212,7 @@ mod tests {
 
             // Replace the top
             recorder
-                .move_cursor_to(Point::new(240., 290.), Duration::from_millis(10))
+                .move_cursor_to((240., 290.), Duration::from_millis(10))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(500));
@@ -231,7 +231,7 @@ mod tests {
 
             // Go home
             recorder
-                .move_cursor_to(Point::new(420., 290.), Duration::from_millis(300))
+                .move_cursor_to((420., 290.), Duration::from_millis(300))
                 .await?;
             recorder.left_click().await?;
             recorder.pause(Duration::from_millis(1000));

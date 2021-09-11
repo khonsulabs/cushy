@@ -40,7 +40,7 @@ impl<R: Renderer> WidgetRasterizer<R> for ContainerTransmogrifier {
                     &mut child_context,
                     child_rect,
                     Some(context.registration.id()),
-                    context.style,
+                    context.style(),
                 );
             },
         );
