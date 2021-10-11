@@ -14,7 +14,7 @@ readme = "../../../README.md"
 gooey-core = { path = "../../../core", version = "0.1.0-dev.0" }
 gooey-renderer = { path = "../../../renderer", version = "0.1.0-dev.0" }
 gooey-rasterizer = { path = "../../rasterizer", version = "0.1.0-dev.0" }
-kludgine = { version = "0.1.0-dev.2", default-features = false, features = [
+kludgine = { version = "0.1.0-dev.3", default-features = false, features = [
     "app",
     "bundled-fonts",
     "tokio-rt",
