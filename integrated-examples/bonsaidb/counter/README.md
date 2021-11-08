@@ -44,6 +44,6 @@ These steps are written to work if your current working directory is `{repositor
 
 2. Launch the HTTP server:
 
-   `miniserve browser/`
+   `miniserve integrated-examples/bonsaidb/counter/browser`
 
 3. Navigate to the website: `http://localhost:8080/index.html`
