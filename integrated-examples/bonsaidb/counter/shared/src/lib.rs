@@ -1,4 +1,4 @@
-use bonsaidb::core::custom_api::CustomApi;
+use bonsaidb::core::custom_api::{CustomApi, Infallible};
 use serde::{Deserialize, Serialize};
 
 /// The name of the database that the counter will use.
@@ -28,6 +28,7 @@ pub enum Response {
 pub enum ExampleApi {}
 
 impl CustomApi for ExampleApi {
+    type Error = Infallible;
     type Request = Request;
     type Response = Response;
 }
