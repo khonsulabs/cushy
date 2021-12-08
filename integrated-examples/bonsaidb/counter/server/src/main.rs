@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use bonsaidb::{
-    core::{connection::StorageConnection, custom_api::Infallible, kv::Kv},
+    core::{connection::StorageConnection, custom_api::Infallible, keyvalue::KeyValue},
     server::{
         Backend, BackendError, Configuration, ConnectedClient, CustomApiDispatcher, CustomServer,
         DefaultPermissions,
