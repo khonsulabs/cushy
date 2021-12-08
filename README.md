@@ -49,7 +49,7 @@ this:
 
 ```toml
 [patch.crates-io]
-kludgine = { git = "https://github.com/khonsulabs/kludgine.git", branch = "main", version = "0.1.0-dev.5" }
+kludgine = { git = "https://github.com/khonsulabs/kludgine.git", branch = "main", version = "0.1.0-dev.6" }
 ```
 
 Adding this to your project's Cargo.toml will switch from using the released
