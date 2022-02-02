@@ -65,32 +65,32 @@ gooey-text = { path = "../text", version = "0.1.0-dev.0" }
 gooey-core = { path = "../core", version = "0.1.0-dev.0" }
 gooey-widgets = { path = "../widgets", version = "0.1.0-dev.0" }
 gooey-fluent = { path = "../fluent", version = "0.1.0-dev.0", optional = true }
-cfg-if = "1"
-platforms = { version = "1", optional = true }
-image = { version = "0.23", default-features = false, optional = true }
+cfg-if = "1.0.0"
+platforms = { version = "2.0.0", optional = true }
+image = { version = "0.24.0", default-features = false, optional = true }
 png = { git = "https://github.com/image-rs/image-png.git", optional = true }
-thiserror = "1"
-tempfile = { version = "3", optional = true }
-sys-locale = "0.1"
-log = "0.4"
+thiserror = "1.0.30"
+tempfile = { version = "3.3.0", optional = true }
+sys-locale = "0.1.0"
+log = "0.4.14"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen-futures = { version = "0.4", optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", features = ["Window"], optional = true }
-flume = "0.10"
+wasm-bindgen-futures = { version = "0.4.29", optional = true }
+wasm-bindgen = { version = "0.2.79", optional = true }
+web-sys = { version = "0.3.56", features = ["Window"], optional = true }
+flume = "0.10.10"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { version = "1", features = ["full"], optional = true }
+tokio = { version = "1.16.1", features = ["full"], optional = true }
 gooey-kludgine = { path = "../frontends/renderers/kludgine", version = "0.1.0-dev.0", optional = true }
-kludgine = { version = "0.1.0-dev.6", default-features = false, features = [
+kludgine = { version = "0.1.0", default-features = false, features = [
     "multiwindow",
 ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.16.1", features = ["full"] }
 
 [dev-dependencies]
-wasm-bindgen = "0.2"
-log = "0.4"
-maplit = "1"
+wasm-bindgen = "0.2.79"
+log = "0.4.14"
+maplit = "1.0.2"

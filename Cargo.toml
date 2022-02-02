@@ -19,14 +19,14 @@ resolver = "2"
 [patch.crates-io]
 # easygpu = { path = "../easygpu/easygpu" }
 # easygpu-lyon = { path = "../easygpu/lyon" }
-bonsaidb = { git = "https://github.com/khonsulabs/bonsaidb.git", branch = "main" }
+bonsaidb = { git = "https://github.com/khonsulabs/bonsaidb.git", branch = "main", version = "0.1.0-dev.4" }
 nebari = { git = "https://github.com/khonsulabs/nebari.git", branch = "main" }
 # easygpu = { git = "https://github.com/khonsulabs/easygpu.git", branch = "main" }
 # easygpu-lyon = { git = "https://github.com/khonsulabs/easygpu.git", branch = "main" }
 # bonsaidb = { path="../bonsaidb/bonsaidb" }
 # actionable = { git="https://github.com/khonsulabs/actionable.git", branch="main" }
 # actionable = { path="../actionable/actionable", version="0.1.0-dev.3" }
-# kludgine = { path = "../kludgine/kludgine", version = "0.1.0-dev.0" }
+# kludgine = { path = "../kludgine/kludgine", version = "0.1.0" }
 # kludgine = { git = "https://github.com/khonsulabs/kludgine.git", branch = "main", version = "0.1.0-dev.0" }
 
 # [patch."https://github.com/khonsulabs/stylecs.git"]

@@ -1,10 +1,9 @@
-use std::path::Path;
-
 use bonsaidb::{
     core::{connection::StorageConnection, custom_api::Infallible, keyvalue::KeyValue},
+    local::config::Builder,
     server::{
-        Backend, BackendError, Configuration, ConnectedClient, CustomApiDispatcher, CustomServer,
-        DefaultPermissions,
+        Backend, BackendError, ConnectedClient, CustomApiDispatcher, CustomServer,
+        DefaultPermissions, ServerConfiguration,
     },
 };
 use bonsaidb_counter_shared::{
@@ -18,11 +17,8 @@ async fn main() -> anyhow::Result<()> {
     // Open a `BonsaiDb` server at the given path, allowing all actions to be
     // done over the network connections.
     let server = CustomServer::<Example>::open(
-        Path::new("counter-example.bonsaidb"),
-        Configuration {
-            default_permissions: DefaultPermissions::AllowAll,
-            ..Configuration::default()
-        },
+        ServerConfiguration::new("counter-example.bonsaidb")
+            .default_permissions(DefaultPermissions::AllowAll),
     )
     .await?;
     server.register_schema::<()>().await?;

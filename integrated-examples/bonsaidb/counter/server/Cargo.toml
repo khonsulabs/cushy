@@ -10,8 +10,13 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bonsaidb-counter-shared = { path="../shared", features=["actionable-traits"] }
-bonsaidb = { version="0.1.0-dev.4", features=["server-full"] }
-tokio = { version="1", features=["full"] }
-anyhow = "1"
-actionable = "0.1.0-dev.2"
+bonsaidb-counter-shared = { path = "../shared", features = [
+    "actionable-traits",
+] }
+bonsaidb = { version = "0.1.0-dev.4", features = [
+    "server",
+    "server-websockets",
+] }
+tokio = { version = "1.16.1", features = ["full"] }
+anyhow = "1.0.53"
+actionable = "0.1.0"

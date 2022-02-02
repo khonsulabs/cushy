@@ -13,10 +13,10 @@ bonsaidb = { version = "0.1.0-dev.4", features = [
     "client",
     "client-websockets",
 ] }
-log = "0.4"
-flume = "0.10"
-async-trait = "0.1"
-anyhow = "1"
+log = "0.4.14"
+flume = "0.10.10"
+async-trait = "0.1.52"
+anyhow = "1.0.53"
 
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

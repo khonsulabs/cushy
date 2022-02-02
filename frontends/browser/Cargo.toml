@@ -12,9 +12,9 @@ readme = "../../README.md"
 
 
 [dependencies]
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = [
+wasm-bindgen = "0.2.79"
+wasm-bindgen-futures = "0.4.29"
+web-sys = { version = "0.3.56", features = [
     "Blob",
     "CssRuleList",
     "CssStyleDeclaration",
@@ -38,13 +38,10 @@ web-sys = { version = "0.3", features = [
     "Window",
     "KeyboardEvent",
 ] }
-js-sys = "0.3"
+js-sys = "0.3.56"
 gooey-core = { path = "../../core", version = "0.1.0-dev.0" }
-console_error_panic_hook = "0.1"
-log = "0.4.6"
+console_error_panic_hook = "0.1.7"
+log = "0.4.14"
 wasm-logger = "0.2.0"
-once_cell = "1"
-parking_lot = "0.11"
-
-[target.'cfg(target_arch="wasm32")'.dependencies]
-parking_lot = { version = "0.11", features = ["wasm-bindgen"] }
+once_cell = "1.9.0"
+parking_lot = "0.12.0"

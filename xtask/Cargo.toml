@@ -11,7 +11,7 @@ categories = ["gui"]
 readme = "../README.md"
 
 [dependencies]
-devx-cmd = "0.3"
-structopt = "0.3"
+devx-cmd = "0.5.0"
+structopt = "0.3.26"
 khonsu-tools = { git = "https://github.com/khonsulabs/khonsu-tools.git", branch = "main" }
-fs_extra = "1"
+fs_extra = "1.2.0"
