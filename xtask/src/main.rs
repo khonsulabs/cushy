@@ -1,28 +1,27 @@
 use devx_cmd::run;
 use fs_extra::dir::CopyOptions;
-use khonsu_tools::{anyhow, code_coverage::CodeCoverage};
-use structopt::StructOpt;
+use khonsu_tools::universal::{
+    anyhow,
+    clap::{self, Parser},
+    DefaultConfig,
+};
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 enum Args {
     BuildBrowserExample {
         name: Option<String>,
     },
-    GenerateCodeCoverageReport {
-        #[structopt(long = "install-dependencies")]
-        install_dependencies: bool,
-    },
+    #[clap(flatten)]
+    Tools(khonsu_tools::Commands),
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = Args::from_args();
+    let args = Args::parse();
     match args {
         Args::BuildBrowserExample { name } => {
             build_browser_example(name.unwrap_or_else(|| String::from("basic")))?
         }
-        Args::GenerateCodeCoverageReport {
-            install_dependencies,
-        } => CodeCoverage::<CodeCoverageConfig>::execute(install_dependencies)?,
+        Args::Tools(command) => command.execute::<Config>()?,
     };
     Ok(())
 }
@@ -123,9 +122,33 @@ fn execute_wasm_bindgen(wasm_path: &str, out_path: &str) -> Result<(), devx_cmd:
     )
 }
 
-struct CodeCoverageConfig;
+struct Config;
 
-impl khonsu_tools::code_coverage::Config for CodeCoverageConfig {
+impl khonsu_tools::Config for Config {
+    type Publish = Self;
+    type Universal = Self;
+}
+
+impl khonsu_tools::publish::Config for Config {
+    fn paths() -> Vec<String> {
+        vec![
+            String::from("core"),
+            String::from("renderer"),
+            String::from("text"),
+            String::from("frontends/rasterizer"),
+            String::from("frontends/renderers/kludgine"),
+            String::from("frontends/browwser"),
+            String::from("gooey"),
+        ]
+    }
+}
+
+impl khonsu_tools::universal::Config for Config {
+    type Audit = DefaultConfig;
+    type CodeCoverage = Self;
+}
+
+impl khonsu_tools::universal::code_coverage::Config for Config {
     fn ignore_paths() -> Vec<String> {
         vec![String::from("gooey/examples/*")]
     }

@@ -12,8 +12,5 @@ readme = "../README.md"
 [dependencies]
 gooey-core = { path = "../core", version = "0.1.0-dev.0" }
 gooey-renderer = { path = "../renderer", version = "0.1.0-dev.0" }
-approx = "0.5"
-parking_lot = "0.11"
-
-[target.'cfg(target_arch="wasm32")'.dependencies]
-parking_lot = { version = "0.11", features = ["wasm-bindgen"] }
+approx = "0.5.1"
+parking_lot = "0.12.0"

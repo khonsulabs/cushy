@@ -672,3 +672,21 @@ impl FallbackComponent for HighlightColor {
         Some(&self.0)
     }
 }
+
+/// Creates a [`Color`] using values ranging from 0-255. Accepts 3 parameters
+/// for an opaque RGB color, or 4 parameters for an RGBA color.
+#[macro_export]
+macro_rules! rgb {
+    ($r:expr, $g:expr, $b:expr) => {{
+        Color::new($r as f32 / 255., $g as f32 / 255., $b as f32 / 255., 1.)
+    }};
+
+    ($r:expr, $g:expr, $b:expr, $a:expr) => {
+        Color::new(
+            $r as f32 / 255.,
+            $g as f32 / 255.,
+            $b as f32 / 255.,
+            $a as f32 / 255.,
+        )
+    };
+}

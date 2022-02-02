@@ -125,6 +125,7 @@ pub struct Builder<K: Key, S: KeyedStorage<K>> {
 struct ChildrenMap<K> {
     children: HashMap<u32, LayoutChild>,
     keys_to_id: HashMap<K, u32>,
+    order: Vec<u32>,
 }
 
 impl<K> Default for ChildrenMap<K> {
@@ -132,15 +133,17 @@ impl<K> Default for ChildrenMap<K> {
         Self {
             children: HashMap::default(),
             keys_to_id: HashMap::default(),
+            order: Vec::default(),
         }
     }
 }
 
 impl<K: Key> ChildrenMap<K> {
     fn remove(&mut self, key: &K) -> Option<LayoutChild> {
-        self.keys_to_id
-            .remove(key)
-            .and_then(|id| self.children.remove(&id))
+        self.keys_to_id.remove(key).and_then(|id| {
+            self.order.retain(|order| !order == id);
+            self.children.remove(&id)
+        })
     }
 
     fn insert(&mut self, key: Option<K>, child: LayoutChild) -> Option<LayoutChild> {
@@ -148,8 +151,13 @@ impl<K: Key> ChildrenMap<K> {
         if let Some(key) = key {
             if let Some(removed_widget) = self.keys_to_id.insert(key, child.registration.id().id) {
                 old_child = self.children.remove(&removed_widget);
+                if let Some(old_child) = &old_child {
+                    self.order
+                        .retain(|id| *id != old_child.registration.id().id);
+                }
             }
         }
+        self.order.push(child.registration.id().id);
         self.children.insert(child.registration.id().id, child);
         old_child
     }
@@ -372,7 +380,10 @@ pub struct LayoutTransmogrifier;
 
 impl<K: Key> LayoutChildren for ChildrenMap<K> {
     fn layout_children(&self) -> Vec<LayoutChild> {
-        self.children.values().cloned().collect()
+        self.order
+            .iter()
+            .map(|child_id| self.children.get(child_id).unwrap().clone())
+            .collect()
     }
 
     fn child_by_widget_id(&self, widget_id: &WidgetId) -> Option<&LayoutChild> {

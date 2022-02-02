@@ -334,7 +334,7 @@ impl From<Vec<String>> for Classes {
 
 impl From<Vec<&'static str>> for Classes {
     fn from(s: Vec<&'static str>) -> Self {
-        Self::new(s.into_iter().map(|s| Cow::Borrowed(s)).collect())
+        Self::new(s.into_iter().map(Cow::Borrowed).collect())
     }
 }
 

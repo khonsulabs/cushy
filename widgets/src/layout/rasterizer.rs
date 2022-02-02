@@ -253,12 +253,13 @@ mod tests {
             Size::new(100., 90.),
             |_| widget_size,
             |case, result| {
-                if !case.result.approx_eq(&result) {
-                    panic!(
-                        "Layout {:?} produced {:?}, expected {:?}",
-                        case.layout, result, case.result
-                    );
-                }
+                assert!(
+                    case.result.approx_eq(&result),
+                    "Layout {:?} produced {:?}, expected {:?}",
+                    case.layout,
+                    result,
+                    case.result
+                );
             },
         );
     }

@@ -34,7 +34,7 @@ struct CssSheetState {
 struct CssRule {
     id: u32,
     #[cfg(debug_assertions)]
-    css: Arc<String>,
+    _css: Arc<String>,
 }
 
 #[must_use]
@@ -116,7 +116,7 @@ impl CssManager {
         let css_rule = CssRule {
             id,
             #[cfg(debug_assertions)]
-            css: Arc::new(rule.to_string()),
+            _css: Arc::new(rule.to_string()),
         };
         self.sheet
             .insert_rule_with_index(rule, state.rules.len().try_into().unwrap())

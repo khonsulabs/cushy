@@ -686,7 +686,7 @@ impl WidgetState {
         let widget =
             MutexGuard::try_map(widget, |widget| widget.as_mut().as_mut_any().downcast_mut())
                 .ok()?;
-        Some(WidgetGuard { widget, context })
+        Some(WidgetGuard::new(widget, context))
     }
 }
 
@@ -697,6 +697,20 @@ pub struct WidgetGuard<'a, W: Widget> {
     pub widget: MappedMutexGuard<'a, W>,
     /// The context that can be used to call methods on `widget`.
     pub context: Context<W>,
+
+    _managed_code_guard: ManagedCodeGuard,
+}
+
+impl<'a, W: Widget> WidgetGuard<'a, W> {
+    pub(crate) fn new(widget: MappedMutexGuard<'a, W>, context: Context<W>) -> Self {
+        // While the guard is active, we're considered in managed code.
+        let managed_code_guard = context.frontend().enter_managed_code();
+        Self {
+            widget,
+            context,
+            _managed_code_guard: managed_code_guard,
+        }
+    }
 }
 
 /// References an initialized widget. On drop, frees the storage and id.

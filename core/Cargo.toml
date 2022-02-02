@@ -11,14 +11,11 @@ categories = ["gui"]
 readme = "../README.md"
 
 [dependencies]
-figures = ">=0.1.2"
+figures = "0.1.2"
 stylecs = { git = "https://github.com/khonsulabs/stylecs.git", branch = "main" }
-flume = "0.10"
-palette = "0.6"
-log = "0.4"
-url = "2"
-parking_lot = "0.11"
-unic-langid = "0.9"
-
-[target.'cfg(target_arch="wasm32")'.dependencies]
-parking_lot = { version = "0.11", features = ["wasm-bindgen"] }
+flume = "0.10.10"
+palette = "0.6.0"
+log = "0.4.14"
+url = "2.2.2"
+parking_lot = "0.12.0"
+unic-langid = "0.9.0"

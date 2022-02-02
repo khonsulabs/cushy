@@ -147,8 +147,9 @@ async fn process_database_commands(receiver: flume::Receiver<DatabaseCommand>) {
         let client_context = loop_context.clone();
         match Client::build("ws://127.0.0.1:8081".parse().unwrap())
             .with_custom_api_callback::<ExampleApi, _>(move |response| {
-                let Response::CounterValue(count) = response;
-                update_counter_label(&client_context, count);
+                if let Ok(Response::CounterValue(count)) = response {
+                    update_counter_label(&client_context, count);
+                }
             })
             .finish()
             .await

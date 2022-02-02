@@ -11,6 +11,6 @@ publish = false
 actionable-traits = []
 
 [dependencies]
-serde = { version="1", features=["derive"] }
-actionable = "0.1.0-dev.2"
-bonsaidb = { version="0.1.0-dev.4" }
+serde = { version = "1.0.136", features = ["derive"] }
+actionable = "0.1.0"
+bonsaidb = "0.1.0-dev.4"

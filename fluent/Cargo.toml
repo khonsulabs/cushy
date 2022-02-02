@@ -10,9 +10,9 @@ categories = ["gui"]
 readme = "../README.md"
 
 [dependencies]
-fluent = "0.16"
-fluent-langneg = "0.13"
+fluent = "0.16.0"
+fluent-langneg = "0.13.0"
 gooey-core = { version = "0.1.0-dev.0", path = "../core" }
-parking_lot = "0.11"
-intl-memoizer = "0.5"
-log = "0.4"
+parking_lot = "0.12.0"
+intl-memoizer = "0.5.1"
+log = "0.4.14"

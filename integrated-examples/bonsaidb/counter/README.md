@@ -36,7 +36,7 @@ These steps rely on these tools:
 
 ### Steps
 
-These steps are written to work if your current working directory is `{repository}/integrated-examples/bonsaidb/counter`.
+These steps are written to work from the root of the repository.
 
 1. Build the client:
 
@@ -44,6 +44,6 @@ These steps are written to work if your current working directory is `{repositor
 
 2. Launch the HTTP server:
 
-   `miniserve browser/`
+   `miniserve integrated-examples/bonsaidb/counter/browser`
 
 3. Navigate to the website: `http://localhost:8080/index.html`

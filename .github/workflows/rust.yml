@@ -24,8 +24,9 @@ jobs:
         with:
           ref: ${{ matrix.branch }}
       - name: Audit
+        # TODO Downstream vulnerability: https://rustsec.org/advisories/RUSTSEC-2021-0119
         run: |
-          cargo audit -D warnings
+          cargo audit -D warnings --ignore RUSTSEC-2021-0119
 
   test:
     runs-on: ubuntu-latest
