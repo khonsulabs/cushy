@@ -2,7 +2,7 @@
 
 In [the main branch](https://github.com/khonsulabs/gooey) is a proof-of-concept
 GUI framework that provides an Elm-inspired API. I,
-[@ecton](https://github.com/khonsulabs/ecton), grew unhappy with the amunt of
+[@ecton](https://github.com/khonsulabs/ecton), grew unhappy with the amount of
 boilerplate and locking that was required to pull this off.
 
 This branch reenvisions the core goals of the project, but using a reactive
@@ -21,8 +21,8 @@ system inspired by [Leptos](https://github.com/leptos-rs/leptos).
 - **No "special" widgets**: Many UI frameworks have first-class widgets that are
   able to leverage internal APIs or knowledge that third-party developers cannot
   utilize. Gooey separates its included widgets into a separate crate from the
-  frontend and core crates, ensuring that all APIs use to implement the built-in
-  widgets are available to all developers.
+  frontend and core crates, ensuring that all APIs used to implement the
+  built-in widgets are available to all developers.
 - **Write once, deploy anywhere**: It should be easy to write apps that work in
   a web browser, on a desktop, and on a phone. Additionally, Gooey will strive for maintaining a common look and feel across all platforms.
 - **We don't need DSLs**: Rust has an incredibly powerful type system, and there
@@ -130,7 +130,8 @@ Running this example in a browser looks like this currently:
   ```
 
   This snippet creates the button labeled *Increment* that has the closure
-  invoked each time the button is clicked. Inside of the closure, the counter is incremented, and the label
+  invoked each time the button is clicked. Inside of the closure, the counter is
+  incremented, and the dynamic `label` value is updated with the new value.
 
 ## Trying the examples yourself
 
@@ -143,3 +144,8 @@ miniserve crates/gooey/examples/browser/
 Note: I have no idea how to get [Trunk](https://trunkrs.dev/) working with
 examples, so these manual steps are provided. Actual users of Gooey should be
 able to utilize Trunk in development, as well as run locally.
+
+A second example named `counters` is provided as a proof-of-concept showing how
+widgets instantiating new widgets at runtime can work in a reactive system. This is more of a technical proof-of-concept proving that it works. The code in the example is not as pretty as I would want from Gooey, which is why this README focuses on the simpler example.
+
+![Gooey Web Multi-Counters Demo](./counters-web.gif)
