@@ -1,0 +1,13 @@
+[package]
+name = "gooey-web"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[dependencies]
+gooey-core = { path = "../gooey-core" }
+gooey-reactor = { path = "../gooey-reactor" }
+web-sys = { version = "0.3.61", features = ["Node", "Document", "Window"] }
+console_error_panic_hook = "*"

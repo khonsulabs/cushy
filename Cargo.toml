@@ -1,0 +1,9 @@
+[workspace]
+members = [
+    "crates/gooey-reactor",
+    "crates/gooey-core",
+    "crates/gooey-raster",
+    "crates/gooey-web",
+    "crates/gooey-widgets",
+    "crates/gooey",
+]

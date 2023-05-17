@@ -1,0 +1,19 @@
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+
+<body id="gooey">
+    <script type="module">
+        window.addEventListener("load", () => {
+            let example = window.location.search.substring(1) || "counter";
+            import('./pkg/' + example + '.js').then(function (module) {
+                module.default('./pkg/' + example + '_bg.wasm');
+            });
+        });
+    </script>
+</body>
+
+</html>

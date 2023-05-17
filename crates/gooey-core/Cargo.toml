@@ -1,0 +1,12 @@
+[package]
+name = "gooey-core"
+version = "0.1.0"
+edition = "2021"
+
+
+[features]
+web = ["async"]
+async = ["gooey-reactor/async"]
+
+[dependencies]
+gooey-reactor = { path = "../gooey-reactor" }

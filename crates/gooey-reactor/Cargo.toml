@@ -1,0 +1,17 @@
+[package]
+name = "gooey-reactor"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["async"]
+async = ["dep:futures-core"]
+
+[dependencies]
+futures-core = { version = "0.3.28", optional = true }
+once_cell = "1.17.1"
+alot = { path = "../../../alot" }
+
+[dev-dependencies]
+tokio = { version = "1.28.0", features = ["rt", "macros", "time"] }
+futures-util = { version = "0.3.28" }

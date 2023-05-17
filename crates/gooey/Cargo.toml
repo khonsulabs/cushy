@@ -1,0 +1,25 @@
+[package]
+name = "gooey"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = ["web", "desktop"]
+web = [
+    "gooey-widgets/web",
+    "gooey-widgets/rasterized",
+    "gooey-core/web",
+    "dep:gooey-web",
+    "dep:wasm-bindgen",
+]
+desktop = ["dep:gooey-raster"]
+
+[dependencies]
+gooey-core = { path = "../gooey-core" }
+gooey-widgets = { path = "../gooey-widgets" }
+gooey-web = { path = "../gooey-web", optional = true }
+gooey-raster = { path = "../gooey-raster", optional = true }
+wasm-bindgen = { version = "*", optional = true }
+log = "0.4"
