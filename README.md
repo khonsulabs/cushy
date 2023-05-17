@@ -12,6 +12,9 @@ system inspired by [Leptos](https://github.com/leptos-rs/leptos).
 
 - **Widget**: A user interface element. Many frameworks use different names for
   this concept, such as View or Control.
+- **Frontend**: A system for converting `Widget` implementors into
+  platform-specific implementations. Gooey aims to have at least two built-in
+  frontends: `gooey-web` and `gooey-raster`.
 
 ## Goals of Gooey
 
@@ -60,12 +63,12 @@ Running this example in a browser looks like this currently:
   gooey::run(.., |cx| .. )
   ```
 
-  The `run()` function has two implementations in this demo: desktop and web.
-If the `web` feature is enabled and `target_arch = "wasm32"`, the `run()`
-function accepts `Widgets<gooey_web::WebApp>` and runs using `gooey-web`.
-Otherwise, if the `desktop` feature is enabled, the function accepts
-`Widgets<gooey_raster::Rasterizer>`. Currently, the rasterizer crate is nothing
-but placeholders.
+  The `run()` function has two implementations in this demo: desktop and web. If
+  the `web` feature is enabled and `target_arch = "wasm32"`, the `run()`
+  function accepts `Widgets<gooey_web::WebApp>` and runs using `gooey-web`.
+  Otherwise, if the `desktop` feature is enabled, the function accepts
+  `Widgets<gooey_raster::Rasterizer>`. Currently, the rasterizer crate is
+  nothing but placeholders.
 
   The second parameter is a closure which accepts an `ActiveContext` and returns
   a type that implements `Widget`.
@@ -126,7 +129,7 @@ but placeholders.
   })
   ```
 
-  This snippet creates the button lebeled *Increment* that has the closure
+  This snippet creates the button labeled *Increment* that has the closure
   invoked each time the button is clicked. Inside of the closure, the counter is incremented, and the label
 
 ## Trying the examples yourself
