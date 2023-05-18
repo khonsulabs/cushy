@@ -3,7 +3,10 @@
 In [the main branch](https://github.com/khonsulabs/gooey) is a proof-of-concept
 GUI framework that provides an Elm-inspired API. I,
 [@ecton](https://github.com/khonsulabs/ecton), grew unhappy with the amount of
-boilerplate and locking that was required to pull this off.
+boilerplate and locking that was required to pull this off. Additionally, new
+crates are available in the ecosystem that weren't available when I last pursued
+this project, including: [Cosmic Text](https://github.com/pop-os/cosmic-text)
+and [Taffy](https://github.com/DioxusLabs/taffy).
 
 This branch reenvisions the core goals of the project, but using a reactive
 system inspired by [Leptos](https://github.com/leptos-rs/leptos).
@@ -53,9 +56,15 @@ fn main() {
 }
 ```
 
-Running this example in a browser looks like this currently:
+Running [this example](./crates/gooey/examples/counter.rs) in a browser looks like this currently:
 
 ![Gooey Web Counter Demo](./counter-web.gif)
+
+This proof-of-concept has no styling and uses the browser's default stylesheet.
+If this project is pursued, a cross-platform way of declaring style information
+that the widgets utilize to render will be part of the project -- similar to the
+main branch. However, the style system was another aspect of the existing
+implementation I wasn't satisfied with yet.
 
 ## How does this work?
 
@@ -145,7 +154,26 @@ Note: I have no idea how to get [Trunk](https://trunkrs.dev/) working with
 examples, so these manual steps are provided. Actual users of Gooey should be
 able to utilize Trunk in development, as well as run locally.
 
-A second example named `counters` is provided as a proof-of-concept showing how
-widgets instantiating new widgets at runtime can work in a reactive system. This is more of a technical proof-of-concept proving that it works. The code in the example is not as pretty as I would want from Gooey, which is why this README focuses on the simpler example.
+A second example named [counters](./crates/gooey/examples/counters.rs) is
+provided as a proof-of-concept showing how widgets instantiating new widgets at
+runtime can work in a reactive system. This is more of a technical
+proof-of-concept proving that it works. The code in the example is not as pretty
+as I would want from Gooey, which is why this README focuses on the simpler
+example.
 
 ![Gooey Web Multi-Counters Demo](./counters-web.gif)
+
+## Crates
+
+- `gooey-reactor`: A platform-independent, forbid-unsafe reactive system.
+- `gooey-core`: Defines all of the cross-platform structures and traits.
+- `gooey-web`: Defines the `WebApp` type which implements
+  `gooey_core::Frontend`.
+- `gooey-raster`: Defines the `Raster` type which implements
+  `gooey_core::Frontend`. This crate is a placeholder as a proof of concept of
+  how `gooey` can automatically pick at compile time which frontend to use.
+- `gooey-widgets`: Defines the provided widgets. Currently this includes `Flex`,
+  `Label`, and `Button` implementations. When the `web` feature is enabled,
+  `gooey-web` support is enabled.
+- `gooey`: Provides easy functions for utilizing `gooey-web` and `gooey-raster`
+  in a write-once, deploy anywhere manner.
