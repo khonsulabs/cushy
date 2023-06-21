@@ -5,5 +5,14 @@ members = [
     "crates/gooey-raster",
     "crates/gooey-web",
     "crates/gooey-widgets",
+    "crates/gooey-macros",
     "crates/gooey",
 ]
+
+# [patch.crates-io]
+# kempt = { path = "../objectmap" }
+
+# [patch."https://github.com/khonsulabs/stylecs"]
+# stylecs = { path = "../stylecs" }
+# stylecs-macros = { path = "../stylecs/stylecs-macros" }
+# stylecs-shared = { path = "../stylecs/stylecs-shared" }

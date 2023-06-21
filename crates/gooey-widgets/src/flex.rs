@@ -1,154 +1,55 @@
-use alot::OrderedLots;
-use gooey_core::{ActiveContext, BoxedWidget, Widget, WidgetInstance, WidgetValue};
+use gooey_core::style::StyleComponent;
+use gooey_core::{Children, Widget, WidgetValue};
 
-#[derive(Debug)]
+#[derive(Debug, Widget)]
+#[widget(authority = gooey)]
 pub struct Flex {
-    pub children: WidgetValue<FlexChildren>,
+    pub direction: WidgetValue<FlexDirection>,
+    pub children: WidgetValue<Children>,
 }
 
 impl Flex {
-    pub fn columns(context: &ActiveContext) -> Builder<'_> {
-        Builder::new(context, FlexDirection::Column)
-    }
-
-    pub fn rows(context: &ActiveContext) -> Builder<'_> {
-        Builder::new(context, FlexDirection::Row)
-    }
-}
-
-impl Widget for Flex {}
-
-#[derive(Debug)]
-pub struct Builder<'a> {
-    context: &'a ActiveContext,
-    direction: FlexDirection,
-    reverse: bool,
-    children: OrderedLots<FlexChild>,
-}
-
-impl<'a> Builder<'a> {
-    fn new(context: &'a ActiveContext, direction: FlexDirection) -> Self {
-        Self {
-            context,
-            direction,
-            reverse: false,
-            children: OrderedLots::default(),
-        }
-    }
-
-    pub fn with<W>(self, widget_fn: impl FnOnce(ActiveContext) -> W) -> Self
-    where
-        W: Widget,
-    {
-        self.with_config(widget_fn, FlexConfig::default())
-    }
-
-    pub fn with_config<W>(
-        mut self,
-        widget_fn: impl FnOnce(ActiveContext) -> W,
-        config: FlexConfig,
-    ) -> Self
-    where
-        W: Widget,
-    {
-        let widget = self.context.new_widget(widget_fn).boxed();
-        self.children.push(FlexChild { widget, config });
-        self
-    }
-
-    pub fn with_widget<W>(self, widget: W) -> Self
-    where
-        W: Widget,
-    {
-        self.with(|_| widget)
-    }
-
-    pub fn with_widget_and_config<W>(self, widget: W, config: FlexConfig) -> Self
-    where
-        W: Widget,
-    {
-        self.with_config(|_| widget, config)
-    }
-
-    pub fn finish(self) -> Flex {
-        Flex {
-            children: WidgetValue::Static(FlexChildren {
-                context: self.context.clone(),
-                children: self.children,
-            }),
-        }
-    }
-
-    pub fn finish_dynamic(self) -> Flex {
-        let children = self.context.new_value(FlexChildren {
-            children: self.children,
-            context: self.context.clone(),
-        });
-        Flex {
-            children: WidgetValue::Value(children),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum FlexDirection {
-    Row,
-    Column,
-}
-
-#[derive(Debug)]
-pub struct FlexChildren {
-    context: ActiveContext,
-    children: OrderedLots<FlexChild>,
-}
-
-impl FlexChildren {
-    pub const fn new(context: ActiveContext) -> Self {
-        Self {
-            context,
-            children: OrderedLots::new(),
-        }
-    }
-
-    pub fn from_children(
-        context: ActiveContext,
-        children: impl IntoIterator<Item = FlexChild>,
+    pub fn new(
+        direction: impl Into<WidgetValue<FlexDirection>>,
+        children: impl Into<WidgetValue<Children>>,
     ) -> Self {
         Self {
-            context,
-            children: children.into_iter().collect(),
+            direction: direction.into(),
+            children: children.into(),
         }
     }
 
-    pub fn push<Template, WidgetFn>(&mut self, widget_fn: WidgetFn)
-    where
-        WidgetFn: FnOnce(ActiveContext) -> Template,
-        Template: Widget,
-    {
-        let widget = self.context.new_widget(widget_fn);
-        self.children.push(widget.into());
+    pub fn columns(children: impl Into<WidgetValue<Children>>) -> Self {
+        Self::new(FlexDirection::columns(), children)
     }
 
-    pub fn entries(&self) -> alot::ordered::EntryIter<'_, FlexChild> {
-        self.children.entries()
+    pub fn rows(children: impl Into<WidgetValue<Children>>) -> Self {
+        Self::new(FlexDirection::rows(), children)
     }
 }
 
-#[derive(Debug)]
-pub struct FlexChild {
-    widget: WidgetInstance<BoxedWidget>,
-    config: FlexConfig,
+#[derive(Debug, StyleComponent)]
+#[style(authority = gooey)]
+pub enum FlexDirection {
+    Row { reverse: bool },
+    Column { reverse: bool },
 }
 
-impl<W> From<WidgetInstance<W>> for FlexChild
-where
-    W: Widget,
-{
-    fn from(widget: WidgetInstance<W>) -> Self {
-        Self {
-            widget: widget.boxed(),
-            config: FlexConfig::default(),
-        }
+impl FlexDirection {
+    pub const fn columns() -> Self {
+        Self::Column { reverse: false }
+    }
+
+    pub const fn columns_rev() -> Self {
+        Self::Column { reverse: true }
+    }
+
+    pub const fn rows() -> Self {
+        Self::Row { reverse: false }
+    }
+
+    pub const fn rows_rev() -> Self {
+        Self::Row { reverse: true }
     }
 }
 
@@ -178,8 +79,10 @@ pub struct FlexTransmogrifier;
 
 #[cfg(feature = "web")]
 mod web {
+    use gooey_core::reactor::Value;
     use gooey_core::{WidgetTransmogrifier, WidgetValue};
     use gooey_web::{WebApp, WebContext};
+    use stylecs::Style;
     use wasm_bindgen::JsCast;
     use web_sys::{HtmlElement, Node};
 
@@ -189,7 +92,12 @@ mod web {
     impl WidgetTransmogrifier<WebApp> for FlexTransmogrifier {
         type Widget = Flex;
 
-        fn transmogrify(&self, widget: &Self::Widget, context: &WebContext) -> Node {
+        fn transmogrify(
+            &self,
+            widget: &Self::Widget,
+            style: Value<Style>,
+            context: &WebContext,
+        ) -> Node {
             log::info!("instantiating flex");
             let mut tracked_children = Vec::new();
             let document = web_sys::window()
@@ -203,7 +111,7 @@ mod web {
                 .expect("incorrect element type");
             widget.children.map_ref(|children| {
                 for (id, child) in children.entries() {
-                    let child = context.instantiate(&child.widget.widget);
+                    let child = context.instantiate(child);
                     container
                         .append_child(&child)
                         .expect("error appending child");
@@ -231,7 +139,7 @@ mod web {
                                 }
 
                                 // The child wasn't found.
-                                let child = context.instantiate(&child.widget.widget);
+                                let child = context.instantiate(child);
                                 if let Some(next_node) = tracked_children.get(index + 1) {
                                     container.insert_before(&child, Some(&next_node.1)).unwrap();
                                 } else {
@@ -240,7 +148,7 @@ mod web {
                                 tracked_children.insert(index, (id, child));
                             }
 
-                            for (_, removed) in tracked_children.drain(children.children.len()..) {
+                            for (_, removed) in tracked_children.drain(children.len()..) {
                                 container.remove_child(&removed).unwrap();
                             }
                         });

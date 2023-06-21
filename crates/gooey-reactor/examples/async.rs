@@ -13,7 +13,7 @@ async fn main() {
         println!("Sleeping");
         tokio::time::sleep(Duration::from_secs(1)).await;
         println!("Shutting down.");
-        shutdown.replace(true);
+        shutdown.set(true);
     });
 
     let mut shutdown = shutdown.into_stream();

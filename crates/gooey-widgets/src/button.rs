@@ -1,6 +1,7 @@
 use gooey_core::{AnyCallback, Callback, Widget, WidgetValue};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Widget)]
+#[widget(authority = gooey)]
 pub struct Button {
     pub label: WidgetValue<String>,
     pub on_click: Option<Callback<()>>,
@@ -25,16 +26,16 @@ impl Button {
     }
 }
 
-impl Widget for Button {}
-
 #[derive(Default)]
 pub struct ButtonTransmogrifier;
 
 #[cfg(feature = "web")]
 mod web {
     use futures_util::StreamExt;
+    use gooey_core::reactor::Value;
     use gooey_core::{WidgetTransmogrifier, WidgetValue};
     use gooey_web::WebApp;
+    use stylecs::Style;
     use wasm_bindgen::prelude::Closure;
     use wasm_bindgen::JsCast;
     use web_sys::HtmlButtonElement;
@@ -47,6 +48,7 @@ mod web {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
+            style: Value<Style>,
             _context: &<WebApp as gooey_core::Frontend>::Context,
         ) -> <WebApp as gooey_core::Frontend>::Instance {
             let label = widget.label.clone();

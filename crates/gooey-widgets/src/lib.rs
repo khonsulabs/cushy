@@ -3,9 +3,9 @@ mod flex;
 mod label;
 
 pub use button::Button;
-pub use flex::{Flex, FlexChildren};
+pub use flex::Flex;
 use gooey_web::WebApp;
-pub use label::Label;
+pub use label::{Label, LabelExt};
 
 use crate::button::ButtonTransmogrifier;
 use crate::flex::FlexTransmogrifier;

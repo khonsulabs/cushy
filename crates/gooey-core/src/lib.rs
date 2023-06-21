@@ -5,14 +5,39 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
+use alot::OrderedLots;
 pub use gooey_reactor as reactor;
+pub mod style;
+mod tree;
+pub use gooey_macros::Widget;
 use gooey_reactor::{Reactor, Scope, ScopeGuard, Value};
+use stylecs::{Identifier, Name, Style};
 
-pub trait Widget: Send + Sync + Debug + 'static {}
+use crate::style::{DynamicStyle, Library, WidgetStyle};
+
+pub trait Widget: BaseStyle + Send + Sync + Debug + 'static {
+    fn name(&self) -> Name;
+    fn type_id(&self) -> TypeId {
+        TypeId::of::<Self>()
+    }
+}
+
+pub trait BaseStyle {
+    fn base_style(&self, library: &Library) -> WidgetStyle;
+}
+
+/// A Rust-native widget implementation.
+///
+/// This trait allows identifying Rust widgets by their [`Name`] without having
+/// an instance present. This is useful for creating style selectors.
+pub trait StaticWidget: Widget {
+    fn static_name() -> Name;
+}
 
 pub trait AnyWidget: Send + Sync + Debug + 'static {
     fn as_any(&self) -> &dyn Any;
     fn widget_type_id(&self) -> TypeId;
+    fn style(&self, library: &Library) -> WidgetStyle;
 }
 
 impl<T> AnyWidget for T
@@ -24,7 +49,11 @@ where
     }
 
     fn widget_type_id(&self) -> TypeId {
-        TypeId::of::<T>()
+        self.type_id()
+    }
+
+    fn style(&self, library: &Library) -> WidgetStyle {
+        T::base_style(self, library)
     }
 }
 
@@ -50,6 +79,16 @@ impl Debug for BoxedWidget {
         self.0.as_ref().fmt(f)
     }
 }
+
+// impl Widget for BoxedWidget {
+//     fn style(&self, library: &Library) -> WidgetStyle {
+//         self.0.style(library)
+//     }
+
+//     fn type_id(&self) -> TypeId {
+//         self.0.widget_type_id()
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub struct Runtime {
@@ -106,17 +145,27 @@ pub struct ActiveContext {
 }
 
 impl ActiveContext {
-    pub fn new_widget<Template, WidgetFn>(&self, widget_fn: WidgetFn) -> WidgetInstance<Template>
+    pub fn new_widget<NewWidget, WidgetFn>(
+        &self,
+        widget_fn: WidgetFn,
+    ) -> WidgetInstance<NewWidget::Widget>
     where
-        WidgetFn: FnOnce(ActiveContext) -> Template,
+        WidgetFn: FnOnce(ActiveContext) -> NewWidget,
+        NewWidget: IntoNewWidget,
     {
         let scope = self.scope.new_scope();
         let widget = widget_fn(ActiveContext {
             frontend: self.frontend.clone(),
             scope: *scope,
-        });
+        })
+        .into_new(self);
 
-        WidgetInstance { widget, scope }
+        WidgetInstance {
+            id: widget.id,
+            style: widget.style,
+            widget: widget.widget,
+            scope,
+        }
     }
 
     pub const fn scope(&self) -> Scope {
@@ -147,16 +196,29 @@ impl Debug for ActiveContext {
     }
 }
 
-#[derive(Debug)]
 pub struct WidgetInstance<W> {
+    pub id: Option<Identifier>,
+    // TODO classes: WidgetValue<Classes>, needs a Set type.
+    pub style: DynamicStyle,
     pub widget: W,
     pub scope: ScopeGuard,
 }
 
 impl<W> WidgetInstance<W> {
+    // fn new(widget: W, scope: ScopeGuard) -> Self {
+    //     Self {
+    //         widget,
+    //         scope,
+    //         id: None,
+    //         style: WidgetValue::Static(Style::new()),
+    //     }
+    // }
+
     pub fn map<R>(self, map: impl FnOnce(W) -> R) -> WidgetInstance<R> {
         WidgetInstance {
             widget: map(self.widget),
+            id: self.id,
+            style: self.style,
             scope: self.scope,
         }
     }
@@ -167,6 +229,8 @@ impl<W> WidgetInstance<W> {
     {
         WidgetInstance {
             widget: BoxedWidget::new(self.widget),
+            id: self.id,
+            style: self.style,
             scope: self.scope,
         }
     }
@@ -183,6 +247,77 @@ impl<W> Deref for WidgetInstance<W> {
 impl<W> DerefMut for WidgetInstance<W> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.widget
+    }
+}
+
+impl<W> Debug for WidgetInstance<W>
+where
+    W: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.widget.fmt(f)
+    }
+}
+
+pub struct NewWidget<W> {
+    pub id: Option<Identifier>,
+    // TODO classes: WidgetValue<Classes>, needs a Set type.
+    pub style: DynamicStyle,
+    pub widget: W,
+}
+
+impl<W> NewWidget<W> {
+    pub fn new(widget: W, context: &ActiveContext) -> Self {
+        Self {
+            id: None,
+            style: DynamicStyle::new(context),
+            widget,
+        }
+    }
+}
+
+pub trait IntoNewWidget {
+    type Widget: Widget;
+
+    fn into_new(self, context: &ActiveContext) -> NewWidget<Self::Widget>;
+}
+
+impl<W> IntoNewWidget for W
+where
+    W: Widget,
+{
+    type Widget = W;
+
+    fn into_new(self, context: &ActiveContext) -> NewWidget<Self::Widget> {
+        NewWidget::new(self, context)
+    }
+}
+
+impl<W> IntoNewWidget for NewWidget<W>
+where
+    W: Widget,
+{
+    type Widget = W;
+
+    fn into_new(self, _context: &ActiveContext) -> NewWidget<Self::Widget> {
+        self
+    }
+}
+
+pub trait WidgetExt {
+    type Widget: Widget;
+    fn id(self, id: Identifier) -> NewWidget<Self::Widget>;
+}
+
+impl<W> WidgetExt for NewWidget<W>
+where
+    W: Widget,
+{
+    type Widget = W;
+
+    fn id(mut self, id: Identifier) -> Self {
+        self.id = Some(id);
+        self
     }
 }
 
@@ -355,9 +490,14 @@ where
         self
     }
 
-    pub fn instantiate(&self, widget: &dyn AnyWidget, context: &F::Context) -> F::Instance {
+    pub fn instantiate(
+        &self,
+        widget: &dyn AnyWidget,
+        style: Value<Style>,
+        context: &F::Context,
+    ) -> F::Instance {
         let Some(transmogrifier) = self.by_id.get(&widget.widget_type_id()) else { unreachable!("WebWidget not registered") };
-        transmogrifier.transmogrify(widget, context)
+        transmogrifier.transmogrify(widget, style, context)
     }
 }
 
@@ -379,14 +519,24 @@ where
     F: Frontend,
 {
     type Widget: Widget;
-    fn transmogrify(&self, widget: &Self::Widget, context: &F::Context) -> F::Instance;
+    fn transmogrify(
+        &self,
+        widget: &Self::Widget,
+        style: Value<Style>,
+        context: &F::Context,
+    ) -> F::Instance;
 }
 
 pub trait Transmogrify<F>: Send + Sync + 'static
 where
     F: Frontend,
 {
-    fn transmogrify(&self, widget: &dyn AnyWidget, context: &F::Context) -> F::Instance;
+    fn transmogrify(
+        &self,
+        widget: &dyn AnyWidget,
+        style: Value<Style>,
+        context: &F::Context,
+    ) -> F::Instance;
     fn widget_type_name(&self) -> &'static str {
         type_name::<Self>()
     }
@@ -400,12 +550,202 @@ where
     fn transmogrify(
         &self,
         widget: &dyn AnyWidget,
+        style: Value<Style>,
         context: &<F as Frontend>::Context,
     ) -> <F as Frontend>::Instance {
         let widget = widget
             .as_any()
             .downcast_ref::<T::Widget>()
             .expect("type mismatch");
-        WidgetTransmogrifier::transmogrify(self, widget, context)
+        WidgetTransmogrifier::transmogrify(self, widget, style, context)
     }
+}
+
+pub struct Children {
+    context: ActiveContext,
+    children: OrderedLots<Child>,
+}
+
+impl Children {
+    pub fn new(context: &ActiveContext) -> Self {
+        Self {
+            context: context.clone(),
+            children: OrderedLots::new(),
+        }
+    }
+
+    pub fn with_widget<NewWidget>(self, widget: NewWidget) -> Self
+    where
+        NewWidget: IntoNewWidget,
+    {
+        self.with(|_| widget)
+    }
+
+    pub fn with_named_widget<NewWidget>(self, name: Name, widget: NewWidget) -> Self
+    where
+        NewWidget: IntoNewWidget,
+    {
+        self.with_named(name, |_| widget)
+    }
+
+    pub fn with<NewWidget, WidgetFn>(mut self, widget_fn: WidgetFn) -> Self
+    where
+        WidgetFn: FnOnce(ActiveContext) -> NewWidget,
+        NewWidget: IntoNewWidget,
+    {
+        self.push(widget_fn);
+        self
+    }
+
+    pub fn with_named<NewWidget, WidgetFn>(mut self, name: Name, widget_fn: WidgetFn) -> Self
+    where
+        WidgetFn: FnOnce(ActiveContext) -> NewWidget,
+        NewWidget: IntoNewWidget,
+    {
+        self.push_named(name, widget_fn);
+        self
+    }
+
+    pub fn push<NewWidget, WidgetFn>(&mut self, widget_fn: WidgetFn)
+    where
+        WidgetFn: FnOnce(ActiveContext) -> NewWidget,
+        NewWidget: IntoNewWidget,
+    {
+        let widget = self.context.new_widget(widget_fn);
+        self.children.push(Child {
+            name: None,
+            widget: widget.boxed(),
+        });
+    }
+
+    pub fn push_named<NewWidget, WidgetFn>(&mut self, name: Name, widget_fn: WidgetFn)
+    where
+        WidgetFn: FnOnce(ActiveContext) -> NewWidget,
+        NewWidget: IntoNewWidget,
+    {
+        let widget = self.context.new_widget(widget_fn);
+
+        self.children.push(Child {
+            name: Some(name),
+            widget: widget.boxed(),
+        });
+    }
+
+    pub fn insert<NewWidget, WidgetFn>(&mut self, index: usize, widget_fn: WidgetFn)
+    where
+        WidgetFn: FnOnce(ActiveContext) -> NewWidget,
+        NewWidget: IntoNewWidget,
+    {
+        let widget = self.context.new_widget(widget_fn);
+        self.children.insert(
+            index,
+            Child {
+                name: None,
+                widget: widget.boxed(),
+            },
+        );
+    }
+
+    pub fn insert_named<NewWidget, WidgetFn>(
+        &mut self,
+        index: usize,
+        name: Name,
+        widget_fn: WidgetFn,
+    ) where
+        WidgetFn: FnOnce(ActiveContext) -> NewWidget,
+        NewWidget: IntoNewWidget,
+    {
+        let widget = self.context.new_widget(widget_fn);
+
+        self.children.insert(
+            index,
+            Child {
+                name: Some(name),
+                widget: widget.boxed(),
+            },
+        );
+    }
+
+    pub fn entries(&self) -> alot::ordered::EntryIter<'_, Child> {
+        self.children.entries()
+    }
+
+    pub fn len(&self) -> usize {
+        self.children.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.children.is_empty()
+    }
+}
+
+impl Debug for Children {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut list = f.debug_list();
+        for child in &self.children {
+            list.entry(child);
+        }
+        list.finish()
+    }
+}
+
+pub struct Child {
+    name: Option<Name>,
+    widget: WidgetInstance<BoxedWidget>,
+}
+
+impl Child {
+    pub const fn name(&self) -> Option<&Name> {
+        self.name.as_ref()
+    }
+}
+
+impl Deref for Child {
+    type Target = WidgetInstance<BoxedWidget>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.widget
+    }
+}
+
+impl Debug for Child {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(name) = &self.name {
+            f.debug_map().entry(&name, &self.widget).finish()
+        } else {
+            self.widget.fmt(f)
+        }
+    }
+}
+
+#[test]
+fn children_debug() {
+    #[derive(Debug)]
+    struct NullFrontend;
+    impl Frontend for NullFrontend {
+        type Context = ();
+        type Instance = ();
+    }
+
+    #[derive(Debug, Widget)]
+    #[widget(name = test_widget,  core = crate)]
+    struct TestWidget(u32);
+
+    let reactor = Reactor::default();
+    let guard = reactor.new_scope();
+    let context = ActiveContext {
+        frontend: Arc::new(NullFrontend),
+        scope: guard.scope(),
+    };
+
+    let debug = format!(
+        "{:?}",
+        Children::new(&context)
+            .with(|_| TestWidget(1))
+            .with_named(Name::private("second").unwrap(), |_| TestWidget(1))
+    );
+    assert_eq!(
+        debug,
+        "[TestWidget(1), {Name { authority: \"_\", name: \"second\" }: TestWidget(1)}]"
+    );
 }

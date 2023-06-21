@@ -10,3 +10,7 @@ async = ["gooey-reactor/async"]
 
 [dependencies]
 gooey-reactor = { path = "../gooey-reactor" }
+gooey-macros = { path = "../gooey-macros" }
+stylecs = { git = "https://github.com/khonsulabs/stylecs" }
+kempt = "0.2.0"
+alot = "0.2.0"

@@ -15,7 +15,7 @@ js-sys = { version = "0.3.61" }
 wasm-bindgen = { version = "0.2.84" }
 wasm-bindgen-futures = { version = "0.4.34" }
 futures-util = { version = "*" }
-alot = { path = "../../../alot" }
+alot = "0.2.0"
 console_log = "1.0.0"
 log = "0.4"
 web-sys = { version = "0.3.61", features = [
@@ -28,3 +28,4 @@ web-sys = { version = "0.3.61", features = [
 ] }
 gooey-web = { path = "../gooey-web", optional = true }
 gooey-raster = { path = "../gooey-raster", optional = true }
+stylecs = { git = "https://github.com/khonsulabs/stylecs" }

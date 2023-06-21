@@ -173,11 +173,12 @@ where
             })?;
         drop(reactors);
         let mut value = value.lock().map_or_else(PoisonError::into_inner, |a| a);
+        let mapped = map(&mut value.value);
         value.notify_changed();
-        Some(map(&mut value.value))
+        Some(mapped)
     }
 
-    pub fn replace(&self, new_value: T) -> Option<T> {
+    pub fn set(&self, new_value: T) -> Option<T> {
         let reactors = all_reactors();
         if let Some(reactor) = reactors.get(self.id.scope.reactor.0) {
             if let Some(data) = reactor
@@ -220,6 +221,95 @@ where
             // Specifying a read generation of 1 prevents reading the initial value.
             read_generation: Some(NonZeroUsize::new(1).expect("not zero")),
         }
+    }
+
+    pub fn map_each<R, F>(&self, mut map: F) -> Option<Value<R>>
+    where
+        F: for<'a> FnMut(&'a T) -> R + Send + 'static,
+        R: Send + Sync,
+    {
+        let initial_value = self.map_ref(&mut map)?;
+        let mapped = self.id.scope.new_value(initial_value);
+        let reactors = all_reactors();
+        let reactor = reactors.get(self.id.scope.reactor.0)?;
+        let scope = reactor.scopes.get(self.id.scope.id.0)?;
+        let value = scope.values.get(self.id.value.0)?;
+        let data = value
+            .as_ref()
+            .as_any()
+            .downcast_ref::<Arc<Mutex<ValueData<T>>>>()?;
+        let mut data = data.lock().map_or_else(PoisonError::into_inner, |a| a);
+        data.callbacks.push(Box::new(ValueMapping {
+            map: Box::new(map),
+            result: mapped,
+        }));
+        Some(mapped)
+    }
+
+    pub fn for_each<F>(&self, mut map: F)
+    where
+        F: for<'a> FnMut(&'a T) + Send + 'static,
+    {
+        self.map_ref(&mut map);
+        let mut reactors = all_reactors();
+        let Some(data) = reactors
+            .get_mut(self.id.scope.reactor.0)
+            .and_then(|reactor| reactor.scopes.get_mut(self.id.scope.id.0))
+            .and_then(|scope| scope.values.get(self.id.value.0))
+            .and_then(|value|
+                value
+                .as_ref()
+                .as_any()
+                .downcast_ref::<Arc<Mutex<ValueData<T>>>>()) else { return };
+
+        let mut data = data.lock().map_or_else(PoisonError::into_inner, |a| a);
+        data.callbacks
+            .push(Box::new(ValueForEach { map: Box::new(map) }));
+    }
+}
+
+struct ValueMapping<V, R>
+where
+    R: 'static,
+{
+    map: Box<dyn MapFunction<V, R>>,
+    result: Value<R>,
+}
+
+struct ValueForEach<V> {
+    map: Box<dyn MapFunction<V, ()>>,
+}
+
+trait MapFunction<T, R>: Send {
+    fn map(&mut self, value: &T) -> R;
+}
+
+impl<T, R, F> MapFunction<T, R> for F
+where
+    F: for<'a> FnMut(&'a T) -> R + Send,
+{
+    fn map(&mut self, value: &T) -> R {
+        self(value)
+    }
+}
+
+trait AnyCallback<T>: Send {
+    fn invoke(&mut self, value: &T);
+}
+
+impl<T, R> AnyCallback<T> for ValueMapping<T, R>
+where
+    R: Send + Sync,
+{
+    fn invoke(&mut self, value: &T) {
+        let mapped = self.map.map(value);
+        self.result.set(mapped);
+    }
+}
+
+impl<T> AnyCallback<T> for ValueForEach<T> {
+    fn invoke(&mut self, value: &T) {
+        self.map.map(value);
     }
 }
 
@@ -359,6 +449,7 @@ struct ValueData<T> {
     value: T,
     generation: NonZeroUsize,
     waiters: Waiters,
+    callbacks: Vec<Box<dyn AnyCallback<T>>>,
 }
 
 impl<T> ValueData<T> {
@@ -367,6 +458,7 @@ impl<T> ValueData<T> {
             value,
             generation: NonZeroUsize::new(1).expect("not zero"),
             waiters: Waiters::default(),
+            callbacks: Vec::new(),
         }
     }
 
@@ -377,6 +469,9 @@ impl<T> ValueData<T> {
             .unwrap_or_else(|| NonZeroUsize::new(1).expect("not zero"));
 
         self.waiters.notify();
+        for cb in &mut self.callbacks {
+            cb.invoke(&self.value);
+        }
     }
 }
 
@@ -457,4 +552,15 @@ impl ScopeGuard {
     pub const fn scope(&self) -> Scope {
         self.0
     }
+}
+
+#[test]
+fn map_each_test() {
+    let reactor = Reactor::default();
+    let scope = reactor.new_scope();
+    let first_value = scope.new_value(1);
+    let mapped_value = first_value.map_each(|updated| updated * 2).unwrap();
+    assert_eq!(mapped_value.get(), Some(2));
+    first_value.set(2);
+    assert_eq!(mapped_value.get(), Some(4));
 }

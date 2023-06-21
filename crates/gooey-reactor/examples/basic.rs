@@ -12,7 +12,7 @@ fn main() {
         println!("Sleeping");
         thread::sleep(Duration::from_secs(1));
         println!("Shutting down.");
-        shutdown.replace(true);
+        shutdown.set(true);
     });
 
     let mut shutdown = shutdown.into_iter();

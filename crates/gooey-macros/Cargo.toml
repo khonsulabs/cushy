@@ -1,0 +1,19 @@
+[package]
+name = "gooey-macros"
+version = "0.1.0"
+edition = "2021"
+
+
+[lib]
+proc-macro = true
+
+[dependencies]
+attribute-derive = "0.6.0"
+manyhow = "0.4.2"
+proc-macro2 = "1.0.58"
+quote = "1.0.27"
+syn = "2.0.16"
+stylecs-shared = { git = "https://github.com/khonsulabs/stylecs" }
+
+[dev-dependencies]
+gooey-core = { path = "../gooey-core" }

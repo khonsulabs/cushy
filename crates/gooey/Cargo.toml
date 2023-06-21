@@ -9,12 +9,11 @@ edition = "2021"
 default = ["web", "desktop"]
 web = [
     "gooey-widgets/web",
-    "gooey-widgets/rasterized",
     "gooey-core/web",
     "dep:gooey-web",
     "dep:wasm-bindgen",
 ]
-desktop = ["dep:gooey-raster"]
+desktop = ["dep:gooey-raster", "gooey-widgets/rasterized"]
 
 [dependencies]
 gooey-core = { path = "../gooey-core" }

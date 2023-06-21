@@ -24,3 +24,9 @@ where
 {
     todo!("need to run the rasterizer")
 }
+
+#[cfg(feature = "desktop")]
+pub use gooey_raster as raster;
+#[cfg(feature = "web")]
+pub use gooey_web as web;
+pub use {gooey_core as core, gooey_widgets as widgets};
