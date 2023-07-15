@@ -13,12 +13,14 @@ web = [
     "dep:gooey-web",
     "dep:wasm-bindgen",
 ]
-desktop = ["dep:gooey-raster", "gooey-widgets/rasterized"]
+desktop = ["raster", "dep:gooey-kludgine"]
+raster = ["dep:gooey-raster", "gooey-widgets/raster"]
 
 [dependencies]
-gooey-core = { path = "../gooey-core" }
-gooey-widgets = { path = "../gooey-widgets" }
-gooey-web = { path = "../gooey-web", optional = true }
-gooey-raster = { path = "../gooey-raster", optional = true }
+gooey-core = { workspace = true }
+gooey-widgets = { workspace = true }
+gooey-web = { workspace = true, optional = true }
+gooey-raster = { workspace = true, optional = true }
 wasm-bindgen = { version = "*", optional = true }
 log = "0.4"
+gooey-kludgine = { workspace = true, optional = true }

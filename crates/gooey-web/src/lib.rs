@@ -1,9 +1,12 @@
+use std::any::type_name;
 use std::fmt::Debug;
 use std::mem;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
-use gooey_core::{ActiveContext, BoxedWidget, Frontend, Runtime, WidgetInstance, Widgets};
-use gooey_reactor::ScopeGuard;
+use gooey_core::style::Style;
+use gooey_core::{ActiveContext, BoxedWidget, Frontend, Runtime, Widget, WidgetInstance, Widgets};
+use gooey_reactor::{ScopeGuard, Value};
 use web_sys::{window, Node};
 
 pub fn attach_to_body<Widget, Initializer>(widgets: Widgets<WebApp>, init: Initializer)
@@ -33,11 +36,11 @@ where
 #[derive(Debug, Clone)]
 pub struct WebApp {
     runtime: Runtime,
-    widgets: Arc<Widgets<Self>>,
+    widgets: Arc<Widgets<WebApp>>,
 }
 
 impl WebApp {
-    pub fn new<Widget, Initializer>(widgets: Widgets<Self>, init: Initializer) -> (Self, Node)
+    pub fn new<Widget, Initializer>(widgets: Widgets<WebApp>, init: Initializer) -> (Self, Node)
     where
         Initializer: FnOnce(&ActiveContext) -> Widget,
         Widget: gooey_core::IntoNewWidget,
@@ -57,7 +60,7 @@ impl WebApp {
             &widget.widget,
             *widget.style,
             &WebContext {
-                scope: app.runtime.root_scope().clone(),
+                _scope: app.runtime.root_scope().clone(),
 
                 app: app.clone(),
             },
@@ -72,10 +75,25 @@ impl Frontend for WebApp {
     type Instance = Node;
 }
 
+pub trait WebTransmogrifier: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
+    type Widget: Widget;
+
+    fn transmogrify(
+        &self,
+        widget: &Self::Widget,
+        style: Value<Style>,
+        context: &WebContext,
+    ) -> Node;
+
+    fn widget_type_name(&self) -> &'static str {
+        type_name::<Self::Widget>()
+    }
+}
+
 #[derive(Clone)]
 pub struct WebContext {
     app: WebApp,
-    scope: Arc<ScopeGuard>,
+    _scope: Arc<ScopeGuard>,
 }
 
 impl WebContext {

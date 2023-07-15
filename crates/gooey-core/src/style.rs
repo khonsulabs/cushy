@@ -3,8 +3,11 @@ use std::borrow::Cow;
 use std::ops::Deref;
 
 use alot::{LotId, Lots};
+pub use figures::units::{Lp, Px, UPx};
+use figures::Angle;
 use gooey_reactor::Value;
 use kempt::{Map, Set};
+use palette::FromColor;
 use stylecs::NameKey;
 pub use stylecs::{static_name, Identifier, Name, StaticName, Style, StyleComponent};
 pub mod classes;
@@ -16,16 +19,15 @@ use crate::{ActiveContext, WidgetValue};
 #[derive(Debug, Clone, Copy)]
 pub enum Dimension {
     Zero,
-    DevicePixels(f32),
-    Pixels(f32),
+    Length(Length),
     Percent(f32),
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
-pub struct Pixels(pub f32);
-
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
-pub struct DevicePixels(pub f32);
+#[derive(Debug, Clone, Copy)]
+pub enum Length {
+    Pixels(Px),
+    LogicalPixels(Lp),
+}
 
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Percent(pub f32);
@@ -33,15 +35,15 @@ pub struct Percent(pub f32);
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Zero;
 
-impl From<Pixels> for Dimension {
-    fn from(value: Pixels) -> Self {
-        Self::Pixels(value.0)
+impl From<Px> for Dimension {
+    fn from(value: Px) -> Self {
+        Self::Length(Length::Pixels(value))
     }
 }
 
-impl From<DevicePixels> for Dimension {
-    fn from(value: DevicePixels) -> Self {
-        Self::DevicePixels(value.0)
+impl From<Lp> for Dimension {
+    fn from(value: Lp) -> Self {
+        Self::Length(Length::LogicalPixels(value))
     }
 }
 
@@ -74,10 +76,31 @@ pub enum Color {
     },
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Angle {
-    Degrees(f32),
-    Radians(f32),
+impl Color {
+    pub fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self::Rgba { r, g, b, a }
+    }
+
+    pub fn into_rgba(self) -> (u8, u8, u8, u8) {
+        match self {
+            Color::Rgba { r, g, b, a } => (r, g, b, a),
+            Color::Hsl {
+                hue,
+                saturation,
+                value,
+                alpha,
+            } => {
+                let hsl = palette::Hsl::new(hue.into_raidans_f(), saturation, value);
+                let rgb = palette::Srgb::from_color(hsl);
+                (
+                    (rgb.red * 255.).round() as u8,
+                    (rgb.green * 255.).round() as u8,
+                    (rgb.blue * 255.).round() as u8,
+                    (alpha * 255.).round() as u8,
+                )
+            }
+        }
+    }
 }
 
 #[derive(Debug, StyleComponent, Clone, Copy)]
@@ -516,7 +539,7 @@ where
 fn dynamic_style_updates() {
     let reactor = gooey_reactor::Reactor::default();
     let scope = reactor.new_scope();
-    let font_size = scope.new_value(FontSize::from(Pixels(13.)));
+    let font_size = scope.new_value(FontSize::from(Px(13)));
     let style = DynamicStyle(scope.new_value(Style::new()))
         .with(font_size)
         .with(BackgroundColor(Color::Rgba {
@@ -529,7 +552,7 @@ fn dynamic_style_updates() {
         style
             .map_ref(|style| style.get::<FontSize>().copied())
             .flatten(),
-        Some(FontSize(Dimension::Pixels(_)))
+        Some(FontSize(Dimension::Length(Length::Pixels(_))))
     ));
     assert!(matches!(
         style

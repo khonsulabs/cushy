@@ -6,5 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gooey-core = { path = "../gooey-core" }
-gooey-reactor = { path = "../gooey-reactor" }
+gooey-core = { workspace = true }
+gooey-reactor = { workspace = true }
+taffy = "0.3.12"

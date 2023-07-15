@@ -1,3 +1,4 @@
+use gooey_core::style::Color;
 use gooey_core::{AnyCallback, Callback, Widget, WidgetValue};
 
 #[derive(Debug, Default, Clone, Widget)]
@@ -26,7 +27,7 @@ impl Button {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ButtonTransmogrifier;
 
 #[cfg(feature = "web")]
@@ -87,5 +88,129 @@ mod web {
 
             button.into()
         }
+    }
+}
+
+#[cfg(feature = "raster")]
+mod raster {
+    use gooey_core::graphics::Point;
+    use gooey_core::math::IntoSigned;
+    use gooey_core::style::Px;
+    use gooey_core::{WidgetTransmogrifier, WidgetValue};
+    use gooey_raster::{RasterContext, RasterizedApp, SurfaceHandle, WidgetRasterizer};
+
+    use crate::button::{button_background_color, button_text_color, ButtonTransmogrifier, State};
+    use crate::Button;
+
+    struct ButtonRasterizer {
+        state: State,
+        button: Button,
+        tracking_click: usize,
+    }
+
+    impl<Surface> WidgetTransmogrifier<RasterizedApp<Surface>> for ButtonTransmogrifier
+    where
+        Surface: gooey_raster::Surface,
+    {
+        type Widget = Button;
+
+        fn transmogrify(
+            &self,
+            widget: &Self::Widget,
+            style: gooey_core::reactor::Value<stylecs::Style>,
+            context: &RasterContext<Surface>,
+        ) -> Surface::Rasterizable {
+            if let WidgetValue::Value(value) = &widget.label {
+                value.for_each({
+                    let handle = context.handle().clone();
+                    move |_| {
+                        handle.invalidate();
+                    }
+                })
+            }
+            Surface::new_rasterizable(ButtonRasterizer {
+                button: widget.clone(),
+                state: State::Normal,
+                tracking_click: 0,
+            })
+        }
+    }
+
+    impl WidgetRasterizer for ButtonRasterizer {
+        type Widget = Button;
+
+        fn draw<Renderer>(&mut self, renderer: &mut Renderer)
+        where
+            Renderer: gooey_core::graphics::Renderer,
+        {
+            renderer.fill.color = button_background_color(self.state);
+            renderer.fill_rect(renderer.size().into());
+            self.button.label.map_ref(|label| {
+                // TODO use the width
+                let metrics = renderer.measure_text::<Px>(label, None);
+
+                renderer.fill.color = button_text_color(self.state);
+                renderer.draw_text(
+                    label,
+                    Point::from(renderer.size().into_signed() - metrics.size) / 2
+                        + Point::new(Px(0), metrics.ascent),
+                    None,
+                );
+            });
+        }
+
+        fn mouse_down(&mut self, _location: Point<Px>, surface: &dyn SurfaceHandle) {
+            self.tracking_click += 1;
+            self.state = State::Active;
+            surface.invalidate();
+        }
+
+        fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+            let hover_state = if self.tracking_click > 0 {
+                State::Active
+            } else {
+                State::Hover
+            };
+            let changed = location.is_some() != (self.state == hover_state);
+            if changed {
+                if location.is_some() {
+                    self.state = hover_state;
+                } else {
+                    self.state = State::Normal;
+                }
+                surface.invalidate();
+            }
+        }
+
+        fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+            self.tracking_click -= 1;
+            if let (State::Active, Some(click)) = (self.state, &mut self.button.on_click) {
+                click.invoke(());
+                self.state = State::Normal;
+                surface.invalidate();
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+enum State {
+    Normal,
+    Hover,
+    Active,
+}
+
+fn button_text_color(state: State) -> Color {
+    match state {
+        State::Normal => Color::rgba(0, 0, 0, 255),
+        State::Hover => Color::rgba(20, 20, 20, 255),
+        State::Active => Color::rgba(0, 0, 0, 255),
+    }
+}
+fn button_background_color(state: State) -> Color {
+    match state {
+        State::Normal => Color::rgba(100, 100, 100, 255),
+        State::Hover => Color::rgba(120, 120, 120, 255),
+        State::Active => Color::rgba(60, 60, 60, 255),
     }
 }

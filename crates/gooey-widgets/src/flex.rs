@@ -74,7 +74,7 @@ pub enum SelfAlign {
 #[derive(Debug)]
 pub enum SelfJustify {}
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct FlexTransmogrifier;
 
 #[cfg(feature = "web")]

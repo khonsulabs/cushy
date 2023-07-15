@@ -1,12 +1,13 @@
 use std::any::{type_name, Any, TypeId};
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
 use alot::OrderedLots;
-pub use gooey_reactor as reactor;
+pub use {figures as math, gooey_reactor as reactor};
+pub mod graphics;
 pub mod style;
 mod tree;
 pub use gooey_macros::Widget;
@@ -15,7 +16,7 @@ use stylecs::{Identifier, Name, Style};
 
 use crate::style::{DynamicStyle, Library, WidgetStyle};
 
-pub trait Widget: BaseStyle + Send + Sync + Debug + 'static {
+pub trait Widget: BaseStyle + RefUnwindSafe + UnwindSafe + Send + Sync + Debug + 'static {
     fn name(&self) -> Name;
     fn type_id(&self) -> TypeId {
         TypeId::of::<Self>()
@@ -34,9 +35,10 @@ pub trait StaticWidget: Widget {
     fn static_name() -> Name;
 }
 
-pub trait AnyWidget: Send + Sync + Debug + 'static {
+pub trait AnyWidget: RefUnwindSafe + UnwindSafe + Send + Sync + Debug + 'static {
     fn as_any(&self) -> &dyn Any;
     fn widget_type_id(&self) -> TypeId;
+    fn name(&self) -> Name;
     fn style(&self, library: &Library) -> WidgetStyle;
 }
 
@@ -50,6 +52,10 @@ where
 
     fn widget_type_id(&self) -> TypeId {
         self.type_id()
+    }
+
+    fn name(&self) -> Name {
+        self.name()
     }
 
     fn style(&self, library: &Library) -> WidgetStyle {
@@ -80,16 +86,6 @@ impl Debug for BoxedWidget {
     }
 }
 
-// impl Widget for BoxedWidget {
-//     fn style(&self, library: &Library) -> WidgetStyle {
-//         self.0.style(library)
-//     }
-
-//     fn type_id(&self) -> TypeId {
-//         self.0.widget_type_id()
-//     }
-// }
-
 #[derive(Debug, Clone)]
 pub struct Runtime {
     reactor: Reactor,
@@ -117,15 +113,12 @@ impl Runtime {
     }
 }
 
-pub trait Frontend: Send + Sync + Debug + Sized + 'static {
-    // type AnyTransmogrifier: Transmogrify<Self>;
+pub trait Frontend: RefUnwindSafe + UnwindSafe + Send + Sync + Debug + Sized + 'static {
     type Context;
     type Instance;
-    // type AnyWidget;
-    // fn instantiate<W>(&mut self, )
 }
 
-pub trait AnyFrontend: Send + Sync + Debug + 'static {
+pub trait AnyFrontend: RefUnwindSafe + UnwindSafe + Send + Sync + Debug + 'static {
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -145,6 +138,16 @@ pub struct ActiveContext {
 }
 
 impl ActiveContext {
+    pub fn root<F>(frontend: F, runtime: &Runtime) -> Self
+    where
+        F: Frontend,
+    {
+        Self {
+            frontend: Arc::new(frontend),
+            scope: ***runtime.root_scope(),
+        }
+    }
+
     pub fn new_widget<NewWidget, WidgetFn>(
         &self,
         widget_fn: WidgetFn,
@@ -205,15 +208,6 @@ pub struct WidgetInstance<W> {
 }
 
 impl<W> WidgetInstance<W> {
-    // fn new(widget: W, scope: ScopeGuard) -> Self {
-    //     Self {
-    //         widget,
-    //         scope,
-    //         id: None,
-    //         style: WidgetValue::Static(Style::new()),
-    //     }
-    // }
-
     pub fn map<R>(self, map: impl FnOnce(W) -> R) -> WidgetInstance<R> {
         WidgetInstance {
             widget: map(self.widget),
@@ -356,6 +350,27 @@ impl<T> WidgetValue<T> {
             WidgetValue::Value(value) => value.map_ref(map).expect("invalid value reference"),
         }
     }
+
+    pub fn map_each<R, F>(&self, mut map: F) -> Option<WidgetValue<R>>
+    where
+        F: for<'a> FnMut(&'a T) -> R + Send + 'static,
+        R: Send + Sync,
+    {
+        match self {
+            WidgetValue::Static(value) => Some(WidgetValue::Static(map(value))),
+            WidgetValue::Value(value) => value.map_each(map).map(WidgetValue::Value),
+        }
+    }
+
+    pub fn for_each<F>(&self, mut map: F)
+    where
+        F: for<'a> FnMut(&'a T) + Send + 'static,
+    {
+        match self {
+            WidgetValue::Static(value) => map(value),
+            WidgetValue::Value(value) => value.for_each(map),
+        }
+    }
 }
 
 impl<T> From<T> for WidgetValue<T> {
@@ -421,7 +436,7 @@ where
     }
 }
 
-pub trait AnyCallback<T>: Send + Sync + 'static {
+pub trait AnyCallback<T>: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
     fn cloned(&self) -> Box<dyn AnyCallback<T>>;
     fn invoke(&mut self, value: T);
     fn type_name(&self) -> &'static str;
@@ -429,7 +444,7 @@ pub trait AnyCallback<T>: Send + Sync + 'static {
 
 impl<T, F> AnyCallback<T> for F
 where
-    F: FnMut(T) + Clone + Send + Sync + 'static,
+    F: FnMut(T) + Clone + RefUnwindSafe + UnwindSafe + Send + Sync + 'static,
 {
     fn invoke(&mut self, value: T) {
         self(value)
@@ -453,8 +468,7 @@ pub struct Widgets<F>
 where
     F: Frontend,
 {
-    by_id: HashMap<TypeId, Box<dyn Transmogrify<F>>>,
-    frontend: PhantomData<&'static F>,
+    by_id: HashMap<TypeId, AnyTransmogrifier<F>>,
 }
 
 impl<F> Default for Widgets<F>
@@ -464,7 +478,6 @@ where
     fn default() -> Self {
         Self {
             by_id: HashMap::default(),
-            frontend: PhantomData,
         }
     }
 }
@@ -478,8 +491,10 @@ where
         T: WidgetTransmogrifier<F> + Transmogrify<F> + Default,
     {
         #[allow(clippy::box_default)] // This breaks the dyn cast.
-        self.by_id
-            .insert(TypeId::of::<T::Widget>(), Box::new(T::default()));
+        self.by_id.insert(
+            TypeId::of::<T::Widget>(),
+            AnyTransmogrifier::new(T::default()),
+        );
     }
 
     pub fn with<T>(mut self) -> Self
@@ -496,8 +511,15 @@ where
         style: Value<Style>,
         context: &F::Context,
     ) -> F::Instance {
-        let Some(transmogrifier) = self.by_id.get(&widget.widget_type_id()) else { unreachable!("WebWidget not registered") };
-        transmogrifier.transmogrify(widget, style, context)
+        let Some(transmogrifier) = self.by_id.get(&widget.widget_type_id()) else { unreachable!("{} not registered", widget.name()) };
+        transmogrifier.0.transmogrify(widget, style, context)
+    }
+
+    pub fn get<T>(&self) -> Option<&AnyTransmogrifier<F>>
+    where
+        T: Widget,
+    {
+        self.by_id.get(&TypeId::of::<T>())
     }
 }
 
@@ -508,9 +530,23 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut tuple = f.debug_tuple("WebWidgets");
         for transmogrifier in self.by_id.values() {
-            tuple.field(&transmogrifier.widget_type_name());
+            tuple.field(&transmogrifier.0.widget_type_name());
         }
         tuple.finish()
+    }
+}
+
+pub struct AnyTransmogrifier<F>(Box<dyn Transmogrify<F>>);
+
+impl<F> AnyTransmogrifier<F>
+where
+    F: Frontend,
+{
+    pub fn new<T>(transmogrifier: T) -> Self
+    where
+        T: WidgetTransmogrifier<F>,
+    {
+        Self(Box::new(transmogrifier))
     }
 }
 
@@ -527,7 +563,7 @@ where
     ) -> F::Instance;
 }
 
-pub trait Transmogrify<F>: Send + Sync + 'static
+pub trait Transmogrify<F>: RefUnwindSafe + UnwindSafe + Send + Sync + 'static
 where
     F: Frontend,
 {
@@ -537,6 +573,7 @@ where
         style: Value<Style>,
         context: &F::Context,
     ) -> F::Instance;
+
     fn widget_type_name(&self) -> &'static str {
         type_name::<Self>()
     }

@@ -15,17 +15,17 @@ where
 }
 #[cfg(all(feature = "desktop", not(target_arch = "wasm32")))]
 pub fn run<Widget, Initializer>(
-    widgets: gooey_core::Widgets<gooey_raster::Rasterizer>,
+    widgets: gooey_core::Widgets<gooey_raster::RasterizedApp<gooey_kludgine::Kludgine>>,
     init: Initializer,
 ) -> !
 where
-    Initializer: FnOnce(&ActiveContext) -> Widget,
+    Initializer: FnOnce(&ActiveContext) -> Widget + std::panic::UnwindSafe + Send + 'static,
     Widget: gooey_core::Widget,
 {
-    todo!("need to run the rasterizer")
+    gooey_kludgine::run(widgets, init)
 }
 
-#[cfg(feature = "desktop")]
+#[cfg(feature = "raster")]
 pub use gooey_raster as raster;
 #[cfg(feature = "web")]
 pub use gooey_web as web;

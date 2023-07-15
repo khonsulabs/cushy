@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["web"]
+default = ["web", "raster"]
 web = ["dep:gooey-web", "gooey-core/web"]
-rasterized = ["dep:gooey-raster"]
+raster = ["dep:gooey-raster"]
 
 
 [dependencies]
-gooey-core = { path = "../gooey-core" }
+gooey-core = { workspace = true }
 js-sys = { version = "0.3.61" }
 wasm-bindgen = { version = "0.2.84" }
 wasm-bindgen-futures = { version = "0.4.34" }
@@ -26,6 +26,6 @@ web-sys = { version = "0.3.61", features = [
     "Element",
     "CssStyleDeclaration",
 ] }
-gooey-web = { path = "../gooey-web", optional = true }
-gooey-raster = { path = "../gooey-raster", optional = true }
+gooey-web = { workspace = true, optional = true }
+gooey-raster = { workspace = true, optional = true }
 stylecs = { git = "https://github.com/khonsulabs/stylecs" }

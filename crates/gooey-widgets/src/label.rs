@@ -50,7 +50,7 @@ mod web {
 
     use futures_util::StreamExt;
     use gooey_core::reactor::Value;
-    use gooey_core::style::{Dimension, FontSize};
+    use gooey_core::style::{Dimension, FontSize, Length, Px};
     use gooey_core::{WidgetTransmogrifier, WidgetValue};
     use gooey_web::WebApp;
     use stylecs::Style;
@@ -105,7 +105,7 @@ mod web {
                         style.map_ref(|style| {
                             let mut css = String::new();
                             if let Some(font_size) = style.get::<FontSize>() {
-                                let FontSize(Dimension::Pixels(pixels)) = font_size else { todo!("implement better dimension conversion") };
+                                let FontSize(Dimension::Length(Length::Pixels(Px(pixels)))) = font_size else { todo!("implement better dimension conversion") };
                                 write!(&mut css, "font-size:{pixels}px;").expect("error writing css");
                             }
 

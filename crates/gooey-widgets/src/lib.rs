@@ -4,7 +4,6 @@ mod label;
 
 pub use button::Button;
 pub use flex::Flex;
-use gooey_web::WebApp;
 pub use label::{Label, LabelExt};
 
 use crate::button::ButtonTransmogrifier;
@@ -12,7 +11,7 @@ use crate::flex::FlexTransmogrifier;
 use crate::label::LabelTransmogrifier;
 
 #[cfg(feature = "web")]
-pub fn web_widgets() -> gooey_core::Widgets<WebApp> {
+pub fn web_widgets() -> gooey_core::Widgets<gooey_web::WebApp> {
     let _ = console_log::init();
     gooey_core::Widgets::default()
         .with::<ButtonTransmogrifier>()
@@ -21,16 +20,22 @@ pub fn web_widgets() -> gooey_core::Widgets<WebApp> {
 }
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
-pub fn widgets() -> gooey_core::Widgets<WebApp> {
+pub fn widgets() -> gooey_core::Widgets<gooey_web::WebApp> {
     web_widgets()
 }
 
 #[cfg(not(all(feature = "web", target_arch = "wasm32")))]
-pub fn raster_widgets() -> gooey_core::Widgets<gooey_raster::Rasterizer> {
-    todo!("need rasterizer")
+pub fn raster_widgets<Surface>() -> gooey_core::Widgets<gooey_raster::RasterizedApp<Surface>>
+where
+    Surface: gooey_raster::Surface,
+{
+    gooey_core::Widgets::default().with::<ButtonTransmogrifier>()
 }
 
 #[cfg(not(all(feature = "web", target_arch = "wasm32")))]
-pub fn widgets() -> gooey_core::Widgets<gooey_raster::Rasterizer> {
+pub fn widgets<Surface>() -> gooey_core::Widgets<gooey_raster::RasterizedApp<Surface>>
+where
+    Surface: gooey_raster::Surface,
+{
     raster_widgets()
 }

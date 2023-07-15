@@ -16,4 +16,4 @@ syn = "2.0.16"
 stylecs-shared = { git = "https://github.com/khonsulabs/stylecs" }
 
 [dev-dependencies]
-gooey-core = { path = "../gooey-core" }
+gooey-core = { workspace = true }
