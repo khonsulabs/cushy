@@ -4,11 +4,10 @@ use std::marker::PhantomData;
 use std::mem;
 use std::num::NonZeroUsize;
 use std::ops::Deref;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::task::Waker;
 
 use alot::{LotId, Lots};
-use once_cell::sync::OnceCell;
 
 #[cfg(feature = "async")]
 mod stream;
@@ -422,7 +421,7 @@ struct ReactorData {
     scopes: Lots<ScopeData>,
 }
 
-static REACTORS: OnceCell<Mutex<Lots<ReactorData>>> = OnceCell::new();
+static REACTORS: OnceLock<Mutex<Lots<ReactorData>>> = OnceLock::new();
 
 fn all_reactors() -> MutexGuard<'static, Lots<ReactorData>> {
     REACTORS

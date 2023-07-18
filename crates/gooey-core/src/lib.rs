@@ -400,6 +400,7 @@ impl<'a> From<&'a str> for WidgetValue<String> {
     }
 }
 
+#[repr(transparent)]
 pub struct Callback<T>(Box<dyn AnyCallback<T>>);
 
 impl<T> Clone for Callback<T>

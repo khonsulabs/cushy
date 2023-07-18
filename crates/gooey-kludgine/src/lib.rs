@@ -1,20 +1,20 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-use std::panic::{RefUnwindSafe, UnwindSafe};
+use std::panic::UnwindSafe;
 use std::sync::Arc;
 
-use gooey_core::graphics::{Options, Point, Rect, Renderer, TextMetrics};
-use gooey_core::math::IntoSigned;
-use gooey_core::style::{Px, UPx};
+use gooey_core::graphics::{Drawable, Options, Point, Rect, TextMetrics};
+use gooey_core::math::{IntoSigned, ScreenUnit};
+use gooey_core::style::UPx;
 use gooey_core::{ActiveContext, IntoNewWidget, NewWidget, Runtime, Widgets};
-use gooey_raster::{RasterContext, RasterizedApp, Surface, SurfaceHandle, WidgetRasterizer};
+use gooey_raster::{DrawableState, RasterContext, Rasterizable, RasterizedApp, Surface};
 use kludgine::app::winit::event::ElementState;
 use kludgine::app::WindowBehavior;
 use kludgine::render::Drawing;
 use kludgine::shapes::Shape;
 use kludgine::text::TextOrigin;
-use kludgine::Color;
+use kludgine::{Clipped, Color};
 
 pub fn run<Widget, Initializer>(widgets: Widgets<RasterizedApp<Kludgine>>, init: Initializer) -> !
 where
@@ -29,113 +29,50 @@ pub struct Kludgine;
 
 impl Surface for Kludgine {
     type Context = ();
-    type Rasterizable = Rasterizable;
-
-    fn new_rasterizable<R>(rasterizable: R) -> Self::Rasterizable
-    where
-        R: WidgetRasterizer,
-    {
-        Rasterizable::new(rasterizable)
-    }
-}
-
-pub struct Rasterizable(Box<dyn AnyWidgetRasterizer>);
-
-impl Rasterizable {
-    pub fn new<R>(rasterizable: R) -> Self
-    where
-        R: WidgetRasterizer,
-    {
-        Self(Box::new(rasterizable))
-    }
-}
-
-pub trait AnyWidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
-    fn draw(&mut self, renderer: &mut KludgineRenderer<'_, '_, '_>);
-    fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle);
-    fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle);
-    fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle);
-}
-
-impl<T> AnyWidgetRasterizer for T
-where
-    T: WidgetRasterizer,
-{
-    fn draw(&mut self, renderer: &mut KludgineRenderer<'_, '_, '_>) {
-        T::draw(self, renderer)
-    }
-
-    fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle) {
-        T::mouse_down(self, location, surface)
-    }
-
-    fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
-        T::mouse_up(self, location, surface)
-    }
-
-    fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
-        T::cursor_moved(self, location, surface)
-    }
 }
 
 #[derive(Debug)]
 pub struct KludgineTransmogrifier;
 
 #[derive(Debug)]
-pub struct KludgineRenderer<'clip, 'r, 'gfx> {
-    renderer: PossiblyClipped<'clip, 'r, 'gfx>,
-    options: &'clip mut Options,
+pub struct KludgineRenderer<'r, 'gfx> {
+    renderer: kludgine::render::Renderer<'r, 'gfx>,
+    options: Options,
 }
 
-#[derive(Debug)]
-enum PossiblyClipped<'clip, 'r, 'gfx> {
-    Renderer(kludgine::render::Renderer<'r, 'gfx>),
-    Clipped(kludgine::ClipGuard<'clip, kludgine::render::Renderer<'r, 'gfx>>),
-}
-
-impl<'clip, 'r, 'gfx> Deref for KludgineRenderer<'clip, 'r, 'gfx> {
+impl<'r, 'gfx> Deref for KludgineRenderer<'r, 'gfx> {
     type Target = Options;
 
     fn deref(&self) -> &Self::Target {
-        self.options
+        &self.options
     }
 }
 
-impl<'clip, 'r, 'gfx> DerefMut for KludgineRenderer<'clip, 'r, 'gfx> {
+impl<'r, 'gfx> DerefMut for KludgineRenderer<'r, 'gfx> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.options
+        &mut self.options
     }
 }
 
-impl<'r, 'gfx> Deref for PossiblyClipped<'_, 'r, 'gfx> {
-    type Target = kludgine::render::Renderer<'r, 'gfx>;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            PossiblyClipped::Renderer(r) => r,
-            PossiblyClipped::Clipped(r) => r,
-        }
+impl<'r, 'gfx> DrawableState for KludgineRenderer<'r, 'gfx> {
+    fn clip_to(&mut self, clip: Rect<UPx>) {
+        self.renderer.push_clip(clip);
     }
-}
-impl<'r, 'gfx> DerefMut for PossiblyClipped<'_, 'r, 'gfx> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            PossiblyClipped::Renderer(r) => r,
-            PossiblyClipped::Clipped(r) => r,
-        }
+
+    fn size(&self) -> gooey_core::graphics::Size<UPx> {
+        self.renderer.size()
+    }
+
+    fn pop_clip(&mut self) {
+        self.renderer.pop_clip();
     }
 }
 
-impl<'clip, 'r, 'gfx> Renderer for KludgineRenderer<'clip, 'r, 'gfx> {
-    type Clipped<'newclip>
-    = KludgineRenderer< 'newclip, 'r, 'gfx>
-    where
-        Self: 'newclip;
-
-    fn fill_rect<Unit>(&mut self, rect: Rect<Unit>)
-    where
-        Unit: gooey_core::math::ScreenUnit,
-    {
+impl<'r, 'gfx, Unit> Drawable<Unit> for KludgineRenderer<'r, 'gfx>
+where
+    Unit: ScreenUnit,
+{
+    fn fill_rect(&mut self, rect: Rect<Unit>) {
         self.renderer.draw_shape(
             &Shape::filled_rect(rect, gooey_color_to_kludgine(&self.options.fill.color)),
             Point::default(),
@@ -144,14 +81,12 @@ impl<'clip, 'r, 'gfx> Renderer for KludgineRenderer<'clip, 'r, 'gfx> {
         )
     }
 
-    fn draw_text<Unit>(
+    fn draw_text(
         &mut self,
         text: &str,
         first_baseline_origin: gooey_core::graphics::Point<Unit>,
         maximum_width: Option<Unit>,
-    ) where
-        Unit: gooey_core::math::ScreenUnit,
-    {
+    ) {
         self.renderer.draw_text(
             text,
             gooey_color_to_kludgine(&self.options.fill.color),
@@ -162,10 +97,7 @@ impl<'clip, 'r, 'gfx> Renderer for KludgineRenderer<'clip, 'r, 'gfx> {
         );
     }
 
-    fn measure_text<Unit>(&mut self, text: &str, maximum_width: Option<Unit>) -> TextMetrics<Unit>
-    where
-        Unit: gooey_core::math::ScreenUnit,
-    {
+    fn measure_text(&mut self, text: &str, maximum_width: Option<Unit>) -> TextMetrics<Unit> {
         let text = self
             .renderer
             .measure_text(text, gooey_color_to_kludgine(&self.options.fill.color));
@@ -174,17 +106,6 @@ impl<'clip, 'r, 'gfx> Renderer for KludgineRenderer<'clip, 'r, 'gfx> {
             descent: text.descent,
             size: text.size,
         }
-    }
-
-    fn clip_to(&mut self, clip: Rect<UPx>) -> Self::Clipped<'_> {
-        KludgineRenderer {
-            renderer: PossiblyClipped::Clipped(self.renderer.clipped_to(clip)),
-            options: self.options,
-        }
-    }
-
-    fn size(&self) -> gooey_core::graphics::Size<UPx> {
-        self.renderer.size()
     }
 }
 
@@ -262,9 +183,9 @@ where
     ) {
         let renderer = self.drawing.new_frame(graphics);
 
-        self.rasterizable.0.draw(&mut KludgineRenderer {
-            renderer: PossiblyClipped::Renderer(renderer),
-            options: &mut Options::default(),
+        self.rasterizable.draw(&mut KludgineRenderer {
+            renderer,
+            options: Options::default(),
         });
     }
 
@@ -294,7 +215,7 @@ where
         _button: kludgine::app::winit::event::MouseButton,
     ) {
         match state {
-            ElementState::Pressed => self.rasterizable.0.mouse_down(
+            ElementState::Pressed => self.rasterizable.mouse_down(
                 window
                     .cursor_position()
                     .expect("mouse down with no cursor position"),
@@ -302,7 +223,6 @@ where
             ),
             ElementState::Released => self
                 .rasterizable
-                .0
                 .mouse_up(window.cursor_position(), &**self.context.handle()),
         }
     }
@@ -313,7 +233,6 @@ where
         _device_id: kludgine::app::winit::event::DeviceId,
     ) {
         self.rasterizable
-            .0
             .cursor_moved(None, &**self.context.handle());
     }
 
@@ -329,11 +248,9 @@ where
             .contains(position)
         {
             self.rasterizable
-                .0
                 .cursor_moved(Some(position), &**self.context.handle());
         } else {
             self.rasterizable
-                .0
                 .cursor_moved(None, &**self.context.handle());
         }
     }

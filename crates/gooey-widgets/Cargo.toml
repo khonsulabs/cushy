@@ -29,3 +29,5 @@ web-sys = { version = "0.3.61", features = [
 gooey-web = { workspace = true, optional = true }
 gooey-raster = { workspace = true, optional = true }
 stylecs = { git = "https://github.com/khonsulabs/stylecs" }
+taffy = "0.3"
+flume = "0.10"

@@ -1,10 +1,12 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
-use gooey_core::graphics::Point;
-use gooey_core::style::Px;
+use gooey_core::graphics::{Drawable, Options, Point};
+use gooey_core::math::{Rect, Size};
+use gooey_core::style::{Lp, Px, UPx};
 use gooey_core::{AnyWidget, Frontend, Transmogrify, Widget, WidgetTransmogrifier, Widgets};
 use gooey_reactor::Value;
 
@@ -41,12 +43,87 @@ where
 }
 
 pub trait Surface: RefUnwindSafe + UnwindSafe + Send + Sync + Sized + 'static {
-    type Context;
-    type Rasterizable;
+    type Context: RefUnwindSafe + UnwindSafe;
+}
 
-    fn new_rasterizable<R>(rasterizable: R) -> Self::Rasterizable
+pub trait AnyWidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
+    fn draw(&mut self, renderer: &mut dyn Renderer);
+    fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle);
+    fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle);
+    fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle);
+}
+
+impl<T> AnyWidgetRasterizer for T
+where
+    T: WidgetRasterizer,
+{
+    fn draw(&mut self, renderer: &mut dyn Renderer) {
+        T::draw(self, renderer)
+    }
+
+    fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle) {
+        T::mouse_down(self, location, surface)
+    }
+
+    fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+        T::mouse_up(self, location, surface)
+    }
+
+    fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+        T::cursor_moved(self, location, surface)
+    }
+}
+
+pub struct Rasterizable(Box<dyn AnyWidgetRasterizer>);
+
+impl Rasterizable {
+    pub fn new<R>(rasterizable: R) -> Self
     where
-        R: WidgetRasterizer;
+        R: WidgetRasterizer,
+    {
+        Self(Box::new(rasterizable))
+    }
+}
+
+impl Deref for Rasterizable {
+    type Target = dyn AnyWidgetRasterizer;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref()
+    }
+}
+
+impl DerefMut for Rasterizable {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.as_mut()
+    }
+}
+
+pub trait Renderer:
+    DrawableState
+    + Drawable<Lp>
+    + Drawable<Px>
+    + Deref<Target = Options>
+    + DerefMut<Target = Options>
+    + Debug
+{
+}
+
+pub trait DrawableState {
+    fn clip_to(&mut self, clip: Rect<UPx>);
+    fn pop_clip(&mut self);
+
+    fn size(&self) -> Size<UPx>;
+}
+
+impl<T> Renderer for T where
+    T: DrawableState
+        + Drawable<Lp>
+        + Drawable<Px>
+        + Debug
+        + Deref<Target = Options>
+        + DerefMut<Target = Options>
+{
 }
 
 impl<Surface> Frontend for RasterizedApp<Surface>
@@ -54,7 +131,7 @@ where
     Surface: crate::Surface,
 {
     type Context = RasterContext<Surface>;
-    type Instance = Surface::Rasterizable;
+    type Instance = Rasterizable;
 }
 
 #[derive(Debug)]
@@ -133,9 +210,7 @@ pub trait SurfaceHandle: Debug + RefUnwindSafe + UnwindSafe + Sync + Send + 'sta
 
 pub trait WidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
     type Widget: Widget;
-    fn draw<Renderer>(&mut self, renderer: &mut Renderer)
-    where
-        Renderer: gooey_core::graphics::Renderer;
+    fn draw(&mut self, renderer: &mut dyn Renderer);
 
     #[allow(unused_variables)]
     fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle) {}

@@ -143,3 +143,103 @@ mod web {
         }
     }
 }
+
+#[cfg(feature = "raster")]
+mod raster {
+    use gooey_core::graphics::{Point, TextMetrics};
+    use gooey_core::math::IntoSigned;
+    use gooey_core::style::Px;
+    use gooey_core::{WidgetTransmogrifier, WidgetValue};
+    use gooey_raster::{
+        RasterContext, Rasterizable, RasterizedApp, Renderer, SurfaceHandle, WidgetRasterizer,
+    };
+
+    use crate::label::LabelTransmogrifier;
+    use crate::{control_text_color, Label, State};
+
+    struct LabelRasterizer {
+        state: State, // The element state should probably be stored somewhere else.
+        label: Label,
+        tracking_click: usize,
+    }
+
+    impl<Surface> WidgetTransmogrifier<RasterizedApp<Surface>> for LabelTransmogrifier
+    where
+        Surface: gooey_raster::Surface,
+    {
+        type Widget = Label;
+
+        fn transmogrify(
+            &self,
+            widget: &Self::Widget,
+            style: gooey_core::reactor::Value<stylecs::Style>,
+            context: &RasterContext<Surface>,
+        ) -> Rasterizable {
+            if let WidgetValue::Value(value) = &widget.label {
+                value.for_each({
+                    let handle = context.handle().clone();
+                    move |_| {
+                        handle.invalidate();
+                    }
+                })
+            }
+
+            Rasterizable::new(LabelRasterizer {
+                label: widget.clone(),
+                state: State::Normal,
+                tracking_click: 0,
+            })
+        }
+    }
+
+    impl WidgetRasterizer for LabelRasterizer {
+        type Widget = Label;
+
+        fn draw(&mut self, renderer: &mut dyn Renderer) {
+            self.label.label.map_ref(|label| {
+                // TODO use the width
+                let metrics: TextMetrics<Px> = renderer.measure_text(label, None);
+
+                renderer.fill.color = control_text_color(self.state);
+                renderer.draw_text(
+                    label,
+                    Point::from(renderer.size().into_signed() - metrics.size) / 2
+                        + Point::new(Px(0), metrics.ascent),
+                    None,
+                );
+            });
+        }
+
+        fn mouse_down(&mut self, _location: Point<Px>, surface: &dyn SurfaceHandle) {
+            self.tracking_click += 1;
+            self.state = State::Active;
+            surface.invalidate();
+        }
+
+        fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+            let hover_state = if self.tracking_click > 0 {
+                State::Active
+            } else {
+                State::Hover
+            };
+            let changed = location.is_some() != (self.state == hover_state);
+            if changed {
+                if location.is_some() {
+                    self.state = hover_state;
+                } else {
+                    self.state = State::Normal;
+                }
+                surface.invalidate();
+            }
+        }
+
+        fn mouse_up(&mut self, _location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+            self.tracking_click -= 1;
+            if let (State::Active, Some(click)) = (self.state, &mut self.label.on_click) {
+                click.invoke(());
+                self.state = State::Normal;
+                surface.invalidate();
+            }
+        }
+    }
+}

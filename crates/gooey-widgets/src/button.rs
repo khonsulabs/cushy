@@ -1,6 +1,8 @@
 use gooey_core::style::Color;
 use gooey_core::{AnyCallback, Callback, Widget, WidgetValue};
 
+use crate::State;
+
 #[derive(Debug, Default, Clone, Widget)]
 #[widget(authority = gooey)]
 pub struct Button {
@@ -93,14 +95,16 @@ mod web {
 
 #[cfg(feature = "raster")]
 mod raster {
-    use gooey_core::graphics::Point;
+    use gooey_core::graphics::{Point, TextMetrics};
     use gooey_core::math::IntoSigned;
     use gooey_core::style::Px;
     use gooey_core::{WidgetTransmogrifier, WidgetValue};
-    use gooey_raster::{RasterContext, RasterizedApp, SurfaceHandle, WidgetRasterizer};
+    use gooey_raster::{
+        RasterContext, Rasterizable, RasterizedApp, Renderer, SurfaceHandle, WidgetRasterizer,
+    };
 
-    use crate::button::{button_background_color, button_text_color, ButtonTransmogrifier, State};
-    use crate::Button;
+    use crate::button::{button_background_color, ButtonTransmogrifier};
+    use crate::{control_text_color, Button, State};
 
     struct ButtonRasterizer {
         state: State,
@@ -119,7 +123,7 @@ mod raster {
             widget: &Self::Widget,
             style: gooey_core::reactor::Value<stylecs::Style>,
             context: &RasterContext<Surface>,
-        ) -> Surface::Rasterizable {
+        ) -> Rasterizable {
             if let WidgetValue::Value(value) = &widget.label {
                 value.for_each({
                     let handle = context.handle().clone();
@@ -128,7 +132,7 @@ mod raster {
                     }
                 })
             }
-            Surface::new_rasterizable(ButtonRasterizer {
+            Rasterizable::new(ButtonRasterizer {
                 button: widget.clone(),
                 state: State::Normal,
                 tracking_click: 0,
@@ -139,17 +143,14 @@ mod raster {
     impl WidgetRasterizer for ButtonRasterizer {
         type Widget = Button;
 
-        fn draw<Renderer>(&mut self, renderer: &mut Renderer)
-        where
-            Renderer: gooey_core::graphics::Renderer,
-        {
+        fn draw(&mut self, renderer: &mut dyn Renderer) {
             renderer.fill.color = button_background_color(self.state);
-            renderer.fill_rect(renderer.size().into());
+            renderer.fill_rect(renderer.size().into_signed().into());
             self.button.label.map_ref(|label| {
                 // TODO use the width
-                let metrics = renderer.measure_text::<Px>(label, None);
+                let metrics: TextMetrics<Px> = renderer.measure_text(label, None);
 
-                renderer.fill.color = button_text_color(self.state);
+                renderer.fill.color = control_text_color(self.state);
                 renderer.draw_text(
                     label,
                     Point::from(renderer.size().into_signed() - metrics.size) / 2
@@ -190,21 +191,6 @@ mod raster {
                 surface.invalidate();
             }
         }
-    }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-enum State {
-    Normal,
-    Hover,
-    Active,
-}
-
-fn button_text_color(state: State) -> Color {
-    match state {
-        State::Normal => Color::rgba(0, 0, 0, 255),
-        State::Hover => Color::rgba(20, 20, 20, 255),
-        State::Active => Color::rgba(0, 0, 0, 255),
     }
 }
 fn button_background_color(state: State) -> Color {

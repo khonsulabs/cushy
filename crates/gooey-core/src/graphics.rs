@@ -1,33 +1,22 @@
 use std::fmt::Debug;
-use std::ops::{Deref, DerefMut};
 
-use figures::units::{Lp, UPx};
+use figures::units::Lp;
 pub use figures::{Point, Rect, Size};
 
 use crate::style::{Color, Dimension};
 
-pub trait Renderer: Deref<Target = Options> + DerefMut<Target = Options> + Debug {
-    type Clipped<'clip>: Renderer
-    where
-        Self: 'clip;
-
-    fn fill_rect<Unit>(&mut self, rect: Rect<Unit>)
-    where
-        Unit: crate::math::ScreenUnit;
-    fn draw_text<Unit>(
+pub trait Drawable<Unit>
+where
+    Unit: crate::math::ScreenUnit,
+{
+    fn fill_rect(&mut self, rect: Rect<Unit>);
+    fn draw_text(
         &mut self,
         text: &str,
         first_baseline_origin: Point<Unit>,
         maximum_width: Option<Unit>,
-    ) where
-        Unit: crate::math::ScreenUnit;
-    fn measure_text<Unit>(&mut self, text: &str, maximum_width: Option<Unit>) -> TextMetrics<Unit>
-    where
-        Unit: crate::math::ScreenUnit;
-
-    fn clip_to(&mut self, clip: Rect<UPx>) -> Self::Clipped<'_>;
-
-    fn size(&self) -> Size<UPx>;
+    );
+    fn measure_text(&mut self, text: &str, maximum_width: Option<Unit>) -> TextMetrics<Unit>;
 }
 
 #[derive(Debug)]
