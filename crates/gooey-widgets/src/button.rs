@@ -96,8 +96,8 @@ mod web {
 #[cfg(feature = "raster")]
 mod raster {
     use gooey_core::graphics::{Point, TextMetrics};
-    use gooey_core::math::IntoSigned;
-    use gooey_core::style::Px;
+    use gooey_core::math::{IntoSigned, IntoUnsigned, Size};
+    use gooey_core::style::{Px, UPx};
     use gooey_core::{WidgetTransmogrifier, WidgetValue};
     use gooey_raster::{
         RasterContext, Rasterizable, RasterizedApp, Renderer, SurfaceHandle, WidgetRasterizer,
@@ -143,6 +143,17 @@ mod raster {
     impl WidgetRasterizer for ButtonRasterizer {
         type Widget = Button;
 
+        fn measure(
+            &mut self,
+            available_space: Size<Option<UPx>>,
+            renderer: &mut dyn Renderer,
+        ) -> Size<UPx> {
+            self.button.label.map_ref(|label| {
+                let metrics: TextMetrics<Px> = renderer.measure_text(label, None);
+                metrics.size.into_unsigned()
+            })
+        }
+
         fn draw(&mut self, renderer: &mut dyn Renderer) {
             renderer.fill.color = button_background_color(self.state);
             renderer.fill_rect(renderer.size().into_signed().into());
@@ -151,10 +162,10 @@ mod raster {
                 let metrics: TextMetrics<Px> = renderer.measure_text(label, None);
 
                 renderer.fill.color = control_text_color(self.state);
+                let signed_height = renderer.size().height.into_signed();
                 renderer.draw_text(
                     label,
-                    Point::from(renderer.size().into_signed() - metrics.size) / 2
-                        + Point::new(Px(0), metrics.ascent),
+                    Point::new(Px(0), (signed_height + metrics.ascent) / 2),
                     None,
                 );
             });

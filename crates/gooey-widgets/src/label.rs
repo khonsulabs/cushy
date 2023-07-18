@@ -147,8 +147,8 @@ mod web {
 #[cfg(feature = "raster")]
 mod raster {
     use gooey_core::graphics::{Point, TextMetrics};
-    use gooey_core::math::IntoSigned;
-    use gooey_core::style::Px;
+    use gooey_core::math::{IntoSigned, IntoUnsigned, Size};
+    use gooey_core::style::{Px, UPx};
     use gooey_core::{WidgetTransmogrifier, WidgetValue};
     use gooey_raster::{
         RasterContext, Rasterizable, RasterizedApp, Renderer, SurfaceHandle, WidgetRasterizer,
@@ -194,6 +194,17 @@ mod raster {
 
     impl WidgetRasterizer for LabelRasterizer {
         type Widget = Label;
+
+        fn measure(
+            &mut self,
+            available_space: Size<Option<UPx>>,
+            renderer: &mut dyn Renderer,
+        ) -> Size<UPx> {
+            self.label.label.map_ref(|label| {
+                let metrics: TextMetrics<Px> = renderer.measure_text(label, None);
+                metrics.size.into_unsigned()
+            })
+        }
 
         fn draw(&mut self, renderer: &mut dyn Renderer) {
             self.label.label.map_ref(|label| {

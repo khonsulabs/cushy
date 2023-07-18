@@ -162,6 +162,7 @@ mod web {
 
 #[cfg(feature = "raster")]
 mod raster {
+    use std::collections::HashSet;
     use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 
     use alot::LotId;
@@ -182,20 +183,13 @@ mod raster {
     struct FlexRasterizer {
         children: RasterizedChildren,
         flex: FlexLayout,
+        layouts: Vec<taffy::layout::Layout>,
+        mouse_tracking: Option<LotId>,
+        hovering: HashSet<LotId>,
     }
 
-    impl Default for RasterizedChildren {
-        fn default() -> Self {
-            Self(Arc::default())
-        }
-    }
-
+    #[derive(Default)]
     struct RasterizedChildren(Arc<Mutex<Vec<(LotId, Rasterizable)>>>);
-
-    struct RasterChild {
-        widget: Rasterizable,
-        node: taffy::node::Node,
-    }
 
     impl<Surface> WidgetTransmogrifier<RasterizedApp<Surface>> for FlexTransmogrifier
     where
@@ -214,11 +208,10 @@ mod raster {
                 .0
                 .lock()
                 .map_or_else(PoisonError::into_inner, |g| g);
-            let mut flex = FlexLayout::new(taffy::style::Style::DEFAULT);
+            let flex = FlexLayout::new(taffy::style::Style::DEFAULT);
             widget.children.map_ref(|children| {
                 for (id, child) in children.entries() {
-                    let raster_children = raster_children.0.clone();
-                    flex.push_child(taffy::style::Style::DEFAULT);
+                    flex.push_child(id, taffy::style::Style::DEFAULT);
                     locked_children.push((
                         id,
                         context
@@ -241,6 +234,9 @@ mod raster {
             Rasterizable::new(FlexRasterizer {
                 children: raster_children,
                 flex,
+                layouts: Vec::new(),
+                mouse_tracking: None,
+                hovering: HashSet::new(),
             })
         }
     }
@@ -248,38 +244,38 @@ mod raster {
     impl WidgetRasterizer for FlexRasterizer {
         type Widget = Flex;
 
-        fn draw(&mut self, renderer: &mut dyn Renderer) {
-            let layouts = self
-                .flex
-                .measurer
-                .measure(&self.flex, renderer.size(), |request| {
-                    dbg!(&request);
-                    Size {
-                        width: UPx::from(
-                            request.size.width.unwrap_or(
-                                request
-                                    .available
-                                    .width
-                                    .unwrap_or(renderer.size().width.into_float()),
-                            ),
-                        ),
-                        height: UPx::from(
-                            request.size.width.unwrap_or(
-                                request
-                                    .available
-                                    .width
-                                    .unwrap_or(renderer.size().width.into_float()),
-                            ),
-                        ),
-                    }
-                });
+        fn measure(
+            &mut self,
+            available_space: Size<Option<UPx>>,
+            renderer: &mut dyn Renderer,
+        ) -> Size<UPx> {
+            todo!()
+        }
 
+        fn draw(&mut self, renderer: &mut dyn Renderer) {
             let mut children = self
                 .children
                 .0
                 .lock()
                 .map_or_else(PoisonError::into_inner, |g| g);
-            for (layout, (id, rasterizable)) in layouts.into_iter().zip(children.iter_mut()) {
+            self.layouts = self
+                .flex
+                .measurer
+                .measure(&self.flex, renderer.size(), |request| {
+                    let child = children
+                        .iter_mut()
+                        .find_map(|(id, child)| (*id == request.id).then_some(child))
+                        .expect("unknown child");
+                    child.measure(
+                        Size::new(
+                            request.size.width.map(UPx::from),
+                            request.size.height.map(UPx::from),
+                        ),
+                        renderer,
+                    )
+                });
+
+            for (layout, (_id, rasterizable)) in self.layouts.iter().zip(children.iter_mut()) {
                 renderer.clip_to(Rect::new(
                     Point::new(layout.location.x.into(), layout.location.y.into()),
                     Size::new(layout.size.width, layout.size.height),
@@ -287,47 +283,88 @@ mod raster {
                 rasterizable.draw(renderer);
                 renderer.pop_clip();
             }
-            // let mut taffy = Taffy::new();
-            // let raster_children = self.children.0.lock().map_or_else(PoisonError::into_inner, |g| g);
-            // let mut children = Vec::with_capacity(raster_children.len());
-            // for child in &raster_children {
-            //     children.push(taffy.new_leaf_with_measure(
-            //         taffy::style::Style::DEFAULT,
-            //         MeasureFunc::Boxed(Box::new(|size, available_space| taffy::geometry::Size {
-            //             width: match available_space.width {
-            //                 AvailableSpace::Definite(amt) => amt,
-            //                 AvailableSpace::MinContent => todo!(),
-            //                 AvailableSpace::MaxContent => todo!(),
-            //             },
-            //             height: match available_space.height {
-            //                 AvailableSpace::Definite(amt) => amt,
-            //                 AvailableSpace::MinContent => todo!(),
-            //                 AvailableSpace::MaxContent => todo!(),
-            //             },
-            //         })),
-            //     ));
-            // }
-            // let root = taffy.new_with_children(layout, children)
-            // taffy.layout(node)
-            // self.flex.label.map_ref(|label| {
-            //     // TODO use the width
-            //     let metrics = renderer.measure_text::<Px>(label, None);
-
-            //     renderer.fill.color = control_text_color(self.state);
-            //     renderer.draw_text(
-            //         label,
-            //         Point::from(renderer.size().into_signed() - metrics.size) / 2
-            //             + Point::new(Px(0), metrics.ascent),
-            //         None,
-            //     );
-            // });
         }
 
-        fn mouse_down(&mut self, _location: Point<Px>, surface: &dyn SurfaceHandle) {}
+        fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle) {
+            let mut children = self
+                .children
+                .0
+                .lock()
+                .map_or_else(PoisonError::into_inner, |g| g);
+            for (layout, (id, rasterizable)) in self.layouts.iter().zip(children.iter_mut()) {
+                let rect = Rect::new(
+                    Point::new(Px::from(layout.location.x), Px::from(layout.location.y)),
+                    Size::new(Px::from(layout.size.width), Px::from(layout.size.height)),
+                );
+                let relative = location - rect.origin;
+                if relative.x >= 0
+                    && relative.y >= 0
+                    && relative.x < rect.size.width
+                    && relative.y < rect.size.height
+                {
+                    self.mouse_tracking = Some(*id);
+                    rasterizable.mouse_down(relative, surface);
+                    break;
+                }
+            }
+        }
 
-        fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {}
+        fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+            let mut children = self
+                .children
+                .0
+                .lock()
+                .map_or_else(PoisonError::into_inner, |g| g);
+            for (layout, (id, rasterizable)) in self.layouts.iter().zip(children.iter_mut()) {
+                let rect = Rect::new(
+                    Point::new(Px::from(layout.location.x), Px::from(layout.location.y)),
+                    Size::new(Px::from(layout.size.width), Px::from(layout.size.height)),
+                );
+                let relative = location.map(|location| location - rect.origin);
+                if relative.map_or(false, |relative| {
+                    relative.x >= 0
+                        && relative.y >= 0
+                        && relative.x < rect.size.width
+                        && relative.y < rect.size.height
+                }) {
+                    rasterizable.cursor_moved(relative, surface);
+                    self.hovering.insert(*id);
+                } else if self.hovering.remove(id) {
+                    rasterizable.cursor_moved(None, surface);
+                }
+            }
+        }
 
-        fn mouse_up(&mut self, _location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {}
+        fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+            let mut children = self
+                .children
+                .0
+                .lock()
+                .map_or_else(PoisonError::into_inner, |g| g);
+            if let Some((layout, (_, rasterizable))) = self
+                .layouts
+                .iter()
+                .zip(children.iter_mut())
+                .find(|(_, (id, _))| Some(*id) == self.mouse_tracking)
+            {
+                let rect = Rect::new(
+                    Point::new(Px::from(layout.location.x), Px::from(layout.location.y)),
+                    Size::new(Px::from(layout.size.width), Px::from(layout.size.height)),
+                );
+                let relative = location.map(|location| location - rect.origin);
+                if relative.map_or(false, |relative| {
+                    relative.x >= 0
+                        && relative.y >= 0
+                        && relative.x < rect.size.width
+                        && relative.y < rect.size.height
+                }) {
+                    rasterizable.mouse_up(relative, surface);
+                } else {
+                    rasterizable.mouse_up(None, surface);
+                }
+            }
+            self.mouse_tracking = None;
+        }
     }
 
     struct FlexLayout {
@@ -341,8 +378,8 @@ mod raster {
             let results = flume::unbounded();
             TaffyThread::send(
                 CommandKind::NewNode {
+                    measure_id: None,
                     style: root_style,
-                    measured: false,
                 },
                 results.0.clone(),
             );
@@ -359,11 +396,11 @@ mod raster {
             }
         }
 
-        pub fn push_child(&self, style: taffy::style::Style) {
+        pub fn push_child(&self, id: LotId, style: taffy::style::Style) {
             TaffyThread::send(
                 CommandKind::NewNode {
                     style,
-                    measured: true,
+                    measure_id: Some(id),
                 },
                 self.results.0.clone(),
             );
@@ -416,8 +453,8 @@ mod raster {
                         space,
                         measurer: _measurer,
                     } => Self::compute_layout(&mut taffy, &nodes, space),
-                    CommandKind::NewNode { style, measured } => {
-                        Self::new_node(&mut taffy, style, measured)
+                    CommandKind::NewNode { style, measure_id } => {
+                        Self::new_node(&mut taffy, measure_id, style)
                     }
                     CommandKind::Remove(_) => todo!(),
                     CommandKind::InsertChild { child, parent } => todo!(),
@@ -453,9 +490,16 @@ mod raster {
             Ok(LayoutOutput::Layouts(layouts))
         }
 
-        fn new_node(taffy: &mut Taffy, style: taffy::style::Style, measured: bool) -> LayoutResult {
-            let node = if measured {
-                taffy.new_leaf_with_measure(style, MeasureFunc::Raw(GlobalMeasurer::measure))?
+        fn new_node(
+            taffy: &mut Taffy,
+            measure_id: Option<LotId>,
+            style: taffy::style::Style,
+        ) -> LayoutResult {
+            let node = if let Some(id) = measure_id {
+                taffy.new_leaf_with_measure(
+                    style,
+                    MeasureFunc::Boxed(Box::new(move |a, b| GlobalMeasurer::measure(id, a, b))),
+                )?
             } else {
                 taffy.new_leaf(style)?
             };
@@ -492,8 +536,8 @@ mod raster {
             measurer: MeasureGuard,
         },
         NewNode {
+            measure_id: Option<LotId>,
             style: taffy::style::Style,
-            measured: bool,
         },
         Remove(taffy::node::Node),
         InsertChild {
@@ -540,7 +584,7 @@ mod raster {
             &self,
             layout: &FlexLayout,
             space: Size<UPx>,
-            measure: impl Fn(MeasureRequest) -> Size<UPx>,
+            mut measure: impl FnMut(MeasureRequest) -> Size<UPx>,
         ) -> Vec<taffy::layout::Layout> {
             let (requests_sender, requests_receiver) = flume::bounded(1);
             let measurer = GlobalMeasurer::install(requests_sender, self.sizes.1.clone());
@@ -609,6 +653,7 @@ mod raster {
         }
 
         pub fn measure(
+            id: LotId,
             size: taffy::geometry::Size<Option<f32>>,
             available: taffy::geometry::Size<AvailableSpace>,
         ) -> taffy::geometry::Size<f32> {
@@ -621,7 +666,11 @@ mod raster {
             let measurer = measurer.as_ref().expect("no measure channels");
             measurer
                 .requests
-                .send(MeasureRequest { size, available })
+                .send(MeasureRequest {
+                    id,
+                    size,
+                    available,
+                })
                 .expect("global measurer disconnected");
             let size = measurer
                 .sizes
@@ -636,6 +685,7 @@ mod raster {
 
     #[derive(Debug)]
     struct MeasureRequest {
+        id: LotId,
         size: taffy::geometry::Size<Option<f32>>,
         available: taffy::geometry::Size<AvailableSpace>,
     }

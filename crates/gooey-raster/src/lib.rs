@@ -47,6 +47,11 @@ pub trait Surface: RefUnwindSafe + UnwindSafe + Send + Sync + Sized + 'static {
 }
 
 pub trait AnyWidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
+    fn measure(
+        &mut self,
+        available_space: Size<Option<UPx>>,
+        renderer: &mut dyn Renderer,
+    ) -> Size<UPx>;
     fn draw(&mut self, renderer: &mut dyn Renderer);
     fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle);
     fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle);
@@ -57,6 +62,14 @@ impl<T> AnyWidgetRasterizer for T
 where
     T: WidgetRasterizer,
 {
+    fn measure(
+        &mut self,
+        available_space: Size<Option<UPx>>,
+        renderer: &mut dyn Renderer,
+    ) -> Size<UPx> {
+        T::measure(self, available_space, renderer)
+    }
+
     fn draw(&mut self, renderer: &mut dyn Renderer) {
         T::draw(self, renderer)
     }
@@ -210,6 +223,11 @@ pub trait SurfaceHandle: Debug + RefUnwindSafe + UnwindSafe + Sync + Send + 'sta
 
 pub trait WidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
     type Widget: Widget;
+    fn measure(
+        &mut self,
+        available_space: Size<Option<UPx>>,
+        renderer: &mut dyn Renderer,
+    ) -> Size<UPx>;
     fn draw(&mut self, renderer: &mut dyn Renderer);
 
     #[allow(unused_variables)]
