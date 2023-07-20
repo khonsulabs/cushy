@@ -173,9 +173,10 @@ mod raster {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            style: gooey_core::reactor::Value<stylecs::Style>,
+            _style: gooey_core::reactor::Value<stylecs::Style>,
             context: &RasterContext<Surface>,
         ) -> Rasterizable {
+            // TODO apply style
             if let WidgetValue::Value(value) = &widget.label {
                 value.for_each({
                     let handle = context.handle().clone();
@@ -198,7 +199,7 @@ mod raster {
 
         fn measure(
             &mut self,
-            available_space: Size<ConstraintLimit>,
+            _available_space: Size<ConstraintLimit>,
             renderer: &mut dyn Renderer,
         ) -> Size<UPx> {
             self.label.label.map_ref(|label| {

@@ -2,8 +2,10 @@ use std::ops::Deref;
 
 use alot::{LotId, OrderedLots};
 use gooey_core::math::units::UPx;
-use gooey_core::math::{Point, Size};
+use gooey_core::math::Size;
 use gooey_raster::ConstraintLimit;
+
+use crate::flex::{FlexDimension, Orientation};
 
 pub struct Flex {
     children: OrderedLots<FlexDimension>,
@@ -40,25 +42,25 @@ impl Flex {
         self.insert(self.len(), child);
     }
 
-    pub fn remove(&mut self, index: usize) -> FlexDimension {
-        let (id, dimension) = self.children.remove_by_index(index).expect("invalid index");
-        self.layouts.remove(index);
+    // pub fn remove(&mut self, index: usize) -> FlexDimension {
+    //     let (id, dimension) = self.children.remove_by_index(index).expect("invalid index");
+    //     self.layouts.remove(index);
 
-        match dimension {
-            FlexDimension::FitContent => {
-                self.measured.retain(|&measured| measured != id);
-            }
-            FlexDimension::Fractional { weight } => {
-                self.fractional.retain(|(measured, _)| *measured != id);
-                self.total_weights -= u32::from(weight);
-            }
-            FlexDimension::Exact(size) => {
-                self.allocated_space -= size;
-            }
-        }
+    //     match dimension {
+    //         FlexDimension::FitContent => {
+    //             self.measured.retain(|&measured| measured != id);
+    //         }
+    //         FlexDimension::Fractional { weight } => {
+    //             self.fractional.retain(|(measured, _)| *measured != id);
+    //             self.total_weights -= u32::from(weight);
+    //         }
+    //         FlexDimension::Exact(size) => {
+    //             self.allocated_space -= size;
+    //         }
+    //     }
 
-        dimension
-    }
+    //     dimension
+    // }
 
     pub fn insert(&mut self, index: usize, child: FlexDimension) {
         let id = self.children.insert(index, child);
@@ -153,15 +155,6 @@ impl Flex {
 
         self.orientation.make_size(available_space, self.other)
     }
-
-    pub fn size(&self) -> Size<UPx> {
-        let last = self
-            .layouts
-            .last()
-            .map(|child| child.offset + child.size)
-            .unwrap_or_default();
-        self.orientation.make_size(last, self.other)
-    }
 }
 
 impl Deref for Flex {
@@ -170,42 +163,6 @@ impl Deref for Flex {
     fn deref(&self) -> &Self::Target {
         &self.layouts
     }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub enum Orientation {
-    Row,
-    Column,
-}
-
-impl Orientation {
-    pub fn split_size<U>(&self, s: Size<U>) -> (U, U) {
-        match self {
-            Orientation::Row => (s.height, s.width),
-            Orientation::Column => (s.width, s.height),
-        }
-    }
-
-    pub fn make_size<U>(&self, measured: U, other: U) -> Size<U> {
-        match self {
-            Orientation::Row => Size::new(other, measured),
-            Orientation::Column => Size::new(measured, other),
-        }
-    }
-
-    pub fn make_point<U>(&self, measured: U, other: U) -> Point<U> {
-        match self {
-            Orientation::Row => Point::new(other, measured),
-            Orientation::Column => Point::new(measured, other),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub enum FlexDimension {
-    FitContent,
-    Fractional { weight: u8 },
-    Exact(UPx),
 }
 
 #[cfg(test)]

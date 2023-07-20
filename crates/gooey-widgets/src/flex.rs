@@ -1,4 +1,5 @@
-use gooey_core::style::StyleComponent;
+use gooey_core::math::{Point, Size};
+use gooey_core::style::{StyleComponent, UPx};
 use gooey_core::{Children, Widget, WidgetValue};
 
 #[derive(Debug, Widget)]
@@ -53,29 +54,44 @@ impl FlexDirection {
     }
 }
 
-#[derive(Default, Debug)]
-pub struct FlexConfig {
-    pub basis: u32,
-    pub align: Option<SelfAlign>,
-    pub justify: Option<SelfJustify>,
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub enum FlexDimension {
+    FitContent,
+    Fractional { weight: u8 },
+    Exact(UPx),
 }
 
-#[derive(Debug)]
-pub enum SelfAlign {
-    Stretch,
-    Start,
-    End,
-    Center,
-    Baseline,
-    FirstBaseline,
-    LastBaseline,
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum Orientation {
+    Row,
+    Column,
 }
 
-#[derive(Debug)]
-pub enum SelfJustify {}
+impl Orientation {
+    pub fn split_size<U>(&self, s: Size<U>) -> (U, U) {
+        match self {
+            Orientation::Row => (s.height, s.width),
+            Orientation::Column => (s.width, s.height),
+        }
+    }
+
+    pub fn make_size<U>(&self, measured: U, other: U) -> Size<U> {
+        match self {
+            Orientation::Row => Size::new(other, measured),
+            Orientation::Column => Size::new(measured, other),
+        }
+    }
+
+    pub fn make_point<U>(&self, measured: U, other: U) -> Point<U> {
+        match self {
+            Orientation::Row => Point::new(other, measured),
+            Orientation::Column => Point::new(measured, other),
+        }
+    }
+}
 
 #[derive(Default, Debug)]
-pub struct FlexTransmogrifier;
+pub(crate) struct FlexTransmogrifier;
 
 #[cfg(feature = "web")]
 mod web {
@@ -95,9 +111,10 @@ mod web {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            style: Value<Style>,
+            _style: Value<Style>,
             context: &WebContext,
         ) -> Node {
+            // TODO apply style
             log::info!("instantiating flex");
             let mut tracked_children = Vec::new();
             let document = web_sys::window()

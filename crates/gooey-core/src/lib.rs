@@ -9,7 +9,7 @@ use alot::OrderedLots;
 pub use {figures as math, gooey_reactor as reactor};
 pub mod graphics;
 pub mod style;
-mod tree;
+// mod tree;
 pub use gooey_macros::Widget;
 use gooey_reactor::{Reactor, Scope, ScopeGuard, Value};
 use stylecs::{Identifier, Name, Style};
@@ -88,21 +88,18 @@ impl Debug for BoxedWidget {
 
 #[derive(Debug, Clone)]
 pub struct Runtime {
-    reactor: Reactor,
+    _reactor: Reactor,
     root: Arc<ScopeGuard>,
-    shutdown: Value<bool>,
 }
 
 impl Default for Runtime {
     fn default() -> Self {
         let reactor = Reactor::default();
         let root = reactor.new_scope();
-        let shutdown = root.new_value(false);
 
         Self {
-            reactor,
+            _reactor: reactor,
             root: Arc::new(root),
-            shutdown,
         }
     }
 }

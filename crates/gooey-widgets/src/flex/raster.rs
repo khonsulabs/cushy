@@ -11,8 +11,7 @@ use gooey_raster::{
     WidgetRasterizer,
 };
 
-use crate::flex::raster::layout::{FlexDimension, Orientation};
-use crate::flex::FlexTransmogrifier;
+use crate::flex::{FlexDimension, FlexTransmogrifier, Orientation};
 use crate::Flex;
 
 struct FlexRasterizer {
@@ -73,10 +72,10 @@ impl WidgetRasterizer for FlexRasterizer {
 
     fn measure(
         &mut self,
-        available_space: Size<ConstraintLimit>,
-        renderer: &mut dyn Renderer,
+        _available_space: Size<ConstraintLimit>,
+        _renderer: &mut dyn Renderer,
     ) -> Size<UPx> {
-        todo!()
+        todo!("implement flex measurement")
     }
 
     fn draw(&mut self, renderer: &mut dyn Renderer) {

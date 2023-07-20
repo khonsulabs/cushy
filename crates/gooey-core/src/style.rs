@@ -203,7 +203,7 @@ pub enum NestedSelector {
 }
 
 pub struct Library {
-    constants: Map<NameKey<'static>, Constant>,
+    _constants: Map<NameKey<'static>, Constant>,
     patterns_by_selector: Map<SelectorKey<'static>, Vec<PatternId>>,
     patterns: Lots<Pattern>,
 }
@@ -211,7 +211,7 @@ pub struct Library {
 impl Library {
     pub const fn new() -> Self {
         Self {
-            constants: Map::new(),
+            _constants: Map::new(),
             patterns_by_selector: Map::new(),
             patterns: Lots::new(),
         }

@@ -1,5 +1,5 @@
 mod button;
-mod flex;
+pub mod flex;
 mod label;
 
 pub use button::Button;

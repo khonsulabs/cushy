@@ -51,9 +51,10 @@ mod web {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            style: Value<Style>,
+            _style: Value<Style>,
             _context: &<WebApp as gooey_core::Frontend>::Context,
         ) -> <WebApp as gooey_core::Frontend>::Instance {
+            // TODO apply style
             let label = widget.label.clone();
             let on_click = widget.on_click.clone();
             let document = web_sys::window()
@@ -122,9 +123,10 @@ mod raster {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            style: gooey_core::reactor::Value<stylecs::Style>,
+            _style: gooey_core::reactor::Value<stylecs::Style>,
             context: &RasterContext<Surface>,
         ) -> Rasterizable {
+            // TODO apply style
             if let WidgetValue::Value(value) = &widget.label {
                 value.for_each({
                     let handle = context.handle().clone();
@@ -146,7 +148,7 @@ mod raster {
 
         fn measure(
             &mut self,
-            available_space: Size<ConstraintLimit>,
+            _available_space: Size<ConstraintLimit>,
             renderer: &mut dyn Renderer,
         ) -> Size<UPx> {
             self.button.label.map_ref(|label| {
@@ -198,7 +200,7 @@ mod raster {
             }
         }
 
-        fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+        fn mouse_up(&mut self, _location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
             self.tracking_click -= 1;
             if let (State::Active, Some(click)) = (self.state, &mut self.button.on_click) {
                 click.invoke(());

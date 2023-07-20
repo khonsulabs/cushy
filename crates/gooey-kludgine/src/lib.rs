@@ -85,8 +85,9 @@ where
         &mut self,
         text: &str,
         first_baseline_origin: gooey_core::graphics::Point<Unit>,
-        maximum_width: Option<Unit>,
+        _maximum_width: Option<Unit>,
     ) {
+        // TODO honor maximium_width
         self.renderer.draw_text(
             text,
             gooey_color_to_kludgine(&self.options.fill.color),
@@ -97,7 +98,8 @@ where
         );
     }
 
-    fn measure_text(&mut self, text: &str, maximum_width: Option<Unit>) -> TextMetrics<Unit> {
+    fn measure_text(&mut self, text: &str, _maximum_width: Option<Unit>) -> TextMetrics<Unit> {
+        // TODO honor maximium_width
         let text = self
             .renderer
             .measure_text(text, gooey_color_to_kludgine(&self.options.fill.color));
