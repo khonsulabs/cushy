@@ -8,4 +8,3 @@ edition = "2021"
 [dependencies]
 gooey-core = { workspace = true }
 gooey-reactor = { workspace = true }
-taffy = "0.3.12"

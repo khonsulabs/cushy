@@ -151,7 +151,8 @@ mod raster {
     use gooey_core::style::{Px, UPx};
     use gooey_core::{WidgetTransmogrifier, WidgetValue};
     use gooey_raster::{
-        RasterContext, Rasterizable, RasterizedApp, Renderer, SurfaceHandle, WidgetRasterizer,
+        ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer, SurfaceHandle,
+        WidgetRasterizer,
     };
 
     use crate::label::LabelTransmogrifier;
@@ -197,12 +198,12 @@ mod raster {
 
         fn measure(
             &mut self,
-            available_space: Size<Option<UPx>>,
+            available_space: Size<ConstraintLimit>,
             renderer: &mut dyn Renderer,
         ) -> Size<UPx> {
             self.label.label.map_ref(|label| {
                 let metrics: TextMetrics<Px> = renderer.measure_text(label, None);
-                metrics.size.into_unsigned()
+                metrics.size.into_unsigned() + Size::new(10, 10) // TODO hard-coded padding
             })
         }
 

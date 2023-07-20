@@ -100,7 +100,8 @@ mod raster {
     use gooey_core::style::{Px, UPx};
     use gooey_core::{WidgetTransmogrifier, WidgetValue};
     use gooey_raster::{
-        RasterContext, Rasterizable, RasterizedApp, Renderer, SurfaceHandle, WidgetRasterizer,
+        ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer, SurfaceHandle,
+        WidgetRasterizer,
     };
 
     use crate::button::{button_background_color, ButtonTransmogrifier};
@@ -145,12 +146,12 @@ mod raster {
 
         fn measure(
             &mut self,
-            available_space: Size<Option<UPx>>,
+            available_space: Size<ConstraintLimit>,
             renderer: &mut dyn Renderer,
         ) -> Size<UPx> {
             self.button.label.map_ref(|label| {
                 let metrics: TextMetrics<Px> = renderer.measure_text(label, None);
-                metrics.size.into_unsigned()
+                metrics.size.into_unsigned() + Size::new(10, 10) // TODO hard-coded padding
             })
         }
 
@@ -162,10 +163,13 @@ mod raster {
                 let metrics: TextMetrics<Px> = renderer.measure_text(label, None);
 
                 renderer.fill.color = control_text_color(self.state);
-                let signed_height = renderer.size().height.into_signed();
+                let render_size = renderer.size().into_signed();
                 renderer.draw_text(
                     label,
-                    Point::new(Px(0), (signed_height + metrics.ascent) / 2),
+                    (Point::new(
+                        render_size.width - metrics.size.width,
+                        render_size.height + metrics.ascent,
+                    )) / 2,
                     None,
                 );
             });

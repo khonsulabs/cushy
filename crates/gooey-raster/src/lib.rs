@@ -46,10 +46,25 @@ pub trait Surface: RefUnwindSafe + UnwindSafe + Send + Sync + Sized + 'static {
     type Context: RefUnwindSafe + UnwindSafe;
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub enum ConstraintLimit {
+    Known(UPx),
+    ClippedAfter(UPx),
+}
+
+impl ConstraintLimit {
+    pub fn max(self) -> UPx {
+        match self {
+            ConstraintLimit::Known(v) => v,
+            ConstraintLimit::ClippedAfter(v) => v,
+        }
+    }
+}
+
 pub trait AnyWidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
     fn measure(
         &mut self,
-        available_space: Size<Option<UPx>>,
+        available_space: Size<ConstraintLimit>,
         renderer: &mut dyn Renderer,
     ) -> Size<UPx>;
     fn draw(&mut self, renderer: &mut dyn Renderer);
@@ -64,7 +79,7 @@ where
 {
     fn measure(
         &mut self,
-        available_space: Size<Option<UPx>>,
+        available_space: Size<ConstraintLimit>,
         renderer: &mut dyn Renderer,
     ) -> Size<UPx> {
         T::measure(self, available_space, renderer)
@@ -225,7 +240,7 @@ pub trait WidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
     type Widget: Widget;
     fn measure(
         &mut self,
-        available_space: Size<Option<UPx>>,
+        available_space: Size<ConstraintLimit>,
         renderer: &mut dyn Renderer,
     ) -> Size<UPx>;
     fn draw(&mut self, renderer: &mut dyn Renderer);

@@ -19,16 +19,19 @@ gooey-raster = { path = "crates/gooey-raster" }
 gooey-web = { path = "crates/gooey-web" }
 gooey-widgets = { path = "crates/gooey-widgets" }
 
-# [patch.crates-io]
-# kempt = { workspace = true }
+[patch.crates-io]
+alot = { git = "https://github.com/khonsulabs/alot" }
 
-[patch."https://github.com/khonsulabs/stylecs"]
-stylecs = { path = "../stylecs/" }
-stylecs-macros = { path = "../stylecs/stylecs-macros" }
-stylecs-shared = { path = "../stylecs/stylecs-shared" }
+# [patch."https://github.com/khonsulabs/stylecs"]
+# stylecs = { path = "../stylecs/" }
+# stylecs-macros = { path = "../stylecs/stylecs-macros" }
+# stylecs-shared = { path = "../stylecs/stylecs-shared" }
 
-[patch."https://github.com/khonsulabs/kludgine"]
-kludgine = { path = "../kludgine2" }
+# [patch."https://github.com/khonsulabs/kludgine"]
+# kludgine = { path = "../kludgine2" }
 
-[patch."https://github.com/khonsulabs/appit"]
-appit = { path = "../appit" }
+# [patch."https://github.com/khonsulabs/appit"]
+# appit = { path = "../appit" }
+
+# [patch."https://github.com/khonsulabs/figures"]
+# figures = { path = "../figures" }
