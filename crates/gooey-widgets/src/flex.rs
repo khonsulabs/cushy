@@ -29,7 +29,7 @@ impl Flex {
     }
 }
 
-#[derive(Debug, StyleComponent)]
+#[derive(Debug, StyleComponent, Clone, Copy, Eq, PartialEq)]
 #[style(authority = gooey)]
 pub enum FlexDirection {
     Row { reverse: bool },
@@ -52,6 +52,27 @@ impl FlexDirection {
     pub const fn rows_rev() -> Self {
         Self::Row { reverse: true }
     }
+
+    pub fn split_size<U>(&self, s: Size<U>) -> (U, U) {
+        match self {
+            Self::Row { .. } => (s.height, s.width),
+            Self::Column { .. } => (s.width, s.height),
+        }
+    }
+
+    pub fn make_size<U>(&self, measured: U, other: U) -> Size<U> {
+        match self {
+            Self::Row { .. } => Size::new(other, measured),
+            Self::Column { .. } => Size::new(measured, other),
+        }
+    }
+
+    pub fn make_point<U>(&self, measured: U, other: U) -> Point<U> {
+        match self {
+            Self::Row { .. } => Point::new(other, measured),
+            Self::Column { .. } => Point::new(measured, other),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -59,35 +80,6 @@ pub enum FlexDimension {
     FitContent,
     Fractional { weight: u8 },
     Exact(UPx),
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub enum Orientation {
-    Row,
-    Column,
-}
-
-impl Orientation {
-    pub fn split_size<U>(&self, s: Size<U>) -> (U, U) {
-        match self {
-            Orientation::Row => (s.height, s.width),
-            Orientation::Column => (s.width, s.height),
-        }
-    }
-
-    pub fn make_size<U>(&self, measured: U, other: U) -> Size<U> {
-        match self {
-            Orientation::Row => Size::new(other, measured),
-            Orientation::Column => Size::new(measured, other),
-        }
-    }
-
-    pub fn make_point<U>(&self, measured: U, other: U) -> Point<U> {
-        match self {
-            Orientation::Row => Point::new(other, measured),
-            Orientation::Column => Point::new(measured, other),
-        }
-    }
 }
 
 #[derive(Default, Debug)]

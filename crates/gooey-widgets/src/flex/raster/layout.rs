@@ -5,7 +5,7 @@ use gooey_core::math::units::UPx;
 use gooey_core::math::Size;
 use gooey_raster::ConstraintLimit;
 
-use crate::flex::{FlexDimension, Orientation};
+use crate::flex::{FlexDimension, FlexDirection};
 
 pub struct Flex {
     children: OrderedLots<FlexDimension>,
@@ -15,7 +15,7 @@ pub struct Flex {
     allocated_space: UPx,
     fractional: Vec<(LotId, u8)>,
     measured: Vec<LotId>,
-    pub orientation: Orientation,
+    pub orientation: FlexDirection,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -25,7 +25,7 @@ pub struct FlexLayout {
 }
 
 impl Flex {
-    pub const fn new(orientation: Orientation) -> Self {
+    pub const fn new(orientation: FlexDirection) -> Self {
         Self {
             orientation,
             children: OrderedLots::new(),
@@ -42,25 +42,35 @@ impl Flex {
         self.insert(self.len(), child);
     }
 
-    // pub fn remove(&mut self, index: usize) -> FlexDimension {
-    //     let (id, dimension) = self.children.remove_by_index(index).expect("invalid index");
-    //     self.layouts.remove(index);
+    pub fn remove(&mut self, index: usize) -> FlexDimension {
+        let (id, dimension) = self.children.remove_by_index(index).expect("invalid index");
+        self.layouts.remove(index);
 
-    //     match dimension {
-    //         FlexDimension::FitContent => {
-    //             self.measured.retain(|&measured| measured != id);
-    //         }
-    //         FlexDimension::Fractional { weight } => {
-    //             self.fractional.retain(|(measured, _)| *measured != id);
-    //             self.total_weights -= u32::from(weight);
-    //         }
-    //         FlexDimension::Exact(size) => {
-    //             self.allocated_space -= size;
-    //         }
-    //     }
+        match dimension {
+            FlexDimension::FitContent => {
+                self.measured.retain(|&measured| measured != id);
+            }
+            FlexDimension::Fractional { weight } => {
+                self.fractional.retain(|(measured, _)| *measured != id);
+                self.total_weights -= u32::from(weight);
+            }
+            FlexDimension::Exact(size) => {
+                self.allocated_space -= size;
+            }
+        }
 
-    //     dimension
-    // }
+        dimension
+    }
+
+    pub fn truncate(&mut self, new_length: usize) {
+        while self.len() > new_length {
+            self.remove(self.len() - 1);
+        }
+    }
+
+    pub fn swap(&mut self, a: usize, b: usize) {
+        self.children.swap(a, b);
+    }
 
     pub fn insert(&mut self, index: usize, child: FlexDimension) {
         let id = self.children.insert(index, child);
@@ -173,7 +183,7 @@ mod tests {
     use gooey_core::math::Size;
     use gooey_raster::ConstraintLimit;
 
-    use super::{Flex, FlexDimension, Orientation};
+    use super::{Flex, FlexDimension, FlexDirection};
 
     struct Child {
         size: UPx,
@@ -209,7 +219,7 @@ mod tests {
     }
 
     fn assert_measured_children_in_orientation(
-        orientation: Orientation,
+        orientation: FlexDirection,
         children: &[Child],
         available: Size<ConstraintLimit>,
         expected: &[UPx],
@@ -261,18 +271,18 @@ mod tests {
         expected_other: UPx,
     ) {
         assert_measured_children_in_orientation(
-            Orientation::Row,
+            FlexDirection::rows(),
             children,
-            Orientation::Row.make_size(main_constraint, other_constraint),
+            FlexDirection::rows().make_size(main_constraint, other_constraint),
             expected,
-            Orientation::Row.make_size(expected_measured, expected_other),
+            FlexDirection::rows().make_size(expected_measured, expected_other),
         );
         assert_measured_children_in_orientation(
-            Orientation::Column,
+            FlexDirection::columns(),
             children,
-            Orientation::Column.make_size(main_constraint, other_constraint),
+            FlexDirection::columns().make_size(main_constraint, other_constraint),
             expected,
-            Orientation::Column.make_size(expected_measured, expected_other),
+            FlexDirection::columns().make_size(expected_measured, expected_other),
         );
     }
 

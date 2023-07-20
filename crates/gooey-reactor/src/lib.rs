@@ -265,6 +265,26 @@ where
         data.callbacks
             .push(Box::new(ValueForEach { map: Box::new(map) }));
     }
+
+    pub fn generation(&self) -> Option<NonZeroUsize> {
+        let reactors = all_reactors();
+        if let Some(data) = reactors
+            .get(self.id.scope.reactor.0)
+            .and_then(|reactor| reactor.scopes.get(self.id.scope.id.0))
+            .and_then(|scope| scope.values.get(self.id.value.0))
+            .and_then(|value| {
+                value
+                    .as_ref()
+                    .as_any()
+                    .downcast_ref::<Arc<Mutex<ValueData<T>>>>()
+            })
+        {
+            let data = data.lock().map_or_else(PoisonError::into_inner, |a| a);
+            Some(data.generation)
+        } else {
+            None
+        }
+    }
 }
 
 struct ValueMapping<V, R>
@@ -517,19 +537,26 @@ pub struct ScopeGuard(Scope);
 
 impl Drop for ScopeGuard {
     fn drop(&mut self) {
-        let reactor = &mut all_reactors()[self.0.reactor.0];
+        let mut reactors = all_reactors();
+        let reactor = &mut reactors[self.0.reactor.0];
         let Some(removed) = reactor.scopes.remove(self.0.id.0)
             else { unreachable!("scope already disposed") };
-        assert!(
-            removed.children.is_empty(),
-            "ScopeGuard dropped while children guards are still active"
-        );
+
+        // Detach any children scopes
+        for child in removed.children {
+            reactor.scopes[child.0].parent = None;
+        }
+
+        // Remove this from the parent.
         if let Some(parent) = removed.parent {
             assert!(
                 reactor.scopes[parent.0].children.remove(&self.0.id),
                 "child was not present in parent"
             );
         }
+        // Stop holding the lock on the reactor before dropping the removed
+        // child.
+        drop(reactors);
     }
 }
 

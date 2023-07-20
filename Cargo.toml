@@ -35,3 +35,10 @@ alot = { git = "https://github.com/khonsulabs/alot" }
 
 # [patch."https://github.com/khonsulabs/figures"]
 # figures = { path = "../figures" }
+
+
+[profile.dev.package]
+cosmic-text.opt-level = 3
+wgpu.opt-level = 3
+kludgine.opt-level = 3
+figures.opt-level = 3

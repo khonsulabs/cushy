@@ -101,7 +101,7 @@ mod raster {
     use gooey_core::style::{Px, UPx};
     use gooey_core::{WidgetTransmogrifier, WidgetValue};
     use gooey_raster::{
-        ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer, SurfaceHandle,
+        AnyRasterContext, ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer,
         WidgetRasterizer,
     };
 
@@ -150,6 +150,7 @@ mod raster {
             &mut self,
             _available_space: Size<ConstraintLimit>,
             renderer: &mut dyn Renderer,
+            _context: &mut dyn AnyRasterContext,
         ) -> Size<UPx> {
             self.button.label.map_ref(|label| {
                 let metrics: TextMetrics<Px> = renderer.measure_text(label, None);
@@ -157,7 +158,7 @@ mod raster {
             })
         }
 
-        fn draw(&mut self, renderer: &mut dyn Renderer) {
+        fn draw(&mut self, renderer: &mut dyn Renderer, _context: &mut dyn AnyRasterContext) {
             renderer.fill.color = button_background_color(self.state);
             renderer.fill_rect(renderer.size().into_signed().into());
             self.button.label.map_ref(|label| {
@@ -177,13 +178,17 @@ mod raster {
             });
         }
 
-        fn mouse_down(&mut self, _location: Point<Px>, surface: &dyn SurfaceHandle) {
+        fn mouse_down(&mut self, _location: Point<Px>, context: &mut dyn AnyRasterContext) {
             self.tracking_click += 1;
             self.state = State::Active;
-            surface.invalidate();
+            context.invalidate();
         }
 
-        fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+        fn cursor_moved(
+            &mut self,
+            location: Option<Point<Px>>,
+            context: &mut dyn AnyRasterContext,
+        ) {
             let hover_state = if self.tracking_click > 0 {
                 State::Active
             } else {
@@ -196,16 +201,16 @@ mod raster {
                 } else {
                     self.state = State::Normal;
                 }
-                surface.invalidate();
+                context.invalidate();
             }
         }
 
-        fn mouse_up(&mut self, _location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+        fn mouse_up(&mut self, _location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
             self.tracking_click -= 1;
             if let (State::Active, Some(click)) = (self.state, &mut self.button.on_click) {
                 click.invoke(());
                 self.state = State::Normal;
-                surface.invalidate();
+                context.invalidate();
             }
         }
     }

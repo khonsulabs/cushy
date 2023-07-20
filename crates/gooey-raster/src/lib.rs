@@ -7,7 +7,10 @@ use std::sync::Arc;
 use gooey_core::graphics::{Drawable, Options, Point};
 use gooey_core::math::{Rect, Size};
 use gooey_core::style::{Lp, Px, UPx};
-use gooey_core::{AnyWidget, Frontend, Transmogrify, Widget, WidgetTransmogrifier, Widgets};
+use gooey_core::{
+    AnyWidget, BoxedWidget, Frontend, Transmogrify, Widget, WidgetInstance, WidgetTransmogrifier,
+    Widgets,
+};
 use gooey_reactor::Value;
 
 pub struct RasterizedApp<Surface>
@@ -43,7 +46,7 @@ where
 }
 
 pub trait Surface: RefUnwindSafe + UnwindSafe + Send + Sync + Sized + 'static {
-    type Context: RefUnwindSafe + UnwindSafe;
+    type Context: RefUnwindSafe + UnwindSafe + Send + Sync;
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]
@@ -66,11 +69,12 @@ pub trait AnyWidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'stati
         &mut self,
         available_space: Size<ConstraintLimit>,
         renderer: &mut dyn Renderer,
+        context: &mut dyn AnyRasterContext,
     ) -> Size<UPx>;
-    fn draw(&mut self, renderer: &mut dyn Renderer);
-    fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle);
-    fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle);
-    fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle);
+    fn draw(&mut self, renderer: &mut dyn Renderer, context: &mut dyn AnyRasterContext);
+    fn mouse_down(&mut self, location: Point<Px>, context: &mut dyn AnyRasterContext);
+    fn mouse_up(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext);
+    fn cursor_moved(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext);
 }
 
 impl<T> AnyWidgetRasterizer for T
@@ -81,24 +85,25 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         renderer: &mut dyn Renderer,
+        context: &mut dyn AnyRasterContext,
     ) -> Size<UPx> {
-        T::measure(self, available_space, renderer)
+        T::measure(self, available_space, renderer, context)
     }
 
-    fn draw(&mut self, renderer: &mut dyn Renderer) {
-        T::draw(self, renderer)
+    fn draw(&mut self, renderer: &mut dyn Renderer, context: &mut dyn AnyRasterContext) {
+        T::draw(self, renderer, context)
     }
 
-    fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle) {
-        T::mouse_down(self, location, surface)
+    fn mouse_down(&mut self, location: Point<Px>, context: &mut dyn AnyRasterContext) {
+        T::mouse_down(self, location, context)
     }
 
-    fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
-        T::mouse_up(self, location, surface)
+    fn mouse_up(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
+        T::mouse_up(self, location, context)
     }
 
-    fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
-        T::cursor_moved(self, location, surface)
+    fn cursor_moved(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
+        T::cursor_moved(self, location, context)
     }
 }
 
@@ -162,7 +167,6 @@ where
     type Instance = Rasterizable;
 }
 
-#[derive(Debug)]
 pub struct RasterContext<Surface>
 where
     Surface: crate::Surface,
@@ -198,6 +202,36 @@ where
 
     pub const fn handle(&self) -> &Arc<dyn SurfaceHandle> {
         &self.handle
+    }
+}
+impl<Surface> AnyRasterContext for RasterContext<Surface>
+where
+    Surface: crate::Surface,
+{
+    fn instantiate(&self, widget: &WidgetInstance<BoxedWidget>) -> Rasterizable {
+        self.widgets
+            .instantiate(widget.widget.as_ref(), *widget.style, self)
+    }
+}
+
+impl<Surface> SurfaceHandle for RasterContext<Surface>
+where
+    Surface: crate::Surface,
+{
+    fn invalidate(&self) {
+        self.handle.invalidate()
+    }
+}
+
+impl<Surface> Debug for RasterContext<Surface>
+where
+    Surface: crate::Surface,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RasterContext")
+            .field("widgets", &self.widgets)
+            .field("handle", &self.handle)
+            .finish()
     }
 }
 
@@ -242,13 +276,18 @@ pub trait WidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
         &mut self,
         available_space: Size<ConstraintLimit>,
         renderer: &mut dyn Renderer,
+        context: &mut dyn AnyRasterContext,
     ) -> Size<UPx>;
-    fn draw(&mut self, renderer: &mut dyn Renderer);
+    fn draw(&mut self, renderer: &mut dyn Renderer, context: &mut dyn AnyRasterContext);
 
     #[allow(unused_variables)]
-    fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle) {}
+    fn mouse_down(&mut self, location: Point<Px>, context: &mut dyn AnyRasterContext) {}
     #[allow(unused_variables)]
-    fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {}
+    fn cursor_moved(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {}
     #[allow(unused_variables)]
-    fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {}
+    fn mouse_up(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {}
+}
+
+pub trait AnyRasterContext: SurfaceHandle {
+    fn instantiate(&self, widget: &WidgetInstance<BoxedWidget>) -> Rasterizable;
 }

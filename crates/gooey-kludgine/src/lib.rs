@@ -185,10 +185,13 @@ where
     ) {
         let renderer = self.drawing.new_frame(graphics);
 
-        self.rasterizable.draw(&mut KludgineRenderer {
-            renderer,
-            options: Options::default(),
-        });
+        self.rasterizable.draw(
+            &mut KludgineRenderer {
+                renderer,
+                options: Options::default(),
+            },
+            &mut self.context,
+        );
     }
 
     fn render<'pass>(
@@ -221,11 +224,11 @@ where
                 window
                     .cursor_position()
                     .expect("mouse down with no cursor position"),
-                &**self.context.handle(),
+                &mut self.context,
             ),
             ElementState::Released => self
                 .rasterizable
-                .mouse_up(window.cursor_position(), &**self.context.handle()),
+                .mouse_up(window.cursor_position(), &mut self.context),
         }
     }
 
@@ -234,8 +237,7 @@ where
         _window: kludgine::app::Window<'_, SurfaceEvent>,
         _device_id: kludgine::app::winit::event::DeviceId,
     ) {
-        self.rasterizable
-            .cursor_moved(None, &**self.context.handle());
+        self.rasterizable.cursor_moved(None, &mut self.context);
     }
 
     fn cursor_moved(
@@ -250,10 +252,9 @@ where
             .contains(position)
         {
             self.rasterizable
-                .cursor_moved(Some(position), &**self.context.handle());
+                .cursor_moved(Some(position), &mut self.context);
         } else {
-            self.rasterizable
-                .cursor_moved(None, &**self.context.handle());
+            self.rasterizable.cursor_moved(None, &mut self.context);
         }
     }
 }

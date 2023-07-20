@@ -1,24 +1,69 @@
 mod layout;
 use std::collections::HashSet;
+use std::num::NonZeroUsize;
 
 use alot::LotId;
 use gooey_core::graphics::Point;
 use gooey_core::math::{IntoSigned, Rect, Size};
+use gooey_core::reactor::Value;
 use gooey_core::style::{Px, UPx};
-use gooey_core::{WidgetTransmogrifier, WidgetValue};
+use gooey_core::{Children, WidgetTransmogrifier, WidgetValue};
 use gooey_raster::{
-    ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer, SurfaceHandle,
+    AnyRasterContext, ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer,
     WidgetRasterizer,
 };
 
-use crate::flex::{FlexDimension, FlexTransmogrifier, Orientation};
+use crate::flex::{FlexDimension, FlexTransmogrifier};
 use crate::Flex;
 
 struct FlexRasterizer {
+    children_source: Option<ChildrenSource>,
     children: RasterizedChildren,
     flex: layout::Flex,
     mouse_tracking: Option<LotId>,
     hovering: HashSet<LotId>,
+}
+
+struct ChildrenSource {
+    children: Value<Children>,
+    generation: Option<NonZeroUsize>,
+}
+
+impl FlexRasterizer {
+    fn synchronize_children(&mut self, context: &mut dyn AnyRasterContext) {
+        let Some(source) = &mut self.children_source else { return };
+        if source.generation != source.children.generation() {
+            source.generation = source.children.generation();
+            source.children.map_ref(|source| {
+                for (index, (id, source)) in source.entries().enumerate() {
+                    if self.children.get(index).map(|(id, _)| *id) != Some(id) {
+                        // These entries do not match. See if we can find the
+                        // new id somewhere else, if so we can swap the entries.
+                        if let Some((swap_index, _)) = self
+                            .children
+                            .iter()
+                            .enumerate()
+                            .skip(index + 1)
+                            .find(|(_, child)| child.0 == id)
+                        {
+                            self.children.swap(index, swap_index);
+                            self.flex.swap(index, swap_index);
+                        } else {
+                            // This is a brand new child.
+                            let rasterizable = context.instantiate(source);
+                            self.children.insert(index, (id, rasterizable));
+                            self.flex.insert(index, FlexDimension::FitContent);
+                        }
+                    }
+                }
+
+                // Any children remaining at the end of this process are ones
+                // that have been removed.
+                self.children.truncate(source.len());
+                self.flex.truncate(source.len());
+            });
+        }
+    }
 }
 
 type RasterizedChildren = Vec<(LotId, Rasterizable)>;
@@ -36,7 +81,7 @@ where
         context: &RasterContext<Surface>,
     ) -> Rasterizable {
         let mut raster_children = RasterizedChildren::default();
-        let mut flex = layout::Flex::new(Orientation::Column);
+        let mut flex = layout::Flex::new(widget.direction.get());
         widget.children.map_ref(|children| {
             for (id, child) in children.entries() {
                 flex.push(FlexDimension::FitContent);
@@ -49,7 +94,7 @@ where
             }
         });
 
-        if let WidgetValue::Value(value) = &widget.children {
+        if let WidgetValue::Value(value) = &widget.direction {
             value.for_each({
                 let handle = context.handle().clone();
                 move |_| {
@@ -58,7 +103,24 @@ where
             })
         }
 
+        let children_source = if let WidgetValue::Value(value) = widget.children {
+            value.for_each({
+                let handle = context.handle().clone();
+                move |_| {
+                    handle.invalidate();
+                }
+            });
+            Some(ChildrenSource {
+                children: value,
+                // TODO this generation call should be before we get the children...
+                generation: value.generation(),
+            })
+        } else {
+            None
+        };
+
         Rasterizable::new(FlexRasterizer {
+            children_source,
             children: raster_children,
             flex,
             mouse_tracking: None,
@@ -72,19 +134,31 @@ impl WidgetRasterizer for FlexRasterizer {
 
     fn measure(
         &mut self,
-        _available_space: Size<ConstraintLimit>,
-        _renderer: &mut dyn Renderer,
+        available_space: Size<ConstraintLimit>,
+        renderer: &mut dyn Renderer,
+        context: &mut dyn AnyRasterContext,
     ) -> Size<UPx> {
-        todo!("implement flex measurement")
+        self.synchronize_children(context);
+        self.flex
+            .update(available_space, |child_index, constraints| {
+                self.children[child_index]
+                    .1
+                    .measure(constraints, renderer, context)
+            })
     }
 
-    fn draw(&mut self, renderer: &mut dyn Renderer) {
+    fn draw(&mut self, renderer: &mut dyn Renderer, context: &mut dyn AnyRasterContext) {
+        self.synchronize_children(context);
         self.flex.update(
             Size::new(
                 ConstraintLimit::Known(renderer.size().width),
                 ConstraintLimit::Known(renderer.size().height),
             ),
-            |child_index, constraints| self.children[child_index].1.measure(constraints, renderer),
+            |child_index, constraints| {
+                self.children[child_index]
+                    .1
+                    .measure(constraints, renderer, context)
+            },
         );
 
         for (layout, (_id, rasterizable)) in self.flex.iter().zip(self.children.iter_mut()) {
@@ -94,12 +168,12 @@ impl WidgetRasterizer for FlexRasterizer {
                     .orientation
                     .make_size(layout.size, self.flex.other),
             ));
-            rasterizable.draw(renderer);
+            rasterizable.draw(renderer, context);
             renderer.pop_clip();
         }
     }
 
-    fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle) {
+    fn mouse_down(&mut self, location: Point<Px>, context: &mut dyn AnyRasterContext) {
         for (layout, (id, rasterizable)) in self.flex.iter().zip(self.children.iter_mut()) {
             let rect = Rect::new(
                 self.flex.orientation.make_point(layout.offset, UPx(0)),
@@ -115,13 +189,13 @@ impl WidgetRasterizer for FlexRasterizer {
                 && relative.y < rect.size.height
             {
                 self.mouse_tracking = Some(*id);
-                rasterizable.mouse_down(relative, surface);
+                rasterizable.mouse_down(relative, context);
                 break;
             }
         }
     }
 
-    fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+    fn cursor_moved(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
         for (layout, (id, rasterizable)) in self.flex.iter().zip(self.children.iter_mut()) {
             let rect = Rect::new(
                 self.flex.orientation.make_point(layout.offset, UPx(0)),
@@ -137,15 +211,15 @@ impl WidgetRasterizer for FlexRasterizer {
                     && relative.x < rect.size.width
                     && relative.y < rect.size.height
             }) {
-                rasterizable.cursor_moved(relative, surface);
+                rasterizable.cursor_moved(relative, context);
                 self.hovering.insert(*id);
             } else if self.hovering.remove(id) {
-                rasterizable.cursor_moved(None, surface);
+                rasterizable.cursor_moved(None, context);
             }
         }
     }
 
-    fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
+    fn mouse_up(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
         if let Some((layout, (_, rasterizable))) = self
             .flex
             .iter()
@@ -166,9 +240,9 @@ impl WidgetRasterizer for FlexRasterizer {
                     && relative.x < rect.size.width
                     && relative.y < rect.size.height
             }) {
-                rasterizable.mouse_up(relative, surface);
+                rasterizable.mouse_up(relative, context);
             } else {
-                rasterizable.mouse_up(None, surface);
+                rasterizable.mouse_up(None, context);
             }
         }
         self.mouse_tracking = None;
