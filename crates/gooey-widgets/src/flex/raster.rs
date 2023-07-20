@@ -1,6 +1,5 @@
 mod layout;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex, PoisonError};
 
 use alot::LotId;
 use gooey_core::graphics::Point;
@@ -23,8 +22,7 @@ struct FlexRasterizer {
     hovering: HashSet<LotId>,
 }
 
-#[derive(Default)]
-struct RasterizedChildren(Arc<Mutex<Vec<(LotId, Rasterizable)>>>);
+type RasterizedChildren = Vec<(LotId, Rasterizable)>;
 
 impl<Surface> WidgetTransmogrifier<RasterizedApp<Surface>> for FlexTransmogrifier
 where
@@ -38,16 +36,12 @@ where
         style: gooey_core::reactor::Value<stylecs::Style>,
         context: &RasterContext<Surface>,
     ) -> Rasterizable {
-        let raster_children = RasterizedChildren::default();
-        let mut locked_children = raster_children
-            .0
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
+        let mut raster_children = RasterizedChildren::default();
         let mut flex = layout::Flex::new(Orientation::Column);
         widget.children.map_ref(|children| {
             for (id, child) in children.entries() {
                 flex.push(FlexDimension::FitContent);
-                locked_children.push((
+                raster_children.push((
                     id,
                     context
                         .widgets()
@@ -55,7 +49,6 @@ where
                 ));
             }
         });
-        drop(locked_children);
 
         if let WidgetValue::Value(value) = &widget.children {
             value.for_each({
@@ -87,20 +80,15 @@ impl WidgetRasterizer for FlexRasterizer {
     }
 
     fn draw(&mut self, renderer: &mut dyn Renderer) {
-        let mut children = self
-            .children
-            .0
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
         self.flex.update(
             Size::new(
                 ConstraintLimit::Known(renderer.size().width),
                 ConstraintLimit::Known(renderer.size().height),
             ),
-            |child_index, constraints| children[child_index].1.measure(constraints, renderer),
+            |child_index, constraints| self.children[child_index].1.measure(constraints, renderer),
         );
 
-        for (layout, (_id, rasterizable)) in self.flex.iter().zip(children.iter_mut()) {
+        for (layout, (_id, rasterizable)) in self.flex.iter().zip(self.children.iter_mut()) {
             renderer.clip_to(Rect::new(
                 self.flex.orientation.make_point(layout.offset, UPx(0)),
                 self.flex
@@ -113,12 +101,7 @@ impl WidgetRasterizer for FlexRasterizer {
     }
 
     fn mouse_down(&mut self, location: Point<Px>, surface: &dyn SurfaceHandle) {
-        let mut children = self
-            .children
-            .0
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
-        for (layout, (id, rasterizable)) in self.flex.iter().zip(children.iter_mut()) {
+        for (layout, (id, rasterizable)) in self.flex.iter().zip(self.children.iter_mut()) {
             let rect = Rect::new(
                 self.flex.orientation.make_point(layout.offset, UPx(0)),
                 self.flex
@@ -140,12 +123,7 @@ impl WidgetRasterizer for FlexRasterizer {
     }
 
     fn cursor_moved(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
-        let mut children = self
-            .children
-            .0
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
-        for (layout, (id, rasterizable)) in self.flex.iter().zip(children.iter_mut()) {
+        for (layout, (id, rasterizable)) in self.flex.iter().zip(self.children.iter_mut()) {
             let rect = Rect::new(
                 self.flex.orientation.make_point(layout.offset, UPx(0)),
                 self.flex
@@ -169,15 +147,10 @@ impl WidgetRasterizer for FlexRasterizer {
     }
 
     fn mouse_up(&mut self, location: Option<Point<Px>>, surface: &dyn SurfaceHandle) {
-        let mut children = self
-            .children
-            .0
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
         if let Some((layout, (_, rasterizable))) = self
             .flex
             .iter()
-            .zip(children.iter_mut())
+            .zip(self.children.iter_mut())
             .find(|(_, (id, _))| Some(*id) == self.mouse_tracking)
         {
             let rect = Rect::new(
