@@ -2,6 +2,7 @@
 
 ![Gooey is considered experimental and unsupported](https://img.shields.io/badge/status-prototype-blueviolet)
 [![crate version](https://img.shields.io/crates/v/gooey.svg)](https://crates.io/crates/gooey)
+[![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)](https://gooey.rs/main/gooey/)
 
 Gooey is a cross-platform Graphical User Interface (GUI) crate for Rust. **This crate is
 incredibly early in development and is not ready to be used to develop
@@ -32,7 +33,8 @@ fn main() {
 ```
 
 In this example, `counter` and `label` are `Dynamic` values. `Dynamic` values
-are able to be updated and have their changes observed. `label` is automatically updated each time `counter` is changed.
+are able to be updated and have their changes observed. `label` is automatically
+updated each time `counter` is changed.
 
 The `on_click` callbacks for each button update `counter`, which automatically
 updates `label`, which the `Label` widget reacts to by displaying the new
