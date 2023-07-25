@@ -13,6 +13,6 @@ gooey-reactor = { workspace = true }
 gooey-macros = { workspace = true }
 stylecs = { git = "https://github.com/khonsulabs/stylecs" }
 kempt = "0.2.0"
-alot = "0.2.0"
+alot = "0.3.0"
 figures = { git = "https://github.com/khonsulabs/figures" }
 palette = "0.7.2"

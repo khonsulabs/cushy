@@ -15,7 +15,7 @@ js-sys = { version = "0.3.61" }
 wasm-bindgen = { version = "0.2.84" }
 wasm-bindgen-futures = { version = "0.4.34" }
 futures-util = { version = "*" }
-alot = "0.2.0"
+alot = "0.3.0"
 console_log = "1.0.0"
 log = "0.4"
 web-sys = { version = "0.3.61", features = [

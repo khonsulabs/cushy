@@ -45,8 +45,8 @@ gooey-web = { path = "crates/gooey-web" }
 gooey-widgets = { path = "crates/gooey-widgets" }
 
 
-[patch.crates-io]
-alot = { git = "https://github.com/khonsulabs/alot" }
+# [patch.crates-io]
+# alot = { git = "https://github.com/khonsulabs/alot" }
 
 # [patch."https://github.com/khonsulabs/stylecs"]
 # stylecs = { path = "../stylecs/" }

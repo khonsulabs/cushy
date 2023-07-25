@@ -9,7 +9,7 @@ async = ["dep:futures-core"]
 
 [dependencies]
 futures-core = { version = "0.3.28", optional = true }
-alot = "0.2.0"
+alot = "0.3.0"
 
 [dev-dependencies]
 tokio = { version = "1.28.0", features = ["rt", "macros", "time"] }
