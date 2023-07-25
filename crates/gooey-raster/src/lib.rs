@@ -4,14 +4,14 @@ use std::ops::{Deref, DerefMut};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
-use gooey_core::graphics::{Drawable, Options, Point};
-use gooey_core::math::{Rect, Size};
-use gooey_core::style::{Lp, Px, UPx};
+use gooey_core::graphics::Drawable;
+use gooey_core::math::units::{Lp, Px, UPx};
+use gooey_core::math::{Point, Rect, Size};
 use gooey_core::{
     AnyWidget, BoxedWidget, Frontend, Transmogrify, Widget, WidgetInstance, WidgetTransmogrifier,
     Widgets,
 };
-use gooey_reactor::Value;
+use gooey_reactor::Dynamic;
 
 pub struct RasterizedApp<Surface>
 where
@@ -132,15 +132,7 @@ impl DerefMut for Rasterizable {
     }
 }
 
-pub trait Renderer:
-    DrawableState
-    + Drawable<Lp>
-    + Drawable<Px>
-    + Deref<Target = Options>
-    + DerefMut<Target = Options>
-    + Debug
-{
-}
+pub trait Renderer: DrawableState + Drawable<Lp> + Drawable<Px> + Debug {}
 
 pub trait DrawableState {
     fn clip_to(&mut self, clip: Rect<UPx>);
@@ -149,15 +141,7 @@ pub trait DrawableState {
     fn size(&self) -> Size<UPx>;
 }
 
-impl<T> Renderer for T where
-    T: DrawableState
-        + Drawable<Lp>
-        + Drawable<Px>
-        + Debug
-        + Deref<Target = Options>
-        + DerefMut<Target = Options>
-{
-}
+impl<T> Renderer for T where T: DrawableState + Drawable<Lp> + Drawable<Px> + Debug {}
 
 impl<Surface> Frontend for RasterizedApp<Surface>
 where
@@ -210,7 +194,7 @@ where
 {
     fn instantiate(&self, widget: &WidgetInstance<BoxedWidget>) -> Rasterizable {
         self.widgets
-            .instantiate(widget.widget.as_ref(), *widget.style, self)
+            .instantiate(&*widget.widget, *widget.style, self)
     }
 }
 
@@ -258,7 +242,7 @@ where
     fn transmogrify(
         &self,
         widget: &dyn AnyWidget,
-        style: Value<gooey_core::style::Style>,
+        style: Dynamic<gooey_core::style::Style>,
         context: &<RasterizedApp<Surface> as Frontend>::Context,
     ) -> <RasterizedApp<Surface> as Frontend>::Instance {
         self.0.transmogrify(widget, style, context)

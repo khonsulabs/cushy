@@ -1,15 +1,15 @@
 use gooey_core::style::FontSize;
-use gooey_core::{ActiveContext, AnyCallback, Callback, NewWidget, Widget, WidgetValue};
+use gooey_core::{AnyCallback, Callback, Context, NewWidget, Value, Widget};
 
 #[derive(Debug, Default, Clone, Widget)]
 #[widget(authority = gooey)]
 pub struct Label {
-    pub label: WidgetValue<String>,
+    pub label: Value<String>,
     pub on_click: Option<Callback<()>>,
 }
 
 impl Label {
-    pub fn new(label: impl Into<WidgetValue<String>>, context: &ActiveContext) -> NewWidget<Self> {
+    pub fn new(label: impl Into<Value<String>>, context: &Context) -> NewWidget<Self> {
         NewWidget::new(
             Self {
                 label: label.into(),
@@ -19,7 +19,7 @@ impl Label {
         )
     }
 
-    pub fn label(mut self, label: impl Into<WidgetValue<String>>) -> Self {
+    pub fn label(mut self, label: impl Into<Value<String>>) -> Self {
         self.label = label.into();
         self
     }
@@ -31,11 +31,11 @@ impl Label {
 }
 
 pub trait LabelExt {
-    fn font_size(self, size: impl Into<WidgetValue<FontSize>>) -> NewWidget<Label>;
+    fn font_size(self, size: impl Into<Value<FontSize>>) -> NewWidget<Label>;
 }
 
 impl LabelExt for NewWidget<Label> {
-    fn font_size(self, size: impl Into<WidgetValue<FontSize>>) -> NewWidget<Label> {
+    fn font_size(self, size: impl Into<Value<FontSize>>) -> NewWidget<Label> {
         self.style.push(size.into());
         self
     }
@@ -49,9 +49,10 @@ mod web {
     use std::fmt::Write;
 
     use futures_util::StreamExt;
-    use gooey_core::reactor::Value;
-    use gooey_core::style::{Dimension, FontSize, Length, Px};
-    use gooey_core::{WidgetTransmogrifier, WidgetValue};
+    use gooey_core::math::units::Px;
+    use gooey_core::reactor::Dynamic;
+    use gooey_core::style::{Dimension, FontSize, Length};
+    use gooey_core::{Value, WidgetTransmogrifier};
     use gooey_web::WebApp;
     use stylecs::Style;
     use wasm_bindgen::prelude::Closure;
@@ -66,7 +67,7 @@ mod web {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            style: Value<Style>,
+            style: Dynamic<Style>,
             _context: &gooey_web::WebContext,
         ) -> Node {
             let label = widget.label.clone();
@@ -119,7 +120,7 @@ mod web {
                 }
             });
 
-            if let WidgetValue::Value(label) = label {
+            if let Value::Dynamic(label) = label {
                 let element = element.clone();
                 wasm_bindgen_futures::spawn_local(async move {
                     let mut label = label.into_stream();
@@ -146,10 +147,10 @@ mod web {
 
 #[cfg(feature = "raster")]
 mod raster {
-    use gooey_core::graphics::{Point, TextMetrics};
-    use gooey_core::math::{IntoSigned, IntoUnsigned, Size};
-    use gooey_core::style::{Px, UPx};
-    use gooey_core::{WidgetTransmogrifier, WidgetValue};
+    use gooey_core::graphics::TextMetrics;
+    use gooey_core::math::units::{Px, UPx};
+    use gooey_core::math::{IntoSigned, IntoUnsigned, Point, Size};
+    use gooey_core::{Value, WidgetTransmogrifier};
     use gooey_raster::{
         AnyRasterContext, ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer,
         WidgetRasterizer,
@@ -173,11 +174,11 @@ mod raster {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            _style: gooey_core::reactor::Value<stylecs::Style>,
+            _style: gooey_core::reactor::Dynamic<stylecs::Style>,
             context: &RasterContext<Surface>,
         ) -> Rasterizable {
             // TODO apply style
-            if let WidgetValue::Value(value) = &widget.label {
+            if let Value::Dynamic(value) = &widget.label {
                 value.for_each({
                     let handle = context.handle().clone();
                     move |_| {

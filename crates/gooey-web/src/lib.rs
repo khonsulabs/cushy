@@ -5,13 +5,13 @@ use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
 use gooey_core::style::Style;
-use gooey_core::{ActiveContext, BoxedWidget, Frontend, Runtime, Widget, WidgetInstance, Widgets};
-use gooey_reactor::{ScopeGuard, Value};
+use gooey_core::{BoxedWidget, Context, Frontend, Runtime, Widget, WidgetInstance, Widgets};
+use gooey_reactor::{Dynamic, ScopeGuard};
 use web_sys::{window, Node};
 
 pub fn attach_to_body<Widget, Initializer>(widgets: Widgets<WebApp>, init: Initializer)
 where
-    Initializer: FnOnce(&ActiveContext) -> Widget,
+    Initializer: FnOnce(&Context) -> Widget,
     Widget: gooey_core::Widget,
 {
     console_error_panic_hook::set_once();
@@ -42,7 +42,7 @@ pub struct WebApp {
 impl WebApp {
     pub fn new<Widget, Initializer>(widgets: Widgets<WebApp>, init: Initializer) -> (Self, Node)
     where
-        Initializer: FnOnce(&ActiveContext) -> Widget,
+        Initializer: FnOnce(&Context) -> Widget,
         Widget: gooey_core::IntoNewWidget,
     {
         let runtime = Runtime::default();
@@ -51,7 +51,7 @@ impl WebApp {
             runtime,
             widgets: Arc::new(widgets),
         };
-        let context = ActiveContext {
+        let context = Context {
             scope: ***app.runtime.root_scope(),
             frontend: Arc::new(app.clone()),
         };
@@ -81,7 +81,7 @@ pub trait WebTransmogrifier: RefUnwindSafe + UnwindSafe + Send + Sync + 'static 
     fn transmogrify(
         &self,
         widget: &Self::Widget,
-        style: Value<Style>,
+        style: Dynamic<Style>,
         context: &WebContext,
     ) -> Node;
 
@@ -100,6 +100,6 @@ impl WebContext {
     pub fn instantiate(&self, widget: &WidgetInstance<BoxedWidget>) -> Node {
         self.app
             .widgets
-            .instantiate(widget.widget.as_ref(), *widget.style, self)
+            .instantiate(&*widget.widget, *widget.style, self)
     }
 }

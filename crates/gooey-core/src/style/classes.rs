@@ -17,6 +17,7 @@ struct ClassesData {
 }
 
 impl Classes {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             data: Arc::new(ClassesData {
@@ -26,6 +27,7 @@ impl Classes {
         }
     }
 
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             data: Arc::new(ClassesData {
@@ -47,6 +49,11 @@ impl Classes {
         }
     }
 
+    /// Inserts a class at `index`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is greater than this collection's length.
     pub fn insert(&mut self, index: usize, class: Name) -> bool {
         let this = Arc::make_mut(&mut self.data);
         assert!(index <= this.ordered.len());
@@ -66,14 +73,16 @@ impl Classes {
             .remove(&NameKey::Borrowed(class))
             .map(|removed| {
                 this.ordered.remove(removed.value);
-                removed.into_key().to_owned().into()
+                removed.into_key().clone().into()
             })
     }
 
+    #[must_use]
     pub fn contains(&self, class: &Name) -> bool {
         self.data.by_name.contains(&NameKey::Borrowed(class))
     }
 
+    #[must_use]
     pub fn contains_all(&self, classes: &Classes) -> bool {
         self.data
             .by_name
@@ -82,18 +91,22 @@ impl Classes {
             == classes.len()
     }
 
+    #[must_use]
     pub fn iter(&self) -> alot::ordered::Iter<'_, Name> {
         self.into_iter()
     }
 
+    #[must_use]
     pub fn len(&self) -> usize {
         self.data.by_name.len()
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.data.by_name.is_empty()
     }
 
+    #[must_use]
     pub fn get(&self, index: usize) -> Option<&Name> {
         self.data.ordered.get_by_index(index)
     }

@@ -7,7 +7,7 @@ use gooey_reactor::Reactor;
 async fn main() {
     let runtime = Reactor::default();
     let global = runtime.new_scope();
-    let shutdown = global.new_value(false);
+    let shutdown = global.new_dynamic(false);
 
     tokio::spawn(async move {
         println!("Sleeping");

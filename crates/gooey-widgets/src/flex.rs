@@ -1,18 +1,19 @@
+use gooey_core::math::units::UPx;
 use gooey_core::math::{Point, Size};
-use gooey_core::style::{StyleComponent, UPx};
-use gooey_core::{Children, Widget, WidgetValue};
+use gooey_core::style::StyleComponent;
+use gooey_core::{Children, Value, Widget};
 
 #[derive(Debug, Widget)]
 #[widget(authority = gooey)]
 pub struct Flex {
-    pub direction: WidgetValue<FlexDirection>,
-    pub children: WidgetValue<Children>,
+    pub direction: Value<FlexDirection>,
+    pub children: Value<Children>,
 }
 
 impl Flex {
     pub fn new(
-        direction: impl Into<WidgetValue<FlexDirection>>,
-        children: impl Into<WidgetValue<Children>>,
+        direction: impl Into<Value<FlexDirection>>,
+        children: impl Into<Value<Children>>,
     ) -> Self {
         Self {
             direction: direction.into(),
@@ -20,11 +21,11 @@ impl Flex {
         }
     }
 
-    pub fn columns(children: impl Into<WidgetValue<Children>>) -> Self {
+    pub fn columns(children: impl Into<Value<Children>>) -> Self {
         Self::new(FlexDirection::columns(), children)
     }
 
-    pub fn rows(children: impl Into<WidgetValue<Children>>) -> Self {
+    pub fn rows(children: impl Into<Value<Children>>) -> Self {
         Self::new(FlexDirection::rows(), children)
     }
 }
@@ -87,8 +88,8 @@ pub(crate) struct FlexTransmogrifier;
 
 #[cfg(feature = "web")]
 mod web {
-    use gooey_core::reactor::Value;
-    use gooey_core::{WidgetTransmogrifier, WidgetValue};
+    use gooey_core::reactor::Dynamic;
+    use gooey_core::{Value, WidgetTransmogrifier};
     use gooey_web::{WebApp, WebContext};
     use stylecs::Style;
     use wasm_bindgen::JsCast;
@@ -103,7 +104,7 @@ mod web {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            _style: Value<Style>,
+            _style: Dynamic<Style>,
             context: &WebContext,
         ) -> Node {
             // TODO apply style
@@ -128,7 +129,7 @@ mod web {
                 }
             });
 
-            if let WidgetValue::Value(children) = widget.children {
+            if let Value::Dynamic(children) = widget.children {
                 let container = container.clone();
                 let context = context.clone();
                 wasm_bindgen_futures::spawn_local(async move {

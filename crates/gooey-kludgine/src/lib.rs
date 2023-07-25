@@ -4,10 +4,10 @@ use std::ops::{Deref, DerefMut};
 use std::panic::UnwindSafe;
 use std::sync::Arc;
 
-use gooey_core::graphics::{Drawable, Options, Point, Rect, TextMetrics};
-use gooey_core::math::{IntoSigned, ScreenUnit};
-use gooey_core::style::UPx;
-use gooey_core::{ActiveContext, IntoNewWidget, NewWidget, Runtime, Widgets};
+use gooey_core::graphics::{Drawable, Options, TextMetrics};
+use gooey_core::math::units::UPx;
+use gooey_core::math::{IntoSigned, Point, Rect, ScreenUnit};
+use gooey_core::{Context, IntoNewWidget, NewWidget, Runtime, Widgets};
 use gooey_raster::{DrawableState, RasterContext, Rasterizable, RasterizedApp, Surface};
 use kludgine::app::winit::event::ElementState;
 use kludgine::app::WindowBehavior;
@@ -18,7 +18,7 @@ use kludgine::{Clipped, Color};
 
 pub fn run<Widget, Initializer>(widgets: Widgets<RasterizedApp<Kludgine>>, init: Initializer) -> !
 where
-    Initializer: FnOnce(&ActiveContext) -> Widget + UnwindSafe + Send + 'static,
+    Initializer: FnOnce(&Context) -> Widget + UnwindSafe + Send + 'static,
     Widget: gooey_core::Widget,
 {
     GooeyWindow::run_with((widgets, init))
@@ -59,7 +59,7 @@ impl<'r, 'gfx> DrawableState for KludgineRenderer<'r, 'gfx> {
         self.renderer.push_clip(clip);
     }
 
-    fn size(&self) -> gooey_core::graphics::Size<UPx> {
+    fn size(&self) -> gooey_core::math::Size<UPx> {
         self.renderer.size()
     }
 
@@ -84,7 +84,7 @@ where
     fn draw_text(
         &mut self,
         text: &str,
-        first_baseline_origin: gooey_core::graphics::Point<Unit>,
+        first_baseline_origin: gooey_core::math::Point<Unit>,
         _maximum_width: Option<Unit>,
     ) {
         // TODO honor maximium_width
@@ -142,7 +142,7 @@ impl gooey_raster::SurfaceHandle for Handle {
 impl<Initializer, Widget> kludgine::app::WindowBehavior<SurfaceEvent>
     for GooeyWindow<Initializer, Widget>
 where
-    Initializer: FnOnce(&ActiveContext) -> Widget + UnwindSafe + Send + 'static,
+    Initializer: FnOnce(&Context) -> Widget + UnwindSafe + Send + 'static,
     Widget: gooey_core::Widget,
 {
     type Context = (Widgets<RasterizedApp<Kludgine>>, Initializer);
@@ -154,7 +154,7 @@ where
     ) -> Self {
         let runtime = Runtime::default();
         let handle = Arc::new(Handle(window.handle()));
-        let context = ActiveContext::root(RasterizedApp::<Kludgine>::new(handle.clone()), &runtime);
+        let context = Context::root(RasterizedApp::<Kludgine>::new(handle.clone()), &runtime);
         let root = init(&context).into_new(&context);
         let context = RasterContext::new(widgets, (), handle);
         let rasterizable = context

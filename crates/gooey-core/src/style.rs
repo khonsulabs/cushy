@@ -1,11 +1,13 @@
+//! Types for styling Gooey applications.
+
 use core::slice;
 use std::borrow::Cow;
 use std::ops::Deref;
 
 use alot::{LotId, Lots};
-pub use figures::units::{Lp, Px, UPx};
+use figures::units::{Lp, Px};
 use figures::Angle;
-use gooey_reactor::Value;
+use gooey_reactor::Dynamic;
 use kempt::{Map, Set};
 use palette::FromColor;
 use stylecs::NameKey;
@@ -14,7 +16,7 @@ pub mod classes;
 
 pub use classes::Classes;
 
-use crate::{ActiveContext, WidgetValue};
+use crate::{Context, Value};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Dimension {
@@ -77,10 +79,13 @@ pub enum Color {
 }
 
 impl Color {
+    #[must_use]
     pub fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self::Rgba { r, g, b, a }
     }
 
+    #[must_use]
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     pub fn into_rgba(self) -> (u8, u8, u8, u8) {
         match self {
             Color::Rgba { r, g, b, a } => (r, g, b, a),
@@ -137,6 +142,7 @@ pub struct Pattern {
 }
 
 impl Pattern {
+    #[must_use]
     pub fn new(selector: Selector) -> Self {
         Self {
             selector,
@@ -159,6 +165,7 @@ impl Default for Selector {
 }
 
 impl Selector {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             id: None,
@@ -167,16 +174,19 @@ impl Selector {
         }
     }
 
+    #[must_use]
     pub fn id(mut self, id: Name) -> Self {
         self.id = Some(id);
         self
     }
 
+    #[must_use]
     pub fn classes(mut self, classes: Classes) -> Self {
         self.classes = classes;
         self
     }
 
+    #[must_use]
     pub fn widget<StaticWidget>(self) -> Self
     where
         StaticWidget: crate::StaticWidget,
@@ -184,6 +194,7 @@ impl Selector {
         self.widget_name(StaticWidget::static_name())
     }
 
+    #[must_use]
     pub fn widget_name(mut self, widget: Name) -> Self {
         self.widget = Some(widget);
         self
@@ -209,6 +220,7 @@ pub struct Library {
 }
 
 impl Library {
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             _constants: Map::new(),
@@ -219,8 +231,8 @@ impl Library {
 
     pub fn push(&mut self, pattern: Pattern) -> PatternId {
         let mut keys = Vec::with_capacity(
-            pattern.selector.id.is_some() as usize
-                + pattern.selector.widget.is_some() as usize
+            usize::from(pattern.selector.id.is_some())
+                + usize::from(pattern.selector.widget.is_some())
                 + pattern.selector.classes.len(),
         );
         if let Some(id) = &pattern.selector.id {
@@ -243,6 +255,7 @@ impl Library {
         id
     }
 
+    #[must_use]
     pub fn patterns_matching<'a>(
         &'a self,
         id: Option<&'a Name>,
@@ -461,13 +474,15 @@ fn pattern_matching() {
 pub struct PatternId(LotId);
 
 #[derive(Clone, Copy, Debug)]
-pub struct DynamicStyle(Value<Style>);
+pub struct DynamicStyle(Dynamic<Style>);
 
 impl DynamicStyle {
-    pub fn new(context: &ActiveContext) -> Self {
-        Self(context.new_value(Style::new()))
+    #[must_use]
+    pub fn new(context: &Context) -> Self {
+        Self(context.new_dynamic(Style::new()))
     }
 
+    #[must_use]
     pub fn with<S>(self, component: impl DynamicOrStaticStyleComponent<S>) -> Self
     where
         S: StyleComponent + Clone,
@@ -481,10 +496,10 @@ impl DynamicStyle {
         S: StyleComponent + Clone,
     {
         match component.into_widget_value() {
-            WidgetValue::Static(component) => {
+            Value::Static(component) => {
                 self.0.map_mut(|style| style.push(component));
             }
-            WidgetValue::Value(value) => value.for_each({
+            Value::Dynamic(value) => value.for_each({
                 let style = self.0;
                 move |value| {
                     style.map_mut(|style| {
@@ -497,7 +512,7 @@ impl DynamicStyle {
 }
 
 impl Deref for DynamicStyle {
-    type Target = Value<Style>;
+    type Target = Dynamic<Style>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -505,15 +520,24 @@ impl Deref for DynamicStyle {
 }
 
 pub trait DynamicOrStaticStyleComponent<T> {
-    fn into_widget_value(self) -> WidgetValue<T>;
+    fn into_widget_value(self) -> Value<T>;
 }
 
 impl<T> DynamicOrStaticStyleComponent<T> for T
 where
     T: StyleComponent + Clone,
 {
-    fn into_widget_value(self) -> WidgetValue<T> {
-        WidgetValue::Static(self)
+    fn into_widget_value(self) -> Value<T> {
+        Value::Static(self)
+    }
+}
+
+impl<T> DynamicOrStaticStyleComponent<T> for Dynamic<T>
+where
+    T: StyleComponent + Clone,
+{
+    fn into_widget_value(self) -> Value<T> {
+        Value::Dynamic(self)
     }
 }
 
@@ -521,16 +545,7 @@ impl<T> DynamicOrStaticStyleComponent<T> for Value<T>
 where
     T: StyleComponent + Clone,
 {
-    fn into_widget_value(self) -> WidgetValue<T> {
-        WidgetValue::Value(self)
-    }
-}
-
-impl<T> DynamicOrStaticStyleComponent<T> for WidgetValue<T>
-where
-    T: StyleComponent + Clone,
-{
-    fn into_widget_value(self) -> WidgetValue<T> {
+    fn into_widget_value(self) -> Value<T> {
         self
     }
 }
@@ -539,8 +554,8 @@ where
 fn dynamic_style_updates() {
     let reactor = gooey_reactor::Reactor::default();
     let scope = reactor.new_scope();
-    let font_size = scope.new_value(FontSize::from(Px(13)));
-    let style = DynamicStyle(scope.new_value(Style::new()))
+    let font_size = scope.new_dynamic(FontSize::from(Px(13)));
+    let style = DynamicStyle(scope.new_dynamic(Style::new()))
         .with(font_size)
         .with(BackgroundColor(Color::Rgba {
             r: 255,

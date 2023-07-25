@@ -1,4 +1,4 @@
-use gooey_core::ActiveContext;
+use gooey_core::Context;
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 pub fn run<Widget, Initializer>(
@@ -6,7 +6,7 @@ pub fn run<Widget, Initializer>(
     init: Initializer,
 ) -> !
 where
-    Initializer: FnOnce(&ActiveContext) -> Widget,
+    Initializer: FnOnce(&Context) -> Widget,
     Widget: gooey_core::Widget,
 {
     gooey_web::attach_to_body(widgets, init);
@@ -19,7 +19,7 @@ pub fn run<Widget, Initializer>(
     init: Initializer,
 ) -> !
 where
-    Initializer: FnOnce(&ActiveContext) -> Widget + std::panic::UnwindSafe + Send + 'static,
+    Initializer: FnOnce(&Context) -> Widget + std::panic::UnwindSafe + Send + 'static,
     Widget: gooey_core::Widget,
 {
     gooey_kludgine::run(widgets, init)

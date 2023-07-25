@@ -1,3 +1,8 @@
+//! A platform-independent, `#![forbid(unsafe_code)]` reactive event system.
+#![forbid(unsafe_code)]
+#![warn(missing_docs, clippy::pedantic)]
+#![allow(clippy::module_name_repetitions)]
+
 use std::any::Any;
 use std::collections::HashSet;
 use std::marker::PhantomData;
@@ -14,6 +19,10 @@ mod stream;
 #[cfg(feature = "async")]
 pub use stream::ValueStream;
 
+/// A handle to a running reactor.
+///
+/// Reactors contain a set of hierarchical
+/// [`Scope`]s.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct Reactor(LotId);
 
@@ -26,6 +35,8 @@ impl Default for Reactor {
 }
 
 impl Reactor {
+    /// Creates a new scope within the reactor.
+    #[must_use]
     pub fn new_scope(&self) -> ScopeGuard {
         let mut reactors = all_reactors();
         let reactor = &mut reactors[self.0];
@@ -43,6 +54,12 @@ struct ValueId(LotId);
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 struct ScopeId(LotId);
 
+/// A node within a [`Reactor`].
+///
+/// Each scope may contain:
+///
+/// - Child scopes.
+/// - [`Dynamic`] values.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub struct Scope {
     id: ScopeId,
@@ -50,10 +67,14 @@ pub struct Scope {
 }
 
 impl Scope {
-    pub const fn reactor(&self) -> &Reactor {
-        &self.reactor
+    /// Returns the reactor that this scope belongs to.
+    #[must_use]
+    pub const fn reactor(&self) -> Reactor {
+        self.reactor
     }
 
+    /// Creates a new scope within this scope.
+    #[must_use]
     pub fn new_scope(&self) -> ScopeGuard {
         let mut reactors = all_reactors();
         let reactor = &mut reactors[self.reactor.0];
@@ -70,7 +91,9 @@ impl Scope {
         })
     }
 
-    pub fn new_value<T>(&self, initial_value: T) -> Value<T>
+    /// Creates a new dynamic value containing `initial_value`.
+    #[must_use]
+    pub fn new_dynamic<T>(&self, initial_value: T) -> Dynamic<T>
     where
         T: Any + Send + Sync + 'static,
     {
@@ -82,7 +105,7 @@ impl Scope {
             .push(Box::new(Arc::new(Mutex::new(ValueData::new(
                 initial_value,
             )))));
-        Value {
+        Dynamic {
             id: ValueRef {
                 scope: *self,
                 value: ValueId(value),
@@ -91,11 +114,13 @@ impl Scope {
         }
     }
 
-    pub fn new_default_value<T>(&self) -> Value<T>
+    /// Creates a new dynamic value initialized with `T::default()`.
+    #[must_use]
+    pub fn new_default_dynamic<T>(&self) -> Dynamic<T>
     where
         T: Default + Any + Send + Sync + 'static,
     {
-        self.new_value(T::default())
+        self.new_dynamic(T::default())
     }
 }
 
@@ -105,8 +130,22 @@ struct ValueRef {
     value: ValueId,
 }
 
+/// A handle to a dynamic value that can be updated and reacted to.
+///
+/// The `T` value is stored within the [`Scope`] that created the `Dynamic`. It
+/// can be updated using one of these approaches:
+///
+/// - [`Dynamic::map_mut()`]
+/// - [`Dynamic::set()`]
+///
+/// Changes to this type can be observed using one of these approaches:
+///
+/// - [`Dynamic::iter()`]
+/// - [`Dynamic::for_each()`]
+/// - [`Dynamic::map_each()`]
+/// - [`Dynamic::into_stream()`]
 #[derive(Debug, Eq, PartialEq)]
-pub struct Value<T>
+pub struct Dynamic<T>
 where
     T: 'static,
 {
@@ -114,7 +153,7 @@ where
     _phantom: PhantomData<&'static T>,
 }
 
-impl<T> Clone for Value<T>
+impl<T> Clone for Dynamic<T>
 where
     T: 'static,
 {
@@ -126,12 +165,16 @@ where
     }
 }
 
-impl<T> Copy for Value<T> {}
+impl<T> Copy for Dynamic<T> {}
 
-impl<T> Value<T>
+impl<T> Dynamic<T>
 where
     T: 'static,
 {
+    /// Returns a clone of the currently contained value.
+    ///
+    /// `None` is returned if this value belonged to a scope that has been
+    /// destructed.
     pub fn get(&self) -> Option<T>
     where
         T: Clone,
@@ -139,6 +182,12 @@ where
         self.map_ref(T::clone)
     }
 
+    /// Calls `map` with the currently contained value.
+    ///
+    /// All other access to this value will be blocked while `map` executes.
+    ///
+    /// `None` is returned if this value belonged to a scope that has been
+    /// destructed.
     pub fn map_ref<R>(&self, map: impl FnOnce(&T) -> R) -> Option<R> {
         let reactors = all_reactors();
         let value = reactors
@@ -157,6 +206,12 @@ where
         Some(map(&value.value))
     }
 
+    /// Calls `map` with the currently contained value.
+    ///
+    /// All other access to this value will be blocked while `map` executes.
+    ///
+    /// `None` is returned if this value belonged to a scope that has been
+    /// destructed.
     pub fn map_mut<R>(&self, map: impl FnOnce(&mut T) -> R) -> Option<R> {
         let reactors = all_reactors();
         let value = reactors
@@ -177,6 +232,11 @@ where
         Some(mapped)
     }
 
+    /// Replaces the currently contained value with `new_value`, returning the
+    /// existing value.
+    ///
+    /// `None` is returned if this value belonged to a scope that has been
+    /// destructed.
     pub fn set(&self, new_value: T) -> Option<T> {
         let reactors = all_reactors();
         if let Some(reactor) = reactors.get(self.id.scope.reactor.0) {
@@ -203,6 +263,9 @@ where
         None
     }
 
+    /// Returns an iterator to values contained in this dynamic.
+    #[must_use]
+    #[allow(clippy::iter_not_returning_iterator)] // It does, but only for Clone types.
     pub fn iter(&self) -> ValueIterator<T> {
         ValueIterator {
             value: *self,
@@ -212,7 +275,10 @@ where
         }
     }
 
+    /// Returns an async [`futures_core::Stream`] returning values contained in
+    /// this dynamic.
     #[cfg(feature = "async")]
+    #[must_use]
     pub fn into_stream(self) -> ValueStream<T> {
         ValueStream {
             value: self,
@@ -222,13 +288,22 @@ where
         }
     }
 
-    pub fn map_each<R, F>(&self, mut map: F) -> Option<Value<R>>
+    /// Returns a new `Dynamic` that is updated automatically when this
+    /// `Dynamic` is changed.
+    ///
+    /// Each time a value is updated in this `Dynamic`, `map` will be invoked
+    /// and the result will be stored in the returned `Dynamic`.
+    ///
+    /// `None` is returned if this value belonged to a scope that has been
+    /// destructed.
+    #[must_use]
+    pub fn map_each<R, F>(&self, mut map: F) -> Option<Dynamic<R>>
     where
         F: for<'a> FnMut(&'a T) -> R + Send + 'static,
         R: Send + Sync,
     {
         let initial_value = self.map_ref(&mut map)?;
-        let mapped = self.id.scope.new_value(initial_value);
+        let mapped = self.id.scope.new_dynamic(initial_value);
         let reactors = all_reactors();
         let reactor = reactors.get(self.id.scope.reactor.0)?;
         let scope = reactor.scopes.get(self.id.scope.id.0)?;
@@ -245,11 +320,13 @@ where
         Some(mapped)
     }
 
-    pub fn for_each<F>(&self, mut map: F)
+    /// Attaches `for_each` to this dynamic such that it is executed each time
+    /// this dynamic changes.
+    pub fn for_each<F>(&self, mut for_each: F)
     where
         F: for<'a> FnMut(&'a T) + Send + 'static,
     {
-        self.map_ref(&mut map);
+        self.map_ref(&mut for_each);
         let mut reactors = all_reactors();
         let Some(data) = reactors
             .get_mut(self.id.scope.reactor.0)
@@ -262,10 +339,15 @@ where
                 .downcast_ref::<Arc<Mutex<ValueData<T>>>>()) else { return };
 
         let mut data = data.lock().map_or_else(PoisonError::into_inner, |a| a);
-        data.callbacks
-            .push(Box::new(ValueForEach { map: Box::new(map) }));
+        data.callbacks.push(Box::new(ValueForEach {
+            map: Box::new(for_each),
+        }));
     }
 
+    /// Returns the current *generation* of this dynamic.
+    ///
+    /// A *generation* is a counter that is updated each time the value is
+    /// accessed mutably.
     pub fn generation(&self) -> Option<NonZeroUsize> {
         let reactors = all_reactors();
         if let Some(data) = reactors
@@ -292,7 +374,7 @@ where
     R: 'static,
 {
     map: Box<dyn MapFunction<V, R>>,
-    result: Value<R>,
+    result: Dynamic<R>,
 }
 
 struct ValueForEach<V> {
@@ -332,7 +414,7 @@ impl<T> AnyCallback<T> for ValueForEach<T> {
     }
 }
 
-impl<T> IntoIterator for Value<T>
+impl<T> IntoIterator for Dynamic<T>
 where
     T: Clone + 'static,
 {
@@ -344,20 +426,31 @@ where
     }
 }
 
+/// A blocking iterator over values contained in a [`Dynamic`].
+///
+/// This type keeps track of the [generation](Dynamic::generation) of values it
+/// reads from a [`Dynamic`] and provides methods for blocking until new values
+/// are observed.
 pub struct ValueIterator<T>
 where
     T: 'static,
 {
-    value: Value<T>,
+    value: Dynamic<T>,
     condvar: Option<Arc<Condvar>>,
     read_generation: Option<NonZeroUsize>,
 }
 
 impl<T> ValueIterator<T>
 where
-    T: Clone + 'static,
+    T: 'static,
 {
-    pub fn get(&mut self) -> Option<T> {
+    /// Returns a clone of the currently contained value.
+    ///
+    /// Returns `None` if the [`Dynamic`] has been destroyed.
+    pub fn get(&mut self) -> Option<T>
+    where
+        T: Clone,
+    {
         let reactors = all_reactors();
         if let Some(data) = reactors
             .get(self.value.id.scope.reactor.0)
@@ -378,6 +471,9 @@ where
         }
     }
 
+    /// Waits until the [`Dynamic`] has had its value updated.
+    ///
+    /// Returns false if the [`Dynamic`] has been destroyed.
     pub fn wait_next(&mut self) -> bool {
         self.block_until_next_value(|_| {}).is_some()
     }
@@ -405,18 +501,19 @@ where
                         drop(reactors);
 
                         return Some(map(&data.value));
-                    } else {
-                        if self.condvar.is_none() {
-                            self.condvar = Some(data.waiters.condvar().clone());
-                        }
-                        reactors = self
-                            .condvar
-                            .as_ref()
-                            .expect("always initialized above")
-                            .wait(reactors)
-                            .map_or_else(PoisonError::into_inner, |g| g);
-                        continue;
                     }
+
+                    if self.condvar.is_none() {
+                        self.condvar = Some(data.waiters.condvar().clone());
+                    }
+
+                    reactors = self
+                        .condvar
+                        .as_ref()
+                        .expect("always initialized above")
+                        .wait(reactors)
+                        .map_or_else(PoisonError::into_inner, |g| g);
+                    continue;
                 }
             }
 
@@ -532,6 +629,7 @@ impl Waiters {
     }
 }
 
+/// A handle that guards a [`Scope`]. When dropped, the [`Scope`] is freed.
 #[derive(Debug)]
 pub struct ScopeGuard(Scope);
 
@@ -575,6 +673,8 @@ impl<'a> From<&'a ScopeGuard> for Scope {
 }
 
 impl ScopeGuard {
+    /// Returns the scope of this guard.
+    #[must_use]
     pub const fn scope(&self) -> Scope {
         self.0
     }
@@ -584,7 +684,7 @@ impl ScopeGuard {
 fn map_each_test() {
     let reactor = Reactor::default();
     let scope = reactor.new_scope();
-    let first_value = scope.new_value(1);
+    let first_value = scope.new_dynamic(1);
     let mapped_value = first_value.map_each(|updated| updated * 2).unwrap();
     assert_eq!(mapped_value.get(), Some(2));
     first_value.set(2);

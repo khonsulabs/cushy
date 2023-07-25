@@ -3,11 +3,10 @@ use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
 use alot::LotId;
-use gooey_core::graphics::Point;
-use gooey_core::math::{IntoSigned, Rect, Size};
-use gooey_core::reactor::Value;
-use gooey_core::style::{Px, UPx};
-use gooey_core::{Children, WidgetTransmogrifier, WidgetValue};
+use gooey_core::math::units::{Px, UPx};
+use gooey_core::math::{IntoSigned, Point, Rect, Size};
+use gooey_core::reactor::Dynamic;
+use gooey_core::{Children, Value, WidgetTransmogrifier};
 use gooey_raster::{
     AnyRasterContext, ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer,
     WidgetRasterizer,
@@ -25,7 +24,7 @@ struct FlexRasterizer {
 }
 
 struct ChildrenSource {
-    children: Value<Children>,
+    children: Dynamic<Children>,
     generation: Option<NonZeroUsize>,
 }
 
@@ -77,7 +76,7 @@ where
     fn transmogrify(
         &self,
         widget: &Self::Widget,
-        style: gooey_core::reactor::Value<stylecs::Style>,
+        style: gooey_core::reactor::Dynamic<stylecs::Style>,
         context: &RasterContext<Surface>,
     ) -> Rasterizable {
         let mut raster_children = RasterizedChildren::default();
@@ -89,12 +88,12 @@ where
                     id,
                     context
                         .widgets()
-                        .instantiate(child.widget.as_ref(), style, context),
+                        .instantiate(&*child.widget, style, context),
                 ));
             }
         });
 
-        if let WidgetValue::Value(value) = &widget.direction {
+        if let Value::Dynamic(value) = &widget.direction {
             value.for_each({
                 let handle = context.handle().clone();
                 move |_| {
@@ -103,7 +102,7 @@ where
             })
         }
 
-        let children_source = if let WidgetValue::Value(value) = widget.children {
+        let children_source = if let Value::Dynamic(value) = widget.children {
             value.for_each({
                 let handle = context.handle().clone();
                 move |_| {

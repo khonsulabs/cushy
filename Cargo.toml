@@ -1,3 +1,29 @@
+[package]
+name = "gooey"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["web", "desktop"]
+web = [
+    "gooey-widgets/web",
+    "gooey-core/web",
+    "dep:gooey-web",
+    "dep:wasm-bindgen",
+]
+desktop = ["raster", "dep:gooey-kludgine"]
+raster = ["dep:gooey-raster", "gooey-widgets/raster"]
+
+[dependencies]
+gooey-core = { workspace = true }
+gooey-widgets = { workspace = true }
+gooey-web = { workspace = true, optional = true }
+gooey-raster = { workspace = true, optional = true }
+wasm-bindgen = { version = "*", optional = true }
+log = "0.4"
+gooey-kludgine = { workspace = true, optional = true }
+
+
 [workspace]
 members = [
     "crates/gooey-reactor",
@@ -7,7 +33,6 @@ members = [
     "crates/gooey-web",
     "crates/gooey-widgets",
     "crates/gooey-macros",
-    "crates/gooey",
 ]
 
 [workspace.dependencies]
@@ -18,6 +43,7 @@ gooey-reactor = { path = "crates/gooey-reactor" }
 gooey-raster = { path = "crates/gooey-raster" }
 gooey-web = { path = "crates/gooey-web" }
 gooey-widgets = { path = "crates/gooey-widgets" }
+
 
 [patch.crates-io]
 alot = { git = "https://github.com/khonsulabs/alot" }

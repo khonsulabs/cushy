@@ -1,24 +1,24 @@
 use gooey_core::style::Color;
-use gooey_core::{AnyCallback, Callback, Widget, WidgetValue};
+use gooey_core::{AnyCallback, Callback, Value, Widget};
 
 use crate::State;
 
 #[derive(Debug, Default, Clone, Widget)]
 #[widget(authority = gooey)]
 pub struct Button {
-    pub label: WidgetValue<String>,
+    pub label: Value<String>,
     pub on_click: Option<Callback<()>>,
 }
 
 impl Button {
-    pub fn new(label: impl Into<WidgetValue<String>>) -> Self {
+    pub fn new(label: impl Into<Value<String>>) -> Self {
         Self {
             label: label.into(),
             ..Self::default()
         }
     }
 
-    pub fn label(mut self, label: impl Into<WidgetValue<String>>) -> Self {
+    pub fn label(mut self, label: impl Into<Value<String>>) -> Self {
         self.label = label.into();
         self
     }
@@ -35,8 +35,8 @@ pub struct ButtonTransmogrifier;
 #[cfg(feature = "web")]
 mod web {
     use futures_util::StreamExt;
-    use gooey_core::reactor::Value;
-    use gooey_core::{WidgetTransmogrifier, WidgetValue};
+    use gooey_core::reactor::Dynamic;
+    use gooey_core::{Value, WidgetTransmogrifier};
     use gooey_web::WebApp;
     use stylecs::Style;
     use wasm_bindgen::prelude::Closure;
@@ -51,7 +51,7 @@ mod web {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            _style: Value<Style>,
+            _style: Dynamic<Style>,
             _context: &<WebApp as gooey_core::Frontend>::Context,
         ) -> <WebApp as gooey_core::Frontend>::Instance {
             // TODO apply style
@@ -69,7 +69,7 @@ mod web {
 
             label.map_ref(|label| button.set_inner_text(label));
 
-            if let WidgetValue::Value(label) = label {
+            if let Value::Dynamic(label) = label {
                 let button = button.clone();
                 wasm_bindgen_futures::spawn_local(async move {
                     let mut label = label.into_stream();
@@ -96,10 +96,10 @@ mod web {
 
 #[cfg(feature = "raster")]
 mod raster {
-    use gooey_core::graphics::{Point, TextMetrics};
-    use gooey_core::math::{IntoSigned, IntoUnsigned, Size};
-    use gooey_core::style::{Px, UPx};
-    use gooey_core::{WidgetTransmogrifier, WidgetValue};
+    use gooey_core::graphics::TextMetrics;
+    use gooey_core::math::units::{Px, UPx};
+    use gooey_core::math::{IntoSigned, IntoUnsigned, Point, Size};
+    use gooey_core::{Value, WidgetTransmogrifier};
     use gooey_raster::{
         AnyRasterContext, ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer,
         WidgetRasterizer,
@@ -123,11 +123,11 @@ mod raster {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            _style: gooey_core::reactor::Value<stylecs::Style>,
+            _style: gooey_core::reactor::Dynamic<stylecs::Style>,
             context: &RasterContext<Surface>,
         ) -> Rasterizable {
             // TODO apply style
-            if let WidgetValue::Value(value) = &widget.label {
+            if let Value::Dynamic(value) = &widget.label {
                 value.for_each({
                     let handle = context.handle().clone();
                     move |_| {
