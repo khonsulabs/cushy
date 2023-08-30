@@ -155,7 +155,7 @@ pub struct RasterContext<Surface>
 where
     Surface: crate::Surface,
 {
-    widgets: Widgets<RasterizedApp<Surface>>,
+    widgets: Arc<Widgets<RasterizedApp<Surface>>>,
     surface: Surface::Context,
     handle: Arc<dyn SurfaceHandle>,
 }
@@ -165,7 +165,7 @@ where
     Surface: crate::Surface,
 {
     pub fn new(
-        widgets: Widgets<RasterizedApp<Surface>>,
+        widgets: Arc<Widgets<RasterizedApp<Surface>>>,
         surface: Surface::Context,
         handle: Arc<dyn SurfaceHandle>,
     ) -> Self {
@@ -180,7 +180,7 @@ where
         &self.surface
     }
 
-    pub const fn widgets(&self) -> &Widgets<RasterizedApp<Surface>> {
+    pub fn widgets(&self) -> &Widgets<RasterizedApp<Surface>> {
         &self.widgets
     }
 
@@ -204,6 +204,18 @@ where
 {
     fn invalidate(&self) {
         self.handle.invalidate()
+    }
+
+    fn window_title_set(&self) {
+        self.handle.window_title_set()
+    }
+
+    fn window_position_set(&self) {
+        self.handle.window_position_set()
+    }
+
+    fn window_size_set(&self) {
+        self.handle.window_size_set()
     }
 }
 
@@ -250,6 +262,9 @@ where
 }
 
 pub trait SurfaceHandle: Debug + RefUnwindSafe + UnwindSafe + Sync + Send + 'static {
+    fn window_title_set(&self);
+    fn window_position_set(&self);
+    fn window_size_set(&self);
     fn invalidate(&self);
     // fn invalidate_rect(&self, rect: Rect<UPx>);
 }

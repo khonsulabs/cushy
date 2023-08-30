@@ -17,6 +17,7 @@ use alot::OrderedLots;
 pub use {figures as math, gooey_reactor as reactor};
 pub mod graphics;
 pub mod style;
+pub mod window;
 // mod tree;
 pub use gooey_macros::Widget;
 use gooey_reactor::{Dynamic, Reactor, Scope, ScopeGuard};
@@ -568,7 +569,9 @@ where
         style: Dynamic<Style>,
         context: &F::Context,
     ) -> F::Instance {
-        let Some(transmogrifier) = self.by_name.get(&widget.name()) else { unreachable!("{} not registered", widget.name()) };
+        let Some(transmogrifier) = self.by_name.get(&widget.name()) else {
+            unreachable!("{} not registered", widget.name())
+        };
         transmogrifier.0.transmogrify(widget, style, context)
     }
 

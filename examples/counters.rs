@@ -1,8 +1,9 @@
+use gooey::App;
 use gooey_core::Children;
 use gooey_widgets::{Button, Flex};
 
 fn main() {
-    gooey::run(gooey_widgets::widgets(), |cx| {
+    App::default().run(|cx, _window| {
         let counters = cx.new_dynamic(Children::new(cx));
 
         Flex::rows(

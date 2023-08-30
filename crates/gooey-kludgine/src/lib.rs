@@ -1,24 +1,23 @@
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-use std::panic::UnwindSafe;
 use std::sync::Arc;
 
 use gooey_core::graphics::{Drawable, Options, TextMetrics};
 use gooey_core::math::units::UPx;
 use gooey_core::math::{IntoSigned, Point, Rect, ScreenUnit};
+use gooey_core::window::{NewWindow, Window, WindowAttributes, WindowLevel};
 use gooey_core::{Context, IntoNewWidget, NewWidget, Runtime, Widgets};
 use gooey_raster::{DrawableState, RasterContext, Rasterizable, RasterizedApp, Surface};
+use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::ElementState;
-use kludgine::app::WindowBehavior;
+use kludgine::app::{winit, WindowBehavior};
 use kludgine::render::Drawing;
 use kludgine::shapes::Shape;
 use kludgine::text::TextOrigin;
 use kludgine::{Clipped, Color};
 
-pub fn run<Widget, Initializer>(widgets: Widgets<RasterizedApp<Kludgine>>, init: Initializer) -> !
+pub fn run<Widget>(widgets: Arc<Widgets<RasterizedApp<Kludgine>>>, init: NewWindow<Widget>) -> !
 where
-    Initializer: FnOnce(&Context) -> Widget + UnwindSafe + Send + 'static,
     Widget: gooey_core::Widget,
 {
     GooeyWindow::run_with((widgets, init))
@@ -113,17 +112,20 @@ where
 
 #[derive(Debug)]
 pub enum SurfaceEvent {
+    WindowTitleChanged,
+    WindowLocationChanged,
+    WindowSizeChanged,
     Invalidate,
     // InvalidateRect(Rect<UPx>),
 }
 
-struct GooeyWindow<Initializer, Widget> {
+struct GooeyWindow<Widget> {
     _root: NewWidget<Widget>,
     rasterizable: Rasterizable,
     context: RasterContext<Kludgine>,
     _runtime: Runtime,
     drawing: Drawing,
-    widget: PhantomData<Initializer>,
+    window: Window,
 }
 
 #[derive(Debug)]
@@ -134,28 +136,42 @@ impl gooey_raster::SurfaceHandle for Handle {
         let _result = self.0.send(SurfaceEvent::Invalidate);
     }
 
+    fn window_title_set(&self) {
+        let _result = self.0.send(SurfaceEvent::WindowTitleChanged);
+    }
+
+    fn window_position_set(&self) {
+        todo!()
+    }
+
+    fn window_size_set(&self) {
+        todo!()
+    }
     // fn invalidate_rect(&self, rect: Rect<UPx>) {
     //     let _result = self.0.send(SurfaceEvent::InvalidateRect(rect));
     // }
 }
 
-impl<Initializer, Widget> kludgine::app::WindowBehavior<SurfaceEvent>
-    for GooeyWindow<Initializer, Widget>
+impl<Widget> kludgine::app::WindowBehavior<SurfaceEvent> for GooeyWindow<Widget>
 where
-    Initializer: FnOnce(&Context) -> Widget + UnwindSafe + Send + 'static,
     Widget: gooey_core::Widget,
 {
-    type Context = (Widgets<RasterizedApp<Kludgine>>, Initializer);
+    type Context = (Arc<Widgets<RasterizedApp<Kludgine>>>, NewWindow<Widget>);
 
     fn initialize(
         window: kludgine::app::Window<'_, SurfaceEvent>,
         _graphics: &mut kludgine::Graphics<'_>,
-        (widgets, init): Self::Context,
+        (widgets, window_init): Self::Context,
     ) -> Self {
         let runtime = Runtime::default();
         let handle = Arc::new(Handle(window.handle()));
         let context = Context::root(RasterizedApp::<Kludgine>::new(handle.clone()), &runtime);
-        let root = init(&context).into_new(&context);
+        let running_window = Window {
+            inner_size: context.new_dynamic(window.inner_size()),
+            location: context.new_dynamic(window.location()),
+            title: context.new_dynamic(window.title()),
+        };
+        let root = (window_init.init)(&context, &running_window).into_new(&context);
         let context = RasterContext::new(widgets, (), handle);
         let rasterizable = context
             .widgets()
@@ -166,7 +182,11 @@ where
             move |_| handle.invalidate()
         });
 
-        // let root = app.instantiate(&root.widget, *root.style, &RasterContext);
+        running_window.title.for_each({
+            let handle = context.handle().clone();
+            move |_| handle.window_title_set()
+        });
+
         let drawing = Drawing::default();
         Self {
             _root: root,
@@ -174,7 +194,7 @@ where
             context,
             _runtime: runtime,
             drawing,
-            widget: PhantomData,
+            window: running_window,
         }
     }
 
@@ -194,6 +214,49 @@ where
         );
     }
 
+    fn initial_window_attributes(
+        context: &Self::Context,
+    ) -> kludgine::app::WindowAttributes<SurfaceEvent> {
+        let WindowAttributes {
+            inner_size,
+            location,
+            resizable,
+            title,
+            window_level,
+            ..
+            // min_inner_size,
+            // max_inner_size,
+            // enabled_buttons,
+            // maximized,
+            // visible,
+            // transparent,
+            // decorations,
+            // resize_increments,
+            // content_protected,
+            // active,
+        } = &context.1.attributes;
+
+        kludgine::app::WindowAttributes {
+            inner_size: inner_size.map(|inner_size| {
+                winit::dpi::Size::Physical(PhysicalSize::new(
+                    inner_size.width.0,
+                    inner_size.height.0,
+                ))
+            }),
+            location: location.map(|position| {
+                winit::dpi::Position::Physical(PhysicalPosition::new(position.x.0, position.y.0))
+            }),
+            resizable: *resizable,
+            window_level: match window_level {
+                WindowLevel::AlwaysOnBottom => winit::window::WindowLevel::AlwaysOnBottom,
+                WindowLevel::Normal => winit::window::WindowLevel::Normal,
+                WindowLevel::AlwaysOnTop => winit::window::WindowLevel::AlwaysOnTop,
+            },
+            title: title.clone(),
+            ..kludgine::app::WindowAttributes::default()
+        }
+    }
+
     fn render<'pass>(
         &'pass mut self,
         _window: kludgine::app::Window<'_, SurfaceEvent>,
@@ -208,16 +271,32 @@ where
     }
 
     fn event(&mut self, event: SurfaceEvent, mut window: kludgine::app::Window<'_, SurfaceEvent>) {
-        let SurfaceEvent::Invalidate = event;
-        window.set_needs_redraw();
+        match event {
+            SurfaceEvent::WindowTitleChanged => {
+                self.window.title.map_ref(|title| window.set_title(title));
+            }
+            SurfaceEvent::WindowLocationChanged => {
+                if let Some(location) = self.window.location.get() {
+                    window.set_location(location);
+                }
+            }
+            SurfaceEvent::WindowSizeChanged => {
+                if let Some(size) = self.window.inner_size.get() {
+                    window.set_inner_size(size);
+                }
+            }
+            SurfaceEvent::Invalidate => {
+                window.set_needs_redraw();
+            }
+        }
     }
 
     fn mouse_input(
         &mut self,
         window: kludgine::app::Window<'_, SurfaceEvent>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: winit::event::DeviceId,
         state: ElementState,
-        _button: kludgine::app::winit::event::MouseButton,
+        _button: winit::event::MouseButton,
     ) {
         match state {
             ElementState::Pressed => self.rasterizable.mouse_down(
@@ -235,7 +314,7 @@ where
     fn cursor_left(
         &mut self,
         _window: kludgine::app::Window<'_, SurfaceEvent>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: winit::event::DeviceId,
     ) {
         self.rasterizable.cursor_moved(None, &mut self.context);
     }
@@ -243,8 +322,8 @@ where
     fn cursor_moved(
         &mut self,
         window: kludgine::app::Window<'_, SurfaceEvent>,
-        _device_id: kludgine::app::winit::event::DeviceId,
-        position: kludgine::app::winit::dpi::PhysicalPosition<f64>,
+        _device_id: winit::event::DeviceId,
+        position: winit::dpi::PhysicalPosition<f64>,
     ) {
         let position = position.into();
         if Rect::from(window.inner_size())

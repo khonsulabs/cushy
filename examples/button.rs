@@ -1,7 +1,8 @@
+use gooey::App;
 use gooey_widgets::Button;
 
 fn main() {
-    gooey::run(gooey_widgets::widgets(), |cx| {
+    App::default().run(|cx, _window| {
         let counter = cx.new_dynamic(0i32);
         let label = counter.map_each(|count| count.to_string()).unwrap();
         Button::new(label).on_click(move |_| {
