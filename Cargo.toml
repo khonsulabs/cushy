@@ -17,14 +17,19 @@ raster = ["dep:gooey-raster", "gooey-widgets/raster"]
 [dependencies]
 gooey-core = { workspace = true }
 gooey-widgets = { workspace = true }
-gooey-web = { workspace = true, optional = true }
 gooey-raster = { workspace = true, optional = true }
-wasm-bindgen = { version = "*", optional = true }
 log = "0.4"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gooey-web = { workspace = true, optional = true }
+wasm-bindgen = { version = "*", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gooey-kludgine = { workspace = true, optional = true }
 
 
 [workspace]
+resolver = "2"
 members = [
     "crates/gooey-reactor",
     "crates/gooey-core",

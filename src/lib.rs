@@ -5,7 +5,7 @@ use std::sync::Arc;
 use gooey_core::Context;
 #[cfg(feature = "raster")]
 pub use gooey_raster as raster;
-#[cfg(feature = "web")]
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
 pub use gooey_web as web;
 pub use {gooey_core as core, gooey_widgets as widgets};
 

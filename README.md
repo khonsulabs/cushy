@@ -97,7 +97,7 @@ directory in the repository.
 1. Compile the example:
 
     ```sh
-    cargo build --example counter --target wasm32-unknown-unknown --no-default-features --features web
+    cargo build --example counter --target wasm32-unknown-unknown
     ```
 
 2. Generate the wasm bindings:
