@@ -15,22 +15,23 @@ where
     Widget: gooey_core::Widget,
 {
     console_error_panic_hook::set_once();
-    let (app, node) = WebApp::new(widgets, init);
+    let (app, widget) = WebApp::new(widgets, init);
 
     let document = window()
         .expect("no window")
         .document()
         .expect("no document");
     if let Some(body) = document.body() {
-        body.append_child(&node)
+        body.append_child(&widget.node)
             .expect("error adding node to document");
     } else {
         document
-            .append_child(&node)
+            .append_child(&widget.node)
             .expect("error adding node to document");
     };
 
     mem::forget(app);
+    mem::forget(widget);
 }
 
 #[derive(Debug, Clone)]
@@ -40,15 +41,19 @@ pub struct WebApp {
 }
 
 impl WebApp {
-    pub fn new<Widget>(widgets: Arc<Widgets<WebApp>>, init: NewWindow<Widget>) -> (Self, Node)
+    pub fn new<IntoWidget>(
+        widgets: Arc<Widgets<WebApp>>,
+        init: NewWindow<IntoWidget>,
+    ) -> (Self, WebWidget<IntoWidget::Widget>)
     where
-        Widget: gooey_core::IntoNewWidget,
+        IntoWidget: gooey_core::IntoNewWidget,
     {
         let runtime = Runtime::default();
 
         let app = Self { runtime, widgets };
+        let window_scope = Arc::new(app.runtime.root_scope().new_scope());
         let context = Context {
-            scope: ***app.runtime.root_scope(),
+            scope: **window_scope,
             frontend: Arc::new(app.clone()),
         };
         let window = Window::new(init.attributes, &context);
@@ -58,16 +63,29 @@ impl WebApp {
 
         let node = app.widgets.instantiate(
             &widget.widget,
-            *widget.style,
+            widget.style,
             &WebContext {
-                _scope: app.runtime.root_scope().clone(),
+                _scope: window_scope.clone(),
 
                 app: app.clone(),
             },
         );
 
-        (app, node)
+        (
+            app,
+            WebWidget {
+                widget: widget.widget,
+                scope: window_scope,
+                node,
+            },
+        )
     }
+}
+
+pub struct WebWidget<T> {
+    pub widget: T,
+    pub scope: Arc<ScopeGuard>,
+    pub node: Node,
 }
 
 impl Frontend for WebApp {
@@ -100,6 +118,6 @@ impl WebContext {
     pub fn instantiate(&self, widget: &WidgetInstance<BoxedWidget>) -> Node {
         self.app
             .widgets
-            .instantiate(&*widget.widget, *widget.style, self)
+            .instantiate(&*widget.widget, widget.style, self)
     }
 }

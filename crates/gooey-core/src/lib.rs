@@ -21,7 +21,7 @@ pub mod window;
 // mod tree;
 pub use gooey_macros::Widget;
 use gooey_reactor::{Dynamic, Reactor, Scope, ScopeGuard};
-use stylecs::{Identifier, Name, Style};
+use stylecs::{Identifier, Name};
 
 use crate::style::{DynamicStyle, Library, WidgetStyle};
 
@@ -566,7 +566,7 @@ where
     pub fn instantiate(
         &self,
         widget: &dyn AnyWidget,
-        style: Dynamic<Style>,
+        style: DynamicStyle,
         context: &F::Context,
     ) -> F::Instance {
         let Some(transmogrifier) = self.by_name.get(&widget.name()) else {
@@ -619,7 +619,7 @@ where
     fn transmogrify(
         &self,
         widget: &Self::Widget,
-        style: Dynamic<Style>,
+        style: DynamicStyle,
         context: &F::Context,
     ) -> F::Instance;
 }
@@ -631,7 +631,7 @@ where
     fn transmogrify(
         &self,
         widget: &dyn AnyWidget,
-        style: Dynamic<Style>,
+        style: DynamicStyle,
         context: &F::Context,
     ) -> F::Instance;
 
@@ -648,7 +648,7 @@ where
     fn transmogrify(
         &self,
         widget: &dyn AnyWidget,
-        style: Dynamic<Style>,
+        style: DynamicStyle,
         context: &<F as Frontend>::Context,
     ) -> <F as Frontend>::Instance {
         let widget = widget

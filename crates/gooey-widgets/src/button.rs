@@ -35,10 +35,9 @@ pub struct ButtonTransmogrifier;
 #[cfg(feature = "web")]
 mod web {
     use futures_util::StreamExt;
-    use gooey_core::reactor::Dynamic;
+    use gooey_core::style::DynamicStyle;
     use gooey_core::{Value, WidgetTransmogrifier};
     use gooey_web::WebApp;
-    use stylecs::Style;
     use wasm_bindgen::prelude::Closure;
     use wasm_bindgen::JsCast;
     use web_sys::HtmlButtonElement;
@@ -51,7 +50,7 @@ mod web {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            _style: Dynamic<Style>,
+            _style: DynamicStyle,
             _context: &<WebApp as gooey_core::Frontend>::Context,
         ) -> <WebApp as gooey_core::Frontend>::Instance {
             // TODO apply style
@@ -99,6 +98,7 @@ mod raster {
     use gooey_core::graphics::TextMetrics;
     use gooey_core::math::units::{Px, UPx};
     use gooey_core::math::{IntoSigned, IntoUnsigned, Point, Size};
+    use gooey_core::style::DynamicStyle;
     use gooey_core::{Value, WidgetTransmogrifier};
     use gooey_raster::{
         AnyRasterContext, ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer,
@@ -123,7 +123,7 @@ mod raster {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            _style: gooey_core::reactor::Dynamic<stylecs::Style>,
+            _style: DynamicStyle,
             context: &RasterContext<Surface>,
         ) -> Rasterizable {
             // TODO apply style

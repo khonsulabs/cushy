@@ -88,10 +88,9 @@ pub(crate) struct FlexTransmogrifier;
 
 #[cfg(feature = "web")]
 mod web {
-    use gooey_core::reactor::Dynamic;
+    use gooey_core::style::DynamicStyle;
     use gooey_core::{Value, WidgetTransmogrifier};
     use gooey_web::{WebApp, WebContext};
-    use stylecs::Style;
     use wasm_bindgen::JsCast;
     use web_sys::{HtmlElement, Node};
 
@@ -104,7 +103,7 @@ mod web {
         fn transmogrify(
             &self,
             widget: &Self::Widget,
-            _style: Dynamic<Style>,
+            _style: DynamicStyle,
             context: &WebContext,
         ) -> Node {
             // TODO apply style

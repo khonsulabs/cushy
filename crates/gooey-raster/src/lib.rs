@@ -7,11 +7,11 @@ use std::sync::Arc;
 use gooey_core::graphics::Drawable;
 use gooey_core::math::units::{Lp, Px, UPx};
 use gooey_core::math::{Point, Rect, Size};
+use gooey_core::style::DynamicStyle;
 use gooey_core::{
     AnyWidget, BoxedWidget, Frontend, Transmogrify, Widget, WidgetInstance, WidgetTransmogrifier,
     Widgets,
 };
-use gooey_reactor::Dynamic;
 
 pub struct RasterizedApp<Surface>
 where
@@ -194,7 +194,7 @@ where
 {
     fn instantiate(&self, widget: &WidgetInstance<BoxedWidget>) -> Rasterizable {
         self.widgets
-            .instantiate(&*widget.widget, *widget.style, self)
+            .instantiate(&*widget.widget, widget.style, self)
     }
 }
 
@@ -254,7 +254,7 @@ where
     fn transmogrify(
         &self,
         widget: &dyn AnyWidget,
-        style: Dynamic<gooey_core::style::Style>,
+        style: DynamicStyle,
         context: &<RasterizedApp<Surface> as Frontend>::Context,
     ) -> <RasterizedApp<Surface> as Frontend>::Instance {
         self.0.transmogrify(widget, style, context)

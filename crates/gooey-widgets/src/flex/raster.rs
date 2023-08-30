@@ -6,6 +6,7 @@ use alot::LotId;
 use gooey_core::math::units::{Px, UPx};
 use gooey_core::math::{IntoSigned, Point, Rect, Size};
 use gooey_core::reactor::Dynamic;
+use gooey_core::style::DynamicStyle;
 use gooey_core::{Children, Value, WidgetTransmogrifier};
 use gooey_raster::{
     AnyRasterContext, ConstraintLimit, RasterContext, Rasterizable, RasterizedApp, Renderer,
@@ -78,7 +79,7 @@ where
     fn transmogrify(
         &self,
         widget: &Self::Widget,
-        style: gooey_core::reactor::Dynamic<stylecs::Style>,
+        style: DynamicStyle,
         context: &RasterContext<Surface>,
     ) -> Rasterizable {
         let mut raster_children = RasterizedChildren::default();

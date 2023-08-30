@@ -175,7 +175,7 @@ where
         let context = RasterContext::new(widgets, (), handle);
         let rasterizable = context
             .widgets()
-            .instantiate(&root.widget, *root.style, &context);
+            .instantiate(&root.widget, root.style, &context);
 
         root.style.for_each({
             let handle = context.handle().clone();
