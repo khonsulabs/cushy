@@ -58,11 +58,10 @@ impl<'a, T> Future for WaitNext<'a, T> {
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Self::Output> {
-        if let Some(runtime) = all_reactors().get_mut(self.0.value.id.scope.reactor.0) {
+        if let Some(runtime) = all_reactors().get_mut(self.0.value.id.reactor.0) {
             if let Some(data) = runtime
-                .scopes
-                .get_mut(self.0.value.id.scope.id.0)
-                .and_then(|scope| scope.values.get_mut(self.0.value.id.value.0))
+                .values
+                .get_mut(self.0.value.id.value.0)
                 .and_then(|value| {
                     value
                         .as_mut()
@@ -112,11 +111,10 @@ where
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         let mut reactors = all_reactors();
-        if let Some(runtime) = reactors.get_mut(self.value.id.scope.reactor.0) {
+        if let Some(runtime) = reactors.get_mut(self.value.id.reactor.0) {
             if let Some(data) = runtime
-                .scopes
-                .get_mut(self.value.id.scope.id.0)
-                .and_then(|scope| scope.values.get_mut(self.value.id.value.0))
+                .values
+                .get_mut(self.value.id.value.0)
                 .and_then(|value| {
                     value
                         .as_mut()

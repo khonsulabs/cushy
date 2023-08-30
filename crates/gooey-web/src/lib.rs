@@ -7,7 +7,7 @@ use std::sync::Arc;
 use gooey_core::style::Style;
 use gooey_core::window::{NewWindow, Window};
 use gooey_core::{BoxedWidget, Context, Frontend, Runtime, Widget, WidgetInstance, Widgets};
-use gooey_reactor::{Dynamic, ScopeGuard};
+use gooey_reactor::Dynamic;
 use web_sys::{window, Node};
 
 pub fn attach_to_body<Widget>(widgets: Arc<Widgets<WebApp>>, init: NewWindow<Widget>)
@@ -48,7 +48,6 @@ impl WebApp {
 
         let app = Self { runtime, widgets };
         let context = Context {
-            scope: ***app.runtime.root_scope(),
             frontend: Arc::new(app.clone()),
         };
         let window = Window::new(init.attributes, &context);
@@ -59,11 +58,7 @@ impl WebApp {
         let node = app.widgets.instantiate(
             &widget.widget,
             *widget.style,
-            &WebContext {
-                _scope: app.runtime.root_scope().clone(),
-
-                app: app.clone(),
-            },
+            &WebContext { app: app.clone() },
         );
 
         (app, node)
@@ -73,6 +68,10 @@ impl WebApp {
 impl Frontend for WebApp {
     type Context = WebContext;
     type Instance = Node;
+
+    fn runtime(&self) -> &Runtime {
+        &self.runtime
+    }
 }
 
 pub trait WebTransmogrifier: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
@@ -93,7 +92,6 @@ pub trait WebTransmogrifier: RefUnwindSafe + UnwindSafe + Send + Sync + 'static 
 #[derive(Clone)]
 pub struct WebContext {
     app: WebApp,
-    _scope: Arc<ScopeGuard>,
 }
 
 impl WebContext {

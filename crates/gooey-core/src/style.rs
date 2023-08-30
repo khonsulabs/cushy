@@ -553,9 +553,8 @@ where
 #[test]
 fn dynamic_style_updates() {
     let reactor = gooey_reactor::Reactor::default();
-    let scope = reactor.new_scope();
-    let font_size = scope.new_dynamic(FontSize::from(Px(13)));
-    let style = DynamicStyle(scope.new_dynamic(Style::new()))
+    let font_size = reactor.new_dynamic(FontSize::from(Px(13)));
+    let style = DynamicStyle(reactor.new_dynamic(Style::new()))
         .with(font_size)
         .with(BackgroundColor(Color::Rgba {
             r: 255,

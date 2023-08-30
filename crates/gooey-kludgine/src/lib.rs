@@ -123,7 +123,6 @@ struct GooeyWindow<Widget> {
     _root: NewWidget<Widget>,
     rasterizable: Rasterizable,
     context: RasterContext<Kludgine>,
-    _runtime: Runtime,
     drawing: Drawing,
     window: Window,
 }
@@ -140,12 +139,12 @@ impl gooey_raster::SurfaceHandle for Handle {
         let _result = self.0.send(SurfaceEvent::WindowTitleChanged);
     }
 
-    fn window_position_set(&self) {
-        todo!()
+    fn window_location_set(&self) {
+        let _result = self.0.send(SurfaceEvent::WindowLocationChanged);
     }
 
     fn window_size_set(&self) {
-        todo!()
+        let _result = self.0.send(SurfaceEvent::WindowSizeChanged);
     }
     // fn invalidate_rect(&self, rect: Rect<UPx>) {
     //     let _result = self.0.send(SurfaceEvent::InvalidateRect(rect));
@@ -165,7 +164,7 @@ where
     ) -> Self {
         let runtime = Runtime::default();
         let handle = Arc::new(Handle(window.handle()));
-        let context = Context::root(RasterizedApp::<Kludgine>::new(handle.clone()), &runtime);
+        let context = Context::root(RasterizedApp::<Kludgine>::new(handle.clone(), runtime));
         let running_window = Window {
             inner_size: context.new_dynamic(window.inner_size()),
             location: context.new_dynamic(window.location()),
@@ -192,7 +191,6 @@ where
             _root: root,
             rasterizable,
             context,
-            _runtime: runtime,
             drawing,
             window: running_window,
         }

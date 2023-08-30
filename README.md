@@ -103,7 +103,7 @@ directory in the repository.
 2. Generate the wasm bindings:
 
     ```sh
-    wasm-bindgen target/wasm32-unknown-unknown/debug/examples/counter.wasm crates/gooey/examples/browser/pkg/
+    wasm-bindgen target/wasm32-unknown-unknown/debug/examples/counter.wasm --target web --out-dir examples/browser/pkg/
     ```
 
 3. Run a webserver hosting the page (opening a .html won't allow loading wasm files):

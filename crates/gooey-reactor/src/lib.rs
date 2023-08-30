@@ -4,11 +4,9 @@
 #![allow(clippy::module_name_repetitions)]
 
 use std::any::Any;
-use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::mem;
 use std::num::NonZeroUsize;
-use std::ops::Deref;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::task::Waker;
 
@@ -35,62 +33,6 @@ impl Default for Reactor {
 }
 
 impl Reactor {
-    /// Creates a new scope within the reactor.
-    #[must_use]
-    pub fn new_scope(&self) -> ScopeGuard {
-        let mut reactors = all_reactors();
-        let reactor = &mut reactors[self.0];
-
-        ScopeGuard(Scope {
-            id: ScopeId(reactor.scopes.push(ScopeData::default())),
-            reactor: *self,
-        })
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-struct ValueId(LotId);
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-struct ScopeId(LotId);
-
-/// A node within a [`Reactor`].
-///
-/// Each scope may contain:
-///
-/// - Child scopes.
-/// - [`Dynamic`] values.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub struct Scope {
-    id: ScopeId,
-    reactor: Reactor,
-}
-
-impl Scope {
-    /// Returns the reactor that this scope belongs to.
-    #[must_use]
-    pub const fn reactor(&self) -> Reactor {
-        self.reactor
-    }
-
-    /// Creates a new scope within this scope.
-    #[must_use]
-    pub fn new_scope(&self) -> ScopeGuard {
-        let mut reactors = all_reactors();
-        let reactor = &mut reactors[self.reactor.0];
-        let id = ScopeId(reactor.scopes.push(ScopeData {
-            parent: Some(self.id),
-            values: Lots::default(),
-            children: HashSet::new(),
-        }));
-        reactor.scopes[self.id.0].children.insert(id);
-
-        ScopeGuard(Scope {
-            id,
-            reactor: self.reactor,
-        })
-    }
-
     /// Creates a new dynamic value containing `initial_value`.
     #[must_use]
     pub fn new_dynamic<T>(&self, initial_value: T) -> Dynamic<T>
@@ -98,16 +40,15 @@ impl Scope {
         T: Any + Send + Sync + 'static,
     {
         let mut reactors = all_reactors();
-        let reactor = &mut reactors[self.reactor.0];
-        let scope = &mut reactor.scopes[self.id.0];
-        let value = scope
+        let reactor = &mut reactors[self.0];
+        let value = reactor
             .values
             .push(Box::new(Arc::new(Mutex::new(ValueData::new(
                 initial_value,
             )))));
         Dynamic {
             id: ValueRef {
-                scope: *self,
+                reactor: *self,
                 value: ValueId(value),
             },
             _phantom: PhantomData,
@@ -125,8 +66,11 @@ impl Scope {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+struct ValueId(LotId);
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 struct ValueRef {
-    scope: Scope,
+    reactor: Reactor,
     value: ValueId,
 }
 
@@ -188,9 +132,8 @@ where
     pub fn map_ref<R>(&self, map: impl FnOnce(&T) -> R) -> Option<R> {
         let reactors = all_reactors();
         let value = reactors
-            .get(self.id.scope.reactor.0)
-            .and_then(|reactor| reactor.scopes.get(self.id.scope.id.0))
-            .and_then(|scope| scope.values.get(self.id.value.0))
+            .get(self.id.reactor.0)
+            .and_then(|reactor| reactor.values.get(self.id.value.0))
             .and_then(|value| {
                 value
                     .as_ref()
@@ -212,9 +155,8 @@ where
     pub fn map_mut<R>(&self, map: impl FnOnce(&mut T) -> R) -> Option<R> {
         let reactors = all_reactors();
         let value = reactors
-            .get(self.id.scope.reactor.0)
-            .and_then(|reactor| reactor.scopes.get(self.id.scope.id.0))
-            .and_then(|scope| scope.values.get(self.id.value.0))
+            .get(self.id.reactor.0)
+            .and_then(|reactor| reactor.values.get(self.id.value.0))
             .and_then(|value| {
                 value
                     .as_ref()
@@ -236,19 +178,14 @@ where
     /// destructed.
     pub fn set(&self, new_value: T) -> Option<T> {
         let reactors = all_reactors();
-        if let Some(reactor) = reactors.get(self.id.scope.reactor.0) {
-            if let Some(data) = reactor
-                .scopes
-                .get(self.id.scope.id.0)
-                .and_then(|scope| scope.values.get(self.id.value.0))
-                .and_then(|value| {
-                    value
-                        .as_ref()
-                        .as_any()
-                        .downcast_ref::<Arc<Mutex<ValueData<T>>>>()
-                        .cloned()
-                })
-            {
+        if let Some(reactor) = reactors.get(self.id.reactor.0) {
+            if let Some(data) = reactor.values.get(self.id.value.0).and_then(|value| {
+                value
+                    .as_ref()
+                    .as_any()
+                    .downcast_ref::<Arc<Mutex<ValueData<T>>>>()
+                    .cloned()
+            }) {
                 drop(reactors);
                 let mut data = data.lock().map_or_else(PoisonError::into_inner, |a| a);
                 let old_value = mem::replace(&mut data.value, new_value);
@@ -300,11 +237,10 @@ where
         R: Send + Sync,
     {
         let initial_value = self.map_ref(&mut map)?;
-        let mapped = self.id.scope.new_dynamic(initial_value);
+        let mapped = self.id.reactor.new_dynamic(initial_value);
         let reactors = all_reactors();
-        let reactor = reactors.get(self.id.scope.reactor.0)?;
-        let scope = reactor.scopes.get(self.id.scope.id.0)?;
-        let value = scope.values.get(self.id.value.0)?;
+        let reactor = reactors.get(self.id.reactor.0)?;
+        let value = reactor.values.get(self.id.value.0)?;
         let data = value
             .as_ref()
             .as_any()
@@ -326,9 +262,8 @@ where
         self.map_ref(&mut for_each);
         let mut reactors = all_reactors();
         let Some(data) = reactors
-            .get_mut(self.id.scope.reactor.0)
-            .and_then(|reactor| reactor.scopes.get_mut(self.id.scope.id.0))
-            .and_then(|scope| scope.values.get(self.id.value.0))
+            .get_mut(self.id.reactor.0)
+            .and_then(|reactor| reactor.values.get(self.id.value.0))
             .and_then(|value| {
                 value
                     .as_ref()
@@ -352,9 +287,8 @@ where
     pub fn generation(&self) -> Option<NonZeroUsize> {
         let reactors = all_reactors();
         if let Some(data) = reactors
-            .get(self.id.scope.reactor.0)
-            .and_then(|reactor| reactor.scopes.get(self.id.scope.id.0))
-            .and_then(|scope| scope.values.get(self.id.value.0))
+            .get(self.id.reactor.0)
+            .and_then(|reactor| reactor.values.get(self.id.value.0))
             .and_then(|value| {
                 value
                     .as_ref()
@@ -454,9 +388,8 @@ where
     {
         let reactors = all_reactors();
         if let Some(data) = reactors
-            .get(self.value.id.scope.reactor.0)
-            .and_then(|reactor| reactor.scopes.get(self.value.id.scope.id.0))
-            .and_then(|scope| scope.values.get(self.value.id.value.0))
+            .get(self.value.id.reactor.0)
+            .and_then(|reactor| reactor.values.get(self.value.id.value.0))
             .and_then(|value| {
                 value
                     .as_ref()
@@ -482,18 +415,18 @@ where
     fn block_until_next_value<R>(&mut self, map: impl FnOnce(&T) -> R) -> Option<R> {
         let mut reactors = all_reactors();
         loop {
-            if let Some(reactor) = reactors.get_mut(self.value.id.scope.reactor.0) {
-                if let Some(data) = reactor
-                    .scopes
-                    .get_mut(self.value.id.scope.id.0)
-                    .and_then(|scope| scope.values.get_mut(self.value.id.value.0))
-                    .and_then(|value| {
-                        value
-                            .as_mut()
-                            .as_mut_any()
-                            .downcast_mut::<Arc<Mutex<ValueData<T>>>>()
-                            .cloned()
-                    })
+            if let Some(reactor) = reactors.get_mut(self.value.id.reactor.0) {
+                if let Some(data) =
+                    reactor
+                        .values
+                        .get_mut(self.value.id.value.0)
+                        .and_then(|value| {
+                            value
+                                .as_mut()
+                                .as_mut_any()
+                                .downcast_mut::<Arc<Mutex<ValueData<T>>>>()
+                                .cloned()
+                        })
                 {
                     let mut data = data.lock().map_or_else(PoisonError::into_inner, |a| a);
 
@@ -536,7 +469,7 @@ where
 
 #[derive(Default)]
 struct ReactorData {
-    scopes: Lots<ScopeData>,
+    values: Lots<Box<dyn AnyValue>>,
 }
 
 static REACTORS: OnceLock<Mutex<Lots<ReactorData>>> = OnceLock::new();
@@ -546,15 +479,6 @@ fn all_reactors() -> MutexGuard<'static, Lots<ReactorData>> {
         .get_or_init(Mutex::default)
         .lock()
         .map_or_else(PoisonError::into_inner, |g| g)
-}
-
-impl ReactorData {}
-
-#[derive(Default)]
-struct ScopeData {
-    parent: Option<ScopeId>,
-    values: Lots<Box<dyn AnyValue>>,
-    children: HashSet<ScopeId>,
 }
 
 trait AnyValue: Send + Sync {
@@ -630,63 +554,10 @@ impl Waiters {
     }
 }
 
-/// A handle that guards a [`Scope`]. When dropped, the [`Scope`] is freed.
-#[derive(Debug)]
-pub struct ScopeGuard(Scope);
-
-impl Drop for ScopeGuard {
-    fn drop(&mut self) {
-        let mut reactors = all_reactors();
-        let reactor = &mut reactors[self.0.reactor.0];
-        let Some(removed) = reactor.scopes.remove(self.0.id.0) else {
-            unreachable!("scope already disposed")
-        };
-
-        // Detach any children scopes
-        for child in removed.children {
-            reactor.scopes[child.0].parent = None;
-        }
-
-        // Remove this from the parent.
-        if let Some(parent) = removed.parent {
-            assert!(
-                reactor.scopes[parent.0].children.remove(&self.0.id),
-                "child was not present in parent"
-            );
-        }
-        // Stop holding the lock on the reactor before dropping the removed
-        // child.
-        drop(reactors);
-    }
-}
-
-impl Deref for ScopeGuard {
-    type Target = Scope;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<'a> From<&'a ScopeGuard> for Scope {
-    fn from(guard: &'a ScopeGuard) -> Self {
-        guard.0
-    }
-}
-
-impl ScopeGuard {
-    /// Returns the scope of this guard.
-    #[must_use]
-    pub const fn scope(&self) -> Scope {
-        self.0
-    }
-}
-
 #[test]
 fn map_each_test() {
     let reactor = Reactor::default();
-    let scope = reactor.new_scope();
-    let first_value = scope.new_dynamic(1);
+    let first_value = reactor.new_dynamic(1);
     let mapped_value = first_value.map_each(|updated| updated * 2).unwrap();
     assert_eq!(mapped_value.get(), Some(2));
     first_value.set(2);
