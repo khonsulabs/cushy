@@ -3,8 +3,9 @@ use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
 use alot::LotId;
-use gooey_core::math::units::{Px, UPx};
-use gooey_core::math::{IntoSigned, Point, Rect, Size};
+use gooey_core::events::MouseEvent;
+use gooey_core::math::units::UPx;
+use gooey_core::math::{IntoSigned, Rect, Size};
 use gooey_core::reactor::Dynamic;
 use gooey_core::style::DynamicStyle;
 use gooey_core::{Children, Value, WidgetTransmogrifier};
@@ -177,7 +178,7 @@ impl WidgetRasterizer for FlexRasterizer {
         }
     }
 
-    fn mouse_down(&mut self, location: Point<Px>, context: &mut dyn AnyRasterContext) {
+    fn mouse_down(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext) {
         for (layout, (id, rasterizable)) in self.flex.iter().zip(self.children.iter_mut()) {
             let rect = Rect::new(
                 self.flex.orientation.make_point(layout.offset, UPx(0)),
@@ -186,20 +187,16 @@ impl WidgetRasterizer for FlexRasterizer {
                     .make_size(layout.size, self.flex.other),
             )
             .into_signed();
-            let relative = location - rect.origin;
-            if relative.x >= 0
-                && relative.y >= 0
-                && relative.x < rect.size.width
-                && relative.y < rect.size.height
-            {
+            let relative = event.relative(rect);
+            if relative.is_some() {
                 self.mouse_tracking = Some(*id);
-                rasterizable.mouse_down(relative, context);
+                rasterizable.mouse_down(event.with_position(relative), context);
                 break;
             }
         }
     }
 
-    fn cursor_moved(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
+    fn cursor_moved(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext) {
         for (layout, (id, rasterizable)) in self.flex.iter().zip(self.children.iter_mut()) {
             let rect = Rect::new(
                 self.flex.orientation.make_point(layout.offset, UPx(0)),
@@ -208,22 +205,17 @@ impl WidgetRasterizer for FlexRasterizer {
                     .make_size(layout.size, self.flex.other),
             )
             .into_signed();
-            let relative = location.map(|location| location - rect.origin);
-            if relative.map_or(false, |relative| {
-                relative.x >= 0
-                    && relative.y >= 0
-                    && relative.x < rect.size.width
-                    && relative.y < rect.size.height
-            }) {
-                rasterizable.cursor_moved(relative, context);
+            let relative = event.relative(rect);
+            if relative.is_some() {
+                rasterizable.cursor_moved(event.clone().with_position(relative), context);
                 self.hovering.insert(*id);
             } else if self.hovering.remove(id) {
-                rasterizable.cursor_moved(None, context);
+                rasterizable.cursor_moved(event.clone().with_position(None), context);
             }
         }
     }
 
-    fn mouse_up(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
+    fn mouse_up(&mut self, mut event: MouseEvent, context: &mut dyn AnyRasterContext) {
         if let Some((layout, (_, rasterizable))) = self
             .flex
             .iter()
@@ -237,17 +229,18 @@ impl WidgetRasterizer for FlexRasterizer {
                     .make_size(layout.size, self.flex.other),
             )
             .into_signed();
-            let relative = location.map(|location| location - rect.origin);
+            let relative = event.position.map(|location| location - rect.origin);
             if relative.map_or(false, |relative| {
                 relative.x >= 0
                     && relative.y >= 0
                     && relative.x < rect.size.width
                     && relative.y < rect.size.height
             }) {
-                rasterizable.mouse_up(relative, context);
+                event.position = relative;
             } else {
-                rasterizable.mouse_up(None, context);
+                event.position = None;
             }
+            rasterizable.mouse_up(event, context);
         }
         self.mouse_tracking = None;
     }

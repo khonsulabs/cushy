@@ -350,7 +350,7 @@ impl<'a> Iterator for Matches<'a> {
                     // the classes.
                     let Some(id) = ids.next() else {
                         self.state = MatchState::Classes(classes.clone());
-                        continue
+                        continue;
                     };
                     // Only return matches if the pattern has no id, no widget,
                     // and its classes fully match.

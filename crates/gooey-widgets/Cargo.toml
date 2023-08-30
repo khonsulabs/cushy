@@ -25,6 +25,7 @@ web-sys = { version = "0.3.61", features = [
     "Document",
     "Element",
     "CssStyleDeclaration",
+    "MouseEvent",
 ] }
 gooey-web = { workspace = true, optional = true }
 gooey-raster = { workspace = true, optional = true }
