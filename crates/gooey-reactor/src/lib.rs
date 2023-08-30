@@ -158,10 +158,7 @@ where
     T: 'static,
 {
     fn clone(&self) -> Self {
-        Self {
-            id: self.id,
-            _phantom: PhantomData,
-        }
+        *self
     }
 }
 
@@ -332,11 +329,15 @@ where
             .get_mut(self.id.scope.reactor.0)
             .and_then(|reactor| reactor.scopes.get_mut(self.id.scope.id.0))
             .and_then(|scope| scope.values.get(self.id.value.0))
-            .and_then(|value|
+            .and_then(|value| {
                 value
-                .as_ref()
-                .as_any()
-                .downcast_ref::<Arc<Mutex<ValueData<T>>>>()) else { return };
+                    .as_ref()
+                    .as_any()
+                    .downcast_ref::<Arc<Mutex<ValueData<T>>>>()
+            })
+        else {
+            return;
+        };
 
         let mut data = data.lock().map_or_else(PoisonError::into_inner, |a| a);
         data.callbacks.push(Box::new(ValueForEach {
@@ -637,8 +638,9 @@ impl Drop for ScopeGuard {
     fn drop(&mut self) {
         let mut reactors = all_reactors();
         let reactor = &mut reactors[self.0.reactor.0];
-        let Some(removed) = reactor.scopes.remove(self.0.id.0)
-            else { unreachable!("scope already disposed") };
+        let Some(removed) = reactor.scopes.remove(self.0.id.0) else {
+            unreachable!("scope already disposed")
+        };
 
         // Detach any children scopes
         for child in removed.children {

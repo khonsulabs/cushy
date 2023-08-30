@@ -30,7 +30,9 @@ struct ChildrenSource {
 
 impl FlexRasterizer {
     fn synchronize_children(&mut self, context: &mut dyn AnyRasterContext) {
-        let Some(source) = &mut self.children_source else { return };
+        let Some(source) = &mut self.children_source else {
+            return;
+        };
         if source.generation != source.children.generation() {
             source.generation = source.children.generation();
             source.children.map_ref(|source| {
@@ -161,14 +163,16 @@ impl WidgetRasterizer for FlexRasterizer {
         );
 
         for (layout, (_id, rasterizable)) in self.flex.iter().zip(self.children.iter_mut()) {
-            renderer.clip_to(Rect::new(
-                self.flex.orientation.make_point(layout.offset, UPx(0)),
-                self.flex
-                    .orientation
-                    .make_size(layout.size, self.flex.other),
-            ));
-            rasterizable.draw(renderer, context);
-            renderer.pop_clip();
+            if layout.size > 0 {
+                renderer.clip_to(Rect::new(
+                    self.flex.orientation.make_point(layout.offset, UPx(0)),
+                    self.flex
+                        .orientation
+                        .make_size(layout.size, self.flex.other),
+                ));
+                rasterizable.draw(renderer, context);
+                renderer.pop_clip();
+            }
         }
     }
 

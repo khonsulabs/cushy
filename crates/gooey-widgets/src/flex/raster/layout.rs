@@ -110,13 +110,17 @@ impl Flex {
         // Measure the children that fit their content
         for &id in &self.measured {
             let index = self.children.index_of_id(id).expect("child not found");
-            let (measured, _) = self.orientation.split_size(measure(
-                index,
-                self.orientation
-                    .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
-            ));
-            self.layouts[index].size = measured;
-            remaining = remaining.saturating_sub(measured);
+            if remaining > 0 {
+                let (measured, _) = self.orientation.split_size(measure(
+                    index,
+                    self.orientation
+                        .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
+                ));
+                self.layouts[index].size = measured;
+                remaining = remaining.saturating_sub(measured);
+            } else {
+                self.layouts[index].size = UPx(0);
+            }
         }
 
         // Measure the weighted children within the remaining space
