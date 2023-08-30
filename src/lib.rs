@@ -42,15 +42,23 @@ where
 }
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
-impl App<gooey_raster::RasterizedApp<gooey_kludgine::Kludgine>> {
+impl App<gooey_web::WebApp> {
+    pub fn run_with<Widget, Initializer>(self, init: Initializer) -> !
+    where
+        Initializer: FnOnce(WindowBuilder) -> NewWindow<Widget>,
+        Widget: gooey_core::Widget,
+    {
+        gooey_web::attach_to_body(self.widgets, init(WindowBuilder::default()));
+
+        wasm_bindgen::throw_str("This is not an actual error. Please ignore.");
+    }
+
     pub fn run<Widget, Initializer>(self, init: Initializer) -> !
     where
         Initializer: FnOnce(&Context, &Window) -> Widget + std::panic::UnwindSafe + Send + 'static,
         Widget: gooey_core::Widget,
     {
-        gooey_web::attach_to_body(widgets, init);
-
-        wasm_bindgen::throw_str("This is not an actual error. Please ignore.");
+        self.run_with(|builder| builder.create(init))
     }
 }
 

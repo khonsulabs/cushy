@@ -5,13 +5,13 @@ use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
 use gooey_core::style::Style;
+use gooey_core::window::{NewWindow, Window};
 use gooey_core::{BoxedWidget, Context, Frontend, Runtime, Widget, WidgetInstance, Widgets};
 use gooey_reactor::{Dynamic, ScopeGuard};
 use web_sys::{window, Node};
 
-pub fn attach_to_body<Widget, Initializer>(widgets: Widgets<WebApp>, init: Initializer)
+pub fn attach_to_body<Widget>(widgets: Arc<Widgets<WebApp>>, init: NewWindow<Widget>)
 where
-    Initializer: FnOnce(&Context) -> Widget,
     Widget: gooey_core::Widget,
 {
     console_error_panic_hook::set_once();
@@ -40,22 +40,22 @@ pub struct WebApp {
 }
 
 impl WebApp {
-    pub fn new<Widget, Initializer>(widgets: Widgets<WebApp>, init: Initializer) -> (Self, Node)
+    pub fn new<Widget>(widgets: Arc<Widgets<WebApp>>, init: NewWindow<Widget>) -> (Self, Node)
     where
-        Initializer: FnOnce(&Context) -> Widget,
         Widget: gooey_core::IntoNewWidget,
     {
         let runtime = Runtime::default();
 
-        let app = Self {
-            runtime,
-            widgets: Arc::new(widgets),
-        };
+        let app = Self { runtime, widgets };
         let context = Context {
             scope: ***app.runtime.root_scope(),
             frontend: Arc::new(app.clone()),
         };
-        let widget = init(&context).into_new(&context);
+        let window = Window::new(init.attributes, &context);
+        let widget = (init.init)(&context, &window).into_new(&context);
+
+        // TODO support title/size
+
         let node = app.widgets.instantiate(
             &widget.widget,
             *widget.style,
