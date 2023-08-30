@@ -20,7 +20,7 @@ pub mod style;
 pub mod window;
 // mod tree;
 pub use gooey_macros::Widget;
-use gooey_reactor::{Dynamic, Reactor};
+use gooey_reactor::{Dynamic, Reactor, Scope, ScopeGuard};
 use stylecs::{Identifier, Name, Style};
 
 use crate::style::{DynamicStyle, Library, WidgetStyle};
@@ -122,16 +122,27 @@ impl Debug for BoxedWidget {
 ///
 /// The runtime owns all of the widget values and structures that drive the
 /// reactive system. A runtime can be used to power more than one window.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Runtime {
-    reactor: Reactor,
+    root: Arc<ScopeGuard>,
 }
 
-impl Deref for Runtime {
-    type Target = Reactor;
+impl Default for Runtime {
+    fn default() -> Self {
+        let reactor = Reactor::default();
+        let root = reactor.new_scope();
 
-    fn deref(&self) -> &Self::Target {
-        &self.reactor
+        Self {
+            root: Arc::new(root),
+        }
+    }
+}
+
+impl Runtime {
+    /// Returns a reference to the root scope.
+    #[must_use]
+    pub const fn root_scope(&self) -> &Arc<ScopeGuard> {
+        &self.root
     }
 }
 
@@ -147,15 +158,12 @@ pub trait Frontend: RefUnwindSafe + UnwindSafe + Send + Sync + Debug + Sized + '
     /// - In `gooey-web`, this is `web_sys::Node`
     /// - In `gooey-raster`, this is `gooey_raster::Rasterizable`
     type Instance;
-
-    fn runtime(&self) -> &Runtime;
 }
 
 /// A trait-object-safe interface for a [`Frontend`].
 pub trait AnyFrontend: RefUnwindSafe + UnwindSafe + Send + Sync + Debug + 'static {
     /// Returns the underlying type as an Any instance for downcasting.
     fn as_any(&self) -> &dyn Any;
-    fn runtime(&self) -> &Runtime;
 }
 
 impl<T> AnyFrontend for T
@@ -164,10 +172,6 @@ where
 {
     fn as_any(&self) -> &dyn Any {
         self
-    }
-
-    fn runtime(&self) -> &Runtime {
-        T::runtime(self)
     }
 }
 
@@ -180,16 +184,19 @@ where
 pub struct Context {
     /// The current frontend of the application.
     pub frontend: Arc<dyn AnyFrontend>,
+    /// The scope of this context.
+    pub scope: Scope,
 }
 
 impl Context {
     /// Returns a new context for the root scope of a runtime.
-    pub fn root<F>(frontend: F) -> Self
+    pub fn root<F>(frontend: F, runtime: &Runtime) -> Self
     where
         F: Frontend,
     {
         Self {
             frontend: Arc::new(frontend),
+            scope: ***runtime.root_scope(),
         }
     }
 
@@ -203,8 +210,10 @@ impl Context {
         WidgetFn: FnOnce(Context) -> NewWidget,
         NewWidget: IntoNewWidget,
     {
+        let scope = self.scope.new_scope();
         let widget = widget_fn(Context {
             frontend: self.frontend.clone(),
+            scope: *scope,
         })
         .into_new(self);
 
@@ -212,6 +221,7 @@ impl Context {
             id: widget.id,
             style: widget.style,
             widget: widget.widget,
+            scope,
         }
     }
 
@@ -231,7 +241,7 @@ impl Context {
     where
         T: Send + Sync,
     {
-        self.frontend.runtime().new_dynamic(initial_value)
+        self.scope.new_dynamic(initial_value)
     }
 }
 
@@ -239,6 +249,7 @@ impl Debug for Context {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ActiveContext")
             .field("frontend", &self.frontend)
+            .field("scope", &self.scope)
             .finish()
     }
 }
@@ -252,6 +263,8 @@ pub struct WidgetInstance<W> {
     // TODO classes: WidgetValue<Classes>, needs a Set type.
     /// The effective style of this widget instance.
     pub style: DynamicStyle,
+    /// The scope guard that keeps this widget instance's scope alive.
+    pub scope: ScopeGuard,
 }
 
 impl<W> WidgetInstance<W> {
@@ -262,6 +275,7 @@ impl<W> WidgetInstance<W> {
             widget: map(self.widget),
             id: self.id,
             style: self.style,
+            scope: self.scope,
         }
     }
 
@@ -814,22 +828,21 @@ impl Debug for Child {
 #[test]
 fn children_debug() {
     #[derive(Debug)]
-    struct NullFrontend(Runtime);
+    struct NullFrontend;
     impl Frontend for NullFrontend {
         type Context = ();
         type Instance = ();
-
-        fn runtime(&self) -> &Runtime {
-            &self.0
-        }
     }
 
     #[derive(Debug, Widget)]
     #[widget(name = test_widget,  core = crate)]
     struct TestWidget(u32);
 
+    let reactor = Reactor::default();
+    let guard = reactor.new_scope();
     let context = Context {
-        frontend: Arc::new(NullFrontend(Runtime::default())),
+        frontend: Arc::new(NullFrontend),
+        scope: guard.scope(),
     };
 
     let debug = format!(

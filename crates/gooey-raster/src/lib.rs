@@ -8,8 +8,8 @@ use gooey_core::graphics::Drawable;
 use gooey_core::math::units::{Lp, Px, UPx};
 use gooey_core::math::{Point, Rect, Size};
 use gooey_core::{
-    AnyWidget, BoxedWidget, Frontend, Runtime, Transmogrify, Widget, WidgetInstance,
-    WidgetTransmogrifier, Widgets,
+    AnyWidget, BoxedWidget, Frontend, Transmogrify, Widget, WidgetInstance, WidgetTransmogrifier,
+    Widgets,
 };
 use gooey_reactor::Dynamic;
 
@@ -19,7 +19,6 @@ where
 {
     handle: Arc<dyn SurfaceHandle>,
     surface: PhantomData<Surface>,
-    runtime: Runtime,
 }
 
 impl<Surface> Debug for RasterizedApp<Surface>
@@ -38,10 +37,9 @@ impl<Surface> RasterizedApp<Surface>
 where
     Surface: crate::Surface,
 {
-    pub fn new(handle: Arc<dyn SurfaceHandle>, runtime: Runtime) -> Self {
+    pub fn new(handle: Arc<dyn SurfaceHandle>) -> Self {
         Self {
             handle,
-            runtime,
             surface: PhantomData,
         }
     }
@@ -151,10 +149,6 @@ where
 {
     type Context = RasterContext<Surface>;
     type Instance = Rasterizable;
-
-    fn runtime(&self) -> &gooey_core::Runtime {
-        &self.runtime
-    }
 }
 
 pub struct RasterContext<Surface>
@@ -216,8 +210,8 @@ where
         self.handle.window_title_set()
     }
 
-    fn window_location_set(&self) {
-        self.handle.window_location_set()
+    fn window_position_set(&self) {
+        self.handle.window_position_set()
     }
 
     fn window_size_set(&self) {
@@ -269,7 +263,7 @@ where
 
 pub trait SurfaceHandle: Debug + RefUnwindSafe + UnwindSafe + Sync + Send + 'static {
     fn window_title_set(&self);
-    fn window_location_set(&self);
+    fn window_position_set(&self);
     fn window_size_set(&self);
     fn invalidate(&self);
     // fn invalidate_rect(&self, rect: Rect<UPx>);

@@ -15,13 +15,11 @@ fn main() {
                             counters.map_mut({
                                 |counters| {
                                     counters.push(|cx| {
-                                        let counter = cx.new_dynamic(None::<usize>);
-                                        let label =
-                                            counter.map_each(|count| format!("{count:?}")).unwrap();
+                                        let label = cx.new_dynamic(String::from("0"));
+                                        let mut counter = 0;
                                         Button::default().label(label).on_click(move |_| {
-                                            counter.set(Some(
-                                                counter.get().unwrap().unwrap_or_default() + 1,
-                                            ));
+                                            counter += 1;
+                                            label.set(counter.to_string());
                                         })
                                     })
                                 }

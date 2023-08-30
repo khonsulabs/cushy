@@ -6,7 +6,8 @@ use gooey_reactor::Reactor;
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let runtime = Reactor::default();
-    let shutdown = runtime.new_dynamic(false);
+    let global = runtime.new_scope();
+    let shutdown = global.new_dynamic(false);
 
     tokio::spawn(async move {
         println!("Sleeping");
