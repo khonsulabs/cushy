@@ -92,6 +92,26 @@ directory in the repository.
   `gooey_core::graphics::Renderer`. This allows rasterized applications to be
   built using [Kludgine][kludgine], which is powered by `wgpu` and `winit`.
 
+## Building and Running examples on WASM
+
+1. Compile the example:
+
+    ```sh
+    cargo build --example counter --target wasm32-unknown-unknown --no-default-features --features web
+    ```
+
+2. Generate the wasm bindings:
+
+    ```sh
+    wasm-bindgen target/wasm32-unknown-unknown/debug/examples/counter.wasm crates/gooey/examples/browser/pkg/
+    ```
+
+3. Run a webserver hosting the page (opening a .html won't allow loading wasm files):
+
+    ```sh
+    miniserve examples/browser/
+    ```
+
 ## Open-source Licenses
 
 This project, like all projects from [Khonsu Labs](https://khonsulabs.com/), are
