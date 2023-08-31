@@ -170,7 +170,7 @@ where
         let context = Context::root(RasterizedApp::<Kludgine>::new(handle.clone()), &runtime);
         let running_window = Window {
             inner_size: context.new_dynamic(window.inner_size()),
-            position: context.new_dynamic(window.location()),
+            position: context.new_dynamic(window.position()),
             title: context.new_dynamic(window.title()),
         };
         let root = (window_init.init)(&context, &running_window).into_new(&context);
@@ -246,7 +246,7 @@ where
                     inner_size.height.0,
                 ))
             }),
-            location: position.map(|position| {
+            position: position.map(|position| {
                 winit::dpi::Position::Physical(PhysicalPosition::new(position.x.0, position.y.0))
             }),
             resizable: *resizable,
@@ -280,7 +280,7 @@ where
             }
             SurfaceEvent::WindowPositionChanged => {
                 if let Some(position) = self.window.position.get() {
-                    window.set_location(position);
+                    window.set_position(position);
                 }
             }
             SurfaceEvent::WindowSizeChanged => {
