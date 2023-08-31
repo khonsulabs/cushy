@@ -23,8 +23,8 @@ impl WindowBuilder {
         self
     }
 
-    pub fn location(mut self, location: Point<Px>) -> Self {
-        self.attributes.location = Some(location);
+    pub fn position(mut self, position: Point<Px>) -> Self {
+        self.attributes.position = Some(position);
         self
     }
 
@@ -54,7 +54,7 @@ pub struct WindowAttributes {
     pub inner_size: Option<Size<UPx>>,
     pub min_inner_size: Option<Size<UPx>>,
     pub max_inner_size: Option<Size<UPx>>,
-    pub location: Option<Point<Px>>,
+    pub position: Option<Point<Px>>,
     pub resizable: bool,
     pub enabled_buttons: WindowButtons,
     pub title: String,
@@ -78,7 +78,7 @@ impl Default for WindowAttributes {
             inner_size: None,
             min_inner_size: None,
             max_inner_size: None,
-            location: None,
+            position: None,
             resizable: true,
             enabled_buttons: WindowButtons::all(),
             title: "Gooey".to_owned(),
@@ -150,7 +150,7 @@ pub struct NewWindow<Widget> {
 
 pub struct Window {
     pub inner_size: Dynamic<Size<UPx>>,
-    pub location: Dynamic<Point<Px>>,
+    pub position: Dynamic<Point<Px>>,
     pub title: Dynamic<String>,
 }
 
@@ -159,7 +159,7 @@ impl Window {
     pub fn new(attrs: WindowAttributes, cx: &Context) -> Self {
         Self {
             inner_size: cx.new_dynamic(attrs.inner_size.unwrap_or_default()),
-            location: cx.new_dynamic(attrs.location.unwrap_or_default()),
+            position: cx.new_dynamic(attrs.position.unwrap_or_default()),
             title: cx.new_dynamic(attrs.title),
         }
     }

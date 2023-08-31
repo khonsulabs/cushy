@@ -229,7 +229,7 @@ impl WidgetRasterizer for FlexRasterizer {
                     .make_size(layout.size, self.flex.other),
             )
             .into_signed();
-            let relative = event.position.map(|location| location - rect.origin);
+            let relative = event.position.map(|position| position - rect.origin);
             if relative.map_or(false, |relative| {
                 relative.x >= 0
                     && relative.y >= 0

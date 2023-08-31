@@ -114,7 +114,7 @@ where
 #[derive(Debug)]
 pub enum SurfaceEvent {
     WindowTitleChanged,
-    WindowLocationChanged,
+    WindowPositionChanged,
     WindowSizeChanged,
     Invalidate,
     // InvalidateRect(Rect<UPx>),
@@ -143,11 +143,11 @@ impl gooey_raster::SurfaceHandle for Handle {
     }
 
     fn window_position_set(&self) {
-        todo!()
+        let _result = self.0.send(SurfaceEvent::WindowPositionChanged);
     }
 
     fn window_size_set(&self) {
-        todo!()
+        let _result = self.0.send(SurfaceEvent::WindowSizeChanged);
     }
     // fn invalidate_rect(&self, rect: Rect<UPx>) {
     //     let _result = self.0.send(SurfaceEvent::InvalidateRect(rect));
@@ -170,7 +170,7 @@ where
         let context = Context::root(RasterizedApp::<Kludgine>::new(handle.clone()), &runtime);
         let running_window = Window {
             inner_size: context.new_dynamic(window.inner_size()),
-            location: context.new_dynamic(window.location()),
+            position: context.new_dynamic(window.location()),
             title: context.new_dynamic(window.title()),
         };
         let root = (window_init.init)(&context, &running_window).into_new(&context);
@@ -222,7 +222,7 @@ where
     ) -> kludgine::app::WindowAttributes<SurfaceEvent> {
         let WindowAttributes {
             inner_size,
-            location,
+            position,
             resizable,
             title,
             window_level,
@@ -246,7 +246,7 @@ where
                     inner_size.height.0,
                 ))
             }),
-            location: location.map(|position| {
+            location: position.map(|position| {
                 winit::dpi::Position::Physical(PhysicalPosition::new(position.x.0, position.y.0))
             }),
             resizable: *resizable,
@@ -278,9 +278,9 @@ where
             SurfaceEvent::WindowTitleChanged => {
                 self.window.title.map_ref(|title| window.set_title(title));
             }
-            SurfaceEvent::WindowLocationChanged => {
-                if let Some(location) = self.window.location.get() {
-                    window.set_location(location);
+            SurfaceEvent::WindowPositionChanged => {
+                if let Some(position) = self.window.position.get() {
+                    window.set_location(position);
                 }
             }
             SurfaceEvent::WindowSizeChanged => {
