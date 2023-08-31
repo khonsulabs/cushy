@@ -34,6 +34,7 @@ impl<A> App<A>
 where
     A: Frontend,
 {
+    #[must_use]
     pub fn new(widgets: Widgets<A>) -> Self {
         Self {
             widgets: Arc::new(widgets),

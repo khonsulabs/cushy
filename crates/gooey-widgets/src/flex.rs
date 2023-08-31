@@ -38,18 +38,22 @@ pub enum FlexDirection {
 }
 
 impl FlexDirection {
+    #[must_use]
     pub const fn columns() -> Self {
         Self::Column { reverse: false }
     }
 
+    #[must_use]
     pub const fn columns_rev() -> Self {
         Self::Column { reverse: true }
     }
 
+    #[must_use]
     pub const fn rows() -> Self {
         Self::Row { reverse: false }
     }
 
+    #[must_use]
     pub const fn rows_rev() -> Self {
         Self::Row { reverse: true }
     }

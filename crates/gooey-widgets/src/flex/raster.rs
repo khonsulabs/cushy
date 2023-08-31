@@ -102,7 +102,7 @@ where
                 move |_| {
                     handle.invalidate();
                 }
-            })
+            });
         }
 
         let children_source = if let Value::Dynamic(value) = widget.children {

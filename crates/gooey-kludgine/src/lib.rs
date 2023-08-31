@@ -77,7 +77,7 @@ where
             Point::default(),
             None,
             None,
-        )
+        );
     }
 
     fn draw_text(

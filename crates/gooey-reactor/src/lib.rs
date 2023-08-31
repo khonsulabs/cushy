@@ -1,7 +1,4 @@
 //! A platform-independent, `#![forbid(unsafe_code)]` reactive event system.
-#![forbid(unsafe_code)]
-#![warn(missing_docs, clippy::pedantic)]
-#![allow(clippy::module_name_repetitions)]
 
 use std::any::Any;
 use std::collections::HashSet;

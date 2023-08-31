@@ -1,10 +1,4 @@
 //! Core types and functionality for Gooey applications.
-#![forbid(unsafe_code)]
-#![warn(
-    //missing_docs,
-    clippy::pedantic,
-)]
-#![allow(clippy::module_name_repetitions)]
 
 use std::any::{type_name, Any};
 use std::collections::HashMap;

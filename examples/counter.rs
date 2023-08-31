@@ -1,3 +1,5 @@
+use std::string::ToString;
+
 use gooey::App;
 use gooey_core::Children;
 use gooey_widgets::{Button, Flex, Label};
@@ -5,7 +7,7 @@ use gooey_widgets::{Button, Flex, Label};
 fn main() {
     App::default().run(|cx, _window| {
         let counter = cx.new_dynamic(0i32);
-        let label = counter.map_each(|count| count.to_string()).unwrap();
+        let label = counter.map_each(ToString::to_string).unwrap();
 
         Flex::rows(
             Children::new(cx)

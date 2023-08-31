@@ -21,7 +21,7 @@ fn main() {
                                             counter += 1;
                                             label.set(counter.to_string());
                                         })
-                                    })
+                                    });
                                 }
                             });
                         }),

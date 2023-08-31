@@ -1,0 +1,10 @@
+[target.'cfg(all())']
+rustflags = [
+    "-Funsafe_code",
+    # clippy: pedantic
+    "-Wclippy::pedantic",
+    # globally allowed clippy exceptions
+    "-Aclippy::module_name_repetitions",
+    # Allow missing panic docs (see <https://github.com/rust-lang/rust-clippy/issues/11436>)
+    "-Aclippy::missing_panics_doc",
+]

@@ -18,11 +18,13 @@ impl Button {
         }
     }
 
+    #[must_use]
     pub fn label(mut self, label: impl Into<Value<String>>) -> Self {
         self.label = label.into();
         self
     }
 
+    #[must_use]
     pub fn on_click<CB: AnyCallback<()>>(mut self, cb: CB) -> Self {
         self.on_click = Some(Callback::new(cb));
         self
@@ -133,7 +135,7 @@ mod raster {
                     move |_| {
                         handle.invalidate();
                     }
-                })
+                });
             }
             Rasterizable::new(ButtonRasterizer {
                 button: widget.clone(),

@@ -56,10 +56,10 @@ pub enum ConstraintLimit {
 }
 
 impl ConstraintLimit {
+    #[must_use]
     pub fn max(self) -> UPx {
         match self {
-            ConstraintLimit::Known(v) => v,
-            ConstraintLimit::ClippedAfter(v) => v,
+            ConstraintLimit::Known(v) | ConstraintLimit::ClippedAfter(v) => v,
         }
     }
 }
@@ -91,19 +91,19 @@ where
     }
 
     fn draw(&mut self, renderer: &mut dyn Renderer, context: &mut dyn AnyRasterContext) {
-        T::draw(self, renderer, context)
+        T::draw(self, renderer, context);
     }
 
     fn mouse_down(&mut self, location: Point<Px>, context: &mut dyn AnyRasterContext) {
-        T::mouse_down(self, location, context)
+        T::mouse_down(self, location, context);
     }
 
     fn mouse_up(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
-        T::mouse_up(self, location, context)
+        T::mouse_up(self, location, context);
     }
 
     fn cursor_moved(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
-        T::cursor_moved(self, location, context)
+        T::cursor_moved(self, location, context);
     }
 }
 
@@ -203,19 +203,19 @@ where
     Surface: crate::Surface,
 {
     fn invalidate(&self) {
-        self.handle.invalidate()
+        self.handle.invalidate();
     }
 
     fn window_title_set(&self) {
-        self.handle.window_title_set()
+        self.handle.window_title_set();
     }
 
     fn window_position_set(&self) {
-        self.handle.window_position_set()
+        self.handle.window_position_set();
     }
 
     fn window_size_set(&self) {
-        self.handle.window_size_set()
+        self.handle.window_size_set();
     }
 }
 
@@ -227,7 +227,7 @@ where
         f.debug_struct("RasterContext")
             .field("widgets", &self.widgets)
             .field("handle", &self.handle)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

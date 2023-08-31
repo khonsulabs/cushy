@@ -12,6 +12,7 @@ use crate::flex::FlexTransmogrifier;
 use crate::label::LabelTransmogrifier;
 
 #[cfg(feature = "web")]
+#[must_use]
 pub fn web_widgets() -> gooey_core::Widgets<gooey_web::WebApp> {
     let _ = console_log::init();
     gooey_core::Widgets::default()
@@ -21,11 +22,13 @@ pub fn web_widgets() -> gooey_core::Widgets<gooey_web::WebApp> {
 }
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
+#[must_use]
 pub fn widgets() -> gooey_core::Widgets<gooey_web::WebApp> {
     web_widgets()
 }
 
 #[cfg(not(all(feature = "web", target_arch = "wasm32")))]
+#[must_use]
 pub fn raster_widgets<Surface>() -> gooey_core::Widgets<gooey_raster::RasterizedApp<Surface>>
 where
     Surface: gooey_raster::Surface,
@@ -37,6 +40,7 @@ where
 }
 
 #[cfg(not(all(feature = "web", target_arch = "wasm32")))]
+#[must_use]
 pub fn widgets<Surface>() -> gooey_core::Widgets<gooey_raster::RasterizedApp<Surface>>
 where
     Surface: gooey_raster::Surface,
@@ -53,8 +57,7 @@ enum State {
 
 fn control_text_color(state: State) -> Color {
     match state {
-        State::Normal => Color::rgba(0, 0, 0, 255),
+        State::Normal | State::Active => Color::rgba(0, 0, 0, 255),
         State::Hover => Color::rgba(20, 20, 20, 255),
-        State::Active => Color::rgba(0, 0, 0, 255),
     }
 }

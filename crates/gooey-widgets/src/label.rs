@@ -19,11 +19,13 @@ impl Label {
         )
     }
 
+    #[must_use]
     pub fn label(mut self, label: impl Into<Value<String>>) -> Self {
         self.label = label.into();
         self
     }
 
+    #[must_use]
     pub fn on_click<CB: AnyCallback<()>>(mut self, cb: CB) -> Self {
         self.on_click = Some(Callback::new(cb));
         self
@@ -104,14 +106,19 @@ mod web {
                         style.map_ref(|style| {
                             let mut css = String::new();
                             if let Some(font_size) = style.get::<FontSize>() {
-                                let FontSize(Dimension::Length(Length::Pixels(Px(pixels)))) = font_size else { todo!("implement better dimension conversion") };
-                                write!(&mut css, "font-size:{pixels}px;").expect("error writing css");
+                                let FontSize(Dimension::Length(Length::Pixels(Px(pixels)))) =
+                                    font_size
+                                else {
+                                    todo!("implement better dimension conversion")
+                                };
+                                write!(&mut css, "font-size:{pixels}px;")
+                                    .expect("error writing css");
                             }
 
                             // if !css.is_empty() {
-                                element
-                                    .set_attribute("style", &css)
-                                    .expect("error setting style");
+                            element
+                                .set_attribute("style", &css)
+                                .expect("error setting style");
                             // }
                         });
                     }
@@ -183,7 +190,7 @@ mod raster {
                     move |_| {
                         handle.invalidate();
                     }
-                })
+                });
             }
 
             Rasterizable::new(LabelRasterizer {

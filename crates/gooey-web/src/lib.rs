@@ -41,6 +41,7 @@ pub struct WebApp {
 }
 
 impl WebApp {
+    #[must_use]
     pub fn new<IntoWidget>(
         widgets: Arc<Widgets<WebApp>>,
         init: NewWindow<IntoWidget>,
@@ -115,6 +116,7 @@ pub struct WebContext {
 }
 
 impl WebContext {
+    #[must_use]
     pub fn instantiate(&self, widget: &WidgetInstance<BoxedWidget>) -> Node {
         self.app
             .widgets
