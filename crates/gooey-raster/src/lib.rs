@@ -4,9 +4,10 @@ use std::ops::{Deref, DerefMut};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
+use gooey_core::events::MouseEvent;
 use gooey_core::graphics::Drawable;
 use gooey_core::math::units::{Lp, Px, UPx};
-use gooey_core::math::{Point, Rect, Size};
+use gooey_core::math::{Rect, Size};
 use gooey_core::style::DynamicStyle;
 use gooey_core::{
     AnyWidget, BoxedWidget, Frontend, Transmogrify, Widget, WidgetInstance, WidgetTransmogrifier,
@@ -72,9 +73,9 @@ pub trait AnyWidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'stati
         context: &mut dyn AnyRasterContext,
     ) -> Size<UPx>;
     fn draw(&mut self, renderer: &mut dyn Renderer, context: &mut dyn AnyRasterContext);
-    fn mouse_down(&mut self, location: Point<Px>, context: &mut dyn AnyRasterContext);
-    fn mouse_up(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext);
-    fn cursor_moved(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext);
+    fn mouse_down(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext);
+    fn mouse_up(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext);
+    fn cursor_moved(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext);
 }
 
 impl<T> AnyWidgetRasterizer for T
@@ -94,16 +95,16 @@ where
         T::draw(self, renderer, context);
     }
 
-    fn mouse_down(&mut self, location: Point<Px>, context: &mut dyn AnyRasterContext) {
-        T::mouse_down(self, location, context);
+    fn mouse_down(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext) {
+        T::mouse_down(self, event, context);
     }
 
-    fn mouse_up(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
-        T::mouse_up(self, location, context);
+    fn mouse_up(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext) {
+        T::mouse_up(self, event, context);
     }
 
-    fn cursor_moved(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
-        T::cursor_moved(self, location, context);
+    fn cursor_moved(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext) {
+        T::cursor_moved(self, event, context);
     }
 }
 
@@ -280,11 +281,11 @@ pub trait WidgetRasterizer: RefUnwindSafe + UnwindSafe + Send + Sync + 'static {
     fn draw(&mut self, renderer: &mut dyn Renderer, context: &mut dyn AnyRasterContext);
 
     #[allow(unused_variables)]
-    fn mouse_down(&mut self, location: Point<Px>, context: &mut dyn AnyRasterContext) {}
+    fn mouse_down(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext) {}
     #[allow(unused_variables)]
-    fn cursor_moved(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {}
+    fn cursor_moved(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext) {}
     #[allow(unused_variables)]
-    fn mouse_up(&mut self, location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {}
+    fn mouse_up(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext) {}
 }
 
 pub trait AnyRasterContext: SurfaceHandle {

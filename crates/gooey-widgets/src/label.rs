@@ -1,11 +1,13 @@
+use gooey_core::events::MouseEvent;
 use gooey_core::style::FontSize;
 use gooey_core::{AnyCallback, Callback, Context, NewWidget, Value, Widget};
 
 #[derive(Debug, Default, Clone, Widget)]
 #[widget(authority = gooey)]
+#[must_use]
 pub struct Label {
     pub label: Value<String>,
-    pub on_click: Option<Callback<()>>,
+    pub on_click: Option<Callback<MouseEvent>>,
 }
 
 impl Label {
@@ -19,14 +21,12 @@ impl Label {
         )
     }
 
-    #[must_use]
     pub fn label(mut self, label: impl Into<Value<String>>) -> Self {
         self.label = label.into();
         self
     }
 
-    #[must_use]
-    pub fn on_click<CB: AnyCallback<()>>(mut self, cb: CB) -> Self {
+    pub fn on_click<CB: AnyCallback<MouseEvent>>(mut self, cb: CB) -> Self {
         self.on_click = Some(Callback::new(cb));
         self
     }
@@ -60,6 +60,7 @@ mod web {
     use web_sys::{HtmlElement, Node};
 
     use crate::label::{Label, LabelTransmogrifier};
+    use crate::web_utils::mouse_event_from_web;
 
     impl WidgetTransmogrifier<WebApp> for LabelTransmogrifier {
         type Widget = Label;
@@ -136,8 +137,8 @@ mod web {
             }
 
             if let Some(mut on_click) = on_click {
-                let closure = Closure::new(move || {
-                    on_click.invoke(());
+                let closure = Closure::new(move |event: web_sys::MouseEvent| {
+                    on_click.invoke(mouse_event_from_web(event));
                 });
                 element
                     .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
@@ -152,6 +153,7 @@ mod web {
 
 #[cfg(feature = "raster")]
 mod raster {
+    use gooey_core::events::MouseEvent;
     use gooey_core::graphics::TextMetrics;
     use gooey_core::math::units::{Px, UPx};
     use gooey_core::math::{IntoSigned, IntoUnsigned, Point, Size};
@@ -231,25 +233,21 @@ mod raster {
             });
         }
 
-        fn mouse_down(&mut self, _location: Point<Px>, context: &mut dyn AnyRasterContext) {
+        fn mouse_down(&mut self, _event: MouseEvent, context: &mut dyn AnyRasterContext) {
             self.tracking_click += 1;
             self.state = State::Active;
             context.invalidate();
         }
 
-        fn cursor_moved(
-            &mut self,
-            location: Option<Point<Px>>,
-            context: &mut dyn AnyRasterContext,
-        ) {
+        fn cursor_moved(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext) {
             let hover_state = if self.tracking_click > 0 {
                 State::Active
             } else {
                 State::Hover
             };
-            let changed = location.is_some() != (self.state == hover_state);
+            let changed = event.position.is_some() != (self.state == hover_state);
             if changed {
-                if location.is_some() {
+                if event.position.is_some() {
                     self.state = hover_state;
                 } else {
                     self.state = State::Normal;
@@ -258,10 +256,11 @@ mod raster {
             }
         }
 
-        fn mouse_up(&mut self, _location: Option<Point<Px>>, context: &mut dyn AnyRasterContext) {
+        fn mouse_up(&mut self, event: MouseEvent, context: &mut dyn AnyRasterContext) {
             self.tracking_click -= 1;
+            // TODO: only primary?
             if let (State::Active, Some(click)) = (self.state, &mut self.label.on_click) {
-                click.invoke(());
+                click.invoke(event);
                 self.state = State::Normal;
                 context.invalidate();
             }

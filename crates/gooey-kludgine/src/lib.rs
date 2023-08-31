@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
+use gooey_core::events::{MouseButtons, MouseEvent};
 use gooey_core::graphics::{Drawable, Options, TextMetrics};
 use gooey_core::math::units::UPx;
 use gooey_core::math::{IntoSigned, Point, Rect, ScreenUnit};
@@ -9,7 +10,7 @@ use gooey_core::window::{NewWindow, Window, WindowAttributes, WindowLevel};
 use gooey_core::{Context, IntoNewWidget, NewWidget, Runtime, Widgets};
 use gooey_raster::{DrawableState, RasterContext, Rasterizable, RasterizedApp, Surface};
 use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
-use kludgine::app::winit::event::ElementState;
+use kludgine::app::winit::event::{ElementState, MouseButton};
 use kludgine::app::{winit, WindowBehavior};
 use kludgine::render::Drawing;
 use kludgine::shapes::Shape;
@@ -126,6 +127,7 @@ struct GooeyWindow<Widget> {
     _runtime: Runtime,
     drawing: Drawing,
     window: Window,
+    mouse_buttons: MouseButtons,
 }
 
 #[derive(Debug)]
@@ -195,6 +197,7 @@ where
             _runtime: runtime,
             drawing,
             window: running_window,
+            mouse_buttons: MouseButtons::default(),
         }
     }
 
@@ -291,23 +294,49 @@ where
         }
     }
 
+    // TODO figure out device_id, i.e. how to get it into `MouseEvent` without forcing it to depend
+    // on `winit`
+    // TODO figure out how to deal with multiple mice holding and releasing...
     fn mouse_input(
         &mut self,
         window: kludgine::app::Window<'_, SurfaceEvent>,
         _device_id: winit::event::DeviceId,
         state: ElementState,
-        _button: winit::event::MouseButton,
+        button: MouseButton,
     ) {
+        let button = match button {
+            MouseButton::Left => MouseButtons::LEFT,
+            MouseButton::Right => MouseButtons::RIGHT,
+            MouseButton::Middle => MouseButtons::MIDDLE,
+            MouseButton::Other(_) => todo!("handle {button:?}"),
+        };
         match state {
-            ElementState::Pressed => self.rasterizable.mouse_down(
-                window
-                    .cursor_position()
-                    .expect("mouse down with no cursor position"),
-                &mut self.context,
-            ),
-            ElementState::Released => self
-                .rasterizable
-                .mouse_up(window.cursor_position(), &mut self.context),
+            ElementState::Pressed => {
+                self.mouse_buttons |= button;
+                self.rasterizable.mouse_down(
+                    MouseEvent {
+                        current_buttons: self.mouse_buttons,
+                        button,
+                        position: Some(
+                            window
+                                .cursor_position()
+                                .expect("mouse down with no cursor position"),
+                        ),
+                    },
+                    &mut self.context,
+                );
+            }
+            ElementState::Released => {
+                self.mouse_buttons &= !button;
+                self.rasterizable.mouse_up(
+                    MouseEvent {
+                        current_buttons: self.mouse_buttons,
+                        button,
+                        position: window.cursor_position(),
+                    },
+                    &mut self.context,
+                );
+            }
         }
     }
 
@@ -316,7 +345,14 @@ where
         _window: kludgine::app::Window<'_, SurfaceEvent>,
         _device_id: winit::event::DeviceId,
     ) {
-        self.rasterizable.cursor_moved(None, &mut self.context);
+        self.rasterizable.cursor_moved(
+            MouseEvent {
+                current_buttons: self.mouse_buttons,
+                button: self.mouse_buttons,
+                ..Default::default()
+            },
+            &mut self.context,
+        );
     }
 
     fn cursor_moved(
@@ -330,10 +366,23 @@ where
             .into_signed()
             .contains(position)
         {
-            self.rasterizable
-                .cursor_moved(Some(position), &mut self.context);
+            self.rasterizable.cursor_moved(
+                MouseEvent {
+                    current_buttons: self.mouse_buttons,
+                    button: self.mouse_buttons,
+                    position: Some(position),
+                },
+                &mut self.context,
+            );
         } else {
-            self.rasterizable.cursor_moved(None, &mut self.context);
+            self.rasterizable.cursor_moved(
+                MouseEvent {
+                    current_buttons: self.mouse_buttons,
+                    button: self.mouse_buttons,
+                    position: None,
+                },
+                &mut self.context,
+            );
         }
     }
 }

@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use alot::OrderedLots;
 pub use {figures as math, gooey_reactor as reactor};
+pub mod events;
 pub mod graphics;
 pub mod style;
 pub mod window;

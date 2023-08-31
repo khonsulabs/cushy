@@ -16,3 +16,9 @@ kempt = "0.2.0"
 alot = "0.3.0"
 figures = { git = "https://github.com/khonsulabs/figures" }
 palette = "0.7.2"
+derive_more = { version = "1.0.0-beta.3", features = [
+    "debug",
+    "add",
+    "add_assign",
+    "not",
+] }
