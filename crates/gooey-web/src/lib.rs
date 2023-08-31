@@ -10,6 +10,8 @@ use gooey_core::{BoxedWidget, Context, Frontend, Runtime, Widget, WidgetInstance
 use gooey_reactor::{Dynamic, ScopeGuard};
 use web_sys::{window, Node};
 
+pub mod utils;
+
 pub fn attach_to_body<Widget>(widgets: Arc<Widgets<WebApp>>, init: NewWindow<Widget>)
 where
     Widget: gooey_core::Widget,

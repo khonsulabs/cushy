@@ -202,11 +202,11 @@ impl Context {
         widget_fn: WidgetFn,
     ) -> WidgetInstance<NewWidget::Widget>
     where
-        WidgetFn: FnOnce(Context) -> NewWidget,
+        WidgetFn: FnOnce(&Context) -> NewWidget,
         NewWidget: IntoNewWidget,
     {
         let scope = self.scope.new_scope();
-        let widget = widget_fn(Context {
+        let widget = widget_fn(&Context {
             frontend: self.frontend.clone(),
             scope: *scope,
         })
@@ -687,7 +687,7 @@ impl Children {
     #[must_use]
     pub fn with<NewWidget, WidgetFn>(mut self, widget_fn: WidgetFn) -> Self
     where
-        WidgetFn: FnOnce(Context) -> NewWidget,
+        WidgetFn: FnOnce(&Context) -> NewWidget,
         NewWidget: IntoNewWidget,
     {
         self.push(widget_fn);
@@ -697,7 +697,7 @@ impl Children {
     #[must_use]
     pub fn with_named<NewWidget, WidgetFn>(mut self, name: Name, widget_fn: WidgetFn) -> Self
     where
-        WidgetFn: FnOnce(Context) -> NewWidget,
+        WidgetFn: FnOnce(&Context) -> NewWidget,
         NewWidget: IntoNewWidget,
     {
         self.push_named(name, widget_fn);
@@ -706,7 +706,7 @@ impl Children {
 
     pub fn push<NewWidget, WidgetFn>(&mut self, widget_fn: WidgetFn)
     where
-        WidgetFn: FnOnce(Context) -> NewWidget,
+        WidgetFn: FnOnce(&Context) -> NewWidget,
         NewWidget: IntoNewWidget,
     {
         let widget = self.context.new_widget(widget_fn);
@@ -718,7 +718,7 @@ impl Children {
 
     pub fn push_named<NewWidget, WidgetFn>(&mut self, name: Name, widget_fn: WidgetFn)
     where
-        WidgetFn: FnOnce(Context) -> NewWidget,
+        WidgetFn: FnOnce(&Context) -> NewWidget,
         NewWidget: IntoNewWidget,
     {
         let widget = self.context.new_widget(widget_fn);
@@ -731,7 +731,7 @@ impl Children {
 
     pub fn insert<NewWidget, WidgetFn>(&mut self, index: usize, widget_fn: WidgetFn)
     where
-        WidgetFn: FnOnce(Context) -> NewWidget,
+        WidgetFn: FnOnce(&Context) -> NewWidget,
         NewWidget: IntoNewWidget,
     {
         let widget = self.context.new_widget(widget_fn);
@@ -750,7 +750,7 @@ impl Children {
         name: Name,
         widget_fn: WidgetFn,
     ) where
-        WidgetFn: FnOnce(Context) -> NewWidget,
+        WidgetFn: FnOnce(&Context) -> NewWidget,
         NewWidget: IntoNewWidget,
     {
         let widget = self.context.new_widget(widget_fn);

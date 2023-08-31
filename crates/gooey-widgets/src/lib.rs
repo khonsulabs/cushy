@@ -1,7 +1,6 @@
 mod button;
 pub mod flex;
 mod label;
-mod web_utils;
 
 pub use button::Button;
 pub use flex::Flex;

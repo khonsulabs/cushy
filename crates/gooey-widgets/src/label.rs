@@ -54,13 +54,13 @@ mod web {
     use gooey_core::math::units::Px;
     use gooey_core::style::{Dimension, DynamicStyle, FontSize, Length};
     use gooey_core::{Value, WidgetTransmogrifier};
+    use gooey_web::utils::mouse_event_from_web;
     use gooey_web::WebApp;
     use wasm_bindgen::prelude::Closure;
     use wasm_bindgen::JsCast;
     use web_sys::{HtmlElement, Node};
 
     use crate::label::{Label, LabelTransmogrifier};
-    use crate::web_utils::mouse_event_from_web;
 
     impl WidgetTransmogrifier<WebApp> for LabelTransmogrifier {
         type Widget = Label;
@@ -138,7 +138,7 @@ mod web {
 
             if let Some(mut on_click) = on_click {
                 let closure = Closure::new(move |event: web_sys::MouseEvent| {
-                    on_click.invoke(mouse_event_from_web(event));
+                    on_click.invoke(mouse_event_from_web(&event));
                 });
                 element
                     .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
