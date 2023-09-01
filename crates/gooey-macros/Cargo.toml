@@ -15,5 +15,5 @@ quote = "1.0.27"
 syn = "2.0.16"
 stylecs-shared = { git = "https://github.com/khonsulabs/stylecs" }
 
-[dev-dependencies]
-gooey-core = { workspace = true }
+# [dev-dependencies]
+# gooey-core = { workspace = true }
