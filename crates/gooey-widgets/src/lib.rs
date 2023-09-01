@@ -1,14 +1,17 @@
 mod button;
 pub mod flex;
+mod input;
 mod label;
 
 pub use button::Button;
 pub use flex::Flex;
 use gooey_core::style::Color;
+pub use input::Input;
 pub use label::{Label, LabelExt};
 
 use crate::button::ButtonTransmogrifier;
 use crate::flex::FlexTransmogrifier;
+use crate::input::InputTransmogrifier;
 use crate::label::LabelTransmogrifier;
 
 #[cfg(feature = "web")]
@@ -19,6 +22,7 @@ pub fn web_widgets() -> gooey_core::Widgets<gooey_web::WebApp> {
         .with::<ButtonTransmogrifier>()
         .with::<FlexTransmogrifier>()
         .with::<LabelTransmogrifier>()
+        .with::<InputTransmogrifier>()
 }
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
@@ -37,6 +41,7 @@ where
         .with::<ButtonTransmogrifier>()
         .with::<FlexTransmogrifier>()
         .with::<LabelTransmogrifier>()
+        .with::<InputTransmogrifier>()
 }
 
 #[cfg(not(all(feature = "web", target_arch = "wasm32")))]

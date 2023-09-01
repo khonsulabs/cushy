@@ -490,8 +490,7 @@ dependencies = [
 [[package]]
 name = "derive_more"
 version = "1.0.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1335e0609db169713d97c340dd769773c6c63cd953c8fcf1063043fd3d6dd11"
+source = "git+https://github.com/ModProg/derive_more?branch=try_from_repr#bcbfbe6842fd7035b40042965aebfc0e62094c24"
 dependencies = [
  "derive_more-impl",
 ]
@@ -499,8 +498,7 @@ dependencies = [
 [[package]]
 name = "derive_more-impl"
 version = "1.0.0-beta.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df541e0e2a8069352be228ce4b85a1da6f59bfd325e56f57e4b241babbc3f832"
+source = "git+https://github.com/ModProg/derive_more?branch=try_from_repr#bcbfbe6842fd7035b40042965aebfc0e62094c24"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -769,7 +767,6 @@ name = "gooey-macros"
 version = "0.1.0"
 dependencies = [
  "attribute-derive",
- "gooey-core",
  "manyhow",
  "proc-macro2",
  "quote",

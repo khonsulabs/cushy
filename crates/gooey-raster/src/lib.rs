@@ -110,11 +110,11 @@ where
     }
 
     fn key_down(&mut self, event: KeyEvent, context: &mut dyn AnyRasterContext) {
-        T::key_down(self, event, context)
+        T::key_down(self, event, context);
     }
 
     fn key_up(&mut self, event: KeyEvent, context: &mut dyn AnyRasterContext) {
-        T::key_up(self, event, context)
+        T::key_up(self, event, context);
     }
 
     // TODO key_pressed
