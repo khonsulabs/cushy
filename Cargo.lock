@@ -1044,7 +1044,7 @@ dependencies = [
 [[package]]
 name = "kludgine"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/kludgine#716c3e7875dd2187a71ed4e4f20e1c466dc43cf6"
+source = "git+https://github.com/khonsulabs/kludgine#96c3daa2f371f093d2717d12aeb932b8d3df2b64"
 dependencies = [
  "ahash 0.8.3",
  "alot 0.3.0",

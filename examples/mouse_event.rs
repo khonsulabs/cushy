@@ -1,6 +1,6 @@
 use gooey::App;
 use gooey_core::events::MouseEvent;
-use gooey_core::{Children, Context};
+use gooey_core::{Children, Context, EventLoopError};
 use gooey_widgets::{Button, Flex};
 
 fn position_button(cx: &Context) -> Button {
@@ -10,7 +10,7 @@ fn position_button(cx: &Context) -> Button {
     })
 }
 
-fn main() {
+fn main() -> Result<(), EventLoopError> {
     App::default().run(|cx, _window| {
         Flex::rows(Children::new(cx).with(position_button).with(|cx| {
             Flex::columns(

@@ -1,10 +1,10 @@
 use std::string::ToString;
 
 use gooey::App;
-use gooey_core::Children;
+use gooey_core::{Children, EventLoopError};
 use gooey_widgets::{Button, Flex, Label};
 
-fn main() {
+fn main() -> Result<(), EventLoopError> {
     App::default().run(|cx, _window| {
         let counter = cx.new_dynamic(0i32);
         let label = counter.map_each(ToString::to_string).unwrap();

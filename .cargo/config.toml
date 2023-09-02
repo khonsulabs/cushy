@@ -5,6 +5,7 @@ rustflags = [
     "-Wclippy::pedantic",
     # globally allowed clippy exceptions
     "-Aclippy::module_name_repetitions",
+    "-Aclippy::missing_errors_doc",
     # Allow missing panic docs (see <https://github.com/rust-lang/rust-clippy/issues/11436>)
     "-Aclippy::missing_panics_doc",
 ]

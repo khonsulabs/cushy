@@ -2,7 +2,8 @@
 
 use std::any::{type_name, Any};
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::error::Error;
+use std::fmt::{Debug, Display};
 use std::ops::{Deref, DerefMut};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
@@ -819,6 +820,31 @@ impl Debug for Child {
         }
     }
 }
+
+pub struct EventLoopError(Box<dyn Error>);
+
+impl EventLoopError {
+    pub fn new<T>(error: T) -> Self
+    where
+        T: Error + 'static,
+    {
+        Self(Box::new(error))
+    }
+}
+
+impl Debug for EventLoopError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.0, f)
+    }
+}
+
+impl Display for EventLoopError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl Error for EventLoopError {}
 
 #[test]
 fn children_debug() {

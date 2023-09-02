@@ -7,7 +7,7 @@ use gooey_core::graphics::{Drawable, Options, TextMetrics};
 use gooey_core::math::units::UPx;
 use gooey_core::math::{IntoSigned, Point, Rect, ScreenUnit};
 use gooey_core::window::{NewWindow, Window, WindowAttributes, WindowLevel};
-use gooey_core::{Context, IntoNewWidget, NewWidget, Runtime, Widgets};
+use gooey_core::{Context, EventLoopError, IntoNewWidget, NewWidget, Runtime, Widgets};
 use gooey_raster::{DrawableState, RasterContext, Rasterizable, RasterizedApp, Surface};
 use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{ElementState, MouseButton};
@@ -17,11 +17,14 @@ use kludgine::shapes::Shape;
 use kludgine::text::TextOrigin;
 use kludgine::{Clipped, Color};
 
-pub fn run<Widget>(widgets: Arc<Widgets<RasterizedApp<Kludgine>>>, init: NewWindow<Widget>) -> !
+pub fn run<Widget>(
+    widgets: Arc<Widgets<RasterizedApp<Kludgine>>>,
+    init: NewWindow<Widget>,
+) -> Result<(), EventLoopError>
 where
     Widget: gooey_core::Widget,
 {
-    GooeyWindow::run_with((widgets, init))
+    GooeyWindow::run_with((widgets, init)).map_err(EventLoopError::new)
 }
 
 #[derive(Debug)]

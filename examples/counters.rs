@@ -1,8 +1,8 @@
 use gooey::App;
-use gooey_core::Children;
+use gooey_core::{Children, EventLoopError};
 use gooey_widgets::{Button, Flex};
 
-fn main() {
+fn main() -> Result<(), EventLoopError> {
     App::default().run(|cx, _window| {
         let counters = cx.new_dynamic(Children::new(cx));
 

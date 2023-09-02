@@ -44,17 +44,22 @@ where
 
 #[cfg(all(feature = "web", target_arch = "wasm32"))]
 impl App<gooey_web::WebApp> {
-    pub fn run_with<Widget, Initializer>(self, init: Initializer) -> !
+    pub fn run_with<Widget, Initializer>(
+        self,
+        init: Initializer,
+    ) -> Result<(), gooey_core::EventLoopError>
     where
         Initializer: FnOnce(WindowBuilder) -> NewWindow<Widget>,
         Widget: gooey_core::Widget,
     {
         gooey_web::attach_to_body(self.widgets, init(WindowBuilder::default()));
-
-        wasm_bindgen::throw_str("This is not an actual error. Please ignore.");
+        Ok(())
     }
 
-    pub fn run<Widget, Initializer>(self, init: Initializer) -> !
+    pub fn run<Widget, Initializer>(
+        self,
+        init: Initializer,
+    ) -> Result<(), gooey_core::EventLoopError>
     where
         Initializer: FnOnce(&Context, &Window) -> Widget + std::panic::UnwindSafe + Send + 'static,
         Widget: gooey_core::Widget,
@@ -65,7 +70,10 @@ impl App<gooey_web::WebApp> {
 
 #[cfg(all(feature = "desktop", not(target_arch = "wasm32")))]
 impl App<gooey_raster::RasterizedApp<gooey_kludgine::Kludgine>> {
-    pub fn run_with<Widget, Initializer>(self, init: Initializer) -> !
+    pub fn run_with<Widget, Initializer>(
+        self,
+        init: Initializer,
+    ) -> Result<(), gooey_core::EventLoopError>
     where
         Initializer: FnOnce(WindowBuilder) -> NewWindow<Widget>,
         Widget: gooey_core::Widget,
@@ -73,7 +81,10 @@ impl App<gooey_raster::RasterizedApp<gooey_kludgine::Kludgine>> {
         gooey_kludgine::run(self.widgets, init(WindowBuilder::default()))
     }
 
-    pub fn run<Widget, Initializer>(self, init: Initializer) -> !
+    pub fn run<Widget, Initializer>(
+        self,
+        init: Initializer,
+    ) -> Result<(), gooey_core::EventLoopError>
     where
         Initializer: FnOnce(&Context, &Window) -> Widget + std::panic::UnwindSafe + Send + 'static,
         Widget: gooey_core::Widget,
