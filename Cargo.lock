@@ -112,6 +112,7 @@ dependencies = [
 [[package]]
 name = "appit"
 version = "0.1.0"
+source = "git+https://github.com/khonsulabs/appit#0503b3d4668ec9e153952e509462216a2c5d85a9"
 dependencies = [
  "raw-window-handle",
  "winit",
@@ -477,9 +478,9 @@ dependencies = [
 
 [[package]]
 name = "derive-where"
-version = "1.2.3"
+version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "875a0460143f2dbcc71fd8a63f34b7c83ac66f14bead94054e7cd619c57bbb27"
+checksum = "41820213d18bb3b7639aff030363830d3653980fbf67bbcce194eeb933da7983"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -573,6 +574,7 @@ checksum = "dd2e7510819d6fbf51a5545c8f922716ecfb14df168a3242f7d33e0239efe6a1"
 [[package]]
 name = "figures"
 version = "0.1.0"
+source = "git+https://github.com/khonsulabs/figures#9f63e7ed6633d8e06e4124db0aed2e9142182883"
 dependencies = [
  "bytemuck",
  "euclid",
@@ -1042,6 +1044,7 @@ dependencies = [
 [[package]]
 name = "kludgine"
 version = "0.1.0"
+source = "git+https://github.com/khonsulabs/kludgine#716c3e7875dd2187a71ed4e4f20e1c466dc43cf6"
 dependencies = [
  "ahash 0.8.3",
  "alot 0.3.0",
