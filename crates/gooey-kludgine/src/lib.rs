@@ -308,6 +308,8 @@ where
             MouseButton::Left => MouseButtons::LEFT,
             MouseButton::Right => MouseButtons::RIGHT,
             MouseButton::Middle => MouseButtons::MIDDLE,
+            MouseButton::Back => MouseButtons::BACK,
+            MouseButton::Forward => MouseButtons::FORWARD,
             MouseButton::Other(_) => todo!("handle {button:?}"),
         };
         match state {
