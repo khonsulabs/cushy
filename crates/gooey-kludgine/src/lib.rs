@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use gooey_core::events::{KeyEvent, MouseButtons, MouseEvent};
+use gooey_core::events::{MouseButtons, MouseEvent};
 use gooey_core::graphics::{Drawable, Options, TextMetrics};
 use gooey_core::math::units::UPx;
 use gooey_core::math::{IntoSigned, Point, Rect, ScreenUnit};
@@ -10,12 +10,15 @@ use gooey_core::window::{NewWindow, Window, WindowAttributes, WindowLevel};
 use gooey_core::{Context, EventLoopError, IntoNewWidget, NewWidget, Runtime, Widgets};
 use gooey_raster::{DrawableState, RasterContext, Rasterizable, RasterizedApp, Surface};
 use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
-use kludgine::app::winit::event::{ElementState, KeyboardInput, MouseButton};
+use kludgine::app::winit::event::{ElementState, KeyEvent, MouseButton};
 use kludgine::app::{winit, WindowBehavior};
 use kludgine::render::Drawing;
 use kludgine::shapes::Shape;
 use kludgine::text::TextOrigin;
 use kludgine::{Clipped, Color};
+
+mod events;
+pub use events::map_input_event;
 
 pub fn run<Widget>(
     widgets: Arc<Widgets<RasterizedApp<Kludgine>>>,
@@ -397,21 +400,15 @@ where
         &mut self,
         window: kludgine::app::Window<'_, SurfaceEvent>,
         device_id: winit::event::DeviceId,
-        input: KeyboardInput,
+        input: KeyEvent,
         is_synthetic: bool,
     ) {
-        let virtual_keycode = input.virtual_keycode.map(|k| {
-            (k as u32)
-                .try_into()
-                .expect("winit and gooey VirtualKeyCode should be identical")
-        });
-        let event = KeyEvent {
-            scan_code: input.scancode,
-            virtual_keycode,
-        };
-        match input.state {
-            ElementState::Pressed => self.rasterizable.key_down(event, &mut self.context),
-            ElementState::Released => self.rasterizable.key_up(event, &mut self.context),
+        let modifiers = window.modifiers();
+        let state = input.state;
+        let input = map_input_event(input, modifiers);
+        match state {
+            ElementState::Pressed => self.rasterizable.key_down(input, &mut self.context),
+            ElementState::Released => self.rasterizable.key_up(input, &mut self.context),
         }
     }
 }

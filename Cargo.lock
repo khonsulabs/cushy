@@ -750,6 +750,7 @@ dependencies = [
  "gooey-reactor",
  "kempt",
  "palette",
+ "smol_str",
  "stylecs",
 ]
 
@@ -1041,7 +1042,7 @@ dependencies = [
 [[package]]
 name = "kludgine"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/kludgine#96c3daa2f371f093d2717d12aeb932b8d3df2b64"
+source = "git+https://github.com/ModProg/kludgine?branch=modifier-access#16fe171f0ae167896ddd5d96e687dc00704c168f"
 dependencies = [
  "ahash 0.8.3",
  "alot 0.3.0",

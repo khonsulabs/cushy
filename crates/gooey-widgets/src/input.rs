@@ -96,7 +96,7 @@ mod web {
 
 #[cfg(feature = "raster")]
 mod raster {
-    use gooey_core::events::{KeyEvent, MouseEvent, VirtualKeyCode};
+    use gooey_core::events::{Key, KeyEvent, MouseEvent};
     use gooey_core::graphics::TextMetrics;
     use gooey_core::math::units::{Px, UPx};
     use gooey_core::math::{IntoSigned, IntoUnsigned, Point, Size};
@@ -199,35 +199,22 @@ mod raster {
         }
 
         fn key_down(&mut self, event: KeyEvent, context: &mut dyn AnyRasterContext) {
-            'outer: {
-                if let Some(key) = event.virtual_keycode {
-                    match key {
-                        _ if (VirtualKeyCode::A..=VirtualKeyCode::Z).contains(&key) => {
-                            self.value.push(
-                                char::from_u32(
-                                    (key as u32) - (VirtualKeyCode::A as u32) + ('a' as u32),
-                                )
-                                .expect("valid key"),
-                            );
-                        }
-                        VirtualKeyCode::Space => self.value.push(' '),
-                        VirtualKeyCode::Backspace => self.value.truncate(self.value.len() - 1),
-                        VirtualKeyCode::Underline => self.value.push('_'),
-                        VirtualKeyCode::Minus => self.value.push('-'),
-                        _ => {
-                            eprintln!("unknown: `{key:?}`");
-                            break 'outer;
-                        }
+            match event.logical_key {
+                Key::Backspace => self.value.truncate(self.value.len() - 1),
+                _ => {
+                    if let Some(text) = event.text {
+                        self.value.push_str(text.as_str());
+                    } else {
+                        eprintln!("ignored {event:?}");
+                        return;
                     }
-                    if let Value::Dynamic(value) = self.input.value {
-                        value.set(self.value.clone());
-                    }
-                    if let Some(on_update) = self.input.on_update.as_mut() {
-                        on_update.invoke(self.value.clone());
-                    }
-                } else {
-                    eprintln!("Missing virtual keycode: {}", event.scan_code);
                 }
+            }
+            if let Value::Dynamic(value) = self.input.value {
+                value.set(self.value.clone());
+            }
+            if let Some(on_update) = self.input.on_update.as_mut() {
+                on_update.invoke(self.value.clone());
             }
             context.invalidate();
         }

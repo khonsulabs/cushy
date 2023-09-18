@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 gooey-raster = { workspace = true }
 gooey-core = { workspace = true }
-kludgine = { git = "https://github.com/khonsulabs/kludgine" }
+# kludgine = { git = "https://github.com/khonsulabs/kludgine" }
+kludgine = { git = "https://github.com/ModProg/kludgine", branch = "modifier-access"}
