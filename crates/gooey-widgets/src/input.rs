@@ -80,9 +80,12 @@ mod web {
             }
 
             if let Some(mut on_update) = on_update {
-                let closure = Closure::new(move || {
-                    on_update.invoke(String::new());
-                });
+                let closure = {
+                    let input = input.clone();
+                    Closure::new(move || {
+                        on_update.invoke(input.value());
+                    })
+                };
                 input
                     .add_event_listener_with_callback("input", closure.as_ref().unchecked_ref())
                     .expect("error installing input callback");
