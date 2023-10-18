@@ -9,6 +9,8 @@ pub mod children;
 pub mod context;
 pub mod dynamic;
 pub mod graphics;
+pub mod names;
+pub mod styles;
 mod tree;
 mod utils;
 pub mod widget;

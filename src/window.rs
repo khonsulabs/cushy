@@ -4,29 +4,35 @@ use std::panic::{AssertUnwindSafe, UnwindSafe};
 
 use kludgine::app::winit::dpi::PhysicalPosition;
 use kludgine::app::winit::error::EventLoopError;
-use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
+use kludgine::app::winit::event::{
+    DeviceId, ElementState, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
+};
 use kludgine::app::winit::keyboard::KeyCode;
 use kludgine::app::WindowBehavior as _;
 use kludgine::figures::units::Px;
 use kludgine::figures::Point;
 use kludgine::render::Drawing;
+use kludgine::Kludgine;
 
 use crate::context::Context;
 use crate::graphics::Graphics;
-use crate::tree::{ManagedWidget, Tree};
+use crate::styles::Styles;
+use crate::tree::Tree;
 use crate::utils::ModifiersExt;
-use crate::widget::{EventHandling, HANDLED, UNHANDLED};
+use crate::widget::{BoxedWidget, EventHandling, ManagedWidget, Widget, HANDLED, UNHANDLED};
 use crate::window::sealed::WindowCommand;
 
 pub type RunningWindow<'window> = kludgine::app::Window<'window, WindowCommand>;
 pub type WindowAttributes = kludgine::app::WindowAttributes<WindowCommand>;
 
+#[must_use]
 pub struct Window<Behavior>
 where
     Behavior: WindowBehavior,
 {
     context: Behavior::Context,
     pub attributes: WindowAttributes,
+    pub styles: Option<Styles>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -40,21 +46,42 @@ where
     }
 }
 
+impl Window<BoxedWidget> {
+    pub fn for_widget<W>(widget: W) -> Self
+    where
+        W: Widget,
+    {
+        Self::new(BoxedWidget::new(widget))
+    }
+}
+
 impl<Behavior> Window<Behavior>
 where
     Behavior: WindowBehavior,
 {
     pub fn new(context: Behavior::Context) -> Self {
         Self {
-            attributes: WindowAttributes::default(),
+            attributes: WindowAttributes {
+                title: String::from("Gooey App"),
+                ..WindowAttributes::default()
+            },
             context,
+            styles: None,
         }
+    }
+
+    pub fn styles(mut self, styles: Styles) -> Self {
+        self.styles = Some(styles);
+        self
     }
 
     pub fn run(self) -> Result<(), EventLoopError> {
         GooeyWindow::<Behavior>::run_with(AssertUnwindSafe((
             self.context,
-            RefCell::new(Some(self.attributes)),
+            RefCell::new(WindowSettings {
+                styles: self.styles,
+                attributes: Some(self.attributes),
+            }),
         )))
     }
 }
@@ -64,7 +91,7 @@ pub trait WindowBehavior: Sized + 'static {
 
     fn initialize(window: &mut RunningWindow<'_>, context: Self::Context) -> Self;
 
-    fn make_root(&mut self, tree: &Tree) -> ManagedWidget;
+    fn make_root(&mut self) -> BoxedWidget;
 
     #[allow(unused_variables)]
     fn close_requested(&self, window: &mut RunningWindow<'_>) -> bool {
@@ -79,13 +106,7 @@ pub trait WindowBehavior: Sized + 'static {
     }
 
     fn run_with(context: Self::Context) -> Result<(), EventLoopError> {
-        GooeyWindow::<Self>::run_with(AssertUnwindSafe((
-            context,
-            RefCell::new(Some(WindowAttributes {
-                title: String::from("Gooey Application"),
-                ..WindowAttributes::default()
-            })),
-        )))
+        Window::<Self>::new(context).run()
     }
 }
 
@@ -112,7 +133,7 @@ impl<T> kludgine::app::WindowBehavior<WindowCommand> for GooeyWindow<T>
 where
     T: WindowBehavior,
 {
-    type Context = AssertUnwindSafe<(T::Context, RefCell<Option<WindowAttributes>>)>;
+    type Context = AssertUnwindSafe<(T::Context, RefCell<WindowSettings>)>;
 
     fn initialize(
         mut window: RunningWindow<'_>,
@@ -120,7 +141,10 @@ where
         context: Self::Context,
     ) -> Self {
         let mut behavior = T::initialize(&mut window, context.0 .0);
-        let root = behavior.make_root(&Tree::default());
+        let root = Tree::default().push_boxed(behavior.make_root(), None);
+        if let Some(styles) = context.0 .1.borrow_mut().styles.take() {
+            root.attach_styles(styles);
+        }
         Self {
             behavior,
             root,
@@ -152,10 +176,13 @@ where
         !self.should_close
     }
 
-    fn initial_window_attributes(context: &Self::Context) -> WindowAttributes {
+    fn initial_window_attributes(
+        context: &Self::Context,
+    ) -> kludgine::app::WindowAttributes<WindowCommand> {
         context
             .1
             .borrow_mut()
+            .attributes
             .take()
             .expect("called more than once")
     }
@@ -200,17 +227,18 @@ where
         device_id: DeviceId,
         input: KeyEvent,
         is_synthetic: bool,
+        kludgine: &mut Kludgine,
     ) {
-        let handled = if let Some(focus) = self.root.tree.focused_widget() {
-            let focus = self.root.tree.widget(focus);
-            let mut focus = Context::new(&focus, &mut window);
-            recursively_handle_event(&mut focus, |widget| {
-                widget.keyboard_input(device_id, input.clone(), is_synthetic)
-            })
-            .is_some()
-        } else {
-            false
-        };
+        let target = self.root.tree.hovered_widget().unwrap_or(self.root.id);
+        let target = self.root.tree.widget(target);
+        let mut target = Context::new(&target, &mut window);
+
+        let handled = recursively_handle_event(&mut target, |widget| {
+            widget.keyboard_input(device_id, input.clone(), is_synthetic, kludgine)
+        })
+        .is_some();
+        drop(target);
+
         if !handled && !input.state.is_pressed() {
             match input.physical_key {
                 KeyCode::KeyW if window.modifiers().state().primary() => {
@@ -221,6 +249,22 @@ where
                 _ => {}
             }
         }
+    }
+
+    fn mouse_wheel(
+        &mut self,
+        mut window: RunningWindow<'_>,
+        device_id: DeviceId,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+    ) {
+        let widget = self.root.tree.hovered_widget().unwrap_or(self.root.id);
+
+        let widget = self.root.tree.widget(widget);
+        let mut widget = Context::new(&widget, &mut window);
+        recursively_handle_event(&mut widget, |widget| {
+            widget.mouse_wheel(device_id, delta, phase)
+        });
     }
 
     // fn modifiers_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
@@ -251,6 +295,7 @@ where
         } else {
             // Hover
             let mut context = Context::new(&self.root, &mut window);
+            self.mouse_state.widget = None;
             for widget in self.root.tree.widgets_at_point(location) {
                 let mut widget_context = context.for_other(&widget);
                 let relative = location
@@ -266,15 +311,12 @@ where
                     break;
                 }
             }
+
+            if self.mouse_state.widget.is_none() {
+                context.clear_hover();
+            }
         }
     }
-
-    // fn cursor_entered(
-    //     &mut self,
-    //     window: RunningWindow<'_>,
-    //     device_id: DeviceId,
-    // ) {
-    // }
 
     fn cursor_left(&mut self, mut window: RunningWindow<'_>, _device_id: DeviceId) {
         if self.mouse_state.widget.take().is_some() {
@@ -282,15 +324,6 @@ where
             context.clear_hover();
         }
     }
-
-    // fn mouse_wheel(
-    //     &mut self,
-    //     window: kludgine::app::Window<'_, ()>,
-    //     device_id: kludgine::app::winit::event::DeviceId,
-    //     delta: kludgine::app::winit::event::MouseScrollDelta,
-    //     phase: kludgine::app::winit::event::TouchPhase,
-    // ) {
-    // }
 
     fn mouse_input(
         &mut self,
@@ -348,56 +381,6 @@ where
         }
     }
 
-    // fn touchpad_pressure(
-    //     &mut self,
-    //     window: kludgine::app::Window<'_, ()>,
-    //     device_id: kludgine::app::winit::event::DeviceId,
-    //     pressure: f32,
-    //     stage: i64,
-    // ) {
-    // }
-
-    // fn axis_motion(
-    //     &mut self,
-    //     window: kludgine::app::Window<'_, ()>,
-    //     device_id: kludgine::app::winit::event::DeviceId,
-    //     axis: kludgine::app::winit::event::AxisId,
-    //     value: f64,
-    // ) {
-    // }
-
-    // fn touch(
-    //     &mut self,
-    //     window: kludgine::app::Window<'_, ()>,
-    //     touch: kludgine::app::winit::event::Touch,
-    // ) {
-    // }
-
-    // fn touchpad_magnify(
-    //     &mut self,
-    //     window: kludgine::app::Window<'_, ()>,
-    //     device_id: kludgine::app::winit::event::DeviceId,
-    //     delta: f64,
-    //     phase: kludgine::app::winit::event::TouchPhase,
-    // ) {
-    // }
-
-    // fn smart_magnify(
-    //     &mut self,
-    //     window: kludgine::app::Window<'_, ()>,
-    //     device_id: kludgine::app::winit::event::DeviceId,
-    // ) {
-    // }
-
-    // fn touchpad_rotate(
-    //     &mut self,
-    //     window: kludgine::app::Window<'_, ()>,
-    //     device_id: kludgine::app::winit::event::DeviceId,
-    //     delta: f32,
-    //     phase: kludgine::app::winit::event::TouchPhase,
-    // ) {
-    // }
-
     fn event(&mut self, event: WindowCommand, mut window: RunningWindow<'_>) {
         match event {
             WindowCommand::Redraw => {
@@ -417,6 +400,11 @@ fn recursively_handle_event(
             recursively_handle_event(&mut context.for_other(&parent), each_widget)
         }),
     }
+}
+
+pub struct WindowSettings {
+    styles: Option<Styles>,
+    attributes: Option<WindowAttributes>,
 }
 
 #[derive(Default)]

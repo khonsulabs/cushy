@@ -1,14 +1,19 @@
+use std::borrow::Cow;
 use std::panic::UnwindSafe;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
 use kludgine::app::winit::keyboard::KeyCode;
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, Rect, Size};
+use kludgine::figures::{IntoUnsigned, Point, Rect, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
-use kludgine::Color;
+use kludgine::{Color, Kludgine};
 
 use crate::context::Context;
 use crate::graphics::Graphics;
+use crate::names::Name;
+use crate::styles::{
+    ComponentDefinition, ComponentGroup, ComponentName, HighlightColor, NamedComponent, TextColor,
+};
 use crate::widget::{Callback, EventHandling, IntoValue, Value, Widget, HANDLED, UNHANDLED};
 
 #[derive(Debug)]
@@ -50,21 +55,32 @@ impl Widget for Button {
             context.redraw_when_changed(label);
         }
 
+        let styles = context.query_style(&[
+            &TextColor,
+            &HighlightColor,
+            &ButtonActiveBackground,
+            &ButtonBackground,
+            &ButtonHoverBackground,
+        ]);
+
         let visible_rect = Rect::from(graphics.size() - (UPx(1), UPx(1)));
 
         let background = if context.active() {
-            Color::new(30, 30, 30, 255)
+            styles.get_or_default(&ButtonActiveBackground)
         } else if context.hovered() {
-            Color::new(40, 40, 40, 255)
+            styles.get_or_default(&ButtonHoverBackground)
         } else {
-            Color::new(10, 10, 10, 255)
+            styles.get_or_default(&ButtonBackground)
         };
         let background = Shape::filled_rect(visible_rect, background);
         graphics.draw_shape(&background, Point::default(), None, None);
 
         if context.focused() {
-            let focus_ring =
-                Shape::stroked_rect(visible_rect, Color::AQUA, StrokeOptions::default());
+            let focus_ring = Shape::stroked_rect(
+                visible_rect,
+                styles.get_or_default(&HighlightColor),
+                StrokeOptions::default(),
+            );
             graphics.draw_shape(&focus_ring, Point::default(), None, None);
         }
 
@@ -72,7 +88,7 @@ impl Widget for Button {
         self.label.map(|label| {
             graphics.draw_text(
                 label,
-                Color::WHITE,
+                styles.get_or_default(&TextColor),
                 kludgine::text::TextOrigin::Center,
                 center,
                 None,
@@ -159,11 +175,11 @@ impl Widget for Button {
     ) -> Size<UPx> {
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         self.label.map(|label| {
-            graphics
-                .measure_text::<Px>(label, Color::RED, Some(width))
-                .size
-                .try_cast::<UPx>()
-                .unwrap_or_default()
+            let measured = graphics.measure_text::<Px>(label, Color::WHITE, Some(width));
+
+            let mut size = measured.size.into_unsigned();
+            size.height = size.height.max(measured.line_height.into_unsigned());
+            size
         })
     }
 
@@ -172,6 +188,7 @@ impl Widget for Button {
         _device_id: DeviceId,
         input: KeyEvent,
         _is_synthetic: bool,
+        kludgine: &mut Kludgine,
         context: &mut Context<'_, '_>,
     ) -> EventHandling {
         if input.physical_key == KeyCode::Space {
@@ -213,5 +230,62 @@ impl Widget for Button {
 
     fn deactivate(&mut self, context: &mut Context<'_, '_>) {
         context.set_needs_redraw();
+    }
+}
+
+impl ComponentGroup for Button {
+    fn name() -> Name {
+        Name::new("button")
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct ButtonBackground;
+
+impl NamedComponent for ButtonBackground {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Button>("background_color"))
+    }
+}
+
+impl ComponentDefinition for ButtonBackground {
+    type ComponentType = Color;
+
+    fn default_value(&self) -> Color {
+        Color::new(10, 10, 10, 255)
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct ButtonActiveBackground;
+
+impl NamedComponent for ButtonActiveBackground {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Button>("active_background_color"))
+    }
+}
+
+impl ComponentDefinition for ButtonActiveBackground {
+    type ComponentType = Color;
+
+    fn default_value(&self) -> Color {
+        Color::new(30, 30, 30, 255)
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct ButtonHoverBackground;
+
+impl NamedComponent for ButtonHoverBackground {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Button>("hover_background_color"))
+    }
+}
+
+impl ComponentDefinition for ButtonHoverBackground {
+    type ComponentType = Color;
+
+    fn default_value(&self) -> Color {
+        Color::new(40, 40, 40, 255)
     }
 }

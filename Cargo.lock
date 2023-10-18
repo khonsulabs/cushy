@@ -561,6 +561,7 @@ name = "gooey"
 version = "0.1.0"
 dependencies = [
  "alot",
+ "interner",
  "kludgine",
 ]
 
@@ -702,6 +703,12 @@ dependencies = [
  "equivalent",
  "hashbrown 0.14.1",
 ]
+
+[[package]]
+name = "interner"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e8c60687056b35a996f2213287048a7092d801b61df5fee3bd5bd9bf6f17a2d0"
 
 [[package]]
 name = "io-lifetimes"

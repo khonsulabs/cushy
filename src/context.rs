@@ -1,13 +1,14 @@
 use std::ops::{Deref, DerefMut};
 
-use kludgine::app::winit::event::{DeviceId, KeyEvent, MouseButton};
+use kludgine::app::winit::event::{DeviceId, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, Point, Rect, Size};
+use kludgine::Kludgine;
 
 use crate::dynamic::Dynamic;
 use crate::graphics::Graphics;
-use crate::tree::ManagedWidget;
-use crate::widget::{BoxedWidget, EventHandling};
+use crate::styles::{ComponentDefaultvalue, Styles};
+use crate::widget::{BoxedWidget, EventHandling, ManagedWidget};
 use crate::window::RunningWindow;
 use crate::ConstraintLimit;
 
@@ -113,23 +114,41 @@ impl<'context, 'window> Context<'context, 'window> {
         device_id: DeviceId,
         input: KeyEvent,
         is_synthetic: bool,
+        kludgine: &mut Kludgine,
     ) -> EventHandling {
         self.current_node
             .lock()
-            .keyboard_input(device_id, input, is_synthetic, self)
+            .keyboard_input(device_id, input, is_synthetic, kludgine, self)
+    }
+
+    pub fn mouse_wheel(
+        &mut self,
+        device_id: DeviceId,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+    ) -> EventHandling {
+        self.current_node
+            .lock()
+            .mouse_wheel(device_id, delta, phase, self)
     }
 
     #[must_use]
-    pub fn push_child(&self, child: BoxedWidget) -> ManagedWidget {
-        self.current_node
+    pub fn push_child(&mut self, child: BoxedWidget) -> ManagedWidget {
+        let pushed_widget = self
+            .current_node
             .tree
-            .push_boxed(child, Some(self.current_node))
+            .push_boxed(child, Some(self.current_node));
+        pushed_widget
+            .lock()
+            .mounted(&mut self.for_other(&pushed_widget));
+        pushed_widget
     }
 
-    pub fn remove_child(&self, child: ManagedWidget) {
+    pub fn remove_child(&mut self, child: &ManagedWidget) {
         self.current_node
             .tree
             .remove_child(child, self.current_node);
+        child.lock().unmounted(&mut self.for_other(child));
     }
 
     #[must_use]
@@ -262,6 +281,15 @@ impl<'context, 'window> Context<'context, 'window> {
     #[must_use]
     pub const fn widget(&self) -> &ManagedWidget {
         self.current_node
+    }
+
+    pub fn attach_styles(&self, styles: Styles) {
+        self.current_node.attach_styles(styles);
+    }
+
+    #[must_use]
+    pub fn query_style(&self, query: &[&dyn ComponentDefaultvalue]) -> Styles {
+        self.current_node.tree.query_style(self.current_node, query)
     }
 }
 

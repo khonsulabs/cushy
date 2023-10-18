@@ -1,12 +1,13 @@
 use std::fmt::Debug;
 use std::mem;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use alot::{LotId, Lots};
 use kludgine::figures::units::Px;
 use kludgine::figures::{Point, Rect};
 
-use crate::widget::{BoxedWidget, Widget};
+use crate::styles::{ComponentDefaultvalue, Styles};
+use crate::widget::{BoxedWidget, ManagedWidget};
 
 #[derive(Clone, Default)]
 pub struct Tree {
@@ -14,13 +15,6 @@ pub struct Tree {
 }
 
 impl Tree {
-    pub fn push<W>(&self, widget: W, parent: Option<&ManagedWidget>) -> ManagedWidget
-    where
-        W: Widget,
-    {
-        self.push_boxed(BoxedWidget::new(widget), parent)
-    }
-
     pub fn push_boxed(&self, widget: BoxedWidget, parent: Option<&ManagedWidget>) -> ManagedWidget {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         let id = WidgetId(data.nodes.push(Node {
@@ -28,6 +22,7 @@ impl Tree {
             children: Vec::new(),
             parent: parent.map(|parent| parent.id),
             last_rendered_location: None,
+            styles: None,
         }));
         if let Some(parent) = parent {
             let parent = &mut data.nodes[parent.id.0];
@@ -40,19 +35,18 @@ impl Tree {
         }
     }
 
-    #[allow(clippy::needless_pass_by_value)] // This is sort of a destructor type call
-    pub fn remove_child(&self, child: ManagedWidget, parent: &ManagedWidget) {
+    pub fn remove_child(&self, child: &ManagedWidget, parent: &ManagedWidget) {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         data.remove_child(child.id, parent.id);
     }
 
-    fn note_rendered_rect(&self, widget: WidgetId, rect: Rect<Px>) {
+    pub(crate) fn note_rendered_rect(&self, widget: WidgetId, rect: Rect<Px>) {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         data.nodes[widget.0].last_rendered_location = Some(rect);
         data.render_order.push(widget);
     }
 
-    fn last_rendered_at(&self, widget: WidgetId) -> Option<Rect<Px>> {
+    pub(crate) fn last_rendered_at(&self, widget: WidgetId) -> Option<Rect<Px>> {
         let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         data.nodes[widget.0].last_rendered_location
     }
@@ -131,6 +125,22 @@ impl Tree {
         let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         data.nodes[id.0].parent
     }
+
+    pub(crate) fn attach_styles(&self, id: WidgetId, styles: Styles) {
+        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        data.nodes[id.0].styles = Some(styles);
+    }
+
+    pub fn query_style(
+        &self,
+        perspective: &ManagedWidget,
+        query: &[&dyn ComponentDefaultvalue],
+    ) -> Styles {
+        self.data
+            .lock()
+            .map_or_else(PoisonError::into_inner, |g| g)
+            .query_style(perspective.id, query)
+    }
 }
 
 #[derive(Default)]
@@ -180,63 +190,30 @@ impl TreeData {
             (None, _) => Ok(None),
         }
     }
-}
 
-#[derive(Clone)]
-pub struct ManagedWidget {
-    pub(crate) id: WidgetId,
-    pub(crate) widget: BoxedWidget,
-    pub(crate) tree: Tree,
-}
-
-impl Debug for ManagedWidget {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ManagedWidget")
-            .field("id", &self.id)
-            .field("widget", &self.widget)
-            .finish_non_exhaustive()
-    }
-}
-
-impl ManagedWidget {
-    pub(crate) fn lock(&self) -> MutexGuard<'_, dyn Widget> {
-        self.widget.lock()
-    }
-
-    pub(crate) fn note_rendered_rect(&self, rect: Rect<Px>) {
-        self.tree.note_rendered_rect(self.id, rect);
-    }
-
-    pub fn last_rendered_at(&self) -> Option<Rect<Px>> {
-        self.tree.last_rendered_at(self.id)
-    }
-
-    pub fn active(&self) -> bool {
-        self.tree.active_widget() == Some(self.id)
-    }
-
-    pub fn hovered(&self) -> bool {
-        self.tree.hovered_widget() == Some(self.id)
-    }
-
-    pub fn focused(&self) -> bool {
-        self.tree.focused_widget() == Some(self.id)
-    }
-
-    pub fn parent(&self) -> Option<ManagedWidget> {
-        self.tree.parent(self.id).map(|id| self.tree.widget(id))
-    }
-}
-
-impl PartialEq for ManagedWidget {
-    fn eq(&self, other: &Self) -> bool {
-        self.widget == other.widget
-    }
-}
-
-impl PartialEq<BoxedWidget> for ManagedWidget {
-    fn eq(&self, other: &BoxedWidget) -> bool {
-        &self.widget == other
+    fn query_style(
+        &self,
+        mut perspective: WidgetId,
+        query: &[&dyn ComponentDefaultvalue],
+    ) -> Styles {
+        let mut query = query.iter().map(|n| n.name()).collect::<Vec<_>>();
+        let mut resolved = Styles::new();
+        while !query.is_empty() {
+            let node = &self.nodes[perspective.0];
+            if let Some(styles) = &node.styles {
+                query.retain(|name| {
+                    if let Some(component) = styles.get(name) {
+                        resolved.push(name, component.clone());
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+            let Some(parent) = node.parent else { break };
+            perspective = parent;
+        }
+        resolved
     }
 }
 
@@ -245,6 +222,7 @@ pub struct Node {
     pub children: Vec<WidgetId>,
     pub parent: Option<WidgetId>,
     pub last_rendered_location: Option<Rect<Px>>,
+    pub styles: Option<Styles>,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]

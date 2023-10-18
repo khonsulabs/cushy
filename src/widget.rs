@@ -5,13 +5,16 @@ use std::panic::UnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use kludgine::app::winit::error::EventLoopError;
-use kludgine::app::winit::event::{DeviceId, KeyEvent, MouseButton};
+use kludgine::app::winit::event::{DeviceId, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, Size};
+use kludgine::figures::{Point, Rect, Size};
+use kludgine::Kludgine;
 
 use crate::context::Context;
 use crate::dynamic::Dynamic;
 use crate::graphics::Graphics;
+use crate::styles::{Component, Group, Styles};
+use crate::tree::{Tree, WidgetId};
 use crate::window::{RunningWindow, Window, WindowBehavior};
 use crate::ConstraintLimit;
 
@@ -20,7 +23,7 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     where
         Self: Sized,
     {
-        Window::<WidgetWindow<Self>>::new(WidgetWindow(Some(self))).run()
+        Window::<BoxedWidget>::new(BoxedWidget::new(self)).run()
     }
 
     fn redraw(&mut self, graphics: &mut Graphics<'_, '_, '_>, context: &mut Context<'_, '_>);
@@ -31,6 +34,11 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         graphics: &mut Graphics<'_, '_, '_>,
         context: &mut Context<'_, '_>,
     ) -> Size<UPx>;
+
+    #[allow(unused_variables)]
+    fn mounted(&mut self, context: &mut Context<'_, '_>) {}
+    #[allow(unused_variables)]
+    fn unmounted(&mut self, context: &mut Context<'_, '_>) {}
 
     #[allow(unused_variables)]
     fn hit_test(&mut self, location: Point<Px>, context: &mut Context<'_, '_>) -> bool {
@@ -92,9 +100,26 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         device_id: DeviceId,
         input: KeyEvent,
         is_synthetic: bool,
+        kludgine: &mut Kludgine,
         context: &mut Context<'_, '_>,
     ) -> EventHandling {
         UNHANDLED
+    }
+
+    #[allow(unused_variables)]
+    fn mouse_wheel(
+        &mut self,
+        device_id: DeviceId,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+        context: &mut Context<'_, '_>,
+    ) -> EventHandling {
+        UNHANDLED
+    }
+
+    #[allow(unused_variables)]
+    fn query_component(&self, group: Group, name: &str) -> Option<Component> {
+        None
     }
 }
 
@@ -107,23 +132,6 @@ pub struct EventIgnored;
 
 pub const HANDLED: EventHandling = EventHandling::Break(EventHandled);
 pub const UNHANDLED: EventHandling = EventHandling::Continue(EventIgnored);
-
-struct WidgetWindow<W>(Option<W>);
-
-impl<T> WindowBehavior for WidgetWindow<T>
-where
-    T: Widget + Send + UnwindSafe,
-{
-    type Context = Self;
-
-    fn initialize(_window: &mut RunningWindow<'_>, context: Self::Context) -> Self {
-        context
-    }
-
-    fn make_root(&mut self, tree: &crate::tree::Tree) -> crate::tree::ManagedWidget {
-        tree.push(self.0.take().expect("root already created"), None)
-    }
-}
 
 #[derive(Clone, Debug)]
 pub struct BoxedWidget(Arc<Mutex<dyn Widget>>);
@@ -146,6 +154,18 @@ impl Eq for BoxedWidget {}
 impl PartialEq for BoxedWidget {
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl WindowBehavior for BoxedWidget {
+    type Context = Self;
+
+    fn initialize(_window: &mut RunningWindow<'_>, context: Self::Context) -> Self {
+        context
+    }
+
+    fn make_root(&mut self) -> BoxedWidget {
+        self.clone()
     }
 }
 
@@ -242,5 +262,72 @@ where
 {
     fn invoke(&mut self, value: T) {
         self(value);
+    }
+}
+
+#[derive(Clone)]
+pub struct ManagedWidget {
+    pub(crate) id: WidgetId,
+    pub(crate) widget: BoxedWidget,
+    pub(crate) tree: Tree,
+}
+
+impl Debug for ManagedWidget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ManagedWidget")
+            .field("id", &self.id)
+            .field("widget", &self.widget)
+            .finish_non_exhaustive()
+    }
+}
+
+impl ManagedWidget {
+    pub(crate) fn lock(&self) -> MutexGuard<'_, dyn Widget> {
+        self.widget.lock()
+    }
+
+    pub(crate) fn note_rendered_rect(&self, rect: Rect<Px>) {
+        self.tree.note_rendered_rect(self.id, rect);
+    }
+
+    #[must_use]
+    pub fn last_rendered_at(&self) -> Option<Rect<Px>> {
+        self.tree.last_rendered_at(self.id)
+    }
+
+    #[must_use]
+    pub fn active(&self) -> bool {
+        self.tree.active_widget() == Some(self.id)
+    }
+
+    #[must_use]
+    pub fn hovered(&self) -> bool {
+        self.tree.hovered_widget() == Some(self.id)
+    }
+
+    #[must_use]
+    pub fn focused(&self) -> bool {
+        self.tree.focused_widget() == Some(self.id)
+    }
+
+    #[must_use]
+    pub fn parent(&self) -> Option<ManagedWidget> {
+        self.tree.parent(self.id).map(|id| self.tree.widget(id))
+    }
+
+    pub(crate) fn attach_styles(&self, styles: Styles) {
+        self.tree.attach_styles(self.id, styles);
+    }
+}
+
+impl PartialEq for ManagedWidget {
+    fn eq(&self, other: &Self) -> bool {
+        self.widget == other.widget
+    }
+}
+
+impl PartialEq<BoxedWidget> for ManagedWidget {
+    fn eq(&self, other: &BoxedWidget) -> bool {
+        &self.widget == other
     }
 }

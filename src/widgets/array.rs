@@ -7,8 +7,7 @@ use kludgine::figures::{Point, Rect, Size};
 use crate::children::Children;
 use crate::context::Context;
 use crate::graphics::Graphics;
-use crate::tree::ManagedWidget;
-use crate::widget::{IntoValue, Value, Widget};
+use crate::widget::{IntoValue, ManagedWidget, Value, Widget};
 use crate::ConstraintLimit;
 
 #[derive(Debug)]
@@ -83,7 +82,7 @@ impl Array {
                 // Any children remaining at the end of this process are ones
                 // that have been removed.
                 for removed in self.synced_children.drain(children.len()..) {
-                    context.remove_child(removed);
+                    context.remove_child(&removed);
                 }
                 self.layout.truncate(children.len());
             });

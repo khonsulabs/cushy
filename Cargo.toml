@@ -10,6 +10,7 @@ kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
     "app",
 ] }
 alot = "0.3"
+interner = "0.2.1"
 # appit = { git = "https://github.com/khonsulabs/appit" }
 
 [patch."https://github.com/khonsulabs/kludgine"]

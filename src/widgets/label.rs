@@ -5,6 +5,7 @@ use kludgine::Color;
 
 use crate::context::Context;
 use crate::graphics::Graphics;
+use crate::styles::TextColor;
 use crate::widget::{IntoValue, Value, Widget};
 
 #[derive(Debug)]
@@ -26,11 +27,12 @@ impl Widget for Label {
         if let Value::Dynamic(contents) = &mut self.contents {
             context.redraw_when_changed(contents);
         }
+        let styles = context.query_style(&[&TextColor]);
         let width = graphics.size().width;
         self.contents.map(|contents| {
             graphics.draw_text(
                 contents,
-                Color::RED,
+                styles.get_or_default(&TextColor),
                 TextOrigin::Center,
                 center,
                 None,
