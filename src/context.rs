@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use kludgine::app::winit::event::{DeviceId, MouseButton};
+use kludgine::app::winit::event::{DeviceId, KeyEvent, MouseButton};
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, Point, Rect, Size};
 
@@ -106,6 +106,17 @@ impl<'context, 'window> Context<'context, 'window> {
         self.current_node
             .lock()
             .mouse_up(location, device_id, button, self);
+    }
+
+    pub fn keyboard_input(
+        &mut self,
+        device_id: DeviceId,
+        input: KeyEvent,
+        is_synthetic: bool,
+    ) -> EventHandling {
+        self.current_node
+            .lock()
+            .keyboard_input(device_id, input, is_synthetic, self)
     }
 
     #[must_use]

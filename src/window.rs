@@ -4,7 +4,7 @@ use std::panic::{AssertUnwindSafe, UnwindSafe};
 
 use kludgine::app::winit::dpi::PhysicalPosition;
 use kludgine::app::winit::error::EventLoopError;
-use kludgine::app::winit::event::{DeviceId, ElementState, MouseButton};
+use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
 use kludgine::app::winit::keyboard::KeyCode;
 use kludgine::app::WindowBehavior as _;
 use kludgine::figures::units::Px;
@@ -197,11 +197,21 @@ where
     fn keyboard_input(
         &mut self,
         mut window: RunningWindow<'_>,
-        _device_id: DeviceId,
-        input: kludgine::app::winit::event::KeyEvent,
-        _is_synthetic: bool,
+        device_id: DeviceId,
+        input: KeyEvent,
+        is_synthetic: bool,
     ) {
-        if !input.state.is_pressed() {
+        let handled = if let Some(focus) = self.root.tree.focused_widget() {
+            let focus = self.root.tree.widget(focus);
+            let mut focus = Context::new(&focus, &mut window);
+            recursively_handle_event(&mut focus, |widget| {
+                widget.keyboard_input(device_id, input.clone(), is_synthetic)
+            })
+            .is_some()
+        } else {
+            false
+        };
+        if !handled && !input.state.is_pressed() {
             match input.physical_key {
                 KeyCode::KeyW if window.modifiers().state().primary() => {
                     if self.request_close(&mut window) {

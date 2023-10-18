@@ -5,7 +5,7 @@ use std::panic::UnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use kludgine::app::winit::error::EventLoopError;
-use kludgine::app::winit::event::{DeviceId, MouseButton};
+use kludgine::app::winit::event::{DeviceId, KeyEvent, MouseButton};
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Size};
 
@@ -84,6 +84,17 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         button: MouseButton,
         context: &mut Context<'_, '_>,
     ) {
+    }
+
+    #[allow(unused_variables)]
+    fn keyboard_input(
+        &mut self,
+        device_id: DeviceId,
+        input: KeyEvent,
+        is_synthetic: bool,
+        context: &mut Context<'_, '_>,
+    ) -> EventHandling {
+        UNHANDLED
     }
 }
 

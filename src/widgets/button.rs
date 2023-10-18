@@ -1,6 +1,7 @@
 use std::panic::UnwindSafe;
 
-use kludgine::app::winit::event::{DeviceId, MouseButton};
+use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
+use kludgine::app::winit::keyboard::KeyCode;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Rect, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
@@ -8,7 +9,7 @@ use kludgine::Color;
 
 use crate::context::Context;
 use crate::graphics::Graphics;
-use crate::widget::{Callback, EventHandling, IntoValue, Value, Widget, HANDLED};
+use crate::widget::{Callback, EventHandling, IntoValue, Value, Widget, HANDLED, UNHANDLED};
 
 #[derive(Debug)]
 pub struct Button {
@@ -33,6 +34,12 @@ impl Button {
     {
         self.on_click = Some(Callback::new(callback));
         self
+    }
+
+    fn invoke_on_click(&mut self) {
+        if let Some(on_click) = self.on_click.as_mut() {
+            on_click.invoke(());
+        }
     }
 }
 
@@ -138,9 +145,7 @@ impl Widget for Button {
                 {
                     context.focus();
 
-                    if let Some(on_click) = self.on_click.as_mut() {
-                        on_click.invoke(());
-                    }
+                    self.invoke_on_click();
                 }
             }
         }
@@ -160,6 +165,30 @@ impl Widget for Button {
                 .try_cast::<UPx>()
                 .unwrap_or_default()
         })
+    }
+
+    fn keyboard_input(
+        &mut self,
+        _device_id: DeviceId,
+        input: KeyEvent,
+        _is_synthetic: bool,
+        context: &mut Context<'_, '_>,
+    ) -> EventHandling {
+        if input.physical_key == KeyCode::Space {
+            let changed = match input.state {
+                ElementState::Pressed => context.activate(),
+                ElementState::Released => {
+                    self.invoke_on_click();
+                    context.deactivate()
+                }
+            };
+            if changed {
+                context.set_needs_redraw();
+            }
+            HANDLED
+        } else {
+            UNHANDLED
+        }
     }
 
     fn unhover(&mut self, context: &mut Context<'_, '_>) {
