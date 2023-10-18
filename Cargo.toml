@@ -1,0 +1,18 @@
+[package]
+name = "gooey"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
+    "app",
+] }
+alot = "0.3"
+# appit = { git = "https://github.com/khonsulabs/appit" }
+
+[patch."https://github.com/khonsulabs/kludgine"]
+kludgine = { path = "../kludgine2" }
+[patch."https://github.com/khonsulabs/figures"]
+figures = { path = "../figures" }
