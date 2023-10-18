@@ -269,12 +269,9 @@ where
 
     // fn modifiers_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 
-    // fn ime(
-    //     &mut self,
-    //     window: kludgine::app::Window<'_, ()>,
-    //     ime: kludgine::app::winit::event::Ime,
-    // ) {
-    // }
+    fn ime(&mut self, mut window: RunningWindow<'_>, ime: kludgine::app::winit::event::Ime) {
+        dbg!(ime);
+    }
 
     fn cursor_moved(
         &mut self,

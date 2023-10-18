@@ -161,6 +161,14 @@ impl Widget for Input {
             (_, _) => UNHANDLED,
         }
     }
+
+    fn focus(&mut self, context: &mut crate::context::Context<'_, '_>) {
+        context.set_ime_allowed(true);
+    }
+
+    fn blur(&mut self, context: &mut crate::context::Context<'_, '_>) {
+        context.set_ime_allowed(false);
+    }
 }
 
 struct LiveEditor {
