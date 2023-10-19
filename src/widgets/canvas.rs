@@ -5,8 +5,7 @@ use std::time::{Duration, Instant};
 use kludgine::figures::units::UPx;
 use kludgine::figures::Size;
 
-use crate::context::Context;
-use crate::graphics::Graphics;
+use crate::context::GraphicsContext;
 use crate::widget::Widget;
 
 #[must_use]
@@ -20,8 +19,7 @@ impl Canvas {
     pub fn new<F>(render: F) -> Self
     where
         F: for<'clip, 'gfx, 'pass, 'context, 'window> FnMut(
-                &mut Graphics<'clip, 'gfx, 'pass>,
-                &mut Context<'context, 'window>,
+                &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
             ) + Send
             + UnwindSafe
             + 'static,
@@ -42,8 +40,8 @@ impl Canvas {
 }
 
 impl Widget for Canvas {
-    fn redraw(&mut self, graphics: &mut Graphics<'_, '_, '_>, context: &mut Context<'_, '_>) {
-        self.render.render(graphics, context);
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        self.render.render(context);
 
         if let Some(target_frame_duration) = self.target_frame_duration {
             let now = Instant::now();
@@ -58,8 +56,7 @@ impl Widget for Canvas {
     fn measure(
         &mut self,
         available_space: Size<crate::ConstraintLimit>,
-        _graphics: &mut Graphics<'_, '_, '_>,
-        _context: &mut Context<'_, '_>,
+        _context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         Size::new(available_space.width.max(), available_space.height.max())
     }
@@ -72,19 +69,18 @@ impl Debug for Canvas {
 }
 
 trait RenderFunction: Send + UnwindSafe + 'static {
-    fn render(&mut self, graphics: &mut Graphics<'_, '_, '_>, context: &mut Context<'_, '_>);
+    fn render(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
 }
 
 impl<F> RenderFunction for F
 where
     F: for<'clip, 'gfx, 'pass, 'context, 'window> FnMut(
-            &mut Graphics<'clip, 'gfx, 'pass>,
-            &mut Context<'context, 'window>,
+            &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
         ) + Send
         + UnwindSafe
         + 'static,
 {
-    fn render(&mut self, graphics: &mut Graphics<'_, '_, '_>, window: &mut Context<'_, '_>) {
-        self(graphics, window);
+    fn render(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        self(context);
     }
 }

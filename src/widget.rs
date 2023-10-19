@@ -5,14 +5,14 @@ use std::panic::UnwindSafe;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use kludgine::app::winit::error::EventLoopError;
-use kludgine::app::winit::event::{DeviceId, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase};
+use kludgine::app::winit::event::{
+    DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
+};
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Rect, Size};
-use kludgine::Kludgine;
 
-use crate::context::Context;
+use crate::context::{EventContext, GraphicsContext};
 use crate::dynamic::Dynamic;
-use crate::graphics::Graphics;
 use crate::styles::{Component, Group, Styles};
 use crate::tree::{Tree, WidgetId};
 use crate::window::{RunningWindow, Window, WindowBehavior};
@@ -26,42 +26,41 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         Window::<BoxedWidget>::new(BoxedWidget::new(self)).run()
     }
 
-    fn redraw(&mut self, graphics: &mut Graphics<'_, '_, '_>, context: &mut Context<'_, '_>);
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
 
     fn measure(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        graphics: &mut Graphics<'_, '_, '_>,
-        context: &mut Context<'_, '_>,
+        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx>;
 
     #[allow(unused_variables)]
-    fn mounted(&mut self, context: &mut Context<'_, '_>) {}
+    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {}
     #[allow(unused_variables)]
-    fn unmounted(&mut self, context: &mut Context<'_, '_>) {}
+    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {}
 
     #[allow(unused_variables)]
-    fn hit_test(&mut self, location: Point<Px>, context: &mut Context<'_, '_>) -> bool {
+    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
         false
     }
 
     #[allow(unused_variables)]
-    fn hover(&mut self, location: Point<Px>, context: &mut Context<'_, '_>) {}
+    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) {}
 
     #[allow(unused_variables)]
-    fn unhover(&mut self, context: &mut Context<'_, '_>) {}
+    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {}
 
     #[allow(unused_variables)]
-    fn focus(&mut self, context: &mut Context<'_, '_>) {}
+    fn focus(&mut self, context: &mut EventContext<'_, '_>) {}
 
     #[allow(unused_variables)]
-    fn blur(&mut self, context: &mut Context<'_, '_>) {}
+    fn blur(&mut self, context: &mut EventContext<'_, '_>) {}
 
     #[allow(unused_variables)]
-    fn activate(&mut self, context: &mut Context<'_, '_>) {}
+    fn activate(&mut self, context: &mut EventContext<'_, '_>) {}
 
     #[allow(unused_variables)]
-    fn deactivate(&mut self, context: &mut Context<'_, '_>) {}
+    fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {}
 
     #[allow(unused_variables)]
     fn mouse_down(
@@ -69,7 +68,7 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         location: Point<Px>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut Context<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         UNHANDLED
     }
@@ -80,7 +79,7 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         location: Point<Px>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut Context<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) {
     }
 
@@ -90,7 +89,7 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         location: Option<Point<Px>>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut Context<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) {
     }
 
@@ -100,9 +99,12 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         device_id: DeviceId,
         input: KeyEvent,
         is_synthetic: bool,
-        kludgine: &mut Kludgine,
-        context: &mut Context<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
+        UNHANDLED
+    }
+    #[allow(unused_variables)]
+    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_, '_>) -> EventHandling {
         UNHANDLED
     }
 
@@ -112,7 +114,7 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        context: &mut Context<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         UNHANDLED
     }

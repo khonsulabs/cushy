@@ -5,11 +5,10 @@ use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton}
 use kludgine::app::winit::keyboard::KeyCode;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoUnsigned, Point, Rect, Size};
-use kludgine::shapes::{Shape, StrokeOptions};
-use kludgine::{Color, Kludgine};
+use kludgine::shapes::Shape;
+use kludgine::Color;
 
-use crate::context::Context;
-use crate::graphics::Graphics;
+use crate::context::{EventContext, GraphicsContext};
 use crate::names::Name;
 use crate::styles::{
     ComponentDefinition, ComponentGroup, ComponentName, HighlightColor, NamedComponent, TextColor,
@@ -49,8 +48,8 @@ impl Button {
 }
 
 impl Widget for Button {
-    fn redraw(&mut self, graphics: &mut Graphics<'_, '_, '_>, context: &mut Context) {
-        let center = Point::from(graphics.size()) / 2;
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        let center = Point::from(context.graphics.size()) / 2;
         if let Value::Dynamic(label) = &self.label {
             context.redraw_when_changed(label);
         }
@@ -63,7 +62,7 @@ impl Widget for Button {
             &ButtonHoverBackground,
         ]);
 
-        let visible_rect = Rect::from(graphics.size() - (UPx(1), UPx(1)));
+        let visible_rect = Rect::from(context.graphics.size() - (UPx(1), UPx(1)));
 
         let background = if context.active() {
             styles.get_or_default(&ButtonActiveBackground)
@@ -73,20 +72,17 @@ impl Widget for Button {
             styles.get_or_default(&ButtonBackground)
         };
         let background = Shape::filled_rect(visible_rect, background);
-        graphics.draw_shape(&background, Point::default(), None, None);
+        context
+            .graphics
+            .draw_shape(&background, Point::default(), None, None);
 
         if context.focused() {
-            let focus_ring = Shape::stroked_rect(
-                visible_rect,
-                styles.get_or_default(&HighlightColor),
-                StrokeOptions::default(),
-            );
-            graphics.draw_shape(&focus_ring, Point::default(), None, None);
+            context.draw_focus_ring(&styles);
         }
 
-        let width = graphics.size().width;
+        let width = context.graphics.size().width;
         self.label.map(|label| {
-            graphics.draw_text(
+            context.graphics.draw_text(
                 label,
                 styles.get_or_default(&TextColor),
                 kludgine::text::TextOrigin::Center,
@@ -98,7 +94,7 @@ impl Widget for Button {
         });
     }
 
-    fn hit_test(&mut self, _location: Point<Px>, _context: &mut Context<'_, '_>) -> bool {
+    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
         true
     }
 
@@ -107,7 +103,7 @@ impl Widget for Button {
         _location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut Context<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         self.buttons_pressed += 1;
         context.activate();
@@ -119,7 +115,7 @@ impl Widget for Button {
         location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut Context<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) {
         let changed = if Rect::from(
             context
@@ -144,7 +140,7 @@ impl Widget for Button {
         location: Option<Point<Px>>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut Context<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) {
         self.buttons_pressed -= 1;
         if self.buttons_pressed == 0 {
@@ -170,12 +166,13 @@ impl Widget for Button {
     fn measure(
         &mut self,
         available_space: Size<crate::ConstraintLimit>,
-        graphics: &mut Graphics<'_, '_, '_>,
-        _context: &mut Context<'_, '_>,
+        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         self.label.map(|label| {
-            let measured = graphics.measure_text::<Px>(label, Color::WHITE, Some(width));
+            let measured = context
+                .graphics
+                .measure_text::<Px>(label, Color::WHITE, Some(width));
 
             let mut size = measured.size.into_unsigned();
             size.height = size.height.max(measured.line_height.into_unsigned());
@@ -188,8 +185,7 @@ impl Widget for Button {
         _device_id: DeviceId,
         input: KeyEvent,
         _is_synthetic: bool,
-        kludgine: &mut Kludgine,
-        context: &mut Context<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         if input.physical_key == KeyCode::Space {
             let changed = match input.state {
@@ -208,27 +204,27 @@ impl Widget for Button {
         }
     }
 
-    fn unhover(&mut self, context: &mut Context<'_, '_>) {
+    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
         context.set_needs_redraw();
     }
 
-    fn hover(&mut self, _location: Point<Px>, context: &mut Context<'_, '_>) {
+    fn hover(&mut self, _location: Point<Px>, context: &mut EventContext<'_, '_>) {
         context.set_needs_redraw();
     }
 
-    fn focus(&mut self, context: &mut Context<'_, '_>) {
+    fn focus(&mut self, context: &mut EventContext<'_, '_>) {
         context.set_needs_redraw();
     }
 
-    fn blur(&mut self, context: &mut Context<'_, '_>) {
+    fn blur(&mut self, context: &mut EventContext<'_, '_>) {
         context.set_needs_redraw();
     }
 
-    fn activate(&mut self, context: &mut Context<'_, '_>) {
+    fn activate(&mut self, context: &mut EventContext<'_, '_>) {
         context.set_needs_redraw();
     }
 
-    fn deactivate(&mut self, context: &mut Context<'_, '_>) {
+    fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {
         context.set_needs_redraw();
     }
 }

@@ -5,8 +5,7 @@ use kludgine::figures::units::UPx;
 use kludgine::figures::{Point, Rect, Size};
 
 use crate::children::Children;
-use crate::context::Context;
-use crate::graphics::Graphics;
+use crate::context::{AsEventContext, EventContext, GraphicsContext};
 use crate::widget::{IntoValue, ManagedWidget, Value, Widget};
 use crate::ConstraintLimit;
 
@@ -45,7 +44,7 @@ impl Array {
         Self::new(ArrayDirection::rows(), children)
     }
 
-    fn synchronize_children(&mut self, context: &mut Context<'_, '_>) {
+    fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
         let current_generation = self.children.generation();
         if current_generation.map_or_else(
             || self.children.map(Children::len) != self.layout.children.len(),
@@ -91,30 +90,30 @@ impl Array {
 }
 
 impl Widget for Array {
-    fn redraw(&mut self, graphics: &mut Graphics<'_, '_, '_>, context: &mut Context) {
-        self.synchronize_children(context);
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        self.synchronize_children(&mut context.as_event_context());
         self.layout.update(
             Size::new(
-                ConstraintLimit::Known(graphics.size().width),
-                ConstraintLimit::Known(graphics.size().height),
+                ConstraintLimit::Known(context.graphics.size().width),
+                ConstraintLimit::Known(context.graphics.size().height),
             ),
             |child_index, constraints| {
                 context
                     .for_other(&self.synced_children[child_index])
-                    .measure(constraints, graphics)
+                    .measure(constraints)
             },
         );
 
         for (index, layout) in self.layout.iter().enumerate() {
             let child = &self.synced_children[index];
             if layout.size > 0 {
-                let mut clipped = graphics.clipped_to(Rect::new(
+                let mut clipped = context.clipped_to(Rect::new(
                     self.layout.orientation.make_point(layout.offset, UPx(0)),
                     self.layout
                         .orientation
                         .make_size(layout.size, self.layout.other),
                 ));
-                context.for_other(child).redraw(&mut clipped);
+                clipped.for_other(child).redraw();
             }
         }
     }
@@ -122,16 +121,15 @@ impl Widget for Array {
     fn measure(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        graphics: &mut Graphics<'_, '_, '_>,
-        context: &mut Context<'_, '_>,
+        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        self.synchronize_children(context);
+        self.synchronize_children(&mut context.as_event_context());
 
         self.layout
             .update(available_space, |child_index, constraints| {
                 context
                     .for_other(&self.synced_children[child_index])
-                    .measure(constraints, graphics)
+                    .measure(constraints)
             })
     }
 }

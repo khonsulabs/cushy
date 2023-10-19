@@ -1,10 +1,12 @@
 use std::ops::Deref;
 use std::sync::OnceLock;
 
+use kludgine::app::winit::event::Modifiers;
 use kludgine::app::winit::keyboard::ModifiersState;
 
 pub trait ModifiersExt {
     fn primary(&self) -> bool;
+    fn word_select(&self) -> bool;
 }
 
 impl ModifiersExt for ModifiersState {
@@ -16,6 +18,26 @@ impl ModifiersExt for ModifiersState {
     #[cfg(not(any(target_os = "macos", target_os = "ios")))]
     fn primary(&self) -> bool {
         self.control_key()
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    fn word_select(&self) -> bool {
+        self.alt_key()
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+    fn word_select(&self) -> bool {
+        self.control_key()
+    }
+}
+
+impl ModifiersExt for Modifiers {
+    fn primary(&self) -> bool {
+        self.state().primary()
+    }
+
+    fn word_select(&self) -> bool {
+        self.state().word_select()
     }
 }
 

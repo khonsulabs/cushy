@@ -5,7 +5,7 @@ use std::panic::{AssertUnwindSafe, UnwindSafe};
 use kludgine::app::winit::dpi::PhysicalPosition;
 use kludgine::app::winit::error::EventLoopError;
 use kludgine::app::winit::event::{
-    DeviceId, ElementState, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
+    DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::keyboard::KeyCode;
 use kludgine::app::WindowBehavior as _;
@@ -14,7 +14,7 @@ use kludgine::figures::Point;
 use kludgine::render::Drawing;
 use kludgine::Kludgine;
 
-use crate::context::Context;
+use crate::context::{EventContext, Exclusive, GraphicsContext, WidgetContext};
 use crate::graphics::Graphics;
 use crate::styles::Styles;
 use crate::tree::Tree;
@@ -162,8 +162,11 @@ where
         graphics.reset_text_attributes();
         self.root.tree.reset_render_order();
         let graphics = self.contents.new_frame(graphics);
-        let mut context = Context::new(&self.root, &mut window);
-        context.redraw(&mut Graphics::new(graphics));
+        GraphicsContext {
+            widget: WidgetContext::new(&self.root, &mut window),
+            graphics: Exclusive::Owned(Graphics::new(graphics)),
+        }
+        .redraw();
     }
 
     fn render<'pass>(
@@ -187,7 +190,7 @@ where
             .expect("called more than once")
     }
 
-    fn close_requested(&mut self, mut window: RunningWindow<'_>) -> bool {
+    fn close_requested(&mut self, mut window: RunningWindow<'_>, _kludgine: &mut Kludgine) -> bool {
         self.request_close(&mut window)
     }
 
@@ -224,17 +227,17 @@ where
     fn keyboard_input(
         &mut self,
         mut window: RunningWindow<'_>,
+        kludgine: &mut Kludgine,
         device_id: DeviceId,
         input: KeyEvent,
         is_synthetic: bool,
-        kludgine: &mut Kludgine,
     ) {
-        let target = self.root.tree.hovered_widget().unwrap_or(self.root.id);
+        let target = self.root.tree.focused_widget().unwrap_or(self.root.id);
         let target = self.root.tree.widget(target);
-        let mut target = Context::new(&target, &mut window);
+        let mut target = EventContext::new(WidgetContext::new(&target, &mut window), kludgine);
 
         let handled = recursively_handle_event(&mut target, |widget| {
-            widget.keyboard_input(device_id, input.clone(), is_synthetic, kludgine)
+            widget.keyboard_input(device_id, input.clone(), is_synthetic)
         })
         .is_some();
         drop(target);
@@ -254,6 +257,7 @@ where
     fn mouse_wheel(
         &mut self,
         mut window: RunningWindow<'_>,
+        kludgine: &mut Kludgine,
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
@@ -261,7 +265,7 @@ where
         let widget = self.root.tree.hovered_widget().unwrap_or(self.root.id);
 
         let widget = self.root.tree.widget(widget);
-        let mut widget = Context::new(&widget, &mut window);
+        let mut widget = EventContext::new(WidgetContext::new(&widget, &mut window), kludgine);
         recursively_handle_event(&mut widget, |widget| {
             widget.mouse_wheel(device_id, delta, phase)
         });
@@ -269,13 +273,19 @@ where
 
     // fn modifiers_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 
-    fn ime(&mut self, mut window: RunningWindow<'_>, ime: kludgine::app::winit::event::Ime) {
-        dbg!(ime);
+    fn ime(&mut self, mut window: RunningWindow<'_>, kludgine: &mut Kludgine, ime: Ime) {
+        let target = self.root.tree.focused_widget().unwrap_or(self.root.id);
+        let target = self.root.tree.widget(target);
+        let mut target = EventContext::new(WidgetContext::new(&target, &mut window), kludgine);
+
+        let _handled =
+            recursively_handle_event(&mut target, |widget| widget.ime(ime.clone())).is_some();
     }
 
     fn cursor_moved(
         &mut self,
         mut window: RunningWindow<'_>,
+        kludgine: &mut Kludgine,
         device_id: DeviceId,
         position: PhysicalPosition<f64>,
     ) {
@@ -285,13 +295,15 @@ where
         if let Some(state) = self.mouse_state.devices.get(&device_id) {
             // Mouse Drag
             for (button, handler) in state {
-                let mut context = Context::new(handler, &mut window);
+                let mut context =
+                    EventContext::new(WidgetContext::new(handler, &mut window), kludgine);
                 let last_rendered_at = context.last_rendered_at().expect("passed hit test");
                 context.mouse_drag(location - last_rendered_at.origin, device_id, *button);
             }
         } else {
             // Hover
-            let mut context = Context::new(&self.root, &mut window);
+            let mut context =
+                EventContext::new(WidgetContext::new(&self.root, &mut window), kludgine);
             self.mouse_state.widget = None;
             for widget in self.root.tree.widgets_at_point(location) {
                 let mut widget_context = context.for_other(&widget);
@@ -315,9 +327,15 @@ where
         }
     }
 
-    fn cursor_left(&mut self, mut window: RunningWindow<'_>, _device_id: DeviceId) {
+    fn cursor_left(
+        &mut self,
+        mut window: RunningWindow<'_>,
+        kludgine: &mut Kludgine,
+        _device_id: DeviceId,
+    ) {
         if self.mouse_state.widget.take().is_some() {
-            let mut context = Context::new(&self.root, &mut window);
+            let mut context =
+                EventContext::new(WidgetContext::new(&self.root, &mut window), kludgine);
             context.clear_hover();
         }
     }
@@ -325,19 +343,20 @@ where
     fn mouse_input(
         &mut self,
         mut window: RunningWindow<'_>,
+        kludgine: &mut Kludgine,
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
     ) {
         match state {
             ElementState::Pressed => {
-                Context::new(&self.root, &mut window).clear_focus();
+                WidgetContext::new(&self.root, &mut window).clear_focus();
 
                 if let (ElementState::Pressed, Some(location), Some(hovered)) =
                     (state, &self.mouse_state.location, &self.mouse_state.widget)
                 {
                     if let Some(handler) = recursively_handle_event(
-                        &mut Context::new(hovered, &mut window),
+                        &mut EventContext::new(WidgetContext::new(hovered, &mut window), kludgine),
                         |context| {
                             let relative = *location
                                 - context.last_rendered_at().expect("passed hit test").origin;
@@ -363,7 +382,8 @@ where
                     self.mouse_state.devices.remove(&device_id);
                 }
 
-                let mut context = Context::new(&handler, &mut window);
+                let mut context =
+                    EventContext::new(WidgetContext::new(&handler, &mut window), kludgine);
 
                 let relative = if let (Some(last_rendered), Some(location)) =
                     (context.last_rendered_at(), self.mouse_state.location)
@@ -378,7 +398,12 @@ where
         }
     }
 
-    fn event(&mut self, event: WindowCommand, mut window: RunningWindow<'_>) {
+    fn event(
+        &mut self,
+        mut window: RunningWindow<'_>,
+        _kludgine: &mut Kludgine,
+        event: WindowCommand,
+    ) {
         match event {
             WindowCommand::Redraw => {
                 window.set_needs_redraw();
@@ -388,8 +413,8 @@ where
 }
 
 fn recursively_handle_event(
-    context: &mut Context<'_, '_>,
-    mut each_widget: impl FnMut(&mut Context<'_, '_>) -> EventHandling,
+    context: &mut EventContext<'_, '_>,
+    mut each_widget: impl FnMut(&mut EventContext<'_, '_>) -> EventHandling,
 ) -> Option<ManagedWidget> {
     match each_widget(context) {
         HANDLED => Some(context.widget().clone()),

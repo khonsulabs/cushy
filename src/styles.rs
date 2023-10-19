@@ -59,6 +59,7 @@ use std::fmt::Debug;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 
 use kludgine::figures::units::{Lp, Px};
+use kludgine::figures::ScreenScale;
 use kludgine::Color;
 
 #[derive(Debug, Clone)]
@@ -152,6 +153,33 @@ impl From<Px> for Dimension {
 impl From<Lp> for Dimension {
     fn from(value: Lp) -> Self {
         Self::Lp(value)
+    }
+}
+
+impl ScreenScale for Dimension {
+    type Lp = Lp;
+    type Px = Px;
+
+    fn into_px(self, scale: kludgine::figures::Fraction) -> Px {
+        match self {
+            Dimension::Px(px) => px,
+            Dimension::Lp(lp) => lp.into_px(scale),
+        }
+    }
+
+    fn from_px(px: Px, _scale: kludgine::figures::Fraction) -> Self {
+        Self::from(px)
+    }
+
+    fn into_lp(self, scale: kludgine::figures::Fraction) -> Lp {
+        match self {
+            Dimension::Px(px) => px.into_lp(scale),
+            Dimension::Lp(lp) => lp,
+        }
+    }
+
+    fn from_lp(lp: Lp, _scale: kludgine::figures::Fraction) -> Self {
+        Self::from(lp)
     }
 }
 
@@ -277,6 +305,40 @@ impl NamedComponent for ComponentName {
 impl NamedComponent for Cow<'_, ComponentName> {
     fn name(&self) -> Cow<'_, ComponentName> {
         Cow::Borrowed(self)
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct TextSize;
+
+impl NamedComponent for TextSize {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("text_size"))
+    }
+}
+
+impl ComponentDefinition for TextSize {
+    type ComponentType = Dimension;
+
+    fn default_value(&self) -> Dimension {
+        Dimension::Lp(Lp::points(12))
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct LineHeight;
+
+impl NamedComponent for LineHeight {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("line_height"))
+    }
+}
+
+impl ComponentDefinition for LineHeight {
+    type ComponentType = Dimension;
+
+    fn default_value(&self) -> Dimension {
+        Dimension::Lp(Lp::points(14))
     }
 }
 
