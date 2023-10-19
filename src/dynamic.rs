@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 use kludgine::app::WindowHandle;
@@ -20,7 +21,7 @@ impl<T> Dynamic<T> {
                 windows: Vec::new(),
                 readers: 0,
             }),
-            sync: Condvar::new(),
+            sync: AssertUnwindSafe(Condvar::new()),
         }))
     }
 
@@ -122,7 +123,10 @@ impl<T> From<Dynamic<T>> for DynamicRefReader<T> {
 #[derive(Debug)]
 struct DynamicData<T> {
     state: Mutex<State<T>>,
-    sync: Condvar,
+
+    // The AssertUnwindSafe is only needed on Mac. For some reason on
+    // Mac OS, Condvar isn't RefUnwindSafe.
+    sync: AssertUnwindSafe<Condvar>,
 }
 
 impl<T> DynamicData<T> {

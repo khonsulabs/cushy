@@ -367,6 +367,7 @@ impl Widget for Input {
             Ime::Commit(text) => {
                 self.editor_mut(context.kludgine, &Self::styles(&context.widget))
                     .insert_string(&text, None);
+                context.set_needs_redraw();
             }
         }
 
