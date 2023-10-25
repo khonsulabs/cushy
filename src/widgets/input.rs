@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::time::Duration;
 
 use kludgine::app::winit::event::Ime;
 use kludgine::app::winit::keyboard::Key;
@@ -17,10 +18,13 @@ use crate::styles::{HighlightColor, LineHeight, Styles, TextColor, TextSize};
 use crate::utils::ModifiersExt;
 use crate::widget::{EventHandling, IntoValue, Value, Widget, HANDLED, UNHANDLED};
 
+const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
+
 #[must_use]
 pub struct Input {
     pub text: Value<String>,
     editor: Option<LiveEditor>,
+    cursor_state: CursorState,
 }
 
 impl Input {
@@ -32,6 +36,7 @@ impl Input {
         Self {
             text: initial_text.into_value(),
             editor: None,
+            cursor_state: CursorState::default(),
         }
     }
 
@@ -121,11 +126,14 @@ impl Widget for Input {
                 y: location.y.0,
             },
         );
+        self.cursor_state.force_on();
         context.set_needs_redraw();
     }
 
     #[allow(clippy::too_many_lines)]
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+        self.cursor_state.update(context.elapsed());
+        let cursor_state = self.cursor_state;
         let size = context.graphics.size();
         let styles = context.query_style(&[&TextColor, &HighlightColor]);
         let highlight = styles.get_or_default(&HighlightColor);
@@ -246,18 +254,21 @@ impl Widget for Input {
                     (Err(_), Err(_)) => {}
                 }
             } else if let Ok((location, _)) = cursor_glyph(buffer, &cursor) {
-                context.graphics.draw_shape(
-                    &Shape::filled_rect(
-                        Rect::new(
-                            location,
-                            Size::new(Px(1), line_height),
+                if cursor_state.visible {
+                    context.graphics.draw_shape(
+                        &Shape::filled_rect(
+                            Rect::new(
+                                location,
+                                Size::new(Px(1), line_height),
+                            ),
+                            highlight, // TODO cursor should be a bold color, highlight probably not. This should have its own color.
                         ),
-                        highlight, // TODO cursor should be a bold color, highlight probably not. This should have its own color.
-                    ),
-                    Point::default(),
-                    None,
-                    None,
-                );
+                        Point::default(),
+                        None,
+                        None,
+                    );
+                }
+                context.redraw_in(cursor_state.remaining_until_blink);
             }
         }
 
@@ -309,7 +320,7 @@ impl Widget for Input {
             "Keyboard input: {:?}. {:?}, {:?}",
             input.logical_key, input.text, input.physical_key
         );
-        match (input.logical_key, input.text) {
+        let handled = match (input.logical_key, input.text) {
             (key @ (Key::Backspace | Key::Delete), _) => {
                 editor.action(
                     context.kludgine.font_system(),
@@ -319,7 +330,6 @@ impl Widget for Input {
                         _ => unreachable!("previously matched"),
                     },
                 );
-                context.set_needs_redraw();
                 HANDLED
             }
             (key @ (Key::ArrowLeft | Key::ArrowDown | Key::ArrowUp | Key::ArrowRight), _) => {
@@ -346,16 +356,21 @@ impl Widget for Input {
                         _ => unreachable!("previously matched"),
                     },
                 );
-                context.set_needs_redraw();
                 HANDLED
             }
             (_, Some(text)) if !context.modifiers().state().primary() => {
                 editor.insert_string(&text, None);
-                context.set_needs_redraw();
                 HANDLED
             }
             (_, _) => UNHANDLED,
+        };
+
+        if handled.is_break() {
+            context.set_needs_redraw();
+            self.cursor_state.force_on();
         }
+
+        handled
     }
 
     fn ime(&mut self, ime: Ime, context: &mut EventContext<'_, '_>) -> EventHandling {
@@ -379,7 +394,6 @@ impl Widget for Input {
     }
 
     fn blur(&mut self, context: &mut EventContext<'_, '_>) {
-        println!("Blur");
         context.set_ime_allowed(false);
     }
 }
@@ -458,4 +472,46 @@ fn cursor_glyph(buffer: &Buffer, cursor: &Cursor) -> Result<(Point<Px>, Px), Not
 enum NotVisible {
     Before,
     After,
+}
+
+#[derive(Clone, Copy)]
+struct CursorState {
+    visible: bool,
+    remaining_until_blink: Duration,
+}
+
+impl Default for CursorState {
+    fn default() -> Self {
+        Self {
+            visible: true,
+            remaining_until_blink: CURSOR_BLINK_DURATION,
+        }
+    }
+}
+
+impl CursorState {
+    pub fn update(&mut self, elapsed: Duration) {
+        let total_cycles = elapsed.as_nanos() / CURSOR_BLINK_DURATION.as_nanos();
+        let remaining = Duration::from_nanos(
+            u64::try_from(elapsed.as_nanos() % CURSOR_BLINK_DURATION.as_nanos())
+                .expect("remainder fits in u64"),
+        );
+        // If we have an odd number of totaal cycles, flip the visibility.
+        if total_cycles & 1 == 1 {
+            self.visible = !self.visible;
+        }
+
+        if let Some(remaining) = self.remaining_until_blink.checked_sub(remaining) {
+            self.remaining_until_blink = remaining;
+        } else {
+            self.visible = !self.visible;
+            self.remaining_until_blink =
+                CURSOR_BLINK_DURATION - (remaining - self.remaining_until_blink);
+        }
+    }
+
+    pub fn force_on(&mut self) {
+        self.visible = true;
+        self.remaining_until_blink = CURSOR_BLINK_DURATION;
+    }
 }
