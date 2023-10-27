@@ -22,10 +22,9 @@ impl Label {
 
 impl Widget for Label {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        self.contents.redraw_when_changed(context);
+
         let center = Point::from(context.graphics.size()) / 2;
-        if let Value::Dynamic(contents) = &mut self.contents {
-            context.redraw_when_changed(contents);
-        }
         let styles = context.query_style(&[&TextColor]);
         let width = context.graphics.size().width;
         self.contents.map(|contents| {

@@ -11,7 +11,7 @@ use kludgine::app::winit::event::{
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Rect, Size};
 
-use crate::context::{EventContext, GraphicsContext};
+use crate::context::{EventContext, GraphicsContext, WidgetContext};
 use crate::dynamic::Dynamic;
 use crate::styles::{Component, Group, Styles};
 use crate::tree::{Tree, WidgetId};
@@ -246,6 +246,12 @@ impl<T> Value<T> {
             Value::Dynamic(value) => Some(value.generation()),
         }
     }
+
+    pub fn redraw_when_changed(&self, context: &WidgetContext<'_, '_>) {
+        if let Value::Dynamic(dynamic) = self {
+            context.redraw_when_changed(dynamic);
+        }
+    }
 }
 
 pub trait IntoValue<T> {
@@ -276,9 +282,9 @@ impl<T> IntoValue<T> for Value<T> {
     }
 }
 
-pub struct Callback<T>(Box<dyn CallbackFunction<T>>);
+pub struct Callback<T = (), R = ()>(Box<dyn CallbackFunction<T, R>>);
 
-impl<T> Debug for Callback<T> {
+impl<T, R> Debug for Callback<T, R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Callback")
             .field(&(self as *const Self))
@@ -286,28 +292,29 @@ impl<T> Debug for Callback<T> {
     }
 }
 
-impl<T> Callback<T> {
+impl<T, R> Callback<T, R> {
     pub fn new<F>(function: F) -> Self
     where
-        F: FnMut(T) + Send + UnwindSafe + 'static,
+        F: FnMut(T) -> R + Send + UnwindSafe + 'static,
     {
         Self(Box::new(function))
     }
 
-    pub fn invoke(&mut self, value: T) {
-        self.0.invoke(value);
+    pub fn invoke(&mut self, value: T) -> R {
+        self.0.invoke(value)
     }
 }
 
-trait CallbackFunction<T>: Send + UnwindSafe {
-    fn invoke(&mut self, value: T);
+trait CallbackFunction<T, R>: Send + UnwindSafe {
+    fn invoke(&mut self, value: T) -> R;
 }
-impl<T, F> CallbackFunction<T> for F
+
+impl<T, R, F> CallbackFunction<T, R> for F
 where
-    F: FnMut(T) + Send + UnwindSafe,
+    F: FnMut(T) -> R + Send + UnwindSafe,
 {
-    fn invoke(&mut self, value: T) {
-        self(value);
+    fn invoke(&mut self, value: T) -> R {
+        self(value)
     }
 }
 

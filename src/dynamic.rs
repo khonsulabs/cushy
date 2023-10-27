@@ -31,12 +31,7 @@ impl<T> Dynamic<T> {
     }
 
     pub fn map_mut<R>(&self, map: impl FnOnce(&mut T) -> R) -> R {
-        let mut state = self.state();
-        state.wrapped.generation = state.wrapped.generation.wrapping_add(1);
-        let result = map(&mut state.wrapped.value);
-        drop(state);
-        self.0.sync.notify_all();
-        result
+        self.0.map_mut(map)
     }
 
     pub fn for_each<F>(&self, mut map: F)
@@ -72,7 +67,7 @@ impl<T> Dynamic<T> {
 
     #[must_use]
     pub fn replace(&self, new_value: T) -> T {
-        self.0.replace(new_value).value
+        self.0.map_mut(|value| std::mem::replace(value, new_value))
     }
 
     pub fn set(&self, new_value: T) {
@@ -150,18 +145,13 @@ impl<T> DynamicData<T> {
     }
 
     #[must_use]
-    pub fn replace(&self, new_value: T) -> GenerationalValue<T> {
+    pub fn map_mut<R>(&self, map: impl FnOnce(&mut T) -> R) -> R {
         let mut state = self.state();
         let old = {
             let state = &mut *state;
             let generation = state.wrapped.generation.wrapping_add(1);
-            let old = std::mem::replace(
-                &mut state.wrapped,
-                GenerationalValue {
-                    value: new_value,
-                    generation,
-                },
-            );
+            let result = map(&mut state.wrapped.value);
+            state.wrapped.generation = generation;
 
             for callback in &mut state.callbacks {
                 callback.update(&state.wrapped);
@@ -169,7 +159,7 @@ impl<T> DynamicData<T> {
             for window in state.windows.drain(..) {
                 let _result = window.send(WindowCommand::Redraw);
             }
-            old
+            result
         };
         drop(state);
 

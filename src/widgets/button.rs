@@ -50,9 +50,7 @@ impl Button {
 impl Widget for Button {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let center = Point::from(context.graphics.size()) / 2;
-        if let Value::Dynamic(label) = &self.label {
-            context.redraw_when_changed(label);
-        }
+        self.label.redraw_when_changed(context);
 
         let styles = context.query_style(&[
             &TextColor,
