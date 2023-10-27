@@ -1,7 +1,6 @@
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Size};
-use kludgine::text::TextOrigin;
-use kludgine::Color;
+use kludgine::text::{Text, TextOrigin};
 
 use crate::context::GraphicsContext;
 use crate::styles::TextColor;
@@ -29,13 +28,12 @@ impl Widget for Label {
         let width = context.graphics.size().width;
         self.contents.map(|contents| {
             context.graphics.draw_text(
-                contents,
-                styles.get_or_default(&TextColor),
-                TextOrigin::Center,
+                Text::new(contents, styles.get_or_default(&TextColor))
+                    .origin(TextOrigin::Center)
+                    .wrap_at(width),
                 center,
                 None,
                 None,
-                Some(width),
             );
         });
     }
@@ -49,7 +47,7 @@ impl Widget for Label {
         self.contents.map(|contents| {
             context
                 .graphics
-                .measure_text(contents, Color::RED, Some(width))
+                .measure_text(Text::from(contents).wrap_at(width))
                 .size
                 .try_cast()
                 .unwrap_or_default()

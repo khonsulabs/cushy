@@ -6,6 +6,7 @@ use kludgine::app::winit::keyboard::KeyCode;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoUnsigned, Point, Rect, Size};
 use kludgine::shapes::Shape;
+use kludgine::text::Text;
 use kludgine::Color;
 
 use crate::context::{EventContext, GraphicsContext};
@@ -81,13 +82,12 @@ impl Widget for Button {
         let width = context.graphics.size().width;
         self.label.map(|label| {
             context.graphics.draw_text(
-                label,
-                styles.get_or_default(&TextColor),
-                kludgine::text::TextOrigin::Center,
+                Text::new(label, styles.get_or_default(&TextColor))
+                    .origin(kludgine::text::TextOrigin::Center)
+                    .wrap_at(width),
                 center,
                 None,
                 None,
-                Some(width),
             );
         });
     }
@@ -170,7 +170,7 @@ impl Widget for Button {
         self.label.map(|label| {
             let measured = context
                 .graphics
-                .measure_text::<Px>(label, Color::WHITE, Some(width));
+                .measure_text::<Px>(Text::from(label).wrap_at(width));
 
             let mut size = measured.size.into_unsigned();
             size.height = size.height.max(measured.line_height.into_unsigned());

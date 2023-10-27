@@ -3,6 +3,7 @@ use gooey::Run;
 use kludgine::figures::units::Px;
 use kludgine::figures::{Angle, IntoSigned, Point, Rect, Size};
 use kludgine::shapes::Shape;
+use kludgine::text::{Text, TextOrigin};
 use kludgine::Color;
 
 fn main() -> gooey::Result<()> {
@@ -12,11 +13,9 @@ fn main() -> gooey::Result<()> {
 
         let center = Point::from(context.graphics.size()).into_signed() / 2;
         context.graphics.draw_text(
-            "Canvas exposes the full power of Kludgine",
-            Color::WHITE,
-            kludgine::text::TextOrigin::Center,
+            Text::new("Canvas exposes the full power of Kludgine", Color::WHITE)
+                .origin(TextOrigin::Center),
             center - Point::new(Px(0), Px(100)),
-            None,
             None,
             None,
         );
