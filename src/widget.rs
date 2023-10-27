@@ -15,17 +15,11 @@ use crate::context::{EventContext, GraphicsContext};
 use crate::dynamic::Dynamic;
 use crate::styles::{Component, Group, Styles};
 use crate::tree::{Tree, WidgetId};
+use crate::widgets::Style;
 use crate::window::{RunningWindow, Window, WindowBehavior};
-use crate::ConstraintLimit;
+use crate::{ConstraintLimit, Run};
 
 pub trait Widget: Send + UnwindSafe + Debug + 'static {
-    fn run(self) -> Result<(), EventLoopError>
-    where
-        Self: Sized,
-    {
-        Window::<BoxedWidget>::new(BoxedWidget::new(self)).run()
-    }
-
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
 
     fn measure(
@@ -123,6 +117,39 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     fn query_component(&self, group: Group, name: &str) -> Option<Component> {
         None
     }
+
+    fn with_styles(self, styles: impl Into<Styles>) -> Style
+    where
+        Self: Sized,
+    {
+        Style::new(styles, self)
+    }
+}
+
+impl<T> Run for T
+where
+    T: Widget,
+{
+    fn run(self) -> crate::Result<(), EventLoopError> {
+        BoxedWidget::new(self).run()
+    }
+}
+
+pub trait MakeWidget: Sized {
+    fn make_widget(self) -> BoxedWidget;
+
+    fn run(self) -> Result<(), EventLoopError> {
+        self.make_widget().run()
+    }
+}
+
+impl<T> MakeWidget for T
+where
+    T: Widget,
+{
+    fn make_widget(self) -> BoxedWidget {
+        BoxedWidget::new(self)
+    }
 }
 
 pub type EventHandling = ControlFlow<EventHandled, EventIgnored>;
@@ -151,6 +178,12 @@ impl BoxedWidget {
     }
 }
 
+impl Run for BoxedWidget {
+    fn run(self) -> crate::Result<(), EventLoopError> {
+        Window::<BoxedWidget>::new(self).run()
+    }
+}
+
 impl Eq for BoxedWidget {}
 
 impl PartialEq for BoxedWidget {
@@ -172,25 +205,30 @@ impl WindowBehavior for BoxedWidget {
 }
 
 #[derive(Debug)]
-pub enum Value<T>
-where
-    T: 'static,
-{
-    Static(T),
+pub enum Value<T> {
+    Constant(T),
     Dynamic(Dynamic<T>),
 }
 
 impl<T> Value<T> {
+    pub fn dynamic(value: T) -> Self {
+        Self::Dynamic(Dynamic::new(value))
+    }
+
+    pub fn constant(value: T) -> Self {
+        Self::Constant(value)
+    }
+
     pub fn map<R>(&mut self, map: impl FnOnce(&T) -> R) -> R {
         match self {
-            Value::Static(value) => map(value),
+            Value::Constant(value) => map(value),
             Value::Dynamic(dynamic) => dynamic.map_ref(map),
         }
     }
 
     pub fn map_mut<R>(&mut self, map: impl FnOnce(&mut T) -> R) -> R {
         match self {
-            Value::Static(value) => map(value),
+            Value::Constant(value) => map(value),
             Value::Dynamic(dynamic) => dynamic.map_mut(map),
         }
     }
@@ -204,7 +242,7 @@ impl<T> Value<T> {
 
     pub fn generation(&self) -> Option<usize> {
         match self {
-            Value::Static(_) => None,
+            Value::Constant(_) => None,
             Value::Dynamic(value) => Some(value.generation()),
         }
     }
@@ -216,19 +254,25 @@ pub trait IntoValue<T> {
 
 impl<T> IntoValue<T> for T {
     fn into_value(self) -> Value<T> {
-        Value::Static(self)
+        Value::Constant(self)
     }
 }
 
 impl<'a> IntoValue<String> for &'a str {
     fn into_value(self) -> Value<String> {
-        Value::Static(self.to_owned())
+        Value::Constant(self.to_owned())
     }
 }
 
 impl<T> IntoValue<T> for Dynamic<T> {
     fn into_value(self) -> Value<T> {
         Value::Dynamic(self)
+    }
+}
+
+impl<T> IntoValue<T> for Value<T> {
+    fn into_value(self) -> Value<T> {
+        self
     }
 }
 

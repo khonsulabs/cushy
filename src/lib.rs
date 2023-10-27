@@ -17,6 +17,7 @@ pub mod widget;
 pub mod widgets;
 pub mod window;
 
+pub use kludgine;
 pub use kludgine::app::winit::error::EventLoopError;
 pub use kludgine::app::winit::event::ElementState;
 use kludgine::figures::units::UPx;
@@ -37,3 +38,7 @@ impl ConstraintLimit {
 }
 
 pub type Result<T, E = EventLoopError> = std::result::Result<T, E>;
+
+pub trait Run: Sized {
+    fn run(self) -> Result<(), EventLoopError>;
+}

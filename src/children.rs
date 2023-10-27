@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut};
 
 use alot::OrderedLots;
 
-use crate::widget::{BoxedWidget, Widget};
+use crate::widget::{BoxedWidget, MakeWidget};
 
 #[derive(Debug, Default)]
 #[must_use]
@@ -19,9 +19,9 @@ impl Children {
 
     pub fn with_widget<W>(mut self, widget: W) -> Self
     where
-        W: Widget,
+        W: MakeWidget,
     {
-        self.ordered.push(BoxedWidget::new(widget));
+        self.ordered.push(widget.make_widget());
         self
     }
 

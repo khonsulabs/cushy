@@ -1,5 +1,5 @@
-use gooey::widget::Widget;
 use gooey::widgets::Canvas;
+use gooey::Run;
 use kludgine::figures::units::Px;
 use kludgine::figures::{Angle, IntoSigned, Point, Rect, Size};
 use kludgine::shapes::Shape;

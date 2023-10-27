@@ -1,7 +1,6 @@
 use gooey::dynamic::Dynamic;
-use gooey::widget::Widget;
 use gooey::widgets::Button;
-use gooey::EventLoopError;
+use gooey::{EventLoopError, Run};
 
 fn main() -> Result<(), EventLoopError> {
     let count = Dynamic::new(0_usize);

@@ -2,10 +2,9 @@ use std::string::ToString;
 
 use gooey::children::Children;
 use gooey::dynamic::Dynamic;
-use gooey::widget::Widget;
 use gooey::widgets::array::Array;
 use gooey::widgets::{Button, Label};
-use gooey::EventLoopError;
+use gooey::{EventLoopError, Run};
 
 fn main() -> Result<(), EventLoopError> {
     let counter = Dynamic::new(0i32);

@@ -16,11 +16,11 @@ use kludgine::Kludgine;
 
 use crate::context::{EventContext, Exclusive, GraphicsContext, WidgetContext};
 use crate::graphics::Graphics;
-use crate::styles::Styles;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::widget::{BoxedWidget, EventHandling, ManagedWidget, Widget, HANDLED, UNHANDLED};
 use crate::window::sealed::WindowCommand;
+use crate::Run;
 
 pub type RunningWindow<'window> = kludgine::app::Window<'window, WindowCommand>;
 pub type WindowAttributes = kludgine::app::WindowAttributes<WindowCommand>;
@@ -32,7 +32,6 @@ where
 {
     context: Behavior::Context,
     pub attributes: WindowAttributes,
-    pub styles: Option<Styles>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -66,20 +65,18 @@ where
                 ..WindowAttributes::default()
             },
             context,
-            styles: None,
         }
     }
+}
 
-    pub fn styles(mut self, styles: Styles) -> Self {
-        self.styles = Some(styles);
-        self
-    }
-
-    pub fn run(self) -> Result<(), EventLoopError> {
+impl<Behavior> Run for Window<Behavior>
+where
+    Behavior: WindowBehavior,
+{
+    fn run(self) -> crate::Result<(), EventLoopError> {
         GooeyWindow::<Behavior>::run_with(AssertUnwindSafe((
             self.context,
             RefCell::new(WindowSettings {
-                styles: self.styles,
                 attributes: Some(self.attributes),
             }),
         )))
@@ -142,9 +139,7 @@ where
     ) -> Self {
         let mut behavior = T::initialize(&mut window, context.0 .0);
         let root = Tree::default().push_boxed(behavior.make_root(), None);
-        if let Some(styles) = context.0 .1.borrow_mut().styles.take() {
-            root.attach_styles(styles);
-        }
+
         Self {
             behavior,
             root,
@@ -425,7 +420,6 @@ fn recursively_handle_event(
 }
 
 pub struct WindowSettings {
-    styles: Option<Styles>,
     attributes: Option<WindowAttributes>,
 }
 

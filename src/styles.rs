@@ -1,9 +1,35 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
 use std::sync::Arc;
 
 use crate::names::Name;
 use crate::utils::Lazy;
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! count {
+    ($value:expr ;) => {
+        1
+    };
+    ($value:expr , $($remaining:expr),+ ;) => {
+        1 + count!($($remaining),+ ;)
+    }
+}
+
+#[macro_export]
+macro_rules! styles {
+    () => {{
+        $crate::styles::Styles::new()
+    }};
+    ($($component:expr => $value:expr),*) => {{
+        let mut styles = $crate::styles::Styles::with_capacity($crate::count!($($value),* ;));
+        $(styles.push(&$component, $value);)*
+        styles
+    }};
+    ($($component:expr => $value:expr),* ,) => {{
+        $crate::styles!($($component => $value),*)
+    }};
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct Styles(Arc<HashMap<Group, HashMap<Name, Component>>>);
@@ -14,12 +40,21 @@ impl Styles {
         Self::default()
     }
 
-    pub fn push(&mut self, name: &impl NamedComponent, component: impl Into<Component>) {
-        let name = name.name().into_owned();
+    #[must_use]
+    pub fn with_capacity(components: usize) -> Self {
+        Self(Arc::new(HashMap::with_capacity(components)))
+    }
+
+    pub fn push_component(&mut self, name: ComponentName, component: impl Into<Component>) {
         Arc::make_mut(&mut self.0)
             .entry(name.group)
             .or_default()
             .insert(name.name, component.into());
+    }
+
+    pub fn push(&mut self, name: &impl NamedComponent, component: impl Into<Component>) {
+        let name = name.name().into_owned();
+        self.push_component(name, component);
     }
 
     #[must_use]
@@ -50,6 +85,54 @@ impl Styles {
             .and_then(|group| group.get(&name.name))
             .and_then(|component| component.clone().try_into().ok())
             .unwrap_or_else(|| component.default_value())
+    }
+}
+
+impl FromIterator<(ComponentName, Component)> for Styles {
+    fn from_iter<T: IntoIterator<Item = (ComponentName, Component)>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let mut styles = Self::with_capacity(iter.size_hint().0);
+        for (name, component) in iter {
+            styles.push_component(name, component);
+        }
+        styles
+    }
+}
+
+impl IntoIterator for Styles {
+    type IntoIter = StylesIntoIter;
+    type Item = (ComponentName, Component);
+
+    fn into_iter(self) -> Self::IntoIter {
+        StylesIntoIter {
+            main: Arc::try_unwrap(self.0)
+                .unwrap_or_else(|err| err.as_ref().clone())
+                .into_iter(),
+            names: None,
+        }
+    }
+}
+
+pub struct StylesIntoIter {
+    main: hash_map::IntoIter<Group, HashMap<Name, Component>>,
+    names: Option<(Group, hash_map::IntoIter<Name, Component>)>,
+}
+
+impl Iterator for StylesIntoIter {
+    type Item = (ComponentName, Component);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some((group, names)) = &mut self.names {
+                if let Some((name, component)) = names.next() {
+                    return Some((ComponentName::new(group.clone(), name), component));
+                }
+                self.names = None;
+            }
+
+            let (group, names) = self.main.next()?;
+            self.names = Some((group, names.into_iter()));
+        }
     }
 }
 

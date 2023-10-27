@@ -14,12 +14,9 @@ pub struct Style {
 }
 
 impl Style {
-    pub fn new<W>(styles: Styles, child: W) -> Self
-    where
-        W: Widget,
-    {
+    pub fn new(styles: impl Into<Styles>, child: impl Widget) -> Self {
         Self {
-            styles,
+            styles: styles.into(),
             child: BoxedWidget::new(child),
             mounted_child: None,
         }
