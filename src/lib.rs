@@ -11,6 +11,7 @@ pub mod dynamic;
 pub mod graphics;
 pub mod names;
 pub mod styles;
+pub mod tick;
 mod tree;
 mod utils;
 pub mod widget;

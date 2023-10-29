@@ -11,6 +11,7 @@ use crate::kludgine::figures::units::UPx;
 use crate::kludgine::figures::Size;
 use crate::kludgine::tilemap;
 use crate::kludgine::tilemap::TileMapFocus;
+use crate::tick::Tick;
 use crate::widget::{Callback, EventHandling, IntoValue, Value, Widget, HANDLED, UNHANDLED};
 use crate::ConstraintLimit;
 
@@ -21,6 +22,7 @@ pub struct TileMap<Layers> {
     focus: Value<TileMapFocus>,
     key: Option<Callback<Key, EventHandling>>,
     zoom: f32,
+    tick: Option<Tick>,
 }
 
 impl<Layers> TileMap<Layers> {
@@ -30,6 +32,7 @@ impl<Layers> TileMap<Layers> {
             focus: Value::Constant(TileMapFocus::default()),
             zoom: 1.,
             key: None,
+            tick: None,
         }
     }
 
@@ -53,6 +56,11 @@ impl<Layers> TileMap<Layers> {
         self.key = Some(Callback::new(key));
         self
     }
+
+    pub fn tick(mut self, tick: Tick) -> Self {
+        self.tick = Some(tick);
+        self
+    }
 }
 
 impl<Layers> Widget for TileMap<Layers>
@@ -66,6 +74,10 @@ where
         let focus = self.focus.get();
         self.layers
             .map(|layers| tilemap::draw(layers, focus, self.zoom, &mut context.graphics));
+
+        if let Some(tick) = &self.tick {
+            tick.rendered();
+        }
     }
 
     fn measure(
@@ -99,35 +111,18 @@ where
         _device_id: DeviceId,
         input: KeyEvent,
         _is_synthetic: bool,
-        context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
+        if let Some(tick) = &self.tick {
+            tick.key_input(&input)?;
+        }
         if !input.state.is_pressed() {
             return UNHANDLED;
         }
         if let Some(on_key) = &mut self.key {
             on_key.invoke(input.logical_key.clone())?;
         }
-        self.focus.map_mut(|focus| {
-            if let TileMapFocus::Point(focus) = focus {
-                match input.logical_key {
-                    Key::ArrowLeft => {
-                        focus.x -= 1;
-                    }
-                    Key::ArrowRight => {
-                        focus.x += 1;
-                    }
-                    Key::ArrowUp => {
-                        focus.y -= 1;
-                    }
-                    Key::ArrowDown => {
-                        focus.y += 1;
-                    }
-                    _ => {}
-                }
-            }
-        });
 
-        context.set_needs_redraw();
-        HANDLED
+        UNHANDLED
     }
 }

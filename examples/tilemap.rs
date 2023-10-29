@@ -4,11 +4,9 @@ use gooey::kludgine::figures::units::Px;
 use gooey::kludgine::figures::{Point, Rect, Size};
 use gooey::kludgine::render::Renderer;
 use gooey::kludgine::shapes::Shape;
-use gooey::kludgine::tilemap::{
-    Object, ObjectId, ObjectLayer, TileKind, TileMapFocus, Tiles, TILE_SIZE,
-};
+use gooey::kludgine::tilemap::{Object, ObjectLayer, TileKind, TileMapFocus, Tiles, TILE_SIZE};
 use gooey::kludgine::Color;
-use gooey::widget::{EventHandling, HANDLED, UNHANDLED};
+use gooey::tick::Tick;
 use gooey::widgets::TileMap;
 use gooey::{EventLoopError, Run};
 
@@ -35,7 +33,7 @@ fn main() -> Result<(), EventLoopError> {
 
     let myself = characters.push(Player {
         color: Color::RED,
-        position: Point::new(TILE_SIZE * 1, TILE_SIZE * 1),
+        position: Point::new(TILE_SIZE.0 as f32, TILE_SIZE.0 as f32),
     });
 
     let layers = Dynamic::new((Tiles::new(8, 8, TILES), characters));
@@ -45,37 +43,43 @@ fn main() -> Result<(), EventLoopError> {
             layer: 1,
             id: myself,
         })
-        .on_key(move |key| handle_key(key, myself, &layers))
+        .tick(Tick::fps(60, move |elapsed, input| {
+            // println!("Ticking {input:?}");
+            let mut direction = Point::new(0., 0.);
+            if input.keys.contains(&Key::ArrowDown) {
+                direction.y += 1.0;
+            }
+            if input.keys.contains(&Key::ArrowUp) {
+                direction.y -= 1.0;
+            }
+            if input.keys.contains(&Key::ArrowRight) {
+                direction.x += 1.0;
+            }
+            if input.keys.contains(&Key::ArrowLeft) {
+                direction.x -= 1.0;
+            }
+
+            let one_second_movement = direction * TILE_SIZE.0 as f32;
+
+            layers.map_mut(|layers| {
+                layers.1[myself].position += Point::new(
+                    one_second_movement.x * elapsed.as_secs_f32(),
+                    one_second_movement.y * elapsed.as_secs_f32(),
+                )
+            });
+        }))
         .run()
-}
-
-fn handle_key(
-    key: Key,
-    player: ObjectId,
-    layers: &Dynamic<(Tiles, ObjectLayer<Player>)>,
-) -> EventHandling {
-    let offset = match key {
-        Key::ArrowDown => Point::new(Px(0), Px(1)),
-        Key::ArrowUp => Point::new(Px(0), Px(-1)),
-        Key::ArrowLeft => Point::new(Px(-1), Px(0)),
-        Key::ArrowRight => Point::new(Px(1), Px(0)),
-        _ => return UNHANDLED,
-    };
-
-    layers.map_mut(|layers| layers.1[player].position += offset);
-
-    HANDLED
 }
 
 #[derive(Debug)]
 struct Player {
     color: Color,
-    position: Point<Px>,
+    position: Point<f32>,
 }
 
 impl Object for Player {
     fn position(&self) -> Point<Px> {
-        self.position
+        self.position.cast()
     }
 
     fn render(&self, center: Point<Px>, zoom: f32, context: &mut Renderer<'_, '_>) {

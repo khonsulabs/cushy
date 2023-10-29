@@ -13,7 +13,7 @@ alot = "0.3"
 interner = "0.2.1"
 # appit = { git = "https://github.com/khonsulabs/appit" }
 
-# [patch."https://github.com/khonsulabs/kludgine"]
-# kludgine = { path = "../kludgine2" }
+[patch."https://github.com/khonsulabs/kludgine"]
+kludgine = { path = "../kludgine2" }
 # [patch."https://github.com/khonsulabs/figures"]
 # figures = { path = "../figures" }

@@ -436,6 +436,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "etagere"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcf22f748754352918e082e0039335ee92454a5d62bcaf69b5e8daf5907d9644"
+dependencies = [
+ "euclid",
+ "svg_fmt",
+]
+
+[[package]]
 name = "euclid"
 version = "0.22.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -830,18 +840,17 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/kludgine#713200714daa16a273eed9fcaee476613e894116"
 dependencies = [
  "ahash",
  "alot",
  "appit",
  "bytemuck",
  "cosmic-text",
+ "etagere",
  "figures",
  "image",
  "lyon_tessellation",
  "pollster",
- "shelf-packer",
  "smallvec",
  "wgpu",
 ]
@@ -1494,14 +1503,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shelf-packer"
-version = "0.1.0"
-source = "git+https://github.com/khonsulabs/shelf-packer#06246cb4f5ccd473c1d8ae49c8c07f2f61798df4"
-dependencies = [
- "figures",
-]
-
-[[package]]
 name = "slotmap"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1577,6 +1578,12 @@ name = "strict-num"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731"
+
+[[package]]
+name = "svg_fmt"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fb1df15f412ee2e9dfc1c504260fa695c1c3f10fe9f4a6ee2d2184d7d6450e2"
 
 [[package]]
 name = "swash"
