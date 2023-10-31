@@ -29,9 +29,8 @@ impl Tick {
 
     /// Processes `input`.
     ///
-    /// If the event matches a key that has been marked as
-    /// handled, [`HANDLED`] will be returned. Otherwise, [`UNHANDLED`] will be
-    /// returned,
+    /// If the event matches a key that has been marked as handled, [`HANDLED`]
+    /// will be returned. Otherwise, [`IGNORED`] will be returned,
     #[must_use]
     pub fn key_input(&self, input: &KeyEvent) -> EventHandling {
         let mut state = self.data.state();

@@ -1,10 +1,10 @@
 //! Built-in [`Widget`](crate::widget::Widget) implementations.
 
-pub mod array;
 mod button;
 mod canvas;
 mod input;
 mod label;
+pub mod stack;
 mod style;
 mod tilemap;
 

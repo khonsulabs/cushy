@@ -12,11 +12,11 @@ use crate::widget::{ManagedWidget, Widget, Widgets};
 use crate::ConstraintLimit;
 
 /// A widget that displays a collection of [`Widgets`] in a
-/// [direction](ArrayDirection).
+/// [direction](StackDirection).
 #[derive(Debug)]
-pub struct Array {
+pub struct Stack {
     /// The direction to display the children using.
-    pub direction: Value<ArrayDirection>,
+    pub direction: Value<StackDirection>,
     /// The children widgets that belong to this array.
     pub children: Value<Widgets>,
     layout: Layout,
@@ -25,10 +25,10 @@ pub struct Array {
     synced_children: Vec<ManagedWidget>,
 }
 
-impl Array {
+impl Stack {
     /// Returns a new widget with the given direction and widgets.
     pub fn new(
-        direction: impl IntoValue<ArrayDirection>,
+        direction: impl IntoValue<StackDirection>,
         widgets: impl IntoValue<Widgets>,
     ) -> Self {
         let mut direction = direction.into_value();
@@ -46,12 +46,12 @@ impl Array {
 
     /// Returns a new instance that displays `widgets` in a series of columns.
     pub fn columns(widgets: impl IntoValue<Widgets>) -> Self {
-        Self::new(ArrayDirection::columns(), widgets)
+        Self::new(StackDirection::columns(), widgets)
     }
 
     /// Returns a new instance that displays `widgets` in a series of rows.
     pub fn rows(widgets: impl IntoValue<Widgets>) -> Self {
-        Self::new(ArrayDirection::rows(), widgets)
+        Self::new(StackDirection::rows(), widgets)
     }
 
     fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
@@ -83,7 +83,7 @@ impl Array {
                             // This is a brand new child.
                             self.synced_children
                                 .insert(index, context.push_child(widget.clone()));
-                            self.layout.insert(index, ArrayDimension::FitContent);
+                            self.layout.insert(index, StackDimension::FitContent);
                         }
                     }
                 }
@@ -99,7 +99,7 @@ impl Array {
     }
 }
 
-impl Widget for Array {
+impl Widget for Stack {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         self.synchronize_children(&mut context.as_event_context());
         self.layout.update(
@@ -144,31 +144,21 @@ impl Widget for Array {
     }
 }
 
-/// The direction of an [`Array`] widget.
+/// The direction of an [`Stack`] widget.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct ArrayDirection {
+pub struct StackDirection {
     /// The orientation of the widgets.
-    pub orientation: ArrayOrientation,
+    pub orientation: StackOrientationn,
     /// If true, the widgets will be laid out in reverse order.
     pub reverse: bool,
 }
 
-/// The orientation (Row/Column) of an [`Array`] widget.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-
-pub enum ArrayOrientation {
-    /// The child widgets should be displayed as rows.
-    Row,
-    /// The child widgets should be displayed as columns.
-    Column,
-}
-
-impl ArrayDirection {
+impl StackDirection {
     /// Display child widgets as columns.
     #[must_use]
     pub const fn columns() -> Self {
         Self {
-            orientation: ArrayOrientation::Column,
+            orientation: StackOrientationn::Column,
             reverse: false,
         }
     }
@@ -177,7 +167,7 @@ impl ArrayDirection {
     #[must_use]
     pub const fn columns_rev() -> Self {
         Self {
-            orientation: ArrayOrientation::Column,
+            orientation: StackOrientationn::Column,
             reverse: true,
         }
     }
@@ -186,7 +176,7 @@ impl ArrayDirection {
     #[must_use]
     pub const fn rows() -> Self {
         Self {
-            orientation: ArrayOrientation::Row,
+            orientation: StackOrientationn::Row,
             reverse: false,
         }
     }
@@ -195,7 +185,7 @@ impl ArrayDirection {
     #[must_use]
     pub const fn rows_rev() -> Self {
         Self {
-            orientation: ArrayOrientation::Row,
+            orientation: StackOrientationn::Row,
             reverse: true,
         }
     }
@@ -203,31 +193,41 @@ impl ArrayDirection {
     /// Splits a size into its measured and other parts.
     pub(crate) fn split_size<U>(self, s: Size<U>) -> (U, U) {
         match self.orientation {
-            ArrayOrientation::Row => (s.height, s.width),
-            ArrayOrientation::Column => (s.width, s.height),
+            StackOrientationn::Row => (s.height, s.width),
+            StackOrientationn::Column => (s.width, s.height),
         }
     }
 
     /// Combines split values into a [`Size`].
     pub(crate) fn make_size<U>(self, measured: U, other: U) -> Size<U> {
         match self.orientation {
-            ArrayOrientation::Row => Size::new(other, measured),
-            ArrayOrientation::Column => Size::new(measured, other),
+            StackOrientationn::Row => Size::new(other, measured),
+            StackOrientationn::Column => Size::new(measured, other),
         }
     }
 
     /// Combines split values into a [`Point`].
     pub(crate) fn make_point<U>(self, measured: U, other: U) -> Point<U> {
         match self.orientation {
-            ArrayOrientation::Row => Point::new(other, measured),
-            ArrayOrientation::Column => Point::new(measured, other),
+            StackOrientationn::Row => Point::new(other, measured),
+            StackOrientationn::Column => Point::new(measured, other),
         }
     }
 }
 
-/// The strategy to use when laying a widget out inside of an [`Array`].
+/// The orientation (Row/Column) of an [`Stack`] widget.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum ArrayDimension {
+
+pub enum StackOrientationn {
+    /// The child widgets should be displayed as rows.
+    Row,
+    /// The child widgets should be displayed as columns.
+    Column,
+}
+
+/// The strategy to use when laying a widget out inside of an [`Stack`].
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum StackDimension {
     /// Attempt to lay out the widget based on its contents.
     FitContent,
     /// Use a fractional amount of the available space.
@@ -242,24 +242,24 @@ pub enum ArrayDimension {
 
 #[derive(Debug)]
 struct Layout {
-    children: OrderedLots<ArrayDimension>,
-    layouts: Vec<ArrayLayout>,
+    children: OrderedLots<StackDimension>,
+    layouts: Vec<StackLayout>,
     pub other: UPx,
     total_weights: u32,
     allocated_space: UPx,
     fractional: Vec<(LotId, u8)>,
     measured: Vec<LotId>,
-    pub orientation: ArrayDirection,
+    pub orientation: StackDirection,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-struct ArrayLayout {
+struct StackLayout {
     pub offset: UPx,
     pub size: UPx,
 }
 
 impl Layout {
-    pub const fn new(orientation: ArrayDirection) -> Self {
+    pub const fn new(orientation: StackDirection) -> Self {
         Self {
             orientation,
             children: OrderedLots::new(),
@@ -273,23 +273,23 @@ impl Layout {
     }
 
     #[cfg(test)] // only used in testing
-    pub fn push(&mut self, child: ArrayDimension) {
+    pub fn push(&mut self, child: StackDimension) {
         self.insert(self.len(), child);
     }
 
-    pub fn remove(&mut self, index: usize) -> ArrayDimension {
+    pub fn remove(&mut self, index: usize) -> StackDimension {
         let (id, dimension) = self.children.remove_by_index(index).expect("invalid index");
         self.layouts.remove(index);
 
         match dimension {
-            ArrayDimension::FitContent => {
+            StackDimension::FitContent => {
                 self.measured.retain(|&measured| measured != id);
             }
-            ArrayDimension::Fractional { weight } => {
+            StackDimension::Fractional { weight } => {
                 self.fractional.retain(|(measured, _)| *measured != id);
                 self.total_weights -= u32::from(weight);
             }
-            ArrayDimension::Exact(size) => {
+            StackDimension::Exact(size) => {
                 self.allocated_space -= size;
             }
         }
@@ -307,26 +307,26 @@ impl Layout {
         self.children.swap(a, b);
     }
 
-    pub fn insert(&mut self, index: usize, child: ArrayDimension) {
+    pub fn insert(&mut self, index: usize, child: StackDimension) {
         let id = self.children.insert(index, child);
         let layout = match child {
-            ArrayDimension::FitContent => {
+            StackDimension::FitContent => {
                 self.measured.push(id);
                 UPx(0)
             }
-            ArrayDimension::Fractional { weight } => {
+            StackDimension::Fractional { weight } => {
                 self.total_weights += u32::from(weight);
                 self.fractional.push((id, weight));
                 UPx(0)
             }
-            ArrayDimension::Exact(size) => {
+            StackDimension::Exact(size) => {
                 self.allocated_space += size;
                 size
             }
         };
         self.layouts.insert(
             index,
-            ArrayLayout {
+            StackLayout {
                 offset: UPx(0),
                 size: layout,
             },
@@ -407,7 +407,7 @@ impl Layout {
 }
 
 impl Deref for Layout {
-    type Target = [ArrayLayout];
+    type Target = [StackLayout];
 
     fn deref(&self) -> &Self::Target {
         &self.layouts
@@ -421,12 +421,12 @@ mod tests {
     use kludgine::figures::units::UPx;
     use kludgine::figures::Size;
 
-    use super::{ArrayDimension, ArrayDirection, Layout};
+    use super::{Layout, StackDimension, StackDirection};
     use crate::ConstraintLimit;
 
     struct Child {
         size: UPx,
-        dimension: ArrayDimension,
+        dimension: StackDimension,
         other: UPx,
         divisible_by: Option<UPx>,
     }
@@ -435,19 +435,19 @@ mod tests {
         pub fn new(size: impl Into<UPx>, other: impl Into<UPx>) -> Self {
             Self {
                 size: size.into(),
-                dimension: ArrayDimension::FitContent,
+                dimension: StackDimension::FitContent,
                 other: other.into(),
                 divisible_by: None,
             }
         }
 
         pub fn fixed_size(mut self, size: UPx) -> Self {
-            self.dimension = ArrayDimension::Exact(size);
+            self.dimension = StackDimension::Exact(size);
             self
         }
 
         pub fn weighted(mut self, weight: u8) -> Self {
-            self.dimension = ArrayDimension::Fractional { weight };
+            self.dimension = StackDimension::Fractional { weight };
             self
         }
 
@@ -458,7 +458,7 @@ mod tests {
     }
 
     fn assert_measured_children_in_orientation(
-        orientation: ArrayDirection,
+        orientation: StackDirection,
         children: &[Child],
         available: Size<ConstraintLimit>,
         expected: &[UPx],
@@ -510,18 +510,18 @@ mod tests {
         expected_other: UPx,
     ) {
         assert_measured_children_in_orientation(
-            ArrayDirection::rows(),
+            StackDirection::rows(),
             children,
-            ArrayDirection::rows().make_size(main_constraint, other_constraint),
+            StackDirection::rows().make_size(main_constraint, other_constraint),
             expected,
-            ArrayDirection::rows().make_size(expected_measured, expected_other),
+            StackDirection::rows().make_size(expected_measured, expected_other),
         );
         assert_measured_children_in_orientation(
-            ArrayDirection::columns(),
+            StackDirection::columns(),
             children,
-            ArrayDirection::columns().make_size(main_constraint, other_constraint),
+            StackDirection::columns().make_size(main_constraint, other_constraint),
             expected,
-            ArrayDirection::columns().make_size(expected_measured, expected_other),
+            StackDirection::columns().make_size(expected_measured, expected_other),
         );
     }
 

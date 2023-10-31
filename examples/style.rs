@@ -1,7 +1,7 @@
 use gooey::styles::components::TextColor;
 use gooey::styles::Styles;
 use gooey::widget::{Widget, Widgets};
-use gooey::widgets::array::Array;
+use gooey::widgets::stack::Stack;
 use gooey::widgets::{Button, Style};
 use gooey::window::Window;
 use gooey::{styles, Run};
@@ -9,7 +9,7 @@ use kludgine::Color;
 
 fn main() -> gooey::Result {
     Window::for_widget(
-        Array::rows(
+        Stack::rows(
             Widgets::new()
                 .with_widget(Button::new("Default"))
                 .with_widget(red_text(Button::new("Styled"))),
