@@ -1,26 +1,24 @@
 use std::fmt::Debug;
-use std::panic::UnwindSafe;
 
 use kludgine::figures::utils::lossy_f64_to_f32;
 
 use crate::context::{EventContext, GraphicsContext};
-use crate::dynamic::Dynamic;
 use crate::kludgine::app::winit::event::{DeviceId, KeyEvent, MouseScrollDelta, TouchPhase};
-use crate::kludgine::app::winit::keyboard::Key;
 use crate::kludgine::figures::units::UPx;
 use crate::kludgine::figures::Size;
 use crate::kludgine::tilemap;
 use crate::kludgine::tilemap::TileMapFocus;
 use crate::tick::Tick;
-use crate::widget::{Callback, EventHandling, IntoValue, Value, Widget, HANDLED, UNHANDLED};
+use crate::value::{Dynamic, IntoValue, Value};
+use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
 use crate::ConstraintLimit;
 
+/// A layered tile-based 2d game surface.
 #[derive(Debug)]
 #[must_use]
 pub struct TileMap<Layers> {
     layers: Value<Layers>,
     focus: Value<TileMapFocus>,
-    key: Option<Callback<Key, EventHandling>>,
     zoom: f32,
     tick: Option<Tick>,
 }
@@ -31,32 +29,30 @@ impl<Layers> TileMap<Layers> {
             layers,
             focus: Value::Constant(TileMapFocus::default()),
             zoom: 1.,
-            key: None,
             tick: None,
         }
     }
 
+    /// Returns a new tilemap that contains dynamic layers.
     pub fn dynamic(layers: Dynamic<Layers>) -> Self {
         Self::construct(Value::Dynamic(layers))
     }
 
+    /// Returns a new tilemap that renders `layers`.
     pub fn new(layers: Layers) -> Self {
         Self::construct(Value::Constant(layers))
     }
 
+    /// Sets the camera's focus and returns self.
+    ///
+    /// The tilemap will ensure that `focus` is centered.
+    // TODO how do we allow the camera to "lag" for juice effects?
     pub fn focus_on(mut self, focus: impl IntoValue<TileMapFocus>) -> Self {
         self.focus = focus.into_value();
         self
     }
 
-    pub fn on_key<F>(mut self, key: F) -> Self
-    where
-        F: FnMut(Key) -> EventHandling + Send + UnwindSafe + 'static,
-    {
-        self.key = Some(Callback::new(key));
-        self
-    }
-
+    /// Associates a [`Tick`] with this widget and returns self.
     pub fn tick(mut self, tick: Tick) -> Self {
         self.tick = Some(tick);
         self
@@ -68,15 +64,15 @@ where
     Layers: tilemap::Layers,
 {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        self.focus.redraw_when_changed(context);
-        self.layers.redraw_when_changed(context);
-
         let focus = self.focus.get();
         self.layers
             .map(|layers| tilemap::draw(layers, focus, self.zoom, &mut context.graphics));
 
         if let Some(tick) = &self.tick {
-            tick.rendered();
+            tick.rendered(context);
+        } else {
+            self.focus.redraw_when_changed(context);
+            self.layers.redraw_when_changed(context);
         }
     }
 
@@ -116,13 +112,7 @@ where
         if let Some(tick) = &self.tick {
             tick.key_input(&input)?;
         }
-        if !input.state.is_pressed() {
-            return UNHANDLED;
-        }
-        if let Some(on_key) = &mut self.key {
-            on_key.invoke(input.logical_key.clone())?;
-        }
 
-        UNHANDLED
+        IGNORED
     }
 }

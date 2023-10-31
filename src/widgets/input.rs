@@ -14,24 +14,30 @@ use kludgine::text::TextOrigin;
 use kludgine::{Color, Kludgine};
 
 use crate::context::{EventContext, WidgetContext};
-use crate::styles::{HighlightColor, LineHeight, Styles, TextColor, TextSize};
+use crate::styles::components::{HighlightColor, LineHeight, TextColor, TextSize};
+use crate::styles::Styles;
 use crate::utils::ModifiersExt;
-use crate::widget::{EventHandling, IntoValue, Value, Widget, HANDLED, UNHANDLED};
+use crate::value::{Generation, IntoValue, Value};
+use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
 
 const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
 
+/// A text input widget.
 #[must_use]
 pub struct Input {
+    /// The value of this widget.
     pub text: Value<String>,
     editor: Option<LiveEditor>,
     cursor_state: CursorState,
 }
 
 impl Input {
+    /// Returns an empty widget.
     pub fn empty() -> Self {
         Self::new(String::new())
     }
 
+    /// Returns a new widget containing `initial_text`.
     pub fn new(initial_text: impl IntoValue<String>) -> Self {
         Self {
             text: initial_text.into_value(),
@@ -149,7 +155,7 @@ impl Widget for Input {
         buffer.shape_until_scroll(context.graphics.font_system());
 
         if context.focused() {
-            context.draw_focus_ring(&styles);
+            context.draw_focus_ring_using(&styles);
             context.set_ime_allowed(true);
             let line_height = Px::from_float(buffer.metrics().line_height);
             if let Some(selection) = selection {
@@ -310,7 +316,7 @@ impl Widget for Input {
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         if !input.state.is_pressed() {
-            return UNHANDLED;
+            return IGNORED;
         }
 
         let styles = context.query_style(&[&TextColor]);
@@ -362,7 +368,7 @@ impl Widget for Input {
                 editor.insert_string(&text, None);
                 HANDLED
             }
-            (_, _) => UNHANDLED,
+            (_, _) => IGNORED,
         };
 
         if handled.is_break() {
@@ -400,7 +406,7 @@ impl Widget for Input {
 
 struct LiveEditor {
     editor: Editor,
-    generation: Option<usize>,
+    generation: Option<Generation>,
 }
 
 fn cursor_glyph(buffer: &Buffer, cursor: &Cursor) -> Result<(Point<Px>, Px), NotVisible> {

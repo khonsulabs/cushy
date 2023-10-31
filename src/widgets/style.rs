@@ -6,6 +6,7 @@ use crate::styles::Styles;
 use crate::widget::{BoxedWidget, ManagedWidget, Widget};
 use crate::ConstraintLimit;
 
+/// A widget that applies a set of [`Styles`] to all contained widgets.
 #[derive(Debug)]
 pub struct Style {
     styles: Styles,
@@ -14,6 +15,8 @@ pub struct Style {
 }
 
 impl Style {
+    /// Returns a new widget that applies `styles` to `child` and any children
+    /// it may have.
     pub fn new(styles: impl Into<Styles>, child: impl Widget) -> Self {
         Self {
             styles: styles.into(),

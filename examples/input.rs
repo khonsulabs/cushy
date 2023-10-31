@@ -1,6 +1,6 @@
 use gooey::widgets::Input;
-use gooey::{EventLoopError, Run};
+use gooey::Run;
 
-fn main() -> Result<(), EventLoopError> {
+fn main() -> gooey::Result {
     Input::new("Hello").run()
 }

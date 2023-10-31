@@ -1,3 +1,5 @@
+//! Types for styling widgets.
+
 use std::borrow::Cow;
 use std::collections::{hash_map, HashMap};
 use std::sync::Arc;
@@ -5,64 +7,48 @@ use std::sync::Arc;
 use crate::names::Name;
 use crate::utils::Lazy;
 
-#[macro_export]
-#[doc(hidden)]
-macro_rules! count {
-    ($value:expr ;) => {
-        1
-    };
-    ($value:expr , $($remaining:expr),+ ;) => {
-        1 + count!($($remaining),+ ;)
-    }
-}
+pub mod components;
 
-#[macro_export]
-macro_rules! styles {
-    () => {{
-        $crate::styles::Styles::new()
-    }};
-    ($($component:expr => $value:expr),*) => {{
-        let mut styles = $crate::styles::Styles::with_capacity($crate::count!($($value),* ;));
-        $(styles.push(&$component, $value);)*
-        styles
-    }};
-    ($($component:expr => $value:expr),* ,) => {{
-        $crate::styles!($($component => $value),*)
-    }};
-}
-
+/// A collection of style components organized by their name.
 #[derive(Clone, Debug, Default)]
 pub struct Styles(Arc<HashMap<Group, HashMap<Name, Component>>>);
 
 impl Styles {
+    /// Returns an empty collection.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Returns a collection with the capacity to hold up to `capacity` elements
+    /// without reallocating.
     #[must_use]
-    pub fn with_capacity(components: usize) -> Self {
-        Self(Arc::new(HashMap::with_capacity(components)))
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self(Arc::new(HashMap::with_capacity(capacity)))
     }
 
-    pub fn push_component(&mut self, name: ComponentName, component: impl Into<Component>) {
+    /// Inserts a [`Component`] with a given name.
+    pub fn insert_named(&mut self, name: ComponentName, component: impl Into<Component>) {
         Arc::make_mut(&mut self.0)
             .entry(name.group)
             .or_default()
             .insert(name.name, component.into());
     }
 
-    pub fn push(&mut self, name: &impl NamedComponent, component: impl Into<Component>) {
+    /// Inserts a [`Component`] using then name provided.
+    pub fn insert(&mut self, name: &impl NamedComponent, component: impl Into<Component>) {
         let name = name.name().into_owned();
-        self.push_component(name, component);
+        self.insert_named(name, component);
     }
 
+    /// Adds a [`Component`] for the name provided and returns self.
     #[must_use]
     pub fn with(mut self, name: &impl NamedComponent, component: impl Into<Component>) -> Self {
-        self.push(name, component);
+        self.insert(name, component);
         self
     }
 
+    /// Returns the associated component for the given name, if found.
     #[must_use]
     pub fn get<Named>(&self, component: &Named) -> Option<&Component>
     where
@@ -74,6 +60,8 @@ impl Styles {
             .and_then(|group| group.get(&name.name))
     }
 
+    /// Returns the component associated with the given name, or if not found,
+    /// returns the default value provided by the definition.
     #[must_use]
     pub fn get_or_default<Named>(&self, component: &Named) -> Named::ComponentType
     where
@@ -93,7 +81,7 @@ impl FromIterator<(ComponentName, Component)> for Styles {
         let iter = iter.into_iter();
         let mut styles = Self::with_capacity(iter.size_hint().0);
         for (name, component) in iter {
-            styles.push_component(name, component);
+            styles.insert_named(name, component);
         }
         styles
     }
@@ -113,6 +101,7 @@ impl IntoIterator for Styles {
     }
 }
 
+/// An iterator over the owned contents of a [`Styles`] instance.
 pub struct StylesIntoIter {
     main: hash_map::IntoIter<Group, HashMap<Name, Component>>,
     names: Option<(Group, hash_map::IntoIter<Name, Component>)>,
@@ -136,7 +125,6 @@ impl Iterator for StylesIntoIter {
     }
 }
 
-pub type StyleQuery = Vec<ComponentName>;
 use std::any::Any;
 use std::fmt::Debug;
 use std::panic::{RefUnwindSafe, UnwindSafe};
@@ -145,12 +133,17 @@ use kludgine::figures::units::{Lp, Px};
 use kludgine::figures::ScreenScale;
 use kludgine::Color;
 
+/// A value of a style component.
 #[derive(Debug, Clone)]
 pub enum Component {
+    /// A color.
     Color(Color),
+    /// A single-dimension measurement.
     Dimension(Dimension),
+    /// A percentage between 0.0 and 1.0.
     Percent(f32),
-    Boxed(BoxedComponent),
+    /// A custom component type.
+    Boxed(CustomComponent),
 }
 
 impl From<Color> for Component {
@@ -221,9 +214,12 @@ impl TryFrom<Component> for Lp {
     }
 }
 
+/// A 1-dimensional measurement.
 #[derive(Debug, Clone, Copy)]
 pub enum Dimension {
+    /// Physical Pixels
     Px(Px),
+    /// Logical Pixels
     Lp(Lp),
 }
 
@@ -266,10 +262,12 @@ impl ScreenScale for Dimension {
     }
 }
 
+/// A custom component value.
 #[derive(Debug, Clone)]
-pub struct BoxedComponent(Arc<dyn AnyComponent>);
+pub struct CustomComponent(Arc<dyn AnyComponent>);
 
-impl BoxedComponent {
+impl CustomComponent {
+    /// Wraps an arbitrary value so that it can be used as a [`Component`].
     pub fn new<T>(value: T) -> Self
     where
         T: RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
@@ -277,6 +275,8 @@ impl BoxedComponent {
         Self(Arc::new(value))
     }
 
+    /// Return the contained value cast as `T`. Returns `None` if `T` does is
+    /// not the same type that was provided when this component was created.
     #[must_use]
     pub fn downcast<T>(&self) -> Option<&T>
     where
@@ -299,10 +299,12 @@ where
     }
 }
 
+/// A style component group.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Group(Name);
 
 impl Group {
+    /// Returns a new instance using the group name of `T`.
     #[must_use]
     pub fn new<T>() -> Self
     where
@@ -311,6 +313,7 @@ impl Group {
         Self(T::name())
     }
 
+    /// Returns true if this instance matches the group name of `T`.
     #[must_use]
     pub fn matches<T>(&self) -> bool
     where
@@ -320,10 +323,13 @@ impl Group {
     }
 }
 
+/// A type that represents a group of style components.
 pub trait ComponentGroup {
+    /// Returns the name of the group.
     fn name() -> Name;
 }
 
+/// The Global style components group.
 pub enum Global {}
 
 impl ComponentGroup for Global {
@@ -332,13 +338,17 @@ impl ComponentGroup for Global {
     }
 }
 
+/// A fully-qualified style component name.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ComponentName {
+    /// The group name.
     pub group: Group,
+    /// The name of the component within the group.
     pub name: Name,
 }
 
 impl ComponentName {
+    /// Returns a new instance using `group` and `name`.
     pub fn new(group: Group, name: impl Into<Name>) -> Self {
         Self {
             group,
@@ -346,6 +356,7 @@ impl ComponentName {
         }
     }
 
+    /// Returns a new instance using `G` and `name`.
     pub fn named<G: ComponentGroup>(name: impl Into<Name>) -> Self {
         Self::new(Group::new::<G>(), name)
     }
@@ -356,17 +367,26 @@ impl From<&'static Lazy<ComponentName>> for ComponentName {
         (**value).clone()
     }
 }
+
+/// A type that represents a named style component.
 pub trait NamedComponent {
+    /// Returns the name of the style component.
     fn name(&self) -> Cow<'_, ComponentName>;
 }
 
+/// A type that represents a named component with a default value of a specific
+/// Rust type.
 pub trait ComponentDefinition: NamedComponent {
+    /// The type that will be contained in the [`Component`].
     type ComponentType: Into<Component> + TryFrom<Component, Error = Component>;
 
+    /// Returns the default value to use for this component.
     fn default_value(&self) -> Self::ComponentType;
 }
 
+/// A type that represents a named component with a default value.
 pub trait ComponentDefaultvalue: NamedComponent {
+    /// Returns the default value for this component.
     fn default_component_value(&self) -> Component;
 }
 
@@ -388,73 +408,5 @@ impl NamedComponent for ComponentName {
 impl NamedComponent for Cow<'_, ComponentName> {
     fn name(&self) -> Cow<'_, ComponentName> {
         Cow::Borrowed(self)
-    }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct TextSize;
-
-impl NamedComponent for TextSize {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Global>("text_size"))
-    }
-}
-
-impl ComponentDefinition for TextSize {
-    type ComponentType = Dimension;
-
-    fn default_value(&self) -> Dimension {
-        Dimension::Lp(Lp::points(12))
-    }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct LineHeight;
-
-impl NamedComponent for LineHeight {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Global>("line_height"))
-    }
-}
-
-impl ComponentDefinition for LineHeight {
-    type ComponentType = Dimension;
-
-    fn default_value(&self) -> Dimension {
-        Dimension::Lp(Lp::points(14))
-    }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct TextColor;
-
-impl NamedComponent for TextColor {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Global>("text_color"))
-    }
-}
-
-impl ComponentDefinition for TextColor {
-    type ComponentType = Color;
-
-    fn default_value(&self) -> Color {
-        Color::WHITE
-    }
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct HighlightColor;
-
-impl NamedComponent for HighlightColor {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Global>("highlight_color"))
-    }
-}
-
-impl ComponentDefinition for HighlightColor {
-    type ComponentType = Color;
-
-    fn default_value(&self) -> Color {
-        Color::AQUA
     }
 }

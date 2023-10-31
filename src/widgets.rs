@@ -1,3 +1,5 @@
+//! Built-in [`Widget`](crate::widget::Widget) implementations.
+
 pub mod array;
 mod button;
 mod canvas;

@@ -11,19 +11,23 @@ use kludgine::Color;
 
 use crate::context::{EventContext, GraphicsContext};
 use crate::names::Name;
-use crate::styles::{
-    ComponentDefinition, ComponentGroup, ComponentName, HighlightColor, NamedComponent, TextColor,
-};
-use crate::widget::{Callback, EventHandling, IntoValue, Value, Widget, HANDLED, UNHANDLED};
+use crate::styles::components::{HighlightColor, TextColor};
+use crate::styles::{ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
+use crate::value::{IntoValue, Value};
+use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
 
+/// A clickable button.
 #[derive(Debug)]
 pub struct Button {
+    /// The label to display on the button.
     pub label: Value<String>,
+    /// The callback that is invoked when the button is clicked.
     pub on_click: Option<Callback<()>>,
     buttons_pressed: usize,
 }
 
 impl Button {
+    /// Returns a new button with the provided label.
     pub fn new(label: impl IntoValue<String>) -> Self {
         Self {
             label: label.into_value(),
@@ -32,6 +36,9 @@ impl Button {
         }
     }
 
+    /// Sets the `on_click` callback and returns self.
+    ///
+    /// This callback will be invoked each time the button is clicked.
     #[must_use]
     pub fn on_click<F>(mut self, callback: F) -> Self
     where
@@ -76,7 +83,7 @@ impl Widget for Button {
             .draw_shape(&background, Point::default(), None, None);
 
         if context.focused() {
-            context.draw_focus_ring(&styles);
+            context.draw_focus_ring_using(&styles);
         }
 
         let width = context.graphics.size().width;
@@ -198,7 +205,7 @@ impl Widget for Button {
             }
             HANDLED
         } else {
-            UNHANDLED
+            IGNORED
         }
     }
 

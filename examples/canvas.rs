@@ -1,5 +1,5 @@
 use gooey::widgets::Canvas;
-use gooey::Run;
+use gooey::{Run, Tick};
 use kludgine::figures::units::Px;
 use kludgine::figures::{Angle, IntoSigned, Point, Rect, Size};
 use kludgine::shapes::Shape;
@@ -29,6 +29,6 @@ fn main() -> gooey::Result<()> {
             None,
         )
     })
-    .target_fps(60)
+    .tick(Tick::redraws_per_second(60))
     .run()
 }

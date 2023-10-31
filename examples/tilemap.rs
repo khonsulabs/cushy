@@ -1,4 +1,3 @@
-use gooey::dynamic::Dynamic;
 use gooey::kludgine::app::winit::keyboard::Key;
 use gooey::kludgine::figures::units::Px;
 use gooey::kludgine::figures::{Point, Rect, Size};
@@ -6,9 +5,9 @@ use gooey::kludgine::render::Renderer;
 use gooey::kludgine::shapes::Shape;
 use gooey::kludgine::tilemap::{Object, ObjectLayer, TileKind, TileMapFocus, Tiles, TILE_SIZE};
 use gooey::kludgine::Color;
-use gooey::tick::Tick;
+use gooey::value::Dynamic;
 use gooey::widgets::TileMap;
-use gooey::{EventLoopError, Run};
+use gooey::{Run, Tick};
 
 const PLAYER_SIZE: Px = Px(16);
 
@@ -28,7 +27,7 @@ const TILES: [TileKind; 64] = {
     ]
 };
 
-fn main() -> Result<(), EventLoopError> {
+fn main() -> gooey::Result {
     let mut characters = ObjectLayer::new();
 
     let myself = characters.push(Player {
@@ -43,8 +42,7 @@ fn main() -> Result<(), EventLoopError> {
             layer: 1,
             id: myself,
         })
-        .tick(Tick::fps(60, move |elapsed, input| {
-            // println!("Ticking {input:?}");
+        .tick(Tick::times_per_second(60, move |elapsed, input| {
             let mut direction = Point::new(0., 0.);
             if input.keys.contains(&Key::ArrowDown) {
                 direction.y += 1.0;

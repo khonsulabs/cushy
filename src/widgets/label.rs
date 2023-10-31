@@ -3,30 +3,34 @@ use kludgine::figures::{Point, Size};
 use kludgine::text::{Text, TextOrigin};
 
 use crate::context::GraphicsContext;
-use crate::styles::TextColor;
-use crate::widget::{IntoValue, Value, Widget};
+use crate::styles::components::TextColor;
+use crate::value::{IntoValue, Value};
+use crate::widget::Widget;
 
+/// A read-only text widget.
 #[derive(Debug)]
 pub struct Label {
-    pub contents: Value<String>,
+    /// The contents of the label.
+    pub text: Value<String>,
 }
 
 impl Label {
-    pub fn new(contents: impl IntoValue<String>) -> Self {
+    /// Returns a new label that displays `text`.
+    pub fn new(text: impl IntoValue<String>) -> Self {
         Self {
-            contents: contents.into_value(),
+            text: text.into_value(),
         }
     }
 }
 
 impl Widget for Label {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        self.contents.redraw_when_changed(context);
+        self.text.redraw_when_changed(context);
 
         let center = Point::from(context.graphics.size()) / 2;
         let styles = context.query_style(&[&TextColor]);
         let width = context.graphics.size().width;
-        self.contents.map(|contents| {
+        self.text.map(|contents| {
             context.graphics.draw_text(
                 Text::new(contents, styles.get_or_default(&TextColor))
                     .origin(TextOrigin::Center)
@@ -44,7 +48,7 @@ impl Widget for Label {
         context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
-        self.contents.map(|contents| {
+        self.text.map(|contents| {
             context
                 .graphics
                 .measure_text(Text::from(contents).wrap_at(width))

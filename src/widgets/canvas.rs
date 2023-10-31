@@ -1,21 +1,24 @@
 use std::fmt::Debug;
 use std::panic::UnwindSafe;
-use std::time::{Duration, Instant};
 
 use kludgine::figures::units::UPx;
 use kludgine::figures::Size;
 
 use crate::context::GraphicsContext;
+use crate::value::Dynamic;
 use crate::widget::Widget;
+use crate::Tick;
 
+/// A 2d drawable surface.
 #[must_use]
 pub struct Canvas {
     render: Box<dyn RenderFunction>,
-    target_frame_duration: Option<Duration>,
-    last_frame_time: Option<Instant>,
+    tick: Option<Tick>,
+    redraw: Dynamic<()>,
 }
 
 impl Canvas {
+    /// Returns a new canvas that draws its contents by invoking `render`.
     pub fn new<F>(render: F) -> Self
     where
         F: for<'clip, 'gfx, 'pass, 'context, 'window> FnMut(
@@ -26,30 +29,24 @@ impl Canvas {
     {
         Self {
             render: Box::new(render),
-            target_frame_duration: None,
-            last_frame_time: None,
+            tick: None,
+            redraw: Dynamic::new(()),
         }
     }
 
-    pub fn target_fps(mut self, fps: u16) -> Self {
-        const ONE_SECOND_NS: u64 = 1_000_000_000;
-        let frame_duration = ONE_SECOND_NS / u64::from(fps);
-        self.target_frame_duration = Some(Duration::from_nanos(frame_duration));
+    /// Associates a [`Tick`] with this widget and returns self.
+    pub fn tick(mut self, tick: Tick) -> Self {
+        self.tick = Some(tick);
         self
     }
 }
 
 impl Widget for Canvas {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        context.redraw_when_changed(&self.redraw);
         self.render.render(context);
-
-        if let Some(target_frame_duration) = self.target_frame_duration {
-            let now = Instant::now();
-            let max_target = now + target_frame_duration;
-            let next_frame_target = self.last_frame_time.map_or(max_target, |last_frame_time| {
-                max_target.max(last_frame_time + target_frame_duration)
-            });
-            context.redraw_at(next_frame_target);
+        if let Some(tick) = &self.tick {
+            tick.rendered(context);
         }
     }
 

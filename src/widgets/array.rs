@@ -1,27 +1,35 @@
+//! A widget that combines an array of [`Widgets`] into one.
+
 use std::ops::Deref;
 
 use alot::{LotId, OrderedLots};
 use kludgine::figures::units::UPx;
 use kludgine::figures::{Point, Rect, Size};
 
-use crate::children::Children;
 use crate::context::{AsEventContext, EventContext, GraphicsContext};
-use crate::widget::{IntoValue, ManagedWidget, Value, Widget};
+use crate::value::{Generation, IntoValue, Value};
+use crate::widget::{ManagedWidget, Widget, Widgets};
 use crate::ConstraintLimit;
 
+/// A widget that displays a collection of [`Widgets`] in a
+/// [direction](ArrayDirection).
 #[derive(Debug)]
 pub struct Array {
+    /// The direction to display the children using.
     pub direction: Value<ArrayDirection>,
-    pub children: Value<Children>,
+    /// The children widgets that belong to this array.
+    pub children: Value<Widgets>,
     layout: Layout,
-    layout_generation: Option<usize>,
+    layout_generation: Option<Generation>,
+    // TODO Refactor synced_children into its own type.
     synced_children: Vec<ManagedWidget>,
 }
 
 impl Array {
+    /// Returns a new widget with the given direction and widgets.
     pub fn new(
         direction: impl IntoValue<ArrayDirection>,
-        children: impl IntoValue<Children>,
+        widgets: impl IntoValue<Widgets>,
     ) -> Self {
         let mut direction = direction.into_value();
 
@@ -29,25 +37,27 @@ impl Array {
 
         Self {
             direction,
-            children: children.into_value(),
+            children: widgets.into_value(),
             layout: Layout::new(initial_direction),
             layout_generation: None,
             synced_children: Vec::new(),
         }
     }
 
-    pub fn columns(children: impl IntoValue<Children>) -> Self {
-        Self::new(ArrayDirection::columns(), children)
+    /// Returns a new instance that displays `widgets` in a series of columns.
+    pub fn columns(widgets: impl IntoValue<Widgets>) -> Self {
+        Self::new(ArrayDirection::columns(), widgets)
     }
 
-    pub fn rows(children: impl IntoValue<Children>) -> Self {
-        Self::new(ArrayDirection::rows(), children)
+    /// Returns a new instance that displays `widgets` in a series of rows.
+    pub fn rows(widgets: impl IntoValue<Widgets>) -> Self {
+        Self::new(ArrayDirection::rows(), widgets)
     }
 
     fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
         let current_generation = self.children.generation();
         if current_generation.map_or_else(
-            || self.children.map(Children::len) != self.layout.children.len(),
+            || self.children.map(Widgets::len) != self.layout.children.len(),
             |gen| Some(gen) != self.layout_generation,
         ) {
             self.layout_generation = self.children.generation();
@@ -134,60 +144,99 @@ impl Widget for Array {
     }
 }
 
+/// The direction of an [`Array`] widget.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct ArrayDirection {
+    /// The orientation of the widgets.
+    pub orientation: ArrayOrientation,
+    /// If true, the widgets will be laid out in reverse order.
+    pub reverse: bool,
+}
+
+/// The orientation (Row/Column) of an [`Array`] widget.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 
-pub enum ArrayDirection {
-    Row { reverse: bool },
-    Column { reverse: bool },
+pub enum ArrayOrientation {
+    /// The child widgets should be displayed as rows.
+    Row,
+    /// The child widgets should be displayed as columns.
+    Column,
 }
 
 impl ArrayDirection {
+    /// Display child widgets as columns.
     #[must_use]
     pub const fn columns() -> Self {
-        Self::Column { reverse: false }
+        Self {
+            orientation: ArrayOrientation::Column,
+            reverse: false,
+        }
     }
 
+    /// Display child widgets as columns in reverse order.
     #[must_use]
     pub const fn columns_rev() -> Self {
-        Self::Column { reverse: true }
+        Self {
+            orientation: ArrayOrientation::Column,
+            reverse: true,
+        }
     }
 
+    /// Display child widgets as rows.
     #[must_use]
     pub const fn rows() -> Self {
-        Self::Row { reverse: false }
+        Self {
+            orientation: ArrayOrientation::Row,
+            reverse: false,
+        }
     }
 
+    /// Display child widgets as rows in reverse order.
     #[must_use]
     pub const fn rows_rev() -> Self {
-        Self::Row { reverse: true }
-    }
-
-    pub fn split_size<U>(&self, s: Size<U>) -> (U, U) {
-        match self {
-            Self::Row { .. } => (s.height, s.width),
-            Self::Column { .. } => (s.width, s.height),
+        Self {
+            orientation: ArrayOrientation::Row,
+            reverse: true,
         }
     }
 
-    pub fn make_size<U>(&self, measured: U, other: U) -> Size<U> {
-        match self {
-            Self::Row { .. } => Size::new(other, measured),
-            Self::Column { .. } => Size::new(measured, other),
+    /// Splits a size into its measured and other parts.
+    pub(crate) fn split_size<U>(self, s: Size<U>) -> (U, U) {
+        match self.orientation {
+            ArrayOrientation::Row => (s.height, s.width),
+            ArrayOrientation::Column => (s.width, s.height),
         }
     }
 
-    pub fn make_point<U>(&self, measured: U, other: U) -> Point<U> {
-        match self {
-            Self::Row { .. } => Point::new(other, measured),
-            Self::Column { .. } => Point::new(measured, other),
+    /// Combines split values into a [`Size`].
+    pub(crate) fn make_size<U>(self, measured: U, other: U) -> Size<U> {
+        match self.orientation {
+            ArrayOrientation::Row => Size::new(other, measured),
+            ArrayOrientation::Column => Size::new(measured, other),
+        }
+    }
+
+    /// Combines split values into a [`Point`].
+    pub(crate) fn make_point<U>(self, measured: U, other: U) -> Point<U> {
+        match self.orientation {
+            ArrayOrientation::Row => Point::new(other, measured),
+            ArrayOrientation::Column => Point::new(measured, other),
         }
     }
 }
 
+/// The strategy to use when laying a widget out inside of an [`Array`].
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ArrayDimension {
+    /// Attempt to lay out the widget based on its contents.
     FitContent,
-    Fractional { weight: u8 },
+    /// Use a fractional amount of the available space.
+    Fractional {
+        /// The weight to apply to this widget when dividing multiple widgets
+        /// fractionally.
+        weight: u8,
+    },
+    /// Use an exact measurement for this widget's size.
     Exact(UPx),
 }
 

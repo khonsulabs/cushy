@@ -203,7 +203,7 @@ impl TreeData {
             if let Some(styles) = &node.styles {
                 query.retain(|name| {
                     if let Some(component) = styles.get(name) {
-                        resolved.push(name, component.clone());
+                        resolved.insert(name, component.clone());
                         false
                     } else {
                         true

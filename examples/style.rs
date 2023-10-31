@@ -1,16 +1,16 @@
-use gooey::children::Children;
-use gooey::styles::{Styles, TextColor};
-use gooey::widget::Widget;
+use gooey::styles::components::TextColor;
+use gooey::styles::Styles;
+use gooey::widget::{Widget, Widgets};
 use gooey::widgets::array::Array;
 use gooey::widgets::{Button, Style};
 use gooey::window::Window;
-use gooey::{styles, EventLoopError, Run};
+use gooey::{styles, Run};
 use kludgine::Color;
 
-fn main() -> Result<(), EventLoopError> {
+fn main() -> gooey::Result {
     Window::for_widget(
         Array::rows(
-            Children::new()
+            Widgets::new()
                 .with_widget(Button::new("Default"))
                 .with_widget(red_text(Button::new("Styled"))),
         )

@@ -1,9 +1,11 @@
+//! Types for displaying a [`Widget`](crate::widget::Widget) inside of a desktop
+//! window.
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 
 use kludgine::app::winit::dpi::PhysicalPosition;
-use kludgine::app::winit::error::EventLoopError;
 use kludgine::app::winit::event::{
     DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
@@ -18,19 +20,24 @@ use crate::context::{EventContext, Exclusive, GraphicsContext, WidgetContext};
 use crate::graphics::Graphics;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
-use crate::widget::{BoxedWidget, EventHandling, ManagedWidget, Widget, HANDLED, UNHANDLED};
+use crate::widget::{BoxedWidget, EventHandling, ManagedWidget, Widget, HANDLED, IGNORED};
 use crate::window::sealed::WindowCommand;
 use crate::Run;
 
+/// A currently running Gooey window.
 pub type RunningWindow<'window> = kludgine::app::Window<'window, WindowCommand>;
+
+/// The attributes of a Gooey window.
 pub type WindowAttributes = kludgine::app::WindowAttributes<WindowCommand>;
 
+/// A Gooey window that is not yet running.
 #[must_use]
 pub struct Window<Behavior>
 where
     Behavior: WindowBehavior,
 {
     context: Behavior::Context,
+    /// The attributes of this window.
     pub attributes: WindowAttributes,
 }
 
@@ -46,6 +53,7 @@ where
 }
 
 impl Window<BoxedWidget> {
+    /// Returns a new instance using `widget` as its contents.
     pub fn for_widget<W>(widget: W) -> Self
     where
         W: Widget,
@@ -58,6 +66,8 @@ impl<Behavior> Window<Behavior>
 where
     Behavior: WindowBehavior,
 {
+    /// Returns a new instance using `context` to initialize the window upon
+    /// opening.
     pub fn new(context: Behavior::Context) -> Self {
         Self {
             attributes: WindowAttributes {
@@ -73,36 +83,45 @@ impl<Behavior> Run for Window<Behavior>
 where
     Behavior: WindowBehavior,
 {
-    fn run(self) -> crate::Result<(), EventLoopError> {
+    fn run(self) -> crate::Result {
         GooeyWindow::<Behavior>::run_with(AssertUnwindSafe((
             self.context,
-            RefCell::new(WindowSettings {
+            RefCell::new(sealed::WindowSettings {
                 attributes: Some(self.attributes),
             }),
         )))
     }
 }
 
+/// The behavior of a Gooey window.
 pub trait WindowBehavior: Sized + 'static {
+    /// The type that is provided when initializing this window.
     type Context: UnwindSafe + Send + 'static;
 
+    /// Return a new instance of this behavior using `context`.
     fn initialize(window: &mut RunningWindow<'_>, context: Self::Context) -> Self;
 
+    /// Create the window's root widget. This function is only invoked once.
     fn make_root(&mut self) -> BoxedWidget;
 
+    /// The window has been requested to close. If this function returns true,
+    /// the window will be closed. Returning false prevents the window from
+    /// closing.
     #[allow(unused_variables)]
     fn close_requested(&self, window: &mut RunningWindow<'_>) -> bool {
         true
     }
 
-    fn run() -> Result<(), EventLoopError>
+    /// Runs this behavior as an application.
+    fn run() -> crate::Result
     where
         Self::Context: Default,
     {
         Self::run_with(<Self::Context>::default())
     }
 
-    fn run_with(context: Self::Context) -> Result<(), EventLoopError> {
+    /// Runs this behavior as an application, initialized with `context`.
+    fn run_with(context: Self::Context) -> crate::Result {
         Window::<Self>::new(context).run()
     }
 }
@@ -130,7 +149,7 @@ impl<T> kludgine::app::WindowBehavior<WindowCommand> for GooeyWindow<T>
 where
     T: WindowBehavior,
 {
-    type Context = AssertUnwindSafe<(T::Context, RefCell<WindowSettings>)>;
+    type Context = AssertUnwindSafe<(T::Context, RefCell<sealed::WindowSettings>)>;
 
     fn initialize(
         mut window: RunningWindow<'_>,
@@ -415,14 +434,10 @@ fn recursively_handle_event(
 ) -> Option<ManagedWidget> {
     match each_widget(context) {
         HANDLED => Some(context.widget().clone()),
-        UNHANDLED => context.parent().and_then(|parent| {
+        IGNORED => context.parent().and_then(|parent| {
             recursively_handle_event(&mut context.for_other(&parent), each_widget)
         }),
     }
-}
-
-pub struct WindowSettings {
-    attributes: Option<WindowAttributes>,
 }
 
 #[derive(Default)]
@@ -433,6 +448,12 @@ struct MouseState {
 }
 
 pub(crate) mod sealed {
+    use crate::window::WindowAttributes;
+
+    pub struct WindowSettings {
+        pub attributes: Option<WindowAttributes>,
+    }
+
     pub enum WindowCommand {
         Redraw,
         // RequestClose,
