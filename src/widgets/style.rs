@@ -3,14 +3,14 @@ use kludgine::figures::Size;
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext};
 use crate::styles::Styles;
-use crate::widget::{BoxedWidget, ManagedWidget, Widget};
+use crate::widget::{ManagedWidget, Widget, WidgetInstance};
 use crate::ConstraintLimit;
 
 /// A widget that applies a set of [`Styles`] to all contained widgets.
 #[derive(Debug)]
 pub struct Style {
     styles: Styles,
-    child: BoxedWidget,
+    child: WidgetInstance,
     mounted_child: Option<ManagedWidget>,
 }
 
@@ -20,7 +20,7 @@ impl Style {
     pub fn new(styles: impl Into<Styles>, child: impl Widget) -> Self {
         Self {
             styles: styles.into(),
-            child: BoxedWidget::new(child),
+            child: WidgetInstance::new(child),
             mounted_child: None,
         }
     }

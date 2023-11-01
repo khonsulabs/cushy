@@ -4,7 +4,7 @@ use std::ops::Deref;
 
 use alot::{LotId, OrderedLots};
 use kludgine::figures::units::UPx;
-use kludgine::figures::{Point, Rect, Size};
+use kludgine::figures::{IntoSigned, Point, Rect, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext};
 use crate::value::{Generation, IntoValue, Value};
@@ -117,13 +117,21 @@ impl Widget for Stack {
         for (index, layout) in self.layout.iter().enumerate() {
             let child = &self.synced_children[index];
             if layout.size > 0 {
-                let mut clipped = context.clipped_to(Rect::new(
-                    self.layout.orientation.make_point(layout.offset, UPx(0)),
-                    self.layout
-                        .orientation
-                        .make_size(layout.size, self.layout.other),
-                ));
-                clipped.for_other(child).redraw();
+                context
+                    .for_child(
+                        child,
+                        Rect::new(
+                            self.layout
+                                .orientation
+                                .make_point(layout.offset, UPx(0))
+                                .into_signed(),
+                            self.layout
+                                .orientation
+                                .make_size(layout.size, self.layout.other)
+                                .into_signed(),
+                        ),
+                    )
+                    .redraw();
             }
         }
     }
@@ -402,7 +410,7 @@ impl Layout {
             ConstraintLimit::ClippedAfter(clip_limit) => self.other.min(clip_limit),
         };
 
-        self.orientation.make_size(available_space, self.other)
+        self.orientation.make_size(offset, self.other)
     }
 }
 

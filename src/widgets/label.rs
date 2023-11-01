@@ -27,14 +27,15 @@ impl Widget for Label {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         self.text.redraw_when_changed(context);
 
-        let center = Point::from(context.graphics.size()) / 2;
+        let size = context.graphics.region().size;
+        let center = Point::from(size) / 2;
         let styles = context.query_style(&[&TextColor]);
-        let width = context.graphics.size().width;
+
         self.text.map(|contents| {
             context.graphics.draw_text(
                 Text::new(contents, styles.get_or_default(&TextColor))
                     .origin(TextOrigin::Center)
-                    .wrap_at(width),
+                    .wrap_at(size.width),
                 center,
                 None,
                 None,

@@ -2,6 +2,7 @@
 #![warn(clippy::pedantic, missing_docs)]
 #![allow(clippy::module_name_repetitions, clippy::missing_errors_doc)]
 
+pub mod animation;
 pub mod context;
 mod graphics;
 mod names;
@@ -13,6 +14,8 @@ pub mod value;
 pub mod widget;
 pub mod widgets;
 pub mod window;
+pub use with_clone::WithClone;
+mod with_clone;
 
 pub use kludgine;
 use kludgine::app::winit::error::EventLoopError;
@@ -23,7 +26,7 @@ pub use self::graphics::Graphics;
 pub use self::tick::{InputState, Tick};
 
 /// A limit used when measuring a widget.
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ConstraintLimit {
     /// The widget is expected to occupy a known size.
     Known(UPx),

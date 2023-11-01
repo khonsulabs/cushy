@@ -166,14 +166,14 @@ where
     T: Widget,
 {
     fn run(self) -> crate::Result {
-        BoxedWidget::new(self).run()
+        WidgetInstance::new(self).run()
     }
 }
 
 /// A type that can create a widget.
 pub trait MakeWidget: Sized {
     /// Returns a new widget.
-    fn make_widget(self) -> BoxedWidget;
+    fn make_widget(self) -> WidgetInstance;
 
     /// Runs the widget this type creates as an application.
     fn run(self) -> crate::Result {
@@ -185,8 +185,8 @@ impl<T> MakeWidget for T
 where
     T: Widget,
 {
-    fn make_widget(self) -> BoxedWidget {
-        BoxedWidget::new(self)
+    fn make_widget(self) -> WidgetInstance {
+        WidgetInstance::new(self)
     }
 }
 
@@ -209,9 +209,9 @@ pub const IGNORED: EventHandling = EventHandling::Continue(EventIgnored);
 
 /// An instance of a [`Widget`].
 #[derive(Clone, Debug)]
-pub struct BoxedWidget(Arc<Mutex<dyn Widget>>);
+pub struct WidgetInstance(Arc<Mutex<dyn Widget>>);
 
-impl BoxedWidget {
+impl WidgetInstance {
     /// Returns a new instance containing `widget`.
     pub fn new<W>(widget: W) -> Self
     where
@@ -225,28 +225,28 @@ impl BoxedWidget {
     }
 }
 
-impl Run for BoxedWidget {
+impl Run for WidgetInstance {
     fn run(self) -> crate::Result {
-        Window::<BoxedWidget>::new(self).run()
+        Window::<WidgetInstance>::new(self).run()
     }
 }
 
-impl Eq for BoxedWidget {}
+impl Eq for WidgetInstance {}
 
-impl PartialEq for BoxedWidget {
+impl PartialEq for WidgetInstance {
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
     }
 }
 
-impl WindowBehavior for BoxedWidget {
+impl WindowBehavior for WidgetInstance {
     type Context = Self;
 
     fn initialize(_window: &mut RunningWindow<'_>, context: Self::Context) -> Self {
         context
     }
 
-    fn make_root(&mut self) -> BoxedWidget {
+    fn make_root(&mut self) -> WidgetInstance {
         self.clone()
     }
 }
@@ -297,7 +297,7 @@ where
 #[derive(Clone)]
 pub struct ManagedWidget {
     pub(crate) id: WidgetId,
-    pub(crate) widget: BoxedWidget,
+    pub(crate) widget: WidgetInstance,
     pub(crate) tree: Tree,
 }
 
@@ -334,6 +334,12 @@ impl ManagedWidget {
     /// Returns true if this widget is currently the hovered widget.
     #[must_use]
     pub fn hovered(&self) -> bool {
+        self.tree.is_hovered(self.id)
+    }
+
+    /// Returns true if this widget that is directly beneath the cursor.
+    #[must_use]
+    pub fn primary_hover(&self) -> bool {
         self.tree.hovered_widget() == Some(self.id)
     }
 
@@ -360,8 +366,8 @@ impl PartialEq for ManagedWidget {
     }
 }
 
-impl PartialEq<BoxedWidget> for ManagedWidget {
-    fn eq(&self, other: &BoxedWidget) -> bool {
+impl PartialEq<WidgetInstance> for ManagedWidget {
+    fn eq(&self, other: &WidgetInstance) -> bool {
         &self.widget == other
     }
 }
@@ -370,7 +376,7 @@ impl PartialEq<BoxedWidget> for ManagedWidget {
 #[derive(Debug, Default)]
 #[must_use]
 pub struct Widgets {
-    ordered: Vec<BoxedWidget>,
+    ordered: Vec<WidgetInstance>,
 }
 
 impl Widgets {
@@ -431,7 +437,7 @@ where
 }
 
 impl Deref for Widgets {
-    type Target = [BoxedWidget];
+    type Target = [WidgetInstance];
 
     fn deref(&self) -> &Self::Target {
         &self.ordered

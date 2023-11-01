@@ -65,8 +65,10 @@ where
 {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let focus = self.focus.get();
-        self.layers
-            .map(|layers| tilemap::draw(layers, focus, self.zoom, &mut context.graphics));
+        // TODO this needs to be updated to support being placed in side of a scroll view.
+        self.layers.map(|layers| {
+            tilemap::draw(layers, focus, self.zoom, context.graphics.inner_graphics());
+        });
 
         if let Some(tick) = &self.tick {
             tick.rendered(context);

@@ -7,7 +7,7 @@ use kludgine::figures::units::Px;
 use kludgine::figures::{Point, Rect};
 
 use crate::styles::{ComponentDefaultvalue, Styles};
-use crate::widget::{BoxedWidget, ManagedWidget};
+use crate::widget::{ManagedWidget, WidgetInstance};
 
 #[derive(Clone, Default)]
 pub struct Tree {
@@ -15,7 +15,11 @@ pub struct Tree {
 }
 
 impl Tree {
-    pub fn push_boxed(&self, widget: BoxedWidget, parent: Option<&ManagedWidget>) -> ManagedWidget {
+    pub fn push_boxed(
+        &self,
+        widget: WidgetInstance,
+        parent: Option<&ManagedWidget>,
+    ) -> ManagedWidget {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         let id = WidgetId(data.nodes.push(Node {
             widget: widget.clone(),
@@ -42,6 +46,7 @@ impl Tree {
 
     pub(crate) fn note_rendered_rect(&self, widget: WidgetId, rect: Rect<Px>) {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        rect.extents();
         data.nodes[widget.0].last_rendered_location = Some(rect);
         data.render_order.push(widget);
     }
@@ -56,9 +61,31 @@ impl Tree {
         data.render_order.clear();
     }
 
-    pub fn hover(&self, new_hover: Option<&ManagedWidget>) -> Result<Option<ManagedWidget>, ()> {
+    pub(crate) fn hover(&self, new_hover: Option<&ManagedWidget>) -> Result<HoverResults, ()> {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
-        data.update_tracked_widget(new_hover, self, |data| &mut data.hover)
+        let mut hovered = new_hover
+            .map(|new_hover| data.widget_hierarchy(new_hover.id, self))
+            .unwrap_or_default();
+        match data.update_tracked_widget(new_hover, self, |data| &mut data.hover)? {
+            Some(old_hover) => {
+                let mut old_hovered = data.widget_hierarchy(old_hover.id, self);
+                // For any widgets that were shared, remove them, as they don't
+                // need to have their events fired again.
+                while !old_hovered.is_empty() && old_hovered.get(0) == hovered.get(0) {
+                    old_hovered.remove(0);
+                    hovered.remove(0);
+                }
+
+                Ok(HoverResults {
+                    unhovered: old_hovered,
+                    hovered,
+                })
+            }
+            None => Ok(HoverResults {
+                unhovered: Vec::new(),
+                hovered,
+            }),
+        }
     }
 
     pub fn focus(&self, new_focus: Option<&ManagedWidget>) -> Result<Option<ManagedWidget>, ()> {
@@ -76,11 +103,7 @@ impl Tree {
 
     pub fn widget(&self, id: WidgetId) -> ManagedWidget {
         let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
-        ManagedWidget {
-            id,
-            widget: data.nodes[id.0].widget.clone(),
-            tree: self.clone(),
-        }
+        data.widget(id, self)
     }
 
     pub fn active_widget(&self) -> Option<WidgetId> {
@@ -95,6 +118,19 @@ impl Tree {
             .lock()
             .map_or_else(PoisonError::into_inner, |g| g)
             .hover
+    }
+
+    pub fn is_hovered(&self, id: WidgetId) -> bool {
+        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut search = data.hover;
+        while let Some(hovered) = search {
+            if hovered == id {
+                return true;
+            }
+            search = data.nodes[hovered.0].parent;
+        }
+
+        false
     }
 
     pub fn focused_widget(&self) -> Option<WidgetId> {
@@ -143,6 +179,11 @@ impl Tree {
     }
 }
 
+pub(crate) struct HoverResults {
+    pub unhovered: Vec<ManagedWidget>,
+    pub hovered: Vec<ManagedWidget>,
+}
+
 #[derive(Default)]
 struct TreeData {
     nodes: Lots<Node>,
@@ -153,6 +194,14 @@ struct TreeData {
 }
 
 impl TreeData {
+    fn widget(&self, id: WidgetId, tree: &Tree) -> ManagedWidget {
+        ManagedWidget {
+            id,
+            widget: self.nodes[id.0].widget.clone(),
+            tree: tree.clone(),
+        }
+    }
+
     fn remove_child(&mut self, child: WidgetId, parent: WidgetId) {
         let removed_node = self.nodes.remove(child.0).expect("widget already removed");
         let parent = &mut self.nodes[parent.0];
@@ -169,6 +218,21 @@ impl TreeData {
             let mut node = self.nodes.remove(node.0).expect("detached node missing");
             detached_nodes.append(&mut node.children);
         }
+    }
+
+    pub(crate) fn widget_hierarchy(&self, mut widget: WidgetId, tree: &Tree) -> Vec<ManagedWidget> {
+        let mut hierarchy = Vec::new();
+        loop {
+            hierarchy.push(self.widget(widget, tree));
+            let Some(parent) = self.nodes[widget.0].parent else {
+                break;
+            };
+            widget = parent;
+        }
+
+        hierarchy.reverse();
+
+        hierarchy
     }
 
     fn update_tracked_widget(
@@ -218,7 +282,7 @@ impl TreeData {
 }
 
 pub struct Node {
-    pub widget: BoxedWidget,
+    pub widget: WidgetInstance,
     pub children: Vec<WidgetId>,
     pub parent: Option<WidgetId>,
     pub last_rendered_location: Option<Rect<Px>>,

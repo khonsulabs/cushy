@@ -5,7 +5,7 @@ use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Rect, Size};
+use kludgine::figures::{Point, Rect, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Kludgine;
 
@@ -13,7 +13,7 @@ use crate::graphics::Graphics;
 use crate::styles::components::HighlightColor;
 use crate::styles::{ComponentDefaultvalue, Styles};
 use crate::value::Dynamic;
-use crate::widget::{BoxedWidget, EventHandling, ManagedWidget};
+use crate::widget::{EventHandling, ManagedWidget, WidgetInstance};
 use crate::window::RunningWindow;
 use crate::ConstraintLimit;
 
@@ -126,25 +126,26 @@ impl<'context, 'window> EventContext<'context, 'window> {
     }
 
     pub(crate) fn hover(&mut self, location: Point<Px>) {
-        let newly_hovered = match self.current_node.tree.hover(Some(self.current_node)) {
-            Ok(old_hover) => {
-                if let Some(old_hover) = old_hover {
-                    let mut old_hover_context = self.for_other(&old_hover);
-                    old_hover.lock().unhover(&mut old_hover_context);
-                }
-                true
+        if let Ok(changes) = self.current_node.tree.hover(Some(self.current_node)) {
+            for unhovered in changes.unhovered {
+                let mut context = self.for_other(&unhovered);
+                unhovered.lock().unhover(&mut context);
             }
-            Err(_) => false,
-        };
-        if newly_hovered {
-            self.current_node.lock().hover(location, self);
+            for hover in changes.hovered {
+                let mut context = self.for_other(&hover);
+                hover.lock().hover(location, &mut context);
+            }
         }
     }
 
     pub(crate) fn clear_hover(&mut self) {
-        if let Ok(Some(old_hover)) = self.current_node.tree.hover(None) {
-            let mut old_hover_context = self.for_other(&old_hover);
-            old_hover.lock().unhover(&mut old_hover_context);
+        if let Ok(changes) = self.current_node.tree.hover(None) {
+            assert!(changes.hovered.is_empty());
+
+            for old_hover in changes.unhovered {
+                let mut old_hover_context = self.for_other(&old_hover);
+                old_hover.lock().unhover(&mut old_hover_context);
+            }
         }
     }
 
@@ -254,8 +255,24 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         }
     }
 
+    /// Returns a new `GraphicsContext` that allows invoking graphics functions
+    /// for `widget` and restricts the drawing area to `region`.
+    ///
+    /// This is equivalent to calling
+    /// `self.for_other(widget).clipped_to(region)`.
+    pub fn for_child<'child>(
+        &'child mut self,
+        widget: &'child ManagedWidget,
+        region: Rect<Px>,
+    ) -> GraphicsContext<'child, 'window, 'child, 'gfx, 'pass> {
+        GraphicsContext {
+            widget: self.widget.for_other(widget),
+            graphics: Exclusive::Owned(self.graphics.clipped_to(region)),
+        }
+    }
+
     /// Returns a new graphics context that renders to the `clip` rectangle.
-    pub fn clipped_to(&mut self, clip: Rect<UPx>) -> GraphicsContext<'_, 'window, '_, 'gfx, 'pass> {
+    pub fn clipped_to(&mut self, clip: Rect<Px>) -> GraphicsContext<'_, 'window, '_, 'gfx, 'pass> {
         GraphicsContext {
             widget: self.widget.borrowed(),
             graphics: Exclusive::Owned(self.graphics.clipped_to(clip)),
@@ -267,7 +284,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// To ensure the correct color is used, include [`HighlightColor`] in the
     /// styles request.
     pub fn draw_focus_ring_using(&mut self, styles: &Styles) {
-        let visible_rect = Rect::from(self.graphics.size() - (UPx(1), UPx(1)));
+        let visible_rect = Rect::from(self.graphics.region().size - (Px(1), Px(1)));
         let focus_ring = Shape::stroked_rect(
             visible_rect,
             styles.get_or_default(&HighlightColor),
@@ -291,11 +308,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
     /// context's widget.
     pub fn redraw(&mut self) {
-        // TODO this should not use clip_rect, because it forces UPx, and once
-        // we have scrolling, we can have negative offsets of rectangles where
-        // it's clipped partially.
-        self.current_node
-            .note_rendered_rect(self.graphics.clip_rect().into_signed());
+        self.current_node.note_rendered_rect(self.graphics.region());
         self.current_node.lock().redraw(self);
     }
 }
@@ -326,7 +339,7 @@ pub trait AsEventContext<'window> {
     /// Pushes a new child widget into the widget hierarchy beneathq the
     /// context's widget.
     #[must_use]
-    fn push_child(&mut self, child: BoxedWidget) -> ManagedWidget {
+    fn push_child(&mut self, child: WidgetInstance) -> ManagedWidget {
         let mut context = self.as_event_context();
         let pushed_widget = context
             .current_node
@@ -502,10 +515,17 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         self.pending_state.active.as_ref() == Some(self.current_node)
     }
 
-    /// Returns true if this widget is currently hovered.
+    /// Returns true if this widget is currently hovered, even if the cursor is
+    /// over a child widget.
     #[must_use]
     pub fn hovered(&self) -> bool {
         self.current_node.hovered()
+    }
+
+    /// Returns true if this widget that is directly beneath the cursor.
+    #[must_use]
+    pub fn primary_hover(&self) -> bool {
+        self.current_node.primary_hover()
     }
 
     /// Returns true if this widget is currently focused for user input.

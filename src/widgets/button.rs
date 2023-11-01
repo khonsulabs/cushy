@@ -57,7 +57,8 @@ impl Button {
 
 impl Widget for Button {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let center = Point::from(context.graphics.size()) / 2;
+        let size = context.graphics.region().size;
+        let center = Point::from(size) / 2;
         self.label.redraw_when_changed(context);
 
         let styles = context.query_style(&[
@@ -68,7 +69,7 @@ impl Widget for Button {
             &ButtonHoverBackground,
         ]);
 
-        let visible_rect = Rect::from(context.graphics.size() - (UPx(1), UPx(1)));
+        let visible_rect = Rect::from(size - (Px(1), Px(1)));
 
         let background = if context.active() {
             styles.get_or_default(&ButtonActiveBackground)
@@ -86,12 +87,11 @@ impl Widget for Button {
             context.draw_focus_ring_using(&styles);
         }
 
-        let width = context.graphics.size().width;
         self.label.map(|label| {
             context.graphics.draw_text(
                 Text::new(label, styles.get_or_default(&TextColor))
                     .origin(kludgine::text::TextOrigin::Center)
-                    .wrap_at(width),
+                    .wrap_at(size.width),
                 center,
                 None,
                 None,

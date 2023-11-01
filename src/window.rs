@@ -20,7 +20,7 @@ use crate::context::{EventContext, Exclusive, GraphicsContext, WidgetContext};
 use crate::graphics::Graphics;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
-use crate::widget::{BoxedWidget, EventHandling, ManagedWidget, Widget, HANDLED, IGNORED};
+use crate::widget::{EventHandling, ManagedWidget, Widget, WidgetInstance, HANDLED, IGNORED};
 use crate::window::sealed::WindowCommand;
 use crate::Run;
 
@@ -52,13 +52,13 @@ where
     }
 }
 
-impl Window<BoxedWidget> {
+impl Window<WidgetInstance> {
     /// Returns a new instance using `widget` as its contents.
     pub fn for_widget<W>(widget: W) -> Self
     where
         W: Widget,
     {
-        Self::new(BoxedWidget::new(widget))
+        Self::new(WidgetInstance::new(widget))
     }
 }
 
@@ -102,7 +102,7 @@ pub trait WindowBehavior: Sized + 'static {
     fn initialize(window: &mut RunningWindow<'_>, context: Self::Context) -> Self;
 
     /// Create the window's root widget. This function is only invoked once.
-    fn make_root(&mut self) -> BoxedWidget;
+    fn make_root(&mut self) -> WidgetInstance;
 
     /// The window has been requested to close. If this function returns true,
     /// the window will be closed. Returning false prevents the window from
@@ -422,6 +422,8 @@ where
     ) {
         match event {
             WindowCommand::Redraw => {
+                // TODO we should attempt to batch redraw events so that we're
+                // not constantly sending them from animations.
                 window.set_needs_redraw();
             }
         }
