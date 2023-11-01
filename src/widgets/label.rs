@@ -1,6 +1,6 @@
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Size};
-use kludgine::text::{Text, TextOrigin};
+use kludgine::text::{MeasuredText, Text, TextOrigin};
 
 use crate::context::GraphicsContext;
 use crate::styles::components::TextColor;
@@ -12,6 +12,7 @@ use crate::widget::Widget;
 pub struct Label {
     /// The contents of the label.
     pub text: Value<String>,
+    prepared_text: Option<MeasuredText<Px>>,
 }
 
 impl Label {
@@ -19,6 +20,7 @@ impl Label {
     pub fn new(text: impl IntoValue<String>) -> Self {
         Self {
             text: text.into_value(),
+            prepared_text: None,
         }
     }
 }
@@ -31,16 +33,22 @@ impl Widget for Label {
         let center = Point::from(size) / 2;
         let styles = context.query_style(&[&TextColor]);
 
-        self.text.map(|contents| {
-            context.graphics.draw_text(
-                Text::new(contents, styles.get_or_default(&TextColor))
-                    .origin(TextOrigin::Center)
-                    .wrap_at(size.width),
-                center,
-                None,
-                None,
-            );
-        });
+        if let Some(measured) = &self.prepared_text {
+            context
+                .graphics
+                .draw_measured_text(measured, TextOrigin::Center, center, None, None);
+        } else {
+            self.text.map(|contents| {
+                context.graphics.draw_text(
+                    Text::new(contents, styles.get_or_default(&TextColor))
+                        .wrap_at(size.width)
+                        .origin(TextOrigin::Center),
+                    center,
+                    None,
+                    None,
+                );
+            });
+        }
     }
 
     fn measure(
@@ -50,12 +58,12 @@ impl Widget for Label {
     ) -> Size<UPx> {
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         self.text.map(|contents| {
-            context
+            let measured = context
                 .graphics
-                .measure_text(Text::from(contents).wrap_at(width))
-                .size
-                .try_cast()
-                .unwrap_or_default()
+                .measure_text(Text::from(contents).wrap_at(width));
+            let size = measured.size.try_cast().unwrap_or_default();
+            self.prepared_text = Some(measured);
+            size
         })
     }
 }
