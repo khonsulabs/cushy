@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use gooey::animation::{Animation, AnimationHandle, Spawn};
+use gooey::animation::{AnimationHandle, AnimationTarget, Spawn};
 use gooey::value::Dynamic;
 use gooey::widgets::{Button, Label, Stack};
 use gooey::{widgets, Run, WithClone};
@@ -24,7 +24,12 @@ fn animate_to(
 ) -> impl FnMut(()) {
     (animation, value).with_clone(|(animation, value)| {
         move |_| {
-            animation.set(Animation::linear(value.clone(), target, Duration::from_secs(1)).spawn())
+            animation.set(
+                value
+                    .transition_to(target)
+                    .over(Duration::from_secs(1))
+                    .spawn(),
+            )
         }
     })
 }

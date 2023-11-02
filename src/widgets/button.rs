@@ -11,7 +11,7 @@ use kludgine::shapes::Shape;
 use kludgine::text::Text;
 use kludgine::Color;
 
-use crate::animation::{Animation, AnimationHandle, Spawn};
+use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{EventContext, GraphicsContext, WidgetContext};
 use crate::names::Name;
 use crate::styles::components::{HighlightColor, IntrinsicPadding, TextColor};
@@ -77,12 +77,10 @@ impl Button {
 
         match (immediate, &self.background_color) {
             (false, Some(dynamic)) => {
-                self.background_color_animation = Animation::linear(
-                    dynamic.clone(),
-                    background_color,
-                    Duration::from_millis(150),
-                )
-                .spawn();
+                self.background_color_animation = dynamic
+                    .transition_to(background_color)
+                    .over(Duration::from_millis(150))
+                    .spawn();
             }
             (true, Some(dynamic)) => {
                 dynamic.set(background_color);

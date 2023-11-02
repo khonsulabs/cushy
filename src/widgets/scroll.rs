@@ -11,7 +11,7 @@ use kludgine::figures::{
 use kludgine::shapes::Shape;
 use kludgine::Color;
 
-use crate::animation::{Animation, AnimationHandle, IntoAnimate, Spawn, ZeroToOne};
+use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext};
 use crate::styles::{
     ComponentDefinition, ComponentGroup, ComponentName, Dimension, NamedComponent,
@@ -78,27 +78,25 @@ impl Widget for Scroll {
     }
 
     fn hover(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) {
-        self.scrollbar_opacity_animation = Animation::linear(
-            self.scrollbar_opacity.clone(),
-            ZeroToOne::ONE,
-            Duration::from_millis(300),
-        )
-        .chain(Duration::from_secs(1))
-        .chain(Animation::linear(
-            self.scrollbar_opacity.clone(),
-            ZeroToOne::ZERO,
-            Duration::from_millis(300),
-        ))
-        .spawn();
+        self.scrollbar_opacity_animation = self
+            .scrollbar_opacity
+            .transition_to(ZeroToOne::ONE)
+            .over(Duration::from_millis(300))
+            .and_then(Duration::from_secs(1))
+            .and_then(
+                self.scrollbar_opacity
+                    .transition_to(ZeroToOne::ZERO)
+                    .over(Duration::from_millis(300)),
+            )
+            .spawn();
     }
 
     fn unhover(&mut self, _context: &mut EventContext<'_, '_>) {
-        self.scrollbar_opacity_animation = Animation::linear(
-            self.scrollbar_opacity.clone(),
-            ZeroToOne::ZERO,
-            Duration::from_millis(300),
-        )
-        .spawn();
+        self.scrollbar_opacity_animation = self
+            .scrollbar_opacity
+            .transition_to(ZeroToOne::ZERO)
+            .over(Duration::from_millis(300))
+            .spawn();
     }
 
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {

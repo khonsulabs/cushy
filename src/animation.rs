@@ -11,6 +11,7 @@ use alot::{LotId, Lots};
 use kempt::Set;
 use kludgine::Color;
 
+use crate::impl_all_tuples;
 use crate::value::Dynamic;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
@@ -106,40 +107,88 @@ pub trait Animate: Send + Sync {
     fn animate(&mut self, elapsed: Duration) -> ControlFlow<Duration>;
 }
 
+/// A pending transition for a [`Dynamic`] to a new value.
+pub struct DynamicTransition<T> {
+    /// The dynamic value to change.
+    pub dynamic: Dynamic<T>,
+    /// The final value to store in the [`Dynamic`].
+    pub new_value: T,
+}
+
+impl<T> AnimationTarget for DynamicTransition<T>
+where
+    T: LinearInterpolate + Clone + Send + Sync,
+{
+    type Running = TransitioningDynamic<T>;
+
+    fn begin(self) -> Self::Running {
+        self.into()
+    }
+}
+
+/// A [`DynamicTransition`] that has begun its transition.
+pub struct TransitioningDynamic<T> {
+    change: DynamicTransition<T>,
+    start: T,
+}
+
+impl<T> From<DynamicTransition<T>> for TransitioningDynamic<T>
+where
+    T: Clone,
+{
+    fn from(change: DynamicTransition<T>) -> Self {
+        Self {
+            start: change.dynamic.get(),
+            change,
+        }
+    }
+}
+
+impl<T> AnimateTarget for TransitioningDynamic<T>
+where
+    T: LinearInterpolate + Clone + Send + Sync,
+{
+    fn update(&self, percent: f32) {
+        self.change
+            .dynamic
+            .set(self.start.lerp(&self.change.new_value, percent));
+    }
+
+    fn finish(&self) {
+        self.change.dynamic.set(self.change.new_value.clone());
+    }
+}
+
 /// Describes a change to a new value for a [`Dynamic`] over a specified
 /// [`Duration`], using the `Easing` generic parameter to control how the value
 /// is interpolated.
 #[must_use = "animations are not performed until they are spawned"]
-pub struct Animation<T, Easing = Linear> {
-    value: Dynamic<T>,
-    end: T,
+pub struct Animation<Target, Easing = Linear>
+where
+    Target: AnimationTarget,
+{
+    value: Target,
     duration: Duration,
     _easing: PhantomData<Easing>,
 }
 
 impl<T> Animation<T, Linear>
 where
-    T: LinearInterpolate + Clone + Send + Sync + 'static,
+    T: AnimationTarget,
 {
-    /// Returns a linearly interpolated animation that transitions `value` to
-    /// `end_value` over `duration`.
-    pub fn linear(value: Dynamic<T>, end_value: T, duration: Duration) -> Self {
-        Self::new(value, end_value, duration)
-    }
-}
-
-impl<T, Easing> Animation<T, Easing>
-where
-    T: LinearInterpolate + Clone + Send + Sync + 'static,
-    Easing: self::Easing,
-{
-    /// Returns an animation that transitions `value` to `end_value` over
-    /// `duration` using `Easing` for interpolation.
-    pub fn new(value: Dynamic<T>, end_value: T, duration: Duration) -> Self {
+    fn new(value: T, duration: Duration) -> Self {
         Self {
             value,
-            end: end_value,
             duration,
+            _easing: PhantomData,
+        }
+    }
+
+    /// Returns this animation with a different easing function.
+    pub fn with_easing<Easing: self::Easing>(self) -> Animation<T, Easing> {
+        Animation {
+            value: self.value,
+            duration: self.duration,
             _easing: PhantomData,
         }
     }
@@ -147,18 +196,46 @@ where
 
 impl<T, Easing> IntoAnimate for Animation<T, Easing>
 where
-    T: LinearInterpolate + Clone + Send + Sync + 'static,
+    T: AnimationTarget,
     Easing: self::Easing,
 {
-    type Animate = RunningAnimation<T, Easing>;
+    type Animate = RunningAnimation<T::Running, Easing>;
 
     fn into_animate(self) -> Self::Animate {
         RunningAnimation {
-            start: self.value.get(),
-            animation: self,
+            target: self.value.begin(),
+            duration: self.duration,
             elapsed: Duration::ZERO,
+            _easing: PhantomData,
         }
     }
+}
+
+/// A target for a timed [`Animation`].
+pub trait AnimationTarget: Sized + Send + Sync {
+    /// The type that can linearly interpolate this target.
+    type Running: AnimateTarget;
+
+    /// Record the current value of the target, and return a type that can
+    /// linearly interpolate between the current value and the desired value.
+    fn begin(self) -> Self::Running;
+
+    /// Returns a pending animation that linearly transitions `self` over
+    /// `duration`.
+    ///
+    /// A different [`Easing`] can be used by calling
+    /// [`with_easing`](Animation::with_easing) on the result of this function.
+    fn over(self, duration: Duration) -> Animation<Self, Linear> {
+        Animation::new(self, duration)
+    }
+}
+
+/// The target of an [`Animate`] implementor.
+pub trait AnimateTarget: Send + Sync {
+    /// Updates the target with linear interpolation.
+    fn update(&self, percent: f32);
+    /// Sets the target to the desired completion state.
+    fn finish(&self);
 }
 
 /// A type that can convert into `Box<dyn Animate>`.
@@ -177,10 +254,34 @@ pub trait IntoAnimate: Sized + Send + Sync {
 
     /// Returns an combined animation that performs `self` and `other` in
     /// sequence.
-    fn chain<Other: IntoAnimate>(self, other: Other) -> Chain<Self, Other> {
+    fn and_then<Other: IntoAnimate>(self, other: Other) -> Chain<Self, Other> {
         Chain::new(self, other)
     }
 }
+
+macro_rules! impl_tuple_animate {
+    ($($type:ident $field:tt),+) => {
+        impl<$($type),+> AnimationTarget for ($($type,)+) where $($type: AnimationTarget),+ {
+            type Running = ($(<$type>::Running,)+);
+
+            fn begin(self) -> Self::Running {
+                ($(self.$field.begin(),)+)
+            }
+        }
+
+        impl<$($type),+> AnimateTarget for ($($type,)+) where $($type: AnimateTarget),+ {
+            fn update(&self, percent: f32) {
+                $(self.$field.update(percent);)+
+            }
+
+            fn finish(&self) {
+                $(self.$field.finish();)+
+            }
+        }
+    }
+}
+
+impl_all_tuples!(impl_tuple_animate);
 
 impl<T> BoxAnimate for T
 where
@@ -219,22 +320,20 @@ impl Spawn for Box<dyn Animate> {
 
 impl<T, Easing> Animate for RunningAnimation<T, Easing>
 where
-    T: LinearInterpolate + Clone + Send + Sync,
+    T: AnimateTarget,
     Easing: self::Easing,
 {
     fn animate(&mut self, elapsed: Duration) -> ControlFlow<Duration> {
         self.elapsed = self.elapsed.checked_add(elapsed).unwrap_or(Duration::MAX);
 
-        if let Some(remaining_elapsed) = self.elapsed.checked_sub(self.animation.duration) {
-            self.animation.value.set(self.animation.end.clone());
+        if let Some(remaining_elapsed) = self.elapsed.checked_sub(self.duration) {
+            self.target.finish();
             ControlFlow::Break(remaining_elapsed)
         } else {
             let progress = Easing::ease(ZeroToOne::new(
-                self.elapsed.as_secs_f32() / self.animation.duration.as_secs_f32(),
+                self.elapsed.as_secs_f32() / self.duration.as_secs_f32(),
             ));
-            self.animation
-                .value
-                .set(self.start.lerp(&self.animation.end, progress));
+            self.target.update(progress);
             ControlFlow::Continue(())
         }
     }
@@ -248,9 +347,10 @@ where
 /// created: [`IntoAnimate::into_animate`]. [`Easing`] is used to customize how
 /// interpolation is performed.
 pub struct RunningAnimation<T, Easing> {
-    animation: Animation<T, Easing>,
-    start: T,
+    target: T,
+    duration: Duration,
     elapsed: Duration,
+    _easing: PhantomData<Easing>,
 }
 
 /// A handle to a spawned animation. When dropped, the associated animation will

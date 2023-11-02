@@ -100,3 +100,16 @@ macro_rules! styles {
         $crate::styles!($($component => $value),*)
     }};
 }
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! impl_all_tuples {
+    ($macro_name:ident) => {
+        $macro_name!(T0 0);
+        $macro_name!(T0 0, T1 1);
+        $macro_name!(T0 0, T1 1, T2 2);
+        $macro_name!(T0 0, T1 1, T2 2, T3 3);
+        $macro_name!(T0 0, T1 1, T2 2, T3 3, T4 4);
+        $macro_name!(T0 0, T1 1, T2 2, T3 3, T4 4, T5 5);
+    }
+}

@@ -4,10 +4,8 @@ use std::fmt::Debug;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
-use kludgine::app::WindowHandle;
-
-use crate::context::WidgetContext;
-use crate::window::sealed::WindowCommand;
+use crate::animation::{DynamicTransition, LinearInterpolate};
+use crate::context::{WidgetContext, WindowHandle};
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -90,7 +88,7 @@ impl<T> Dynamic<T> {
         with_clone(self.clone())
     }
 
-    pub(crate) fn redraw_when_changed(&self, window: WindowHandle<WindowCommand>) {
+    pub(crate) fn redraw_when_changed(&self, window: WindowHandle) {
         self.0.redraw_when_changed(window);
     }
 
@@ -135,6 +133,17 @@ impl<T> Dynamic<T> {
     #[must_use]
     pub fn generation(&self) -> Generation {
         self.state().wrapped.generation
+    }
+
+    /// Returns a pending transition for this value to `new_value`.
+    pub fn transition_to(&self, new_value: T) -> DynamicTransition<T>
+    where
+        T: LinearInterpolate + Clone + Send + Sync,
+    {
+        DynamicTransition {
+            dynamic: self.clone(),
+            new_value,
+        }
     }
 }
 
@@ -185,7 +194,7 @@ impl<T> DynamicData<T> {
             .map_or_else(PoisonError::into_inner, |g| g)
     }
 
-    pub fn redraw_when_changed(&self, window: WindowHandle<WindowCommand>) {
+    pub fn redraw_when_changed(&self, window: WindowHandle) {
         let mut state = self.state();
         state.windows.push(window);
     }
@@ -211,7 +220,7 @@ impl<T> DynamicData<T> {
                 callback.update(&state.wrapped);
             }
             for window in state.windows.drain(..) {
-                let _result = window.send(WindowCommand::Redraw);
+                window.redraw();
             }
             result
         };
@@ -251,7 +260,7 @@ impl<T> DynamicData<T> {
 struct State<T> {
     wrapped: GenerationalValue<T>,
     callbacks: Vec<Box<dyn ValueCallback<T>>>,
-    windows: Vec<WindowHandle<WindowCommand>>,
+    windows: Vec<WindowHandle>,
     readers: usize,
 }
 

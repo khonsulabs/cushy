@@ -1,5 +1,7 @@
 //! Types that provide access to the Gooey runtime.
 use std::ops::{Deref, DerefMut};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
@@ -14,7 +16,7 @@ use crate::styles::components::HighlightColor;
 use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles};
 use crate::value::Dynamic;
 use crate::widget::{EventHandling, ManagedWidget, WidgetInstance};
-use crate::window::RunningWindow;
+use crate::window::{sealed, RunningWindow};
 use crate::ConstraintLimit;
 
 /// A context to an event function.
@@ -378,6 +380,7 @@ impl<'window> AsEventContext<'window> for GraphicsContext<'_, 'window, '_, '_, '
 /// specific widget.
 pub struct WidgetContext<'context, 'window> {
     current_node: &'context ManagedWidget,
+    redraw_status: &'context RedrawStatus,
     window: &'context mut RunningWindow<'window>,
     pending_state: PendingState<'context>,
 }
@@ -385,10 +388,12 @@ pub struct WidgetContext<'context, 'window> {
 impl<'context, 'window> WidgetContext<'context, 'window> {
     pub(crate) fn new(
         current_node: &'context ManagedWidget,
+        redraw_status: &'context RedrawStatus,
         window: &'context mut RunningWindow<'window>,
     ) -> Self {
         Self {
             current_node,
+            redraw_status,
             window,
             pending_state: PendingState::Owned(PendingWidgetState {
                 focus: current_node
@@ -407,6 +412,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     pub fn borrowed(&mut self) -> WidgetContext<'_, 'window> {
         WidgetContext {
             current_node: self.current_node,
+            redraw_status: self.redraw_status,
             window: &mut *self.window,
             pending_state: self.pending_state.borrowed(),
         }
@@ -419,6 +425,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     ) -> WidgetContext<'child, 'window> {
         WidgetContext {
             current_node: widget,
+            redraw_status: self.redraw_status,
             window: &mut *self.window,
             pending_state: self.pending_state.borrowed(),
         }
@@ -430,7 +437,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
 
     /// Ensures that this widget will be redrawn when `value` has been updated.
     pub fn redraw_when_changed<T>(&self, value: &Dynamic<T>) {
-        value.redraw_when_changed(self.window.handle());
+        value.redraw_when_changed(self.handle());
     }
 
     /// Returns the region that this widget last rendered at.
@@ -576,6 +583,26 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     ) -> Component::ComponentType {
         self.current_node.tree.query_style(self.current_node, query)
     }
+
+    pub(crate) fn handle(&self) -> WindowHandle {
+        WindowHandle {
+            kludgine: self.window.handle(),
+            redraw_status: self.redraw_status.clone(),
+        }
+    }
+}
+
+pub(crate) struct WindowHandle {
+    kludgine: kludgine::app::WindowHandle<sealed::WindowCommand>,
+    redraw_status: RedrawStatus,
+}
+
+impl WindowHandle {
+    pub fn redraw(&self) {
+        if self.redraw_status.should_send_refresh() {
+            let _result = self.kludgine.send(sealed::WindowCommand::Redraw);
+        }
+    }
 }
 
 impl dyn AsEventContext<'_> {}
@@ -635,5 +662,22 @@ impl DerefMut for PendingState<'_> {
             PendingState::Borrowed(state) => state,
             PendingState::Owned(state) => state,
         }
+    }
+}
+
+#[derive(Default, Clone)]
+pub(crate) struct RedrawStatus {
+    refresh_sent: Arc<AtomicBool>,
+}
+
+impl RedrawStatus {
+    pub fn should_send_refresh(&self) -> bool {
+        self.refresh_sent
+            .compare_exchange(false, true, Ordering::Release, Ordering::Acquire)
+            .is_ok()
+    }
+
+    pub fn refresh_received(&self) {
+        self.refresh_sent.store(false, Ordering::Release);
     }
 }
