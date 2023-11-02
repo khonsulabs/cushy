@@ -1,3 +1,4 @@
+//! A container that scrolls its contents on a virtual surface.
 use std::borrow::Cow;
 use std::time::Duration;
 
@@ -10,7 +11,7 @@ use kludgine::figures::{
 use kludgine::shapes::Shape;
 use kludgine::Color;
 
-use crate::animation::{Animation, AnimationHandle, Spawn, ZeroToOne};
+use crate::animation::{Animation, AnimationHandle, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext};
 use crate::styles::{
     ComponentDefinition, ComponentGroup, ComponentName, Dimension, NamedComponent,
@@ -82,6 +83,12 @@ impl Widget for Scroll {
             ZeroToOne::ONE,
             Duration::from_millis(300),
         )
+        .chain(Duration::from_secs(1))
+        .chain(Animation::linear(
+            self.scrollbar_opacity.clone(),
+            ZeroToOne::ZERO,
+            Duration::from_millis(300),
+        ))
         .spawn();
     }
 
@@ -101,7 +108,7 @@ impl Widget for Scroll {
             return;
         };
         let visible_bottom_right = visible_rect.into_signed().extent();
-        let styles = context.query_style(&[&ScrollBarThickness]);
+        let styles = context.query_styles(&[&ScrollBarThickness]);
         let bar_width = styles
             .get_or_default(&ScrollBarThickness)
             .into_px(context.graphics.scale());
@@ -219,13 +226,14 @@ fn scrollbar_region(scroll: Px, content_size: Px, control_size: Px) -> Scrollbar
     }
 }
 
+/// The thickness that scrollbars are drawn with.
 pub struct ScrollBarThickness;
 
 impl ComponentDefinition for ScrollBarThickness {
     type ComponentType = Dimension;
 
     fn default_value(&self) -> Self::ComponentType {
-        Dimension::Lp(Lp::points(9))
+        Dimension::Lp(Lp::points(7))
     }
 }
 

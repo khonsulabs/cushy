@@ -77,3 +77,25 @@ impl ComponentDefinition for HighlightColor {
         Color::AQUA
     }
 }
+
+/// Intrinsic, uniform padding for a widget.
+///
+/// This component is opt-in and does not automatically work for all widgets. To
+/// apply arbitrary, non-uniform padding around another widget, use a
+/// [`Cell`](crate::widgets::Cell).
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct IntrinsicPadding;
+
+impl NamedComponent for IntrinsicPadding {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("padding"))
+    }
+}
+
+impl ComponentDefinition for IntrinsicPadding {
+    type ComponentType = Dimension;
+
+    fn default_value(&self) -> Dimension {
+        Dimension::Lp(Lp::points(5))
+    }
+}

@@ -1,19 +1,22 @@
+//! A clickable, labeled button
 use std::borrow::Cow;
 use std::panic::UnwindSafe;
+use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
 use kludgine::app::winit::keyboard::KeyCode;
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoUnsigned, Point, Rect, Size};
+use kludgine::figures::{IntoUnsigned, Point, Rect, ScreenScale, Size};
 use kludgine::shapes::Shape;
 use kludgine::text::Text;
 use kludgine::Color;
 
-use crate::context::{EventContext, GraphicsContext};
+use crate::animation::{Animation, AnimationHandle, Spawn};
+use crate::context::{EventContext, GraphicsContext, WidgetContext};
 use crate::names::Name;
-use crate::styles::components::{HighlightColor, TextColor};
+use crate::styles::components::{HighlightColor, IntrinsicPadding, TextColor};
 use crate::styles::{ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
-use crate::value::{IntoValue, Value};
+use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
 
 /// A clickable button.
@@ -24,6 +27,8 @@ pub struct Button {
     /// The callback that is invoked when the button is clicked.
     pub on_click: Option<Callback<()>>,
     buttons_pressed: usize,
+    background_color: Option<Dynamic<Color>>,
+    background_color_animation: AnimationHandle,
 }
 
 impl Button {
@@ -33,6 +38,8 @@ impl Button {
             label: label.into_value(),
             on_click: None,
             buttons_pressed: 0,
+            background_color: None,
+            background_color_animation: AnimationHandle::default(),
         }
     }
 
@@ -53,6 +60,50 @@ impl Button {
             on_click.invoke(());
         }
     }
+
+    fn update_background_color(&mut self, context: &WidgetContext<'_, '_>, immediate: bool) {
+        let styles = context.query_styles(&[
+            &ButtonActiveBackground,
+            &ButtonBackground,
+            &ButtonHoverBackground,
+        ]);
+        let background_color = if context.active() {
+            styles.get_or_default(&ButtonActiveBackground)
+        } else if context.hovered() {
+            styles.get_or_default(&ButtonHoverBackground)
+        } else {
+            styles.get_or_default(&ButtonBackground)
+        };
+
+        match (immediate, &self.background_color) {
+            (false, Some(dynamic)) => {
+                self.background_color_animation = Animation::linear(
+                    dynamic.clone(),
+                    background_color,
+                    Duration::from_millis(150),
+                )
+                .spawn();
+            }
+            (true, Some(dynamic)) => {
+                dynamic.set(background_color);
+                self.background_color_animation.clear();
+            }
+            (_, None) => {
+                let dynamic = Dynamic::new(background_color);
+                self.background_color = Some(dynamic);
+            }
+        }
+    }
+
+    fn current_background_color(&mut self, context: &WidgetContext<'_, '_>) -> Color {
+        if self.background_color.is_none() {
+            self.update_background_color(context, false);
+        }
+
+        let background_color = self.background_color.as_ref().expect("always initialized");
+        context.redraw_when_changed(background_color);
+        background_color.get()
+    }
 }
 
 impl Widget for Button {
@@ -61,7 +112,7 @@ impl Widget for Button {
         let center = Point::from(size) / 2;
         self.label.redraw_when_changed(context);
 
-        let styles = context.query_style(&[
+        let styles = context.query_styles(&[
             &TextColor,
             &HighlightColor,
             &ButtonActiveBackground,
@@ -71,13 +122,7 @@ impl Widget for Button {
 
         let visible_rect = Rect::from(size - (Px(1), Px(1)));
 
-        let background = if context.active() {
-            styles.get_or_default(&ButtonActiveBackground)
-        } else if context.hovered() {
-            styles.get_or_default(&ButtonHoverBackground)
-        } else {
-            styles.get_or_default(&ButtonBackground)
-        };
+        let background = self.current_background_color(context);
         let background = Shape::filled_rect(visible_rect, background);
         context
             .graphics
@@ -173,6 +218,10 @@ impl Widget for Button {
         available_space: Size<crate::ConstraintLimit>,
         context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
+        let padding = context
+            .query_style(&IntrinsicPadding)
+            .into_px(context.graphics.scale())
+            .into_unsigned();
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         self.label.map(|label| {
             let measured = context
@@ -180,7 +229,8 @@ impl Widget for Button {
                 .measure_text::<Px>(Text::from(label).wrap_at(width));
 
             let mut size = measured.size.into_unsigned();
-            size.height = size.height.max(measured.line_height.into_unsigned());
+            size.width += padding * 2;
+            size.height = size.height.max(measured.line_height.into_unsigned()) + padding * 2;
             size
         })
     }
@@ -210,11 +260,11 @@ impl Widget for Button {
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
-        context.set_needs_redraw();
+        self.update_background_color(context, false);
     }
 
     fn hover(&mut self, _location: Point<Px>, context: &mut EventContext<'_, '_>) {
-        context.set_needs_redraw();
+        self.update_background_color(context, false);
     }
 
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {
@@ -226,11 +276,11 @@ impl Widget for Button {
     }
 
     fn activate(&mut self, context: &mut EventContext<'_, '_>) {
-        context.set_needs_redraw();
+        self.update_background_color(context, true);
     }
 
     fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {
-        context.set_needs_redraw();
+        self.update_background_color(context, false);
     }
 }
 
@@ -240,6 +290,7 @@ impl ComponentGroup for Button {
     }
 }
 
+/// The background color of the button.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ButtonBackground;
 
@@ -257,6 +308,7 @@ impl ComponentDefinition for ButtonBackground {
     }
 }
 
+/// The background color of the button when it is active (depressed).
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ButtonActiveBackground;
 
@@ -274,6 +326,8 @@ impl ComponentDefinition for ButtonActiveBackground {
     }
 }
 
+/// The background color of the button when the mouse cursor is hovering over
+/// it.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ButtonHoverBackground;
 

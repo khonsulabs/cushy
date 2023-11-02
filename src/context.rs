@@ -11,7 +11,7 @@ use kludgine::Kludgine;
 
 use crate::graphics::Graphics;
 use crate::styles::components::HighlightColor;
-use crate::styles::{ComponentDefaultvalue, Styles};
+use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles};
 use crate::value::Dynamic;
 use crate::widget::{EventHandling, ManagedWidget, WidgetInstance};
 use crate::window::RunningWindow;
@@ -126,31 +126,29 @@ impl<'context, 'window> EventContext<'context, 'window> {
     }
 
     pub(crate) fn hover(&mut self, location: Point<Px>) {
-        if let Ok(changes) = self.current_node.tree.hover(Some(self.current_node)) {
-            for unhovered in changes.unhovered {
-                let mut context = self.for_other(&unhovered);
-                unhovered.lock().unhover(&mut context);
-            }
-            for hover in changes.hovered {
-                let mut context = self.for_other(&hover);
-                hover.lock().hover(location, &mut context);
-            }
+        let changes = self.current_node.tree.hover(Some(self.current_node));
+        for unhovered in changes.unhovered {
+            let mut context = self.for_other(&unhovered);
+            unhovered.lock().unhover(&mut context);
+        }
+        for hover in changes.hovered {
+            let mut context = self.for_other(&hover);
+            hover.lock().hover(location, &mut context);
         }
     }
 
     pub(crate) fn clear_hover(&mut self) {
-        if let Ok(changes) = self.current_node.tree.hover(None) {
-            assert!(changes.hovered.is_empty());
+        let changes = self.current_node.tree.hover(None);
+        assert!(changes.hovered.is_empty());
 
-            for old_hover in changes.unhovered {
-                let mut old_hover_context = self.for_other(&old_hover);
-                old_hover.lock().unhover(&mut old_hover_context);
-            }
+        for old_hover in changes.unhovered {
+            let mut old_hover_context = self.for_other(&old_hover);
+            old_hover.lock().unhover(&mut old_hover_context);
         }
     }
 
     pub(crate) fn apply_pending_state(&mut self) {
-        let active = self.pending_state.active.take();
+        let active = self.pending_state.active.clone();
         if self.current_node.tree.active_widget() != active.as_ref().map(|active| active.id) {
             let new = match self.current_node.tree.activate(active.as_ref()) {
                 Ok(old) => {
@@ -164,12 +162,12 @@ impl<'context, 'window> EventContext<'context, 'window> {
             };
             if new {
                 if let Some(active) = active {
-                    active.lock().activate(self);
+                    active.lock().activate(&mut self.for_other(&active));
                 }
             }
         }
 
-        let focus = self.pending_state.focus.take();
+        let focus = self.pending_state.focus.clone();
         if self.current_node.tree.focused_widget() != focus.as_ref().map(|focus| focus.id) {
             let new = match self.current_node.tree.focus(focus.as_ref()) {
                 Ok(old) => {
@@ -183,7 +181,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
             };
             if new {
                 if let Some(focus) = focus {
-                    focus.lock().focus(self);
+                    focus.lock().focus(&mut self.for_other(&focus));
                 }
             }
         }
@@ -296,7 +294,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
 
     /// Renders the default focus ring for this widget.
     pub fn draw_focus_ring(&mut self) {
-        self.draw_focus_ring_using(&self.query_style(&[&HighlightColor]));
+        self.draw_focus_ring_using(&self.query_styles(&[&HighlightColor]));
     }
 
     /// Invokes [`Widget::measure()`](crate::widget::Widget::measure) on this
@@ -559,7 +557,23 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// widget is provided as a convenient way to attach styles into the widget
     /// hierarchy.
     #[must_use]
-    pub fn query_style(&self, query: &[&dyn ComponentDefaultvalue]) -> Styles {
+    pub fn query_styles(&self, query: &[&dyn ComponentDefaultvalue]) -> Styles {
+        self.current_node
+            .tree
+            .query_styles(self.current_node, query)
+    }
+
+    /// Queries the widget hierarchy for a single style component.
+    ///
+    /// This function traverses up the widget hierarchy looking for the
+    /// component being requested. If a matching component is found, it will be
+    /// returned. Otherwise, the default value will be returned.
+
+    #[must_use]
+    pub fn query_style<Component: ComponentDefinition>(
+        &self,
+        query: &Component,
+    ) -> Component::ComponentType {
         self.current_node.tree.query_style(self.current_node, query)
     }
 }

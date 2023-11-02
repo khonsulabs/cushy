@@ -71,7 +71,9 @@ impl Styles {
         self.0
             .get(&name.group)
             .and_then(|group| group.get(&name.name))
-            .and_then(|component| component.clone().try_into().ok())
+            .and_then(|component| {
+                <Named::ComponentType>::try_from_component(component.clone()).ok()
+            })
             .unwrap_or_else(|| component.default_value())
     }
 }
@@ -143,7 +145,7 @@ pub enum Component {
     /// A percentage between 0.0 and 1.0.
     Percent(f32),
     /// A custom component type.
-    Boxed(CustomComponent),
+    Custom(CustomComponent),
 }
 
 impl From<Color> for Component {
@@ -223,6 +225,12 @@ pub enum Dimension {
     Lp(Lp),
 }
 
+impl Default for Dimension {
+    fn default() -> Self {
+        Self::Px(Px(0))
+    }
+}
+
 impl From<Px> for Dimension {
     fn from(value: Px) -> Self {
         Self::Px(value)
@@ -283,6 +291,19 @@ impl CustomComponent {
         T: Debug + Send + Sync + 'static,
     {
         self.0.as_ref().as_any().downcast_ref()
+    }
+}
+
+impl ComponentType for CustomComponent {
+    fn into_component(self) -> Component {
+        Component::Custom(self)
+    }
+
+    fn try_from_component(component: Component) -> Result<Self, Component> {
+        match component {
+            Component::Custom(custom) => Ok(custom),
+            other => Err(other),
+        }
     }
 }
 
@@ -378,10 +399,32 @@ pub trait NamedComponent {
 /// Rust type.
 pub trait ComponentDefinition: NamedComponent {
     /// The type that will be contained in the [`Component`].
-    type ComponentType: Into<Component> + TryFrom<Component, Error = Component>;
+    type ComponentType: ComponentType;
 
     /// Returns the default value to use for this component.
     fn default_value(&self) -> Self::ComponentType;
+}
+
+/// A type that can be converted to and from [`Component`].
+pub trait ComponentType: Sized {
+    /// Returns this type, wrapped in a [`Component`].
+    fn into_component(self) -> Component;
+    /// Attempts to extract this type from `component`. If `component` does not
+    /// contain this type, `Err(component)` is returned.
+    fn try_from_component(component: Component) -> Result<Self, Component>;
+}
+
+impl<T> ComponentType for T
+where
+    T: Into<Component> + TryFrom<Component, Error = Component>,
+{
+    fn into_component(self) -> Component {
+        self.into()
+    }
+
+    fn try_from_component(component: Component) -> Result<Self, Component> {
+        Self::try_from(component)
+    }
 }
 
 /// A type that represents a named component with a default value.
@@ -395,7 +438,7 @@ where
     T: ComponentDefinition,
 {
     fn default_component_value(&self) -> Component {
-        self.default_value().into()
+        self.default_value().into_component()
     }
 }
 

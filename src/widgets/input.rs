@@ -80,7 +80,7 @@ impl Input {
     }
 
     fn styles(context: &WidgetContext<'_, '_>) -> Styles {
-        context.query_style(&[&TextColor, &TextSize, &LineHeight])
+        context.query_styles(&[&TextColor, &TextSize, &LineHeight])
     }
 }
 
@@ -105,7 +105,7 @@ impl Widget for Input {
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         context.focus();
-        let styles = context.query_style(&[&TextColor]);
+        let styles = context.query_styles(&[&TextColor]);
         self.editor_mut(context.kludgine, &styles).action(
             context.kludgine.font_system(),
             Action::Click {
@@ -124,7 +124,7 @@ impl Widget for Input {
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_, '_>,
     ) {
-        let styles = context.query_style(&[&TextColor]);
+        let styles = context.query_styles(&[&TextColor]);
         self.editor_mut(context.kludgine, &styles).action(
             context.kludgine.font_system(),
             Action::Drag {
@@ -141,7 +141,7 @@ impl Widget for Input {
         self.cursor_state.update(context.elapsed());
         let cursor_state = self.cursor_state;
         let size = context.graphics.size();
-        let styles = context.query_style(&[&TextColor, &HighlightColor]);
+        let styles = context.query_styles(&[&TextColor, &HighlightColor]);
         let highlight = styles.get_or_default(&HighlightColor);
         let editor = self.editor_mut(&mut context.graphics, &styles);
         let cursor = editor.cursor();
@@ -293,7 +293,7 @@ impl Widget for Input {
         available_space: kludgine::figures::Size<crate::ConstraintLimit>,
         context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>,
     ) -> kludgine::figures::Size<kludgine::figures::units::UPx> {
-        let styles = context.query_style(&[&TextColor]);
+        let styles = context.query_styles(&[&TextColor]);
         let editor = self.editor_mut(&mut context.graphics, &styles);
         let buffer = editor.buffer_mut();
         buffer.set_size(
@@ -319,7 +319,7 @@ impl Widget for Input {
             return IGNORED;
         }
 
-        let styles = context.query_style(&[&TextColor]);
+        let styles = context.query_styles(&[&TextColor]);
         let editor = self.editor_mut(context.kludgine, &styles);
 
         println!(

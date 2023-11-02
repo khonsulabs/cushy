@@ -27,7 +27,7 @@ impl<Layers> TileMap<Layers> {
     fn construct(layers: Value<Layers>) -> Self {
         Self {
             layers,
-            focus: Value::Constant(TileMapFocus::default()),
+            focus: Value::default(),
             zoom: 1.,
             tick: None,
         }

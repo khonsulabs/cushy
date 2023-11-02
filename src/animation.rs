@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use alot::{LotId, Lots};
 use kempt::Set;
+use kludgine::Color;
 
 use crate::value::Dynamic;
 
@@ -337,6 +338,25 @@ where
     }
 }
 
+impl IntoAnimate for Duration {
+    type Animate = Self;
+
+    fn into_animate(self) -> Self::Animate {
+        self
+    }
+}
+
+impl Animate for Duration {
+    fn animate(&mut self, elapsed: Duration) -> ControlFlow<Duration> {
+        if let Some(remaining) = self.checked_sub(elapsed) {
+            *self = remaining;
+            ControlFlow::Continue(())
+        } else {
+            ControlFlow::Break(elapsed - *self)
+        }
+    }
+}
+
 /// Performs a linear interpolation between two values.
 pub trait LinearInterpolate {
     /// Interpolate linearly between `self` and `target` using `percent`.
@@ -407,6 +427,17 @@ fn integer_lerps() {
     test_lerps(&i64::MIN, &i64::MAX, &0);
     test_lerps(&i128::MIN, &i128::MAX, &0);
     test_lerps(&isize::MIN, &isize::MAX, &0);
+}
+
+impl LinearInterpolate for Color {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        Color::new(
+            self.red().lerp(&target.red(), percent),
+            self.green().lerp(&target.green(), percent),
+            self.blue().lerp(&target.blue(), percent),
+            self.alpha().lerp(&target.alpha(), percent),
+        )
+    }
 }
 
 /// An `f32` that is clamped between 0.0 and 1.0 and cannot be NaN or Infinity.

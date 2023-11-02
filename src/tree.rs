@@ -6,7 +6,7 @@ use alot::{LotId, Lots};
 use kludgine::figures::units::Px;
 use kludgine::figures::{Point, Rect};
 
-use crate::styles::{ComponentDefaultvalue, Styles};
+use crate::styles::{ComponentDefaultvalue, ComponentDefinition, ComponentType, Styles};
 use crate::widget::{ManagedWidget, WidgetInstance};
 
 #[derive(Clone, Default)]
@@ -61,31 +61,26 @@ impl Tree {
         data.render_order.clear();
     }
 
-    pub(crate) fn hover(&self, new_hover: Option<&ManagedWidget>) -> Result<HoverResults, ()> {
+    pub(crate) fn hover(&self, new_hover: Option<&ManagedWidget>) -> HoverResults {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
-        let mut hovered = new_hover
+        let hovered = new_hover
             .map(|new_hover| data.widget_hierarchy(new_hover.id, self))
             .unwrap_or_default();
-        match data.update_tracked_widget(new_hover, self, |data| &mut data.hover)? {
-            Some(old_hover) => {
+        let unhovered = match data.update_tracked_widget(new_hover, self, |data| &mut data.hover) {
+            Ok(Some(old_hover)) => {
                 let mut old_hovered = data.widget_hierarchy(old_hover.id, self);
                 // For any widgets that were shared, remove them, as they don't
                 // need to have their events fired again.
-                while !old_hovered.is_empty() && old_hovered.get(0) == hovered.get(0) {
+                let mut new_index = 0;
+                while !old_hovered.is_empty() && old_hovered.get(0) == hovered.get(new_index) {
                     old_hovered.remove(0);
-                    hovered.remove(0);
+                    new_index += 1;
                 }
-
-                Ok(HoverResults {
-                    unhovered: old_hovered,
-                    hovered,
-                })
+                old_hovered
             }
-            None => Ok(HoverResults {
-                unhovered: Vec::new(),
-                hovered,
-            }),
-        }
+            _ => Vec::new(),
+        };
+        HoverResults { unhovered, hovered }
     }
 
     pub fn focus(&self, new_focus: Option<&ManagedWidget>) -> Result<Option<ManagedWidget>, ()> {
@@ -167,7 +162,7 @@ impl Tree {
         data.nodes[id.0].styles = Some(styles);
     }
 
-    pub fn query_style(
+    pub fn query_styles(
         &self,
         perspective: &ManagedWidget,
         query: &[&dyn ComponentDefaultvalue],
@@ -175,7 +170,18 @@ impl Tree {
         self.data
             .lock()
             .map_or_else(PoisonError::into_inner, |g| g)
-            .query_style(perspective.id, query)
+            .query_styles(perspective.id, query)
+    }
+
+    pub fn query_style<Component: ComponentDefinition>(
+        &self,
+        perspective: &ManagedWidget,
+        component: &Component,
+    ) -> Component::ComponentType {
+        self.data
+            .lock()
+            .map_or_else(PoisonError::into_inner, |g| g)
+            .query_style(perspective.id, component)
     }
 }
 
@@ -255,7 +261,7 @@ impl TreeData {
         }
     }
 
-    fn query_style(
+    fn query_styles(
         &self,
         mut perspective: WidgetId,
         query: &[&dyn ComponentDefaultvalue],
@@ -278,6 +284,30 @@ impl TreeData {
             perspective = parent;
         }
         resolved
+    }
+
+    fn query_style<Component: ComponentDefinition>(
+        &self,
+        mut perspective: WidgetId,
+        query: &Component,
+    ) -> Component::ComponentType {
+        let name = query.name();
+        loop {
+            let node = &self.nodes[perspective.0];
+            if let Some(styles) = &node.styles {
+                if let Some(component) = styles.get(&name) {
+                    let Ok(value) =
+                        <Component::ComponentType>::try_from_component(component.clone())
+                    else {
+                        break;
+                    };
+                    return value;
+                }
+            }
+            let Some(parent) = node.parent else { break };
+            perspective = parent;
+        }
+        query.default_value()
     }
 }
 

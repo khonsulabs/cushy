@@ -208,7 +208,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     /// used.
     ///
     /// `origin` allows controlling how the text will be drawn relative to the
-    /// coordinate provided in [`render()`](crate::PreparedGraphic::render).
+    /// coordinate provided in [`render()`](kludgine::PreparedGraphic::render).
     pub fn draw_text_buffer<Unit>(
         &mut self,
         buffer: &cosmic_text::Buffer,
@@ -244,7 +244,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     /// used.
     ///
     /// `origin` allows controlling how the text will be drawn relative to the
-    /// coordinate provided in [`render()`](crate::PreparedGraphic::render).
+    /// coordinate provided in [`render()`](kludgine::PreparedGraphic::render).
     pub fn draw_measured_text<Unit>(
         &mut self,
         text: &MeasuredText<Unit>,

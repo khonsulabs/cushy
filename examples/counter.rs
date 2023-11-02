@@ -7,7 +7,7 @@ use gooey::{widgets, Run};
 fn main() -> gooey::Result {
     let counter = Dynamic::new(0i32);
     let label = counter.map_each(ToString::to_string);
-    Scroll::new(Stack::rows(widgets![
+    Scroll::new(Stack::columns(widgets![
         Label::new(label),
         Button::new("+").on_click(counter.with_clone(|counter| {
             move |_| {

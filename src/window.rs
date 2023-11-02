@@ -366,7 +366,8 @@ where
     ) {
         match state {
             ElementState::Pressed => {
-                WidgetContext::new(&self.root, &mut window).clear_focus();
+                EventContext::new(WidgetContext::new(&self.root, &mut window), kludgine)
+                    .clear_focus();
 
                 if let (ElementState::Pressed, Some(location), Some(hovered)) =
                     (state, &self.mouse_state.location, &self.mouse_state.widget)

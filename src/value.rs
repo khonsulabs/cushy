@@ -433,6 +433,15 @@ impl<T> Value<T> {
     }
 }
 
+impl<T> Default for Value<T>
+where
+    T: Default,
+{
+    fn default() -> Self {
+        Self::Constant(T::default())
+    }
+}
+
 /// A type that can be converted into a [`Value`].
 pub trait IntoValue<T> {
     /// Returns this type as a [`Value`].

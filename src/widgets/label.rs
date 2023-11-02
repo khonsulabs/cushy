@@ -1,9 +1,9 @@
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, Size};
+use kludgine::figures::{IntoUnsigned, Point, ScreenScale, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 
 use crate::context::GraphicsContext;
-use crate::styles::components::TextColor;
+use crate::styles::components::{IntrinsicPadding, TextColor};
 use crate::value::{IntoValue, Value};
 use crate::widget::Widget;
 
@@ -31,7 +31,7 @@ impl Widget for Label {
 
         let size = context.graphics.region().size;
         let center = Point::from(size) / 2;
-        let styles = context.query_style(&[&TextColor]);
+        let styles = context.query_styles(&[&TextColor]);
 
         if let Some(measured) = &self.prepared_text {
             context
@@ -56,12 +56,17 @@ impl Widget for Label {
         available_space: Size<crate::ConstraintLimit>,
         context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
+        let padding = context
+            .query_style(&IntrinsicPadding)
+            .into_px(context.graphics.scale())
+            .into_unsigned();
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         self.text.map(|contents| {
             let measured = context
                 .graphics
                 .measure_text(Text::from(contents).wrap_at(width));
-            let size = measured.size.try_cast().unwrap_or_default();
+            let mut size = measured.size.try_cast().unwrap_or_default();
+            size += padding * 2;
             self.prepared_text = Some(measured);
             size
         })
