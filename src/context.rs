@@ -58,7 +58,10 @@ impl<'context, 'window> EventContext<'context, 'window> {
     /// Invokes [`Widget::hit_test()`](crate::widget::Widget::hit_test) on this
     /// context's widget and returns the result.
     pub fn hit_test(&mut self, location: Point<Px>) -> bool {
-        self.current_node.lock().hit_test(location, self)
+        self.current_node
+            .lock()
+            .as_widget()
+            .hit_test(location, self)
     }
 
     /// Invokes [`Widget::mouse_down()`](crate::widget::Widget::mouse_down) on
@@ -71,6 +74,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
     ) -> EventHandling {
         self.current_node
             .lock()
+            .as_widget()
             .mouse_down(location, device_id, button, self)
     }
 
@@ -79,6 +83,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
     pub fn mouse_drag(&mut self, location: Point<Px>, device_id: DeviceId, button: MouseButton) {
         self.current_node
             .lock()
+            .as_widget()
             .mouse_drag(location, device_id, button, self);
     }
 
@@ -92,6 +97,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
     ) {
         self.current_node
             .lock()
+            .as_widget()
             .mouse_up(location, device_id, button, self);
     }
 
@@ -105,13 +111,14 @@ impl<'context, 'window> EventContext<'context, 'window> {
     ) -> EventHandling {
         self.current_node
             .lock()
+            .as_widget()
             .keyboard_input(device_id, input, is_synthetic, self)
     }
 
     /// Invokes [`Widget::ime()`](crate::widget::Widget::ime) on this
     /// context's widget and returns the result.
     pub fn ime(&mut self, ime: Ime) -> EventHandling {
-        self.current_node.lock().ime(ime, self)
+        self.current_node.lock().as_widget().ime(ime, self)
     }
 
     /// Invokes [`Widget::mouse_wheel()`](crate::widget::Widget::mouse_wheel) on this
@@ -124,6 +131,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
     ) -> EventHandling {
         self.current_node
             .lock()
+            .as_widget()
             .mouse_wheel(device_id, delta, phase, self)
     }
 
@@ -131,11 +139,11 @@ impl<'context, 'window> EventContext<'context, 'window> {
         let changes = self.current_node.tree.hover(Some(self.current_node));
         for unhovered in changes.unhovered {
             let mut context = self.for_other(&unhovered);
-            unhovered.lock().unhover(&mut context);
+            unhovered.lock().as_widget().unhover(&mut context);
         }
         for hover in changes.hovered {
             let mut context = self.for_other(&hover);
-            hover.lock().hover(location, &mut context);
+            hover.lock().as_widget().hover(location, &mut context);
         }
     }
 
@@ -145,7 +153,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
         for old_hover in changes.unhovered {
             let mut old_hover_context = self.for_other(&old_hover);
-            old_hover.lock().unhover(&mut old_hover_context);
+            old_hover.lock().as_widget().unhover(&mut old_hover_context);
         }
     }
 
@@ -156,7 +164,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 Ok(old) => {
                     if let Some(old) = old {
                         let mut old_context = self.for_other(&old);
-                        old.lock().deactivate(&mut old_context);
+                        old.lock().as_widget().deactivate(&mut old_context);
                     }
                     true
                 }
@@ -164,7 +172,10 @@ impl<'context, 'window> EventContext<'context, 'window> {
             };
             if new {
                 if let Some(active) = active {
-                    active.lock().activate(&mut self.for_other(&active));
+                    active
+                        .lock()
+                        .as_widget()
+                        .activate(&mut self.for_other(&active));
                 }
             }
         }
@@ -175,7 +186,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 Ok(old) => {
                     if let Some(old) = old {
                         let mut old_context = self.for_other(&old);
-                        old.lock().blur(&mut old_context);
+                        old.lock().as_widget().blur(&mut old_context);
                     }
                     true
                 }
@@ -183,7 +194,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
             };
             if new {
                 if let Some(focus) = focus {
-                    focus.lock().focus(&mut self.for_other(&focus));
+                    focus.lock().as_widget().focus(&mut self.for_other(&focus));
                 }
             }
         }
@@ -302,14 +313,17 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// Invokes [`Widget::measure()`](crate::widget::Widget::measure) on this
     /// context's widget and returns the result.
     pub fn measure(&mut self, available_space: Size<ConstraintLimit>) -> Size<UPx> {
-        self.current_node.lock().measure(available_space, self)
+        self.current_node
+            .lock()
+            .as_widget()
+            .measure(available_space, self)
     }
 
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
     /// context's widget.
     pub fn redraw(&mut self) {
         self.current_node.note_rendered_rect(self.graphics.region());
-        self.current_node.lock().redraw(self);
+        self.current_node.lock().as_widget().redraw(self);
     }
 }
 
@@ -347,6 +361,7 @@ pub trait AsEventContext<'window> {
             .push_boxed(child, Some(context.current_node));
         pushed_widget
             .lock()
+            .as_widget()
             .mounted(&mut context.for_other(&pushed_widget));
         pushed_widget
     }
@@ -358,7 +373,10 @@ pub trait AsEventContext<'window> {
             .current_node
             .tree
             .remove_child(child, context.current_node);
-        child.lock().unmounted(&mut context.for_other(child));
+        child
+            .lock()
+            .as_widget()
+            .unmounted(&mut context.for_other(child));
     }
 }
 

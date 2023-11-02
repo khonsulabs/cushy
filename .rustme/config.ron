@@ -1,0 +1,52 @@
+Configuration(
+    files: {
+        "../README.md":  [
+            "header.md",
+            "docs.md",
+            "https://github.com/khonsulabs/.github/raw/main/snippets/readme-footer.md",
+        ],
+        "../.crate-docs.md": (
+            for_docs: true,
+            sections: [
+                "docs.md",
+                "https://github.com/khonsulabs/.github/raw/main/snippets/readme-footer.md",
+            ],
+        ),
+        "../CONTRIBUTING.md":  [
+            "https://github.com/khonsulabs/.github/raw/main/docs/CONTRIBUTING.md",
+        ],
+        "../CODE_OF_CONDUCT.md":  [
+            "https://github.com/khonsulabs/.github/raw/main/docs/CODE_OF_CONDUCT.md",
+        ],
+        "../LICENSE-APACHE":  [
+            "https://github.com/khonsulabs/.github/raw/main/licenses/LICENSE-APACHE",
+        ],
+        "../LICENSE-MIT":  [
+            "https://github.com/khonsulabs/.github/raw/main/licenses/LICENSE-MIT",
+        ],
+    },
+    glossaries: [
+        "https://github.com/khonsulabs/.github/raw/main/snippets/glossary.ron",
+        {
+            // "msrv": "1.70",
+            "ref-name": (
+                default: "main",
+                release: "v0.1.0",
+            ),
+            "docs": (
+                default: "https://gooey.rs/main/gooey/",
+                release: "https://docs.rs/gooey",
+            ),
+            "widget": (
+                default: "https://gooey.rs/main/gooey/widget/trait.Widget.html",
+                release: "https://docs.rs/gooey/*/gooey/widget/trait.Widget.html",
+                for_docs: "crate::widget::Widget",
+            ),
+            "widgets": (
+                default: "https://gooey.rs/main/gooey/widgets/index.html",
+                release: "https://docs.rs/gooey/*/gooey/widgets/index.html",
+                for_docs: "mod@crate::widgets",
+            ),
+        },
+    ],
+)

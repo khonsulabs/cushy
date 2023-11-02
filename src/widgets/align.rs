@@ -3,42 +3,33 @@ use std::fmt::Debug;
 use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 
-use crate::context::{AsEventContext, EventContext, GraphicsContext};
+use crate::context::{AsEventContext, GraphicsContext};
 use crate::styles::{Edges, FlexibleDimension};
 use crate::value::{IntoValue, Value};
-use crate::widget::{MakeWidget, ManagedWidget, Widget, WidgetInstance};
+use crate::widget::{ChildWidget, MakeWidget, Widget};
 use crate::ConstraintLimit;
 
-/// A widget that provides spacing (padding) around its contents.
+/// A widget aligns its contents to its container's boundaries.
 #[derive(Debug)]
-pub struct Spacing {
-    child: WidgetInstance,
-    mounted: Option<ManagedWidget>,
+pub struct Align {
+    child: ChildWidget,
     edges: Value<Edges<FlexibleDimension>>,
 }
 
-impl Spacing {
+impl Align {
     /// Returns a new spacing widget containing `widget`, surrounding it with
     /// `margin`.
     pub fn new(margin: impl IntoValue<Edges<FlexibleDimension>>, widget: impl MakeWidget) -> Self {
         Self {
-            child: widget.make_widget(),
-            mounted: None,
+            child: ChildWidget::new(widget),
             edges: margin.into_value(),
         }
     }
 
     /// Returns a new spacing widget that centers `widget` vertically and
     /// horizontally.
-    pub fn auto(widget: impl MakeWidget) -> Self {
+    pub fn centered(widget: impl MakeWidget) -> Self {
         Self::new(FlexibleDimension::Auto, widget)
-    }
-
-    fn child(&mut self, context: &mut EventContext<'_, '_>) -> ManagedWidget {
-        if self.mounted.is_none() {
-            self.mounted = Some(context.push_child(self.child.clone()));
-        }
-        self.mounted.as_ref().expect("always initialized").clone()
     }
 
     fn measure(
@@ -55,13 +46,13 @@ impl Spacing {
             vertical.child_constraint(available_space.height),
         );
 
-        let child = self.child(&mut context.as_event_context());
+        let child = self.child.mounted(&mut context.as_event_context());
         let content_size = context.for_other(&child).measure(content_available);
 
         let (left, right, width) = horizontal.measure(available_space.width, content_size.width);
         let (top, bottom, height) = vertical.measure(available_space.height, content_size.height);
 
-        Layout {
+        dbg!(Layout {
             margin: Edges {
                 left,
                 right,
@@ -69,7 +60,7 @@ impl Spacing {
                 bottom,
             },
             content: Size::new(width, height),
-        }
+        })
     }
 }
 
@@ -134,7 +125,7 @@ impl FrameInfo {
     }
 }
 
-impl Widget for Spacing {
+impl Widget for Align {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let layout = self.measure(
             Size::new(
@@ -143,7 +134,7 @@ impl Widget for Spacing {
             ),
             context,
         );
-        let child = self.child(&mut context.as_event_context());
+        let child = self.child.mounted(&mut context.as_event_context());
         context
             .for_child(
                 &child,
@@ -169,6 +160,7 @@ impl Widget for Spacing {
     }
 }
 
+#[derive(Debug)]
 struct Layout {
     margin: Edges<UPx>,
     content: Size<UPx>,
@@ -176,6 +168,6 @@ struct Layout {
 
 impl Layout {
     pub fn size(&self) -> Size<UPx> {
-        self.margin.size()
+        self.margin.size() + self.content
     }
 }

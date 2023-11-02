@@ -3,25 +3,23 @@ use kludgine::figures::Size;
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext};
 use crate::styles::Styles;
-use crate::widget::{ManagedWidget, Widget, WidgetInstance};
+use crate::widget::{ChildWidget, MakeWidget, Widget};
 use crate::ConstraintLimit;
 
 /// A widget that applies a set of [`Styles`] to all contained widgets.
 #[derive(Debug)]
 pub struct Style {
     styles: Styles,
-    child: WidgetInstance,
-    mounted_child: Option<ManagedWidget>,
+    child: ChildWidget,
 }
 
 impl Style {
     /// Returns a new widget that applies `styles` to `child` and any children
     /// it may have.
-    pub fn new(styles: impl Into<Styles>, child: impl Widget) -> Self {
+    pub fn new(styles: impl Into<Styles>, child: impl MakeWidget) -> Self {
         Self {
             styles: styles.into(),
-            child: WidgetInstance::new(child),
-            mounted_child: None,
+            child: ChildWidget::new(child),
         }
     }
 }
@@ -29,25 +27,11 @@ impl Style {
 impl Widget for Style {
     fn mounted(&mut self, context: &mut EventContext<'_, '_>) {
         context.attach_styles(self.styles.clone());
-        self.mounted_child = Some(context.push_child(self.child.clone()));
-    }
-
-    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
-        let child = self
-            .mounted_child
-            .take()
-            .expect("unmounted without being mounted");
-        context.remove_child(&child);
     }
 
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        context
-            .for_other(
-                self.mounted_child
-                    .as_ref()
-                    .expect("measuring without being mounted"),
-            )
-            .redraw();
+        let child = self.child.mounted(&mut context.as_event_context());
+        context.for_other(&child).redraw();
     }
 
     fn measure(
@@ -55,12 +39,7 @@ impl Widget for Style {
         available_space: Size<ConstraintLimit>,
         context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        context
-            .for_other(
-                self.mounted_child
-                    .as_ref()
-                    .expect("measuring without being mounted"),
-            )
-            .measure(available_space)
+        let child = self.child.mounted(&mut context.as_event_context());
+        context.for_other(&child).measure(available_space)
     }
 }

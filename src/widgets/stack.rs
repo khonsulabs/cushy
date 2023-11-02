@@ -1,14 +1,17 @@
 //! A widget that combines an array of [`Widgets`] into one.
+// TODO on scale change, all Lp children need to resize
 
 use std::ops::Deref;
 
 use alot::{LotId, OrderedLots};
-use kludgine::figures::units::UPx;
-use kludgine::figures::{IntoSigned, Point, Rect, Size};
+use kludgine::figures::units::{Lp, UPx};
+use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext};
+use crate::styles::Dimension;
 use crate::value::{Generation, IntoValue, Value};
-use crate::widget::{ManagedWidget, Widget, Widgets};
+use crate::widget::{ChildWidget, ManagedWidget, Widget, Widgets};
+use crate::widgets::{Expand, Resize};
 use crate::ConstraintLimit;
 
 /// A widget that displays a collection of [`Widgets`] in a
@@ -81,9 +84,36 @@ impl Stack {
                             self.layout.swap(index, swap_index);
                         } else {
                             // This is a brand new child.
-                            self.synced_children
-                                .insert(index, context.push_child(widget.clone()));
-                            self.layout.insert(index, StackDimension::FitContent);
+                            let guard = widget.lock();
+                            let (mut widget, dimension) =
+                                if let Some(expand) = guard.downcast_ref::<Expand>() {
+                                    (
+                                        expand.child().clone(),
+                                        StackDimension::Fractional {
+                                            weight: expand.weight,
+                                        },
+                                    )
+                                } else if let Some((child, size)) =
+                                    guard.downcast_ref::<Resize>().and_then(|r| {
+                                        match self.layout.orientation.orientation {
+                                            StackOrientation::Row => r.height,
+                                            StackOrientation::Column => r.width,
+                                        }
+                                        .map(|size| (r.child().clone(), size))
+                                    })
+                                {
+                                    (child, StackDimension::Exact(size))
+                                } else {
+                                    (
+                                        ChildWidget::Unmounted(widget.clone()),
+                                        StackDimension::FitContent,
+                                    )
+                                };
+                            drop(guard);
+                            self.synced_children.insert(index, widget.mounted(context));
+
+                            self.layout
+                                .insert(index, dimension, context.kludgine.scale());
                         }
                     }
                 }
@@ -107,6 +137,7 @@ impl Widget for Stack {
                 ConstraintLimit::Known(context.graphics.size().width),
                 ConstraintLimit::Known(context.graphics.size().height),
             ),
+            context.graphics.scale(),
             |child_index, constraints| {
                 context
                     .for_other(&self.synced_children[child_index])
@@ -143,12 +174,15 @@ impl Widget for Stack {
     ) -> Size<UPx> {
         self.synchronize_children(&mut context.as_event_context());
 
-        self.layout
-            .update(available_space, |child_index, constraints| {
+        self.layout.update(
+            available_space,
+            context.graphics.scale(),
+            |child_index, constraints| {
                 context
                     .for_other(&self.synced_children[child_index])
                     .measure(constraints)
-            })
+            },
+        )
     }
 }
 
@@ -156,7 +190,7 @@ impl Widget for Stack {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct StackDirection {
     /// The orientation of the widgets.
-    pub orientation: StackOrientationn,
+    pub orientation: StackOrientation,
     /// If true, the widgets will be laid out in reverse order.
     pub reverse: bool,
 }
@@ -166,7 +200,7 @@ impl StackDirection {
     #[must_use]
     pub const fn columns() -> Self {
         Self {
-            orientation: StackOrientationn::Column,
+            orientation: StackOrientation::Column,
             reverse: false,
         }
     }
@@ -175,7 +209,7 @@ impl StackDirection {
     #[must_use]
     pub const fn columns_rev() -> Self {
         Self {
-            orientation: StackOrientationn::Column,
+            orientation: StackOrientation::Column,
             reverse: true,
         }
     }
@@ -184,7 +218,7 @@ impl StackDirection {
     #[must_use]
     pub const fn rows() -> Self {
         Self {
-            orientation: StackOrientationn::Row,
+            orientation: StackOrientation::Row,
             reverse: false,
         }
     }
@@ -193,7 +227,7 @@ impl StackDirection {
     #[must_use]
     pub const fn rows_rev() -> Self {
         Self {
-            orientation: StackOrientationn::Row,
+            orientation: StackOrientation::Row,
             reverse: true,
         }
     }
@@ -201,24 +235,24 @@ impl StackDirection {
     /// Splits a size into its measured and other parts.
     pub(crate) fn split_size<U>(self, s: Size<U>) -> (U, U) {
         match self.orientation {
-            StackOrientationn::Row => (s.height, s.width),
-            StackOrientationn::Column => (s.width, s.height),
+            StackOrientation::Row => (s.height, s.width),
+            StackOrientation::Column => (s.width, s.height),
         }
     }
 
     /// Combines split values into a [`Size`].
     pub(crate) fn make_size<U>(self, measured: U, other: U) -> Size<U> {
         match self.orientation {
-            StackOrientationn::Row => Size::new(other, measured),
-            StackOrientationn::Column => Size::new(measured, other),
+            StackOrientation::Row => Size::new(other, measured),
+            StackOrientation::Column => Size::new(measured, other),
         }
     }
 
     /// Combines split values into a [`Point`].
     pub(crate) fn make_point<U>(self, measured: U, other: U) -> Point<U> {
         match self.orientation {
-            StackOrientationn::Row => Point::new(other, measured),
-            StackOrientationn::Column => Point::new(measured, other),
+            StackOrientation::Row => Point::new(other, measured),
+            StackOrientation::Column => Point::new(measured, other),
         }
     }
 }
@@ -226,7 +260,7 @@ impl StackDirection {
 /// The orientation (Row/Column) of an [`Stack`] widget.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 
-pub enum StackOrientationn {
+pub enum StackOrientation {
     /// The child widgets should be displayed as rows.
     Row,
     /// The child widgets should be displayed as columns.
@@ -234,7 +268,7 @@ pub enum StackOrientationn {
 }
 
 /// The strategy to use when laying a widget out inside of an [`Stack`].
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 pub enum StackDimension {
     /// Attempt to lay out the widget based on its contents.
     FitContent,
@@ -245,7 +279,7 @@ pub enum StackDimension {
         weight: u8,
     },
     /// Use an exact measurement for this widget's size.
-    Exact(UPx),
+    Exact(Dimension),
 }
 
 #[derive(Debug)]
@@ -254,7 +288,7 @@ struct Layout {
     layouts: Vec<StackLayout>,
     pub other: UPx,
     total_weights: u32,
-    allocated_space: UPx,
+    allocated_space: (UPx, Lp),
     fractional: Vec<(LotId, u8)>,
     measured: Vec<LotId>,
     pub orientation: StackDirection,
@@ -274,15 +308,15 @@ impl Layout {
             layouts: Vec::new(),
             other: UPx(0),
             total_weights: 0,
-            allocated_space: UPx(0),
+            allocated_space: (UPx(0), Lp(0)),
             fractional: Vec::new(),
             measured: Vec::new(),
         }
     }
 
     #[cfg(test)] // only used in testing
-    pub fn push(&mut self, child: StackDimension) {
-        self.insert(self.len(), child);
+    pub fn push(&mut self, child: StackDimension, scale: Fraction) {
+        self.insert(self.len(), child, scale);
     }
 
     pub fn remove(&mut self, index: usize) -> StackDimension {
@@ -297,9 +331,14 @@ impl Layout {
                 self.fractional.retain(|(measured, _)| *measured != id);
                 self.total_weights -= u32::from(weight);
             }
-            StackDimension::Exact(size) => {
-                self.allocated_space -= size;
-            }
+            StackDimension::Exact(size) => match size {
+                Dimension::Px(pixels) => {
+                    self.allocated_space.0 -= pixels.into_unsigned();
+                }
+                Dimension::Lp(lp) => {
+                    self.allocated_space.1 -= lp;
+                }
+            },
         }
 
         dimension
@@ -315,7 +354,7 @@ impl Layout {
         self.children.swap(a, b);
     }
 
-    pub fn insert(&mut self, index: usize, child: StackDimension) {
+    pub fn insert(&mut self, index: usize, child: StackDimension, scale: Fraction) {
         let id = self.children.insert(index, child);
         let layout = match child {
             StackDimension::FitContent => {
@@ -328,8 +367,11 @@ impl Layout {
                 UPx(0)
             }
             StackDimension::Exact(size) => {
-                self.allocated_space += size;
-                size
+                match size {
+                    Dimension::Px(size) => self.allocated_space.0 += size.into_unsigned(),
+                    Dimension::Lp(size) => self.allocated_space.1 += size,
+                }
+                size.into_px(scale).into_unsigned()
             }
         };
         self.layouts.insert(
@@ -344,11 +386,14 @@ impl Layout {
     pub fn update(
         &mut self,
         available: Size<ConstraintLimit>,
+        scale: Fraction,
         mut measure: impl FnMut(usize, Size<ConstraintLimit>) -> Size<UPx>,
     ) -> Size<UPx> {
         let (space_constraint, other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
-        let mut remaining = available_space.saturating_sub(self.allocated_space);
+        let allocated_space =
+            self.allocated_space.0 + self.allocated_space.1.into_px(scale).into_unsigned();
+        let mut remaining = available_space.saturating_sub(allocated_space);
 
         // Measure the children that fit their content
         for &id in &self.measured {
@@ -372,8 +417,7 @@ impl Layout {
             remaining %= self.total_weights;
             for (fractional_index, &(id, weight)) in self.fractional.iter().enumerate() {
                 let index = self.children.index_of_id(id).expect("child not found");
-                let size = space_per_weight * u32::from(weight);
-                self.layouts[index].size = size;
+                let mut size = space_per_weight * u32::from(weight);
 
                 // If we have fractional amounts remaining, divide the pixels
                 if remaining > 0 {
@@ -382,9 +426,11 @@ impl Layout {
                     if remaining >= from_end {
                         let amount = (remaining + from_end - 1) / from_end;
                         remaining -= amount;
-                        self.layouts[index].size += amount;
+                        size += amount;
                     }
                 }
+
+                self.layouts[index].size = size;
             }
         }
 
@@ -398,7 +444,7 @@ impl Layout {
             let (_, measured) = self.orientation.split_size(measure(
                 index,
                 self.orientation.make_size(
-                    ConstraintLimit::Known(self.layouts[index].size),
+                    ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
                     other_constraint,
                 ),
             ));
@@ -427,9 +473,10 @@ mod tests {
     use std::cmp::Ordering;
 
     use kludgine::figures::units::UPx;
-    use kludgine::figures::Size;
+    use kludgine::figures::{Fraction, IntoSigned, Size};
 
     use super::{Layout, StackDimension, StackDirection};
+    use crate::styles::Dimension;
     use crate::ConstraintLimit;
 
     struct Child {
@@ -450,7 +497,7 @@ mod tests {
         }
 
         pub fn fixed_size(mut self, size: UPx) -> Self {
-            self.dimension = StackDimension::Exact(size);
+            self.dimension = StackDimension::Exact(Dimension::Px(size.into_signed()));
             self
         }
 
@@ -475,10 +522,10 @@ mod tests {
         assert_eq!(children.len(), expected.len());
         let mut flex = Layout::new(orientation);
         for child in children {
-            flex.push(child.dimension);
+            flex.push(child.dimension, Fraction::ONE);
         }
 
-        let computed_size = flex.update(available, |index, constraints| {
+        let computed_size = flex.update(available, Fraction::ONE, |index, constraints| {
             let (measured_constraint, _other_constraint) = orientation.split_size(constraints);
             let child = &children[index];
             let maximum_measured = measured_constraint.max();

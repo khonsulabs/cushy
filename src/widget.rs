@@ -1,5 +1,6 @@
 //! Types for creating reusable widgets (aka components or views).
 
+use std::any::Any;
 use std::clone::Clone;
 use std::fmt::Debug;
 use std::ops::{ControlFlow, Deref};
@@ -12,7 +13,7 @@ use kludgine::app::winit::event::{
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Rect, Size};
 
-use crate::context::{EventContext, GraphicsContext};
+use crate::context::{AsEventContext, EventContext, GraphicsContext};
 use crate::styles::Styles;
 use crate::tree::{Tree, WidgetId};
 use crate::widgets::Style;
@@ -145,11 +146,6 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         IGNORED
     }
 
-    // #[allow(unused_variables)]
-    // fn query_component(&self, group: Group, name: &str) -> Option<Component> {
-    //     None
-    // }
-
     /// Associates `styles` with this widget.
     ///
     /// This is equivalent to `Style::new(styles, self)`.
@@ -207,9 +203,27 @@ pub const HANDLED: EventHandling = EventHandling::Break(EventHandled);
 /// An [`EventHandling`] value that represents an ignored event.
 pub const IGNORED: EventHandling = EventHandling::Continue(EventIgnored);
 
+pub(crate) trait AnyWidget: Widget {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl<T> AnyWidget for T
+where
+    T: Widget,
+{
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
 /// An instance of a [`Widget`].
 #[derive(Clone, Debug)]
-pub struct WidgetInstance(Arc<Mutex<dyn Widget>>);
+pub struct WidgetInstance(Arc<Mutex<dyn AnyWidget>>);
 
 impl WidgetInstance {
     /// Returns a new instance containing `widget`.
@@ -220,8 +234,11 @@ impl WidgetInstance {
         Self(Arc::new(Mutex::new(widget)))
     }
 
-    pub(crate) fn lock(&self) -> MutexGuard<'_, dyn Widget> {
-        self.0.lock().map_or_else(PoisonError::into_inner, |g| g)
+    /// Locks the widget for exclusive access. Locking widgets should only be
+    /// done for brief moments of time when you are certain no deadlocks can
+    /// occur due to other widget locks being held.
+    pub fn lock(&self) -> WidgetGuard<'_> {
+        WidgetGuard(self.0.lock().map_or_else(PoisonError::into_inner, |g| g))
     }
 }
 
@@ -311,7 +328,11 @@ impl Debug for ManagedWidget {
 }
 
 impl ManagedWidget {
-    pub(crate) fn lock(&self) -> MutexGuard<'_, dyn Widget> {
+    /// Locks the widget for exclusive access. Locking widgets should only be
+    /// done for brief moments of time when you are certain no deadlocks can
+    /// occur due to other widget locks being held.
+    #[must_use]
+    pub fn lock(&self) -> WidgetGuard<'_> {
         self.widget.lock()
     }
 
@@ -369,6 +390,36 @@ impl PartialEq for ManagedWidget {
 impl PartialEq<WidgetInstance> for ManagedWidget {
     fn eq(&self, other: &WidgetInstance) -> bool {
         &self.widget == other
+    }
+}
+
+/// Exclusive access to a widget.
+///
+/// This type is powered by a `Mutex`, which means care must be taken to prevent
+/// deadlocks.
+pub struct WidgetGuard<'a>(MutexGuard<'a, dyn AnyWidget>);
+
+impl WidgetGuard<'_> {
+    pub(crate) fn as_widget(&mut self) -> &mut dyn AnyWidget {
+        &mut *self.0
+    }
+
+    /// Returns a reference to `T` if it is the type contained.
+    #[must_use]
+    pub fn downcast_ref<T>(&self) -> Option<&T>
+    where
+        T: 'static,
+    {
+        self.0.as_any().downcast_ref()
+    }
+
+    /// Returns an exclusive reference to `T` if it is the type contained.
+    #[must_use]
+    pub fn downcast_mut<T>(&mut self) -> Option<&mut T>
+    where
+        T: 'static,
+    {
+        self.0.as_any_mut().downcast_mut()
     }
 }
 
@@ -441,5 +492,33 @@ impl Deref for Widgets {
 
     fn deref(&self) -> &Self::Target {
         &self.ordered
+    }
+}
+
+/// A child widget
+#[derive(Debug, Clone)]
+pub enum ChildWidget {
+    /// An unmounted child widget
+    Unmounted(WidgetInstance),
+    /// A mounted child widget
+    Mounted(ManagedWidget),
+}
+
+impl ChildWidget {
+    /// Returns a new unmounted child
+    pub fn new(widget: impl MakeWidget) -> Self {
+        Self::Unmounted(widget.make_widget())
+    }
+
+    /// Returns this child, mounting it in the process if necessary.
+    pub fn mounted(&mut self, context: &mut EventContext<'_, '_>) -> ManagedWidget {
+        if let ChildWidget::Unmounted(instance) = self {
+            *self = ChildWidget::Mounted(context.push_child(instance.clone()));
+        }
+
+        let Self::Mounted(widget) = self else {
+            unreachable!("just initialized")
+        };
+        widget.clone()
     }
 }

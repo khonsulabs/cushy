@@ -16,7 +16,7 @@ use kludgine::app::winit::event::{
 use kludgine::app::winit::keyboard::KeyCode;
 use kludgine::app::WindowBehavior as _;
 use kludgine::figures::units::Px;
-use kludgine::figures::Point;
+use kludgine::figures::{IntoSigned, Point, Rect, Size};
 use kludgine::render::Drawing;
 use kludgine::Kludgine;
 
@@ -26,7 +26,7 @@ use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::widget::{EventHandling, ManagedWidget, Widget, WidgetInstance, HANDLED, IGNORED};
 use crate::window::sealed::WindowCommand;
-use crate::Run;
+use crate::{ConstraintLimit, Run};
 
 /// A currently running Gooey window.
 pub type RunningWindow<'window> = kludgine::app::Window<'window, WindowCommand>;
@@ -198,11 +198,24 @@ where
         graphics.reset_text_attributes();
         self.root.tree.reset_render_order();
         let graphics = self.contents.new_frame(graphics);
-        GraphicsContext {
+        let mut context = GraphicsContext {
             widget: WidgetContext::new(&self.root, &self.redraw_status, &mut window),
             graphics: Exclusive::Owned(Graphics::new(graphics)),
+        };
+        let window_size = context.graphics.size();
+        let actual_size = context.measure(Size::new(
+            ConstraintLimit::ClippedAfter(window_size.width),
+            ConstraintLimit::ClippedAfter(window_size.height),
+        ));
+        let render_size = actual_size.min(window_size);
+
+        if render_size.width < window_size.width || render_size.height < window_size.height {
+            context
+                .clipped_to(Rect::from(render_size.into_signed()))
+                .redraw();
+        } else {
+            context.redraw();
         }
-        .redraw();
     }
 
     fn render<'pass>(

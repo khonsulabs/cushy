@@ -1,4 +1,4 @@
-//! A reactive, `wgpu`-based Graphical User Interface (GUI) crate for Rust.
+#![doc = include_str!("../.crate-docs.md")]
 #![warn(clippy::pedantic, missing_docs)]
 #![allow(clippy::module_name_repetitions, clippy::missing_errors_doc)]
 
