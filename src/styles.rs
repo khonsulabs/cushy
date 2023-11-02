@@ -2,10 +2,12 @@
 
 use std::borrow::Cow;
 use std::collections::{hash_map, HashMap};
+use std::ops::Add;
 use std::sync::Arc;
 
 use crate::names::Name;
 use crate::utils::Lazy;
+use crate::value::{IntoValue, Value};
 
 pub mod components;
 
@@ -132,7 +134,7 @@ use std::fmt::Debug;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 
 use kludgine::figures::units::{Lp, Px};
-use kludgine::figures::ScreenScale;
+use kludgine::figures::{ScreenScale, Size};
 use kludgine::Color;
 
 /// A value of a style component.
@@ -213,6 +215,39 @@ impl TryFrom<Component> for Lp {
             Component::Dimension(Dimension::Lp(px)) => Ok(px),
             other => Err(other),
         }
+    }
+}
+
+/// A 1-dimensional measurement that may be automatically calculated.
+#[derive(Debug, Clone, Copy)]
+pub enum FlexibleDimension {
+    /// Automatically calculate this dimension.
+    Auto,
+    /// Use this dimension.
+    Dimension(Dimension),
+}
+
+impl Default for FlexibleDimension {
+    fn default() -> Self {
+        Self::Dimension(Dimension::default())
+    }
+}
+
+impl From<Dimension> for FlexibleDimension {
+    fn from(dimension: Dimension) -> Self {
+        Self::Dimension(dimension)
+    }
+}
+
+impl From<Px> for FlexibleDimension {
+    fn from(value: Px) -> Self {
+        Self::from(Dimension::from(value))
+    }
+}
+
+impl From<Lp> for FlexibleDimension {
+    fn from(value: Lp) -> Self {
+        Self::from(Dimension::from(value))
     }
 }
 
@@ -451,5 +486,132 @@ impl NamedComponent for ComponentName {
 impl NamedComponent for Cow<'_, ComponentName> {
     fn name(&self) -> Cow<'_, ComponentName> {
         Cow::Borrowed(self)
+    }
+}
+
+/// A type describing characteristics about the edges of a rectangle.
+#[derive(Clone, Copy, Debug)]
+pub struct Edges<T = FlexibleDimension> {
+    /// The left edge
+    pub left: T,
+    /// The right edge
+    pub right: T,
+    /// The top edge
+    pub top: T,
+    /// The bottom edge
+    pub bottom: T,
+}
+
+impl<T> Edges<T> {
+    /// Returns the sum of the parts as a [`Size`].
+    pub fn size(&self) -> Size<T>
+    where
+        T: Add<Output = T> + Copy,
+    {
+        Size::new(self.left + self.right, self.top + self.bottom)
+    }
+}
+
+impl<T> Default for Edges<T>
+where
+    T: Default,
+{
+    fn default() -> Self {
+        Self {
+            left: T::default(),
+            right: T::default(),
+            top: T::default(),
+            bottom: Default::default(),
+        }
+    }
+}
+
+impl<T> Edges<T> {
+    /// Updates `top` and returns self.
+    #[must_use]
+    pub fn with_top(mut self, top: impl Into<T>) -> Self {
+        self.top = top.into();
+        self
+    }
+
+    /// Updates `bottom` and returns self.
+    #[must_use]
+    pub fn with_bottom(mut self, bottom: impl Into<T>) -> Self {
+        self.bottom = bottom.into();
+        self
+    }
+
+    /// Updates `right` and returns self.
+    #[must_use]
+    pub fn with_right(mut self, right: impl Into<T>) -> Self {
+        self.right = right.into();
+        self
+    }
+
+    /// Updates `left` and returns self.
+    #[must_use]
+    pub fn with_left(mut self, left: impl Into<T>) -> Self {
+        self.left = left.into();
+        self
+    }
+
+    /// Updates left and right to be `horizontal` and returns self.
+    #[must_use]
+    pub fn with_horizontal(mut self, horizontal: impl Into<T>) -> Self
+    where
+        T: Clone,
+    {
+        self.left = horizontal.into();
+        self.right = self.left.clone();
+        self
+    }
+
+    /// Updates top and bottom to be `vertical` and returns self.
+    #[must_use]
+    pub fn with_vertical(mut self, vertical: impl Into<T>) -> Self
+    where
+        T: Clone,
+    {
+        self.top = vertical.into();
+        self.bottom = self.top.clone();
+        self
+    }
+}
+
+impl Edges<Dimension> {
+    /// Returns a new instance with `dimension` for every edge.
+    #[must_use]
+    pub fn uniform<D>(dimension: D) -> Self
+    where
+        D: Into<Dimension>,
+    {
+        let dimension = dimension.into();
+        Self::from(dimension)
+    }
+}
+
+impl<T> From<T> for Edges<T>
+where
+    T: Clone,
+{
+    fn from(value: T) -> Self {
+        Self {
+            left: value.clone(),
+            right: value.clone(),
+            top: value.clone(),
+            bottom: value,
+        }
+    }
+}
+
+impl IntoValue<Edges<FlexibleDimension>> for FlexibleDimension {
+    fn into_value(self) -> Value<Edges<FlexibleDimension>> {
+        Value::Constant(Edges::from(self))
+    }
+}
+
+impl IntoValue<Edges<Dimension>> for Dimension {
+    fn into_value(self) -> Value<Edges<Dimension>> {
+        Value::Constant(Edges::from(self))
     }
 }

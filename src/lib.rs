@@ -14,6 +14,8 @@ pub mod value;
 pub mod widget;
 pub mod widgets;
 pub mod window;
+use std::ops::Sub;
+
 pub use with_clone::WithClone;
 mod with_clone;
 
@@ -40,6 +42,19 @@ impl ConstraintLimit {
     pub fn max(self) -> UPx {
         match self {
             ConstraintLimit::Known(v) | ConstraintLimit::ClippedAfter(v) => v,
+        }
+    }
+}
+
+impl Sub<UPx> for ConstraintLimit {
+    type Output = Self;
+
+    fn sub(self, rhs: UPx) -> Self::Output {
+        match self {
+            ConstraintLimit::Known(px) => ConstraintLimit::Known(px.saturating_sub(rhs)),
+            ConstraintLimit::ClippedAfter(px) => {
+                ConstraintLimit::ClippedAfter(px.saturating_sub(rhs))
+            }
         }
     }
 }

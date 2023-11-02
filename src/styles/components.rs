@@ -82,7 +82,7 @@ impl ComponentDefinition for HighlightColor {
 ///
 /// This component is opt-in and does not automatically work for all widgets. To
 /// apply arbitrary, non-uniform padding around another widget, use a
-/// [`Cell`](crate::widgets::Cell).
+/// [`Spacing`](crate::widgets::Spacing).
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct IntrinsicPadding;
 
