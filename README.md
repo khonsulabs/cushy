@@ -17,7 +17,7 @@ Gooey uses a reactive data model. To see [an example][button-example] of how
 reactive data models work, consider this example that displays a button that
 increments its own label:
 
-```rust
+```rust,ignore
 // Create a dynamic usize.
 let count = Dynamic::new(0_usize);
 

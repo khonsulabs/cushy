@@ -68,7 +68,7 @@ impl<T> Dynamic<T> {
     /// code may produce slightly more readable code.
     ///
     /// ```rust
-    /// let value = gooey::dynamic::Dynamic::new(1);
+    /// let value = gooey::value::Dynamic::new(1);
     ///
     /// // Using with_clone
     /// value.with_clone(|value| {
@@ -136,12 +136,18 @@ impl<T> Dynamic<T> {
 
     /// Returns a new reference-based reader for this dynamic value.
     #[must_use]
-    pub fn create_ref_reader(&self) -> DynamicReader<T> {
+    pub fn create_reader(&self) -> DynamicReader<T> {
         self.state().readers += 1;
         DynamicReader {
             source: self.0.clone(),
             read_generation: self.0.state().wrapped.generation,
         }
+    }
+
+    /// Converts this [`Dynamic`] into a reader.
+    #[must_use]
+    pub fn into_reader(self) -> DynamicReader<T> {
+        self.create_reader()
     }
 
     fn state(&self) -> MutexGuard<'_, State<T>> {
@@ -193,7 +199,7 @@ impl<T> Drop for Dynamic<T> {
 
 impl<T> From<Dynamic<T>> for DynamicReader<T> {
     fn from(value: Dynamic<T>) -> Self {
-        value.create_ref_reader()
+        value.create_reader()
     }
 }
 
@@ -375,7 +381,7 @@ impl<T> DynamicReader<T> {
     /// updated or there are no remaining writers for the value.
     ///
     /// Returns true if a newly updated value was discovered.
-    pub fn block_until_updated_async(&mut self) -> BlockUntilUpdatedFuture<'_, T> {
+    pub fn wait_until_updated(&mut self) -> BlockUntilUpdatedFuture<'_, T> {
         BlockUntilUpdatedFuture(self)
     }
 }
@@ -424,7 +430,7 @@ impl<'a, T> Future for BlockUntilUpdatedFuture<'a, T> {
 #[test]
 fn disconnecting_reader_from_dynamic() {
     let value = Dynamic::new(1);
-    let mut ref_reader = value.create_ref_reader();
+    let mut ref_reader = value.create_reader();
     drop(value);
     assert!(!ref_reader.block_until_updated());
 }

@@ -64,7 +64,7 @@ impl<T> Deref for Lazy<T> {
 }
 
 /// Invokes the provided macro with a pattern that can be matched using this
-/// macro_rules expression: `$($type:ident $field:tt),+`, where `$type` is an
+/// `macro_rules!` expression: `$($type:ident $field:tt),+`, where `$type` is an
 /// identifier to use for the generic parameter and `$field` is the field index
 /// inside of the tuple.
 macro_rules! impl_all_tuples {

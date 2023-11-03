@@ -1,4 +1,39 @@
 //! Types for creating animations.
+//!
+//! Animations in Gooey are performed by transitioning a [`Dynamic`]'s contained
+//! value over time. This starts with [`Dynamic::transition_to()`], which
+//! returns a [`DynamicTransition`].
+//!
+//! [`DynamicTransition`] implements [`AnimationTarget`], a trait that describes
+//! types that can be updated using [linear interpolation](LinearInterpolate).
+//! `AnimationTarget` is also implemented for tuples of `AnimationTarget`
+//! implementors, allowing multiple transitions to be an `AnimationTarget`.
+//!
+//! Next, the [`AnimationTarget`] is turned into an animation by invoking
+//! [`AnimationTarget::over()`] with the [`Duration`] the transition should
+//! occur over. The animation can further be customized using
+//! [`Animation::with_easing()`] to utilize any [`Easing`] implementor.
+//!
+//! ```rust
+//! use std::time::Duration;
+//!
+//! use gooey::animation::{AnimationTarget, Spawn};
+//! use gooey::value::Dynamic;
+//!
+//! let value = Dynamic::new(0);
+//!
+//! value
+//!     .transition_to(100)
+//!     .over(Duration::from_millis(100))
+//!     .launch();
+//!
+//! let mut reader = value.into_reader();
+//! while reader.block_until_updated() {
+//!     println!("{}", reader.get());
+//! }
+//!
+//! assert_eq!(reader.get(), 100);
+//! ```
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -43,7 +78,11 @@ fn animation_thread() {
             let mut index = 0;
             while index < state.running.len() {
                 let animation_id = *state.running.member(index).expect("index in bounds");
-                if state.animations[animation_id].animate(elapsed).is_break() {
+                let animation_state = &mut state.animations[animation_id];
+                if animation_state.animation.animate(elapsed).is_break() {
+                    if !animation_state.handle_attached {
+                        state.animations.remove(animation_id);
+                    }
                     state.running.remove_member(index);
                 } else {
                     index += 1;
@@ -62,8 +101,13 @@ fn animation_thread() {
     }
 }
 
+struct AnimationState {
+    animation: Box<dyn Animate>,
+    handle_attached: bool,
+}
+
 struct Animating {
-    animations: Lots<Box<dyn Animate>>,
+    animations: Lots<AnimationState>,
     running: Set<LotId>,
     last_updated: Option<Instant>,
 }
@@ -78,7 +122,10 @@ impl Animating {
     }
 
     fn spawn(&mut self, animation: Box<dyn Animate>) -> AnimationHandle {
-        let id = self.animations.push(animation);
+        let id = self.animations.push(AnimationState {
+            animation,
+            handle_attached: true,
+        });
 
         if self.running.is_empty() {
             NEW_ANIMATIONS.notify_one();
@@ -92,6 +139,14 @@ impl Animating {
     fn remove_animation(&mut self, id: LotId) {
         self.animations.remove(id);
         self.running.remove(&id);
+    }
+
+    fn run_unattached(&mut self, id: LotId) {
+        if self.running.contains(&id) {
+            self.animations[id].handle_attached = false;
+        } else {
+            self.animations.remove(id);
+        }
     }
 }
 
@@ -256,6 +311,14 @@ pub trait IntoAnimate: Sized + Send + Sync {
     fn and_then<Other: IntoAnimate>(self, other: Other) -> Chain<Self, Other> {
         Chain::new(self, other)
     }
+
+    /// Invokes `on_complete` after this animation finishes.
+    fn on_complete<F>(self, on_complete: F) -> OnCompleteAnimation<Self>
+    where
+        F: FnMut() + Send + Sync + 'static,
+    {
+        OnCompleteAnimation::new(self, on_complete)
+    }
 }
 
 macro_rules! impl_tuple_animate {
@@ -300,6 +363,14 @@ pub trait Spawn {
     ///
     /// When the returned handle is dropped, the animation is stopped.
     fn spawn(self) -> AnimationHandle;
+
+    /// Launches this animation, running it to completion in the background.
+    fn launch(self)
+    where
+        Self: Sized,
+    {
+        self.spawn().detach();
+    }
 }
 
 impl<T> Spawn for T
@@ -372,6 +443,18 @@ impl AnimationHandle {
             thread_state().remove_animation(id);
         }
     }
+
+    /// Detaches the animation from the [`AnimationHandle`], allowing the
+    /// animation to continue running to completion.
+    ///
+    /// Normally, dropping an [`AnimationHandle`] will cancel the underlying
+    /// animation. This API provides a way to continue running an animation
+    /// through completion without needing to hold onto the handle.
+    pub fn detach(mut self) {
+        if let Some(id) = self.0.take() {
+            thread_state().run_unattached(id);
+        }
+    }
 }
 
 impl Drop for AnimationHandle {
@@ -433,6 +516,67 @@ where
                 }
             },
             ChainState::AnimatingSecond(b) => b.animate(elapsed),
+        }
+    }
+}
+
+/// An animation wrapper that invokes a callback upon the animation completing.
+///
+/// This type guarantees the callback will only be invoked once per animation
+/// completion. If the animation is restarted after completing, the callback
+/// will be invoked again.
+pub struct OnCompleteAnimation<A> {
+    animation: A,
+    callback: Box<dyn FnMut() + Send + Sync + 'static>,
+    completed: bool,
+}
+
+impl<A> OnCompleteAnimation<A> {
+    /// Returns a pending animation that performs `animation` then invokes
+    /// `on_complete`.
+    pub fn new<F>(animation: A, on_complete: F) -> Self
+    where
+        F: FnMut() + Send + Sync + 'static,
+    {
+        Self {
+            animation,
+            callback: Box::new(on_complete),
+            completed: false,
+        }
+    }
+}
+
+impl<A> IntoAnimate for OnCompleteAnimation<A>
+where
+    A: IntoAnimate,
+{
+    type Animate = OnCompleteAnimation<A::Animate>;
+
+    fn into_animate(self) -> Self::Animate {
+        OnCompleteAnimation {
+            animation: self.animation.into_animate(),
+            callback: self.callback,
+            completed: false,
+        }
+    }
+}
+
+impl<A> Animate for OnCompleteAnimation<A>
+where
+    A: Animate,
+{
+    fn animate(&mut self, elapsed: Duration) -> ControlFlow<Duration> {
+        if self.completed {
+            ControlFlow::Break(elapsed)
+        } else {
+            match self.animation.animate(elapsed) {
+                ControlFlow::Break(remaining) => {
+                    self.completed = true;
+                    (self.callback)();
+                    ControlFlow::Break(remaining)
+                }
+                ControlFlow::Continue(()) => ControlFlow::Continue(()),
+            }
         }
     }
 }
