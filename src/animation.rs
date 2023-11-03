@@ -17,7 +17,7 @@
 //! ```rust
 //! use std::time::Duration;
 //!
-//! use gooey::animation::{AnimationTarget, Spawn};
+//! use gooey::animation::{AnimationTarget, EaseInOutElastic, Spawn};
 //! use gooey::value::Dynamic;
 //!
 //! let value = Dynamic::new(0);
@@ -25,6 +25,7 @@
 //! value
 //!     .transition_to(100)
 //!     .over(Duration::from_millis(100))
+//!     .with_easing(EaseInOutElastic)
 //!     .launch();
 //!
 //! let mut reader = value.into_reader();
@@ -37,9 +38,9 @@
 
 use std::f32::consts::PI;
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::ops::{ControlFlow, Deref};
-use std::sync::{Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::panic::{RefUnwindSafe, UnwindSafe};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -47,6 +48,7 @@ use alot::{LotId, Lots};
 use kempt::Set;
 use kludgine::Color;
 
+use crate::styles::Component;
 use crate::value::Dynamic;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
@@ -224,7 +226,7 @@ where
 {
     value: Target,
     duration: Duration,
-    _easing: PhantomData<Easing>,
+    easing: Easing,
 }
 
 impl<T> Animation<T, Linear>
@@ -235,16 +237,16 @@ where
         Self {
             value,
             duration,
-            _easing: PhantomData,
+            easing: Linear,
         }
     }
 
     /// Returns this animation with a different easing function.
-    pub fn with_easing<Easing: self::Easing>(self) -> Animation<T, Easing> {
+    pub fn with_easing<Easing: self::Easing>(self, easing: Easing) -> Animation<T, Easing> {
         Animation {
             value: self.value,
             duration: self.duration,
-            _easing: PhantomData,
+            easing,
         }
     }
 }
@@ -261,7 +263,7 @@ where
             target: self.value.begin(),
             duration: self.duration,
             elapsed: Duration::ZERO,
-            _easing: PhantomData,
+            easing: self.easing,
         }
     }
 }
@@ -401,7 +403,7 @@ where
             self.target.finish();
             ControlFlow::Break(remaining_elapsed)
         } else {
-            let progress = Easing::ease(ZeroToOne::new(
+            let progress = self.easing.ease(ZeroToOne::new(
                 self.elapsed.as_secs_f32() / self.duration.as_secs_f32(),
             ));
             self.target.update(progress);
@@ -421,7 +423,7 @@ pub struct RunningAnimation<T, Easing> {
     target: T,
     duration: Duration,
     elapsed: Duration,
-    _easing: PhantomData<Easing>,
+    easing: Easing,
 }
 
 /// A handle to a spawned animation. When dropped, the associated animation will
@@ -653,6 +655,20 @@ impl_lerp_for_int!(i64, u64, f32);
 impl_lerp_for_int!(i128, u128, f64);
 impl_lerp_for_int!(isize, usize, f64);
 
+impl LinearInterpolate for f32 {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        let delta = *target - *self;
+        *self + delta * percent
+    }
+}
+
+impl LinearInterpolate for f64 {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        let delta = *target - *self;
+        *self + delta * f64::from(percent)
+    }
+}
+
 #[test]
 fn integer_lerps() {
     #[track_caller]
@@ -768,21 +784,57 @@ impl LinearInterpolate for ZeroToOne {
     }
 }
 
-/// Performs easing for value interpolation.
-pub trait Easing: Send + Sync + 'static {
-    /// Eases a value ranging between zero and one. The resulting value does not
-    /// need to be bounded between zero and one.
-    fn ease(progress: ZeroToOne) -> f32;
+/// An easing function for customizing animations.
+#[derive(Debug, Clone)]
+pub enum EasingFunction {
+    /// A function pointer to use as an easing function.
+    Fn(fn(ZeroToOne) -> f32),
+    /// A custom easing implementation.
+    Custom(Arc<dyn Easing>),
 }
 
-// /// An [`Easing`] function that produces a steady, linear transition.
-// pub enum Linear {}
+impl Easing for EasingFunction {
+    fn ease(&self, progress: ZeroToOne) -> f32 {
+        match self {
+            EasingFunction::Fn(func) => func(progress),
+            EasingFunction::Custom(func) => func.ease(progress),
+        }
+    }
+}
 
-// impl Easing for Linear {
-//     fn ease(progress: ZeroToOne) -> f32 {
-//         *progress
-//     }
-// }
+impl From<EasingFunction> for Component {
+    fn from(value: EasingFunction) -> Self {
+        Component::Easing(value)
+    }
+}
+
+impl TryFrom<Component> for EasingFunction {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Easing(easing) => Ok(easing),
+            other => Err(other),
+        }
+    }
+}
+
+/// Performs easing for value interpolation.
+pub trait Easing: Debug + Send + Sync + RefUnwindSafe + UnwindSafe + 'static {
+    /// Eases a value ranging between zero and one. The resulting value does not
+    /// need to be bounded between zero and one.
+    fn ease(&self, progress: ZeroToOne) -> f32;
+}
+
+/// An [`Easing`] function that produces a steady, linear transition.
+#[derive(Clone, Copy, Debug)]
+pub struct Linear;
+
+impl Easing for Linear {
+    fn ease(&self, progress: ZeroToOne) -> f32 {
+        *progress
+    }
+}
 
 // Think this macro has a long name? This is to ensure rustfmt wraps the closure
 // onto its own line. Seriously, try shortening the name and see how it changes
@@ -793,12 +845,29 @@ macro_rules! declare_easing_function_implementation {
         /// An [`Easing`] function that eases
         #[doc = $description]
         #[doc = concat!(".\n\nSee <https://easings.net/#", stringify!($anchor_name), "> for a visualization and more information.")]
-        pub enum $name {}
+        #[derive(Clone, Copy, Debug)]
+        pub struct $name;
 
-        impl Easing for $name {
-            fn ease(progress: ZeroToOne) -> f32 {
+        impl $name {
+            /// Eases
+            #[doc = $description]
+            #[doc = concat!(".\n\nSee <https://easings.net/#", stringify!($anchor_name), "> for a visualization and more information.")]
+            #[must_use]
+            pub fn ease(progress: ZeroToOne) -> f32 {
                 let closure = force_closure_type($closure);
                 closure(*progress)
+            }
+        }
+
+        impl Easing for $name {
+            fn ease(&self, progress: ZeroToOne) -> f32 {
+                Self::ease(progress)
+            }
+        }
+
+        impl From<$name> for EasingFunction {
+            fn from(_function: $name) -> Self {
+                Self::Fn($name::ease)
             }
         }
     };
@@ -808,22 +877,6 @@ macro_rules! declare_easing_function_implementation {
 fn force_closure_type(f: impl Fn(f32) -> f32) -> impl Fn(f32) -> f32 {
     f
 }
-
-/// An [`Easing`] function that produces a steady, linear transition.
-pub enum Linear {}
-
-impl Easing for Linear {
-    fn ease(progress: ZeroToOne) -> f32 {
-        *progress
-    }
-}
-
-declare_easing_function_implementation!(
-    EaseInSine,
-    easeInSine,
-    "in using a sine wave",
-    |percent| 1. - (percent * PI).cos() / 2.
-);
 
 declare_easing_function_implementation!(
     EaseOutSine,
@@ -1088,7 +1141,7 @@ declare_easing_function_implementation!(
     EaseInBounce,
     easeInBounce,
     "in using a curve that bounces progressively closer as it progresses",
-    |percent| 1. - EaseOutBounce::ease(ZeroToOne(percent))
+    |percent| 1. - EaseOutBounce.ease(ZeroToOne(percent))
 );
 
 declare_easing_function_implementation!(

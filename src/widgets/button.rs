@@ -14,7 +14,7 @@ use kludgine::Color;
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{EventContext, GraphicsContext, WidgetContext};
 use crate::names::Name;
-use crate::styles::components::{HighlightColor, IntrinsicPadding, TextColor};
+use crate::styles::components::{Easing, HighlightColor, IntrinsicPadding, TextColor};
 use crate::styles::{ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
@@ -66,6 +66,7 @@ impl Button {
             &ButtonActiveBackground,
             &ButtonBackground,
             &ButtonHoverBackground,
+            &Easing,
         ]);
         let background_color = if context.active() {
             styles.get_or_default(&ButtonActiveBackground)
@@ -80,6 +81,7 @@ impl Button {
                 self.background_color_animation = dynamic
                     .transition_to(background_color)
                     .over(Duration::from_millis(150))
+                    .with_easing(styles.get_or_default(&Easing))
                     .spawn();
             }
             (true, Some(dynamic)) => {

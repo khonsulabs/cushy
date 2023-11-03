@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use kludgine::figures::units::Lp;
 use kludgine::Color;
 
+use crate::animation::{EaseInQuadradic, EaseOutQuadradic, EasingFunction};
 use crate::styles::{ComponentDefinition, ComponentName, Dimension, Global, NamedComponent};
 
 /// The [`Dimension`] to use as the size to render text.
@@ -95,5 +96,66 @@ impl ComponentDefinition for IntrinsicPadding {
 
     fn default_value(&self) -> Dimension {
         Dimension::Lp(Lp::points(5))
+    }
+}
+
+/// The [`EasingFunction`] to apply to animations that have no inherent
+/// directionality.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct Easing;
+
+impl NamedComponent for Easing {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("easing"))
+    }
+}
+
+impl ComponentDefinition for Easing {
+    type ComponentType = EasingFunction;
+
+    fn default_value(&self) -> Self::ComponentType {
+        EasingFunction::from(EaseInQuadradic)
+    }
+}
+
+/// The [`EasingFunction`] to apply to animations that transition a value from
+/// "nothing" to "something". For example, if an widget is animating a color's
+/// alpha channel towards opaqueness, it would query for this style component.
+/// Otherwise, it would use [`EasingOut`].
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct EasingIn;
+
+impl NamedComponent for EasingIn {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("easing_in"))
+    }
+}
+
+impl ComponentDefinition for EasingIn {
+    type ComponentType = EasingFunction;
+
+    fn default_value(&self) -> Self::ComponentType {
+        EasingFunction::from(EaseInQuadradic)
+    }
+}
+
+/// The [`EasingFunction`] to apply to animations that transition a value from
+/// "something" to "nothing". For example, if an widget is animating a color's
+/// alpha channel towards transparency, it would query for this style component.
+/// Otherwise, it would use [`EasingIn`].
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct EasingOut;
+
+impl NamedComponent for EasingOut {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("easing_out"))
+    }
+}
+
+impl ComponentDefinition for EasingOut {
+    type ComponentType = EasingFunction;
+
+    fn default_value(&self) -> Self::ComponentType {
+        EasingFunction::from(EaseOutQuadradic)
     }
 }

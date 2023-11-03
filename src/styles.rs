@@ -5,6 +5,7 @@ use std::collections::{hash_map, HashMap};
 use std::ops::Add;
 use std::sync::Arc;
 
+use crate::animation::{EasingFunction, ZeroToOne};
 use crate::names::Name;
 use crate::utils::Lazy;
 use crate::value::{IntoValue, Value};
@@ -145,9 +146,11 @@ pub enum Component {
     /// A single-dimension measurement.
     Dimension(Dimension),
     /// A percentage between 0.0 and 1.0.
-    Percent(f32),
+    Percent(ZeroToOne),
     /// A custom component type.
     Custom(CustomComponent),
+    /// An easing function for animations.
+    Easing(EasingFunction),
 }
 
 impl From<Color> for Component {

@@ -13,6 +13,7 @@ use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext};
+use crate::styles::components::{EasingIn, EasingOut};
 use crate::styles::{
     ComponentDefinition, ComponentGroup, ComponentName, Dimension, NamedComponent,
 };
@@ -95,6 +96,23 @@ impl Scroll {
             self.scroll.set(clamped);
         }
     }
+
+    fn show_scrollbars(&mut self, context: &mut EventContext<'_, '_>) {
+        let styles = context.query_styles(&[&EasingIn, &EasingOut]);
+        self.scrollbar_opacity_animation = self
+            .scrollbar_opacity
+            .transition_to(ZeroToOne::ONE)
+            .over(Duration::from_millis(300))
+            .with_easing(styles.get_or_default(&EasingIn))
+            .and_then(Duration::from_secs(1))
+            .and_then(
+                self.scrollbar_opacity
+                    .transition_to(ZeroToOne::ZERO)
+                    .over(Duration::from_millis(300))
+                    .with_easing(styles.get_or_default(&EasingOut)),
+            )
+            .spawn();
+    }
 }
 
 impl Widget for Scroll {
@@ -102,25 +120,16 @@ impl Widget for Scroll {
         true
     }
 
-    fn hover(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) {
-        self.scrollbar_opacity_animation = self
-            .scrollbar_opacity
-            .transition_to(ZeroToOne::ONE)
-            .over(Duration::from_millis(300))
-            .and_then(Duration::from_secs(1))
-            .and_then(
-                self.scrollbar_opacity
-                    .transition_to(ZeroToOne::ZERO)
-                    .over(Duration::from_millis(300)),
-            )
-            .spawn();
+    fn hover(&mut self, _location: Point<Px>, context: &mut EventContext<'_, '_>) {
+        self.show_scrollbars(context);
     }
 
-    fn unhover(&mut self, _context: &mut EventContext<'_, '_>) {
+    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
         self.scrollbar_opacity_animation = self
             .scrollbar_opacity
             .transition_to(ZeroToOne::ZERO)
             .over(Duration::from_millis(300))
+            .with_easing(context.query_style(&EasingOut))
             .spawn();
     }
 
@@ -256,6 +265,7 @@ impl Widget for Scroll {
         };
 
         self.scroll.map_mut(|scroll| *scroll += amount.cast());
+        self.show_scrollbars(context);
         context.set_needs_redraw();
 
         // TODO make this only returned handled if we actually scrolled.

@@ -52,7 +52,7 @@ impl Align {
         let (left, right, width) = horizontal.measure(available_space.width, content_size.width);
         let (top, bottom, height) = vertical.measure(available_space.height, content_size.height);
 
-        dbg!(Layout {
+        Layout {
             margin: Edges {
                 left,
                 right,
@@ -60,7 +60,7 @@ impl Align {
                 bottom,
             },
             content: Size::new(width, height),
-        })
+        }
     }
 }
 
