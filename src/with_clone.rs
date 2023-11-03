@@ -1,5 +1,3 @@
-use crate::impl_all_tuples;
-
 /// Invokes a function with a clone of `self`.
 pub trait WithClone: Sized {
     /// The type that results from cloning.

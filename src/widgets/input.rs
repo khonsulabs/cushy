@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
 use std::fmt::Debug;
+use std::panic::UnwindSafe;
 use std::time::Duration;
 
-use kludgine::app::winit::event::Ime;
+use kludgine::app::winit::event::{Ime, KeyEvent};
 use kludgine::app::winit::keyboard::Key;
 use kludgine::cosmic_text::{Action, Attrs, Buffer, Cursor, Edit, Editor, Metrics, Shaping};
 use kludgine::figures::units::Px;
@@ -18,7 +19,7 @@ use crate::styles::components::{HighlightColor, LineHeight, TextColor, TextSize}
 use crate::styles::Styles;
 use crate::utils::ModifiersExt;
 use crate::value::{Generation, IntoValue, Value};
-use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
+use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
 
 const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
 
@@ -27,6 +28,7 @@ const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
 pub struct Input {
     /// The value of this widget.
     pub text: Value<String>,
+    on_key: Option<Callback<KeyEvent, EventHandling>>,
     editor: Option<LiveEditor>,
     cursor_state: CursorState,
 }
@@ -43,7 +45,20 @@ impl Input {
             text: initial_text.into_value(),
             editor: None,
             cursor_state: CursorState::default(),
+            on_key: None,
         }
+    }
+
+    /// Sets the `on_key` callback.
+    ///
+    /// This function is called for every keyboard input event. If [`HANDLED`]
+    /// is returned, this widget will ignore the event.
+    pub fn on_key<F>(mut self, on_key: F) -> Self
+    where
+        F: FnMut(KeyEvent) -> EventHandling + Send + UnwindSafe + 'static,
+    {
+        self.on_key = Some(Callback::new(on_key));
+        self
     }
 
     fn editor_mut(&mut self, kludgine: &mut Kludgine, styles: &Styles) -> &mut Editor {
@@ -315,6 +330,10 @@ impl Widget for Input {
         _is_synthetic: bool,
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
+        if let Some(on_key) = &mut self.on_key {
+            on_key.invoke(input.clone())?;
+        }
+
         if !input.state.is_pressed() {
             return IGNORED;
         }
@@ -322,11 +341,11 @@ impl Widget for Input {
         let styles = context.query_styles(&[&TextColor]);
         let editor = self.editor_mut(context.kludgine, &styles);
 
-        println!(
-            "Keyboard input: {:?}. {:?}, {:?}",
-            input.logical_key, input.text, input.physical_key
-        );
-        let handled = match (input.logical_key, input.text) {
+        // println!(
+        //     "Keyboard input: {:?}. {:?}, {:?}",
+        //     input.logical_key, input.text, input.physical_key
+        // );
+        let (text_changed, handled) = match (input.logical_key, input.text) {
             (key @ (Key::Backspace | Key::Delete), _) => {
                 editor.action(
                     context.kludgine.font_system(),
@@ -336,7 +355,7 @@ impl Widget for Input {
                         _ => unreachable!("previously matched"),
                     },
                 );
-                HANDLED
+                (true, HANDLED)
             }
             (key @ (Key::ArrowLeft | Key::ArrowDown | Key::ArrowUp | Key::ArrowRight), _) => {
                 let modifiers = context.modifiers();
@@ -362,18 +381,30 @@ impl Widget for Input {
                         _ => unreachable!("previously matched"),
                     },
                 );
-                HANDLED
+                (false, HANDLED)
             }
             (_, Some(text)) if !context.modifiers().state().primary() => {
                 editor.insert_string(&text, None);
-                HANDLED
+                (true, HANDLED)
             }
-            (_, _) => IGNORED,
+            (_, _) => (false, IGNORED),
         };
 
         if handled.is_break() {
             context.set_needs_redraw();
             self.cursor_state.force_on();
+            if text_changed {
+                if let Value::Dynamic(value) = &self.text {
+                    let state = self.editor.as_mut().expect("just_used");
+                    value.map_mut(|text| {
+                        text.clear();
+                        for line in &state.editor.buffer().lines {
+                            text.push_str(line.text());
+                        }
+                    });
+                    state.generation = Some(value.generation());
+                }
+            }
         }
 
         handled

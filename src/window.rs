@@ -297,7 +297,7 @@ where
         if !handled {
             match input.physical_key {
                 KeyCode::KeyW
-                    if window.modifiers().state().primary() && dbg!(input.state).is_pressed() =>
+                    if window.modifiers().state().primary() && input.state.is_pressed() =>
                 {
                     if self.request_close(&mut window) {
                         window.set_needs_redraw();

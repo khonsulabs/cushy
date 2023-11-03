@@ -48,27 +48,52 @@ impl ChildWidget {
 pub struct Scroll {
     contents: ChildWidget,
     content_size: Size<Px>,
-    scroll: Point<Px>,
-    max_scroll: Point<Px>,
+    control_size: Size<Px>,
+    scroll: Dynamic<Point<Px>>,
+    enabled: Point<bool>,
+    max_scroll: Dynamic<Point<Px>>,
     scrollbar_opacity: Dynamic<ZeroToOne>,
     scrollbar_opacity_animation: AnimationHandle,
 }
 
 impl Scroll {
     /// Returns a new scroll widget containing `contents`.
-    pub fn new(contents: impl MakeWidget) -> Self {
+    fn construct(contents: impl MakeWidget, enabled: Point<bool>) -> Self {
         Self {
             contents: ChildWidget::Instance(contents.make_widget()),
+            enabled,
             content_size: Size::default(),
-            scroll: Point::default(),
-            max_scroll: Point::default(),
+            control_size: Size::default(),
+            scroll: Dynamic::new(Point::default()),
+            max_scroll: Dynamic::new(Point::default()),
             scrollbar_opacity: Dynamic::default(),
             scrollbar_opacity_animation: AnimationHandle::new(),
         }
     }
 
+    /// Returns a new scroll widget containing `contents` that allows scrolling
+    /// vertically or horizontally.
+    pub fn new(contents: impl MakeWidget) -> Self {
+        Self::construct(contents, Point::new(true, true))
+    }
+
+    /// Returns a new scroll widget that allows scrolling `contents`
+    /// horizontally.
+    pub fn horizontal(contents: impl MakeWidget) -> Self {
+        Self::construct(contents, Point::new(true, false))
+    }
+
+    /// Returns a new scroll widget that allows scrolling `contents` vertically.
+    pub fn vertical(contents: impl MakeWidget) -> Self {
+        Self::construct(contents, Point::new(false, true))
+    }
+
     fn constrain_scroll(&mut self) {
-        self.scroll = self.scroll.max(self.max_scroll).min(Point::default());
+        let scroll = self.scroll.get();
+        let clamped = scroll.max(self.max_scroll.get()).min(Point::default());
+        if clamped != scroll {
+            self.scroll.set(clamped);
+        }
     }
 }
 
@@ -111,29 +136,68 @@ impl Widget for Scroll {
             .get_or_default(&ScrollBarThickness)
             .into_px(context.graphics.scale());
 
+        let mut scroll = self.scroll.get();
+        let current_max_scroll = self.max_scroll.get();
+
+        let control_size = context.graphics.region().size;
         let max_extents = Size::new(
-            ConstraintLimit::ClippedAfter(UPx::MAX - self.scroll.x.into_unsigned()),
-            ConstraintLimit::ClippedAfter(UPx::MAX - self.scroll.y.into_unsigned()),
+            if self.enabled.x {
+                ConstraintLimit::ClippedAfter(UPx::MAX - scroll.x.into_unsigned())
+            } else {
+                ConstraintLimit::Known(control_size.width.into_unsigned())
+            },
+            if self.enabled.y {
+                ConstraintLimit::ClippedAfter(UPx::MAX - scroll.y.into_unsigned())
+            } else {
+                ConstraintLimit::Known(control_size.height.into_unsigned())
+            },
         );
         let managed = self.contents.managed(&mut context.as_event_context());
-        self.content_size = context
+        let new_content_size = context
             .for_other(&managed)
             .measure(max_extents)
             .into_signed();
-        let control_size = context.graphics.region().size;
+
+        let horizontal_bar = scrollbar_region(scroll.x, new_content_size.width, control_size.width);
+        let max_scroll_x = if self.enabled.x {
+            -horizontal_bar.amount_hidden
+        } else {
+            Px(0)
+        };
+
+        let vertical_bar = scrollbar_region(scroll.y, new_content_size.height, control_size.height);
+        let max_scroll_y = if self.enabled.y {
+            -vertical_bar.amount_hidden
+        } else {
+            Px(0)
+        };
+
+        // Preserve the current scroll if the widget has resized
+        if self.content_size.width != new_content_size.width
+            || self.control_size.width != control_size.width
+        {
+            self.content_size.width = new_content_size.width;
+            let scroll_pct = scroll.x.into_float() / current_max_scroll.x.into_float();
+            scroll.x = max_scroll_x * scroll_pct;
+        }
+
+        if self.content_size.height != new_content_size.height
+            || self.control_size.height != control_size.height
+        {
+            self.content_size.height = new_content_size.height;
+            let scroll_pct = scroll.y.into_float() / current_max_scroll.y.into_float();
+            scroll.y = max_scroll_y * scroll_pct;
+        }
+        self.scroll.update(scroll);
 
         let region = Rect::new(
-            self.scroll,
+            scroll,
             self.content_size
-                .min(Size::new(Px::MAX, Px::MAX) - self.scroll.max(Point::default())),
+                .min(Size::new(Px::MAX, Px::MAX) - scroll.max(Point::default())),
         );
         context.for_child(&managed, region).redraw();
 
-        let horizontal_bar =
-            scrollbar_region(self.scroll.x, self.content_size.width, control_size.width);
-        self.max_scroll.x = -horizontal_bar.amount_hidden;
-
-        if horizontal_bar.size > 0 {
+        if max_scroll_x != 0 {
             context.graphics.draw_shape(
                 &Shape::filled_rect(
                     Rect::new(
@@ -148,11 +212,7 @@ impl Widget for Scroll {
             );
         }
 
-        let vertical_bar =
-            scrollbar_region(self.scroll.y, self.content_size.height, control_size.height);
-        self.max_scroll.y = -vertical_bar.amount_hidden;
-
-        if vertical_bar.size > 0 {
+        if max_scroll_y != 0 {
             context.graphics.draw_shape(
                 &Shape::filled_rect(
                     Rect::new(
@@ -166,6 +226,10 @@ impl Widget for Scroll {
                 None,
             );
         }
+
+        self.control_size = control_size;
+        self.max_scroll
+            .update(Point::new(max_scroll_x, max_scroll_y));
     }
 
     fn measure(
@@ -191,7 +255,7 @@ impl Widget for Scroll {
             }
         };
 
-        self.scroll += amount.cast();
+        self.scroll.map_mut(|scroll| *scroll += amount.cast());
         context.set_needs_redraw();
 
         // TODO make this only returned handled if we actually scrolled.

@@ -11,7 +11,6 @@ use alot::{LotId, Lots};
 use kempt::Set;
 use kludgine::Color;
 
-use crate::impl_all_tuples;
 use crate::value::Dynamic;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());

@@ -1,8 +1,10 @@
 //! Types for storing and interacting with values in Widgets.
 
 use std::fmt::Debug;
+use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::task::{Poll, Waker};
 
 use crate::animation::{DynamicTransition, LinearInterpolate};
 use crate::context::{WidgetContext, WindowHandle};
@@ -24,6 +26,7 @@ impl<T> Dynamic<T> {
                 callbacks: Vec::new(),
                 windows: Vec::new(),
                 readers: 0,
+                wakers: Vec::new(),
             }),
             sync: AssertUnwindSafe(Condvar::new()),
         }))
@@ -39,7 +42,7 @@ impl<T> Dynamic<T> {
     /// function, all observers will be notified that the contents have been
     /// updated.
     pub fn map_mut<R>(&self, map: impl FnOnce(&mut T) -> R) -> R {
-        self.0.map_mut(map)
+        self.0.map_mut(|value, _| map(value))
     }
 
     /// Attaches `for_each` to this value so that it is invoked each time the
@@ -106,13 +109,29 @@ impl<T> Dynamic<T> {
     /// the contents have been updated.
     #[must_use]
     pub fn replace(&self, new_value: T) -> T {
-        self.0.map_mut(|value| std::mem::replace(value, new_value))
+        self.0
+            .map_mut(|value, _| std::mem::replace(value, new_value))
     }
 
     /// Stores `new_value` in this dynamic. Before returning from this function,
     /// all observers will be notified that the contents have been updated.
     pub fn set(&self, new_value: T) {
         let _old = self.replace(new_value);
+    }
+
+    /// Updates this dynamic with `new_value`, but only if `new_value` is not
+    /// equal to the currently stored value.
+    pub fn update(&self, new_value: T)
+    where
+        T: Eq,
+    {
+        self.0.map_mut(|value, changed| {
+            if *value == new_value {
+                *changed = false;
+            } else {
+                *value = new_value;
+            }
+        });
     }
 
     /// Returns a new reference-based reader for this dynamic value.
@@ -207,21 +226,26 @@ impl<T> DynamicData<T> {
         self.state().wrapped.clone()
     }
 
-    #[must_use]
-    pub fn map_mut<R>(&self, map: impl FnOnce(&mut T) -> R) -> R {
+    pub fn map_mut<R>(&self, map: impl FnOnce(&mut T, &mut bool) -> R) -> R {
         let mut state = self.state();
         let old = {
             let state = &mut *state;
-            let generation = state.wrapped.generation.next();
-            let result = map(&mut state.wrapped.value);
-            state.wrapped.generation = generation;
+            let mut changed = true;
+            let result = map(&mut state.wrapped.value, &mut changed);
+            if changed {
+                state.wrapped.generation = state.wrapped.generation.next();
 
-            for callback in &mut state.callbacks {
-                callback.update(&state.wrapped);
+                for callback in &mut state.callbacks {
+                    callback.update(&state.wrapped);
+                }
+                for window in state.windows.drain(..) {
+                    window.redraw();
+                }
+                for waker in state.wakers.drain(..) {
+                    waker.wake();
+                }
             }
-            for window in state.windows.drain(..) {
-                window.redraw();
-            }
+
             result
         };
         drop(state);
@@ -261,6 +285,7 @@ struct State<T> {
     wrapped: GenerationalValue<T>,
     callbacks: Vec<Box<dyn ValueCallback<T>>>,
     windows: Vec<WindowHandle>,
+    wakers: Vec<Waker>,
     readers: usize,
 }
 
@@ -345,6 +370,14 @@ impl<T> DynamicReader<T> {
                 .map_or_else(PoisonError::into_inner, |g| g);
         }
     }
+
+    /// Suspends the current async task until the contained value has been
+    /// updated or there are no remaining writers for the value.
+    ///
+    /// Returns true if a newly updated value was discovered.
+    pub fn block_until_updated_async(&mut self) -> BlockUntilUpdatedFuture<'_, T> {
+        BlockUntilUpdatedFuture(self)
+    }
 }
 
 impl<T> Clone for DynamicReader<T> {
@@ -361,6 +394,30 @@ impl<T> Drop for DynamicReader<T> {
     fn drop(&mut self) {
         let mut state = self.source.state();
         state.readers -= 1;
+    }
+}
+
+/// Suspends the current async task until the contained value has been
+/// updated or there are no remaining writers for the value.
+///
+/// Yeilds true if a newly updated value was discovered.
+#[derive(Debug)]
+#[must_use = "futures must be .await'ed to be executed"]
+pub struct BlockUntilUpdatedFuture<'a, T>(&'a mut DynamicReader<T>);
+
+impl<'a, T> Future for BlockUntilUpdatedFuture<'a, T> {
+    type Output = bool;
+
+    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut state = self.0.source.state();
+        if state.wrapped.generation != self.0.read_generation {
+            return Poll::Ready(true);
+        } else if state.readers == Arc::strong_count(&self.0.source) {
+            return Poll::Ready(false);
+        }
+
+        state.wakers.push(cx.waker().clone());
+        Poll::Pending
     }
 }
 

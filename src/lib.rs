@@ -2,6 +2,9 @@
 #![warn(clippy::pedantic, missing_docs)]
 #![allow(clippy::module_name_repetitions, clippy::missing_errors_doc)]
 
+#[macro_use]
+mod utils;
+
 pub mod animation;
 pub mod context;
 mod graphics;
@@ -9,7 +12,6 @@ mod names;
 pub mod styles;
 mod tick;
 mod tree;
-mod utils;
 pub mod value;
 pub mod widget;
 pub mod widgets;
@@ -88,6 +90,9 @@ macro_rules! widgets {
     }};
 }
 
+/// Counts the number of expressions passed to it.
+///
+/// This is used inside of Gooey macros to preallocate collections.
 #[macro_export]
 #[doc(hidden)]
 macro_rules! count {
@@ -114,17 +119,4 @@ macro_rules! styles {
     ($($component:expr => $value:expr),* ,) => {{
         $crate::styles!($($component => $value),*)
     }};
-}
-
-#[doc(hidden)]
-#[macro_export]
-macro_rules! impl_all_tuples {
-    ($macro_name:ident) => {
-        $macro_name!(T0 0);
-        $macro_name!(T0 0, T1 1);
-        $macro_name!(T0 0, T1 1, T2 2);
-        $macro_name!(T0 0, T1 1, T2 2, T3 3);
-        $macro_name!(T0 0, T1 1, T2 2, T3 3, T4 4);
-        $macro_name!(T0 0, T1 1, T2 2, T3 3, T4 4, T5 5);
-    }
 }
