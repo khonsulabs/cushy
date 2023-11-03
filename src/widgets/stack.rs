@@ -587,7 +587,7 @@ mod tests {
             ConstraintLimit::ClippedAfter(UPx(10)),
             ConstraintLimit::ClippedAfter(UPx(10)),
             &[UPx(3), UPx(3), UPx(3)],
-            UPx(10),
+            UPx(9),
             UPx(1),
         );
     }
