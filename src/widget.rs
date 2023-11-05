@@ -13,9 +13,10 @@ use kludgine::app::winit::event::{
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Rect, Size};
 
-use crate::context::{AsEventContext, EventContext, GraphicsContext};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::Styles;
 use crate::tree::{Tree, WidgetId};
+use crate::value::{IntoValue, Value};
 use crate::widgets::Style;
 use crate::window::{RunningWindow, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
@@ -28,12 +29,12 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     /// Redraw the contents of this widget.
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
 
-    /// Measure this widget and returns the ideal size based on its contents and
+    /// Layout this widget and returns the ideal size based on its contents and
     /// the `available_space`.
-    fn measure(
+    fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx>;
 
     /// The widget has been mounted into a parent widget.
@@ -57,6 +58,14 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     /// The widget is no longer being hovered.
     #[allow(unused_variables)]
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// This widget has been targeted to be focused. If this function returns
+    /// true, the widget will be focused. If false, Gooey will continue
+    /// searching for another focus target.
+    #[allow(unused_variables)]
+    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        false
+    }
 
     /// The widget has received focus for user input.
     #[allow(unused_variables)]
@@ -145,6 +154,21 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     ) -> EventHandling {
         IGNORED
     }
+}
+
+impl<T> Run for T
+where
+    T: MakeWidget,
+{
+    fn run(self) -> crate::Result {
+        self.make_widget().run()
+    }
+}
+
+/// A type that can create a widget.
+pub trait MakeWidget: Sized {
+    /// Returns a new widget.
+    fn make_widget(self) -> WidgetInstance;
 
     /// Associates `styles` with this widget.
     ///
@@ -155,25 +179,13 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     {
         Style::new(styles, self)
     }
-}
 
-impl<T> Run for T
-where
-    T: Widget,
-{
-    fn run(self) -> crate::Result {
-        WidgetInstance::new(self).run()
-    }
-}
-
-/// A type that can create a widget.
-pub trait MakeWidget: Sized {
-    /// Returns a new widget.
-    fn make_widget(self) -> WidgetInstance;
-
-    /// Runs the widget this type creates as an application.
-    fn run(self) -> crate::Result {
-        self.make_widget().run()
+    /// Sets the widget that should be focused next.
+    ///
+    /// Gooey automatically determines reverse tab order by using this same
+    /// relationship.
+    fn with_next_focus(self, next_focus: impl IntoValue<Option<WidgetInstance>>) -> WidgetInstance {
+        self.make_widget().with_next_focus(next_focus)
     }
 }
 
@@ -183,6 +195,12 @@ where
 {
     fn make_widget(self) -> WidgetInstance {
         WidgetInstance::new(self)
+    }
+}
+
+impl MakeWidget for WidgetInstance {
+    fn make_widget(self) -> WidgetInstance {
+        self
     }
 }
 
@@ -223,7 +241,10 @@ where
 
 /// An instance of a [`Widget`].
 #[derive(Clone, Debug)]
-pub struct WidgetInstance(Arc<Mutex<dyn AnyWidget>>);
+pub struct WidgetInstance {
+    widget: Arc<Mutex<dyn AnyWidget>>,
+    next_focus: Value<Option<Arc<Mutex<dyn AnyWidget>>>>,
+}
 
 impl WidgetInstance {
     /// Returns a new instance containing `widget`.
@@ -231,19 +252,46 @@ impl WidgetInstance {
     where
         W: Widget,
     {
-        Self(Arc::new(Mutex::new(widget)))
+        Self {
+            widget: Arc::new(Mutex::new(widget)),
+            next_focus: Value::default(),
+        }
+    }
+
+    /// Sets the widget that should be focused next.
+    ///
+    /// Gooey automatically determines reverse tab order by using this same
+    /// relationship.
+    #[must_use]
+    pub fn with_next_focus(
+        mut self,
+        next_focus: impl IntoValue<Option<WidgetInstance>>,
+    ) -> WidgetInstance {
+        self.next_focus = match next_focus.into_value() {
+            Value::Constant(maybe_widget) => {
+                Value::Constant(maybe_widget.map(|widget| widget.widget))
+            }
+            Value::Dynamic(dynamic) => Value::Dynamic(
+                dynamic
+                    .map_each(|instance| instance.as_ref().map(|instance| instance.widget.clone())),
+            ),
+        };
+        self
     }
 
     /// Locks the widget for exclusive access. Locking widgets should only be
     /// done for brief moments of time when you are certain no deadlocks can
     /// occur due to other widget locks being held.
     pub fn lock(&self) -> WidgetGuard<'_> {
-        WidgetGuard(self.0.lock().map_or_else(PoisonError::into_inner, |g| g))
+        WidgetGuard(
+            self.widget
+                .lock()
+                .map_or_else(PoisonError::into_inner, |g| g),
+        )
     }
-}
 
-impl Run for WidgetInstance {
-    fn run(self) -> crate::Result {
+    /// Runs this widget instance as an application.
+    pub fn run(self) -> crate::Result {
         Window::<WidgetInstance>::new(self).run()
     }
 }
@@ -252,7 +300,7 @@ impl Eq for WidgetInstance {}
 
 impl PartialEq for WidgetInstance {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
+        Arc::ptr_eq(&self.widget, &other.widget)
     }
 }
 
@@ -336,14 +384,14 @@ impl ManagedWidget {
         self.widget.lock()
     }
 
-    pub(crate) fn note_rendered_rect(&self, rect: Rect<Px>) {
-        self.tree.note_rendered_rect(self.id, rect);
+    pub(crate) fn set_layout(&self, rect: Rect<Px>) {
+        self.tree.set_layout(self.id, rect);
     }
 
     /// Returns the region that the widget was last rendered at.
     #[must_use]
-    pub fn last_rendered_at(&self) -> Option<Rect<Px>> {
-        self.tree.last_rendered_at(self.id)
+    pub fn last_layout(&self) -> Option<Rect<Px>> {
+        self.tree.layout(self.id)
     }
 
     /// Returns true if this widget is the currently active widget.
@@ -378,6 +426,10 @@ impl ManagedWidget {
 
     pub(crate) fn attach_styles(&self, styles: Styles) {
         self.tree.attach_styles(self.id, styles);
+    }
+
+    pub(crate) fn reset_child_layouts(&self) {
+        self.tree.reset_child_layouts(self.id);
     }
 }
 
@@ -426,11 +478,11 @@ impl WidgetGuard<'_> {
 /// A list of [`Widget`]s.
 #[derive(Debug, Default)]
 #[must_use]
-pub struct Widgets {
+pub struct Children {
     ordered: Vec<WidgetInstance>,
 }
 
-impl Widgets {
+impl Children {
     /// Returns an empty list.
     pub const fn new() -> Self {
         Self {
@@ -476,7 +528,7 @@ impl Widgets {
     }
 }
 
-impl<W> FromIterator<W> for Widgets
+impl<W> FromIterator<W> for Children
 where
     W: MakeWidget,
 {
@@ -487,7 +539,7 @@ where
     }
 }
 
-impl Deref for Widgets {
+impl Deref for Children {
     type Target = [WidgetInstance];
 
     fn deref(&self) -> &Self::Target {
@@ -497,14 +549,14 @@ impl Deref for Widgets {
 
 /// A child widget
 #[derive(Debug, Clone)]
-pub enum ChildWidget {
+pub enum WidgetRef {
     /// An unmounted child widget
     Unmounted(WidgetInstance),
     /// A mounted child widget
     Mounted(ManagedWidget),
 }
 
-impl ChildWidget {
+impl WidgetRef {
     /// Returns a new unmounted child
     pub fn new(widget: impl MakeWidget) -> Self {
         Self::Unmounted(widget.make_widget())
@@ -512,8 +564,8 @@ impl ChildWidget {
 
     /// Returns this child, mounting it in the process if necessary.
     pub fn mounted(&mut self, context: &mut EventContext<'_, '_>) -> ManagedWidget {
-        if let ChildWidget::Unmounted(instance) = self {
-            *self = ChildWidget::Mounted(context.push_child(instance.clone()));
+        if let WidgetRef::Unmounted(instance) = self {
+            *self = WidgetRef::Mounted(context.push_child(instance.clone()));
         }
 
         let Self::Mounted(widget) = self else {

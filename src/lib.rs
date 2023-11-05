@@ -18,13 +18,11 @@ pub mod widgets;
 pub mod window;
 use std::ops::Sub;
 
-pub use with_clone::WithClone;
-mod with_clone;
-
 pub use kludgine;
 use kludgine::app::winit::error::EventLoopError;
 use kludgine::figures::units::UPx;
 pub use names::Name;
+pub use utils::WithClone;
 
 pub use self::graphics::Graphics;
 pub use self::tick::{InputState, Tick};
@@ -73,20 +71,20 @@ pub trait Run: Sized {
     fn run(self) -> crate::Result;
 }
 
-/// Creates a [`Widgets`](crate::widget::Widgets) instance with the given list
+/// Creates a [`Children`](crate::widget::Children) instance with the given list
 /// of widgets.
 #[macro_export]
-macro_rules! widgets {
+macro_rules! children {
     () => {
-        $crate::widget::Widgets::new()
+        $crate::widget::Children::new()
     };
     ($($widget:expr),+) => {{
-        let mut widgets = $crate::widget::Widgets::with_capacity($crate::count!($($widget),+ ;));
+        let mut widgets = $crate::widget::Children::with_capacity($crate::count!($($widget),+ ;));
         $(widgets.push($widget);)+
         widgets
     }};
     ($($widget:expr),+ ,) => {{
-        $crate::widgets!($($widget),+)
+        $crate::children!($($widget),+)
     }};
 }
 

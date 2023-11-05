@@ -7,7 +7,7 @@ use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, Rect, Size};
+use kludgine::figures::{IntoSigned, Point, Rect, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Kludgine;
 
@@ -50,7 +50,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
     /// appropriate function to invoke the event.
     pub fn for_other<'child>(
         &'child mut self,
-        widget: &'child ManagedWidget,
+        widget: ManagedWidget,
     ) -> EventContext<'child, 'window> {
         EventContext::new(self.widget.for_other(widget), self.kludgine)
     }
@@ -59,6 +59,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
     /// context's widget and returns the result.
     pub fn hit_test(&mut self, location: Point<Px>) -> bool {
         self.current_node
+            .clone()
             .lock()
             .as_widget()
             .hit_test(location, self)
@@ -73,6 +74,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         button: MouseButton,
     ) -> EventHandling {
         self.current_node
+            .clone()
             .lock()
             .as_widget()
             .mouse_down(location, device_id, button, self)
@@ -82,6 +84,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
     /// this context's widget and returns the result.
     pub fn mouse_drag(&mut self, location: Point<Px>, device_id: DeviceId, button: MouseButton) {
         self.current_node
+            .clone()
             .lock()
             .as_widget()
             .mouse_drag(location, device_id, button, self);
@@ -96,6 +99,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         button: MouseButton,
     ) {
         self.current_node
+            .clone()
             .lock()
             .as_widget()
             .mouse_up(location, device_id, button, self);
@@ -109,16 +113,18 @@ impl<'context, 'window> EventContext<'context, 'window> {
         input: KeyEvent,
         is_synthetic: bool,
     ) -> EventHandling {
-        self.current_node
-            .lock()
-            .as_widget()
-            .keyboard_input(device_id, input, is_synthetic, self)
+        self.current_node.clone().lock().as_widget().keyboard_input(
+            device_id,
+            input,
+            is_synthetic,
+            self,
+        )
     }
 
     /// Invokes [`Widget::ime()`](crate::widget::Widget::ime) on this
     /// context's widget and returns the result.
     pub fn ime(&mut self, ime: Ime) -> EventHandling {
-        self.current_node.lock().as_widget().ime(ime, self)
+        self.current_node.clone().lock().as_widget().ime(ime, self)
     }
 
     /// Invokes [`Widget::mouse_wheel()`](crate::widget::Widget::mouse_wheel) on this
@@ -130,19 +136,20 @@ impl<'context, 'window> EventContext<'context, 'window> {
         phase: TouchPhase,
     ) -> EventHandling {
         self.current_node
+            .clone()
             .lock()
             .as_widget()
             .mouse_wheel(device_id, delta, phase, self)
     }
 
     pub(crate) fn hover(&mut self, location: Point<Px>) {
-        let changes = self.current_node.tree.hover(Some(self.current_node));
+        let changes = self.current_node.tree.hover(Some(&self.current_node));
         for unhovered in changes.unhovered {
-            let mut context = self.for_other(&unhovered);
+            let mut context = self.for_other(unhovered.clone());
             unhovered.lock().as_widget().unhover(&mut context);
         }
         for hover in changes.hovered {
-            let mut context = self.for_other(&hover);
+            let mut context = self.for_other(hover.clone());
             hover.lock().as_widget().hover(location, &mut context);
         }
     }
@@ -152,7 +159,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         assert!(changes.hovered.is_empty());
 
         for old_hover in changes.unhovered {
-            let mut old_hover_context = self.for_other(&old_hover);
+            let mut old_hover_context = self.for_other(old_hover.clone());
             old_hover.lock().as_widget().unhover(&mut old_hover_context);
         }
     }
@@ -163,7 +170,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
             let new = match self.current_node.tree.activate(active.as_ref()) {
                 Ok(old) => {
                     if let Some(old) = old {
-                        let mut old_context = self.for_other(&old);
+                        let mut old_context = self.for_other(old.clone());
                         old.lock().as_widget().deactivate(&mut old_context);
                     }
                     true
@@ -175,7 +182,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                     active
                         .lock()
                         .as_widget()
-                        .activate(&mut self.for_other(&active));
+                        .activate(&mut self.for_other(active.clone()));
                 }
             }
         }
@@ -185,7 +192,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
             let new = match self.current_node.tree.focus(focus.as_ref()) {
                 Ok(old) => {
                     if let Some(old) = old {
-                        let mut old_context = self.for_other(&old);
+                        let mut old_context = self.for_other(old.clone());
                         old.lock().as_widget().blur(&mut old_context);
                     }
                     true
@@ -194,7 +201,10 @@ impl<'context, 'window> EventContext<'context, 'window> {
             };
             if new {
                 if let Some(focus) = focus {
-                    focus.lock().as_widget().focus(&mut self.for_other(&focus));
+                    focus
+                        .lock()
+                        .as_widget()
+                        .focus(&mut self.for_other(focus.clone()));
                 }
             }
         }
@@ -254,31 +264,28 @@ pub struct GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass> {
 }
 
 impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass> {
-    /// Returns a new `GraphicsContext` that allows invoking graphics functions
-    /// for `widget`.
-    pub fn for_other<'child>(
-        &'child mut self,
-        widget: &'child ManagedWidget,
-    ) -> GraphicsContext<'child, 'window, 'clip, 'gfx, 'pass> {
+    /// Returns a new instance that borrows from `self`.
+    pub fn borrowed(&mut self) -> GraphicsContext<'_, 'window, 'clip, 'gfx, 'pass> {
         GraphicsContext {
-            widget: self.widget.for_other(widget),
-            graphics: Exclusive::Borrowed(&mut *self.graphics),
+            widget: self.widget.borrowed(),
+            graphics: Exclusive::Borrowed(&mut self.graphics),
         }
     }
 
     /// Returns a new `GraphicsContext` that allows invoking graphics functions
-    /// for `widget` and restricts the drawing area to `region`.
-    ///
-    /// This is equivalent to calling
-    /// `self.for_other(widget).clipped_to(region)`.
-    pub fn for_child<'child>(
+    /// for `widget`.
+    pub fn for_other<'child>(
         &'child mut self,
-        widget: &'child ManagedWidget,
-        region: Rect<Px>,
+        widget: ManagedWidget,
     ) -> GraphicsContext<'child, 'window, 'child, 'gfx, 'pass> {
+        let widget = self.widget.for_other(widget);
+        let layout = widget.last_layout().map_or_else(
+            || Rect::from(self.graphics.clip_rect().size).into_signed(),
+            |rect| rect - self.graphics.region().origin,
+        );
         GraphicsContext {
-            widget: self.widget.for_other(widget),
-            graphics: Exclusive::Owned(self.graphics.clipped_to(region)),
+            widget,
+            graphics: Exclusive::Owned(self.graphics.clipped_to(layout)),
         }
     }
 
@@ -310,20 +317,10 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         self.draw_focus_ring_using(&self.query_styles(&[&HighlightColor]));
     }
 
-    /// Invokes [`Widget::measure()`](crate::widget::Widget::measure) on this
-    /// context's widget and returns the result.
-    pub fn measure(&mut self, available_space: Size<ConstraintLimit>) -> Size<UPx> {
-        self.current_node
-            .lock()
-            .as_widget()
-            .measure(available_space, self)
-    }
-
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
     /// context's widget.
     pub fn redraw(&mut self) {
-        self.current_node.note_rendered_rect(self.graphics.region());
-        self.current_node.lock().as_widget().redraw(self);
+        self.current_node.clone().lock().as_widget().redraw(self);
     }
 }
 
@@ -345,6 +342,92 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> DerefMut
     }
 }
 
+/// A context to a function that is rendering a widget.
+pub struct LayoutContext<'context, 'window, 'clip, 'gfx, 'pass> {
+    graphics: GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
+    persist_layout: bool,
+}
+
+impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'clip, 'gfx, 'pass> {
+    pub(crate) fn new(
+        graphics: &'context mut GraphicsContext<'_, 'window, 'clip, 'gfx, 'pass>,
+    ) -> Self {
+        Self {
+            graphics: graphics.borrowed(),
+            persist_layout: true,
+        }
+    }
+
+    /// Returns a new layout context that does not persist any child layout
+    /// operations.
+    ///
+    /// This type of context is useful for asking widgets to measuree themselves
+    /// in hypothetical layout conditions while trying to determine the best
+    /// layout for a composite control.
+    #[must_use]
+    pub fn as_temporary(mut self) -> Self {
+        self.persist_layout = false;
+        self
+    }
+
+    /// Returns a new `LayoutContext` that allows invoking layout functions for
+    /// `widget`.
+    pub fn for_other<'child, 'widget>(
+        &'child mut self,
+        widget: ManagedWidget,
+    ) -> LayoutContext<'child, 'window, 'child, 'gfx, 'pass>
+    where
+        'widget: 'child,
+    {
+        LayoutContext {
+            graphics: self.graphics.for_other(widget),
+            persist_layout: self.persist_layout,
+        }
+    }
+
+    /// Invokes [`Widget::layout()`](crate::widget::Widget::layout) on this
+    /// context's widget and returns the result.
+    pub fn layout(&mut self, available_space: Size<ConstraintLimit>) -> Size<UPx> {
+        if self.persist_layout {
+            self.graphics.current_node.reset_child_layouts();
+        }
+        self.graphics
+            .current_node
+            .clone()
+            .lock()
+            .as_widget()
+            .layout(available_space, self)
+    }
+
+    /// Sets the layout for `child` to `layout`.
+    ///
+    /// `layout` is relative to the current widget's controls.
+    pub fn set_child_layout(&mut self, child: &ManagedWidget, layout: Rect<Px>) {
+        // TODO verify that `child` belongs to the current node.
+        if self.persist_layout {
+            child.set_layout(layout);
+        }
+    }
+}
+
+impl<'context, 'window, 'clip, 'gfx, 'pass> Deref
+    for LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>
+{
+    type Target = GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.graphics
+    }
+}
+
+impl<'context, 'window, 'clip, 'gfx, 'pass> DerefMut
+    for LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.graphics
+    }
+}
+
 /// Converts from one context to an [`EventContext`].
 pub trait AsEventContext<'window> {
     /// Returns this context as an [`EventContext`].
@@ -358,11 +441,11 @@ pub trait AsEventContext<'window> {
         let pushed_widget = context
             .current_node
             .tree
-            .push_boxed(child, Some(context.current_node));
+            .push_boxed(child, Some(&context.current_node));
         pushed_widget
             .lock()
             .as_widget()
-            .mounted(&mut context.for_other(&pushed_widget));
+            .mounted(&mut context.for_other(pushed_widget.clone()));
         pushed_widget
     }
 
@@ -372,11 +455,11 @@ pub trait AsEventContext<'window> {
         context
             .current_node
             .tree
-            .remove_child(child, context.current_node);
+            .remove_child(child, &context.current_node);
         child
             .lock()
             .as_widget()
-            .unmounted(&mut context.for_other(child));
+            .unmounted(&mut context.for_other(child.clone()));
     }
 }
 
@@ -397,7 +480,7 @@ impl<'window> AsEventContext<'window> for GraphicsContext<'_, 'window, '_, '_, '
 /// This type provides access to the widget hierarchy from the perspective of a
 /// specific widget.
 pub struct WidgetContext<'context, 'window> {
-    current_node: &'context ManagedWidget,
+    current_node: ManagedWidget,
     redraw_status: &'context RedrawStatus,
     window: &'context mut RunningWindow<'window>,
     pending_state: PendingState<'context>,
@@ -405,14 +488,11 @@ pub struct WidgetContext<'context, 'window> {
 
 impl<'context, 'window> WidgetContext<'context, 'window> {
     pub(crate) fn new(
-        current_node: &'context ManagedWidget,
+        current_node: ManagedWidget,
         redraw_status: &'context RedrawStatus,
         window: &'context mut RunningWindow<'window>,
     ) -> Self {
         Self {
-            current_node,
-            redraw_status,
-            window,
             pending_state: PendingState::Owned(PendingWidgetState {
                 focus: current_node
                     .tree
@@ -423,13 +503,16 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
                     .active_widget()
                     .map(|id| current_node.tree.widget(id)),
             }),
+            current_node,
+            redraw_status,
+            window,
         }
     }
 
     /// Returns a new instance that borrows from `self`.
     pub fn borrowed(&mut self) -> WidgetContext<'_, 'window> {
         WidgetContext {
-            current_node: self.current_node,
+            current_node: self.current_node.clone(),
             redraw_status: self.redraw_status,
             window: &mut *self.window,
             pending_state: self.pending_state.borrowed(),
@@ -439,7 +522,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns a new context representing `widget`.
     pub fn for_other<'child>(
         &'child mut self,
-        widget: &'child ManagedWidget,
+        widget: ManagedWidget,
     ) -> WidgetContext<'child, 'window> {
         WidgetContext {
             current_node: widget,
@@ -458,10 +541,10 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         value.redraw_when_changed(self.handle());
     }
 
-    /// Returns the region that this widget last rendered at.
+    /// Returns the last layout of this widget.
     #[must_use]
-    pub fn last_rendered_at(&self) -> Option<Rect<Px>> {
-        self.current_node.last_rendered_at()
+    pub fn last_layout(&self) -> Option<Rect<Px>> {
+        self.current_node.last_layout()
     }
 
     /// Sets the currently focused widget to this widget.
@@ -503,7 +586,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             .pending_state
             .active
             .as_ref()
-            .map_or(true, |active| active != self.current_node)
+            .map_or(true, |active| active != &self.current_node)
         {
             self.pending_state.active = Some(self.current_node.clone());
             true
@@ -535,7 +618,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns true if this widget is currently the active widget.
     #[must_use]
     pub fn active(&self) -> bool {
-        self.pending_state.active.as_ref() == Some(self.current_node)
+        self.pending_state.active.as_ref() == Some(&self.current_node)
     }
 
     /// Returns true if this widget is currently hovered, even if the cursor is
@@ -554,13 +637,13 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns true if this widget is currently focused for user input.
     #[must_use]
     pub fn focused(&self) -> bool {
-        self.pending_state.focus.as_ref() == Some(self.current_node)
+        self.pending_state.focus.as_ref() == Some(&self.current_node)
     }
 
     /// Returns the widget this context is for.
     #[must_use]
     pub const fn widget(&self) -> &ManagedWidget {
-        self.current_node
+        &self.current_node
     }
 
     /// Attaches `styles` to the widget hierarchy for this widget.
@@ -585,7 +668,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     pub fn query_styles(&self, query: &[&dyn ComponentDefaultvalue]) -> Styles {
         self.current_node
             .tree
-            .query_styles(self.current_node, query)
+            .query_styles(&self.current_node, query)
     }
 
     /// Queries the widget hierarchy for a single style component.
@@ -599,7 +682,9 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         &self,
         query: &Component,
     ) -> Component::ComponentType {
-        self.current_node.tree.query_style(self.current_node, query)
+        self.current_node
+            .tree
+            .query_style(&self.current_node, query)
     }
 
     pub(crate) fn handle(&self) -> WindowHandle {

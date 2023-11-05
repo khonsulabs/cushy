@@ -1,6 +1,6 @@
 use gooey::styles::components::TextColor;
 use gooey::styles::Styles;
-use gooey::widget::{Widget, Widgets};
+use gooey::widget::{Children, MakeWidget, Widget};
 use gooey::widgets::stack::Stack;
 use gooey::widgets::{Button, Style};
 use gooey::window::Window;
@@ -10,7 +10,7 @@ use kludgine::Color;
 fn main() -> gooey::Result {
     Window::for_widget(
         Stack::rows(
-            Widgets::new()
+            Children::new()
                 .with_widget(Button::new("Default"))
                 .with_widget(red_text(Button::new("Styled"))),
         )

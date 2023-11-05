@@ -1,16 +1,16 @@
 use kludgine::figures::units::UPx;
 use kludgine::figures::Size;
 
-use crate::context::{AsEventContext, EventContext, GraphicsContext};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::Styles;
-use crate::widget::{ChildWidget, MakeWidget, Widget};
+use crate::widget::{MakeWidget, Widget, WidgetRef};
 use crate::ConstraintLimit;
 
 /// A widget that applies a set of [`Styles`] to all contained widgets.
 #[derive(Debug)]
 pub struct Style {
     styles: Styles,
-    child: ChildWidget,
+    child: WidgetRef,
 }
 
 impl Style {
@@ -19,7 +19,7 @@ impl Style {
     pub fn new(styles: impl Into<Styles>, child: impl MakeWidget) -> Self {
         Self {
             styles: styles.into(),
-            child: ChildWidget::new(child),
+            child: WidgetRef::new(child),
         }
     }
 }
@@ -31,15 +31,15 @@ impl Widget for Style {
 
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(&child).redraw();
+        context.for_other(child).redraw();
     }
 
-    fn measure(
+    fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(&child).measure(available_space)
+        context.for_other(child).layout(available_space)
     }
 }

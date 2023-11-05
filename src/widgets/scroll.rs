@@ -18,36 +18,13 @@ use crate::styles::{
     ComponentDefinition, ComponentGroup, ComponentName, Dimension, NamedComponent,
 };
 use crate::value::Dynamic;
-use crate::widget::{EventHandling, MakeWidget, ManagedWidget, Widget, WidgetInstance, HANDLED};
+use crate::widget::{EventHandling, MakeWidget, Widget, WidgetRef, HANDLED};
 use crate::{ConstraintLimit, Name};
-
-#[derive(Debug)]
-enum ChildWidget {
-    Instance(WidgetInstance),
-    Managed(ManagedWidget),
-    Mounting,
-}
-
-impl ChildWidget {
-    pub fn managed(&mut self, context: &mut EventContext<'_, '_>) -> ManagedWidget {
-        if matches!(self, ChildWidget::Instance(_)) {
-            let ChildWidget::Instance(instance) = std::mem::replace(self, ChildWidget::Mounting)
-            else {
-                unreachable!("just matched")
-            };
-            *self = ChildWidget::Managed(context.push_child(instance));
-        }
-        let ChildWidget::Managed(managed) = self else {
-            unreachable!("always converted")
-        };
-        managed.clone()
-    }
-}
 
 /// A widget that supports scrolling its contents.
 #[derive(Debug)]
 pub struct Scroll {
-    contents: ChildWidget,
+    contents: WidgetRef,
     content_size: Size<Px>,
     control_size: Size<Px>,
     scroll: Dynamic<Point<Px>>,
@@ -55,13 +32,16 @@ pub struct Scroll {
     max_scroll: Dynamic<Point<Px>>,
     scrollbar_opacity: Dynamic<ZeroToOne>,
     scrollbar_opacity_animation: AnimationHandle,
+    horizontal_bar: ScrollbarInfo,
+    vertical_bar: ScrollbarInfo,
+    bar_width: Px,
 }
 
 impl Scroll {
     /// Returns a new scroll widget containing `contents`.
     fn construct(contents: impl MakeWidget, enabled: Point<bool>) -> Self {
         Self {
-            contents: ChildWidget::Instance(contents.make_widget()),
+            contents: WidgetRef::new(contents),
             enabled,
             content_size: Size::default(),
             control_size: Size::default(),
@@ -69,6 +49,9 @@ impl Scroll {
             max_scroll: Dynamic::new(Point::default()),
             scrollbar_opacity: Dynamic::default(),
             scrollbar_opacity_animation: AnimationHandle::new(),
+            horizontal_bar: ScrollbarInfo::default(),
+            vertical_bar: ScrollbarInfo::default(),
+            bar_width: Px::default(),
         }
     }
 
@@ -89,12 +72,14 @@ impl Scroll {
         Self::construct(contents, Point::new(false, true))
     }
 
-    fn constrain_scroll(&mut self) {
+    fn constrain_scroll(&mut self) -> (Point<Px>, Point<Px>) {
         let scroll = self.scroll.get();
-        let clamped = scroll.max(self.max_scroll.get()).min(Point::default());
+        let max_scroll = self.max_scroll.get();
+        let clamped = scroll.max(max_scroll).min(Point::default());
         if clamped != scroll {
             self.scroll.set(clamped);
         }
+        (clamped, max_scroll)
     }
 
     fn show_scrollbars(&mut self, context: &mut EventContext<'_, '_>) {
@@ -135,18 +120,62 @@ impl Widget for Scroll {
 
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
         context.redraw_when_changed(&self.scrollbar_opacity);
-        self.constrain_scroll();
         let Some(visible_rect) = context.graphics.visible_rect() else {
             return;
         };
         let visible_bottom_right = visible_rect.into_signed().extent();
+
+        let managed = self.contents.mounted(&mut context.as_event_context());
+        context.for_other(managed).redraw();
+
+        if self.horizontal_bar.amount_hidden > 0 {
+            context.graphics.draw_shape(
+                &Shape::filled_rect(
+                    Rect::new(
+                        Point::new(
+                            self.horizontal_bar.offset,
+                            self.control_size.height - self.bar_width,
+                        ),
+                        Size::new(self.horizontal_bar.size, self.bar_width),
+                    ),
+                    Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
+                ),
+                Point::default(),
+                None,
+                None,
+            );
+        }
+
+        if self.vertical_bar.amount_hidden > 0 {
+            context.graphics.draw_shape(
+                &Shape::filled_rect(
+                    Rect::new(
+                        Point::new(
+                            visible_bottom_right.x - self.bar_width,
+                            self.vertical_bar.offset,
+                        ),
+                        Size::new(self.bar_width, self.vertical_bar.size),
+                    ),
+                    Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
+                ),
+                Point::default(),
+                None,
+                None,
+            );
+        }
+    }
+
+    fn layout(
+        &mut self,
+        available_space: Size<crate::ConstraintLimit>,
+        context: &mut crate::context::LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> Size<UPx> {
         let styles = context.query_styles(&[&ScrollBarThickness]);
-        let bar_width = styles
+        self.bar_width = styles
             .get_or_default(&ScrollBarThickness)
             .into_px(context.graphics.scale());
 
-        let mut scroll = self.scroll.get();
-        let current_max_scroll = self.max_scroll.get();
+        let (mut scroll, current_max_scroll) = self.constrain_scroll();
 
         let control_size = context.graphics.region().size;
         let max_extents = Size::new(
@@ -161,25 +190,32 @@ impl Widget for Scroll {
                 ConstraintLimit::Known(control_size.height.into_unsigned())
             },
         );
-        let managed = self.contents.managed(&mut context.as_event_context());
+        let managed = self.contents.mounted(&mut context.as_event_context());
         let new_content_size = context
-            .for_other(&managed)
-            .measure(max_extents)
+            .for_other(managed.clone())
+            .layout(max_extents)
             .into_signed();
 
-        let horizontal_bar = scrollbar_region(scroll.x, new_content_size.width, control_size.width);
+        self.horizontal_bar =
+            scrollbar_region(scroll.x, new_content_size.width, control_size.width);
         let max_scroll_x = if self.enabled.x {
-            -horizontal_bar.amount_hidden
+            -self.horizontal_bar.amount_hidden
         } else {
             Px(0)
         };
 
-        let vertical_bar = scrollbar_region(scroll.y, new_content_size.height, control_size.height);
+        self.vertical_bar =
+            scrollbar_region(scroll.y, new_content_size.height, control_size.height);
         let max_scroll_y = if self.enabled.y {
-            -vertical_bar.amount_hidden
+            -self.vertical_bar.amount_hidden
         } else {
             Px(0)
         };
+        let new_max_scroll = Point::new(max_scroll_x, max_scroll_y);
+        if current_max_scroll != new_max_scroll {
+            self.max_scroll.set(new_max_scroll);
+            scroll = scroll.max(new_max_scroll);
+        }
 
         // Preserve the current scroll if the widget has resized
         if self.content_size.width != new_content_size.width
@@ -198,54 +234,16 @@ impl Widget for Scroll {
             scroll.y = max_scroll_y * scroll_pct;
         }
         self.scroll.update(scroll);
+        self.control_size = control_size;
+        self.content_size = new_content_size;
 
         let region = Rect::new(
             scroll,
             self.content_size
                 .min(Size::new(Px::MAX, Px::MAX) - scroll.max(Point::default())),
         );
-        context.for_child(&managed, region).redraw();
+        context.set_child_layout(&managed, region);
 
-        if max_scroll_x != 0 {
-            context.graphics.draw_shape(
-                &Shape::filled_rect(
-                    Rect::new(
-                        Point::new(horizontal_bar.offset, control_size.height - bar_width),
-                        Size::new(horizontal_bar.size, bar_width),
-                    ),
-                    Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
-                ),
-                Point::default(),
-                None,
-                None,
-            );
-        }
-
-        if max_scroll_y != 0 {
-            context.graphics.draw_shape(
-                &Shape::filled_rect(
-                    Rect::new(
-                        Point::new(visible_bottom_right.x - bar_width, vertical_bar.offset),
-                        Size::new(bar_width, vertical_bar.size),
-                    ),
-                    Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
-                ),
-                Point::default(),
-                None,
-                None,
-            );
-        }
-
-        self.control_size = control_size;
-        self.max_scroll
-            .update(Point::new(max_scroll_x, max_scroll_y));
-    }
-
-    fn measure(
-        &mut self,
-        available_space: Size<crate::ConstraintLimit>,
-        _context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>,
-    ) -> Size<UPx> {
         Size::new(available_space.width.max(), available_space.height.max())
     }
 
@@ -273,7 +271,7 @@ impl Widget for Scroll {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct ScrollbarInfo {
     offset: Px,
     amount_hidden: Px,

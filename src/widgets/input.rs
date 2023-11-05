@@ -6,7 +6,7 @@ use std::time::Duration;
 use kludgine::app::winit::event::{Ime, KeyEvent};
 use kludgine::app::winit::keyboard::Key;
 use kludgine::cosmic_text::{Action, Attrs, Buffer, Cursor, Edit, Editor, Metrics, Shaping};
-use kludgine::figures::units::Px;
+use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{
     FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size,
 };
@@ -14,12 +14,13 @@ use kludgine::shapes::Shape;
 use kludgine::text::TextOrigin;
 use kludgine::{Color, Kludgine};
 
-use crate::context::{EventContext, WidgetContext};
+use crate::context::{EventContext, LayoutContext, WidgetContext};
 use crate::styles::components::{HighlightColor, LineHeight, TextColor, TextSize};
 use crate::styles::Styles;
 use crate::utils::ModifiersExt;
 use crate::value::{Generation, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
+use crate::ConstraintLimit;
 
 const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
 
@@ -303,11 +304,11 @@ impl Widget for Input {
         );
     }
 
-    fn measure(
+    fn layout(
         &mut self,
-        available_space: kludgine::figures::Size<crate::ConstraintLimit>,
-        context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>,
-    ) -> kludgine::figures::Size<kludgine::figures::units::UPx> {
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> Size<UPx> {
         let styles = context.query_styles(&[&TextColor]);
         let editor = self.editor_mut(&mut context.graphics, &styles);
         let buffer = editor.buffer_mut();

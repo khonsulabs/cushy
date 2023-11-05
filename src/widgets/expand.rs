@@ -1,8 +1,8 @@
 use kludgine::figures::units::UPx;
-use kludgine::figures::Size;
+use kludgine::figures::{IntoSigned, Rect, Size};
 
-use crate::context::{AsEventContext, GraphicsContext};
-use crate::widget::{ChildWidget, MakeWidget, Widget};
+use crate::context::{AsEventContext, GraphicsContext, LayoutContext};
+use crate::widget::{MakeWidget, Widget, WidgetRef};
 use crate::ConstraintLimit;
 
 /// A widget that expands its child widget to fill the parent.
@@ -14,7 +14,7 @@ pub struct Expand {
     /// The weight to use when splitting available space with multiple
     /// [`Expand`] widgets.
     pub weight: u8,
-    child: ChildWidget,
+    child: WidgetRef,
 }
 
 impl Expand {
@@ -22,7 +22,7 @@ impl Expand {
     #[must_use]
     pub fn new(child: impl MakeWidget) -> Self {
         Self {
-            child: ChildWidget::new(child),
+            child: WidgetRef::new(child),
             weight: 1,
         }
     }
@@ -34,14 +34,14 @@ impl Expand {
     #[must_use]
     pub fn weighted(weight: u8, child: impl MakeWidget) -> Self {
         Self {
-            child: ChildWidget::new(child),
+            child: WidgetRef::new(child),
             weight,
         }
     }
 
     /// Returns a reference to the child widget.
     #[must_use]
-    pub fn child(&self) -> &ChildWidget {
+    pub fn child(&self) -> &WidgetRef {
         &self.child
     }
 }
@@ -49,19 +49,21 @@ impl Expand {
 impl Widget for Expand {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(&child).redraw();
+        context.for_other(child).redraw();
     }
 
-    fn measure(
+    fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let available_space = Size::new(
             ConstraintLimit::Known(available_space.width.max()),
             ConstraintLimit::Known(available_space.height.max()),
         );
         let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(&child).measure(available_space)
+        let size = context.for_other(child.clone()).layout(available_space);
+        context.set_child_layout(&child, Rect::from(size.into_signed()));
+        size
     }
 }

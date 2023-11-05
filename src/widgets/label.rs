@@ -2,10 +2,11 @@ use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoUnsigned, Point, ScreenScale, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 
-use crate::context::GraphicsContext;
+use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{IntrinsicPadding, TextColor};
 use crate::value::{IntoValue, Value};
 use crate::widget::Widget;
+use crate::ConstraintLimit;
 
 /// A read-only text widget.
 #[derive(Debug)]
@@ -51,10 +52,10 @@ impl Widget for Label {
         }
     }
 
-    fn measure(
+    fn layout(
         &mut self,
-        available_space: Size<crate::ConstraintLimit>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let padding = context
             .query_style(&IntrinsicPadding)
@@ -64,11 +65,11 @@ impl Widget for Label {
         self.text.map(|contents| {
             let measured = context
                 .graphics
-                .measure_text(Text::from(contents).wrap_at(width));
+                .measure_text(Text::from(contents).wrap_at(dbg!(width)));
             let mut size = measured.size.try_cast().unwrap_or_default();
             size += padding * 2;
             self.prepared_text = Some(measured);
-            size
+            dbg!(size)
         })
     }
 }

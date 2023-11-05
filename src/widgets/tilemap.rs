@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use kludgine::figures::utils::lossy_f64_to_f32;
 
-use crate::context::{EventContext, GraphicsContext};
+use crate::context::{EventContext, GraphicsContext, LayoutContext};
 use crate::kludgine::app::winit::event::{DeviceId, KeyEvent, MouseScrollDelta, TouchPhase};
 use crate::kludgine::figures::units::UPx;
 use crate::kludgine::figures::Size;
@@ -78,10 +78,10 @@ where
         }
     }
 
-    fn measure(
+    fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        _context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        _context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         Size::new(available_space.width.max(), available_space.height.max())
     }

@@ -25,7 +25,7 @@ impl Tree {
             widget: widget.clone(),
             children: Vec::new(),
             parent: parent.map(|parent| parent.id),
-            last_rendered_location: None,
+            layout: None,
             styles: None,
         }));
         if let Some(parent) = parent {
@@ -44,21 +44,36 @@ impl Tree {
         data.remove_child(child.id, parent.id);
     }
 
-    pub(crate) fn note_rendered_rect(&self, widget: WidgetId, rect: Rect<Px>) {
+    pub(crate) fn set_layout(&self, widget: WidgetId, rect: Rect<Px>) {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         rect.extents();
-        data.nodes[widget.0].last_rendered_location = Some(rect);
+        data.nodes[widget.0].layout = Some(rect);
         data.render_order.push(widget);
+        let mut children_to_offset = data.nodes[widget.0].children.clone();
+        while let Some(child) = children_to_offset.pop() {
+            if let Some(layout) = &mut data.nodes[child.0].layout {
+                layout.origin += rect.origin;
+                children_to_offset.extend(data.nodes[child.0].children.iter().copied());
+            }
+        }
     }
 
-    pub(crate) fn last_rendered_at(&self, widget: WidgetId) -> Option<Rect<Px>> {
+    pub(crate) fn layout(&self, widget: WidgetId) -> Option<Rect<Px>> {
         let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
-        data.nodes[widget.0].last_rendered_location
+        data.nodes[widget.0].layout
     }
 
     pub(crate) fn reset_render_order(&self) {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         data.render_order.clear();
+    }
+
+    pub(crate) fn reset_child_layouts(&self, parent: WidgetId) {
+        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let children = data.nodes[parent.0].children.clone();
+        for child in children {
+            data.nodes[child.0].layout = None;
+        }
     }
 
     pub(crate) fn hover(&self, new_hover: Option<&ManagedWidget>) -> HoverResults {
@@ -139,7 +154,7 @@ impl Tree {
         let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         let mut hits = Vec::new();
         for id in data.render_order.iter().rev() {
-            if let Some(last_rendered) = data.nodes[id.0].last_rendered_location {
+            if let Some(last_rendered) = data.nodes[id.0].layout {
                 if last_rendered.contains(point) {
                     hits.push(ManagedWidget {
                         id: *id,
@@ -315,7 +330,7 @@ pub struct Node {
     pub widget: WidgetInstance,
     pub children: Vec<WidgetId>,
     pub parent: Option<WidgetId>,
-    pub last_rendered_location: Option<Rect<Px>>,
+    pub layout: Option<Rect<Px>>,
     pub styles: Option<Styles>,
 }
 

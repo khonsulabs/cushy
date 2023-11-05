@@ -4,7 +4,8 @@ use std::borrow::Cow;
 use kludgine::figures::units::Lp;
 use kludgine::Color;
 
-use crate::animation::{EaseInQuadradic, EaseOutQuadradic, EasingFunction};
+use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
+use crate::animation::EasingFunction;
 use crate::styles::{ComponentDefinition, ComponentName, Dimension, Global, NamedComponent};
 
 /// The [`Dimension`] to use as the size to render text.

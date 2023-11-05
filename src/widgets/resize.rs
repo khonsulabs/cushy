@@ -1,9 +1,9 @@
 use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoUnsigned, ScreenScale, Size};
 
-use crate::context::{AsEventContext, GraphicsContext};
+use crate::context::{AsEventContext, GraphicsContext, LayoutContext};
 use crate::styles::Dimension;
-use crate::widget::{ChildWidget, MakeWidget, Widget};
+use crate::widget::{MakeWidget, Widget, WidgetRef};
 use crate::ConstraintLimit;
 
 /// A widget that resizes its contained widget to an explicit size.
@@ -13,13 +13,13 @@ pub struct Resize {
     pub width: Option<Dimension>,
     /// If present, the height to apply to the child widget.
     pub height: Option<Dimension>,
-    child: ChildWidget,
+    child: WidgetRef,
 }
 
 impl Resize {
     /// Returns a reference to the child widget.
     #[must_use]
-    pub fn child(&self) -> &ChildWidget {
+    pub fn child(&self) -> &WidgetRef {
         &self.child
     }
 
@@ -30,7 +30,7 @@ impl Resize {
         T: Into<Dimension>,
     {
         Self {
-            child: ChildWidget::new(child),
+            child: WidgetRef::new(child),
             width: Some(size.width.into()),
             height: Some(size.height.into()),
         }
@@ -40,7 +40,7 @@ impl Resize {
     #[must_use]
     pub fn width(width: impl Into<Dimension>, child: impl MakeWidget) -> Self {
         Self {
-            child: ChildWidget::new(child),
+            child: WidgetRef::new(child),
             width: Some(width.into()),
             height: None,
         }
@@ -50,7 +50,7 @@ impl Resize {
     #[must_use]
     pub fn height(height: impl Into<Dimension>, child: impl MakeWidget) -> Self {
         Self {
-            child: ChildWidget::new(child),
+            child: WidgetRef::new(child),
             width: None,
             height: Some(height.into()),
         }
@@ -60,13 +60,13 @@ impl Resize {
 impl Widget for Resize {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(&child).redraw();
+        context.for_other(child).redraw();
     }
 
-    fn measure(
+    fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         if let (Some(width), Some(height)) = (self.width, self.height) {
             Size::new(
@@ -83,7 +83,7 @@ impl Widget for Resize {
                 ),
             );
             let child = self.child.mounted(&mut context.as_event_context());
-            context.for_other(&child).measure(available_space)
+            context.for_other(child).layout(available_space)
         }
     }
 }

@@ -4,7 +4,7 @@ use std::panic::UnwindSafe;
 use kludgine::figures::units::UPx;
 use kludgine::figures::Size;
 
-use crate::context::GraphicsContext;
+use crate::context::{GraphicsContext, LayoutContext};
 use crate::value::Dynamic;
 use crate::widget::Widget;
 use crate::Tick;
@@ -50,10 +50,10 @@ impl Widget for Canvas {
         }
     }
 
-    fn measure(
+    fn layout(
         &mut self,
         available_space: Size<crate::ConstraintLimit>,
-        _context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        _context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         Size::new(available_space.width.max(), available_space.height.max())
     }

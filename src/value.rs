@@ -463,7 +463,7 @@ impl<T> Value<T> {
     }
 
     /// Maps the current contents to `map` and returns the result.
-    pub fn map<R>(&mut self, map: impl FnOnce(&T) -> R) -> R {
+    pub fn map<R>(&self, map: impl FnOnce(&T) -> R) -> R {
         match self {
             Value::Constant(value) => map(value),
             Value::Dynamic(dynamic) => dynamic.map_ref(map),
@@ -504,6 +504,17 @@ impl<T> Value<T> {
         }
     }
 }
+impl<T> Clone for Value<T>
+where
+    T: Clone,
+{
+    fn clone(&self) -> Self {
+        match self {
+            Self::Constant(arg0) => Self::Constant(arg0.clone()),
+            Self::Dynamic(arg0) => Self::Dynamic(arg0.clone()),
+        }
+    }
+}
 
 impl<T> Default for Value<T>
 where
@@ -541,5 +552,11 @@ impl<T> IntoValue<T> for Dynamic<T> {
 impl<T> IntoValue<T> for Value<T> {
     fn into_value(self) -> Value<T> {
         self
+    }
+}
+
+impl<T> IntoValue<Option<T>> for T {
+    fn into_value(self) -> Value<Option<T>> {
+        Value::Constant(Some(self))
     }
 }

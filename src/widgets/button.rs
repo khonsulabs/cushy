@@ -12,7 +12,7 @@ use kludgine::text::Text;
 use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
-use crate::context::{EventContext, GraphicsContext, WidgetContext};
+use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::names::Name;
 use crate::styles::components::{Easing, HighlightColor, IntrinsicPadding, TextColor};
 use crate::styles::{ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
@@ -167,13 +167,8 @@ impl Widget for Button {
         _button: MouseButton,
         context: &mut EventContext<'_, '_>,
     ) {
-        let changed = if Rect::from(
-            context
-                .last_rendered_at()
-                .expect("must have been rendered")
-                .size,
-        )
-        .contains(location)
+        let changed = if Rect::from(context.last_layout().expect("must have been rendered").size)
+            .contains(location)
         {
             context.activate()
         } else {
@@ -197,13 +192,8 @@ impl Widget for Button {
             context.deactivate();
 
             if let Some(location) = location {
-                if Rect::from(
-                    context
-                        .last_rendered_at()
-                        .expect("must have been rendered")
-                        .size,
-                )
-                .contains(location)
+                if Rect::from(context.last_layout().expect("must have been rendered").size)
+                    .contains(location)
                 {
                     context.focus();
 
@@ -213,10 +203,10 @@ impl Widget for Button {
         }
     }
 
-    fn measure(
+    fn layout(
         &mut self,
         available_space: Size<crate::ConstraintLimit>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let padding = context
             .query_style(&IntrinsicPadding)

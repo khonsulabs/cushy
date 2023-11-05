@@ -3,16 +3,16 @@ use std::fmt::Debug;
 use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 
-use crate::context::{AsEventContext, GraphicsContext};
+use crate::context::{AsEventContext, GraphicsContext, LayoutContext};
 use crate::styles::{Edges, FlexibleDimension};
 use crate::value::{IntoValue, Value};
-use crate::widget::{ChildWidget, MakeWidget, Widget};
+use crate::widget::{MakeWidget, Widget, WidgetRef};
 use crate::ConstraintLimit;
 
 /// A widget aligns its contents to its container's boundaries.
 #[derive(Debug)]
 pub struct Align {
-    child: ChildWidget,
+    child: WidgetRef,
     edges: Value<Edges<FlexibleDimension>>,
 }
 
@@ -21,7 +21,7 @@ impl Align {
     /// `margin`.
     pub fn new(margin: impl IntoValue<Edges<FlexibleDimension>>, widget: impl MakeWidget) -> Self {
         Self {
-            child: ChildWidget::new(widget),
+            child: WidgetRef::new(widget),
             edges: margin.into_value(),
         }
     }
@@ -35,7 +35,7 @@ impl Align {
     fn measure(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Layout {
         let margin = self.edges.get();
         let vertical = FrameInfo::new(context.graphics.scale(), margin.top, margin.bottom);
@@ -47,7 +47,7 @@ impl Align {
         );
 
         let child = self.child.mounted(&mut context.as_event_context());
-        let content_size = context.for_other(&child).measure(content_available);
+        let content_size = context.for_other(child).layout(content_available);
 
         let (left, right, width) = horizontal.measure(available_space.width, content_size.width);
         let (top, bottom, height) = vertical.measure(available_space.height, content_size.height);
@@ -127,36 +127,29 @@ impl FrameInfo {
 
 impl Widget for Align {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let layout = self.measure(
-            Size::new(
-                ConstraintLimit::Known(context.graphics.size().width),
-                ConstraintLimit::Known(context.graphics.size().height),
-            ),
-            context,
-        );
         let child = self.child.mounted(&mut context.as_event_context());
-        context
-            .for_child(
-                &child,
-                Rect::new(
-                    Point::new(
-                        layout.margin.left.into_signed(),
-                        layout.margin.top.into_signed(),
-                    ),
-                    layout.content.into_signed(),
-                ),
-            )
-            .redraw();
+        context.for_other(child).redraw();
     }
 
-    fn measure(
+    fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        self.measure(available_space, context)
-            .size()
-            .into_unsigned()
+        let child = self.child.mounted(&mut context.as_event_context());
+        let layout = self.measure(available_space, context);
+        context.set_child_layout(
+            &child,
+            Rect::new(
+                Point::new(
+                    layout.margin.left.into_signed(),
+                    layout.margin.top.into_signed(),
+                ),
+                layout.content.into_signed(),
+            ),
+        );
+
+        layout.size().into_unsigned()
     }
 }
 

@@ -20,7 +20,9 @@ use kludgine::figures::{IntoSigned, Point, Rect, Size};
 use kludgine::render::Drawing;
 use kludgine::Kludgine;
 
-use crate::context::{EventContext, Exclusive, GraphicsContext, RedrawStatus, WidgetContext};
+use crate::context::{
+    EventContext, Exclusive, GraphicsContext, LayoutContext, RedrawStatus, WidgetContext,
+};
 use crate::graphics::Graphics;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
@@ -199,22 +201,24 @@ where
         self.root.tree.reset_render_order();
         let graphics = self.contents.new_frame(graphics);
         let mut context = GraphicsContext {
-            widget: WidgetContext::new(&self.root, &self.redraw_status, &mut window),
+            widget: WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
             graphics: Exclusive::Owned(Graphics::new(graphics)),
         };
-        let window_size = context.graphics.size();
-        let actual_size = context.measure(Size::new(
+        let mut layout_context = LayoutContext::new(&mut context);
+        let window_size = layout_context.graphics.size();
+        let actual_size = layout_context.layout(Size::new(
             ConstraintLimit::ClippedAfter(window_size.width),
             ConstraintLimit::ClippedAfter(window_size.height),
         ));
         let render_size = actual_size.min(window_size);
+        self.root.set_layout(Rect::from(render_size.into_signed()));
 
         if render_size.width < window_size.width || render_size.height < window_size.height {
-            context
+            layout_context
                 .clipped_to(Rect::from(render_size.into_signed()))
                 .redraw();
         } else {
-            context.redraw();
+            layout_context.redraw();
         }
     }
 
@@ -284,7 +288,7 @@ where
         let target = self.root.tree.focused_widget().unwrap_or(self.root.id);
         let target = self.root.tree.widget(target);
         let mut target = EventContext::new(
-            WidgetContext::new(&target, &self.redraw_status, &mut window),
+            WidgetContext::new(target, &self.redraw_status, &mut window),
             kludgine,
         );
 
@@ -320,7 +324,7 @@ where
 
         let widget = self.root.tree.widget(widget);
         let mut widget = EventContext::new(
-            WidgetContext::new(&widget, &self.redraw_status, &mut window),
+            WidgetContext::new(widget, &self.redraw_status, &mut window),
             kludgine,
         );
         recursively_handle_event(&mut widget, |widget| {
@@ -334,7 +338,7 @@ where
         let target = self.root.tree.focused_widget().unwrap_or(self.root.id);
         let target = self.root.tree.widget(target);
         let mut target = EventContext::new(
-            WidgetContext::new(&target, &self.redraw_status, &mut window),
+            WidgetContext::new(target, &self.redraw_status, &mut window),
             kludgine,
         );
 
@@ -356,24 +360,24 @@ where
             // Mouse Drag
             for (button, handler) in state {
                 let mut context = EventContext::new(
-                    WidgetContext::new(handler, &self.redraw_status, &mut window),
+                    WidgetContext::new(handler.clone(), &self.redraw_status, &mut window),
                     kludgine,
                 );
-                let last_rendered_at = context.last_rendered_at().expect("passed hit test");
+                let last_rendered_at = context.last_layout().expect("passed hit test");
                 context.mouse_drag(location - last_rendered_at.origin, device_id, *button);
             }
         } else {
             // Hover
             let mut context = EventContext::new(
-                WidgetContext::new(&self.root, &self.redraw_status, &mut window),
+                WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
                 kludgine,
             );
             self.mouse_state.widget = None;
             for widget in self.root.tree.widgets_at_point(location) {
-                let mut widget_context = context.for_other(&widget);
+                let mut widget_context = context.for_other(widget.clone());
                 let relative = location
                     - widget_context
-                        .last_rendered_at()
+                        .last_layout()
                         .expect("passed hit test")
                         .origin;
 
@@ -399,7 +403,7 @@ where
     ) {
         if self.mouse_state.widget.take().is_some() {
             let mut context = EventContext::new(
-                WidgetContext::new(&self.root, &self.redraw_status, &mut window),
+                WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
                 kludgine,
             );
             context.clear_hover();
@@ -417,7 +421,7 @@ where
         match state {
             ElementState::Pressed => {
                 EventContext::new(
-                    WidgetContext::new(&self.root, &self.redraw_status, &mut window),
+                    WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
                     kludgine,
                 )
                 .clear_focus();
@@ -427,12 +431,12 @@ where
                 {
                     if let Some(handler) = recursively_handle_event(
                         &mut EventContext::new(
-                            WidgetContext::new(hovered, &self.redraw_status, &mut window),
+                            WidgetContext::new(hovered.clone(), &self.redraw_status, &mut window),
                             kludgine,
                         ),
                         |context| {
-                            let relative = *location
-                                - context.last_rendered_at().expect("passed hit test").origin;
+                            let relative =
+                                *location - context.last_layout().expect("passed hit test").origin;
                             context.mouse_down(relative, device_id, button)
                         },
                     ) {
@@ -456,12 +460,12 @@ where
                 }
 
                 let mut context = EventContext::new(
-                    WidgetContext::new(&handler, &self.redraw_status, &mut window),
+                    WidgetContext::new(handler, &self.redraw_status, &mut window),
                     kludgine,
                 );
 
                 let relative = if let (Some(last_rendered), Some(location)) =
-                    (context.last_rendered_at(), self.mouse_state.location)
+                    (context.last_layout(), self.mouse_state.location)
                 {
                     Some(location - last_rendered.origin)
                 } else {
@@ -496,7 +500,7 @@ fn recursively_handle_event(
     match each_widget(context) {
         HANDLED => Some(context.widget().clone()),
         IGNORED => context.parent().and_then(|parent| {
-            recursively_handle_event(&mut context.for_other(&parent), each_widget)
+            recursively_handle_event(&mut context.for_other(parent), each_widget)
         }),
     }
 }

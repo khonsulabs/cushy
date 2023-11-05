@@ -7,10 +7,10 @@ use alot::{LotId, OrderedLots};
 use kludgine::figures::units::{Lp, UPx};
 use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 
-use crate::context::{AsEventContext, EventContext, GraphicsContext};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::Dimension;
 use crate::value::{Generation, IntoValue, Value};
-use crate::widget::{ChildWidget, ManagedWidget, Widget, Widgets};
+use crate::widget::{Children, ManagedWidget, Widget, WidgetRef};
 use crate::widgets::{Expand, Resize};
 use crate::ConstraintLimit;
 
@@ -21,7 +21,7 @@ pub struct Stack {
     /// The direction to display the children using.
     pub direction: Value<StackDirection>,
     /// The children widgets that belong to this array.
-    pub children: Value<Widgets>,
+    pub children: Value<Children>,
     layout: Layout,
     layout_generation: Option<Generation>,
     // TODO Refactor synced_children into its own type.
@@ -32,7 +32,7 @@ impl Stack {
     /// Returns a new widget with the given direction and widgets.
     pub fn new(
         direction: impl IntoValue<StackDirection>,
-        widgets: impl IntoValue<Widgets>,
+        widgets: impl IntoValue<Children>,
     ) -> Self {
         let mut direction = direction.into_value();
 
@@ -48,19 +48,19 @@ impl Stack {
     }
 
     /// Returns a new instance that displays `widgets` in a series of columns.
-    pub fn columns(widgets: impl IntoValue<Widgets>) -> Self {
+    pub fn columns(widgets: impl IntoValue<Children>) -> Self {
         Self::new(StackDirection::columns(), widgets)
     }
 
     /// Returns a new instance that displays `widgets` in a series of rows.
-    pub fn rows(widgets: impl IntoValue<Widgets>) -> Self {
+    pub fn rows(widgets: impl IntoValue<Children>) -> Self {
         Self::new(StackDirection::rows(), widgets)
     }
 
     fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
         let current_generation = self.children.generation();
         if current_generation.map_or_else(
-            || self.children.map(Widgets::len) != self.layout.children.len(),
+            || self.children.map(Children::len) != self.layout.children.len(),
             |gen| Some(gen) != self.layout_generation,
         ) {
             self.layout_generation = self.children.generation();
@@ -105,7 +105,7 @@ impl Stack {
                                     (child, StackDimension::Exact(size))
                                 } else {
                                     (
-                                        ChildWidget::Unmounted(widget.clone()),
+                                        WidgetRef::Unmounted(widget.clone()),
                                         StackDimension::FitContent,
                                     )
                                 };
@@ -131,58 +131,49 @@ impl Stack {
 
 impl Widget for Stack {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        self.synchronize_children(&mut context.as_event_context());
-        self.layout.update(
-            Size::new(
-                ConstraintLimit::Known(context.graphics.size().width),
-                ConstraintLimit::Known(context.graphics.size().height),
-            ),
-            context.graphics.scale(),
-            |child_index, constraints| {
-                context
-                    .for_other(&self.synced_children[child_index])
-                    .measure(constraints)
-            },
-        );
-
-        for (index, layout) in self.layout.iter().enumerate() {
-            let child = &self.synced_children[index];
-            if layout.size > 0 {
-                context
-                    .for_child(
-                        child,
-                        Rect::new(
-                            self.layout
-                                .orientation
-                                .make_point(layout.offset, UPx(0))
-                                .into_signed(),
-                            self.layout
-                                .orientation
-                                .make_size(layout.size, self.layout.other)
-                                .into_signed(),
-                        ),
-                    )
-                    .redraw();
-            }
+        for child in &self.synced_children {
+            context.for_other(child.clone()).redraw();
         }
     }
 
-    fn measure(
+    fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         self.synchronize_children(&mut context.as_event_context());
 
-        self.layout.update(
+        let content_size = self.layout.update(
             available_space,
             context.graphics.scale(),
-            |child_index, constraints| {
-                context
-                    .for_other(&self.synced_children[child_index])
-                    .measure(constraints)
+            |child_index, constraints, persist| {
+                let mut context = context.for_other(self.synced_children[child_index].clone());
+                if !persist {
+                    context = context.as_temporary();
+                }
+                context.layout(constraints)
             },
-        )
+        );
+
+        for (layout, child) in self.layout.iter().zip(&self.synced_children) {
+            if layout.size > 0 {
+                context.set_child_layout(
+                    child,
+                    Rect::new(
+                        self.layout
+                            .orientation
+                            .make_point(layout.offset, UPx(0))
+                            .into_signed(),
+                        self.layout
+                            .orientation
+                            .make_size(layout.size, self.layout.other)
+                            .into_signed(),
+                    ),
+                );
+            }
+        }
+
+        content_size
     }
 }
 
@@ -387,7 +378,7 @@ impl Layout {
         &mut self,
         available: Size<ConstraintLimit>,
         scale: Fraction,
-        mut measure: impl FnMut(usize, Size<ConstraintLimit>) -> Size<UPx>,
+        mut measure: impl FnMut(usize, Size<ConstraintLimit>, bool) -> Size<UPx>,
     ) -> Size<UPx> {
         let (space_constraint, other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
@@ -403,6 +394,7 @@ impl Layout {
                     index,
                     self.orientation
                         .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
+                    false,
                 ));
                 self.layouts[index].size = measured;
                 remaining = remaining.saturating_sub(measured);
@@ -447,6 +439,7 @@ impl Layout {
                     ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
                     other_constraint,
                 ),
+                true,
             ));
             self.other = self.other.max(measured);
         }
@@ -525,22 +518,25 @@ mod tests {
             flex.push(child.dimension, Fraction::ONE);
         }
 
-        let computed_size = flex.update(available, Fraction::ONE, |index, constraints| {
-            let (measured_constraint, _other_constraint) = orientation.split_size(constraints);
-            let child = &children[index];
-            let maximum_measured = measured_constraint.max();
-            let (measured, other) = match (child.size.cmp(&maximum_measured), child.divisible_by) {
-                (Ordering::Greater, Some(divisible_by)) => {
-                    let available_divided = maximum_measured / divisible_by;
-                    let rows = ((child.size + divisible_by - 1) / divisible_by + available_divided
-                        - 1)
-                        / available_divided;
-                    (available_divided * divisible_by, child.other * rows)
-                }
-                _ => (child.size, child.other),
-            };
-            orientation.make_size(measured, other)
-        });
+        let computed_size =
+            flex.update(available, Fraction::ONE, |index, constraints, _persist| {
+                let (measured_constraint, _other_constraint) = orientation.split_size(constraints);
+                let child = &children[index];
+                let maximum_measured = measured_constraint.max();
+                let (measured, other) =
+                    match (child.size.cmp(&maximum_measured), child.divisible_by) {
+                        (Ordering::Greater, Some(divisible_by)) => {
+                            let available_divided = maximum_measured / divisible_by;
+                            let rows = ((child.size + divisible_by - 1) / divisible_by
+                                + available_divided
+                                - 1)
+                                / available_divided;
+                            (available_divided * divisible_by, child.other * rows)
+                        }
+                        _ => (child.size, child.other),
+                    };
+                orientation.make_size(measured, other)
+            });
         assert_eq!(computed_size, expected_size);
         let mut offset = UPx(0);
         for ((index, &child), &expected) in flex.iter().enumerate().zip(expected) {
