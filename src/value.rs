@@ -435,6 +435,61 @@ fn disconnecting_reader_from_dynamic() {
     assert!(!ref_reader.block_until_updated());
 }
 
+#[test]
+fn disconnecting_reader_threaded() {
+    let a = Dynamic::new(1);
+    let mut a_reader = a.create_reader();
+    let b = Dynamic::new(1);
+    let mut b_reader = b.create_reader();
+
+    let thread = std::thread::spawn(move || {
+        b.set(2);
+
+        assert!(a_reader.block_until_updated());
+        assert_eq!(a_reader.get(), 2);
+        assert!(!a_reader.block_until_updated());
+    });
+
+    // Wait for the thread to set b to 2.
+    assert!(b_reader.block_until_updated());
+    assert_eq!(b_reader.get(), 2);
+
+    // Set a to 2 and drop the handle.
+    a.set(2);
+    drop(a);
+
+    thread.join().unwrap();
+}
+
+#[test]
+fn disconnecting_reader_async() {
+    let a = Dynamic::new(1);
+    let mut a_reader = a.create_reader();
+    let b = Dynamic::new(1);
+    let mut b_reader = b.create_reader();
+
+    let async_thread = std::thread::spawn(move || {
+        pollster::block_on(async move {
+            // Set b to 2, allowing the thread to execute its code.
+            b.set(2);
+
+            assert!(a_reader.wait_until_updated().await);
+            assert_eq!(a_reader.get(), 2);
+            assert!(!a_reader.wait_until_updated().await);
+        });
+    });
+
+    // Wait for the pollster thread to set b to 2.
+    assert!(b_reader.block_until_updated());
+    assert_eq!(b_reader.get(), 2);
+
+    // Set a to 2 and drop the handle.
+    a.set(2);
+    drop(a);
+
+    async_thread.join().unwrap();
+}
+
 /// A tag that represents an individual revision of a [`Dynamic`] value.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
 pub struct Generation(usize);
