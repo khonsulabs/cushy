@@ -21,7 +21,8 @@ use kludgine::render::Drawing;
 use kludgine::Kludgine;
 
 use crate::context::{
-    EventContext, Exclusive, GraphicsContext, LayoutContext, RedrawStatus, WidgetContext,
+    AsEventContext, EventContext, Exclusive, GraphicsContext, LayoutContext, RedrawStatus,
+    WidgetContext,
 };
 use crate::graphics::Graphics;
 use crate::tree::Tree;
@@ -154,6 +155,7 @@ struct GooeyWindow<T> {
     should_close: bool,
     mouse_state: MouseState,
     redraw_status: RedrawStatus,
+    initial_frame: bool,
 }
 
 impl<T> GooeyWindow<T>
@@ -192,6 +194,7 @@ where
                 devices: HashMap::default(),
             },
             redraw_status: RedrawStatus::default(),
+            initial_frame: true,
         }
     }
 
@@ -212,6 +215,12 @@ where
         ));
         let render_size = actual_size.min(window_size);
         self.root.set_layout(Rect::from(render_size.into_signed()));
+
+        if self.initial_frame {
+            self.initial_frame = false;
+            layout_context.focus();
+            layout_context.as_event_context().apply_pending_state();
+        }
 
         if render_size.width < window_size.width || render_size.height < window_size.height {
             layout_context
@@ -285,8 +294,8 @@ where
         input: KeyEvent,
         is_synthetic: bool,
     ) {
-        let target = self.root.tree.focused_widget().unwrap_or(self.root.id);
-        let target = self.root.tree.widget(target);
+        let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
+        let target = self.root.tree.widget(target).expect("missing widget");
         let mut target = EventContext::new(
             WidgetContext::new(target, &self.redraw_status, &mut window),
             kludgine,
@@ -320,9 +329,18 @@ where
         delta: MouseScrollDelta,
         phase: TouchPhase,
     ) {
-        let widget = self.root.tree.hovered_widget().unwrap_or(self.root.id);
+        let widget = self
+            .root
+            .tree
+            .hovered_widget()
+            .and_then(|hovered| self.root.tree.widget(hovered))
+            .unwrap_or_else(|| {
+                self.root
+                    .tree
+                    .widget(self.root.id())
+                    .expect("missing widget")
+            });
 
-        let widget = self.root.tree.widget(widget);
         let mut widget = EventContext::new(
             WidgetContext::new(widget, &self.redraw_status, &mut window),
             kludgine,
@@ -335,10 +353,19 @@ where
     // fn modifiers_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 
     fn ime(&mut self, mut window: RunningWindow<'_>, kludgine: &mut Kludgine, ime: Ime) {
-        let target = self.root.tree.focused_widget().unwrap_or(self.root.id);
-        let target = self.root.tree.widget(target);
+        let widget = self
+            .root
+            .tree
+            .focused_widget()
+            .and_then(|hovered| self.root.tree.widget(hovered))
+            .unwrap_or_else(|| {
+                self.root
+                    .tree
+                    .widget(self.root.id())
+                    .expect("missing widget")
+            });
         let mut target = EventContext::new(
-            WidgetContext::new(target, &self.redraw_status, &mut window),
+            WidgetContext::new(widget, &self.redraw_status, &mut window),
             kludgine,
         );
 

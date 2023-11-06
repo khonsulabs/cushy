@@ -479,7 +479,7 @@ impl<T> Value<T> {
     }
 
     /// Returns a clone of the currently stored value.
-    pub fn get(&mut self) -> T
+    pub fn get(&self) -> T
     where
         T: Clone,
     {

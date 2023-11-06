@@ -184,7 +184,7 @@ pub trait MakeWidget: Sized {
     ///
     /// Gooey automatically determines reverse tab order by using this same
     /// relationship.
-    fn with_next_focus(self, next_focus: impl IntoValue<Option<WidgetInstance>>) -> WidgetInstance {
+    fn with_next_focus(self, next_focus: impl IntoValue<Option<WidgetId>>) -> WidgetInstance {
         self.make_widget().with_next_focus(next_focus)
     }
 }
@@ -242,8 +242,9 @@ where
 /// An instance of a [`Widget`].
 #[derive(Clone, Debug)]
 pub struct WidgetInstance {
+    id: WidgetId,
     widget: Arc<Mutex<dyn AnyWidget>>,
-    next_focus: Value<Option<Arc<Mutex<dyn AnyWidget>>>>,
+    next_focus: Value<Option<WidgetId>>,
 }
 
 impl WidgetInstance {
@@ -253,9 +254,16 @@ impl WidgetInstance {
         W: Widget,
     {
         Self {
+            id: WidgetId::unique(),
             widget: Arc::new(Mutex::new(widget)),
             next_focus: Value::default(),
         }
+    }
+
+    /// Returns the unique id of this widget instance.
+    #[must_use]
+    pub fn id(&self) -> WidgetId {
+        self.id
     }
 
     /// Sets the widget that should be focused next.
@@ -265,17 +273,9 @@ impl WidgetInstance {
     #[must_use]
     pub fn with_next_focus(
         mut self,
-        next_focus: impl IntoValue<Option<WidgetInstance>>,
+        next_focus: impl IntoValue<Option<WidgetId>>,
     ) -> WidgetInstance {
-        self.next_focus = match next_focus.into_value() {
-            Value::Constant(maybe_widget) => {
-                Value::Constant(maybe_widget.map(|widget| widget.widget))
-            }
-            Value::Dynamic(dynamic) => Value::Dynamic(
-                dynamic
-                    .map_each(|instance| instance.as_ref().map(|instance| instance.widget.clone())),
-            ),
-        };
+        self.next_focus = next_focus.into_value();
         self
     }
 
@@ -361,7 +361,6 @@ where
 /// A [`Widget`] that has been attached to a widget hierarchy.
 #[derive(Clone)]
 pub struct ManagedWidget {
-    pub(crate) id: WidgetId,
     pub(crate) widget: WidgetInstance,
     pub(crate) tree: Tree,
 }
@@ -369,7 +368,6 @@ pub struct ManagedWidget {
 impl Debug for ManagedWidget {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ManagedWidget")
-            .field("id", &self.id)
             .field("widget", &self.widget)
             .finish_non_exhaustive()
     }
@@ -385,51 +383,71 @@ impl ManagedWidget {
     }
 
     pub(crate) fn set_layout(&self, rect: Rect<Px>) {
-        self.tree.set_layout(self.id, rect);
+        self.tree.set_layout(self.id(), rect);
+    }
+
+    /// Returns the unique id of this widget instance.
+    #[must_use]
+    pub fn id(&self) -> WidgetId {
+        self.widget.id
+    }
+
+    /// Returns the next widget to focus after this widget.
+    ///
+    /// This function returns the value set in
+    /// [`MakeWidget::with_next_focus()`].
+    #[must_use]
+    pub fn next_focus(&self) -> Option<ManagedWidget> {
+        self.widget
+            .next_focus
+            .get()
+            .and_then(|next_focus| self.tree.widget(next_focus))
     }
 
     /// Returns the region that the widget was last rendered at.
     #[must_use]
     pub fn last_layout(&self) -> Option<Rect<Px>> {
-        self.tree.layout(self.id)
+        self.tree.layout(self.id())
     }
 
     /// Returns true if this widget is the currently active widget.
     #[must_use]
     pub fn active(&self) -> bool {
-        self.tree.active_widget() == Some(self.id)
+        self.tree.active_widget() == Some(self.id())
     }
 
     /// Returns true if this widget is currently the hovered widget.
     #[must_use]
     pub fn hovered(&self) -> bool {
-        self.tree.is_hovered(self.id)
+        self.tree.is_hovered(self.id())
     }
 
     /// Returns true if this widget that is directly beneath the cursor.
     #[must_use]
     pub fn primary_hover(&self) -> bool {
-        self.tree.hovered_widget() == Some(self.id)
+        self.tree.hovered_widget() == Some(self.id())
     }
 
     /// Returns true if this widget is the currently focused widget.
     #[must_use]
     pub fn focused(&self) -> bool {
-        self.tree.focused_widget() == Some(self.id)
+        self.tree.focused_widget() == Some(self.id())
     }
 
     /// Returns the parent of this widget.
     #[must_use]
     pub fn parent(&self) -> Option<ManagedWidget> {
-        self.tree.parent(self.id).map(|id| self.tree.widget(id))
+        self.tree
+            .parent(self.id())
+            .and_then(|id| self.tree.widget(id))
     }
 
     pub(crate) fn attach_styles(&self, styles: Styles) {
-        self.tree.attach_styles(self.id, styles);
+        self.tree.attach_styles(self.id(), styles);
     }
 
     pub(crate) fn reset_child_layouts(&self) {
-        self.tree.reset_child_layouts(self.id);
+        self.tree.reset_child_layouts(self.id());
     }
 }
 

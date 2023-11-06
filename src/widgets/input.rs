@@ -113,6 +113,10 @@ impl Widget for Input {
         true
     }
 
+    fn accept_focus(&mut self, _context: &mut EventContext<'_, '_>) -> bool {
+        true
+    }
+
     fn mouse_down(
         &mut self,
         location: Point<Px>,

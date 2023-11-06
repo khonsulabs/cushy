@@ -28,6 +28,7 @@ fn main() -> gooey::Result {
             }
         })
         .make_widget();
+    let input_id = input.id();
 
     Expand::new(Stack::rows(children![
         Expand::new(Stack::columns(children![
@@ -47,6 +48,6 @@ fn main() -> gooey::Result {
         ])),
         input.clone(),
     ]))
-    .with_next_focus(input)
+    .with_next_focus(input_id)
     .run()
 }

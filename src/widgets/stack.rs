@@ -34,7 +34,7 @@ impl Stack {
         direction: impl IntoValue<StackDirection>,
         widgets: impl IntoValue<Children>,
     ) -> Self {
-        let mut direction = direction.into_value();
+        let direction = direction.into_value();
 
         let initial_direction = direction.get();
 

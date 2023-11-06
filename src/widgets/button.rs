@@ -148,6 +148,11 @@ impl Widget for Button {
         true
     }
 
+    fn accept_focus(&mut self, _context: &mut EventContext<'_, '_>) -> bool {
+        // TODO this should be driven by a "focus_all_widgets" setting that hopefully can be queried from the OS.
+        true
+    }
+
     fn mouse_down(
         &mut self,
         _location: Point<Px>,

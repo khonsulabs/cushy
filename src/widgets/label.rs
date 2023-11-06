@@ -65,11 +65,11 @@ impl Widget for Label {
         self.text.map(|contents| {
             let measured = context
                 .graphics
-                .measure_text(Text::from(contents).wrap_at(dbg!(width)));
+                .measure_text(Text::from(contents).wrap_at(width));
             let mut size = measured.size.try_cast().unwrap_or_default();
             size += padding * 2;
             self.prepared_text = Some(measured);
-            dbg!(size)
+            size
         })
     }
 }

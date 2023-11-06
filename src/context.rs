@@ -166,7 +166,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
     pub(crate) fn apply_pending_state(&mut self) {
         let active = self.pending_state.active.clone();
-        if self.current_node.tree.active_widget() != active.as_ref().map(|active| active.id) {
+        if self.current_node.tree.active_widget() != active.as_ref().map(ManagedWidget::id) {
             let new = match self.current_node.tree.activate(active.as_ref()) {
                 Ok(old) => {
                     if let Some(old) = old {
@@ -178,17 +178,32 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 Err(_) => false,
             };
             if new {
-                if let Some(active) = active {
+                if let Some(active) = &active {
                     active
                         .lock()
                         .as_widget()
                         .activate(&mut self.for_other(active.clone()));
                 }
+                self.pending_state.active = active;
             }
         }
 
         let focus = self.pending_state.focus.clone();
-        if self.current_node.tree.focused_widget() != focus.as_ref().map(|focus| focus.id) {
+        if self.current_node.tree.focused_widget() != focus.as_ref().map(ManagedWidget::id) {
+            let focus = focus.and_then(|mut focus| loop {
+                if focus
+                    .lock()
+                    .as_widget()
+                    .accept_focus(&mut self.for_other(focus.clone()))
+                {
+                    break Some(focus);
+                } else if let Some(next_focus) = focus.next_focus() {
+                    focus = next_focus;
+                } else {
+                    // TODO visually scan the tree for the "next" widget.
+                    break None;
+                }
+            });
             let new = match self.current_node.tree.focus(focus.as_ref()) {
                 Ok(old) => {
                     if let Some(old) = old {
@@ -200,12 +215,13 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 Err(_) => false,
             };
             if new {
-                if let Some(focus) = focus {
+                if let Some(focus) = &focus {
                     focus
                         .lock()
                         .as_widget()
                         .focus(&mut self.for_other(focus.clone()));
                 }
+                self.pending_state.focus = focus;
             }
         }
     }
@@ -321,6 +337,14 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// context's widget.
     pub fn redraw(&mut self) {
         self.current_node.clone().lock().as_widget().redraw(self);
+    }
+}
+
+impl Drop for GraphicsContext<'_, '_, '_, '_, '_> {
+    fn drop(&mut self) {
+        if matches!(self.widget.pending_state, PendingState::Owned(_)) {
+            self.as_event_context().apply_pending_state();
+        }
     }
 }
 
@@ -497,11 +521,11 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
                 focus: current_node
                     .tree
                     .focused_widget()
-                    .map(|id| current_node.tree.widget(id)),
+                    .and_then(|id| current_node.tree.widget(id)),
                 active: current_node
                     .tree
                     .active_widget()
-                    .map(|id| current_node.tree.widget(id)),
+                    .and_then(|id| current_node.tree.widget(id)),
             }),
             current_node,
             redraw_status,
