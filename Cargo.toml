@@ -12,6 +12,7 @@ kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
 alot = "0.3"
 interner = "0.2.1"
 kempt = "0.2.1"
+intentional = "0.1.0"
 
 # [patch."https://github.com/khonsulabs/kludgine"]
 # kludgine = { path = "../kludgine2" }

@@ -2,9 +2,9 @@
 use std::borrow::Cow;
 use std::time::Duration;
 
+use intentional::Cast;
 use kludgine::app::winit::event::{DeviceId, MouseScrollDelta, TouchPhase};
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::utils::lossy_f64_to_f32;
 use kludgine::figures::{
     FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size,
 };
@@ -257,9 +257,7 @@ impl Widget for Scroll {
         let amount = match delta {
             /* TODO query line height */
             MouseScrollDelta::LineDelta(x, y) => Point::new(x, y) * 16.0,
-            MouseScrollDelta::PixelDelta(px) => {
-                Point::new(lossy_f64_to_f32(px.x), lossy_f64_to_f32(px.y))
-            }
+            MouseScrollDelta::PixelDelta(px) => Point::new(px.x.cast(), px.y.cast()),
         };
 
         self.scroll.map_mut(|scroll| *scroll += amount.cast());

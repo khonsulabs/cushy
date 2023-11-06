@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use kludgine::figures::utils::lossy_f64_to_f32;
+use intentional::Cast;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
 use crate::kludgine::app::winit::event::{DeviceId, KeyEvent, MouseScrollDelta, TouchPhase};
@@ -95,7 +95,7 @@ where
     ) -> EventHandling {
         let amount = match delta {
             MouseScrollDelta::LineDelta(_, lines) => lines,
-            MouseScrollDelta::PixelDelta(px) => lossy_f64_to_f32(px.y) / 16.0,
+            MouseScrollDelta::PixelDelta(px) => px.y.cast::<f32>() / 16.0,
         };
 
         self.zoom += self.zoom * 0.1 * amount;
