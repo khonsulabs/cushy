@@ -12,11 +12,12 @@ use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Kludgine;
 
 use crate::graphics::Graphics;
-use crate::styles::components::HighlightColor;
+use crate::styles::components::{HighlightColor, VisualOrder};
 use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles};
 use crate::value::Dynamic;
-use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance};
-use crate::window::{sealed, RunningWindow};
+use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
+use crate::window::sealed::WindowCommand;
+use crate::window::RunningWindow;
 use crate::ConstraintLimit;
 
 /// A context to an event function.
@@ -48,11 +49,17 @@ impl<'context, 'window> EventContext<'context, 'window> {
     /// parent widget needs to invoke events on a child widget. This is done by
     /// creating an `EventContext` pointing to the child and calling the
     /// appropriate function to invoke the event.
-    pub fn for_other<'child>(
+    pub fn for_other<'child, Widget>(
         &'child mut self,
-        widget: ManagedWidget,
-    ) -> EventContext<'child, 'window> {
-        EventContext::new(self.widget.for_other(widget), self.kludgine)
+        widget: &Widget,
+    ) -> <Widget::Managed as MapManagedWidget<EventContext<'child, 'window>>>::Result
+    where
+        Widget: ManageWidget,
+        Widget::Managed: MapManagedWidget<EventContext<'child, 'window>>,
+    {
+        widget
+            .manage(self)
+            .map(|managed| EventContext::new(self.widget.for_other(&managed), self.kludgine))
     }
 
     /// Invokes [`Widget::hit_test()`](crate::widget::Widget::hit_test) on this
@@ -145,11 +152,11 @@ impl<'context, 'window> EventContext<'context, 'window> {
     pub(crate) fn hover(&mut self, location: Point<Px>) {
         let changes = self.current_node.tree.hover(Some(&self.current_node));
         for unhovered in changes.unhovered {
-            let mut context = self.for_other(unhovered.clone());
+            let mut context = self.for_other(&unhovered);
             unhovered.lock().as_widget().unhover(&mut context);
         }
         for hover in changes.hovered {
-            let mut context = self.for_other(hover.clone());
+            let mut context = self.for_other(&hover);
             hover.lock().as_widget().hover(location, &mut context);
         }
     }
@@ -159,7 +166,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         assert!(changes.hovered.is_empty());
 
         for old_hover in changes.unhovered {
-            let mut old_hover_context = self.for_other(old_hover.clone());
+            let mut old_hover_context = self.for_other(&old_hover);
             old_hover.lock().as_widget().unhover(&mut old_hover_context);
         }
     }
@@ -170,7 +177,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
             let new = match self.current_node.tree.activate(active.as_ref()) {
                 Ok(old) => {
                     if let Some(old) = old {
-                        let mut old_context = self.for_other(old.clone());
+                        let mut old_context = self.for_other(&old);
                         old.lock().as_widget().deactivate(&mut old_context);
                     }
                     true
@@ -182,7 +189,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                     active
                         .lock()
                         .as_widget()
-                        .activate(&mut self.for_other(active.clone()));
+                        .activate(&mut self.for_other(active));
                 }
                 self.pending_state.active = active;
             }
@@ -194,19 +201,19 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 if focus
                     .lock()
                     .as_widget()
-                    .accept_focus(&mut self.for_other(focus.clone()))
+                    .accept_focus(&mut self.for_other(&focus))
                 {
                     break Some(focus);
                 } else if let Some(next_focus) = focus.next_focus() {
                     focus = next_focus;
                 } else {
-                    break self.next_focus_after(focus);
+                    break self.next_focus_after(focus, VisualOrder::left_to_right());
                 }
             });
             let new = match self.current_node.tree.focus(focus.as_ref()) {
                 Ok(old) => {
                     if let Some(old) = old {
-                        let mut old_context = self.for_other(old.clone());
+                        let mut old_context = self.for_other(&old);
                         old.lock().as_widget().blur(&mut old_context);
                     }
                     true
@@ -215,26 +222,27 @@ impl<'context, 'window> EventContext<'context, 'window> {
             };
             if new {
                 if let Some(focus) = &focus {
-                    focus
-                        .lock()
-                        .as_widget()
-                        .focus(&mut self.for_other(focus.clone()));
+                    focus.lock().as_widget().focus(&mut self.for_other(focus));
                 }
                 self.pending_state.focus = focus;
             }
         }
     }
 
-    fn next_focus_after(&mut self, mut focus: ManagedWidget) -> Option<ManagedWidget> {
+    fn next_focus_after(
+        &mut self,
+        mut focus: ManagedWidget,
+        order: VisualOrder,
+    ) -> Option<ManagedWidget> {
         // First, look within the current focus for any focusable children.
         let stop_at = focus.id();
-        if let Some(focus) = self.next_focus_within(&focus, None, stop_at) {
+        if let Some(focus) = self.next_focus_within(&focus, None, stop_at, order) {
             return Some(focus);
         }
 
         // Now, look for the next widget in each hierarchy
         let root = loop {
-            if let Some(focus) = self.next_focus_sibling(&focus, stop_at) {
+            if let Some(focus) = self.next_focus_sibling(&focus, stop_at, order) {
                 return Some(focus);
             }
             let Some(parent) = focus.parent() else {
@@ -245,15 +253,16 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
         // We've exhausted a forward scan, we can now start searching the final
         // parent, which is the root.
-        self.next_focus_within(&root, None, stop_at)
+        self.next_focus_within(&root, None, stop_at, order)
     }
 
     fn next_focus_sibling(
         &mut self,
         focus: &ManagedWidget,
         stop_at: WidgetId,
+        order: VisualOrder,
     ) -> Option<ManagedWidget> {
-        self.next_focus_within(&focus.parent()?, Some(focus.id()), stop_at)
+        self.next_focus_within(&focus.parent()?, Some(focus.id()), stop_at, order)
     }
 
     /// Searches for the next focus inside of `focus`, returning `None` if
@@ -264,21 +273,22 @@ impl<'context, 'window> EventContext<'context, 'window> {
         focus: &ManagedWidget,
         start_at: Option<WidgetId>,
         stop_at: WidgetId,
+        order: VisualOrder,
     ) -> Option<ManagedWidget> {
-        let child_layouts = focus.child_layouts();
-        // TODO visually sort the layouts
-
-        let mut child_layouts = child_layouts.into_iter().peekable();
+        let mut children = focus
+            .visually_ordered_children(order)
+            .into_iter()
+            .peekable();
         if let Some(start_at) = start_at {
             // Skip all children up to `start_at`
-            while child_layouts.peek()?.0.id() != start_at {
-                child_layouts.next();
+            while children.peek()?.id() != start_at {
+                children.next();
             }
             // Skip `start_at`
-            child_layouts.next();
+            children.next();
         }
 
-        for (child, _layout) in child_layouts {
+        for child in children {
             // Ensure we haven't cycled completely.
             if stop_at == child.id() {
                 break;
@@ -287,15 +297,19 @@ impl<'context, 'window> EventContext<'context, 'window> {
             if child
                 .lock()
                 .as_widget()
-                .accept_focus(&mut self.for_other(child.clone()))
+                .accept_focus(&mut self.for_other(&child))
             {
                 return Some(child);
-            } else if let Some(focus) = self.next_focus_within(&child, None, stop_at) {
+            } else if let Some(focus) = self.next_focus_within(&child, None, stop_at, order) {
                 return Some(focus);
             }
         }
 
         None
+    }
+
+    pub fn advance_focus(&mut self, direction: VisualOrder) {
+        self.pending_state.focus = self.next_focus_after(self.current_node.clone(), direction);
     }
 }
 
@@ -362,19 +376,27 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
 
     /// Returns a new `GraphicsContext` that allows invoking graphics functions
     /// for `widget`.
-    pub fn for_other<'child>(
+    pub fn for_other<'child, Widget>(
         &'child mut self,
-        widget: ManagedWidget,
-    ) -> GraphicsContext<'child, 'window, 'child, 'gfx, 'pass> {
-        let widget = self.widget.for_other(widget);
-        let layout = widget.last_layout().map_or_else(
-            || Rect::from(self.graphics.clip_rect().size).into_signed(),
-            |rect| rect - self.graphics.region().origin,
-        );
-        GraphicsContext {
-            widget,
-            graphics: Exclusive::Owned(self.graphics.clipped_to(layout)),
-        }
+        widget: &Widget,
+    ) -> <Widget::Managed as MapManagedWidget<
+        GraphicsContext<'child, 'window, 'child, 'gfx, 'pass>,
+    >>::Result
+    where
+        Widget: ManageWidget,
+        Widget::Managed: MapManagedWidget<GraphicsContext<'child, 'window, 'child, 'gfx, 'pass>>,
+    {
+        widget.manage(self).map(|widget| {
+            let widget = self.widget.for_other(&widget);
+            let layout = widget.last_layout().map_or_else(
+                || Rect::from(self.graphics.clip_rect().size).into_signed(),
+                |rect| rect - self.graphics.region().origin,
+            );
+            GraphicsContext {
+                widget,
+                graphics: Exclusive::Owned(self.graphics.clipped_to(layout)),
+            }
+        })
     }
 
     /// Returns a new graphics context that renders to the `clip` rectangle.
@@ -468,17 +490,18 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'cl
 
     /// Returns a new `LayoutContext` that allows invoking layout functions for
     /// `widget`.
-    pub fn for_other<'child, 'widget>(
+    pub fn for_other<'child, Widget>(
         &'child mut self,
-        widget: ManagedWidget,
-    ) -> LayoutContext<'child, 'window, 'child, 'gfx, 'pass>
+        widget: &Widget,
+    ) -> <Widget::Managed as MapManagedWidget<LayoutContext<'child, 'window, 'child, 'gfx, 'pass>>>::Result
     where
-        'widget: 'child,
+        Widget: ManageWidget,
+        Widget::Managed: MapManagedWidget<LayoutContext<'child, 'window, 'child, 'gfx, 'pass>>,
     {
-        LayoutContext {
-            graphics: self.graphics.for_other(widget),
+        widget.manage(self).map(|widget| LayoutContext {
+            graphics: self.graphics.for_other(&widget),
             persist_layout: self.persist_layout,
-        }
+        })
     }
 
     /// Invokes [`Widget::layout()`](crate::widget::Widget::layout) on this
@@ -541,21 +564,21 @@ pub trait AsEventContext<'window> {
         pushed_widget
             .lock()
             .as_widget()
-            .mounted(&mut context.for_other(pushed_widget.clone()));
+            .mounted(&mut context.for_other(&pushed_widget));
         pushed_widget
     }
 
     /// Removes a widget from the hierarchy.
     fn remove_child(&mut self, child: &ManagedWidget) {
         let mut context = self.as_event_context();
+        child
+            .lock()
+            .as_widget()
+            .unmounted(&mut context.for_other(child));
         context
             .current_node
             .tree
             .remove_child(child, &context.current_node);
-        child
-            .lock()
-            .as_widget()
-            .unmounted(&mut context.for_other(child.clone()));
     }
 }
 
@@ -616,16 +639,20 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     }
 
     /// Returns a new context representing `widget`.
-    pub fn for_other<'child>(
+    pub fn for_other<'child, Widget>(
         &'child mut self,
-        widget: ManagedWidget,
-    ) -> WidgetContext<'child, 'window> {
-        WidgetContext {
-            current_node: widget,
+        widget: &Widget,
+    ) -> <Widget::Managed as MapManagedWidget<WidgetContext<'child, 'window>>>::Result
+    where
+        Widget: ManageWidget,
+        Widget::Managed: MapManagedWidget<WidgetContext<'child, 'window>>,
+    {
+        widget.manage(self).map(|current_node| WidgetContext {
+            current_node,
             redraw_status: self.redraw_status,
             window: &mut *self.window,
             pending_state: self.pending_state.borrowed(),
-        }
+        })
     }
 
     pub(crate) fn parent(&self) -> Option<ManagedWidget> {
@@ -792,14 +819,14 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
 }
 
 pub(crate) struct WindowHandle {
-    kludgine: kludgine::app::WindowHandle<sealed::WindowCommand>,
+    kludgine: kludgine::app::WindowHandle<WindowCommand>,
     redraw_status: RedrawStatus,
 }
 
 impl WindowHandle {
     pub fn redraw(&self) {
         if self.redraw_status.should_send_refresh() {
-            let _result = self.kludgine.send(sealed::WindowCommand::Redraw);
+            let _result = self.kludgine.send(WindowCommand::Redraw);
         }
     }
 }
@@ -878,5 +905,59 @@ impl RedrawStatus {
 
     pub fn refresh_received(&self) {
         self.refresh_sent.store(false, Ordering::Release);
+    }
+}
+
+pub trait ManageWidget {
+    type Managed: MapManagedWidget<ManagedWidget>;
+    fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed;
+}
+
+impl ManageWidget for WidgetInstance {
+    type Managed = Option<ManagedWidget>;
+
+    fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed {
+        context.current_node.tree.widget(self.id())
+    }
+}
+
+impl ManageWidget for WidgetRef {
+    type Managed = Option<ManagedWidget>;
+
+    fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed {
+        match self {
+            WidgetRef::Unmounted(instance) => context.current_node.tree.widget(instance.id()),
+            WidgetRef::Mounted(instance) => Some(instance.clone()),
+        }
+    }
+}
+
+impl ManageWidget for ManagedWidget {
+    type Managed = Self;
+
+    fn manage(&self, _context: &WidgetContext<'_, '_>) -> Self::Managed {
+        self.clone()
+    }
+}
+
+pub trait MapManagedWidget<T> {
+    type Result;
+
+    fn map(self, map: impl FnOnce(ManagedWidget) -> T) -> Self::Result;
+}
+
+impl<T> MapManagedWidget<T> for Option<ManagedWidget> {
+    type Result = Option<T>;
+
+    fn map(self, map: impl FnOnce(ManagedWidget) -> T) -> Self::Result {
+        self.map(map)
+    }
+}
+
+impl<T> MapManagedWidget<T> for ManagedWidget {
+    type Result = T;
+
+    fn map(self, map: impl FnOnce(ManagedWidget) -> T) -> Self::Result {
+        map(self)
     }
 }

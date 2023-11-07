@@ -49,7 +49,7 @@ impl Expand {
 impl Widget for Expand {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(child).redraw();
+        context.for_other(&child).redraw();
     }
 
     fn layout(
@@ -62,7 +62,7 @@ impl Widget for Expand {
             ConstraintLimit::Known(available_space.height.max()),
         );
         let child = self.child.mounted(&mut context.as_event_context());
-        let size = context.for_other(child.clone()).layout(available_space);
+        let size = context.for_other(&child).layout(available_space);
         context.set_child_layout(&child, Rect::from(size.into_signed()));
         size
     }

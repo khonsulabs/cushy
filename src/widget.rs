@@ -15,6 +15,7 @@ use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Rect, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
+use crate::styles::components::VisualOrder;
 use crate::styles::Styles;
 use crate::tree::Tree;
 use crate::value::{IntoValue, Value};
@@ -194,14 +195,14 @@ pub trait MakeWidget: Sized {
 /// [`WidgetId`].
 pub trait MakeWidgetWithId: Sized {
     /// Returns a new [`WidgetInstance`] whose [`WidgetId`] is `id`.
-    fn make_with_id(self, id: PendingWidgetId) -> WidgetInstance;
+    fn make_with_id(self, id: WidgetTag) -> WidgetInstance;
 }
 
 impl<T> MakeWidgetWithId for T
 where
     T: Widget,
 {
-    fn make_with_id(self, id: PendingWidgetId) -> WidgetInstance {
+    fn make_with_id(self, id: WidgetTag) -> WidgetInstance {
         WidgetInstance::with_id(self, id)
     }
 }
@@ -211,7 +212,7 @@ where
     T: MakeWidgetWithId,
 {
     fn make_widget(self) -> WidgetInstance {
-        self.make_with_id(PendingWidgetId::unique())
+        self.make_with_id(WidgetTag::unique())
     }
 }
 
@@ -267,7 +268,7 @@ pub struct WidgetInstance {
 impl WidgetInstance {
     /// Returns a new instance containing `widget` that is assigned the unique
     /// `id` provided.
-    pub fn with_id<W>(widget: W, id: PendingWidgetId) -> Self
+    pub fn with_id<W>(widget: W, id: WidgetTag) -> Self
     where
         W: Widget,
     {
@@ -283,7 +284,7 @@ impl WidgetInstance {
     where
         W: Widget,
     {
-        Self::with_id(widget, PendingWidgetId::unique())
+        Self::with_id(widget, WidgetTag::unique())
     }
 
     /// Returns the unique id of this widget instance.
@@ -328,6 +329,11 @@ impl WidgetInstance {
     #[must_use]
     pub fn next_focus(&self) -> Option<WidgetId> {
         self.next_focus.get()
+    }
+}
+impl AsRef<WidgetId> for WidgetInstance {
+    fn as_ref(&self) -> &WidgetId {
+        &self.id
     }
 }
 
@@ -484,8 +490,14 @@ impl ManagedWidget {
         self.tree.reset_child_layouts(self.id());
     }
 
-    pub(crate) fn child_layouts(&self) -> Vec<(ManagedWidget, Rect<Px>)> {
-        self.tree.child_layouts(self.id())
+    pub(crate) fn visually_ordered_children(&self, order: VisualOrder) -> Vec<ManagedWidget> {
+        self.tree.visually_ordered_children(self.id(), order)
+    }
+}
+
+impl AsRef<WidgetId> for ManagedWidget {
+    fn as_ref(&self) -> &WidgetId {
+        self.widget.as_ref()
     }
 }
 
@@ -631,6 +643,15 @@ impl WidgetRef {
     }
 }
 
+impl AsRef<WidgetId> for WidgetRef {
+    fn as_ref(&self) -> &WidgetId {
+        match self {
+            WidgetRef::Unmounted(widget) => widget.as_ref(),
+            WidgetRef::Mounted(widget) => widget.as_ref(),
+        }
+    }
+}
+
 /// The unique id of a [`WidgetInstance`].
 ///
 /// Each [`WidgetInstance`] is guaranteed to have a unique [`WidgetId`] across
@@ -654,9 +675,17 @@ impl WidgetId {
 /// assigned a given [`WidgetId`]. The contained [`WidgetId`] can be accessed
 /// via [`id()`](Self::id), `Into<WidgetId>`, or `Deref`.
 #[derive(Eq, PartialEq, Debug)]
-pub struct PendingWidgetId(WidgetId);
+pub struct WidgetTag(WidgetId);
 
-impl PendingWidgetId {
+impl WidgetTag {
+    /// Returns a unique tag and its contained id.
+    #[must_use]
+    pub fn new() -> (Self, WidgetId) {
+        let tag = Self::unique();
+        let id = *tag;
+        (tag, id)
+    }
+
     /// Returns a newly allocated [`WidgetId`] that is guaranteed to be unique
     /// for the lifetime of the application.
     #[must_use]
@@ -671,13 +700,13 @@ impl PendingWidgetId {
     }
 }
 
-impl From<PendingWidgetId> for WidgetId {
-    fn from(value: PendingWidgetId) -> Self {
+impl From<WidgetTag> for WidgetId {
+    fn from(value: WidgetTag) -> Self {
         value.0
     }
 }
 
-impl Deref for PendingWidgetId {
+impl Deref for WidgetTag {
     type Target = WidgetId;
 
     fn deref(&self) -> &Self::Target {

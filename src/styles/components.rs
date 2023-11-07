@@ -1,7 +1,8 @@
 //! All style components supported by the built-in widgets.
 use std::borrow::Cow;
 
-use kludgine::figures::units::Lp;
+use kludgine::figures::units::{Lp, Px};
+use kludgine::figures::Rect;
 use kludgine::Color;
 
 use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
@@ -158,5 +159,96 @@ impl ComponentDefinition for EasingOut {
 
     fn default_value(&self) -> Self::ComponentType {
         EasingFunction::from(EaseOutQuadradic)
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct VisualOrder {
+    pub horizontal: HorizontalOrder,
+    pub vertical: VerticalOrder,
+}
+
+impl VisualOrder {
+    #[must_use]
+    pub const fn right_to_left() -> Self {
+        Self {
+            horizontal: HorizontalOrder::RightToLeft,
+            vertical: VerticalOrder::TopToBottom,
+        }
+    }
+
+    #[must_use]
+    pub const fn left_to_right() -> Self {
+        Self {
+            horizontal: HorizontalOrder::LeftToRight,
+            vertical: VerticalOrder::TopToBottom,
+        }
+    }
+
+    #[must_use]
+    pub fn rev(self) -> Self {
+        Self {
+            horizontal: self.horizontal.rev(),
+            vertical: self.vertical.rev(),
+        }
+    }
+}
+
+impl NamedComponent for VisualOrder {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("visual_order"))
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum HorizontalOrder {
+    LeftToRight,
+    RightToLeft,
+}
+
+impl HorizontalOrder {
+    #[must_use]
+    pub fn rev(self) -> Self {
+        match self {
+            Self::LeftToRight => Self::RightToLeft,
+            Self::RightToLeft => Self::LeftToRight,
+        }
+    }
+
+    pub fn sort_key(self, rect: &Rect<Px>) -> Px {
+        match self {
+            HorizontalOrder::LeftToRight => rect.origin.x,
+            HorizontalOrder::RightToLeft => -(rect.origin.x + rect.size.width),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum VerticalOrder {
+    TopToBottom,
+    BottomToTop,
+}
+
+impl VerticalOrder {
+    #[must_use]
+    pub fn rev(self) -> Self {
+        match self {
+            Self::TopToBottom => VerticalOrder::BottomToTop,
+            Self::BottomToTop => VerticalOrder::TopToBottom,
+        }
+    }
+
+    pub fn max_px(self) -> Px {
+        match self {
+            VerticalOrder::TopToBottom => Px::MAX,
+            VerticalOrder::BottomToTop => Px::MIN,
+        }
+    }
+
+    pub fn smallest_px(self, a: Px, b: Px) -> Px {
+        match self {
+            VerticalOrder::TopToBottom => a.min(b),
+            VerticalOrder::BottomToTop => b.max(a),
+        }
     }
 }

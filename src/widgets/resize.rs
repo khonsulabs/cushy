@@ -60,7 +60,7 @@ impl Resize {
 impl Widget for Resize {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(child).redraw();
+        context.for_other(&child).redraw();
     }
 
     fn layout(
@@ -83,7 +83,8 @@ impl Widget for Resize {
                 ),
             );
             let child = self.child.mounted(&mut context.as_event_context());
-            context.for_other(child).layout(available_space)
+            // TODO set_child_layout
+            context.for_other(&child).layout(available_space)
         }
     }
 }

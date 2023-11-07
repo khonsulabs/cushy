@@ -132,7 +132,7 @@ impl Stack {
 impl Widget for Stack {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         for child in &self.synced_children {
-            context.for_other(child.clone()).redraw();
+            context.for_other(child).redraw();
         }
     }
 
@@ -147,7 +147,7 @@ impl Widget for Stack {
             available_space,
             context.graphics.scale(),
             |child_index, constraints, persist| {
-                let mut context = context.for_other(self.synced_children[child_index].clone());
+                let mut context = context.for_other(&self.synced_children[child_index]);
                 if !persist {
                     context = context.as_temporary();
                 }

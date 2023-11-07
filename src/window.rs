@@ -25,6 +25,7 @@ use crate::context::{
     WidgetContext,
 };
 use crate::graphics::Graphics;
+use crate::styles::components::VisualOrder;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::widget::{EventHandling, ManagedWidget, Widget, WidgetInstance, HANDLED, IGNORED};
@@ -316,6 +317,23 @@ where
                         window.set_needs_redraw();
                     }
                 }
+                KeyCode::Tab
+                    if !window.modifiers().state().possible_shortcut()
+                        && input.state.is_pressed() =>
+                {
+                    let direction = if window.modifiers().state().shift_key() {
+                        VisualOrder::left_to_right().rev()
+                    } else {
+                        VisualOrder::left_to_right()
+                    };
+                    let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
+                    let target = self.root.tree.widget(target).expect("missing widget");
+                    let mut target = EventContext::new(
+                        WidgetContext::new(target, &self.redraw_status, &mut window),
+                        kludgine,
+                    );
+                    target.advance_focus(direction);
+                }
                 _ => {}
             }
         }
@@ -401,7 +419,7 @@ where
             );
             self.mouse_state.widget = None;
             for widget in self.root.tree.widgets_at_point(location) {
-                let mut widget_context = context.for_other(widget.clone());
+                let mut widget_context = context.for_other(&widget);
                 let relative = location
                     - widget_context
                         .last_layout()
@@ -527,7 +545,7 @@ fn recursively_handle_event(
     match each_widget(context) {
         HANDLED => Some(context.widget().clone()),
         IGNORED => context.parent().and_then(|parent| {
-            recursively_handle_event(&mut context.for_other(parent), each_widget)
+            recursively_handle_event(&mut context.for_other(&parent), each_widget)
         }),
     }
 }

@@ -47,7 +47,7 @@ impl Align {
         );
 
         let child = self.child.mounted(&mut context.as_event_context());
-        let content_size = context.for_other(child).layout(content_available);
+        let content_size = context.for_other(&child).layout(content_available);
 
         let (left, right, width) = horizontal.measure(available_space.width, content_size.width);
         let (top, bottom, height) = vertical.measure(available_space.height, content_size.height);
@@ -128,7 +128,7 @@ impl FrameInfo {
 impl Widget for Align {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(child).redraw();
+        context.for_other(&child).redraw();
     }
 
     fn layout(

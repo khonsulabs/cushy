@@ -31,7 +31,7 @@ impl Widget for Style {
 
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(child).redraw();
+        context.for_other(&child).redraw();
     }
 
     fn layout(
@@ -40,6 +40,6 @@ impl Widget for Style {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(child).layout(available_space)
+        context.for_other(&child).layout(available_space)
     }
 }

@@ -12,7 +12,7 @@ use kludgine::shapes::Shape;
 use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
-use crate::context::{AsEventContext, EventContext};
+use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::components::{EasingIn, EasingOut};
 use crate::styles::{
     ComponentDefinition, ComponentGroup, ComponentName, Dimension, NamedComponent,
@@ -126,7 +126,7 @@ impl Widget for Scroll {
         let visible_bottom_right = visible_rect.into_signed().extent();
 
         let managed = self.contents.mounted(&mut context.as_event_context());
-        context.for_other(managed).redraw();
+        context.for_other(&managed).redraw();
 
         if self.horizontal_bar.amount_hidden > 0 {
             context.graphics.draw_shape(
@@ -167,8 +167,8 @@ impl Widget for Scroll {
 
     fn layout(
         &mut self,
-        available_space: Size<crate::ConstraintLimit>,
-        context: &mut crate::context::LayoutContext<'_, '_, '_, '_, '_>,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let styles = context.query_styles(&[&ScrollBarThickness]);
         self.bar_width = styles
@@ -192,7 +192,7 @@ impl Widget for Scroll {
         );
         let managed = self.contents.mounted(&mut context.as_event_context());
         let new_content_size = context
-            .for_other(managed.clone())
+            .for_other(&managed)
             .layout(max_extents)
             .into_signed();
 

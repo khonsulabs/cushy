@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use kludgine::figures::units::Px;
 use kludgine::figures::{Point, Rect};
 
+use crate::styles::components::VisualOrder;
 use crate::styles::{ComponentDefaultvalue, ComponentDefinition, ComponentType, Styles};
 use crate::widget::{ManagedWidget, WidgetId, WidgetInstance};
 
@@ -86,17 +87,63 @@ impl Tree {
         }
     }
 
-    pub(crate) fn child_layouts(&self, parent: WidgetId) -> Vec<(ManagedWidget, Rect<Px>)> {
+    pub(crate) fn visually_ordered_children(
+        &self,
+        parent: WidgetId,
+        order: VisualOrder,
+    ) -> Vec<ManagedWidget> {
         let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
-        data.nodes[&parent]
-            .children
-            .iter()
-            .filter_map(|id| {
-                data.nodes[id]
+        let node = &data.nodes[&parent];
+        let mut unordered = node.children.clone();
+        let mut ordered = Vec::<ManagedWidget>::with_capacity(unordered.len());
+        loop {
+            // Identify the next "row" of widgets by finding the top of a widget that is the closest to the origin of
+            let mut min_vertical = order.vertical.max_px();
+            let mut max_vertical = order.vertical.max_px();
+
+            let mut index = 0;
+            while index < unordered.len() {
+                let Some(layout) = &data.nodes[&unordered[index]].layout else {
+                    unordered.remove(index);
+                    continue;
+                };
+                let top = layout.origin.y;
+                let bottom = top + layout.size.height;
+                min_vertical = order.vertical.smallest_px(min_vertical, top);
+                max_vertical = order.vertical.smallest_px(min_vertical, bottom);
+
+                index += 1;
+            }
+
+            if unordered.is_empty() {
+                break;
+            }
+
+            // Find all widgets whose top is within the range found.
+            index = 0;
+            let row_base = ordered.len();
+            while index < unordered.len() {
+                let top_left = data.nodes[&unordered[index]]
                     .layout
-                    .map(|layout| (data.widget(*id, self).expect("child still owned"), layout))
-            })
-            .collect()
+                    .expect("all have layouts")
+                    .origin;
+                if min_vertical <= top_left.y && top_left.y <= max_vertical {
+                    ordered.push(
+                        data.widget(unordered.remove(index), self)
+                            .expect("widget is owned"),
+                    );
+                } else {
+                    index += 1;
+                }
+            }
+
+            ordered[row_base..].sort_unstable_by_key(|managed| {
+                order
+                    .horizontal
+                    .sort_key(&data.nodes[&managed.id()].layout.expect("all have layouts"))
+            });
+        }
+        ordered
     }
 
     pub(crate) fn hover(&self, new_hover: Option<&ManagedWidget>) -> HoverResults {

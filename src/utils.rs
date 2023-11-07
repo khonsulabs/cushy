@@ -57,6 +57,8 @@ impl_all_tuples!(impl_with_clone);
 pub trait ModifiersExt {
     fn primary(&self) -> bool;
     fn word_select(&self) -> bool;
+
+    fn possible_shortcut(&self) -> bool;
 }
 
 impl ModifiersExt for ModifiersState {
@@ -79,6 +81,10 @@ impl ModifiersExt for ModifiersState {
     fn word_select(&self) -> bool {
         self.control_key()
     }
+
+    fn possible_shortcut(&self) -> bool {
+        self.control_key() || self.alt_key() || self.super_key()
+    }
 }
 
 impl ModifiersExt for Modifiers {
@@ -87,6 +93,10 @@ impl ModifiersExt for Modifiers {
     }
 
     fn word_select(&self) -> bool {
+        self.state().word_select()
+    }
+
+    fn possible_shortcut(&self) -> bool {
         self.state().word_select()
     }
 }
