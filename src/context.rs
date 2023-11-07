@@ -15,7 +15,7 @@ use crate::graphics::Graphics;
 use crate::styles::components::HighlightColor;
 use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles};
 use crate::value::Dynamic;
-use crate::widget::{EventHandling, ManagedWidget, WidgetInstance};
+use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance};
 use crate::window::{sealed, RunningWindow};
 use crate::ConstraintLimit;
 
@@ -200,8 +200,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 } else if let Some(next_focus) = focus.next_focus() {
                     focus = next_focus;
                 } else {
-                    // TODO visually scan the tree for the "next" widget.
-                    break None;
+                    break self.next_focus_after(focus);
                 }
             });
             let new = match self.current_node.tree.focus(focus.as_ref()) {
@@ -224,6 +223,79 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 self.pending_state.focus = focus;
             }
         }
+    }
+
+    fn next_focus_after(&mut self, mut focus: ManagedWidget) -> Option<ManagedWidget> {
+        // First, look within the current focus for any focusable children.
+        let stop_at = focus.id();
+        if let Some(focus) = self.next_focus_within(&focus, None, stop_at) {
+            return Some(focus);
+        }
+
+        // Now, look for the next widget in each hierarchy
+        let root = loop {
+            if let Some(focus) = self.next_focus_sibling(&focus, stop_at) {
+                return Some(focus);
+            }
+            let Some(parent) = focus.parent() else {
+                break focus;
+            };
+            focus = parent;
+        };
+
+        // We've exhausted a forward scan, we can now start searching the final
+        // parent, which is the root.
+        self.next_focus_within(&root, None, stop_at)
+    }
+
+    fn next_focus_sibling(
+        &mut self,
+        focus: &ManagedWidget,
+        stop_at: WidgetId,
+    ) -> Option<ManagedWidget> {
+        self.next_focus_within(&focus.parent()?, Some(focus.id()), stop_at)
+    }
+
+    /// Searches for the next focus inside of `focus`, returning `None` if
+    /// `stop_at` is reached or all children are checked before finding a widget
+    /// that returns true from `accept_focus`.
+    fn next_focus_within(
+        &mut self,
+        focus: &ManagedWidget,
+        start_at: Option<WidgetId>,
+        stop_at: WidgetId,
+    ) -> Option<ManagedWidget> {
+        let child_layouts = focus.child_layouts();
+        // TODO visually sort the layouts
+
+        let mut child_layouts = child_layouts.into_iter().peekable();
+        if let Some(start_at) = start_at {
+            // Skip all children up to `start_at`
+            while child_layouts.peek()?.0.id() != start_at {
+                child_layouts.next();
+            }
+            // Skip `start_at`
+            child_layouts.next();
+        }
+
+        for (child, _layout) in child_layouts {
+            // Ensure we haven't cycled completely.
+            if stop_at == child.id() {
+                break;
+            }
+
+            if child
+                .lock()
+                .as_widget()
+                .accept_focus(&mut self.for_other(child.clone()))
+            {
+                return Some(child);
+            } else if let Some(focus) = self.next_focus_within(&child, None, stop_at) {
+                return Some(focus);
+            }
+        }
+
+        None
     }
 }
 

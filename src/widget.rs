@@ -5,6 +5,7 @@ use std::clone::Clone;
 use std::fmt::Debug;
 use std::ops::{ControlFlow, Deref};
 use std::panic::UnwindSafe;
+use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use kludgine::app::winit::event::{
@@ -15,7 +16,7 @@ use kludgine::figures::{Point, Rect, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::Styles;
-use crate::tree::{Tree, WidgetId};
+use crate::tree::Tree;
 use crate::value::{IntoValue, Value};
 use crate::widgets::Style;
 use crate::window::{RunningWindow, Window, WindowBehavior};
@@ -165,7 +166,7 @@ where
     }
 }
 
-/// A type that can create a widget.
+/// A type that can create a [`WidgetInstance`].
 pub trait MakeWidget: Sized {
     /// Returns a new widget.
     fn make_widget(self) -> WidgetInstance;
@@ -189,12 +190,28 @@ pub trait MakeWidget: Sized {
     }
 }
 
-impl<T> MakeWidget for T
+/// A type that can create a [`WidgetInstance`] with a preallocated
+/// [`WidgetId`].
+pub trait MakeWidgetWithId: Sized {
+    /// Returns a new [`WidgetInstance`] whose [`WidgetId`] is `id`.
+    fn make_with_id(self, id: PendingWidgetId) -> WidgetInstance;
+}
+
+impl<T> MakeWidgetWithId for T
 where
     T: Widget,
 {
+    fn make_with_id(self, id: PendingWidgetId) -> WidgetInstance {
+        WidgetInstance::with_id(self, id)
+    }
+}
+
+impl<T> MakeWidget for T
+where
+    T: MakeWidgetWithId,
+{
     fn make_widget(self) -> WidgetInstance {
-        WidgetInstance::new(self)
+        self.make_with_id(PendingWidgetId::unique())
     }
 }
 
@@ -248,16 +265,25 @@ pub struct WidgetInstance {
 }
 
 impl WidgetInstance {
+    /// Returns a new instance containing `widget` that is assigned the unique
+    /// `id` provided.
+    pub fn with_id<W>(widget: W, id: PendingWidgetId) -> Self
+    where
+        W: Widget,
+    {
+        Self {
+            id: id.into(),
+            widget: Arc::new(Mutex::new(widget)),
+            next_focus: Value::default(),
+        }
+    }
+
     /// Returns a new instance containing `widget`.
     pub fn new<W>(widget: W) -> Self
     where
         W: Widget,
     {
-        Self {
-            id: WidgetId::unique(),
-            widget: Arc::new(Mutex::new(widget)),
-            next_focus: Value::default(),
-        }
+        Self::with_id(widget, PendingWidgetId::unique())
     }
 
     /// Returns the unique id of this widget instance.
@@ -293,6 +319,15 @@ impl WidgetInstance {
     /// Runs this widget instance as an application.
     pub fn run(self) -> crate::Result {
         Window::<WidgetInstance>::new(self).run()
+    }
+
+    /// Returns the id of the widget that should receive focus after this
+    /// widget.
+    ///
+    /// This value comes from [`MakeWidget::with_next_focus()`].
+    #[must_use]
+    pub fn next_focus(&self) -> Option<WidgetId> {
+        self.next_focus.get()
     }
 }
 
@@ -399,8 +434,7 @@ impl ManagedWidget {
     #[must_use]
     pub fn next_focus(&self) -> Option<ManagedWidget> {
         self.widget
-            .next_focus
-            .get()
+            .next_focus()
             .and_then(|next_focus| self.tree.widget(next_focus))
     }
 
@@ -448,6 +482,10 @@ impl ManagedWidget {
 
     pub(crate) fn reset_child_layouts(&self) {
         self.tree.reset_child_layouts(self.id());
+    }
+
+    pub(crate) fn child_layouts(&self) -> Vec<(ManagedWidget, Rect<Px>)> {
+        self.tree.child_layouts(self.id())
     }
 }
 
@@ -590,5 +628,59 @@ impl WidgetRef {
             unreachable!("just initialized")
         };
         widget.clone()
+    }
+}
+
+/// The unique id of a [`WidgetInstance`].
+///
+/// Each [`WidgetInstance`] is guaranteed to have a unique [`WidgetId`] across
+/// the lifetime of an application.
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash)]
+pub struct WidgetId(u64);
+
+impl WidgetId {
+    fn unique() -> Self {
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        Self(COUNTER.fetch_add(1, atomic::Ordering::Acquire))
+    }
+}
+
+/// A [`WidgetId`] that has not been assigned to a [`WidgetInstance`].
+///
+/// This type is passed to [`MakeWidgetWithId::make_with_id()`] to create a
+/// [`WidgetInstance`] with a preallocated id.
+///
+/// This type cannot be cloned or copied to ensure only a single widget can be
+/// assigned a given [`WidgetId`]. The contained [`WidgetId`] can be accessed
+/// via [`id()`](Self::id), `Into<WidgetId>`, or `Deref`.
+#[derive(Eq, PartialEq, Debug)]
+pub struct PendingWidgetId(WidgetId);
+
+impl PendingWidgetId {
+    /// Returns a newly allocated [`WidgetId`] that is guaranteed to be unique
+    /// for the lifetime of the application.
+    #[must_use]
+    pub fn unique() -> Self {
+        Self(WidgetId::unique())
+    }
+
+    /// Returns the contained widget id.
+    #[must_use]
+    pub const fn id(&self) -> WidgetId {
+        self.0
+    }
+}
+
+impl From<PendingWidgetId> for WidgetId {
+    fn from(value: PendingWidgetId) -> Self {
+        value.0
+    }
+}
+
+impl Deref for PendingWidgetId {
+    type Target = WidgetId;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

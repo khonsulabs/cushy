@@ -1,14 +1,12 @@
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::mem;
-use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use kludgine::figures::units::Px;
 use kludgine::figures::{Point, Rect};
 
 use crate::styles::{ComponentDefaultvalue, ComponentDefinition, ComponentType, Styles};
-use crate::widget::{ManagedWidget, WidgetInstance};
+use crate::widget::{ManagedWidget, WidgetId, WidgetInstance};
 
 #[derive(Clone, Default)]
 pub struct Tree {
@@ -36,6 +34,9 @@ impl Tree {
         if let Some(parent) = parent {
             let parent = data.nodes.get_mut(&parent.id()).expect("missing parent");
             parent.children.push(id);
+        }
+        if let Some(next_focus) = widget.next_focus() {
+            data.previous_focuses.insert(next_focus, id);
         }
         ManagedWidget {
             widget,
@@ -83,6 +84,19 @@ impl Tree {
         for child in children {
             data.nodes.get_mut(&child).expect("missing widget").layout = None;
         }
+    }
+
+    pub(crate) fn child_layouts(&self, parent: WidgetId) -> Vec<(ManagedWidget, Rect<Px>)> {
+        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        data.nodes[&parent]
+            .children
+            .iter()
+            .filter_map(|id| {
+                data.nodes[id]
+                    .layout
+                    .map(|layout| (data.widget(*id, self).expect("child still owned"), layout))
+            })
+            .collect()
     }
 
     pub(crate) fn hover(&self, new_hover: Option<&ManagedWidget>) -> HoverResults {
@@ -220,6 +234,7 @@ struct TreeData {
     focus: Option<WidgetId>,
     hover: Option<WidgetId>,
     render_order: Vec<WidgetId>,
+    previous_focuses: HashMap<WidgetId, WidgetId>,
 }
 
 impl TreeData {
@@ -241,6 +256,10 @@ impl TreeData {
             .expect("child not found in parent");
         parent.children.remove(index);
         let mut detached_nodes = removed_node.children;
+
+        if let Some(next_focus) = removed_node.widget.next_focus() {
+            self.previous_focuses.remove(&next_focus);
+        }
 
         while let Some(node) = detached_nodes.pop() {
             let mut node = self.nodes.remove(&node).expect("detached node missing");
@@ -338,14 +357,4 @@ pub struct Node {
     pub parent: Option<WidgetId>,
     pub layout: Option<Rect<Px>>,
     pub styles: Option<Styles>,
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash)]
-pub struct WidgetId(u64);
-
-impl WidgetId {
-    pub fn unique() -> Self {
-        static COUNTER: AtomicU64 = AtomicU64::new(0);
-        Self(COUNTER.fetch_add(1, atomic::Ordering::Acquire))
-    }
 }
