@@ -83,7 +83,7 @@ impl Tree {
 
     pub(crate) fn layout(&self, widget: WidgetId) -> Option<Rect<Px>> {
         let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
-        data.nodes[&widget].layout
+        data.nodes.get(&widget).and_then(|widget| widget.layout)
     }
 
     pub(crate) fn reset_render_order(&self) {
@@ -259,7 +259,7 @@ impl Tree {
         let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         let mut hits = Vec::new();
         for id in data.render_order.iter().rev() {
-            if let Some(last_rendered) = data.nodes[id].layout {
+            if let Some(last_rendered) = data.nodes.get(id).and_then(|widget| widget.layout) {
                 if last_rendered.contains(point) {
                     hits.push(ManagedWidget {
                         widget: data.nodes[id].widget.clone(),
@@ -377,8 +377,8 @@ impl TreeData {
             new_widget,
         ) {
             (Some(old_widget), Some(new_widget)) if old_widget == new_widget.id() => Err(()),
-            (Some(old_widget), _) => Ok(Some(ManagedWidget {
-                widget: self.nodes[&old_widget].widget.clone(),
+            (Some(old_widget), _) => Ok(self.nodes.get(&old_widget).map(|node| ManagedWidget {
+                widget: node.widget.clone(),
                 tree: tree.clone(),
             })),
             (None, _) => Ok(None),
