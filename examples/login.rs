@@ -1,16 +1,17 @@
 use std::process::exit;
 
-use gooey::value::Dynamic;
+use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
 use gooey::widgets::{Align, Button, Expand, Input, Label, Resize, Stack};
-use gooey::{children, Run, WithClone};
+use gooey::{children, Run};
 use kludgine::figures::units::Lp;
 
 fn main() -> gooey::Result {
     let username = Dynamic::default();
     let password = Dynamic::default();
 
-    let valid = setup_validation(&username, &password);
+    let valid =
+        (&username, &password).map_each(|(username, password)| validate(username, password));
 
     Expand::new(Align::centered(Resize::width(
         // TODO We need a min/max range for the Resize widget
@@ -44,7 +45,7 @@ fn main() -> gooey::Result {
                         println!("Welcome, {}", username.get());
                         exit(0);
                     })
-                    .into_default(), // TODO enable/disable based on valid
+                    .into_default(),
             ]),
         ]),
     )))
@@ -53,25 +54,4 @@ fn main() -> gooey::Result {
 
 fn validate(username: &String, password: &String) -> bool {
     !username.is_empty() && !password.is_empty()
-}
-
-fn setup_validation(username: &Dynamic<String>, password: &Dynamic<String>) -> Dynamic<bool> {
-    // TODO This is absolutely horrible. The problem is that within for_each,
-    // the value is still locked. Thus, we can't have a generic callback that
-    // tries to lock the value that is being mapped in for_each.
-    //
-    // We might be able to make a genericized implementation for_each for
-    // tuples, ie, (&Dynamic, &Dynamic).for_each(|(a, b)| ..).
-    let valid = Dynamic::default();
-    username.for_each((&valid, password).with_clone(|(valid, password)| {
-        move |username: &String| {
-            password.map_ref(|password| valid.update(validate(username, password)))
-        }
-    }));
-    password.for_each((&valid, username).with_clone(|(valid, username)| {
-        move |password: &String| {
-            username.map_ref(|username| valid.update(validate(username, password)))
-        }
-    }));
-    valid
 }

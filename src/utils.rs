@@ -5,17 +5,17 @@ use kludgine::app::winit::event::Modifiers;
 use kludgine::app::winit::keyboard::ModifiersState;
 
 /// Invokes the provided macro with a pattern that can be matched using this
-/// `macro_rules!` expression: `$($type:ident $field:tt),+`, where `$type` is an
+/// `macro_rules!` expression: `$($type:ident $field:tt $var:ident),+`, where `$type` is an
 /// identifier to use for the generic parameter and `$field` is the field index
 /// inside of the tuple.
 macro_rules! impl_all_tuples {
     ($macro_name:ident) => {
-        $macro_name!(T0 0);
-        $macro_name!(T0 0, T1 1);
-        $macro_name!(T0 0, T1 1, T2 2);
-        $macro_name!(T0 0, T1 1, T2 2, T3 3);
-        $macro_name!(T0 0, T1 1, T2 2, T3 3, T4 4);
-        $macro_name!(T0 0, T1 1, T2 2, T3 3, T4 4, T5 5);
+        $macro_name!(T0 0 t0);
+        $macro_name!(T0 0 t0, T1 1 t1);
+        $macro_name!(T0 0 t0, T1 1 t1, T2 2 t2);
+        $macro_name!(T0 0 t0, T1 1 t1, T2 2 t2, T3 3 t3);
+        $macro_name!(T0 0 t0, T1 1 t1, T2 2 t2, T3 3 t3, T4 4 t4);
+        $macro_name!(T0 0 t0, T1 1 t1, T2 2 t2, T3 3 t3, T4 4 t4, T5 5 t5);
     }
 }
 
@@ -29,7 +29,7 @@ pub trait WithClone: Sized {
 }
 
 macro_rules! impl_with_clone {
-    ($($name:ident $field:tt),+) => {
+    ($($name:ident $field:tt $var:ident),+) => {
         impl<'a, $($name: Clone,)+> WithClone for ($(&'a $name,)+)
         {
             type Cloned = ($($name,)+);

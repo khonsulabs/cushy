@@ -327,7 +327,7 @@ pub trait IntoAnimate: Sized + Send + Sync {
 }
 
 macro_rules! impl_tuple_animate {
-    ($($type:ident $field:tt),+) => {
+    ($($type:ident $field:tt $var:ident),+) => {
         impl<$($type),+> AnimationTarget for ($($type,)+) where $($type: AnimationTarget),+ {
             type Running = ($(<$type>::Running,)+);
 

@@ -2,12 +2,14 @@
 
 use std::fmt::Debug;
 use std::future::Future;
+use std::ops::{Deref, DerefMut};
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::task::{Poll, Waker};
 
 use crate::animation::{DynamicTransition, LinearInterpolate};
 use crate::context::{WidgetContext, WindowHandle};
+use crate::utils::WithClone;
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -161,6 +163,18 @@ impl<T> Dynamic<T> {
         self.create_reader()
     }
 
+    /// Returns an exclusive reference to the contents of this dynamic.
+    ///
+    /// This call will block until all other guards for this dynamic have been
+    /// dropped.
+    #[must_use]
+    pub fn lock(&self) -> DynamicGuard<'_, T> {
+        DynamicGuard {
+            guard: self.0.state(),
+            accessed_mut: false,
+        }
+    }
+
     fn state(&self) -> MutexGuard<'_, State<T>> {
         self.0.state()
     }
@@ -298,6 +312,7 @@ impl<T> DynamicData<T> {
         returned
     }
 }
+
 struct State<T> {
     wrapped: GenerationalValue<T>,
     callbacks: Vec<Box<dyn ValueCallback<T>>>,
@@ -335,6 +350,36 @@ where
 struct GenerationalValue<T> {
     pub value: T,
     pub generation: Generation,
+}
+
+/// An exclusive reference to the contents of a [`Dynamic`].
+#[derive(Debug)]
+pub struct DynamicGuard<'a, T> {
+    guard: MutexGuard<'a, State<T>>,
+    accessed_mut: bool,
+}
+
+impl<'a, T> Deref for DynamicGuard<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.guard.wrapped.value
+    }
+}
+
+impl<'a, T> DerefMut for DynamicGuard<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.accessed_mut = true;
+        &mut self.guard.wrapped.value
+    }
+}
+
+impl<T> Drop for DynamicGuard<'_, T> {
+    fn drop(&mut self) {
+        if self.accessed_mut {
+            todo!("trigger callbacks")
+        }
+    }
 }
 
 /// A reader that tracks the last generation accessed through this reader.
@@ -650,3 +695,129 @@ impl<T> IntoValue<Option<T>> for T {
         Value::Constant(Some(self))
     }
 }
+
+/// A type that can have a `for_each` operation applied to it.
+pub trait ForEach<T> {
+    /// The borrowed representation of T to pass into the `for_each` function.
+    type Ref<'a>;
+
+    /// Apply `for_each` to each value contained within `self`.
+    fn for_each<F>(&self, for_each: F)
+    where
+        F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static;
+}
+
+macro_rules! impl_tuple_for_each {
+    ($($type:ident $field:tt $var:ident),+) => {
+        impl<$($type,)+> ForEach<($($type,)+)> for ($(&Dynamic<$type>,)+)
+        where
+            $($type: Send + 'static,)+
+        {
+            type Ref<'a> = ($(&'a $type,)+);
+
+            #[allow(unused_mut)]
+            fn for_each<F>(&self, mut for_each: F)
+            where
+                F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static,
+            {
+                impl_tuple_for_each!(self for_each [] [$($type $field $var),+]);
+            }
+        }
+    };
+    ($self:ident $for_each:ident [] [$type:ident $field:tt $var:ident]) => {
+        $self.$field.for_each(move |field: &$type| $for_each((field,)));
+    };
+    ($self:ident $for_each:ident [] [$($type:ident $field:tt $var:ident),+]) => {
+        let $for_each = Arc::new(Mutex::new($for_each));
+        $(let $var = $self.$field.clone();)*
+
+
+        impl_tuple_for_each!(invoke $self $for_each [] [$($type $field $var),+]);
+    };
+    (
+        invoke
+        // Identifiers used from the outer method
+        $self:ident $for_each:ident
+        // List of all tuple fields that have already been positioned as the focused call
+        [$($ltype:ident $lfield:tt $lvar:ident),*]
+        //
+        [$type:ident $field:tt $var:ident, $($rtype:ident $rfield:tt $rvar:ident),+]
+    ) => {
+
+        impl_tuple_for_each!(
+            invoke
+            $self $for_each
+            $type $field $var
+            [$($ltype $lfield $lvar,)* $type $field $var, $($rtype $rfield $rvar),+]
+            [$($ltype $lfield $lvar,)* $($rtype $rfield $rvar),+]
+        )
+    };
+    (
+        invoke
+        // Identifiers used from the outer method
+        $self:ident $for_each:ident
+        // Tuple field that for_each is being invoked on
+        $type:ident $field:tt $var:ident
+        // The list of all tuple fields in this invocation, in the correct order.
+        [$($atype:ident $afield:tt $avar:ident),+]
+        // The list of tuple fields excluding the one being invoked.
+        [$($rtype:ident $rfield:tt $rvar:ident),+]
+    ) => {
+        $var.for_each((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
+            move |$var: &$type| {
+                $(let $rvar = $rvar.lock();)+
+                let mut for_each =
+                    for_each.lock().map_or_else(PoisonError::into_inner, |g| g);
+                (for_each)(($(&$avar,)+));
+            }
+        }));
+    };
+}
+
+impl_all_tuples!(impl_tuple_for_each);
+
+/// A type that can create a `Dynamic<U>` from a `T` passed into a mapping
+/// function.
+pub trait MapEach<T, U> {
+    /// The borrowed representation of `T` passed into the mapping function.
+    type Ref<'a>;
+
+    /// Apply `map_each` to each value in `self`, storing the result in the
+    /// returned dynamic.
+    fn map_each<F>(&self, map_each: F) -> Dynamic<U>
+    where
+        F: for<'a> FnMut(Self::Ref<'a>) -> U + Send + 'static;
+}
+
+macro_rules! impl_tuple_map_each {
+    ($($type:ident $field:tt $var:ident),+) => {
+        impl<U, $($type),+> MapEach<($($type,)+), U> for ($(&Dynamic<$type>,)+)
+        where
+            U: Send + 'static,
+            $($type: Send + 'static),+
+        {
+            type Ref<'a> = ($(&'a $type,)+);
+
+            fn map_each<F>(&self, mut map_each: F) -> Dynamic<U>
+            where
+                F: for<'a> FnMut(Self::Ref<'a>) -> U + Send + 'static,
+            {
+                let dynamic = {
+                    $(let $var = self.$field.lock();)+
+
+                    Dynamic::new(map_each(($(&$var,)+)))
+                };
+                self.for_each({
+                    let dynamic = dynamic.clone();
+
+                    move |tuple| {
+                        dynamic.set(map_each(tuple));
+                    }
+                });
+                dynamic
+            }
+        }
+    };
+}
+
+impl_all_tuples!(impl_tuple_map_each);
