@@ -513,6 +513,30 @@ impl Generation {
     }
 }
 
+/// A type that can convert into a `Dynamic<T>`.
+pub trait IntoDynamic<T> {
+    /// Returns `self` as a dynamic.
+    fn into_dynamic(self) -> Dynamic<T>;
+}
+
+impl<T> IntoDynamic<T> for Dynamic<T> {
+    fn into_dynamic(self) -> Dynamic<T> {
+        self
+    }
+}
+
+impl<T, F> IntoDynamic<T> for F
+where
+    F: FnMut(&T) + Send + 'static,
+    T: Default,
+{
+    /// Returns [`Dynamic::default()`] with `self` installed as a for-each
+    /// callback.
+    fn into_dynamic(self) -> Dynamic<T> {
+        Dynamic::default().with_for_each(self)
+    }
+}
+
 /// A value that may be either constant or dynamic.
 #[derive(Debug)]
 pub enum Value<T> {

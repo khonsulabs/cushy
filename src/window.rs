@@ -28,7 +28,7 @@ use crate::graphics::Graphics;
 use crate::styles::components::VisualOrder;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
-use crate::value::Dynamic;
+use crate::value::{Dynamic, IntoDynamic};
 use crate::widget::{EventHandling, ManagedWidget, Widget, WidgetInstance, HANDLED, IGNORED};
 use crate::window::sealed::WindowCommand;
 use crate::{ConstraintLimit, Run};
@@ -80,7 +80,8 @@ impl Window<WidgetInstance> {
     ///
     /// `focused` will be initialized with an initial state
     /// of `false`.
-    pub fn with_focused(mut self, focused: Dynamic<bool>) -> Self {
+    pub fn with_focused(mut self, focused: impl IntoDynamic<bool>) -> Self {
+        let focused = focused.into_dynamic();
         focused.update(false);
         self.focused = Some(focused);
         self
@@ -94,7 +95,8 @@ impl Window<WidgetInstance> {
     /// visible, this value will contain `true`.
     ///
     /// `occluded` will be initialized with an initial state of `false`.
-    pub fn with_occluded(mut self, occluded: Dynamic<bool>) -> Self {
+    pub fn with_occluded(mut self, occluded: impl IntoDynamic<bool>) -> Self {
+        let occluded = occluded.into_dynamic();
         occluded.update(false);
         self.occluded = Some(occluded);
         self
