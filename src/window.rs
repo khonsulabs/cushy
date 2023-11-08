@@ -94,7 +94,7 @@ where
 {
     context: Behavior::Context,
     /// The attributes of this window.
-    attributes: WindowAttributes,
+    pub attributes: WindowAttributes,
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
 }
