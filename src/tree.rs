@@ -242,7 +242,7 @@ impl Tree {
             if hovered == id {
                 return true;
             }
-            search = data.nodes[&hovered].parent;
+            search = data.nodes.get(&hovered).and_then(|node| node.parent);
         }
 
         false
@@ -355,7 +355,7 @@ impl TreeData {
         let mut hierarchy = Vec::new();
         while let Some(managed) = self.widget(widget, tree) {
             hierarchy.push(managed);
-            let Some(parent) = self.nodes[&widget].parent else {
+            let Some(parent) = self.nodes.get(&widget).and_then(|widget| widget.parent) else {
                 break;
             };
             widget = parent;
