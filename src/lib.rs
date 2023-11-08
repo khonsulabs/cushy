@@ -21,6 +21,7 @@ use std::ops::Sub;
 pub use kludgine;
 use kludgine::app::winit::error::EventLoopError;
 use kludgine::figures::units::UPx;
+use kludgine::figures::{Fraction, IntoUnsigned, ScreenUnit};
 pub use names::Name;
 pub use utils::WithClone;
 
@@ -42,6 +43,23 @@ impl ConstraintLimit {
     pub fn max(self) -> UPx {
         match self {
             ConstraintLimit::Known(v) | ConstraintLimit::ClippedAfter(v) => v,
+        }
+    }
+
+    /// Converts `measured` to unsigned pixels, and adjusts it according to the
+    /// contraint's intentions.
+    ///
+    /// If this constraint is of a known size, it will return the maximum of the
+    /// measured size and the contraint. If it is of an unknown size, it will
+    /// return the measured size.
+    pub fn fit_measured<Unit>(self, measured: Unit, scale: Fraction) -> UPx
+    where
+        Unit: ScreenUnit,
+    {
+        let measured = measured.into_px(scale).into_unsigned();
+        match self {
+            ConstraintLimit::Known(size) => size.max(measured),
+            ConstraintLimit::ClippedAfter(_) => measured,
         }
     }
 }

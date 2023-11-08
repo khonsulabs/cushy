@@ -4,6 +4,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::OsStr;
+use std::ops::{Deref, DerefMut};
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 use std::path::Path;
 use std::string::ToString;
@@ -34,7 +35,53 @@ use crate::window::sealed::WindowCommand;
 use crate::{ConstraintLimit, Run};
 
 /// A currently running Gooey window.
-pub type RunningWindow<'window> = kludgine::app::Window<'window, WindowCommand>;
+pub struct RunningWindow<'window> {
+    window: kludgine::app::Window<'window, WindowCommand>,
+    focused: Dynamic<bool>,
+    occluded: Dynamic<bool>,
+}
+
+impl<'window> RunningWindow<'window> {
+    pub(crate) fn new(
+        window: kludgine::app::Window<'window, WindowCommand>,
+        focused: &Dynamic<bool>,
+        occluded: &Dynamic<bool>,
+    ) -> Self {
+        Self {
+            window,
+            focused: focused.clone(),
+            occluded: occluded.clone(),
+        }
+    }
+
+    /// Returns a dynamic that is updated whenever this window's focus status
+    /// changes.
+    #[must_use]
+    pub const fn focused(&self) -> &Dynamic<bool> {
+        &self.focused
+    }
+
+    /// Returns a dynamic that is updated whenever this window's occlusion
+    /// status changes.
+    #[must_use]
+    pub fn occluded(&self) -> &Dynamic<bool> {
+        &self.occluded
+    }
+}
+
+impl<'window> Deref for RunningWindow<'window> {
+    type Target = kludgine::app::Window<'window, WindowCommand>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.window
+    }
+}
+
+impl<'window> DerefMut for RunningWindow<'window> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.window
+    }
+}
 
 /// The attributes of a Gooey window.
 pub type WindowAttributes = kludgine::app::WindowAttributes<WindowCommand>;
@@ -194,8 +241,8 @@ struct GooeyWindow<T> {
     mouse_state: MouseState,
     redraw_status: RedrawStatus,
     initial_frame: bool,
-    occluded: Option<Dynamic<bool>>,
-    focused: Option<Dynamic<bool>>,
+    occluded: Dynamic<bool>,
+    focused: Dynamic<bool>,
 }
 
 impl<T> GooeyWindow<T>
@@ -216,14 +263,27 @@ where
     type Context = AssertUnwindSafe<sealed::Context<T::Context>>;
 
     fn initialize(
-        mut window: RunningWindow<'_>,
+        window: kludgine::app::Window<'_, WindowCommand>,
         _graphics: &mut kludgine::Graphics<'_>,
         AssertUnwindSafe(context): Self::Context,
     ) -> Self {
-        let mut behavior = T::initialize(&mut window, context.user);
+        let occluded = context
+            .settings
+            .borrow_mut()
+            .occluded
+            .take()
+            .unwrap_or_default();
+        let focused = context
+            .settings
+            .borrow_mut()
+            .focused
+            .take()
+            .unwrap_or_default();
+        let mut behavior = T::initialize(
+            &mut RunningWindow::new(window, &focused, &occluded),
+            context.user,
+        );
         let root = Tree::default().push_boxed(behavior.make_root(), None);
-        let occluded = context.settings.borrow_mut().occluded.take();
-        let focused = context.settings.borrow_mut().focused.take();
 
         Self {
             behavior,
@@ -242,11 +302,16 @@ where
         }
     }
 
-    fn prepare(&mut self, mut window: RunningWindow<'_>, graphics: &mut kludgine::Graphics<'_>) {
+    fn prepare(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        graphics: &mut kludgine::Graphics<'_>,
+    ) {
         self.redraw_status.refresh_received();
         graphics.reset_text_attributes();
         self.root.tree.reset_render_order();
         let graphics = self.contents.new_frame(graphics);
+        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut context = GraphicsContext {
             widget: WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
             graphics: Exclusive::Owned(Graphics::new(graphics)),
@@ -280,9 +345,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        if let Some(focused) = &self.focused {
-            focused.update(window.focused());
-        }
+        self.focused.update(window.focused());
     }
 
     fn occlusion_changed(
@@ -290,14 +353,12 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        if let Some(occluded) = &self.occluded {
-            occluded.update(window.ocluded());
-        }
+        self.occluded.update(window.ocluded());
     }
 
     fn render<'pass>(
         &'pass mut self,
-        _window: RunningWindow<'_>,
+        _window: kludgine::app::Window<'_, WindowCommand>,
         graphics: &mut kludgine::RenderingGraphics<'_, 'pass>,
     ) -> bool {
         self.contents.render(graphics);
@@ -316,8 +377,16 @@ where
             .expect("called more than once")
     }
 
-    fn close_requested(&mut self, mut window: RunningWindow<'_>, _kludgine: &mut Kludgine) -> bool {
-        self.request_close(&mut window)
+    fn close_requested(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+    ) -> bool {
+        self.request_close(&mut RunningWindow::new(
+            window,
+            &self.focused,
+            &self.occluded,
+        ))
     }
 
     // fn power_preference() -> wgpu::PowerPreference {
@@ -352,7 +421,7 @@ where
 
     fn keyboard_input(
         &mut self,
-        mut window: RunningWindow<'_>,
+        window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
         device_id: DeviceId,
         input: KeyEvent,
@@ -360,6 +429,7 @@ where
     ) {
         let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
         let target = self.root.tree.widget(target).expect("missing widget");
+        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut target = EventContext::new(
             WidgetContext::new(target, &self.redraw_status, &mut window),
             kludgine,
@@ -404,7 +474,7 @@ where
 
     fn mouse_wheel(
         &mut self,
-        mut window: RunningWindow<'_>,
+        window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
         device_id: DeviceId,
         delta: MouseScrollDelta,
@@ -422,6 +492,7 @@ where
                     .expect("missing widget")
             });
 
+        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut widget = EventContext::new(
             WidgetContext::new(widget, &self.redraw_status, &mut window),
             kludgine,
@@ -433,7 +504,12 @@ where
 
     // fn modifiers_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 
-    fn ime(&mut self, mut window: RunningWindow<'_>, kludgine: &mut Kludgine, ime: Ime) {
+    fn ime(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        kludgine: &mut Kludgine,
+        ime: Ime,
+    ) {
         let widget = self
             .root
             .tree
@@ -445,6 +521,7 @@ where
                     .widget(self.root.id())
                     .expect("missing widget")
             });
+        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut target = EventContext::new(
             WidgetContext::new(widget, &self.redraw_status, &mut window),
             kludgine,
@@ -456,7 +533,7 @@ where
 
     fn cursor_moved(
         &mut self,
-        mut window: RunningWindow<'_>,
+        window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
         device_id: DeviceId,
         position: PhysicalPosition<f64>,
@@ -464,6 +541,7 @@ where
         let location = Point::<Px>::from(position);
         self.mouse_state.location = Some(location);
 
+        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         if let Some(state) = self.mouse_state.devices.get(&device_id) {
             // Mouse Drag
             for (button, handler) in state {
@@ -505,11 +583,12 @@ where
 
     fn cursor_left(
         &mut self,
-        mut window: RunningWindow<'_>,
+        window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
         _device_id: DeviceId,
     ) {
         if self.mouse_state.widget.take().is_some() {
+            let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
             let mut context = EventContext::new(
                 WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
                 kludgine,
@@ -520,12 +599,13 @@ where
 
     fn mouse_input(
         &mut self,
-        mut window: RunningWindow<'_>,
+        window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
     ) {
+        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         match state {
             ElementState::Pressed => {
                 EventContext::new(
@@ -587,7 +667,7 @@ where
 
     fn event(
         &mut self,
-        mut window: RunningWindow<'_>,
+        mut window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
         event: WindowCommand,
     ) {

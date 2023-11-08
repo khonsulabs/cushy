@@ -63,7 +63,16 @@ impl Widget for Expand {
         );
         let child = self.child.mounted(&mut context.as_event_context());
         let size = context.for_other(&child).layout(available_space);
-        context.set_child_layout(&child, Rect::from(size.into_signed()));
-        size
+
+        let expanded_size = Size::new(
+            available_space
+                .width
+                .fit_measured(size.width, context.graphics.scale()),
+            available_space
+                .height
+                .fit_measured(size.height, context.graphics.scale()),
+        );
+        context.set_child_layout(&child, Rect::from(expanded_size.into_signed()));
+        expanded_size
     }
 }

@@ -1,6 +1,6 @@
-use gooey::widgets::Input;
+use gooey::widgets::{Expand, Input};
 use gooey::Run;
 
 fn main() -> gooey::Result {
-    Input::new("Hello").run()
+    Expand::new(Input::new("Hello")).run()
 }

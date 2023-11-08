@@ -280,7 +280,8 @@ impl Widget for Input {
                     (Err(_), Err(_)) => {}
                 }
             } else if let Ok((location, _)) = cursor_glyph(buffer, &cursor) {
-                if cursor_state.visible {
+                let window_focused = context.window().focused().get();
+                if window_focused && cursor_state.visible {
                     context.graphics.draw_shape(
                         &Shape::filled_rect(
                             Rect::new(
@@ -294,7 +295,11 @@ impl Widget for Input {
                         None,
                     );
                 }
-                context.redraw_in(cursor_state.remaining_until_blink);
+                if window_focused {
+                    context.redraw_in(cursor_state.remaining_until_blink);
+                } else {
+                    context.redraw_when_changed(context.window().focused());
+                }
             }
         }
 

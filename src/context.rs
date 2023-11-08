@@ -858,6 +858,18 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             redraw_status: self.redraw_status.clone(),
         }
     }
+
+    /// Returns the window containing this widget.
+    #[must_use]
+    pub fn window(&self) -> &RunningWindow<'window> {
+        self.window
+    }
+
+    /// Returns an exclusive reference to the window containing this widget.
+    #[must_use]
+    pub fn window_mut(&mut self) -> &mut RunningWindow<'window> {
+        self.window
+    }
 }
 
 pub(crate) struct WindowHandle {
@@ -890,6 +902,7 @@ impl<'window> Deref for WidgetContext<'_, 'window> {
         self.window
     }
 }
+
 impl<'window> DerefMut for WidgetContext<'_, 'window> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.window
