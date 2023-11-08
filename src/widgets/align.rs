@@ -4,7 +4,7 @@ use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 
 use crate::context::{AsEventContext, GraphicsContext, LayoutContext};
-use crate::styles::{Edges, FlexibleDimension};
+use crate::styles::{Dimension, Edges, FlexibleDimension};
 use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, Widget, WidgetRef};
 use crate::ConstraintLimit;
@@ -30,6 +30,26 @@ impl Align {
     /// horizontally.
     pub fn centered(widget: impl MakeWidget) -> Self {
         Self::new(FlexibleDimension::Auto, widget)
+    }
+
+    /// Sets the left and right edges to 0 and returns self.
+    #[must_use]
+    pub fn fit_horizontally(mut self) -> Self {
+        self.edges.map_mut(|edges| {
+            edges.left = FlexibleDimension::Dimension(Dimension::default());
+            edges.right = FlexibleDimension::Dimension(Dimension::default());
+        });
+        self
+    }
+
+    /// Sets the top and bottom edges to 0 and returns self.
+    #[must_use]
+    pub fn fit_vertically(mut self) -> Self {
+        self.edges.map_mut(|edges| {
+            edges.top = FlexibleDimension::Dimension(Dimension::default());
+            edges.bottom = FlexibleDimension::Dimension(Dimension::default());
+        });
+        self
     }
 
     fn measure(
@@ -102,7 +122,7 @@ impl FrameInfo {
     fn measure(&self, available: ConstraintLimit, content: UPx) -> (UPx, UPx, UPx) {
         match available {
             ConstraintLimit::Known(size) => {
-                let remaining = size - content;
+                let remaining = size.saturating_sub(content);
                 let (a, b) = match (self.a, self.b) {
                     (Some(a), Some(b)) => (a, b),
                     (Some(a), None) => (a, remaining - a),

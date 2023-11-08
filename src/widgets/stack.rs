@@ -11,7 +11,7 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::styles::Dimension;
 use crate::value::{Generation, IntoValue, Value};
 use crate::widget::{Children, ManagedWidget, Widget, WidgetRef};
-use crate::widgets::{Expand, Resize};
+use crate::widgets::{Expand, Label, Resize};
 use crate::ConstraintLimit;
 
 /// A widget that displays a collection of [`Widgets`] in a
@@ -87,12 +87,21 @@ impl Stack {
                             let guard = widget.lock();
                             let (mut widget, dimension) =
                                 if let Some(expand) = guard.downcast_ref::<Expand>() {
-                                    (
-                                        expand.child().clone(),
-                                        StackDimension::Fractional {
-                                            weight: expand.weight,
-                                        },
-                                    )
+                                    if let Some(child) = expand.child() {
+                                        (
+                                            child.clone(),
+                                            StackDimension::Fractional {
+                                                weight: expand.weight,
+                                            },
+                                        )
+                                    } else {
+                                        (
+                                            WidgetRef::new(Label::new("")), // TODO this should be an empty widget.
+                                            StackDimension::Fractional {
+                                                weight: expand.weight,
+                                            },
+                                        )
+                                    }
                                 } else if let Some((child, size)) =
                                     guard.downcast_ref::<Resize>().and_then(|r| {
                                         match self.layout.orientation.orientation {

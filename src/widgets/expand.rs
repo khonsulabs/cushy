@@ -14,7 +14,13 @@ pub struct Expand {
     /// The weight to use when splitting available space with multiple
     /// [`Expand`] widgets.
     pub weight: u8,
-    child: WidgetRef,
+    child: Option<WidgetRef>,
+}
+
+impl Default for Expand {
+    fn default() -> Self {
+        Self::empty()
+    }
 }
 
 impl Expand {
@@ -22,7 +28,16 @@ impl Expand {
     #[must_use]
     pub fn new(child: impl MakeWidget) -> Self {
         Self {
-            child: WidgetRef::new(child),
+            child: Some(WidgetRef::new(child)),
+            weight: 1,
+        }
+    }
+
+    /// Returns a widget that expands to fill its parent, but has no contents.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            child: None,
             weight: 1,
         }
     }
@@ -34,21 +49,22 @@ impl Expand {
     #[must_use]
     pub fn weighted(weight: u8, child: impl MakeWidget) -> Self {
         Self {
-            child: WidgetRef::new(child),
+            child: Some(WidgetRef::new(child)),
             weight,
         }
     }
 
     /// Returns a reference to the child widget.
     #[must_use]
-    pub fn child(&self) -> &WidgetRef {
-        &self.child
+    pub fn child(&self) -> Option<&WidgetRef> {
+        self.child.as_ref()
     }
 }
 
 impl Widget for Expand {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let child = self.child.mounted(&mut context.as_event_context());
+        let Some(child) = &mut self.child else { return };
+        let child = child.mounted(&mut context.as_event_context());
         context.for_other(&child).redraw();
     }
 
@@ -61,8 +77,15 @@ impl Widget for Expand {
             ConstraintLimit::Known(available_space.width.max()),
             ConstraintLimit::Known(available_space.height.max()),
         );
-        let child = self.child.mounted(&mut context.as_event_context());
-        let size = context.for_other(&child).layout(available_space);
+        let child = self
+            .child
+            .as_mut()
+            .map(|child| child.mounted(&mut context.as_event_context()));
+        let size = if let Some(child) = &child {
+            context.for_other(child).layout(available_space)
+        } else {
+            Size::default()
+        };
 
         let expanded_size = Size::new(
             available_space
@@ -72,7 +95,11 @@ impl Widget for Expand {
                 .height
                 .fit_measured(size.height, context.graphics.scale()),
         );
-        context.set_child_layout(&child, Rect::from(expanded_size.into_signed()));
+
+        if let Some(child) = child {
+            context.set_child_layout(&child, Rect::from(expanded_size.into_signed()));
+        }
+
         expanded_size
     }
 }

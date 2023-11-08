@@ -194,6 +194,34 @@ pub trait MakeWidget: Sized {
     fn with_next_focus(self, next_focus: impl IntoValue<Option<WidgetId>>) -> WidgetInstance {
         self.make_widget().with_next_focus(next_focus)
     }
+
+    /// Sets this widget as a "default" widget.
+    ///
+    /// Default widgets are automatically activated when the user signals they
+    /// are ready for the default action to occur.
+    ///
+    /// Example widgets this is used for are:
+    ///
+    /// - Submit buttons on forms
+    /// - Ok buttons
+    #[must_use]
+    fn into_default(self) -> WidgetInstance {
+        self.make_widget().into_default()
+    }
+
+    /// Sets this widget as an "escape" widget.
+    ///
+    /// Escape widgets are automatically activated when the user signals they
+    /// are ready to escape their current situation.
+    ///
+    /// Example widgets this is used for are:
+    ///
+    /// - Close buttons
+    /// - Cancel buttons
+    #[must_use]
+    fn into_escape(self) -> WidgetInstance {
+        self.make_widget().into_escape()
+    }
 }
 
 /// A type that can create a [`WidgetInstance`] with a preallocated
@@ -265,9 +293,16 @@ where
 /// An instance of a [`Widget`].
 #[derive(Clone, Debug)]
 pub struct WidgetInstance {
+    data: Arc<WidgetInstanceData>,
+}
+
+#[derive(Debug)]
+struct WidgetInstanceData {
     id: WidgetId,
-    widget: Arc<Mutex<dyn AnyWidget>>,
+    default: bool,
+    cancel: bool,
     next_focus: Value<Option<WidgetId>>,
+    widget: Box<Mutex<dyn AnyWidget>>,
 }
 
 impl WidgetInstance {
@@ -278,9 +313,13 @@ impl WidgetInstance {
         W: Widget,
     {
         Self {
-            id: id.into(),
-            widget: Arc::new(Mutex::new(widget)),
-            next_focus: Value::default(),
+            data: Arc::new(WidgetInstanceData {
+                id: id.into(),
+                next_focus: Value::default(),
+                default: false,
+                cancel: false,
+                widget: Box::new(Mutex::new(widget)),
+            }),
         }
     }
 
@@ -295,19 +334,70 @@ impl WidgetInstance {
     /// Returns the unique id of this widget instance.
     #[must_use]
     pub fn id(&self) -> WidgetId {
-        self.id
+        self.data.id
     }
 
     /// Sets the widget that should be focused next.
     ///
     /// Gooey automatically determines reverse tab order by using this same
     /// relationship.
+    ///
+    /// # Panics
+    ///
+    /// This function can only be called when one instance of the widget exists.
+    /// If any clones exist, a panic will occur.
     #[must_use]
     pub fn with_next_focus(
         mut self,
         next_focus: impl IntoValue<Option<WidgetId>>,
     ) -> WidgetInstance {
-        self.next_focus = next_focus.into_value();
+        let data = Arc::get_mut(&mut self.data)
+            .expect("with_next_focus can only be called on newly created widget instances");
+        data.next_focus = next_focus.into_value();
+        self
+    }
+
+    /// Sets this widget as a "default" widget.
+    ///
+    /// Default widgets are automatically activated when the user signals they
+    /// are ready for the default action to occur.
+    ///
+    /// Example widgets this is used for are:
+    ///
+    /// - Submit buttons on forms
+    /// - Ok buttons
+    ///
+    /// # Panics
+    ///
+    /// This function can only be called when one instance of the widget exists.
+    /// If any clones exist, a panic will occur.
+    #[must_use]
+    pub fn into_default(mut self) -> WidgetInstance {
+        let data = Arc::get_mut(&mut self.data)
+            .expect("with_next_focus can only be called on newly created widget instances");
+        data.default = true;
+        self
+    }
+
+    /// Sets this widget as an "escape" widget.
+    ///
+    /// Escape widgets are automatically activated when the user signals they
+    /// are ready to escape their current situation.
+    ///
+    /// Example widgets this is used for are:
+    ///
+    /// - Close buttons
+    /// - Cancel buttons
+    ///
+    /// # Panics
+    ///
+    /// This function can only be called when one instance of the widget exists.
+    /// If any clones exist, a panic will occur.
+    #[must_use]
+    pub fn into_escape(mut self) -> WidgetInstance {
+        let data = Arc::get_mut(&mut self.data)
+            .expect("with_next_focus can only be called on newly created widget instances");
+        data.cancel = true;
         self
     }
 
@@ -316,7 +406,8 @@ impl WidgetInstance {
     /// occur due to other widget locks being held.
     pub fn lock(&self) -> WidgetGuard<'_> {
         WidgetGuard(
-            self.widget
+            self.data
+                .widget
                 .lock()
                 .map_or_else(PoisonError::into_inner, |g| g),
         )
@@ -333,12 +424,29 @@ impl WidgetInstance {
     /// This value comes from [`MakeWidget::with_next_focus()`].
     #[must_use]
     pub fn next_focus(&self) -> Option<WidgetId> {
-        self.next_focus.get()
+        self.data.next_focus.get()
+    }
+
+    /// Returns true if this is a default widget.
+    ///
+    /// See [`MakeWidget::into_default()`] for more information.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        self.data.default
+    }
+
+    /// Returns true if this is an escape widget.
+    ///
+    /// See [`MakeWidget::into_escape()`] for more information.
+    #[must_use]
+    pub fn is_escape(&self) -> bool {
+        self.data.cancel
     }
 }
+
 impl AsRef<WidgetId> for WidgetInstance {
     fn as_ref(&self) -> &WidgetId {
-        &self.id
+        &self.data.id
     }
 }
 
@@ -346,7 +454,7 @@ impl Eq for WidgetInstance {}
 
 impl PartialEq for WidgetInstance {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.widget, &other.widget)
+        Arc::ptr_eq(&self.data, &other.data)
     }
 }
 
@@ -435,7 +543,7 @@ impl ManagedWidget {
     /// Returns the unique id of this widget instance.
     #[must_use]
     pub fn id(&self) -> WidgetId {
-        self.widget.id
+        self.widget.id()
     }
 
     /// Returns the next widget to focus after this widget.

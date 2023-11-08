@@ -4,7 +4,6 @@ use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
-use kludgine::app::winit::keyboard::KeyCode;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoUnsigned, Point, Rect, ScreenScale, Size};
 use kludgine::shapes::Shape;
@@ -14,8 +13,11 @@ use kludgine::Color;
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::names::Name;
-use crate::styles::components::{Easing, HighlightColor, IntrinsicPadding, TextColor};
+use crate::styles::components::{
+    Easing, HighlightColor, IntrinsicPadding, PrimaryColor, TextColor,
+};
 use crate::styles::{ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
+use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
 
@@ -66,12 +68,15 @@ impl Button {
             &ButtonActiveBackground,
             &ButtonBackground,
             &ButtonHoverBackground,
+            &PrimaryColor,
             &Easing,
         ]);
         let background_color = if context.active() {
             styles.get_or_default(&ButtonActiveBackground)
         } else if context.hovered() {
             styles.get_or_default(&ButtonHoverBackground)
+        } else if context.is_default() {
+            styles.get_or_default(&PrimaryColor)
         } else {
             styles.get_or_default(&ButtonBackground)
         };
@@ -237,13 +242,18 @@ impl Widget for Button {
         _is_synthetic: bool,
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
-        if input.physical_key == KeyCode::Space {
+        // TODO should this be handled at the window level?
+        if input.text.as_deref() == Some(" ") && !context.modifiers().possible_shortcut() {
             let changed = match input.state {
-                ElementState::Pressed => context.activate(),
-                ElementState::Released => {
-                    self.invoke_on_click();
-                    context.deactivate()
+                ElementState::Pressed => {
+                    let changed = context.activate();
+                    if !changed {
+                        // The widget was already active. This is now a repeated keypress
+                        self.invoke_on_click();
+                    }
+                    changed
                 }
+                ElementState::Released => context.deactivate(),
             };
             if changed {
                 context.set_needs_redraw();
@@ -271,6 +281,11 @@ impl Widget for Button {
     }
 
     fn activate(&mut self, context: &mut EventContext<'_, '_>) {
+        // If we have no buttons pressed, the event should fire on activate not
+        // on deactivate.
+        if self.buttons_pressed == 0 {
+            self.invoke_on_click();
+        }
         self.update_background_color(context, true);
     }
 

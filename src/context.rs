@@ -805,6 +805,28 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         self.pending_state.focus.as_ref() == Some(&self.current_node)
     }
 
+    /// Returns true if this widget is the target to activate when the user
+    /// triggers a default action.
+    ///
+    /// See
+    /// [`MakeWidget::into_default()`](crate::widget::MakeWidget::into_default)
+    /// for more information.
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        self.current_node.tree.default_widget() == Some(self.current_node.id())
+    }
+
+    /// Returns true if this widget is the target to activate when the user
+    /// triggers an escape action.
+    ///
+    /// See
+    /// [`MakeWidget::into_escape()`](crate::widget::MakeWidget::into_escape)
+    /// for more information.
+    #[must_use]
+    pub fn is_escape(&self) -> bool {
+        self.current_node.tree.escape_widget() == Some(self.current_node.id())
+    }
+
     /// Returns the widget this context is for.
     #[must_use]
     pub const fn widget(&self) -> &ManagedWidget {

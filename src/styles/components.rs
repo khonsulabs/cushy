@@ -65,6 +65,24 @@ impl ComponentDefinition for TextColor {
 
 /// A [`Color`] to be used as a highlight color.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct PrimaryColor;
+
+impl NamedComponent for PrimaryColor {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("primary_color"))
+    }
+}
+
+impl ComponentDefinition for PrimaryColor {
+    type ComponentType = Color;
+
+    fn default_value(&self) -> Color {
+        Color::BLUE
+    }
+}
+
+/// A [`Color`] to be used as a highlight color.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct HighlightColor;
 
 impl NamedComponent for HighlightColor {

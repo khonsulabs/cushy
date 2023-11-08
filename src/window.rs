@@ -14,7 +14,7 @@ use kludgine::app::winit::dpi::PhysicalPosition;
 use kludgine::app::winit::event::{
     DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
-use kludgine::app::winit::keyboard::KeyCode;
+use kludgine::app::winit::keyboard::Key;
 use kludgine::app::WindowBehavior as _;
 use kludgine::figures::units::Px;
 use kludgine::figures::{IntoSigned, Point, Rect, Size};
@@ -30,7 +30,9 @@ use crate::styles::components::VisualOrder;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, IntoDynamic};
-use crate::widget::{EventHandling, ManagedWidget, Widget, WidgetInstance, HANDLED, IGNORED};
+use crate::widget::{
+    EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
+};
 use crate::window::sealed::WindowCommand;
 use crate::{ConstraintLimit, Run};
 
@@ -243,6 +245,7 @@ struct GooeyWindow<T> {
     initial_frame: bool,
     occluded: Dynamic<bool>,
     focused: Dynamic<bool>,
+    keyboard_activated: Option<ManagedWidget>,
 }
 
 impl<T> GooeyWindow<T>
@@ -253,6 +256,38 @@ where
         self.should_close |= self.behavior.close_requested(window);
 
         self.should_close
+    }
+
+    fn keyboard_activate_widget(
+        &mut self,
+        is_pressed: bool,
+        widget: Option<WidgetId>,
+        window: &mut RunningWindow<'_>,
+        kludgine: &mut Kludgine,
+    ) {
+        if is_pressed {
+            if let Some(default) = widget.and_then(|id| self.root.tree.widget(id)) {
+                if let Some(previously_active) = self.keyboard_activated.take() {
+                    EventContext::new(
+                        WidgetContext::new(previously_active, &self.redraw_status, window),
+                        kludgine,
+                    )
+                    .deactivate();
+                }
+                EventContext::new(
+                    WidgetContext::new(default.clone(), &self.redraw_status, window),
+                    kludgine,
+                )
+                .activate();
+                self.keyboard_activated = Some(default);
+            }
+        } else if let Some(keyboard_activated) = self.keyboard_activated.take() {
+            EventContext::new(
+                WidgetContext::new(keyboard_activated, &self.redraw_status, window),
+                kludgine,
+            )
+            .deactivate();
+        }
     }
 }
 
@@ -299,6 +334,7 @@ where
             initial_frame: true,
             occluded,
             focused,
+            keyboard_activated: None,
         }
     }
 
@@ -442,32 +478,50 @@ where
         drop(target);
 
         if !handled {
-            match input.physical_key {
-                KeyCode::KeyW
-                    if window.modifiers().state().primary() && input.state.is_pressed() =>
-                {
-                    if self.request_close(&mut window) {
+            match input.logical_key {
+                Key::Character(ch) if ch == "w" && window.modifiers().primary() => {
+                    if input.state.is_pressed() && self.request_close(&mut window) {
                         window.set_needs_redraw();
                     }
                 }
-                KeyCode::Tab
-                    if !window.modifiers().state().possible_shortcut()
-                        && input.state.is_pressed() =>
-                {
-                    let direction = if window.modifiers().state().shift_key() {
-                        VisualOrder::left_to_right().rev()
-                    } else {
-                        VisualOrder::left_to_right()
-                    };
-                    let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
-                    let target = self.root.tree.widget(target).expect("missing widget");
-                    let mut target = EventContext::new(
-                        WidgetContext::new(target, &self.redraw_status, &mut window),
+                Key::Tab if !window.modifiers().possible_shortcut() => {
+                    if input.state.is_pressed() {
+                        let direction = if window.modifiers().state().shift_key() {
+                            VisualOrder::left_to_right().rev()
+                        } else {
+                            VisualOrder::left_to_right()
+                        };
+                        let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
+                        let target = self.root.tree.widget(target).expect("missing widget");
+                        let mut target = EventContext::new(
+                            WidgetContext::new(target, &self.redraw_status, &mut window),
+                            kludgine,
+                        );
+                        target.advance_focus(direction);
+                    }
+                }
+                Key::Enter => {
+                    self.keyboard_activate_widget(
+                        input.state.is_pressed(),
+                        self.root.tree.default_widget(),
+                        &mut window,
                         kludgine,
                     );
-                    target.advance_focus(direction);
                 }
-                _ => {}
+                Key::Escape => {
+                    self.keyboard_activate_widget(
+                        input.state.is_pressed(),
+                        self.root.tree.escape_widget(),
+                        &mut window,
+                        kludgine,
+                    );
+                }
+                _ => {
+                    println!(
+                        "Ignored Keyboard Input: {:?} ({:?}); {:?}",
+                        input.logical_key, input.physical_key, input.state
+                    );
+                }
             }
         }
     }

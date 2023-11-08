@@ -32,6 +32,12 @@ impl Tree {
                 styles: None,
             },
         );
+        if widget.is_default() {
+            data.defaults.push(id);
+        }
+        if widget.is_escape() {
+            data.escapes.push(id);
+        }
         if let Some(parent) = parent {
             let parent = data.nodes.get_mut(&parent.id()).expect("missing parent");
             parent.children.push(id);
@@ -48,6 +54,13 @@ impl Tree {
     pub fn remove_child(&self, child: &ManagedWidget, parent: &ManagedWidget) {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         data.remove_child(child.id(), parent.id());
+
+        if child.widget.is_default() {
+            data.defaults.retain(|id| *id != child.id());
+        }
+        if child.widget.is_escape() {
+            data.escapes.retain(|id| *id != child.id());
+        }
     }
 
     pub(crate) fn set_layout(&self, widget: WidgetId, rect: Rect<Px>) {
@@ -204,6 +217,24 @@ impl Tree {
             .hover
     }
 
+    pub fn default_widget(&self) -> Option<WidgetId> {
+        self.data
+            .lock()
+            .map_or_else(PoisonError::into_inner, |g| g)
+            .defaults
+            .last()
+            .copied()
+    }
+
+    pub fn escape_widget(&self) -> Option<WidgetId> {
+        self.data
+            .lock()
+            .map_or_else(PoisonError::into_inner, |g| g)
+            .escapes
+            .last()
+            .copied()
+    }
+
     pub fn is_hovered(&self, id: WidgetId) -> bool {
         let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         let mut search = data.hover;
@@ -284,6 +315,8 @@ struct TreeData {
     active: Option<WidgetId>,
     focus: Option<WidgetId>,
     hover: Option<WidgetId>,
+    defaults: Vec<WidgetId>,
+    escapes: Vec<WidgetId>,
     render_order: Vec<WidgetId>,
     previous_focuses: HashMap<WidgetId, WidgetId>,
 }

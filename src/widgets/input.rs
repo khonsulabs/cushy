@@ -100,6 +100,12 @@ impl Input {
     }
 }
 
+impl Default for Input {
+    fn default() -> Self {
+        Self::new(String::new())
+    }
+}
+
 impl Debug for Input {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Input")
@@ -393,8 +399,14 @@ impl Widget for Input {
                 );
                 (false, HANDLED)
             }
-            (_, Some(text)) if !context.modifiers().state().primary() && text != "\t" => {
-                editor.insert_string(&text, None);
+            (_, Some(text))
+                if !context.modifiers().primary()
+                    && text != "\t" // tab
+                    && text != "\r" // enter/return
+                    && text != "\u{1b}" // escape
+                    =>
+            {
+                editor.insert_string(dbg!(&text), None);
                 (true, HANDLED)
             }
             (_, _) => (false, IGNORED),
@@ -438,10 +450,12 @@ impl Widget for Input {
 
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {
         context.set_ime_allowed(true);
+        context.set_needs_redraw();
     }
 
     fn blur(&mut self, context: &mut EventContext<'_, '_>) {
         context.set_ime_allowed(false);
+        context.set_needs_redraw();
     }
 }
 
