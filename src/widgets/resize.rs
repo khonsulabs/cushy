@@ -1,5 +1,5 @@
 use kludgine::figures::units::UPx;
-use kludgine::figures::{Fraction, IntoUnsigned, ScreenScale, Size};
+use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size};
 
 use crate::context::{AsEventContext, GraphicsContext, LayoutContext};
 use crate::styles::Dimension;
@@ -68,7 +68,8 @@ impl Widget for Resize {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        if let (Some(width), Some(height)) = (self.width, self.height) {
+        let child = self.child.mounted(&mut context.as_event_context());
+        let size = if let (Some(width), Some(height)) = (self.width, self.height) {
             Size::new(
                 width.into_px(context.graphics.scale()).into_unsigned(),
                 height.into_px(context.graphics.scale()).into_unsigned(),
@@ -82,10 +83,10 @@ impl Widget for Resize {
                     context.graphics.scale(),
                 ),
             );
-            let child = self.child.mounted(&mut context.as_event_context());
-            // TODO set_child_layout
             context.for_other(&child).layout(available_space)
-        }
+        };
+        context.set_child_layout(&child, Rect::from(size.into_signed()));
+        size
     }
 }
 

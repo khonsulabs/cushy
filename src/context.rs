@@ -308,6 +308,9 @@ impl<'context, 'window> EventContext<'context, 'window> {
         None
     }
 
+    /// Advances the focus from this widget to the next widget in `direction`.
+    ///
+    /// This widget does not need to be focused.
     pub fn advance_focus(&mut self, direction: VisualOrder) {
         self.pending_state.focus = self.next_focus_after(self.current_node.clone(), direction);
     }
@@ -430,6 +433,9 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
     /// context's widget.
     pub fn redraw(&mut self) {
+        self.current_node
+            .tree
+            .note_widget_rendered(self.current_node.id());
         self.current_node.clone().lock().as_widget().redraw(self);
     }
 }
@@ -908,8 +914,13 @@ impl RedrawStatus {
     }
 }
 
+/// A type chat can convert to a [`ManagedWidget`] through a [`WidgetContext`].
 pub trait ManageWidget {
+    /// The managed type, which can be `Option<ManagedWidget>` or
+    /// `ManagedWidget`.
     type Managed: MapManagedWidget<ManagedWidget>;
+
+    /// Resolve `self` into a [`ManagedWidget`].
     fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed;
 }
 
@@ -940,9 +951,12 @@ impl ManageWidget for ManagedWidget {
     }
 }
 
+/// A type that can produce another type when provided a [`ManagedWidget`].
 pub trait MapManagedWidget<T> {
+    /// The result of the mapping operation.
     type Result;
 
+    /// Call `map` with a [`ManagedWidget`].
     fn map(self, map: impl FnOnce(ManagedWidget) -> T) -> Self::Result;
 }
 

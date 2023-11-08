@@ -53,7 +53,6 @@ impl Tree {
     pub(crate) fn set_layout(&self, widget: WidgetId, rect: Rect<Px>) {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
 
-        data.render_order.push(widget);
         let node = data.nodes.get_mut(&widget).expect("missing widget");
         node.layout = Some(rect);
         let mut children_to_offset = node.children.clone();
@@ -77,6 +76,11 @@ impl Tree {
     pub(crate) fn reset_render_order(&self) {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         data.render_order.clear();
+    }
+
+    pub(crate) fn note_widget_rendered(&self, widget: WidgetId) {
+        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        data.render_order.push(widget);
     }
 
     pub(crate) fn reset_child_layouts(&self, parent: WidgetId) {

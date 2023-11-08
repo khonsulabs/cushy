@@ -162,13 +162,17 @@ impl ComponentDefinition for EasingOut {
     }
 }
 
+/// A 2d ordering configuration.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct VisualOrder {
+    /// The ordering to apply horizontally.
     pub horizontal: HorizontalOrder,
+    /// The ordering to apply vertically.
     pub vertical: VerticalOrder,
 }
 
 impl VisualOrder {
+    /// Returns a right-to-left ordering.
     #[must_use]
     pub const fn right_to_left() -> Self {
         Self {
@@ -177,6 +181,7 @@ impl VisualOrder {
         }
     }
 
+    /// Returns a left-to-right ordering.
     #[must_use]
     pub const fn left_to_right() -> Self {
         Self {
@@ -185,6 +190,7 @@ impl VisualOrder {
         }
     }
 
+    /// Returns the reverse ordering of `self`.
     #[must_use]
     pub fn rev(self) -> Self {
         Self {
@@ -200,13 +206,17 @@ impl NamedComponent for VisualOrder {
     }
 }
 
+/// A horizontal direction.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum HorizontalOrder {
+    /// Describes an order starting at the left and proceeding to the right.
     LeftToRight,
+    /// Describes an order starting at the right and proceeding to the left.
     RightToLeft,
 }
 
 impl HorizontalOrder {
+    /// Returns the reverse order of `self`.
     #[must_use]
     pub fn rev(self) -> Self {
         match self {
@@ -215,7 +225,7 @@ impl HorizontalOrder {
         }
     }
 
-    pub fn sort_key(self, rect: &Rect<Px>) -> Px {
+    pub(crate) fn sort_key(self, rect: &Rect<Px>) -> Px {
         match self {
             HorizontalOrder::LeftToRight => rect.origin.x,
             HorizontalOrder::RightToLeft => -(rect.origin.x + rect.size.width),
@@ -223,13 +233,17 @@ impl HorizontalOrder {
     }
 }
 
+/// A vertical direction.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum VerticalOrder {
+    /// Describes an order starting at the top and proceeding to the bottom.
     TopToBottom,
+    /// Describes an order starting at the bottom and proceeding to the top.
     BottomToTop,
 }
 
 impl VerticalOrder {
+    /// Returns the reverse order of `self`.
     #[must_use]
     pub fn rev(self) -> Self {
         match self {
@@ -238,14 +252,14 @@ impl VerticalOrder {
         }
     }
 
-    pub fn max_px(self) -> Px {
+    pub(crate) fn max_px(self) -> Px {
         match self {
             VerticalOrder::TopToBottom => Px::MAX,
             VerticalOrder::BottomToTop => Px::MIN,
         }
     }
 
-    pub fn smallest_px(self, a: Px, b: Px) -> Px {
+    pub(crate) fn smallest_px(self, a: Px, b: Px) -> Px {
         match self {
             VerticalOrder::TopToBottom => a.min(b),
             VerticalOrder::BottomToTop => b.max(a),

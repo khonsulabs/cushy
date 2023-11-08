@@ -388,7 +388,7 @@ impl Widget for Input {
                 );
                 (false, HANDLED)
             }
-            (_, Some(text)) if !context.modifiers().state().primary() => {
+            (_, Some(text)) if !context.modifiers().state().primary() && text != "\t" => {
                 editor.insert_string(&text, None);
                 (true, HANDLED)
             }
