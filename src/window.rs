@@ -28,6 +28,7 @@ use crate::graphics::Graphics;
 use crate::styles::components::VisualOrder;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
+use crate::value::Dynamic;
 use crate::widget::{EventHandling, ManagedWidget, Widget, WidgetInstance, HANDLED, IGNORED};
 use crate::window::sealed::WindowCommand;
 use crate::{ConstraintLimit, Run};
@@ -46,7 +47,9 @@ where
 {
     context: Behavior::Context,
     /// The attributes of this window.
-    pub attributes: WindowAttributes,
+    attributes: WindowAttributes,
+    occluded: Option<Dynamic<bool>>,
+    focused: Option<Dynamic<bool>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -67,6 +70,34 @@ impl Window<WidgetInstance> {
         W: Widget,
     {
         Self::new(WidgetInstance::new(widget))
+    }
+
+    /// Sets `focused` to be the dynamic updated when this window's focus status
+    /// is changed.
+    ///
+    /// When the window is focused for user input, the dynamic will contain
+    /// `true`.
+    ///
+    /// `focused` will be initialized with an initial state
+    /// of `false`.
+    pub fn with_focused(mut self, focused: Dynamic<bool>) -> Self {
+        focused.update(false);
+        self.focused = Some(focused);
+        self
+    }
+
+    /// Sets `occluded` to be the dynamic updated when this window's occlusion
+    /// status is changed.
+    ///
+    /// When the window is occluded (completely hidden/offscreen/minimized), the
+    /// dynamic will contain `true`. If the window is at least partially
+    /// visible, this value will contain `true`.
+    ///
+    /// `occluded` will be initialized with an initial state of `false`.
+    pub fn with_occluded(mut self, occluded: Dynamic<bool>) -> Self {
+        occluded.update(false);
+        self.occluded = Some(occluded);
+        self
     }
 }
 
@@ -98,6 +129,8 @@ where
                 ..WindowAttributes::default()
             },
             context,
+            occluded: None,
+            focused: None,
         }
     }
 }
@@ -107,12 +140,14 @@ where
     Behavior: WindowBehavior,
 {
     fn run(self) -> crate::Result {
-        GooeyWindow::<Behavior>::run_with(AssertUnwindSafe((
-            self.context,
-            RefCell::new(sealed::WindowSettings {
+        GooeyWindow::<Behavior>::run_with(AssertUnwindSafe(sealed::Context {
+            user: self.context,
+            settings: RefCell::new(sealed::WindowSettings {
                 attributes: Some(self.attributes),
+                occluded: self.occluded,
+                focused: self.focused,
             }),
-        )))
+        }))
     }
 }
 
@@ -157,6 +192,8 @@ struct GooeyWindow<T> {
     mouse_state: MouseState,
     redraw_status: RedrawStatus,
     initial_frame: bool,
+    occluded: Option<Dynamic<bool>>,
+    focused: Option<Dynamic<bool>>,
 }
 
 impl<T> GooeyWindow<T>
@@ -174,15 +211,17 @@ impl<T> kludgine::app::WindowBehavior<WindowCommand> for GooeyWindow<T>
 where
     T: WindowBehavior,
 {
-    type Context = AssertUnwindSafe<(T::Context, RefCell<sealed::WindowSettings>)>;
+    type Context = AssertUnwindSafe<sealed::Context<T::Context>>;
 
     fn initialize(
         mut window: RunningWindow<'_>,
         _graphics: &mut kludgine::Graphics<'_>,
-        context: Self::Context,
+        AssertUnwindSafe(context): Self::Context,
     ) -> Self {
-        let mut behavior = T::initialize(&mut window, context.0 .0);
+        let mut behavior = T::initialize(&mut window, context.user);
         let root = Tree::default().push_boxed(behavior.make_root(), None);
+        let occluded = context.settings.borrow_mut().occluded.take();
+        let focused = context.settings.borrow_mut().focused.take();
 
         Self {
             behavior,
@@ -196,6 +235,8 @@ where
             },
             redraw_status: RedrawStatus::default(),
             initial_frame: true,
+            occluded,
+            focused,
         }
     }
 
@@ -232,6 +273,26 @@ where
         }
     }
 
+    fn focus_changed(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+    ) {
+        if let Some(focused) = &self.focused {
+            focused.update(window.focused());
+        }
+    }
+
+    fn occlusion_changed(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+    ) {
+        if let Some(occluded) = &self.occluded {
+            occluded.update(window.ocluded());
+        }
+    }
+
     fn render<'pass>(
         &'pass mut self,
         _window: RunningWindow<'_>,
@@ -246,7 +307,7 @@ where
         context: &Self::Context,
     ) -> kludgine::app::WindowAttributes<WindowCommand> {
         context
-            .1
+            .settings
             .borrow_mut()
             .attributes
             .take()
@@ -558,10 +619,20 @@ struct MouseState {
 }
 
 pub(crate) mod sealed {
+    use std::cell::RefCell;
+
+    use crate::value::Dynamic;
     use crate::window::WindowAttributes;
+
+    pub struct Context<C> {
+        pub user: C,
+        pub settings: RefCell<WindowSettings>,
+    }
 
     pub struct WindowSettings {
         pub attributes: Option<WindowAttributes>,
+        pub occluded: Option<Dynamic<bool>>,
+        pub focused: Option<Dynamic<bool>>,
     }
 
     pub enum WindowCommand {

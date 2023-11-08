@@ -172,6 +172,11 @@ pub trait MakeWidget: Sized {
     /// Returns a new widget.
     fn make_widget(self) -> WidgetInstance;
 
+    /// Returns a new window containing `self` as the root widget.
+    fn into_window(self) -> Window<WidgetInstance> {
+        Window::new(self.make_widget())
+    }
+
     /// Associates `styles` with this widget.
     ///
     /// This is equivalent to `Style::new(styles, self)`.

@@ -54,6 +54,17 @@ impl<T> Dynamic<T> {
         self.0.for_each(move |gen| for_each(&gen.value));
     }
 
+    /// Attaches `for_each` to this value so that it is invoked each time the
+    /// value's contents are updated. This function returns `self`.
+    #[must_use]
+    pub fn with_for_each<F>(self, mut for_each: F) -> Self
+    where
+        F: for<'a> FnMut(&'a T) + Send + 'static,
+    {
+        self.0.for_each(move |gen| for_each(&gen.value));
+        self
+    }
+
     /// Creates a new dynamic value that contains the result of invoking `map`
     /// each time this value is changed.
     pub fn map_each<R, F>(&self, mut map: F) -> Dynamic<R>

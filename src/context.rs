@@ -172,8 +172,21 @@ impl<'context, 'window> EventContext<'context, 'window> {
     }
 
     pub(crate) fn apply_pending_state(&mut self) {
-        let active = self.pending_state.active.clone();
-        if self.current_node.tree.active_widget() != active.as_ref().map(ManagedWidget::id) {
+        const MAX_ITERS: u8 = 100;
+        // These two blocks apply active/focus in a loop to pick up the event
+        // where during the process of calling deactivate/blur or activate/focus
+        // the active/focus widget is changed again. This can lead to infinite
+        // loops, which is a programmer error. However, rather than block
+        // forever, we log a message that this is happening and break.
+
+        let mut activation_changes = 0;
+        while activation_changes < MAX_ITERS {
+            let active = self.pending_state.active.clone();
+            if self.current_node.tree.active_widget() == active.as_ref().map(ManagedWidget::id) {
+                break;
+            }
+            activation_changes += 1;
+
             let new = match self.current_node.tree.activate(active.as_ref()) {
                 Ok(old) => {
                     if let Some(old) = old {
@@ -185,19 +198,33 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 Err(_) => false,
             };
             if new {
-                if let Some(active) = &active {
+                if let Some(active) = self.pending_state.active.clone() {
                     active
                         .lock()
                         .as_widget()
-                        .activate(&mut self.for_other(active));
+                        .activate(&mut self.for_other(&active));
                 }
                 self.pending_state.active = active;
+            } else {
+                break;
             }
         }
 
-        let focus = self.pending_state.focus.clone();
-        if self.current_node.tree.focused_widget() != focus.as_ref().map(ManagedWidget::id) {
-            let focus = focus.and_then(|mut focus| loop {
+        if activation_changes == MAX_ITERS {
+            eprintln!(
+                "activation change force stopped after {activation_changes} sequential changes"
+            );
+        }
+
+        let mut focus_changes = 0;
+        while focus_changes < MAX_ITERS {
+            let focus = self.pending_state.focus.clone();
+            if self.current_node.tree.focused_widget() == focus.as_ref().map(ManagedWidget::id) {
+                break;
+            }
+            focus_changes += 1;
+
+            self.pending_state.focus = focus.and_then(|mut focus| loop {
                 if focus
                     .lock()
                     .as_widget()
@@ -210,7 +237,11 @@ impl<'context, 'window> EventContext<'context, 'window> {
                     break self.next_focus_after(focus, VisualOrder::left_to_right());
                 }
             });
-            let new = match self.current_node.tree.focus(focus.as_ref()) {
+            let new = match self
+                .current_node
+                .tree
+                .focus(self.pending_state.focus.as_ref())
+            {
                 Ok(old) => {
                     if let Some(old) = old {
                         let mut old_context = self.for_other(&old);
@@ -221,11 +252,16 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 Err(_) => false,
             };
             if new {
-                if let Some(focus) = &focus {
-                    focus.lock().as_widget().focus(&mut self.for_other(focus));
+                if let Some(focus) = self.pending_state.focus.clone() {
+                    focus.lock().as_widget().focus(&mut self.for_other(&focus));
                 }
-                self.pending_state.focus = focus;
+            } else {
+                break;
             }
+        }
+
+        if focus_changes == MAX_ITERS {
+            eprintln!("focus change force stopped after {focus_changes} sequential changes");
         }
     }
 
