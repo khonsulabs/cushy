@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::panic::UnwindSafe;
 use std::time::Duration;
 
-use kludgine::app::winit::event::{Ime, KeyEvent};
+use kludgine::app::winit::event::{ElementState, Ime, KeyEvent};
 use kludgine::app::winit::keyboard::Key;
 use kludgine::cosmic_text::{Action, Attrs, Buffer, Cursor, Edit, Editor, Metrics, Shaping};
 use kludgine::figures::units::{Px, UPx};
@@ -350,10 +350,6 @@ impl Widget for Input {
             on_key.invoke(input.clone())?;
         }
 
-        if !input.state.is_pressed() {
-            return IGNORED;
-        }
-
         let styles = context.query_styles(&[&TextColor]);
         let editor = self.editor_mut(context.kludgine, &styles);
 
@@ -361,8 +357,8 @@ impl Widget for Input {
         //     "Keyboard input: {:?}. {:?}, {:?}",
         //     input.logical_key, input.text, input.physical_key
         // );
-        let (text_changed, handled) = match (input.logical_key, input.text) {
-            (key @ (Key::Backspace | Key::Delete), _) => {
+        let (text_changed, handled) = match (input.state, input.logical_key, input.text) {
+            (ElementState::Pressed,  key @ (Key::Backspace | Key::Delete), _) => {
                 editor.action(
                     context.kludgine.font_system(),
                     match key {
@@ -373,7 +369,7 @@ impl Widget for Input {
                 );
                 (true, HANDLED)
             }
-            (key @ (Key::ArrowLeft | Key::ArrowDown | Key::ArrowUp | Key::ArrowRight), _) => {
+            (ElementState::Pressed, key @ (Key::ArrowLeft | Key::ArrowDown | Key::ArrowUp | Key::ArrowRight), _) => {
                 let modifiers = context.modifiers();
                 match (editor.select_opt(), modifiers.state().shift_key()) {
                     (None, true) => {
@@ -399,17 +395,19 @@ impl Widget for Input {
                 );
                 (false, HANDLED)
             }
-            (_, Some(text))
+            (state, _, Some(text))
                 if !context.modifiers().primary()
                     && text != "\t" // tab
                     && text != "\r" // enter/return
                     && text != "\u{1b}" // escape
                     =>
             {
-                editor.insert_string(dbg!(&text), None);
-                (true, HANDLED)
+                if state.is_pressed() {
+                    editor.insert_string(&text, None);
+                }
+                (state.is_pressed(), HANDLED)
             }
-            (_, _) => (false, IGNORED),
+            (_, _, _) => (false, IGNORED),
         };
 
         if handled.is_break() {

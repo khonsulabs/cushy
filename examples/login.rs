@@ -47,7 +47,12 @@ fn main() -> gooey::Result {
                 ),
             ]),
             Stack::columns(children![
-                Button::new("Cancel").on_click(|_| exit(0)).into_escape(),
+                Button::new("Cancel")
+                    .on_click(|_| {
+                        eprintln!("Login cancelled");
+                        exit(0)
+                    })
+                    .into_escape(),
                 Expand::empty(),
                 Button::new("Log In")
                     .on_click(move |_| {
