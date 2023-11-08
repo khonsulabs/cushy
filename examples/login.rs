@@ -10,23 +10,7 @@ fn main() -> gooey::Result {
     let username = Dynamic::default();
     let password = Dynamic::default();
 
-    // TODO This is absolutely horrible. The problem is that within for_each,
-    // the value is still locked. Thus, we can't have a generic callback that
-    // tries to lock the value that is being mapped in for_each.
-    //
-    // We might be able to make a genericized implementation for_each for
-    // tuples, ie, (&Dynamic, &Dynamic).for_each(|(a, b)| ..).
-    let valid = Dynamic::default();
-    username.for_each((&valid, &password).with_clone(|(valid, password)| {
-        move |username: &String| {
-            password.map_ref(|password| valid.update(validate(username, password)))
-        }
-    }));
-    password.for_each((&valid, &username).with_clone(|(valid, username)| {
-        move |password: &String| {
-            username.map_ref(|username| valid.update(validate(username, password)))
-        }
-    }));
+    let valid = setup_validation(&username, &password);
 
     Expand::new(Align::centered(Resize::width(
         // TODO We need a min/max range for the Resize widget
@@ -55,13 +39,10 @@ fn main() -> gooey::Result {
                     .into_escape(),
                 Expand::empty(),
                 Button::new("Log In")
+                    .enabled(valid)
                     .on_click(move |_| {
-                        if valid.get() {
-                            println!("Welcome, {}", username.get());
-                            exit(0);
-                        } else {
-                            eprintln!("Enter a username and password")
-                        }
+                        println!("Welcome, {}", username.get());
+                        exit(0);
                     })
                     .into_default(), // TODO enable/disable based on valid
             ]),
@@ -72,4 +53,25 @@ fn main() -> gooey::Result {
 
 fn validate(username: &String, password: &String) -> bool {
     !username.is_empty() && !password.is_empty()
+}
+
+fn setup_validation(username: &Dynamic<String>, password: &Dynamic<String>) -> Dynamic<bool> {
+    // TODO This is absolutely horrible. The problem is that within for_each,
+    // the value is still locked. Thus, we can't have a generic callback that
+    // tries to lock the value that is being mapped in for_each.
+    //
+    // We might be able to make a genericized implementation for_each for
+    // tuples, ie, (&Dynamic, &Dynamic).for_each(|(a, b)| ..).
+    let valid = Dynamic::default();
+    username.for_each((&valid, password).with_clone(|(valid, password)| {
+        move |username: &String| {
+            password.map_ref(|password| valid.update(validate(username, password)))
+        }
+    }));
+    password.for_each((&valid, username).with_clone(|(valid, username)| {
+        move |password: &String| {
+            username.map_ref(|username| valid.update(validate(username, password)))
+        }
+    }));
+    valid
 }

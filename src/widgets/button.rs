@@ -28,6 +28,9 @@ pub struct Button {
     pub label: Value<String>,
     /// The callback that is invoked when the button is clicked.
     pub on_click: Option<Callback<()>>,
+    /// The enabled state of the button.
+    pub enabled: Value<bool>,
+    currently_enabled: bool,
     buttons_pressed: usize,
     background_color: Option<Dynamic<Color>>,
     background_color_animation: AnimationHandle,
@@ -39,6 +42,8 @@ impl Button {
         Self {
             label: label.into_value(),
             on_click: None,
+            enabled: Value::Constant(true),
+            currently_enabled: true,
             buttons_pressed: 0,
             background_color: None,
             background_color_animation: AnimationHandle::default(),
@@ -57,9 +62,19 @@ impl Button {
         self
     }
 
+    /// Sets the value to use for the button's enabled status.
+    #[must_use]
+    pub fn enabled(mut self, enabled: impl IntoValue<bool>) -> Self {
+        self.enabled = enabled.into_value();
+        self.currently_enabled = self.enabled.get();
+        self
+    }
+
     fn invoke_on_click(&mut self) {
-        if let Some(on_click) = self.on_click.as_mut() {
-            on_click.invoke(());
+        if self.enabled.get() {
+            if let Some(on_click) = self.on_click.as_mut() {
+                on_click.invoke(());
+            }
         }
     }
 
@@ -68,10 +83,13 @@ impl Button {
             &ButtonActiveBackground,
             &ButtonBackground,
             &ButtonHoverBackground,
+            &ButtonDisabledBackground,
             &PrimaryColor,
             &Easing,
         ]);
-        let background_color = if context.active() {
+        let background_color = if !self.enabled.get() {
+            styles.get_or_default(&ButtonDisabledBackground)
+        } else if context.active() {
             styles.get_or_default(&ButtonActiveBackground)
         } else if context.hovered() {
             styles.get_or_default(&ButtonHoverBackground)
@@ -113,9 +131,18 @@ impl Button {
 
 impl Widget for Button {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        let enabled = self.enabled.get();
+        // TODO This seems ugly. It needs context, so it can't be moved into the
+        // dynamic system.
+        if self.currently_enabled != enabled {
+            self.update_background_color(context, false);
+            self.currently_enabled = enabled;
+        }
+
         let size = context.graphics.region().size;
         let center = Point::from(size) / 2;
         self.label.redraw_when_changed(context);
+        self.enabled.redraw_when_changed(context);
 
         let styles = context.query_styles(&[
             &TextColor,
@@ -155,7 +182,7 @@ impl Widget for Button {
 
     fn accept_focus(&mut self, _context: &mut EventContext<'_, '_>) -> bool {
         // TODO this should be driven by a "focus_all_widgets" setting that hopefully can be queried from the OS.
-        true
+        self.enabled.get()
     }
 
     fn mouse_down(
@@ -352,5 +379,24 @@ impl ComponentDefinition for ButtonHoverBackground {
 
     fn default_value(&self) -> Color {
         Color::new(40, 40, 40, 255)
+    }
+}
+
+/// The background color of the button when the mouse cursor is hovering over
+/// it.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct ButtonDisabledBackground;
+
+impl NamedComponent for ButtonDisabledBackground {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Button>("disabled_background_color"))
+    }
+}
+
+impl ComponentDefinition for ButtonDisabledBackground {
+    type ComponentType = Color;
+
+    fn default_value(&self) -> Color {
+        Color::new(50, 30, 30, 255)
     }
 }
