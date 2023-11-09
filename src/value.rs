@@ -47,6 +47,28 @@ impl<T> Dynamic<T> {
         self.0.map_mut(|value, _| map(value))
     }
 
+    /// Returns a new dynamic that is updated using `U::from(T.clone())` each
+    /// time `self` is updated.
+    #[must_use]
+    pub fn map_each_into<U>(&self) -> Dynamic<U>
+    where
+        U: From<T> + Send + 'static,
+        T: Clone,
+    {
+        self.map_each(|value| U::from(value.clone()))
+    }
+
+    /// Returns a new dynamic that is updated using `U::from(&T)` each
+    /// time `self` is updated.
+    #[must_use]
+    pub fn map_each_to<U>(&self) -> Dynamic<U>
+    where
+        U: for<'a> From<&'a T> + Send + 'static,
+        T: Clone,
+    {
+        self.map_each(|value| U::from(value))
+    }
+
     /// Attaches `for_each` to this value so that it is invoked each time the
     /// value's contents are updated.
     pub fn for_each<F>(&self, mut for_each: F)
