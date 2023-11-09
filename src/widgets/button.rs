@@ -108,7 +108,7 @@ impl Button {
                     .spawn();
             }
             (true, Some(dynamic)) => {
-                dynamic.set(background_color);
+                dynamic.update(background_color);
                 self.background_color_animation.clear();
             }
             (_, None) => {

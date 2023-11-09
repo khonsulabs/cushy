@@ -210,11 +210,11 @@ where
     fn update(&self, percent: f32) {
         self.change
             .dynamic
-            .set(self.start.lerp(&self.change.new_value, percent));
+            .update(self.start.lerp(&self.change.new_value, percent));
     }
 
     fn finish(&self) {
-        self.change.dynamic.set(self.change.new_value.clone());
+        self.change.dynamic.update(self.change.new_value.clone());
     }
 }
 
@@ -606,7 +606,7 @@ impl Animate for Duration {
 }
 
 /// Performs a linear interpolation between two values.
-pub trait LinearInterpolate {
+pub trait LinearInterpolate: PartialEq {
     /// Interpolate linearly between `self` and `target` using `percent`.
     #[must_use]
     fn lerp(&self, target: &Self, percent: f32) -> Self;

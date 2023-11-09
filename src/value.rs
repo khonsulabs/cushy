@@ -136,7 +136,7 @@ impl<T> Dynamic<T> {
     /// equal to the currently stored value.
     pub fn update(&self, new_value: T)
     where
-        T: Eq,
+        T: PartialEq,
     {
         self.0.map_mut(|value, changed| {
             if *value == new_value {

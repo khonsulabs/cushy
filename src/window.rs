@@ -736,8 +736,6 @@ where
     ) {
         match event {
             WindowCommand::Redraw => {
-                // TODO we should attempt to batch redraw events so that we're
-                // not constantly sending them from animations.
                 window.set_needs_redraw();
             }
         }

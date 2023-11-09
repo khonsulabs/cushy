@@ -13,12 +13,12 @@ fn main() -> gooey::Result {
         Resize::width(Lp::points(100), Label::new(label))
             .and(Button::new("+").on_click(counter.with_clone(|counter| {
                 move |_| {
-                    counter.set(counter.get() + 1);
+                    *counter.lock() += 1;
                 }
             })))
             .and(Button::new("-").on_click(counter.with_clone(|counter| {
                 move |_| {
-                    counter.set(counter.get() - 1);
+                    *counter.lock() -= 1;
                 }
             }))),
     )
