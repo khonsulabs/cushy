@@ -2,8 +2,9 @@ use std::time::Duration;
 
 use gooey::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn};
 use gooey::value::Dynamic;
+use gooey::widget::MakeWidget;
 use gooey::widgets::{Button, Label, Stack};
-use gooey::{children, Run, WithClone};
+use gooey::{Run, WithClone};
 
 fn main() -> gooey::Result {
     let animation = Dynamic::new(AnimationHandle::new());
@@ -17,11 +18,12 @@ fn main() -> gooey::Result {
         .on_complete(|| println!("Gooey animations are neat!"))
         .launch();
 
-    Stack::columns(children![
-        Button::new("To 0").on_click(animate_to(&animation, &value, 0)),
-        Label::new(label),
-        Button::new("To 100").on_click(animate_to(&animation, &value, 100)),
-    ])
+    Stack::columns(
+        Button::new("To 0")
+            .on_click(animate_to(&animation, &value, 0))
+            .and(Label::new(label))
+            .and(Button::new("To 100").on_click(animate_to(&animation, &value, 100))),
+    )
     .run()
 }
 

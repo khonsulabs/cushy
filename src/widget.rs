@@ -19,7 +19,7 @@ use crate::styles::components::VisualOrder;
 use crate::styles::Styles;
 use crate::tree::Tree;
 use crate::value::{IntoValue, Value};
-use crate::widgets::Style;
+use crate::widgets::{Align, Expand, Scroll, Style};
 use crate::window::{RunningWindow, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
 
@@ -478,6 +478,51 @@ pub trait MakeWidget: Sized {
     #[must_use]
     fn into_escape(self) -> WidgetInstance {
         self.make_widget().into_escape()
+    }
+
+    /// Returns a collection of widgets using `self` and `other`.
+    fn and(self, other: impl MakeWidget) -> Children {
+        let mut children = Children::new();
+        children.push(self);
+        children.push(other);
+        children
+    }
+
+    /// Expands `self` to grow to fill its parent.
+    #[must_use]
+    fn expand(self) -> Expand {
+        Expand::new(self)
+    }
+
+    /// Expands `self` to grow to fill its parent proportionally with other
+    /// weighted siblings.
+    #[must_use]
+    fn expand_weighted(self, weight: u8) -> Expand {
+        Expand::weighted(weight, self)
+    }
+
+    /// Aligns `self` to the center vertically and horizontally.
+    #[must_use]
+    fn centered(self) -> Align {
+        Align::centered(self)
+    }
+
+    /// Allows scrolling `self` both vertically and horizontally.
+    #[must_use]
+    fn scroll(self) -> Scroll {
+        Scroll::new(self)
+    }
+
+    /// Allows scrolling `self` vertically.
+    #[must_use]
+    fn vertical_scroll(self) -> Scroll {
+        Scroll::vertical(self)
+    }
+
+    /// Allows scrolling `self` horizontally.
+    #[must_use]
+    fn horizontal_scroll(self) -> Scroll {
+        Scroll::horizontal(self)
     }
 }
 
@@ -945,7 +990,7 @@ impl Children {
     }
 
     /// Adds `widget` to self and returns the updated list.
-    pub fn with_widget<W>(mut self, widget: W) -> Self
+    pub fn and<W>(mut self, widget: W) -> Self
     where
         W: MakeWidget,
     {

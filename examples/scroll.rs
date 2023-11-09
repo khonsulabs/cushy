@@ -1,6 +1,9 @@
-use gooey::widgets::{Label, Scroll};
+use gooey::widget::MakeWidget;
+use gooey::widgets::Label;
 use gooey::Run;
 
 fn main() -> gooey::Result {
-    Scroll::new(Label::new(include_str!("../src/widgets/scroll.rs"))).run()
+    Label::new(include_str!("../src/widgets/scroll.rs"))
+        .scroll()
+        .run()
 }

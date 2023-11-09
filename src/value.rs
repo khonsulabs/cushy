@@ -752,14 +752,36 @@ macro_rules! impl_tuple_for_each {
         //
         [$type:ident $field:tt $var:ident, $($rtype:ident $rfield:tt $rvar:ident),+]
     ) => {
-
         impl_tuple_for_each!(
             invoke
             $self $for_each
             $type $field $var
             [$($ltype $lfield $lvar,)* $type $field $var, $($rtype $rfield $rvar),+]
             [$($ltype $lfield $lvar,)* $($rtype $rfield $rvar),+]
-        )
+        );
+        impl_tuple_for_each!(
+            invoke
+            $self $for_each
+            [$($ltype $lfield $lvar,)* $type $field $var]
+            [$($rtype $rfield $rvar),+]
+        );
+    };
+    (
+        invoke
+        // Identifiers used from the outer method
+        $self:ident $for_each:ident
+        // List of all tuple fields that have already been positioned as the focused call
+        [$($ltype:ident $lfield:tt $lvar:ident),+]
+        //
+        [$type:ident $field:tt $var:ident]
+    ) => {
+        impl_tuple_for_each!(
+            invoke
+            $self $for_each
+            $type $field $var
+            [$($ltype $lfield $lvar,)+ $type $field $var]
+            [$($ltype $lfield $lvar),+]
+        );
     };
     (
         invoke

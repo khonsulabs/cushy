@@ -365,6 +365,10 @@ where
 
         if self.initial_frame {
             self.initial_frame = false;
+            self.root
+                .lock()
+                .as_widget()
+                .mounted(&mut layout_context.as_event_context());
             layout_context.focus();
             layout_context.as_event_context().apply_pending_state();
         }

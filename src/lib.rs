@@ -92,6 +92,7 @@ pub trait Run: Sized {
 /// Creates a [`Children`](crate::widget::Children) instance with the given list
 /// of widgets.
 #[macro_export]
+#[deprecated = "use MakeWidget.and()/Children.and() to chain widgets without a macro"]
 macro_rules! children {
     () => {
         $crate::widget::Children::new()

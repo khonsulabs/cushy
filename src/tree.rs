@@ -396,8 +396,8 @@ impl TreeData {
             let node = &self.nodes[&perspective];
             if let Some(styles) = &node.styles {
                 query.retain(|name| {
-                    if let Some(component) = styles.get(name) {
-                        resolved.insert(name, component.clone());
+                    if let Some(component) = styles.get(dbg!(name)) {
+                        resolved.insert(name, dbg!(component.clone()));
                         false
                     } else {
                         true
