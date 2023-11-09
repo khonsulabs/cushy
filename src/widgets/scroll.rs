@@ -13,12 +13,12 @@ use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, LayoutContext};
-use crate::styles::components::{EasingIn, EasingOut};
+use crate::styles::components::{EasingIn, EasingOut, LineHeight};
 use crate::styles::{
     ComponentDefinition, ComponentGroup, ComponentName, Dimension, NamedComponent,
 };
 use crate::value::Dynamic;
-use crate::widget::{EventHandling, MakeWidget, Widget, WidgetRef, HANDLED};
+use crate::widget::{EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
 use crate::{ConstraintLimit, Name};
 
 /// A widget that supports scrolling its contents.
@@ -35,6 +35,7 @@ pub struct Scroll {
     horizontal_bar: ScrollbarInfo,
     vertical_bar: ScrollbarInfo,
     bar_width: Px,
+    line_height: Px,
 }
 
 impl Scroll {
@@ -52,6 +53,7 @@ impl Scroll {
             horizontal_bar: ScrollbarInfo::default(),
             vertical_bar: ScrollbarInfo::default(),
             bar_width: Px::default(),
+            line_height: Px::default(),
         }
     }
 
@@ -72,10 +74,14 @@ impl Scroll {
         Self::construct(contents, Point::new(false, true))
     }
 
+    fn constrained_scroll(scroll: Point<Px>, max_scroll: Point<Px>) -> Point<Px> {
+        scroll.max(max_scroll).min(Point::default())
+    }
+
     fn constrain_scroll(&mut self) -> (Point<Px>, Point<Px>) {
         let scroll = self.scroll.get();
         let max_scroll = self.max_scroll.get();
-        let clamped = scroll.max(max_scroll).min(Point::default());
+        let clamped = Self::constrained_scroll(scroll, max_scroll);
         if clamped != scroll {
             self.scroll.set(clamped);
         }
@@ -170,9 +176,12 @@ impl Widget for Scroll {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let styles = context.query_styles(&[&ScrollBarThickness]);
+        let styles = context.query_styles(&[&ScrollBarThickness, &LineHeight]);
         self.bar_width = styles
             .get_or_default(&ScrollBarThickness)
+            .into_px(context.graphics.scale());
+        self.line_height = styles
+            .get_or_default(&LineHeight)
             .into_px(context.graphics.scale());
 
         let (mut scroll, current_max_scroll) = self.constrain_scroll();
@@ -255,17 +264,24 @@ impl Widget for Scroll {
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         let amount = match delta {
-            /* TODO query line height */
-            MouseScrollDelta::LineDelta(x, y) => Point::new(x, y) * 16.0,
+            MouseScrollDelta::LineDelta(x, y) => Point::new(x, y) * self.line_height.into_float(),
             MouseScrollDelta::PixelDelta(px) => Point::new(px.x.cast(), px.y.cast()),
         };
 
-        self.scroll.map_mut(|scroll| *scroll += amount.cast());
-        self.show_scrollbars(context);
-        context.set_needs_redraw();
+        let mut scroll = self.scroll.lock();
+        let old_scroll = *scroll;
+        let new_scroll = Self::constrained_scroll(*scroll + amount.cast(), self.max_scroll.get());
+        if old_scroll == new_scroll {
+            IGNORED
+        } else {
+            *scroll = new_scroll;
+            drop(scroll);
 
-        // TODO make this only returned handled if we actually scrolled.
-        HANDLED
+            self.show_scrollbars(context);
+            context.set_needs_redraw();
+
+            HANDLED
+        }
     }
 }
 
