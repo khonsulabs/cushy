@@ -4,7 +4,7 @@ use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 
 use crate::context::{AsEventContext, LayoutContext};
-use crate::styles::{Dimension, Edges, FlexibleDimension};
+use crate::styles::{Edges, FlexibleDimension};
 use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 use crate::ConstraintLimit;
@@ -32,22 +32,54 @@ impl Align {
         Self::new(FlexibleDimension::Auto, widget)
     }
 
-    /// Sets the left and right edges to 0 and returns self.
+    /// Sets the left edge of alignment to 0 and returns self.
+    #[must_use]
+    pub fn align_left(mut self) -> Self {
+        self.edges
+            .map_mut(|edges| edges.left = FlexibleDimension::ZERO);
+        self
+    }
+
+    /// Sets the top edge of alignment to 0 and returns self.
+    #[must_use]
+    pub fn align_top(mut self) -> Self {
+        self.edges
+            .map_mut(|edges| edges.top = FlexibleDimension::ZERO);
+        self
+    }
+
+    /// Sets the bottom edge of alignment to 0 and returns self.
+    #[must_use]
+    pub fn align_bottom(mut self) -> Self {
+        self.edges
+            .map_mut(|edges| edges.bottom = FlexibleDimension::ZERO);
+        self
+    }
+
+    /// Sets the right edge of alignment to 0 and returns self.
+    #[must_use]
+    pub fn align_right(mut self) -> Self {
+        self.edges
+            .map_mut(|edges| edges.right = FlexibleDimension::ZERO);
+        self
+    }
+
+    /// Sets the left and right edges of alignment to 0 and returns self.
     #[must_use]
     pub fn fit_horizontally(mut self) -> Self {
         self.edges.map_mut(|edges| {
-            edges.left = FlexibleDimension::Dimension(Dimension::default());
-            edges.right = FlexibleDimension::Dimension(Dimension::default());
+            edges.left = FlexibleDimension::ZERO;
+            edges.right = FlexibleDimension::ZERO;
         });
         self
     }
 
-    /// Sets the top and bottom edges to 0 and returns self.
+    /// Sets the top and bottom edges of alignment to 0 and returns self.
     #[must_use]
     pub fn fit_vertically(mut self) -> Self {
         self.edges.map_mut(|edges| {
-            edges.top = FlexibleDimension::Dimension(Dimension::default());
-            edges.bottom = FlexibleDimension::Dimension(Dimension::default());
+            edges.top = FlexibleDimension::ZERO;
+            edges.bottom = FlexibleDimension::ZERO;
         });
         self
     }

@@ -235,9 +235,14 @@ pub enum FlexibleDimension {
     Dimension(Dimension),
 }
 
+impl FlexibleDimension {
+    /// A dimension of 0 pixels.
+    pub const ZERO: Self = Self::Dimension(Dimension::ZERO);
+}
+
 impl Default for FlexibleDimension {
     fn default() -> Self {
-        Self::Dimension(Dimension::default())
+        Self::ZERO
     }
 }
 
@@ -268,9 +273,14 @@ pub enum Dimension {
     Lp(Lp),
 }
 
+impl Dimension {
+    /// A dimension of 0 pixels.
+    pub const ZERO: Self = Self::Px(Px(0));
+}
+
 impl Default for Dimension {
     fn default() -> Self {
-        Self::Px(Px(0))
+        Self::ZERO
     }
 }
 

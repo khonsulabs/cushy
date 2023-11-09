@@ -186,7 +186,9 @@ impl Widget for Scroll {
 
         let (mut scroll, current_max_scroll) = self.constrain_scroll();
 
-        let control_size = context.graphics.region().size;
+        let control_size =
+            Size::<UPx>::new(available_space.width.max(), available_space.height.max())
+                .into_signed();
         let max_extents = Size::new(
             if self.enabled.x {
                 ConstraintLimit::ClippedAfter(UPx::MAX - scroll.x.into_unsigned())

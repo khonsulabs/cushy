@@ -117,6 +117,32 @@ impl<T> Dynamic<T> {
         self.0.get().value
     }
 
+    /// Returns the currently stored value, replacing the current contents with
+    /// `T::default()`.
+    #[must_use]
+    pub fn take(&self) -> T
+    where
+        T: Default,
+    {
+        std::mem::take(&mut self.lock())
+    }
+
+    /// Checks if the currently stored value is different than `T::default()`,
+    /// and if so, returns `Some(self.take())`.
+    #[must_use]
+    pub fn take_if_not_default(&self) -> Option<T>
+    where
+        T: Default + PartialEq,
+    {
+        let default = T::default();
+        let mut guard = self.lock();
+        if *guard == default {
+            None
+        } else {
+            Some(std::mem::replace(&mut guard, default))
+        }
+    }
+
     /// Replaces the contents with `new_value`, returning the previous contents.
     /// Before returning from this function, all observers will be notified that
     /// the contents have been updated.

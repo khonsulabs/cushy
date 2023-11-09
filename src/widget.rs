@@ -3,7 +3,7 @@
 use std::any::Any;
 use std::clone::Clone;
 use std::fmt::Debug;
-use std::ops::{ControlFlow, Deref};
+use std::ops::{ControlFlow, Deref, DerefMut};
 use std::panic::UnwindSafe;
 use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -514,6 +514,36 @@ pub trait MakeWidget: Sized {
         Align::centered(self)
     }
 
+    /// Aligns `self` to the left.
+    fn align_left(self) -> Align {
+        self.centered().align_left()
+    }
+
+    /// Aligns `self` to the right.
+    fn align_right(self) -> Align {
+        self.centered().align_right()
+    }
+
+    /// Aligns `self` to the top.
+    fn align_top(self) -> Align {
+        self.centered().align_top()
+    }
+
+    /// Aligns `self` to the bottom.
+    fn align_bottom(self) -> Align {
+        self.centered().align_bottom()
+    }
+
+    /// Fits `self` horizontally within its parent.
+    fn fit_horizontally(self) -> Align {
+        self.centered().fit_horizontally()
+    }
+
+    /// Fits `self` vertically within its parent.
+    fn fit_vertically(self) -> Align {
+        self.centered().fit_vertically()
+    }
+
     /// Allows scrolling `self` both vertically and horizontally.
     #[must_use]
     fn scroll(self) -> Scroll {
@@ -1002,6 +1032,14 @@ impl Children {
         self.ordered.push(widget.make_widget());
     }
 
+    /// Inserts `widget` into the list at `index`.
+    pub fn insert<W>(&mut self, index: usize, widget: W)
+    where
+        W: MakeWidget,
+    {
+        self.ordered.insert(index, widget.make_widget());
+    }
+
     /// Adds `widget` to self and returns the updated list.
     pub fn and<W>(mut self, widget: W) -> Self
     where
@@ -1022,6 +1060,14 @@ impl Children {
     pub fn is_empty(&self) -> bool {
         self.ordered.is_empty()
     }
+
+    /// Truncates the collection of children to `length`.
+    ///
+    /// If this collection is already smaller or the same size as `length`, this
+    /// function does nothing.
+    pub fn truncate(&mut self, length: usize) {
+        self.ordered.truncate(length);
+    }
 }
 
 impl<W> FromIterator<W> for Children
@@ -1040,6 +1086,12 @@ impl Deref for Children {
 
     fn deref(&self) -> &Self::Target {
         &self.ordered
+    }
+}
+
+impl DerefMut for Children {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.ordered
     }
 }
 
