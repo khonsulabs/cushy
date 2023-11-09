@@ -136,3 +136,19 @@ macro_rules! styles {
         $crate::styles!($($component => $value),*)
     }};
 }
+
+fn initialize_tracing() {
+    #[cfg(feature = "tracing-output")]
+    {
+        use tracing::Level;
+
+        #[cfg(debug_assertions)]
+        const MAX_LEVEL: Level = Level::DEBUG;
+        #[cfg(not(debug_assertions))]
+        const MAX_LEVEL: Level = Level::ERROR;
+
+        let _result = tracing_subscriber::fmt::fmt()
+            .with_max_level(MAX_LEVEL)
+            .try_init();
+    }
+}

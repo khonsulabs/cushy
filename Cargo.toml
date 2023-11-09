@@ -3,7 +3,9 @@ name = "gooey"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["tracing-output"]
+tracing-output = ["dep:tracing-subscriber"]
 
 [dependencies]
 kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
@@ -13,6 +15,10 @@ alot = "0.3"
 interner = "0.2.1"
 kempt = "0.2.1"
 intentional = "0.1.0"
+tracing = "0.1.40"
+
+tracing-subscriber = { version = "0.3", optional = true }
+
 
 # [patch."https://github.com/khonsulabs/kludgine"]
 # kludgine = { path = "../kludgine2" }

@@ -211,7 +211,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         }
 
         if activation_changes == MAX_ITERS {
-            eprintln!(
+            tracing::error!(
                 "activation change force stopped after {activation_changes} sequential changes"
             );
         }
@@ -261,7 +261,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         }
 
         if focus_changes == MAX_ITERS {
-            eprintln!("focus change force stopped after {focus_changes} sequential changes");
+            tracing::error!("focus change force stopped after {focus_changes} sequential changes");
         }
     }
 

@@ -20,6 +20,7 @@ use kludgine::figures::units::Px;
 use kludgine::figures::{IntoSigned, Point, Rect, Size};
 use kludgine::render::Drawing;
 use kludgine::Kludgine;
+use tracing::Level;
 
 use crate::context::{
     AsEventContext, EventContext, Exclusive, GraphicsContext, LayoutContext, RedrawStatus,
@@ -34,7 +35,7 @@ use crate::widget::{
     EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
 use crate::window::sealed::WindowCommand;
-use crate::{ConstraintLimit, Run};
+use crate::{initialize_tracing, ConstraintLimit, Run};
 
 /// A currently running Gooey window.
 pub struct RunningWindow<'window> {
@@ -191,6 +192,7 @@ where
     Behavior: WindowBehavior,
 {
     fn run(self) -> crate::Result {
+        initialize_tracing();
         GooeyWindow::<Behavior>::run_with(AssertUnwindSafe(sealed::Context {
             user: self.context,
             settings: RefCell::new(sealed::WindowSettings {
@@ -517,9 +519,12 @@ where
                     );
                 }
                 _ => {
-                    println!(
-                        "Ignored Keyboard Input: {:?} ({:?}); {:?}",
-                        input.logical_key, input.physical_key, input.state
+                    tracing::event!(
+                        Level::DEBUG,
+                        logical = ?input.logical_key,
+                        physical = ?input.physical_key,
+                        state = ?input.state,
+                        "Ignored Keyboard Input",
                     );
                 }
             }
