@@ -264,17 +264,7 @@ impl<T> DynamicData<T> {
             let mut changed = true;
             let result = map(&mut state.wrapped.value, &mut changed);
             if changed {
-                state.wrapped.generation = state.wrapped.generation.next();
-
-                for callback in &mut state.callbacks {
-                    callback.update(&state.wrapped);
-                }
-                for window in state.windows.drain(..) {
-                    window.redraw();
-                }
-                for waker in state.wakers.drain(..) {
-                    waker.wake();
-                }
+                state.note_changed();
             }
 
             result
@@ -321,6 +311,22 @@ struct State<T> {
     readers: usize,
 }
 
+impl<T> State<T> {
+    fn note_changed(&mut self) {
+        self.wrapped.generation = self.wrapped.generation.next();
+
+        for callback in &mut self.callbacks {
+            callback.update(&self.wrapped);
+        }
+        for window in self.windows.drain(..) {
+            window.redraw();
+        }
+        for waker in self.wakers.drain(..) {
+            waker.wake();
+        }
+    }
+}
+
 impl<T> Debug for State<T>
 where
     T: Debug,
@@ -353,6 +359,9 @@ struct GenerationalValue<T> {
 }
 
 /// An exclusive reference to the contents of a [`Dynamic`].
+///
+/// If the contents are accessed through [`DerefMut`], all obververs will be
+/// notified of a change when this guard is dropped.
 #[derive(Debug)]
 pub struct DynamicGuard<'a, T> {
     guard: MutexGuard<'a, State<T>>,
@@ -377,7 +386,7 @@ impl<'a, T> DerefMut for DynamicGuard<'a, T> {
 impl<T> Drop for DynamicGuard<'_, T> {
     fn drop(&mut self) {
         if self.accessed_mut {
-            todo!("trigger callbacks")
+            self.guard.note_changed();
         }
     }
 }

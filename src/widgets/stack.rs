@@ -1,5 +1,5 @@
-//! A widget that combines an array of [`Widgets`] into one.
-// TODO on scale change, all Lp children need to resize
+//! A widget that combines a collection of [`Children`] widgets into one.
+// TODO on scale change, all `Lp` children need to resize
 
 use std::ops::Deref;
 
@@ -11,10 +11,10 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::styles::Dimension;
 use crate::value::{Generation, IntoValue, Value};
 use crate::widget::{Children, ManagedWidget, Widget, WidgetRef};
-use crate::widgets::{Expand, Label, Resize};
+use crate::widgets::{Expand, Resize};
 use crate::ConstraintLimit;
 
-/// A widget that displays a collection of [`Widgets`] in a
+/// A widget that displays a collection of [`Children`] widgets in a
 /// [direction](StackDirection).
 #[derive(Debug)]
 pub struct Stack {
@@ -87,21 +87,12 @@ impl Stack {
                             let guard = widget.lock();
                             let (mut widget, dimension) =
                                 if let Some(expand) = guard.downcast_ref::<Expand>() {
-                                    if let Some(child) = expand.child() {
-                                        (
-                                            child.clone(),
-                                            StackDimension::Fractional {
-                                                weight: expand.weight,
-                                            },
-                                        )
-                                    } else {
-                                        (
-                                            WidgetRef::new(Label::new("")), // TODO this should be an empty widget.
-                                            StackDimension::Fractional {
-                                                weight: expand.weight,
-                                            },
-                                        )
-                                    }
+                                    (
+                                        expand.child().clone(),
+                                        StackDimension::Fractional {
+                                            weight: expand.weight,
+                                        },
+                                    )
                                 } else if let Some((child, size)) =
                                     guard.downcast_ref::<Resize>().and_then(|r| {
                                         match self.layout.orientation.orientation {

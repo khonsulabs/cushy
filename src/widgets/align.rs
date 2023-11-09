@@ -3,10 +3,10 @@ use std::fmt::Debug;
 use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 
-use crate::context::{AsEventContext, GraphicsContext, LayoutContext};
+use crate::context::{AsEventContext, LayoutContext};
 use crate::styles::{Dimension, Edges, FlexibleDimension};
 use crate::value::{IntoValue, Value};
-use crate::widget::{MakeWidget, Widget, WidgetRef};
+use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A widget aligns its contents to its container's boundaries.
@@ -145,31 +145,31 @@ impl FrameInfo {
     }
 }
 
-impl Widget for Align {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let child = self.child.mounted(&mut context.as_event_context());
-        context.for_other(&child).redraw();
+impl WrapperWidget for Align {
+    fn child(&mut self) -> &mut WidgetRef {
+        &mut self.child
     }
 
-    fn layout(
+    fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Size<UPx> {
-        let child = self.child.mounted(&mut context.as_event_context());
+    ) -> Rect<kludgine::figures::units::Px> {
         let layout = self.measure(available_space, context);
-        context.set_child_layout(
-            &child,
-            Rect::new(
-                Point::new(
-                    layout.margin.left.into_signed(),
-                    layout.margin.top.into_signed(),
-                ),
-                layout.content.into_signed(),
-            ),
-        );
 
-        layout.size().into_unsigned()
+        Rect::new(
+            Point::new(
+                layout.margin.left.into_signed(),
+                layout.margin.top.into_signed(),
+            ),
+            layout.content.into_signed(),
+        )
+    }
+}
+
+impl AsMut<WidgetRef> for Align {
+    fn as_mut(&mut self) -> &mut WidgetRef {
+        &mut self.child
     }
 }
 
@@ -177,10 +177,4 @@ impl Widget for Align {
 struct Layout {
     margin: Edges<UPx>,
     content: Size<UPx>,
-}
-
-impl Layout {
-    pub fn size(&self) -> Size<UPx> {
-        self.margin.size() + self.content
-    }
 }

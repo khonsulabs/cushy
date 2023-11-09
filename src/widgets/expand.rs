@@ -1,8 +1,9 @@
-use kludgine::figures::units::UPx;
+use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, Rect, Size};
 
-use crate::context::{AsEventContext, GraphicsContext, LayoutContext};
-use crate::widget::{MakeWidget, Widget, WidgetRef};
+use crate::context::{AsEventContext, LayoutContext};
+use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
+use crate::widgets::Space;
 use crate::ConstraintLimit;
 
 /// A widget that expands its child widget to fill the parent.
@@ -14,7 +15,7 @@ pub struct Expand {
     /// The weight to use when splitting available space with multiple
     /// [`Expand`] widgets.
     pub weight: u8,
-    child: Option<WidgetRef>,
+    child: WidgetRef,
 }
 
 impl Default for Expand {
@@ -28,7 +29,7 @@ impl Expand {
     #[must_use]
     pub fn new(child: impl MakeWidget) -> Self {
         Self {
-            child: Some(WidgetRef::new(child)),
+            child: WidgetRef::new(child),
             weight: 1,
         }
     }
@@ -37,7 +38,7 @@ impl Expand {
     #[must_use]
     pub fn empty() -> Self {
         Self {
-            child: None,
+            child: WidgetRef::new(Space),
             weight: 1,
         }
     }
@@ -49,57 +50,44 @@ impl Expand {
     #[must_use]
     pub fn weighted(weight: u8, child: impl MakeWidget) -> Self {
         Self {
-            child: Some(WidgetRef::new(child)),
+            child: WidgetRef::new(child),
             weight,
         }
     }
 
     /// Returns a reference to the child widget.
     #[must_use]
-    pub fn child(&self) -> Option<&WidgetRef> {
-        self.child.as_ref()
+    pub const fn child(&self) -> &WidgetRef {
+        &self.child
     }
 }
 
-impl Widget for Expand {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let Some(child) = &mut self.child else { return };
-        let child = child.mounted(&mut context.as_event_context());
-        context.for_other(&child).redraw();
+impl WrapperWidget for Expand {
+    fn child(&mut self) -> &mut WidgetRef {
+        &mut self.child
     }
 
-    fn layout(
+    fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> Rect<Px> {
         let available_space = Size::new(
             ConstraintLimit::Known(available_space.width.max()),
             ConstraintLimit::Known(available_space.height.max()),
         );
-        let child = self
-            .child
-            .as_mut()
-            .map(|child| child.mounted(&mut context.as_event_context()));
-        let size = if let Some(child) = &child {
-            context.for_other(child).layout(available_space)
-        } else {
-            Size::default()
-        };
+        let child = self.child.mounted(&mut context.as_event_context());
+        let size = context.for_other(&child).layout(available_space);
 
-        let expanded_size = Size::new(
+        Size::<UPx>::new(
             available_space
                 .width
                 .fit_measured(size.width, context.graphics.scale()),
             available_space
                 .height
                 .fit_measured(size.height, context.graphics.scale()),
-        );
-
-        if let Some(child) = child {
-            context.set_child_layout(&child, Rect::from(expanded_size.into_signed()));
-        }
-
-        expanded_size
+        )
+        .into_signed()
+        .into()
     }
 }

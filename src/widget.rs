@@ -12,7 +12,7 @@ use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, Rect, Size};
+use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::VisualOrder;
@@ -164,6 +164,263 @@ where
 {
     fn run(self) -> crate::Result {
         self.make_widget().run()
+    }
+}
+
+/// A [`Widget`] that contains a single child.
+pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
+    /// Returns the child widget.
+    fn child(&mut self) -> &mut WidgetRef;
+
+    /// Returns the rectangle that the child widget should occupy given
+    /// `available_space`.
+    #[allow(unused_variables)]
+    fn layout_child(
+        &mut self,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> Rect<Px> {
+        let child = self.child().mounted(&mut context.as_event_context());
+
+        context
+            .for_other(&child)
+            .layout(available_space)
+            .into_signed()
+            .into()
+    }
+
+    /// The widget has been mounted into a parent widget.
+    #[allow(unused_variables)]
+    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// The widget has been removed from its parent widget.
+    #[allow(unused_variables)]
+    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// Returns true if this widget should respond to mouse input at `location`.
+    #[allow(unused_variables)]
+    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
+        false
+    }
+
+    /// The widget is currently has a cursor hovering it at `location`.
+    #[allow(unused_variables)]
+    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) {}
+
+    /// The widget is no longer being hovered.
+    #[allow(unused_variables)]
+    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// This widget has been targeted to be focused. If this function returns
+    /// true, the widget will be focused. If false, Gooey will continue
+    /// searching for another focus target.
+    #[allow(unused_variables)]
+    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        false
+    }
+
+    /// The widget has received focus for user input.
+    #[allow(unused_variables)]
+    fn focus(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// The widget is no longer focused for user input.
+    #[allow(unused_variables)]
+    fn blur(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// The widget has become the active widget.
+    #[allow(unused_variables)]
+    fn activate(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// The widget is no longer active.
+    #[allow(unused_variables)]
+    fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// A mouse button event has occurred at `location`. Returns whether the
+    /// event has been handled or not.
+    ///
+    /// If an event is handled, the widget will receive callbacks for
+    /// [`mouse_drag`](Self::mouse_drag) and [`mouse_up`](Self::mouse_up).
+    #[allow(unused_variables)]
+    fn mouse_down(
+        &mut self,
+        location: Point<Px>,
+        device_id: DeviceId,
+        button: MouseButton,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        IGNORED
+    }
+
+    /// A mouse button is being held down as the cursor is moved across the
+    /// widget.
+    #[allow(unused_variables)]
+    fn mouse_drag(
+        &mut self,
+        location: Point<Px>,
+        device_id: DeviceId,
+        button: MouseButton,
+        context: &mut EventContext<'_, '_>,
+    ) {
+    }
+
+    /// A mouse button is no longer being pressed.
+    #[allow(unused_variables)]
+    fn mouse_up(
+        &mut self,
+        location: Option<Point<Px>>,
+        device_id: DeviceId,
+        button: MouseButton,
+        context: &mut EventContext<'_, '_>,
+    ) {
+    }
+
+    /// A keyboard event has been sent to this widget. Returns whether the event
+    /// has been handled or not.
+    #[allow(unused_variables)]
+    fn keyboard_input(
+        &mut self,
+        device_id: DeviceId,
+        input: KeyEvent,
+        is_synthetic: bool,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        IGNORED
+    }
+
+    /// An input manager event has been sent to this widget. Returns whether the
+    /// event has been handled or not.
+    #[allow(unused_variables)]
+    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_, '_>) -> EventHandling {
+        IGNORED
+    }
+
+    /// A mouse wheel event has been sent to this widget. Returns whether the
+    /// event has been handled or not.
+    #[allow(unused_variables)]
+    fn mouse_wheel(
+        &mut self,
+        device_id: DeviceId,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        IGNORED
+    }
+}
+
+impl<T> Widget for T
+where
+    T: WrapperWidget,
+{
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        let child = self.child().mounted(&mut context.as_event_context());
+        context.for_other(&child).redraw();
+    }
+
+    fn layout(
+        &mut self,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> Size<UPx> {
+        let child = self.child().mounted(&mut context.as_event_context());
+
+        let layout = self.layout_child(available_space, context);
+        context.set_child_layout(&child, layout);
+        layout.size.into_unsigned()
+    }
+
+    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {
+        T::mounted(self, context);
+    }
+
+    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+        T::unmounted(self, context);
+    }
+
+    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
+        T::hit_test(self, location, context)
+    }
+
+    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) {
+        T::hover(self, location, context);
+    }
+
+    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
+        T::unhover(self, context);
+    }
+
+    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        T::accept_focus(self, context)
+    }
+
+    fn focus(&mut self, context: &mut EventContext<'_, '_>) {
+        T::focus(self, context);
+    }
+
+    fn blur(&mut self, context: &mut EventContext<'_, '_>) {
+        T::blur(self, context);
+    }
+
+    fn activate(&mut self, context: &mut EventContext<'_, '_>) {
+        T::activate(self, context);
+    }
+
+    fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {
+        T::deactivate(self, context);
+    }
+
+    fn mouse_down(
+        &mut self,
+        location: Point<Px>,
+        device_id: DeviceId,
+        button: MouseButton,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        T::mouse_down(self, location, device_id, button, context)
+    }
+
+    fn mouse_drag(
+        &mut self,
+        location: Point<Px>,
+        device_id: DeviceId,
+        button: MouseButton,
+        context: &mut EventContext<'_, '_>,
+    ) {
+        T::mouse_drag(self, location, device_id, button, context);
+    }
+
+    fn mouse_up(
+        &mut self,
+        location: Option<Point<Px>>,
+        device_id: DeviceId,
+        button: MouseButton,
+        context: &mut EventContext<'_, '_>,
+    ) {
+        T::mouse_up(self, location, device_id, button, context);
+    }
+
+    fn keyboard_input(
+        &mut self,
+        device_id: DeviceId,
+        input: KeyEvent,
+        is_synthetic: bool,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        T::keyboard_input(self, device_id, input, is_synthetic, context)
+    }
+
+    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_, '_>) -> EventHandling {
+        T::ime(self, ime, context)
+    }
+
+    fn mouse_wheel(
+        &mut self,
+        device_id: DeviceId,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        T::mouse_wheel(self, device_id, delta, phase, context)
     }
 }
 
