@@ -43,8 +43,7 @@ fn main() -> gooey::Result {
     );
 
     Resize::width(
-        // TODO We need a min/max range for the Resize widget
-        Lp::points(400),
+        Lp::points(300)..Lp::points(600),
         Stack::rows(username_row.and(password_row).and(buttons)),
     )
     .centered()

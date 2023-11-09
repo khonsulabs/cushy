@@ -178,7 +178,7 @@ impl FrameInfo {
 }
 
 impl WrapperWidget for Align {
-    fn child(&mut self) -> &mut WidgetRef {
+    fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
     }
 

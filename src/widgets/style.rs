@@ -21,7 +21,7 @@ impl Style {
 }
 
 impl WrapperWidget for Style {
-    fn child(&mut self) -> &mut WidgetRef {
+    fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
     }
 

@@ -2,7 +2,9 @@
 
 use std::borrow::Cow;
 use std::collections::{hash_map, HashMap};
-use std::ops::Add;
+use std::ops::{
+    Add, Bound, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
+};
 use std::sync::Arc;
 
 use crate::animation::{EasingFunction, ZeroToOne};
@@ -172,8 +174,8 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 
-use kludgine::figures::units::{Lp, Px};
-use kludgine::figures::{ScreenScale, Size};
+use kludgine::figures::units::{Lp, Px, UPx};
+use kludgine::figures::{Fraction, IntoUnsigned, ScreenScale, Size};
 use kludgine::Color;
 
 /// A value of a style component.
@@ -183,6 +185,8 @@ pub enum Component {
     Color(Color),
     /// A single-dimension measurement.
     Dimension(Dimension),
+    /// A single-dimension measurement.
+    DimensionRange(DimensionRange),
     /// A percentage between 0.0 and 1.0.
     Percent(ZeroToOne),
     /// A custom component type.
@@ -302,7 +306,7 @@ impl From<Lp> for FlexibleDimension {
 }
 
 /// A 1-dimensional measurement.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Dimension {
     /// Physical Pixels
     Px(Px),
@@ -357,6 +361,158 @@ impl ScreenScale for Dimension {
 
     fn from_lp(lp: Lp, _scale: kludgine::figures::Fraction) -> Self {
         Self::from(lp)
+    }
+}
+
+/// A range of [`Dimension`]s.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct DimensionRange {
+    /// The start bound of the range.
+    pub start: Bound<Dimension>,
+    /// The end bound of the range.
+    pub end: Bound<Dimension>,
+}
+
+impl DimensionRange {
+    /// Returns this range's dimension if the range represents a single
+    /// dimension.
+    #[must_use]
+    pub fn exact_dimension(&self) -> Option<Dimension> {
+        match (self.start, self.end) {
+            (Bound::Excluded(start), Bound::Included(end)) if start == end => Some(start),
+            _ => None,
+        }
+    }
+
+    /// Clamps `size` to the dimensions of this range, converting to unsigned
+    /// pixels in the process.
+    #[must_use]
+    pub fn clamp(&self, mut size: UPx, scale: Fraction) -> UPx {
+        if let Some(min) = self.minimum() {
+            size = size.max(min.into_px(scale).into_unsigned());
+        }
+        if let Some(max) = self.maximum() {
+            size = size.min(max.into_px(scale).into_unsigned());
+        }
+        size
+    }
+
+    /// Returns the minimum measurement, if the start is bounded.
+    #[must_use]
+    pub fn minimum(&self) -> Option<Dimension> {
+        match self.start {
+            Bound::Unbounded => None,
+            Bound::Excluded(Dimension::Lp(lp)) => Some(Dimension::Lp(lp + 1)),
+            Bound::Excluded(Dimension::Px(px)) => Some(Dimension::Px(px + 1)),
+            Bound::Included(value) => Some(value),
+        }
+    }
+
+    /// Returns the maximum measurement, if the end is bounded.
+    #[must_use]
+    pub fn maximum(&self) -> Option<Dimension> {
+        match self.end {
+            Bound::Unbounded => None,
+            Bound::Excluded(Dimension::Lp(lp)) => Some(Dimension::Lp(lp - 1)),
+            Bound::Excluded(Dimension::Px(px)) => Some(Dimension::Px(px - 1)),
+            Bound::Included(value) => Some(value),
+        }
+    }
+}
+
+impl<T> From<T> for DimensionRange
+where
+    T: Into<Dimension>,
+{
+    fn from(value: T) -> Self {
+        let dimension = value.into();
+        Self::from(dimension..=dimension)
+    }
+}
+
+impl<T> From<Range<T>> for DimensionRange
+where
+    T: Into<Dimension>,
+{
+    fn from(value: Range<T>) -> Self {
+        Self {
+            start: Bound::Included(value.start.into()),
+            end: Bound::Excluded(value.end.into()),
+        }
+    }
+}
+
+impl From<RangeFull> for DimensionRange {
+    fn from(_: RangeFull) -> Self {
+        Self {
+            start: Bound::Unbounded,
+            end: Bound::Unbounded,
+        }
+    }
+}
+
+impl<T> From<RangeInclusive<T>> for DimensionRange
+where
+    T: Into<Dimension> + Clone,
+{
+    fn from(value: RangeInclusive<T>) -> Self {
+        Self {
+            start: Bound::Included(value.start().clone().into()),
+            end: Bound::Excluded(value.end().clone().into()),
+        }
+    }
+}
+
+impl<T> From<RangeFrom<T>> for DimensionRange
+where
+    T: Into<Dimension>,
+{
+    fn from(value: RangeFrom<T>) -> Self {
+        Self {
+            start: Bound::Included(value.start.into()),
+            end: Bound::Unbounded,
+        }
+    }
+}
+
+impl<T> From<RangeTo<T>> for DimensionRange
+where
+    T: Into<Dimension>,
+{
+    fn from(value: RangeTo<T>) -> Self {
+        Self {
+            start: Bound::Unbounded,
+            end: Bound::Excluded(value.end.into()),
+        }
+    }
+}
+
+impl<T> From<RangeToInclusive<T>> for DimensionRange
+where
+    T: Into<Dimension>,
+{
+    fn from(value: RangeToInclusive<T>) -> Self {
+        Self {
+            start: Bound::Unbounded,
+            end: Bound::Included(value.end.into()),
+        }
+    }
+}
+
+impl From<DimensionRange> for Component {
+    fn from(value: DimensionRange) -> Self {
+        Component::DimensionRange(value)
+    }
+}
+
+impl TryFrom<Component> for DimensionRange {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::DimensionRange(value) => Ok(value),
+            other => Err(other),
+        }
     }
 }
 

@@ -10,14 +10,14 @@ use std::path::Path;
 use std::string::ToString;
 use std::sync::OnceLock;
 
-use kludgine::app::winit::dpi::PhysicalPosition;
+use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
     DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::keyboard::Key;
 use kludgine::app::WindowBehavior as _;
-use kludgine::figures::units::Px;
-use kludgine::figures::{IntoSigned, Point, Rect, Size};
+use kludgine::figures::units::{Px, UPx};
+use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 use kludgine::render::Drawing;
 use kludgine::Kludgine;
 use tracing::Level;
@@ -34,6 +34,7 @@ use crate::value::{Dynamic, IntoDynamic};
 use crate::widget::{
     EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
+use crate::widgets::Resize;
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit, Run};
 
@@ -248,6 +249,8 @@ struct GooeyWindow<T> {
     occluded: Dynamic<bool>,
     focused: Dynamic<bool>,
     keyboard_activated: Option<ManagedWidget>,
+    min_inner_size: Option<Size<UPx>>,
+    max_inner_size: Option<Size<UPx>>,
 }
 
 impl<T> GooeyWindow<T>
@@ -337,6 +340,8 @@ where
             occluded,
             focused,
             keyboard_activated: None,
+            min_inner_size: None,
+            max_inner_size: None,
         }
     }
 
@@ -348,6 +353,55 @@ where
         self.redraw_status.refresh_received();
         graphics.reset_text_attributes();
         self.root.tree.reset_render_order();
+
+        let resizable = window.winit().is_resizable();
+        {
+            let mut root_or_child = self.root.widget.clone();
+            loop {
+                let mut widget = root_or_child.lock();
+                if let Some(resize) = widget.downcast_ref::<Resize>() {
+                    let min_width = resize
+                        .width
+                        .minimum()
+                        .map_or(Px(0), |width| width.into_px(graphics.scale()));
+                    let max_width = resize
+                        .width
+                        .maximum()
+                        .map_or(Px::MAX, |width| width.into_px(graphics.scale()));
+                    let min_height = resize
+                        .height
+                        .minimum()
+                        .map_or(Px(0), |height| height.into_px(graphics.scale()));
+                    let max_height = resize
+                        .height
+                        .maximum()
+                        .map_or(Px::MAX, |height| height.into_px(graphics.scale()));
+
+                    let new_min_size = (min_width > 0 || min_height > 0)
+                        .then_some(Size::<Px>::new(min_width, min_height).into_unsigned());
+
+                    if new_min_size != self.min_inner_size {
+                        window.set_min_inner_size(new_min_size);
+                        self.min_inner_size = new_min_size;
+                    }
+                    let new_max_size = (max_width > 0 || max_height > 0)
+                        .then_some(Size::<Px>::new(max_width, max_height).into_unsigned());
+
+                    if new_max_size != self.max_inner_size && resizable {
+                        window.set_max_inner_size(new_max_size);
+                    }
+                    self.max_inner_size = new_max_size;
+                    break;
+                } else if let Some(wraps) = widget.as_widget().wraps().cloned() {
+                    drop(widget);
+
+                    root_or_child = wraps;
+                } else {
+                    break;
+                }
+            }
+        }
+
         let graphics = self.contents.new_frame(graphics);
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut context = GraphicsContext {
@@ -361,6 +415,18 @@ where
             ConstraintLimit::ClippedAfter(window_size.height),
         ));
         let render_size = actual_size.min(window_size);
+        if render_size != window_size && !resizable {
+            let mut new_size = actual_size;
+            if let Some(min_size) = self.min_inner_size {
+                new_size = new_size.max(min_size);
+            }
+            if let Some(max_size) = self.max_inner_size {
+                new_size = new_size.min(max_size);
+            }
+            let _ = layout_context
+                .winit()
+                .request_inner_size(PhysicalSize::from(new_size));
+        }
         self.root.set_layout(Rect::from(render_size.into_signed()));
 
         if self.initial_frame {

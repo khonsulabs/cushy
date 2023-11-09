@@ -156,6 +156,13 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     ) -> EventHandling {
         IGNORED
     }
+
+    /// Returns a reference to a single child widget if this widget is a widget
+    /// that primarily wraps a single other widget to customize its behavior.
+    #[must_use]
+    fn wraps(&mut self) -> Option<&WidgetInstance> {
+        None
+    }
 }
 
 impl<T> Run for T
@@ -170,7 +177,7 @@ where
 /// A [`Widget`] that contains a single child.
 pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the child widget.
-    fn child(&mut self) -> &mut WidgetRef;
+    fn child_mut(&mut self) -> &mut WidgetRef;
 
     /// Returns the rectangle that the child widget should occupy given
     /// `available_space`.
@@ -180,7 +187,7 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Rect<Px> {
-        let child = self.child().mounted(&mut context.as_event_context());
+        let child = self.child_mut().mounted(&mut context.as_event_context());
 
         context
             .for_other(&child)
@@ -312,8 +319,12 @@ impl<T> Widget for T
 where
     T: WrapperWidget,
 {
+    fn wraps(&mut self) -> Option<&WidgetInstance> {
+        Some(self.child_mut().widget())
+    }
+
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let child = self.child().mounted(&mut context.as_event_context());
+        let child = self.child_mut().mounted(&mut context.as_event_context());
         context.for_other(&child).redraw();
     }
 
@@ -322,7 +333,7 @@ where
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let child = self.child().mounted(&mut context.as_event_context());
+        let child = self.child_mut().mounted(&mut context.as_event_context());
 
         let layout = self.layout_child(available_space, context);
         context.set_child_layout(&child, layout);
@@ -1120,6 +1131,15 @@ impl WidgetRef {
             unreachable!("just initialized")
         };
         widget.clone()
+    }
+
+    /// Returns the a reference to the underlying widget instance.
+    #[must_use]
+    pub fn widget(&self) -> &WidgetInstance {
+        match self {
+            WidgetRef::Unmounted(widget) => widget,
+            WidgetRef::Mounted(managed) => &managed.widget,
+        }
     }
 }
 

@@ -21,7 +21,7 @@ tracing-subscriber = { version = "0.3", optional = true }
 
 
 # [patch."https://github.com/khonsulabs/kludgine"]
-# kludgine = { path = "../kludgine2" }
+# kludgine = { path = "../kludgine" }
 # [patch."https://github.com/khonsulabs/appit"]
 # appit = { path = "../appit" }
 # [patch."https://github.com/khonsulabs/figures"]
