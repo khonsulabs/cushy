@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use crate::animation::{EasingFunction, ZeroToOne};
 use crate::names::Name;
+use crate::styles::components::{FocusableWidgets, VisualOrder};
 use crate::utils::Lazy;
 use crate::value::{IntoValue, Value};
 
@@ -151,6 +152,10 @@ pub enum Component {
     Custom(CustomComponent),
     /// An easing function for animations.
     Easing(EasingFunction),
+    /// A visual ordering to use for layout.
+    VisualOrder(VisualOrder),
+    /// A description of what widgets should be focusable.
+    FocusableWidgets(FocusableWidgets),
 }
 
 impl From<Color> for Component {

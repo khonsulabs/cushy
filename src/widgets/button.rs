@@ -14,7 +14,7 @@ use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::names::Name;
 use crate::styles::components::{
-    Easing, HighlightColor, IntrinsicPadding, PrimaryColor, TextColor,
+    AutoFocusableControls, Easing, HighlightColor, IntrinsicPadding, PrimaryColor, TextColor,
 };
 use crate::styles::{ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
 use crate::utils::ModifiersExt;
@@ -180,9 +180,8 @@ impl Widget for Button {
         true
     }
 
-    fn accept_focus(&mut self, _context: &mut EventContext<'_, '_>) -> bool {
-        // TODO this should be driven by a "focus_all_widgets" setting that hopefully can be queried from the OS.
-        self.enabled.get()
+    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        self.enabled.get() && context.query_style(&AutoFocusableControls).is_all()
     }
 
     fn mouse_down(

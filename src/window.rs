@@ -27,7 +27,7 @@ use crate::context::{
     WidgetContext,
 };
 use crate::graphics::Graphics;
-use crate::styles::components::VisualOrder;
+use crate::styles::components::LayoutOrder;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, IntoDynamic};
@@ -492,18 +492,19 @@ where
                 }
                 Key::Tab if !window.modifiers().possible_shortcut() => {
                     if input.state.is_pressed() {
-                        let direction = if window.modifiers().state().shift_key() {
-                            VisualOrder::left_to_right().rev()
-                        } else {
-                            VisualOrder::left_to_right()
-                        };
+                        let reverse = window.modifiers().state().shift_key();
+
                         let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
                         let target = self.root.tree.widget(target).expect("missing widget");
                         let mut target = EventContext::new(
                             WidgetContext::new(target, &self.redraw_status, &mut window),
                             kludgine,
                         );
-                        target.advance_focus(direction);
+                        let mut visual_order = target.query_style(&LayoutOrder);
+                        if reverse {
+                            visual_order = visual_order.rev();
+                        }
+                        target.advance_focus(visual_order);
                     }
                 }
                 Key::Enter => {

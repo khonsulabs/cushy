@@ -7,7 +7,9 @@ use kludgine::Color;
 
 use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::EasingFunction;
-use crate::styles::{ComponentDefinition, ComponentName, Dimension, Global, NamedComponent};
+use crate::styles::{
+    Component, ComponentDefinition, ComponentName, Dimension, Global, NamedComponent,
+};
 
 /// The [`Dimension`] to use as the size to render text.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -181,7 +183,7 @@ impl ComponentDefinition for EasingOut {
 }
 
 /// A 2d ordering configuration.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Debug, Clone, Eq, PartialEq)]
 pub struct VisualOrder {
     /// The ordering to apply horizontally.
     pub horizontal: HorizontalOrder,
@@ -218,14 +220,43 @@ impl VisualOrder {
     }
 }
 
-impl NamedComponent for VisualOrder {
+/// The [`VisualOrder`] strategy to use when laying out content.
+#[derive(Debug)]
+pub struct LayoutOrder;
+
+impl NamedComponent for LayoutOrder {
     fn name(&self) -> Cow<'_, ComponentName> {
         Cow::Owned(ComponentName::named::<Global>("visual_order"))
     }
 }
 
+impl ComponentDefinition for LayoutOrder {
+    type ComponentType = VisualOrder;
+
+    fn default_value(&self) -> Self::ComponentType {
+        VisualOrder::left_to_right()
+    }
+}
+
+impl From<VisualOrder> for Component {
+    fn from(value: VisualOrder) -> Self {
+        Self::VisualOrder(value)
+    }
+}
+
+impl TryFrom<Component> for VisualOrder {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::VisualOrder(order) => Ok(order),
+            other => Err(other),
+        }
+    }
+}
+
 /// A horizontal direction.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum HorizontalOrder {
     /// Describes an order starting at the left and proceeding to the right.
     LeftToRight,
@@ -252,7 +283,7 @@ impl HorizontalOrder {
 }
 
 /// A vertical direction.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum VerticalOrder {
     /// Describes an order starting at the top and proceeding to the bottom.
     TopToBottom,
@@ -282,5 +313,65 @@ impl VerticalOrder {
             VerticalOrder::TopToBottom => a.min(b),
             VerticalOrder::BottomToTop => b.max(a),
         }
+    }
+}
+
+/// The set of controls to allow focusing via tab key and initial focus
+/// selection.
+pub struct AutoFocusableControls;
+
+impl NamedComponent for AutoFocusableControls {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("focus"))
+    }
+}
+
+impl ComponentDefinition for AutoFocusableControls {
+    type ComponentType = FocusableWidgets;
+
+    fn default_value(&self) -> Self::ComponentType {
+        FocusableWidgets::default()
+    }
+}
+
+impl From<FocusableWidgets> for Component {
+    fn from(value: FocusableWidgets) -> Self {
+        Self::FocusableWidgets(value)
+    }
+}
+
+impl TryFrom<Component> for FocusableWidgets {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::FocusableWidgets(focus) => Ok(focus),
+            other => Err(other),
+        }
+    }
+}
+
+/// A configuration option to control which controls should be able to receive
+/// focus through keyboard focus handling or initial focus handling.
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
+pub enum FocusableWidgets {
+    /// Allow all widgets that can respond to keyboard input to accept focus.
+    #[default]
+    All,
+    /// Only allow widgets that expect textual input to accept focus.
+    OnlyTextual,
+}
+
+impl FocusableWidgets {
+    /// Returns true if all controls should be focusable.
+    #[must_use]
+    pub const fn is_all(self) -> bool {
+        matches!(self, Self::All)
+    }
+
+    /// Returns true if only textual should be focusable.
+    #[must_use]
+    pub const fn is_only_textual(self) -> bool {
+        matches!(self, Self::OnlyTextual)
     }
 }
