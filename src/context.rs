@@ -451,6 +451,11 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// To ensure the correct color is used, include [`HighlightColor`] in the
     /// styles request.
     pub fn draw_focus_ring_using(&mut self, styles: &Styles) {
+        // If this is the root widget, don't draw a focus ring. It's redundant.
+        if !self.current_node.has_parent() {
+            return;
+        }
+
         let visible_rect = Rect::from(self.graphics.region().size - (Px(1), Px(1)));
         let focus_ring = Shape::stroked_rect(
             visible_rect,

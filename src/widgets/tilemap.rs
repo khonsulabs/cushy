@@ -69,6 +69,7 @@ where
         self.layers.map(|layers| {
             tilemap::draw(layers, focus, self.zoom, context.graphics.inner_graphics());
         });
+        context.draw_focus_ring();
 
         if let Some(tick) = &self.tick {
             tick.rendered(context);
@@ -76,6 +77,18 @@ where
             self.focus.redraw_when_changed(context);
             self.layers.redraw_when_changed(context);
         }
+    }
+
+    fn accept_focus(&mut self, _context: &mut EventContext<'_, '_>) -> bool {
+        true
+    }
+
+    fn hit_test(
+        &mut self,
+        _location: kludgine::figures::Point<kludgine::figures::units::Px>,
+        _context: &mut EventContext<'_, '_>,
+    ) -> bool {
+        true
     }
 
     fn layout(

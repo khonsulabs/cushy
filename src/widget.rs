@@ -16,7 +16,7 @@ use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::VisualOrder;
-use crate::styles::Styles;
+use crate::styles::{Component, NamedComponent, Styles};
 use crate::tree::Tree;
 use crate::value::{IntoValue, Value};
 use crate::widgets::{Align, Expand, Scroll, Style};
@@ -441,6 +441,13 @@ pub trait MakeWidget: Sized {
     where
         Self: Sized,
     {
+        Style::new(styles, self)
+    }
+
+    /// Associates a style component with `self`.
+    fn with(self, name: &impl NamedComponent, component: impl Into<Component>) -> Style {
+        let mut styles = Styles::new();
+        styles.insert(name, component);
         Style::new(styles, self)
     }
 
@@ -895,6 +902,12 @@ impl ManagedWidget {
         self.tree
             .parent(self.id())
             .and_then(|id| self.tree.widget(id))
+    }
+
+    /// Returns true if this node has a parent.
+    #[must_use]
+    pub fn has_parent(&self) -> bool {
+        self.tree.parent(self.id()).is_some()
     }
 
     pub(crate) fn attach_styles(&self, styles: Styles) {
