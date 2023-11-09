@@ -67,7 +67,7 @@ where
         let focus = self.focus.get();
         // TODO this needs to be updated to support being placed in side of a scroll view.
         self.layers.map(|layers| {
-            tilemap::draw(layers, focus, self.zoom, context.graphics.inner_graphics());
+            tilemap::draw(layers, focus, self.zoom, context.gfx.inner_graphics());
         });
         context.draw_focus_ring();
 

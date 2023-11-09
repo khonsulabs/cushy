@@ -69,17 +69,13 @@ impl WrapperWidget for Resize {
         let child = self.child.mounted(&mut context.as_event_context());
         let size = if let (Some(width), Some(height)) = (self.width, self.height) {
             Size::new(
-                width.into_px(context.graphics.scale()).into_unsigned(),
-                height.into_px(context.graphics.scale()).into_unsigned(),
+                width.into_px(context.gfx.scale()).into_unsigned(),
+                height.into_px(context.gfx.scale()).into_unsigned(),
             )
         } else {
             let available_space = Size::new(
-                override_constraint(available_space.width, self.width, context.graphics.scale()),
-                override_constraint(
-                    available_space.height,
-                    self.height,
-                    context.graphics.scale(),
-                ),
+                override_constraint(available_space.width, self.width, context.gfx.scale()),
+                override_constraint(available_space.height, self.height, context.gfx.scale()),
             );
             context.for_other(&child).layout(available_space)
         };

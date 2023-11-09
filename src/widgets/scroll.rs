@@ -94,13 +94,13 @@ impl Scroll {
             .scrollbar_opacity
             .transition_to(ZeroToOne::ONE)
             .over(Duration::from_millis(300))
-            .with_easing(styles.get_or_default(&EasingIn))
+            .with_easing(styles.get(&EasingIn, context))
             .and_then(Duration::from_secs(1))
             .and_then(
                 self.scrollbar_opacity
                     .transition_to(ZeroToOne::ZERO)
                     .over(Duration::from_millis(300))
-                    .with_easing(styles.get_or_default(&EasingOut)),
+                    .with_easing(styles.get(&EasingOut, context)),
             )
             .spawn();
     }
@@ -126,7 +126,7 @@ impl Widget for Scroll {
 
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
         context.redraw_when_changed(&self.scrollbar_opacity);
-        let Some(visible_rect) = context.graphics.visible_rect() else {
+        let Some(visible_rect) = context.gfx.visible_rect() else {
             return;
         };
         let visible_bottom_right = visible_rect.into_signed().extent();
@@ -135,7 +135,7 @@ impl Widget for Scroll {
         context.for_other(&managed).redraw();
 
         if self.horizontal_bar.amount_hidden > 0 {
-            context.graphics.draw_shape(
+            context.gfx.draw_shape(
                 &Shape::filled_rect(
                     Rect::new(
                         Point::new(
@@ -153,7 +153,7 @@ impl Widget for Scroll {
         }
 
         if self.vertical_bar.amount_hidden > 0 {
-            context.graphics.draw_shape(
+            context.gfx.draw_shape(
                 &Shape::filled_rect(
                     Rect::new(
                         Point::new(
@@ -178,11 +178,11 @@ impl Widget for Scroll {
     ) -> Size<UPx> {
         let styles = context.query_styles(&[&ScrollBarThickness, &LineHeight]);
         self.bar_width = styles
-            .get_or_default(&ScrollBarThickness)
-            .into_px(context.graphics.scale());
+            .get(&ScrollBarThickness, context)
+            .into_px(context.gfx.scale());
         self.line_height = styles
-            .get_or_default(&LineHeight)
-            .into_px(context.graphics.scale());
+            .get(&LineHeight, context)
+            .into_px(context.gfx.scale());
 
         let (mut scroll, current_max_scroll) = self.constrain_scroll();
 

@@ -88,15 +88,15 @@ impl Button {
             &Easing,
         ]);
         let background_color = if !self.enabled.get() {
-            styles.get_or_default(&ButtonDisabledBackground)
+            styles.get(&ButtonDisabledBackground, context)
         } else if context.active() {
-            styles.get_or_default(&ButtonActiveBackground)
+            styles.get(&ButtonActiveBackground, context)
         } else if context.hovered() {
-            styles.get_or_default(&ButtonHoverBackground)
+            styles.get(&ButtonHoverBackground, context)
         } else if context.is_default() {
-            styles.get_or_default(&PrimaryColor)
+            styles.get(&PrimaryColor, context)
         } else {
-            styles.get_or_default(&ButtonBackground)
+            styles.get(&ButtonBackground, context)
         };
 
         match (immediate, &self.background_color) {
@@ -104,7 +104,7 @@ impl Button {
                 self.background_color_animation = dynamic
                     .transition_to(background_color)
                     .over(Duration::from_millis(150))
-                    .with_easing(styles.get_or_default(&Easing))
+                    .with_easing(styles.get(&Easing, context))
                     .spawn();
             }
             (true, Some(dynamic)) => {
@@ -139,7 +139,7 @@ impl Widget for Button {
             self.currently_enabled = enabled;
         }
 
-        let size = context.graphics.region().size;
+        let size = context.gfx.region().size;
         let center = Point::from(size) / 2;
         self.label.redraw_when_changed(context);
         self.enabled.redraw_when_changed(context);
@@ -157,7 +157,7 @@ impl Widget for Button {
         let background = self.current_background_color(context);
         let background = Shape::filled_rect(visible_rect, background);
         context
-            .graphics
+            .gfx
             .draw_shape(&background, Point::default(), None, None);
 
         if context.focused() {
@@ -165,8 +165,9 @@ impl Widget for Button {
         }
 
         self.label.map(|label| {
-            context.graphics.draw_text(
-                Text::new(label, styles.get_or_default(&TextColor))
+            let text_color = styles.get(&TextColor, context);
+            context.gfx.draw_text(
+                Text::new(label, text_color)
                     .origin(kludgine::text::TextOrigin::Center)
                     .wrap_at(size.width),
                 center,
@@ -246,12 +247,12 @@ impl Widget for Button {
     ) -> Size<UPx> {
         let padding = context
             .query_style(&IntrinsicPadding)
-            .into_px(context.graphics.scale())
+            .into_px(context.gfx.scale())
             .into_unsigned();
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         self.label.map(|label| {
             let measured = context
-                .graphics
+                .gfx
                 .measure_text::<Px>(Text::from(label).wrap_at(width));
 
             let mut size = measured.size.into_unsigned();

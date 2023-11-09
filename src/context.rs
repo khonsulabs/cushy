@@ -401,7 +401,7 @@ pub struct GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass> {
     /// The graphics context clipped and offset to the area of the widget being
     /// rendered. Drawing at 0,0 will draw at the top-left pixel of the laid-out
     /// widget region.
-    pub graphics: Exclusive<'context, Graphics<'clip, 'gfx, 'pass>>,
+    pub gfx: Exclusive<'context, Graphics<'clip, 'gfx, 'pass>>,
 }
 
 impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass> {
@@ -409,7 +409,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     pub fn borrowed(&mut self) -> GraphicsContext<'_, 'window, 'clip, 'gfx, 'pass> {
         GraphicsContext {
             widget: self.widget.borrowed(),
-            graphics: Exclusive::Borrowed(&mut self.graphics),
+            gfx: Exclusive::Borrowed(&mut self.gfx),
         }
     }
 
@@ -428,12 +428,12 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         widget.manage(self).map(|widget| {
             let widget = self.widget.for_other(&widget);
             let layout = widget.last_layout().map_or_else(
-                || Rect::from(self.graphics.clip_rect().size).into_signed(),
-                |rect| rect - self.graphics.region().origin,
+                || Rect::from(self.gfx.clip_rect().size).into_signed(),
+                |rect| rect - self.gfx.region().origin,
             );
             GraphicsContext {
                 widget,
-                graphics: Exclusive::Owned(self.graphics.clipped_to(layout)),
+                gfx: Exclusive::Owned(self.gfx.clipped_to(layout)),
             }
         })
     }
@@ -442,7 +442,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     pub fn clipped_to(&mut self, clip: Rect<Px>) -> GraphicsContext<'_, 'window, '_, 'gfx, 'pass> {
         GraphicsContext {
             widget: self.widget.borrowed(),
-            graphics: Exclusive::Owned(self.graphics.clipped_to(clip)),
+            gfx: Exclusive::Owned(self.gfx.clipped_to(clip)),
         }
     }
 
@@ -456,13 +456,13 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
             return;
         }
 
-        let visible_rect = Rect::from(self.graphics.region().size - (Px(1), Px(1)));
+        let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
         let focus_ring = Shape::stroked_rect(
             visible_rect,
-            styles.get_or_default(&HighlightColor),
+            styles.get(&HighlightColor, self),
             StrokeOptions::default(),
         );
-        self.graphics
+        self.gfx
             .draw_shape(&focus_ring, Point::default(), None, None);
     }
 
@@ -519,7 +519,9 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> DerefMut
 
 /// A context to a function that is rendering a widget.
 pub struct LayoutContext<'context, 'window, 'clip, 'gfx, 'pass> {
-    graphics: GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
+    /// The graphics context that this layout operation is being performed
+    /// within.
+    pub graphics: GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
     persist_layout: bool,
 }
 
@@ -647,7 +649,7 @@ impl<'window> AsEventContext<'window> for EventContext<'_, 'window> {
 
 impl<'window> AsEventContext<'window> for GraphicsContext<'_, 'window, '_, '_, '_> {
     fn as_event_context(&mut self) -> EventContext<'_, 'window> {
-        EventContext::new(self.widget.borrowed(), &mut self.graphics)
+        EventContext::new(self.widget.borrowed(), &mut self.gfx)
     }
 }
 
@@ -886,7 +888,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     ) -> Component::ComponentType {
         self.current_node
             .tree
-            .query_style(&self.current_node, query)
+            .query_style(&self.current_node, query, self)
     }
 
     pub(crate) fn handle(&self) -> WindowHandle {

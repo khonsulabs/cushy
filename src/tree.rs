@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use kludgine::figures::units::Px;
 use kludgine::figures::{Point, Rect};
 
+use crate::context::WidgetContext;
 use crate::styles::components::VisualOrder;
 use crate::styles::{ComponentDefaultvalue, ComponentDefinition, ComponentType, Styles};
 use crate::widget::{ManagedWidget, WidgetId, WidgetInstance};
@@ -296,11 +297,12 @@ impl Tree {
         &self,
         perspective: &ManagedWidget,
         component: &Component,
+        context: &WidgetContext<'_, '_>,
     ) -> Component::ComponentType {
         self.data
             .lock()
             .map_or_else(PoisonError::into_inner, |g| g)
-            .query_style(perspective.id(), component)
+            .query_style(perspective.id(), component, context)
     }
 }
 
@@ -396,8 +398,8 @@ impl TreeData {
             let node = &self.nodes[&perspective];
             if let Some(styles) = &node.styles {
                 query.retain(|name| {
-                    if let Some(component) = styles.get(dbg!(name)) {
-                        resolved.insert(name, dbg!(component.clone()));
+                    if let Some(component) = styles.get_named(name) {
+                        resolved.insert(name, component.clone());
                         false
                     } else {
                         true
@@ -414,17 +416,18 @@ impl TreeData {
         &self,
         mut perspective: WidgetId,
         query: &Component,
+        context: &WidgetContext<'_, '_>,
     ) -> Component::ComponentType {
         let name = query.name();
         loop {
             let node = &self.nodes[&perspective];
             if let Some(styles) = &node.styles {
-                if let Some(component) = styles.get(&name) {
-                    let Ok(value) =
-                        <Component::ComponentType>::try_from_component(component.clone())
+                if let Some(component) = styles.get_named(&name) {
+                    let Ok(value) = <Component::ComponentType>::try_from_component(component.get())
                     else {
                         break;
                     };
+                    component.redraw_when_changed(context);
                     return value;
                 }
             }

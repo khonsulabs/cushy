@@ -11,15 +11,15 @@ fn main() -> gooey::Result<()> {
     Canvas::new(move |context| {
         angle += Angle::degrees(1);
 
-        let center = Point::from(context.graphics.size()).into_signed() / 2;
-        context.graphics.draw_text(
+        let center = Point::from(context.gfx.size()).into_signed() / 2;
+        context.gfx.draw_text(
             Text::new("Canvas exposes the full power of Kludgine", Color::WHITE)
                 .origin(TextOrigin::Center),
             center - Point::new(Px(0), Px(100)),
             None,
             None,
         );
-        context.graphics.draw_shape(
+        context.gfx.draw_shape(
             &Shape::filled_rect(
                 Rect::new(Point::new(Px(-50), Px(-50)), Size::new(Px(100), Px(100))),
                 Color::RED,

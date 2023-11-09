@@ -30,18 +30,19 @@ impl Widget for Label {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         self.text.redraw_when_changed(context);
 
-        let size = context.graphics.region().size;
+        let size = context.gfx.region().size;
         let center = Point::from(size) / 2;
         let styles = context.query_styles(&[&TextColor]);
 
         if let Some(measured) = &self.prepared_text {
             context
-                .graphics
+                .gfx
                 .draw_measured_text(measured, TextOrigin::Center, center, None, None);
         } else {
+            let text_color = styles.get(&TextColor, context);
             self.text.map(|contents| {
-                context.graphics.draw_text(
-                    Text::new(contents, styles.get_or_default(&TextColor))
+                context.gfx.draw_text(
+                    Text::new(contents, text_color)
                         .wrap_at(size.width)
                         .origin(TextOrigin::Center),
                     center,
@@ -59,12 +60,12 @@ impl Widget for Label {
     ) -> Size<UPx> {
         let padding = context
             .query_style(&IntrinsicPadding)
-            .into_px(context.graphics.scale())
+            .into_px(context.gfx.scale())
             .into_unsigned();
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         self.text.map(|contents| {
             let measured = context
-                .graphics
+                .gfx
                 .measure_text(Text::from(contents).wrap_at(width));
             let mut size = measured.size.try_cast().unwrap_or_default();
             size += padding * 2;

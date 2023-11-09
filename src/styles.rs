@@ -6,16 +6,17 @@ use std::ops::Add;
 use std::sync::Arc;
 
 use crate::animation::{EasingFunction, ZeroToOne};
+use crate::context::WidgetContext;
 use crate::names::Name;
 use crate::styles::components::{FocusableWidgets, VisualOrder};
 use crate::utils::Lazy;
-use crate::value::{IntoValue, Value};
+use crate::value::{Dynamic, IntoValue, Value};
 
 pub mod components;
 
 /// A collection of style components organized by their name.
 #[derive(Clone, Debug, Default)]
-pub struct Styles(Arc<HashMap<Group, HashMap<Name, Component>>>);
+pub struct Styles(Arc<HashMap<Group, HashMap<Name, Value<Component>>>>);
 
 impl Styles {
     /// Returns an empty collection.
@@ -32,15 +33,15 @@ impl Styles {
     }
 
     /// Inserts a [`Component`] with a given name.
-    pub fn insert_named(&mut self, name: ComponentName, component: impl Into<Component>) {
+    pub fn insert_named(&mut self, name: ComponentName, component: impl IntoComponentValue) {
         Arc::make_mut(&mut self.0)
             .entry(name.group)
             .or_default()
-            .insert(name.name, component.into());
+            .insert(name.name, component.into_component_value());
     }
 
     /// Inserts a [`Component`] using then name provided.
-    pub fn insert(&mut self, name: &impl NamedComponent, component: impl Into<Component>) {
+    pub fn insert(&mut self, name: &impl NamedComponent, component: impl IntoComponentValue) {
         let name = name.name().into_owned();
         self.insert_named(name, component);
     }
@@ -54,7 +55,7 @@ impl Styles {
 
     /// Returns the associated component for the given name, if found.
     #[must_use]
-    pub fn get<Named>(&self, component: &Named) -> Option<&Component>
+    pub fn get_named<Named>(&self, component: &Named) -> Option<&Value<Component>>
     where
         Named: NamedComponent + ?Sized,
     {
@@ -67,7 +68,11 @@ impl Styles {
     /// Returns the component associated with the given name, or if not found,
     /// returns the default value provided by the definition.
     #[must_use]
-    pub fn get_or_default<Named>(&self, component: &Named) -> Named::ComponentType
+    pub fn get<Named>(
+        &self,
+        component: &Named,
+        context: &WidgetContext<'_, '_>,
+    ) -> Named::ComponentType
     where
         Named: ComponentDefinition + ?Sized,
     {
@@ -76,9 +81,41 @@ impl Styles {
             .get(&name.group)
             .and_then(|group| group.get(&name.name))
             .and_then(|component| {
-                <Named::ComponentType>::try_from_component(component.clone()).ok()
+                component.redraw_when_changed(context);
+                <Named::ComponentType>::try_from_component(component.get()).ok()
             })
             .unwrap_or_else(|| component.default_value())
+    }
+}
+
+/// A value that can be converted into a `Value<Component>`.
+pub trait IntoComponentValue {
+    /// Returns `self` stored in a component value.
+    fn into_component_value(self) -> Value<Component>;
+}
+
+impl<T> IntoComponentValue for T
+where
+    T: Into<Component>,
+{
+    fn into_component_value(self) -> Value<Component> {
+        Value::Constant(self.into())
+    }
+}
+
+impl IntoComponentValue for Value<Component> {
+    fn into_component_value(self) -> Value<Component> {
+        self
+    }
+}
+
+impl<T> IntoComponentValue for Dynamic<T>
+where
+    T: Clone,
+    Component: From<T>,
+{
+    fn into_component_value(self) -> Value<Component> {
+        Value::Dynamic(self.map_each_into())
     }
 }
 
@@ -95,7 +132,7 @@ impl FromIterator<(ComponentName, Component)> for Styles {
 
 impl IntoIterator for Styles {
     type IntoIter = StylesIntoIter;
-    type Item = (ComponentName, Component);
+    type Item = (ComponentName, Value<Component>);
 
     fn into_iter(self) -> Self::IntoIter {
         StylesIntoIter {
@@ -109,12 +146,12 @@ impl IntoIterator for Styles {
 
 /// An iterator over the owned contents of a [`Styles`] instance.
 pub struct StylesIntoIter {
-    main: hash_map::IntoIter<Group, HashMap<Name, Component>>,
-    names: Option<(Group, hash_map::IntoIter<Name, Component>)>,
+    main: hash_map::IntoIter<Group, HashMap<Name, Value<Component>>>,
+    names: Option<(Group, hash_map::IntoIter<Name, Value<Component>>)>,
 }
 
 impl Iterator for StylesIntoIter {
-    type Item = (ComponentName, Component);
+    type Item = (ComponentName, Value<Component>);
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {

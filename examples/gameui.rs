@@ -16,8 +16,8 @@ fn main() -> gooey::Result {
         Stack::columns(
             Label::new(chat_log.clone()).vertical_scroll().expand().and(
                 Canvas::new(|context| {
-                    let entire_canvas = Rect::from(context.graphics.size());
-                    context.graphics.draw_shape(
+                    let entire_canvas = Rect::from(context.gfx.size());
+                    context.gfx.draw_shape(
                         &Shape::filled_rect(entire_canvas, Color::RED),
                         Point::default(),
                         None,

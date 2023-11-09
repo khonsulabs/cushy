@@ -82,10 +82,10 @@ impl WrapperWidget for Expand {
         Size::<UPx>::new(
             available_space
                 .width
-                .fit_measured(size.width, context.graphics.scale()),
+                .fit_measured(size.width, context.gfx.scale()),
             available_space
                 .height
-                .fit_measured(size.height, context.graphics.scale()),
+                .fit_measured(size.height, context.gfx.scale()),
         )
         .into_signed()
         .into()

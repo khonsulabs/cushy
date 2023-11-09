@@ -90,8 +90,8 @@ impl Align {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Layout {
         let margin = self.edges.get();
-        let vertical = FrameInfo::new(context.graphics.scale(), margin.top, margin.bottom);
-        let horizontal = FrameInfo::new(context.graphics.scale(), margin.left, margin.right);
+        let vertical = FrameInfo::new(context.gfx.scale(), margin.top, margin.bottom);
+        let horizontal = FrameInfo::new(context.gfx.scale(), margin.left, margin.right);
 
         let content_available = Size::new(
             horizontal.child_constraint(available_space.width),

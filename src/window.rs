@@ -352,10 +352,10 @@ where
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut context = GraphicsContext {
             widget: WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
-            graphics: Exclusive::Owned(Graphics::new(graphics)),
+            gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
         let mut layout_context = LayoutContext::new(&mut context);
-        let window_size = layout_context.graphics.size();
+        let window_size = layout_context.gfx.size();
         let actual_size = layout_context.layout(Size::new(
             ConstraintLimit::ClippedAfter(window_size.width),
             ConstraintLimit::ClippedAfter(window_size.height),

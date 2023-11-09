@@ -62,7 +62,12 @@ impl Input {
         self
     }
 
-    fn editor_mut(&mut self, kludgine: &mut Kludgine, styles: &Styles) -> &mut Editor {
+    fn editor_mut(
+        &mut self,
+        kludgine: &mut Kludgine,
+        styles: &Styles,
+        context: &WidgetContext<'_, '_>,
+    ) -> &mut Editor {
         match (&self.editor, self.text.generation()) {
             (Some(editor), generation) if editor.generation == generation => {}
             (_, generation) => {
@@ -70,11 +75,8 @@ impl Input {
                 let mut buffer = Buffer::new(
                     kludgine.font_system(),
                     Metrics::new(
-                        styles.get_or_default(&TextSize).into_px(scale).into_float(),
-                        styles
-                            .get_or_default(&LineHeight)
-                            .into_px(scale)
-                            .into_float(),
+                        styles.get(&TextSize, context).into_px(scale).into_float(),
+                        styles.get(&LineHeight, context).into_px(scale).into_float(),
                     ),
                 );
                 self.text.map(|text| {
@@ -132,13 +134,14 @@ impl Widget for Input {
     ) -> EventHandling {
         context.focus();
         let styles = context.query_styles(&[&TextColor]);
-        self.editor_mut(context.kludgine, &styles).action(
-            context.kludgine.font_system(),
-            Action::Click {
-                x: location.x.0,
-                y: location.y.0,
-            },
-        );
+        self.editor_mut(context.kludgine, &styles, &context.widget)
+            .action(
+                context.kludgine.font_system(),
+                Action::Click {
+                    x: location.x.0,
+                    y: location.y.0,
+                },
+            );
         context.set_needs_redraw();
         HANDLED
     }
@@ -151,13 +154,14 @@ impl Widget for Input {
         context: &mut EventContext<'_, '_>,
     ) {
         let styles = context.query_styles(&[&TextColor]);
-        self.editor_mut(context.kludgine, &styles).action(
-            context.kludgine.font_system(),
-            Action::Drag {
-                x: location.x.0,
-                y: location.y.0,
-            },
-        );
+        self.editor_mut(context.kludgine, &styles, &context.widget)
+            .action(
+                context.kludgine.font_system(),
+                Action::Drag {
+                    x: location.x.0,
+                    y: location.y.0,
+                },
+            );
         self.cursor_state.force_on();
         context.set_needs_redraw();
     }
@@ -166,19 +170,19 @@ impl Widget for Input {
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
         self.cursor_state.update(context.elapsed());
         let cursor_state = self.cursor_state;
-        let size = context.graphics.size();
+        let size = context.gfx.size();
         let styles = context.query_styles(&[&TextColor, &HighlightColor]);
-        let highlight = styles.get_or_default(&HighlightColor);
-        let editor = self.editor_mut(&mut context.graphics, &styles);
+        let highlight = styles.get(&HighlightColor, context);
+        let editor = self.editor_mut(&mut context.gfx, &styles, &context.widget);
         let cursor = editor.cursor();
         let selection = editor.select_opt();
         let buffer = editor.buffer_mut();
         buffer.set_size(
-            context.graphics.font_system(),
+            context.gfx.font_system(),
             size.width.into_float(),
             size.height.into_float(),
         );
-        buffer.shape_until_scroll(context.graphics.font_system());
+        buffer.shape_until_scroll(context.gfx.font_system());
 
         if context.focused() {
             context.draw_focus_ring_using(&styles);
@@ -196,7 +200,7 @@ impl Widget for Input {
                         if start_position.y == end_position.y {
                             // Single line selection
                             let width = end_position.x - start_position.x + end_width;
-                            context.graphics.draw_shape(
+                            context.gfx.draw_shape(
                                 &Shape::filled_rect(
                                     Rect::new(start_position, Size::new(width, line_height)),
                                     highlight,
@@ -208,7 +212,7 @@ impl Widget for Input {
                         } else {
                             // Draw from start to end of line,
                             let width = size.width.into_signed() - start_position.x;
-                            context.graphics.draw_shape(
+                            context.gfx.draw_shape(
                                 &Shape::filled_rect(
                                     Rect::new(start_position, Size::new(width, line_height)),
                                     highlight,
@@ -221,7 +225,7 @@ impl Widget for Input {
                             let bottom_of_first_line = start_position.y + line_height;
                             let distance_between = end_position.y - bottom_of_first_line;
                             if distance_between > 0 {
-                                context.graphics.draw_shape(
+                                context.gfx.draw_shape(
                                     &Shape::filled_rect(
                                         Rect::new(
                                             Point::new(Px(0), bottom_of_first_line),
@@ -235,7 +239,7 @@ impl Widget for Input {
                                 );
                             }
                             // Draw from 0 to end + width
-                            context.graphics.draw_shape(
+                            context.gfx.draw_shape(
                                 &Shape::filled_rect(
                                     Rect::new(
                                         Point::new(Px(0), end_position.y),
@@ -251,7 +255,7 @@ impl Widget for Input {
                     }
                     (Ok((start_position, _)), Err(_)) => {
                         let width = size.width.into_signed() - start_position.x;
-                        context.graphics.draw_shape(
+                        context.gfx.draw_shape(
                             &Shape::filled_rect(
                                 Rect::new(start_position, Size::new(width, line_height)),
                                 highlight,
@@ -265,7 +269,7 @@ impl Widget for Input {
                         if end_position.y > 0 {
                             todo!("fill above start");
                         }
-                        context.graphics.draw_shape(
+                        context.gfx.draw_shape(
                             &Shape::filled_rect(
                                 Rect::new(
                                     Point::new(Px(0), end_position.y),
@@ -288,7 +292,7 @@ impl Widget for Input {
             } else if let Ok((location, _)) = cursor_glyph(buffer, &cursor) {
                 let window_focused = context.window().focused().get();
                 if window_focused && cursor_state.visible {
-                    context.graphics.draw_shape(
+                    context.gfx.draw_shape(
                         &Shape::filled_rect(
                             Rect::new(
                                 location,
@@ -309,9 +313,10 @@ impl Widget for Input {
             }
         }
 
-        context.graphics.draw_text_buffer(
+        let text_color = styles.get(&TextColor, context);
+        context.gfx.draw_text_buffer(
             buffer,
-            styles.get_or_default(&TextColor),
+            text_color,
             TextOrigin::TopLeft,
             Point::<Px>::default(),
             None,
@@ -325,15 +330,15 @@ impl Widget for Input {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let styles = context.query_styles(&[&TextColor]);
-        let editor = self.editor_mut(&mut context.graphics, &styles);
+        let editor = self.editor_mut(&mut context.graphics.gfx, &styles, &context.graphics.widget);
         let buffer = editor.buffer_mut();
         buffer.set_size(
-            context.graphics.font_system(),
+            context.gfx.font_system(),
             available_space.width.max().into_float(),
             available_space.height.max().into_float(),
         );
         context
-            .graphics
+            .gfx
             .measure_text_buffer::<Px>(buffer, Color::WHITE)
             .size
             .into_unsigned()
@@ -351,7 +356,7 @@ impl Widget for Input {
         }
 
         let styles = context.query_styles(&[&TextColor]);
-        let editor = self.editor_mut(context.kludgine, &styles);
+        let editor = self.editor_mut(context.kludgine, &styles, &context.widget);
 
         // println!(
         //     "Keyboard input: {:?}. {:?}, {:?}",
@@ -434,11 +439,15 @@ impl Widget for Input {
         match ime {
             Ime::Enabled | Ime::Disabled => {}
             Ime::Preedit(text, cursor) => {
-                println!("TODO: preview IME input {text}, cursor: {cursor:?}");
+                tracing::warn!("TODO: preview IME input {text}, cursor: {cursor:?}");
             }
             Ime::Commit(text) => {
-                self.editor_mut(context.kludgine, &Self::styles(&context.widget))
-                    .insert_string(&text, None);
+                self.editor_mut(
+                    context.kludgine,
+                    &Self::styles(&context.widget),
+                    &context.widget,
+                )
+                .insert_string(&text, None);
                 context.set_needs_redraw();
             }
         }

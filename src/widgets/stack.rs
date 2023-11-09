@@ -145,7 +145,7 @@ impl Widget for Stack {
 
         let content_size = self.layout.update(
             available_space,
-            context.graphics.scale(),
+            context.gfx.scale(),
             |child_index, constraints, persist| {
                 let mut context = context.for_other(&self.synced_children[child_index]);
                 if !persist {
