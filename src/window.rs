@@ -19,6 +19,7 @@ use kludgine::app::WindowBehavior as _;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 use kludgine::render::Drawing;
+use kludgine::wgpu::CompositeAlphaMode;
 use kludgine::Kludgine;
 use tracing::Level;
 
@@ -201,6 +202,7 @@ where
         GooeyWindow::<Behavior>::run_with(AssertUnwindSafe(sealed::Context {
             user: self.context,
             settings: RefCell::new(sealed::WindowSettings {
+                transparent: self.attributes.transparent,
                 attributes: Some(self.attributes),
                 occluded: self.occluded,
                 focused: self.focused,
@@ -258,6 +260,7 @@ struct GooeyWindow<T> {
     max_inner_size: Option<Size<UPx>>,
     theme: Option<DynamicReader<ThemePair>>,
     current_theme: ThemePair,
+    transparent: bool,
 }
 
 impl<T> GooeyWindow<T>
@@ -405,6 +408,7 @@ where
             .theme
             .take()
             .expect("theme always present");
+        let transparent = context.settings.borrow().transparent;
         let mut behavior = T::initialize(
             &mut RunningWindow::new(window, &focused, &occluded),
             context.user,
@@ -435,6 +439,7 @@ where
             max_inner_size: None,
             current_theme,
             theme,
+            transparent,
         }
     }
 
@@ -473,8 +478,11 @@ where
         let mut layout_context = LayoutContext::new(&mut context);
         let window_size = layout_context.gfx.size();
 
-        let background_color = layout_context.theme().surface.color;
-        layout_context.graphics.gfx.fill(background_color);
+        if !self.transparent {
+            let background_color = layout_context.theme().surface.color;
+            layout_context.graphics.gfx.fill(background_color);
+        }
+
         let actual_size = layout_context.layout(if is_expanded {
             Size::new(
                 ConstraintLimit::Known(window_size.width),
@@ -577,9 +585,23 @@ where
     //     wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter_limits)
     // }
 
-    // fn clear_color() -> Option<kludgine::Color> {
-    //     Some(kludgine::Color::BLACK)
-    // }
+    fn clear_color(&self) -> Option<kludgine::Color> {
+        Some(if self.transparent {
+            kludgine::Color::CLEAR_BLACK
+        } else {
+            kludgine::Color::BLACK
+        })
+    }
+
+    fn composite_alpha_mode(&self, supported_modes: &[CompositeAlphaMode]) -> CompositeAlphaMode {
+        if dbg!(self.transparent)
+            && dbg!(supported_modes).contains(&CompositeAlphaMode::PreMultiplied)
+        {
+            CompositeAlphaMode::PreMultiplied
+        } else {
+            CompositeAlphaMode::Auto
+        }
+    }
 
     // fn focus_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 
@@ -967,6 +989,7 @@ pub(crate) mod sealed {
         pub occluded: Option<Dynamic<bool>>,
         pub focused: Option<Dynamic<bool>>,
         pub theme: Option<Value<ThemePair>>,
+        pub transparent: bool,
     }
 
     pub enum WindowCommand {
