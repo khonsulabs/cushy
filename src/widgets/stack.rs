@@ -454,8 +454,6 @@ impl Layout {
             self.other = self.other.max(measured);
         }
 
-        println!("Total height: {offset}");
-
         self.other = match other_constraint {
             ConstraintLimit::Known(max) => self.other.max(max),
             ConstraintLimit::ClippedAfter(clip_limit) => self.other.min(clip_limit),

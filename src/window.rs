@@ -594,9 +594,7 @@ where
     }
 
     fn composite_alpha_mode(&self, supported_modes: &[CompositeAlphaMode]) -> CompositeAlphaMode {
-        if dbg!(self.transparent)
-            && dbg!(supported_modes).contains(&CompositeAlphaMode::PreMultiplied)
-        {
+        if self.transparent && supported_modes.contains(&CompositeAlphaMode::PreMultiplied) {
             CompositeAlphaMode::PreMultiplied
         } else {
             CompositeAlphaMode::Auto
