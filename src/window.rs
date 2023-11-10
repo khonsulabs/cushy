@@ -19,7 +19,6 @@ use kludgine::app::WindowBehavior as _;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 use kludgine::render::Drawing;
-use kludgine::shapes::Shape;
 use kludgine::Kludgine;
 use tracing::Level;
 
@@ -29,14 +28,14 @@ use crate::context::{
 };
 use crate::graphics::Graphics;
 use crate::styles::components::LayoutOrder;
-use crate::styles::{ColorSource, ThemePair};
+use crate::styles::ThemePair;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, Value};
 use crate::widget::{
     EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
-use crate::widgets::Resize;
+use crate::widgets::{Expand, Resize};
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit, Run};
 
@@ -186,14 +185,7 @@ where
                 ..WindowAttributes::default()
             },
             context,
-            theme: Value::Constant(ThemePair::from_sources(
-                ColorSource::new(-120., 0.8),
-                ColorSource::new(0., 0.3),
-                ColorSource::new(-30., 0.3),
-                ColorSource::new(30., 0.8),
-                ColorSource::new(0., 0.001),
-                ColorSource::new(30., 0.),
-            )),
+            theme: Value::default(),
             occluded: None,
             focused: None,
         }
@@ -330,8 +322,9 @@ where
         resizable: bool,
         window: &kludgine::app::Window<'_, WindowCommand>,
         graphics: &mut kludgine::Graphics<'_>,
-    ) {
+    ) -> bool {
         let mut root_or_child = self.root.widget.clone();
+        let mut is_expanded = false;
         loop {
             let mut widget = root_or_child.lock();
             if let Some(resize) = widget.downcast_ref::<Resize>() {
@@ -366,8 +359,11 @@ where
                     window.set_max_inner_size(new_max_size);
                 }
                 self.max_inner_size = new_max_size;
-                break;
-            } else if let Some(wraps) = widget.as_widget().wraps().cloned() {
+            } else if widget.downcast_ref::<Expand>().is_some() {
+                is_expanded = true;
+            }
+
+            if let Some(wraps) = widget.as_widget().wraps().cloned() {
                 drop(widget);
 
                 root_or_child = wraps;
@@ -375,6 +371,8 @@ where
                 break;
             }
         }
+
+        is_expanded
     }
 }
 
@@ -459,7 +457,7 @@ where
         self.root.tree.reset_render_order();
 
         let resizable = window.winit().is_resizable();
-        self.constrain_window_resizing(resizable, &window, graphics);
+        let is_expanded = self.constrain_window_resizing(resizable, &window, graphics);
 
         let graphics = self.contents.new_frame(graphics);
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
@@ -476,16 +474,18 @@ where
         let window_size = layout_context.gfx.size();
 
         let background_color = layout_context.theme().surface.color;
-        layout_context.graphics.gfx.draw_shape(
-            &Shape::filled_rect(window_size.into(), background_color),
-            Point::default(),
-            None,
-            None,
-        );
-        let actual_size = layout_context.layout(Size::new(
-            ConstraintLimit::ClippedAfter(window_size.width),
-            ConstraintLimit::ClippedAfter(window_size.height),
-        ));
+        layout_context.graphics.gfx.fill(background_color);
+        let actual_size = layout_context.layout(if is_expanded {
+            Size::new(
+                ConstraintLimit::Known(window_size.width),
+                ConstraintLimit::Known(window_size.height),
+            )
+        } else {
+            Size::new(
+                ConstraintLimit::ClippedAfter(window_size.width),
+                ConstraintLimit::ClippedAfter(window_size.height),
+            )
+        });
         let render_size = actual_size.min(window_size);
         if render_size != window_size && !resizable {
             let mut new_size = actual_size;

@@ -1,11 +1,9 @@
 use gooey::value::Dynamic;
 use gooey::widget::{MakeWidget, HANDLED, IGNORED};
-use gooey::widgets::{Canvas, Input, Label, Stack};
+use gooey::widgets::{Input, Label, Space, Stack};
 use gooey::Run;
 use kludgine::app::winit::event::ElementState;
 use kludgine::app::winit::keyboard::Key;
-use kludgine::figures::{Point, Rect};
-use kludgine::shapes::Shape;
 use kludgine::Color;
 
 fn main() -> gooey::Result {
@@ -14,18 +12,10 @@ fn main() -> gooey::Result {
 
     Stack::rows(
         Stack::columns(
-            Label::new(chat_log.clone()).vertical_scroll().expand().and(
-                Canvas::new(|context| {
-                    let entire_canvas = Rect::from(context.gfx.size());
-                    context.gfx.draw_shape(
-                        &Shape::filled_rect(entire_canvas, Color::RED),
-                        Point::default(),
-                        None,
-                        None,
-                    );
-                })
-                .expand_weighted(2),
-            ),
+            Label::new(chat_log.clone())
+                .vertical_scroll()
+                .expand()
+                .and(Space::colored(Color::RED).expand_weighted(2)),
         )
         .expand()
         .and(Input::new(chat_message.clone()).on_key(move |input| {

@@ -87,11 +87,10 @@ impl Stack {
                             let guard = widget.lock();
                             let (mut widget, dimension) =
                                 if let Some(expand) = guard.downcast_ref::<Expand>() {
+                                    let weight = expand.weight;
                                     (
-                                        expand.child().clone(),
-                                        StackDimension::Fractional {
-                                            weight: expand.weight,
-                                        },
+                                        WidgetRef::Unmounted(widget.clone()),
+                                        StackDimension::Fractional { weight },
                                     )
                                 } else if let Some((child, size)) =
                                     guard.downcast_ref::<Resize>().and_then(|r| {
@@ -139,8 +138,10 @@ impl Stack {
 
 impl Widget for Stack {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        for child in &self.synced_children {
-            context.for_other(child).redraw();
+        for (layout, child) in self.layout.iter().zip(&self.synced_children) {
+            if layout.size > 0 {
+                context.for_other(child).redraw();
+            }
         }
     }
 

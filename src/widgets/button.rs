@@ -6,7 +6,6 @@ use std::time::Duration;
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoUnsigned, Point, Rect, ScreenScale, Size};
-use kludgine::shapes::Shape;
 use kludgine::text::Text;
 use kludgine::Color;
 
@@ -176,13 +175,8 @@ impl Widget for Button {
         self.label.redraw_when_changed(context);
         self.enabled.redraw_when_changed(context);
 
-        let visible_rect = Rect::from(size - (Px(1), Px(1)));
-
         let (background_color, text_color) = self.current_colors(context);
-        let background = Shape::filled_rect(visible_rect, background_color);
-        context
-            .gfx
-            .draw_shape(&background, Point::default(), None, None);
+        context.gfx.fill(background_color);
 
         if context.focused() {
             context.draw_focus_ring();

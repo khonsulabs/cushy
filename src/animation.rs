@@ -17,7 +17,8 @@
 //! ```rust
 //! use std::time::Duration;
 //!
-//! use gooey::animation::{AnimationTarget, EaseInOutElastic, Spawn};
+//! use gooey::animation::easings::EaseInOutElastic;
+//! use gooey::animation::{AnimationTarget, Spawn};
 //! use gooey::value::Dynamic;
 //!
 //! let value = Dynamic::new(0);

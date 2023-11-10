@@ -1,16 +1,48 @@
 use kludgine::figures::units::UPx;
 use kludgine::figures::Size;
+use kludgine::Color;
 
 use crate::context::{GraphicsContext, LayoutContext};
+use crate::value::{IntoValue, Value};
 use crate::widget::Widget;
 use crate::ConstraintLimit;
 
-/// A widget that does nothing and draws nothing.
+/// A widget that occupies space, optionally filling it with a color.
 #[derive(Debug, Clone)]
-pub struct Space;
+pub struct Space {
+    color: Value<Color>,
+}
+
+impl Default for Space {
+    fn default() -> Self {
+        Self::clear()
+    }
+}
+
+impl Space {
+    /// Returns a widget that draws nothing.
+    #[must_use]
+    pub const fn clear() -> Self {
+        Self {
+            color: Value::Constant(Color::CLEAR_BLACK),
+        }
+    }
+
+    /// Returns a widget that fills its space with `color`.
+    #[must_use]
+    pub fn colored(color: impl IntoValue<Color>) -> Self {
+        Self {
+            color: color.into_value(),
+        }
+    }
+}
 
 impl Widget for Space {
-    fn redraw(&mut self, _context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {}
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        self.color.redraw_when_changed(context);
+        let color = self.color.get();
+        context.gfx.fill(color);
+    }
 
     fn layout(
         &mut self,

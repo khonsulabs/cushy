@@ -5,7 +5,7 @@ pub mod button;
 mod canvas;
 mod expand;
 mod input;
-mod label;
+pub mod label;
 mod resize;
 pub mod scroll;
 mod space;

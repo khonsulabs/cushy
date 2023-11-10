@@ -38,7 +38,7 @@ impl Expand {
     #[must_use]
     pub fn empty() -> Self {
         Self {
-            child: WidgetRef::new(Space),
+            child: WidgetRef::new(Space::clear()),
             weight: 1,
         }
     }

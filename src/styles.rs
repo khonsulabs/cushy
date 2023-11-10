@@ -889,6 +889,23 @@ impl ThemePair {
     }
 }
 
+impl Default for ThemePair {
+    fn default() -> Self {
+        const PRIMARY_HUE: f32 = -120.;
+        const SECONDARY_HUE: f32 = 0.;
+        const TERTIARY_HUE: f32 = -30.;
+        const ERROR_HUE: f32 = 30.;
+        Self::from_sources(
+            ColorSource::new(PRIMARY_HUE, 0.8),
+            ColorSource::new(SECONDARY_HUE, 0.3),
+            ColorSource::new(TERTIARY_HUE, 0.3),
+            ColorSource::new(ERROR_HUE, 0.8),
+            ColorSource::new(0., 0.001),
+            ColorSource::new(30., 0.),
+        )
+    }
+}
+
 /// A Gooey Color theme.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Theme {
