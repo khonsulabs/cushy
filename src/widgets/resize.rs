@@ -1,3 +1,4 @@
+use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size};
 
 use crate::context::{AsEventContext, LayoutContext};
@@ -81,7 +82,12 @@ impl WrapperWidget for Resize {
             );
             context.for_other(&child).layout(available_space)
         };
-        Rect::from(size.into_signed())
+        Size::<UPx>::new(
+            self.width.clamp(size.width, context.gfx.scale()),
+            self.height.clamp(size.height, context.gfx.scale()),
+        )
+        .into_signed()
+        .into()
     }
 }
 
@@ -92,8 +98,11 @@ fn override_constraint(
 ) -> ConstraintLimit {
     match constraint {
         ConstraintLimit::Known(size) => ConstraintLimit::Known(range.clamp(size, scale)),
-        ConstraintLimit::ClippedAfter(clipped_after) => {
-            ConstraintLimit::ClippedAfter(range.clamp(clipped_after, scale))
-        }
+        ConstraintLimit::ClippedAfter(clipped_after) => match (range.minimum(), range.maximum()) {
+            (Some(min), Some(max)) if min == max => {
+                ConstraintLimit::Known(min.into_px(scale).into_unsigned())
+            }
+            _ => ConstraintLimit::ClippedAfter(range.clamp(clipped_after, scale)),
+        },
     }
 }

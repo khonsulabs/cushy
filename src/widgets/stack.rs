@@ -403,18 +403,14 @@ impl Layout {
         // Measure the children that fit their content
         for &id in &self.measured {
             let index = self.children.index_of_id(id).expect("child not found");
-            if remaining > 0 {
-                let (measured, _) = self.orientation.split_size(measure(
-                    index,
-                    self.orientation
-                        .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
-                    false,
-                ));
-                self.layouts[index].size = measured;
-                remaining = remaining.saturating_sub(measured);
-            } else {
-                self.layouts[index].size = UPx(0);
-            }
+            let (measured, _) = self.orientation.split_size(measure(
+                index,
+                self.orientation
+                    .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
+                false,
+            ));
+            self.layouts[index].size = measured;
+            remaining = remaining.saturating_sub(measured);
         }
 
         // Measure the weighted children within the remaining space
@@ -449,14 +445,16 @@ impl Layout {
             offset += self.layouts[index].size;
             let (_, measured) = self.orientation.split_size(measure(
                 index,
-                self.orientation.make_size(
+                dbg!(self.orientation.make_size(
                     ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
                     other_constraint,
-                ),
+                )),
                 true,
             ));
             self.other = self.other.max(measured);
         }
+
+        println!("Total height: {offset}");
 
         self.other = match other_constraint {
             ConstraintLimit::Known(max) => self.other.max(max),
