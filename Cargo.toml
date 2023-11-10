@@ -17,7 +17,9 @@ kempt = "0.2.1"
 intentional = "0.1.0"
 tracing = "0.1.40"
 
-tracing-subscriber = { version = "0.3", optional = true }
+tracing-subscriber = { version = "0.3", optional = true, features = [
+    "env-filter",
+] }
 palette = "0.7.3"
 
 

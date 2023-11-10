@@ -142,14 +142,24 @@ fn initialize_tracing() {
     #[cfg(feature = "tracing-output")]
     {
         use tracing::Level;
+        use tracing_subscriber::filter::LevelFilter;
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+        use tracing_subscriber::EnvFilter;
 
         #[cfg(debug_assertions)]
-        const MAX_LEVEL: Level = Level::DEBUG;
+        const MAX_LEVEL: Level = Level::INFO;
         #[cfg(not(debug_assertions))]
         const MAX_LEVEL: Level = Level::ERROR;
 
         let _result = tracing_subscriber::fmt::fmt()
             .with_max_level(MAX_LEVEL)
+            .finish()
+            .with(
+                EnvFilter::builder()
+                    .with_default_directive(LevelFilter::from_level(MAX_LEVEL).into())
+                    .from_env_lossy(),
+            )
             .try_init();
     }
 }
