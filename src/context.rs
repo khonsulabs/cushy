@@ -6,6 +6,7 @@ use std::sync::Arc;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
+use kludgine::app::winit::window;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, Point, Rect, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
@@ -13,7 +14,7 @@ use kludgine::Kludgine;
 
 use crate::graphics::Graphics;
 use crate::styles::components::{HighlightColor, VisualOrder};
-use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles};
+use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles, Theme, ThemePair};
 use crate::value::Dynamic;
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
 use crate::window::sealed::WindowCommand;
@@ -661,6 +662,7 @@ pub struct WidgetContext<'context, 'window> {
     current_node: ManagedWidget,
     redraw_status: &'context RedrawStatus,
     window: &'context mut RunningWindow<'window>,
+    theme: &'context ThemePair,
     pending_state: PendingState<'context>,
 }
 
@@ -668,6 +670,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     pub(crate) fn new(
         current_node: ManagedWidget,
         redraw_status: &'context RedrawStatus,
+        theme: &'context ThemePair,
         window: &'context mut RunningWindow<'window>,
     ) -> Self {
         Self {
@@ -683,6 +686,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             }),
             current_node,
             redraw_status,
+            theme,
             window,
         }
     }
@@ -693,6 +697,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             current_node: self.current_node.clone(),
             redraw_status: self.redraw_status,
             window: &mut *self.window,
+            theme: self.theme,
             pending_state: self.pending_state.borrowed(),
         }
     }
@@ -710,6 +715,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             current_node,
             redraw_status: self.redraw_status,
             window: &mut *self.window,
+            theme: self.theme,
             pending_state: self.pending_state.borrowed(),
         })
     }
@@ -908,6 +914,21 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     #[must_use]
     pub fn window_mut(&mut self) -> &mut RunningWindow<'window> {
         self.window
+    }
+
+    /// Returns the theme pair for the window.
+    #[must_use]
+    pub fn theme_pair(&self) -> &ThemePair {
+        self.theme
+    }
+
+    /// Returns the current theme in either light or dark mode.
+    #[must_use]
+    pub fn theme(&self) -> &Theme {
+        match self.window.theme() {
+            window::Theme::Light => &self.theme.light,
+            window::Theme::Dark => &self.theme.dark,
+        }
     }
 }
 

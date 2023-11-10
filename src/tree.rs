@@ -434,7 +434,7 @@ impl TreeData {
             let Some(parent) = node.parent else { break };
             perspective = parent;
         }
-        query.default_value()
+        query.default_value(context)
     }
 }
 

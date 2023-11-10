@@ -19,6 +19,7 @@ use kludgine::app::WindowBehavior as _;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 use kludgine::render::Drawing;
+use kludgine::shapes::Shape;
 use kludgine::Kludgine;
 use tracing::Level;
 
@@ -28,9 +29,10 @@ use crate::context::{
 };
 use crate::graphics::Graphics;
 use crate::styles::components::LayoutOrder;
+use crate::styles::{ColorSource, ThemePair};
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
-use crate::value::{Dynamic, IntoDynamic};
+use crate::value::{Dynamic, DynamicReader, IntoDynamic, Value};
 use crate::widget::{
     EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
@@ -99,6 +101,8 @@ where
     context: Behavior::Context,
     /// The attributes of this window.
     pub attributes: WindowAttributes,
+    /// The colors to use to theme the user interface.
+    pub theme: Value<ThemePair>,
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
 }
@@ -182,6 +186,14 @@ where
                 ..WindowAttributes::default()
             },
             context,
+            theme: Value::Constant(ThemePair::from_sources(
+                ColorSource::new(-120., 0.8),
+                ColorSource::new(0., 0.3),
+                ColorSource::new(-30., 0.3),
+                ColorSource::new(30., 0.8),
+                ColorSource::new(0., 0.001),
+                ColorSource::new(30., 0.),
+            )),
             occluded: None,
             focused: None,
         }
@@ -200,6 +212,7 @@ where
                 attributes: Some(self.attributes),
                 occluded: self.occluded,
                 focused: self.focused,
+                theme: Some(self.theme),
             }),
         }))
     }
@@ -251,6 +264,8 @@ struct GooeyWindow<T> {
     keyboard_activated: Option<ManagedWidget>,
     min_inner_size: Option<Size<UPx>>,
     max_inner_size: Option<Size<UPx>>,
+    theme: Option<DynamicReader<ThemePair>>,
+    current_theme: ThemePair,
 }
 
 impl<T> GooeyWindow<T>
@@ -274,13 +289,23 @@ where
             if let Some(default) = widget.and_then(|id| self.root.tree.widget(id)) {
                 if let Some(previously_active) = self.keyboard_activated.take() {
                     EventContext::new(
-                        WidgetContext::new(previously_active, &self.redraw_status, window),
+                        WidgetContext::new(
+                            previously_active,
+                            &self.redraw_status,
+                            &self.current_theme,
+                            window,
+                        ),
                         kludgine,
                     )
                     .deactivate();
                 }
                 EventContext::new(
-                    WidgetContext::new(default.clone(), &self.redraw_status, window),
+                    WidgetContext::new(
+                        default.clone(),
+                        &self.redraw_status,
+                        &self.current_theme,
+                        window,
+                    ),
                     kludgine,
                 )
                 .activate();
@@ -288,10 +313,67 @@ where
             }
         } else if let Some(keyboard_activated) = self.keyboard_activated.take() {
             EventContext::new(
-                WidgetContext::new(keyboard_activated, &self.redraw_status, window),
+                WidgetContext::new(
+                    keyboard_activated,
+                    &self.redraw_status,
+                    &self.current_theme,
+                    window,
+                ),
                 kludgine,
             )
             .deactivate();
+        }
+    }
+
+    fn constrain_window_resizing(
+        &mut self,
+        resizable: bool,
+        window: &kludgine::app::Window<'_, WindowCommand>,
+        graphics: &mut kludgine::Graphics<'_>,
+    ) {
+        let mut root_or_child = self.root.widget.clone();
+        loop {
+            let mut widget = root_or_child.lock();
+            if let Some(resize) = widget.downcast_ref::<Resize>() {
+                let min_width = resize
+                    .width
+                    .minimum()
+                    .map_or(Px(0), |width| width.into_px(graphics.scale()));
+                let max_width = resize
+                    .width
+                    .maximum()
+                    .map_or(Px::MAX, |width| width.into_px(graphics.scale()));
+                let min_height = resize
+                    .height
+                    .minimum()
+                    .map_or(Px(0), |height| height.into_px(graphics.scale()));
+                let max_height = resize
+                    .height
+                    .maximum()
+                    .map_or(Px::MAX, |height| height.into_px(graphics.scale()));
+
+                let new_min_size = (min_width > 0 || min_height > 0)
+                    .then_some(Size::<Px>::new(min_width, min_height).into_unsigned());
+
+                if new_min_size != self.min_inner_size {
+                    window.set_min_inner_size(new_min_size);
+                    self.min_inner_size = new_min_size;
+                }
+                let new_max_size = (max_width > 0 || max_height > 0)
+                    .then_some(Size::<Px>::new(max_width, max_height).into_unsigned());
+
+                if new_max_size != self.max_inner_size && resizable {
+                    window.set_max_inner_size(new_max_size);
+                }
+                self.max_inner_size = new_max_size;
+                break;
+            } else if let Some(wraps) = widget.as_widget().wraps().cloned() {
+                drop(widget);
+
+                root_or_child = wraps;
+            } else {
+                break;
+            }
         }
     }
 }
@@ -319,11 +401,22 @@ where
             .focused
             .take()
             .unwrap_or_default();
+        let theme = context
+            .settings
+            .borrow_mut()
+            .theme
+            .take()
+            .expect("theme always present");
         let mut behavior = T::initialize(
             &mut RunningWindow::new(window, &focused, &occluded),
             context.user,
         );
         let root = Tree::default().push_boxed(behavior.make_root(), None);
+
+        let (current_theme, theme) = match theme {
+            Value::Constant(theme) => (theme, None),
+            Value::Dynamic(dynamic) => (dynamic.get(), Some(dynamic.into_reader())),
+        };
 
         Self {
             behavior,
@@ -342,6 +435,8 @@ where
             keyboard_activated: None,
             min_inner_size: None,
             max_inner_size: None,
+            current_theme,
+            theme,
         }
     }
 
@@ -350,66 +445,43 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         graphics: &mut kludgine::Graphics<'_>,
     ) {
+        if let Some(theme) = &mut self.theme {
+            if theme.has_updated() {
+                self.current_theme = theme.get();
+                // TODO invalidate everything, but right now we don't have much
+                // cached. Maybe widgets should be told the theme has changed in
+                // case some things like images have been cached.
+            }
+        }
+
         self.redraw_status.refresh_received();
         graphics.reset_text_attributes();
         self.root.tree.reset_render_order();
 
         let resizable = window.winit().is_resizable();
-        {
-            let mut root_or_child = self.root.widget.clone();
-            loop {
-                let mut widget = root_or_child.lock();
-                if let Some(resize) = widget.downcast_ref::<Resize>() {
-                    let min_width = resize
-                        .width
-                        .minimum()
-                        .map_or(Px(0), |width| width.into_px(graphics.scale()));
-                    let max_width = resize
-                        .width
-                        .maximum()
-                        .map_or(Px::MAX, |width| width.into_px(graphics.scale()));
-                    let min_height = resize
-                        .height
-                        .minimum()
-                        .map_or(Px(0), |height| height.into_px(graphics.scale()));
-                    let max_height = resize
-                        .height
-                        .maximum()
-                        .map_or(Px::MAX, |height| height.into_px(graphics.scale()));
-
-                    let new_min_size = (min_width > 0 || min_height > 0)
-                        .then_some(Size::<Px>::new(min_width, min_height).into_unsigned());
-
-                    if new_min_size != self.min_inner_size {
-                        window.set_min_inner_size(new_min_size);
-                        self.min_inner_size = new_min_size;
-                    }
-                    let new_max_size = (max_width > 0 || max_height > 0)
-                        .then_some(Size::<Px>::new(max_width, max_height).into_unsigned());
-
-                    if new_max_size != self.max_inner_size && resizable {
-                        window.set_max_inner_size(new_max_size);
-                    }
-                    self.max_inner_size = new_max_size;
-                    break;
-                } else if let Some(wraps) = widget.as_widget().wraps().cloned() {
-                    drop(widget);
-
-                    root_or_child = wraps;
-                } else {
-                    break;
-                }
-            }
-        }
+        self.constrain_window_resizing(resizable, &window, graphics);
 
         let graphics = self.contents.new_frame(graphics);
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut context = GraphicsContext {
-            widget: WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
+            widget: WidgetContext::new(
+                self.root.clone(),
+                &self.redraw_status,
+                &self.current_theme,
+                &mut window,
+            ),
             gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
         let mut layout_context = LayoutContext::new(&mut context);
         let window_size = layout_context.gfx.size();
+
+        let background_color = layout_context.theme().surface.color;
+        layout_context.graphics.gfx.draw_shape(
+            &Shape::filled_rect(window_size.into(), background_color),
+            Point::default(),
+            None,
+            None,
+        );
         let actual_size = layout_context.layout(Size::new(
             ConstraintLimit::ClippedAfter(window_size.width),
             ConstraintLimit::ClippedAfter(window_size.height),
@@ -539,7 +611,12 @@ where
         let target = self.root.tree.widget(target).expect("missing widget");
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut target = EventContext::new(
-            WidgetContext::new(target, &self.redraw_status, &mut window),
+            WidgetContext::new(
+                target,
+                &self.redraw_status,
+                &self.current_theme,
+                &mut window,
+            ),
             kludgine,
         );
 
@@ -563,7 +640,12 @@ where
                         let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
                         let target = self.root.tree.widget(target).expect("missing widget");
                         let mut target = EventContext::new(
-                            WidgetContext::new(target, &self.redraw_status, &mut window),
+                            WidgetContext::new(
+                                target,
+                                &self.redraw_status,
+                                &self.current_theme,
+                                &mut window,
+                            ),
                             kludgine,
                         );
                         let mut visual_order = target.query_style(&LayoutOrder);
@@ -624,7 +706,12 @@ where
 
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut widget = EventContext::new(
-            WidgetContext::new(widget, &self.redraw_status, &mut window),
+            WidgetContext::new(
+                widget,
+                &self.redraw_status,
+                &self.current_theme,
+                &mut window,
+            ),
             kludgine,
         );
         recursively_handle_event(&mut widget, |widget| {
@@ -653,7 +740,12 @@ where
             });
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut target = EventContext::new(
-            WidgetContext::new(widget, &self.redraw_status, &mut window),
+            WidgetContext::new(
+                widget,
+                &self.redraw_status,
+                &self.current_theme,
+                &mut window,
+            ),
             kludgine,
         );
 
@@ -676,7 +768,12 @@ where
             // Mouse Drag
             for (button, handler) in state {
                 let mut context = EventContext::new(
-                    WidgetContext::new(handler.clone(), &self.redraw_status, &mut window),
+                    WidgetContext::new(
+                        handler.clone(),
+                        &self.redraw_status,
+                        &self.current_theme,
+                        &mut window,
+                    ),
                     kludgine,
                 );
                 let last_rendered_at = context.last_layout().expect("passed hit test");
@@ -685,7 +782,12 @@ where
         } else {
             // Hover
             let mut context = EventContext::new(
-                WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
+                WidgetContext::new(
+                    self.root.clone(),
+                    &self.redraw_status,
+                    &self.current_theme,
+                    &mut window,
+                ),
                 kludgine,
             );
             self.mouse_state.widget = None;
@@ -720,7 +822,12 @@ where
         if self.mouse_state.widget.take().is_some() {
             let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
             let mut context = EventContext::new(
-                WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
+                WidgetContext::new(
+                    self.root.clone(),
+                    &self.redraw_status,
+                    &self.current_theme,
+                    &mut window,
+                ),
                 kludgine,
             );
             context.clear_hover();
@@ -739,7 +846,12 @@ where
         match state {
             ElementState::Pressed => {
                 EventContext::new(
-                    WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
+                    WidgetContext::new(
+                        self.root.clone(),
+                        &self.redraw_status,
+                        &self.current_theme,
+                        &mut window,
+                    ),
                     kludgine,
                 )
                 .clear_focus();
@@ -749,7 +861,12 @@ where
                 {
                     if let Some(handler) = recursively_handle_event(
                         &mut EventContext::new(
-                            WidgetContext::new(hovered.clone(), &self.redraw_status, &mut window),
+                            WidgetContext::new(
+                                hovered.clone(),
+                                &self.redraw_status,
+                                &self.current_theme,
+                                &mut window,
+                            ),
                             kludgine,
                         ),
                         |context| {
@@ -778,7 +895,12 @@ where
                 }
 
                 let mut context = EventContext::new(
-                    WidgetContext::new(handler, &self.redraw_status, &mut window),
+                    WidgetContext::new(
+                        handler,
+                        &self.redraw_status,
+                        &self.current_theme,
+                        &mut window,
+                    ),
                     kludgine,
                 );
 
@@ -831,7 +953,8 @@ struct MouseState {
 pub(crate) mod sealed {
     use std::cell::RefCell;
 
-    use crate::value::Dynamic;
+    use crate::styles::ThemePair;
+    use crate::value::{Dynamic, Value};
     use crate::window::WindowAttributes;
 
     pub struct Context<C> {
@@ -843,6 +966,7 @@ pub(crate) mod sealed {
         pub attributes: Option<WindowAttributes>,
         pub occluded: Option<Dynamic<bool>>,
         pub focused: Option<Dynamic<bool>>,
+        pub theme: Option<Value<ThemePair>>,
     }
 
     pub enum WindowCommand {

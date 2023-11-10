@@ -7,6 +7,7 @@ use kludgine::Color;
 
 use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::EasingFunction;
+use crate::context::WidgetContext;
 use crate::styles::{
     Component, ComponentDefinition, ComponentName, Dimension, Global, NamedComponent,
 };
@@ -24,7 +25,7 @@ impl NamedComponent for TextSize {
 impl ComponentDefinition for TextSize {
     type ComponentType = Dimension;
 
-    fn default_value(&self) -> Dimension {
+    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Dimension {
         Dimension::Lp(Lp::points(12))
     }
 }
@@ -42,8 +43,26 @@ impl NamedComponent for LineHeight {
 impl ComponentDefinition for LineHeight {
     type ComponentType = Dimension;
 
-    fn default_value(&self) -> Dimension {
+    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Dimension {
         Dimension::Lp(Lp::points(14))
+    }
+}
+
+/// The [`Color`] to use when rendering text.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct SurfaceColor;
+
+impl NamedComponent for SurfaceColor {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("surface_color"))
+    }
+}
+
+impl ComponentDefinition for SurfaceColor {
+    type ComponentType = Color;
+
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
+        context.theme().surface.color
     }
 }
 
@@ -60,26 +79,8 @@ impl NamedComponent for TextColor {
 impl ComponentDefinition for TextColor {
     type ComponentType = Color;
 
-    fn default_value(&self) -> Color {
-        Color::WHITE
-    }
-}
-
-/// A [`Color`] to be used as a highlight color.
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct PrimaryColor;
-
-impl NamedComponent for PrimaryColor {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Global>("primary_color"))
-    }
-}
-
-impl ComponentDefinition for PrimaryColor {
-    type ComponentType = Color;
-
-    fn default_value(&self) -> Color {
-        Color::BLUE
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
+        context.theme().surface.on_color
     }
 }
 
@@ -96,8 +97,8 @@ impl NamedComponent for HighlightColor {
 impl ComponentDefinition for HighlightColor {
     type ComponentType = Color;
 
-    fn default_value(&self) -> Color {
-        Color::AQUA
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
+        context.theme().primary.color
     }
 }
 
@@ -116,7 +117,7 @@ impl NamedComponent for IntrinsicPadding {
 impl ComponentDefinition for IntrinsicPadding {
     type ComponentType = Dimension;
 
-    fn default_value(&self) -> Dimension {
+    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Dimension {
         Dimension::Lp(Lp::points(5))
     }
 }
@@ -135,7 +136,7 @@ impl NamedComponent for Easing {
 impl ComponentDefinition for Easing {
     type ComponentType = EasingFunction;
 
-    fn default_value(&self) -> Self::ComponentType {
+    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Self::ComponentType {
         EasingFunction::from(EaseInQuadradic)
     }
 }
@@ -156,7 +157,7 @@ impl NamedComponent for EasingIn {
 impl ComponentDefinition for EasingIn {
     type ComponentType = EasingFunction;
 
-    fn default_value(&self) -> Self::ComponentType {
+    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Self::ComponentType {
         EasingFunction::from(EaseInQuadradic)
     }
 }
@@ -177,7 +178,7 @@ impl NamedComponent for EasingOut {
 impl ComponentDefinition for EasingOut {
     type ComponentType = EasingFunction;
 
-    fn default_value(&self) -> Self::ComponentType {
+    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Self::ComponentType {
         EasingFunction::from(EaseOutQuadradic)
     }
 }
@@ -233,7 +234,7 @@ impl NamedComponent for LayoutOrder {
 impl ComponentDefinition for LayoutOrder {
     type ComponentType = VisualOrder;
 
-    fn default_value(&self) -> Self::ComponentType {
+    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Self::ComponentType {
         VisualOrder::left_to_right()
     }
 }
@@ -329,7 +330,7 @@ impl NamedComponent for AutoFocusableControls {
 impl ComponentDefinition for AutoFocusableControls {
     type ComponentType = FocusableWidgets;
 
-    fn default_value(&self) -> Self::ComponentType {
+    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Self::ComponentType {
         FocusableWidgets::default()
     }
 }

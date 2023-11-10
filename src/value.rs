@@ -456,6 +456,13 @@ impl<T> DynamicReader<T> {
         map(&state.wrapped.value)
     }
 
+    /// Returns true if the dynamic has been modified since the last time the
+    /// value was accessed through this reader.
+    #[must_use]
+    pub fn has_updated(&self) -> bool {
+        self.source.state().wrapped.generation != self.read_generation
+    }
+
     /// Returns a clone of the currently contained value.
     ///
     /// This function marks the currently stored value as being read.

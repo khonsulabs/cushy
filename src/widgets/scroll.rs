@@ -12,7 +12,7 @@ use kludgine::shapes::Shape;
 use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
-use crate::context::{AsEventContext, EventContext, LayoutContext};
+use crate::context::{AsEventContext, EventContext, LayoutContext, WidgetContext};
 use crate::styles::components::{EasingIn, EasingOut, LineHeight};
 use crate::styles::{
     ComponentDefinition, ComponentGroup, ComponentName, Dimension, NamedComponent,
@@ -318,7 +318,7 @@ pub struct ScrollBarThickness;
 impl ComponentDefinition for ScrollBarThickness {
     type ComponentType = Dimension;
 
-    fn default_value(&self) -> Self::ComponentType {
+    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Self::ComponentType {
         Dimension::Lp(Lp::points(7))
     }
 }

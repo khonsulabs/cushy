@@ -58,15 +58,17 @@ impl Widget for Label {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let padding = context
-            .query_style(&IntrinsicPadding)
+        let styles = context.query_styles(&[&TextColor, &IntrinsicPadding]);
+        let padding = styles
+            .get(&IntrinsicPadding, context)
             .into_px(context.gfx.scale())
             .into_unsigned();
+        let color = styles.get(&TextColor, context);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         self.text.map(|contents| {
             let measured = context
                 .gfx
-                .measure_text(Text::from(contents).wrap_at(width));
+                .measure_text(Text::new(contents, color).wrap_at(width));
             let mut size = measured.size.try_cast().unwrap_or_default();
             size += padding * 2;
             self.prepared_text = Some(measured);

@@ -1,11 +1,19 @@
 //! Types for styling widgets.
 
+use std::any::Any;
 use std::borrow::Cow;
 use std::collections::{hash_map, HashMap};
+use std::fmt::Debug;
 use std::ops::{
     Add, Bound, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
 };
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
+
+use kludgine::figures::units::{Lp, Px, UPx};
+use kludgine::figures::{Fraction, IntoUnsigned, ScreenScale, Size};
+use kludgine::Color;
+use palette::{IntoColor, Okhsl, OklabHue, Srgb};
 
 use crate::animation::{EasingFunction, ZeroToOne};
 use crate::context::WidgetContext;
@@ -86,7 +94,7 @@ impl Styles {
                 component.redraw_when_changed(context);
                 <Named::ComponentType>::try_from_component(component.get()).ok()
             })
-            .unwrap_or_else(|| component.default_value())
+            .unwrap_or_else(|| component.default_value(context))
     }
 }
 
@@ -169,14 +177,6 @@ impl Iterator for StylesIntoIter {
         }
     }
 }
-
-use std::any::Any;
-use std::fmt::Debug;
-use std::panic::{RefUnwindSafe, UnwindSafe};
-
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Fraction, IntoUnsigned, ScreenScale, Size};
-use kludgine::Color;
 
 /// A value of a style component.
 #[derive(Debug, Clone)]
@@ -648,7 +648,7 @@ pub trait ComponentDefinition: NamedComponent {
     type ComponentType: ComponentType;
 
     /// Returns the default value to use for this component.
-    fn default_value(&self) -> Self::ComponentType;
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType;
 }
 
 /// A type that can be converted to and from [`Component`].
@@ -676,15 +676,15 @@ where
 /// A type that represents a named component with a default value.
 pub trait ComponentDefaultvalue: NamedComponent {
     /// Returns the default value for this component.
-    fn default_component_value(&self) -> Component;
+    fn default_component_value(&self, context: &WidgetContext<'_, '_>) -> Component;
 }
 
 impl<T> ComponentDefaultvalue for T
 where
     T: ComponentDefinition,
 {
-    fn default_component_value(&self) -> Component {
-        self.default_value().into_component()
+    fn default_component_value(&self, context: &WidgetContext<'_, '_>) -> Component {
+        self.default_value(context).into_component()
     }
 }
 
@@ -824,5 +824,430 @@ impl IntoValue<Edges<FlexibleDimension>> for FlexibleDimension {
 impl IntoValue<Edges<Dimension>> for Dimension {
     fn into_value(self) -> Value<Edges<Dimension>> {
         Value::Constant(Edges::from(self))
+    }
+}
+
+/// A set of light and dark [`Theme`]s.
+#[derive(Clone, Debug)]
+pub struct ThemePair {
+    /// The theme to use when the user interface is in light mode.
+    pub light: Theme,
+    /// The theme to use when the user interface is in dark mode.
+    pub dark: Theme,
+    /// A theme of the primary color that remains consistent between dark and
+    /// light theme variants.
+    pub primary_fixed: FixedTheme,
+    /// A theme of the secondary color that remains consistent between dark and
+    /// light theme variants.
+    pub secondary_fixed: FixedTheme,
+    /// A theme of the tertiary color that remains consistent between dark and
+    /// light theme variants.
+    pub tertiary_fixed: FixedTheme,
+
+    /// A color to apply to scrims, a term sometimes used to refer to the
+    /// translucent backdrop placed behind a modal popup.
+    pub scrim: Color,
+
+    /// A color to apply to shadows.
+    pub shadow: Color,
+}
+
+impl ThemePair {
+    /// Returns a new theme generated from the provided color sources.
+    #[must_use]
+    pub fn from_sources(
+        primary: ColorSource,
+        secondary: ColorSource,
+        tertiary: ColorSource,
+        error: ColorSource,
+        neutral: ColorSource,
+        neutral_variant: ColorSource,
+    ) -> Self {
+        Self {
+            light: Theme::light_from_sources(
+                primary,
+                secondary,
+                tertiary,
+                error,
+                neutral,
+                neutral_variant,
+            ),
+            dark: Theme::dark_from_sources(
+                primary,
+                secondary,
+                tertiary,
+                error,
+                neutral,
+                neutral_variant,
+            ),
+            primary_fixed: FixedTheme::from_source(primary),
+            secondary_fixed: FixedTheme::from_source(secondary),
+            tertiary_fixed: FixedTheme::from_source(tertiary),
+            scrim: neutral.color(1),
+            shadow: neutral.color(1),
+        }
+    }
+}
+
+/// A Gooey Color theme.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Theme {
+    /// The primary color theme.
+    pub primary: ColorTheme,
+    /// The secondary color theme.
+    pub secondary: ColorTheme,
+    /// The tertiary color theme.
+    pub tertiary: ColorTheme,
+    /// The color theme for errors.
+    pub error: ColorTheme,
+
+    /// The theme to color surfaces.
+    pub surface: SurfaceTheme,
+
+    /// A theme of inverse colors to provide high contrast to other elements.
+    pub inverse: InverseTheme,
+}
+
+impl Theme {
+    /// Returns a new light theme generated from the provided color sources.
+    #[must_use]
+    pub fn light_from_sources(
+        primary: ColorSource,
+        secondary: ColorSource,
+        tertiary: ColorSource,
+        error: ColorSource,
+        neutral: ColorSource,
+        neutral_variant: ColorSource,
+    ) -> Self {
+        Self {
+            primary: ColorTheme::light_from_source(primary),
+            secondary: ColorTheme::light_from_source(secondary),
+            tertiary: ColorTheme::light_from_source(tertiary),
+            error: ColorTheme::light_from_source(error),
+            surface: SurfaceTheme::light_from_sources(neutral, neutral_variant),
+            inverse: InverseTheme::light_from_sources(primary, neutral),
+        }
+    }
+
+    /// Returns a new dark theme generated from the provided color sources.
+    #[must_use]
+    pub fn dark_from_sources(
+        primary: ColorSource,
+        secondary: ColorSource,
+        tertiary: ColorSource,
+        error: ColorSource,
+        neutral: ColorSource,
+        neutral_variant: ColorSource,
+    ) -> Self {
+        Self {
+            primary: ColorTheme::dark_from_source(primary),
+            secondary: ColorTheme::dark_from_source(secondary),
+            tertiary: ColorTheme::dark_from_source(tertiary),
+            error: ColorTheme::dark_from_source(error),
+            surface: SurfaceTheme::dark_from_sources(neutral, neutral_variant),
+            inverse: InverseTheme::dark_from_sources(primary, neutral),
+        }
+    }
+}
+
+/// A theme of surface colors.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SurfaceTheme {
+    /// The default background color.
+    pub color: Color,
+    /// A dimmer variant of the default background color.
+    pub dim_color: Color,
+    /// A brighter variant of the default background color.
+    pub bright_color: Color,
+
+    /// The background color to use for the lowest level container widget.
+    pub lowest_container: Color,
+    /// The background color to use for the low level container widgets.
+    pub low_container: Color,
+    /// The background color for middle-level container widgets.
+    pub container: Color,
+    /// The background color for high-level container widgets.
+    pub high_container: Color,
+    /// The background color for highest-level container widgets.
+    pub highest_container: Color,
+
+    /// The default text/content color.
+    pub on_color: Color,
+    /// A variation of the text/content color that is de-emphasized.
+    pub on_color_variant: Color,
+    /// The color to draw important outlines.
+    pub outline: Color,
+    /// The color to use for decorative outlines.
+    pub outline_variant: Color,
+}
+
+impl SurfaceTheme {
+    /// Returns a new light surface theme generated from the two neutral color
+    /// sources.
+    #[must_use]
+    pub fn light_from_sources(neutral: ColorSource, neutral_variant: ColorSource) -> Self {
+        Self {
+            color: neutral.color(98),
+            dim_color: neutral_variant.color(70),
+            bright_color: neutral.color(99),
+            lowest_container: neutral.color(100),
+            low_container: neutral.color(96),
+            container: neutral.color(95),
+            high_container: neutral.color(90),
+            highest_container: neutral.color(80),
+            on_color: neutral.color(10),
+            on_color_variant: neutral_variant.color(30),
+            outline: neutral_variant.color(50),
+            outline_variant: neutral.color(60),
+        }
+    }
+
+    /// Returns a new dark surface theme generated from the two neutral color
+    /// sources.
+    #[must_use]
+    pub fn dark_from_sources(neutral: ColorSource, neutral_variant: ColorSource) -> Self {
+        Self {
+            color: neutral.color(10),
+            dim_color: neutral_variant.color(2),
+            bright_color: neutral.color(10),
+            lowest_container: neutral.color(15),
+            low_container: neutral.color(20),
+            container: neutral.color(25),
+            high_container: neutral.color(30),
+            highest_container: neutral.color(35),
+            on_color: neutral.color(90),
+            on_color_variant: neutral_variant.color(70),
+            outline: neutral_variant.color(60),
+            outline_variant: neutral.color(50),
+        }
+    }
+}
+
+/// A pallete of a shared [`ColorSource`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ColorTheme {
+    /// The primary color, used for high-emphasis content.
+    pub color: Color,
+    /// The color for content that sits atop the primary color.
+    pub on_color: Color,
+    /// The backgrond color for containers.
+    pub container: Color,
+    /// The color for content that is inside of a container.
+    pub on_container: Color,
+}
+
+impl ColorTheme {
+    /// Returns a new light color theme for `source`.
+    #[must_use]
+    pub fn light_from_source(source: ColorSource) -> Self {
+        Self {
+            color: source.color(40),
+            on_color: source.color(100),
+            container: source.color(90),
+            on_container: source.color(10),
+        }
+    }
+
+    /// Returns a new dark color theme for `source`.
+    #[must_use]
+    pub fn dark_from_source(source: ColorSource) -> Self {
+        Self {
+            color: source.color(80),
+            on_color: source.color(10),
+            container: source.color(30),
+            on_container: source.color(80),
+        }
+    }
+}
+
+/// A theme of colors that is shared between light and dark theme variants.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FixedTheme {
+    /// An accent background color.
+    pub color: Color,
+    /// An alternate background color, for less emphasized content.
+    pub dim_color: Color,
+    /// The primary color for content on either background color in this theme.
+    pub on_color: Color,
+    /// The color for de-emphasized content on either background color in this
+    /// theme.
+    pub on_color_variant: Color,
+}
+
+impl FixedTheme {
+    /// Returns a new color theme from `source` whose colors are safe in both
+    /// light and dark themes.
+    #[must_use]
+    pub fn from_source(source: ColorSource) -> Self {
+        Self {
+            color: source.color(90),
+            dim_color: source.color(80),
+            on_color: source.color(10),
+            on_color_variant: source.color(40),
+        }
+    }
+}
+
+/// An inverse color theme for displaying highly contrasted elements.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InverseTheme {
+    /// An inverse surface color.
+    pub surface: Color,
+    /// The default color for content atop an inverted surface.
+    pub on_surface: Color,
+    /// The inverted primary color.
+    pub primary: Color,
+    // TODO why not inverse for the other colorthemes?
+}
+
+impl InverseTheme {
+    /// Returns the light-mode, inverse theme for given sources.
+    #[must_use]
+    pub fn light_from_sources(primary: ColorSource, surface: ColorSource) -> Self {
+        Self {
+            surface: surface.color(30),
+            on_surface: surface.color(90),
+            primary: primary.color(80),
+        }
+    }
+
+    /// Returns the dark-mode, inverse theme for given sources.
+    #[must_use]
+    pub fn dark_from_sources(primary: ColorSource, surface: ColorSource) -> Self {
+        Self {
+            surface: surface.color(90),
+            on_surface: surface.color(10),
+            primary: primary.color(40),
+        }
+    }
+}
+
+/// A source for [`Color`]s.
+///
+/// This type is a combination of an [`OklabHue`] and a saturation ranging from
+/// 0.0 to 1.0. When combined with a luminance value, a [`Color`] can be
+/// generated.
+///
+/// The goal of this type is to allow various tones of a given hue/saturation to
+/// be generated easily.
+#[derive(Clone, Copy, Debug)]
+pub struct ColorSource {
+    /// A measurement of hue, in degees, from -180 to 180.
+    ///
+    /// For fully saturated bright colors:
+    ///
+    /// - 0° corresponds to a kind of magenta-pink (RBG #ff0188),
+    /// - 90° to a kind of yellow (RBG RGB #ffcb00)
+    /// - 180° to a kind of cyan (RBG #00ffe1) and
+    /// - 240° to a kind of blue (RBG #00aefe).
+    pub hue: OklabHue,
+    /// A measurement of saturation.
+    ///
+    /// A saturation of 0.0 corresponds to shades of gray, while a saturation of
+    /// 1.0 corresponds to fully saturated colors.
+    pub saturation: ZeroToOne,
+}
+
+impl ColorSource {
+    /// Returns a new source with the given hue (in degrees) and saturation (0.0
+    /// - 1.0).
+    #[must_use]
+    pub fn new(hue: f32, saturation: f32) -> Self {
+        Self {
+            hue: OklabHue::new(hue),
+            saturation: ZeroToOne::new(saturation),
+        }
+    }
+
+    /// Generates a new color by combing the hue, saturation, and lightness.
+    #[must_use]
+    pub fn color(self, lightness: impl Lightness) -> Color {
+        let rgb: palette::Srgb =
+            Okhsl::new(self.hue, *self.saturation, *lightness.into_lightness()).into_color();
+        Color::new_f32(rgb.red, rgb.blue, rgb.green, 1.0)
+    }
+}
+
+/// A value that can represent the lightness of a color.
+///
+/// This is implemented for these types:
+///
+/// - [`ZeroToOne`]: A range of 0.0 to 1.0.
+/// - `f32`: Values are clamped to 0.0 and 1.0. Panics if NaN.
+/// - `u8`: A range of 0 to 100. Values above 100 are clamped.
+pub trait Lightness {
+    /// Returns this value as a floating point clamped between 0 and 1.
+    fn into_lightness(self) -> ZeroToOne;
+}
+
+impl Lightness for ZeroToOne {
+    fn into_lightness(self) -> ZeroToOne {
+        self
+    }
+}
+impl Lightness for f32 {
+    fn into_lightness(self) -> ZeroToOne {
+        ZeroToOne::new(self)
+    }
+}
+
+impl Lightness for u8 {
+    fn into_lightness(self) -> ZeroToOne {
+        ZeroToOne::new(f32::from(self) / 100.)
+    }
+}
+
+/// Extra functionality added to the [`Color`] type from Kludgine.
+pub trait ColorExt: Copy {
+    /// Converts this color into its hue/saturation and lightness components.
+    fn into_source_and_lightness(self) -> (ColorSource, ZeroToOne);
+
+    /// Returns the hue and saturation of this color.
+    fn source(self) -> ColorSource {
+        self.into_source_and_lightness().0
+    }
+
+    /// Returns the perceived lightness of this color.
+    #[must_use]
+    fn lightness(self) -> ZeroToOne {
+        self.into_source_and_lightness().1
+    }
+
+    /// Returns the color in `others` that contrasts the most from `self`.
+    #[must_use]
+    fn most_contrasting(self, others: &[Self]) -> Self
+    where
+        Self: Copy,
+    {
+        // TODO this currently only checks lightness. We should probably factor
+        // in hue/saturation changes too.
+        let check = self.lightness();
+
+        let mut others = others.iter().copied();
+        let mut most_contrasting = others.next().expect("at least one comparison");
+        let mut most_contrast_amount = (*most_contrasting.lightness() - *check).abs();
+        for other in others {
+            let contrast_amount = (*other.lightness() - *check).abs();
+            if contrast_amount > most_contrast_amount {
+                most_contrasting = other;
+                most_contrast_amount = contrast_amount;
+            }
+        }
+
+        most_contrasting
+    }
+}
+
+impl ColorExt for Color {
+    fn into_source_and_lightness(self) -> (ColorSource, ZeroToOne) {
+        let hsl: palette::Okhsl =
+            Srgb::new(self.red_f32(), self.green_f32(), self.blue_f32()).into_color();
+        (
+            ColorSource {
+                hue: hsl.hue,
+                saturation: ZeroToOne::new(hsl.saturation),
+            },
+            ZeroToOne::new(hsl.lightness * self.alpha_f32()),
+        )
     }
 }

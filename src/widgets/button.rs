@@ -14,9 +14,9 @@ use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::names::Name;
 use crate::styles::components::{
-    AutoFocusableControls, Easing, HighlightColor, IntrinsicPadding, PrimaryColor, TextColor,
+    AutoFocusableControls, Easing, IntrinsicPadding, SurfaceColor, TextColor,
 };
-use crate::styles::{ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
+use crate::styles::{ColorExt, ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
@@ -33,7 +33,8 @@ pub struct Button {
     currently_enabled: bool,
     buttons_pressed: usize,
     background_color: Option<Dynamic<Color>>,
-    background_color_animation: AnimationHandle,
+    text_color: Option<Dynamic<Color>>,
+    color_animation: AnimationHandle,
 }
 
 impl Button {
@@ -46,7 +47,8 @@ impl Button {
             currently_enabled: true,
             buttons_pressed: 0,
             background_color: None,
-            background_color_animation: AnimationHandle::default(),
+            text_color: None,
+            color_animation: AnimationHandle::default(),
         }
     }
 
@@ -78,54 +80,84 @@ impl Button {
         }
     }
 
-    fn update_background_color(&mut self, context: &WidgetContext<'_, '_>, immediate: bool) {
+    fn update_colors(&mut self, context: &WidgetContext<'_, '_>, immediate: bool) {
         let styles = context.query_styles(&[
             &ButtonActiveBackground,
             &ButtonBackground,
             &ButtonHoverBackground,
             &ButtonDisabledBackground,
-            &PrimaryColor,
             &Easing,
+            &TextColor,
+            &SurfaceColor,
         ]);
-        let background_color = if !self.enabled.get() {
-            styles.get(&ButtonDisabledBackground, context)
-        } else if context.active() {
-            styles.get(&ButtonActiveBackground, context)
-        } else if context.hovered() {
-            styles.get(&ButtonHoverBackground, context)
+        let text_color = styles.get(&TextColor, context);
+        let surface_color = styles.get(&SurfaceColor, context);
+        let (background_color, text_color, surface_color) = if !self.enabled.get() {
+            (
+                styles.get(&ButtonDisabledBackground, context),
+                text_color,
+                surface_color,
+            )
         } else if context.is_default() {
-            styles.get(&PrimaryColor, context)
+            // TODO this probably should be de-prioritized if ButtonBackground is explicitly set.
+            (
+                context.theme().primary.color,
+                context.theme().primary.on_color,
+                context.theme().primary.color,
+            )
+        } else if context.active() {
+            (
+                styles.get(&ButtonActiveBackground, context),
+                text_color,
+                surface_color,
+            )
+        } else if context.hovered() {
+            (
+                styles.get(&ButtonHoverBackground, context),
+                text_color,
+                surface_color,
+            )
         } else {
-            styles.get(&ButtonBackground, context)
+            (
+                styles.get(&ButtonBackground, context),
+                text_color,
+                surface_color,
+            )
         };
 
-        match (immediate, &self.background_color) {
-            (false, Some(dynamic)) => {
-                self.background_color_animation = dynamic
-                    .transition_to(background_color)
+        let text_color = background_color.most_contrasting(&[text_color, surface_color]);
+
+        match (immediate, &self.background_color, &self.text_color) {
+            (false, Some(bg), Some(text)) => {
+                self.color_animation = (
+                    bg.transition_to(background_color),
+                    text.transition_to(text_color),
+                )
                     .over(Duration::from_millis(150))
                     .with_easing(styles.get(&Easing, context))
                     .spawn();
             }
-            (true, Some(dynamic)) => {
-                dynamic.update(background_color);
-                self.background_color_animation.clear();
+            (true, Some(bg), Some(text)) => {
+                bg.update(background_color);
+                text.update(text_color);
+                self.color_animation.clear();
             }
-            (_, None) => {
-                let dynamic = Dynamic::new(background_color);
-                self.background_color = Some(dynamic);
+            _ => {
+                self.background_color = Some(Dynamic::new(background_color));
+                self.text_color = Some(Dynamic::new(text_color));
             }
         }
     }
 
-    fn current_background_color(&mut self, context: &WidgetContext<'_, '_>) -> Color {
+    fn current_colors(&mut self, context: &WidgetContext<'_, '_>) -> (Color, Color) {
         if self.background_color.is_none() {
-            self.update_background_color(context, false);
+            self.update_colors(context, false);
         }
 
         let background_color = self.background_color.as_ref().expect("always initialized");
+        let text_color = self.text_color.as_ref().expect("always initialized"); // TODO combine these into a single option
         context.redraw_when_changed(background_color);
-        background_color.get()
+        (background_color.get(), text_color.get())
     }
 }
 
@@ -135,7 +167,7 @@ impl Widget for Button {
         // TODO This seems ugly. It needs context, so it can't be moved into the
         // dynamic system.
         if self.currently_enabled != enabled {
-            self.update_background_color(context, false);
+            self.update_colors(context, false);
             self.currently_enabled = enabled;
         }
 
@@ -144,28 +176,19 @@ impl Widget for Button {
         self.label.redraw_when_changed(context);
         self.enabled.redraw_when_changed(context);
 
-        let styles = context.query_styles(&[
-            &TextColor,
-            &HighlightColor,
-            &ButtonActiveBackground,
-            &ButtonBackground,
-            &ButtonHoverBackground,
-        ]);
-
         let visible_rect = Rect::from(size - (Px(1), Px(1)));
 
-        let background = self.current_background_color(context);
-        let background = Shape::filled_rect(visible_rect, background);
+        let (background_color, text_color) = self.current_colors(context);
+        let background = Shape::filled_rect(visible_rect, background_color);
         context
             .gfx
             .draw_shape(&background, Point::default(), None, None);
 
         if context.focused() {
-            context.draw_focus_ring_using(&styles);
+            context.draw_focus_ring();
         }
 
         self.label.map(|label| {
-            let text_color = styles.get(&TextColor, context);
             context.gfx.draw_text(
                 Text::new(label, text_color)
                     .origin(kludgine::text::TextOrigin::Center)
@@ -292,11 +315,11 @@ impl Widget for Button {
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
-        self.update_background_color(context, false);
+        self.update_colors(context, false);
     }
 
     fn hover(&mut self, _location: Point<Px>, context: &mut EventContext<'_, '_>) {
-        self.update_background_color(context, false);
+        self.update_colors(context, false);
     }
 
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {
@@ -313,11 +336,11 @@ impl Widget for Button {
         if self.buttons_pressed == 0 {
             self.invoke_on_click();
         }
-        self.update_background_color(context, true);
+        self.update_colors(context, true);
     }
 
     fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {
-        self.update_background_color(context, false);
+        self.update_colors(context, false);
     }
 }
 
@@ -340,8 +363,8 @@ impl NamedComponent for ButtonBackground {
 impl ComponentDefinition for ButtonBackground {
     type ComponentType = Color;
 
-    fn default_value(&self) -> Color {
-        Color::new(10, 10, 10, 255)
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
+        context.theme().surface.color
     }
 }
 
@@ -358,8 +381,8 @@ impl NamedComponent for ButtonActiveBackground {
 impl ComponentDefinition for ButtonActiveBackground {
     type ComponentType = Color;
 
-    fn default_value(&self) -> Color {
-        Color::new(30, 30, 30, 255)
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
+        context.theme().surface.dim_color
     }
 }
 
@@ -377,8 +400,8 @@ impl NamedComponent for ButtonHoverBackground {
 impl ComponentDefinition for ButtonHoverBackground {
     type ComponentType = Color;
 
-    fn default_value(&self) -> Color {
-        Color::new(40, 40, 40, 255)
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
+        context.theme().surface.bright_color
     }
 }
 
@@ -396,7 +419,7 @@ impl NamedComponent for ButtonDisabledBackground {
 impl ComponentDefinition for ButtonDisabledBackground {
     type ComponentType = Color;
 
-    fn default_value(&self) -> Color {
-        Color::new(50, 30, 30, 255)
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
+        context.theme().surface.dim_color
     }
 }

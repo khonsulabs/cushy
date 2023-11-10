@@ -18,6 +18,7 @@ intentional = "0.1.0"
 tracing = "0.1.40"
 
 tracing-subscriber = { version = "0.3", optional = true }
+palette = "0.7.3"
 
 
 # [patch."https://github.com/khonsulabs/kludgine"]
