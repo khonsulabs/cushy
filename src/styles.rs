@@ -458,7 +458,7 @@ where
     fn from(value: RangeInclusive<T>) -> Self {
         Self {
             start: Bound::Included(value.start().clone().into()),
-            end: Bound::Excluded(value.end().clone().into()),
+            end: Bound::Included(value.end().clone().into()),
         }
     }
 }

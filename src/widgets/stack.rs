@@ -445,10 +445,10 @@ impl Layout {
             offset += self.layouts[index].size;
             let (_, measured) = self.orientation.split_size(measure(
                 index,
-                dbg!(self.orientation.make_size(
+                self.orientation.make_size(
                     ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
                     other_constraint,
-                )),
+                ),
                 true,
             ));
             self.other = self.other.max(measured);
