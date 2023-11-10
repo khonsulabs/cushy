@@ -487,7 +487,7 @@ where
             )
         });
         let render_size = actual_size.min(window_size);
-        if render_size != window_size && !resizable {
+        if actual_size != window_size && !resizable {
             let mut new_size = actual_size;
             if let Some(min_size) = self.min_inner_size {
                 new_size = new_size.max(min_size);
