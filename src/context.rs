@@ -7,10 +7,10 @@ use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::window;
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Rect, Size};
+use kludgine::figures::units::{Lp, Px, UPx};
+use kludgine::figures::{IntoSigned, Point, Rect, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
-use kludgine::Kludgine;
+use kludgine::{Color, Kludgine};
 
 use crate::graphics::Graphics;
 use crate::styles::components::{HighlightColor, VisualOrder, WidgetBackground};
@@ -450,6 +450,18 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         }
     }
 
+    /// Strokes an outline around this widget's contents.
+    pub fn stroke_outline<Unit>(&mut self, color: Color, options: StrokeOptions<Unit>)
+    where
+        Unit: ScreenScale<Px = Px, Lp = Lp>,
+    {
+        let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
+        let focus_ring =
+            Shape::stroked_rect(visible_rect, color, options.into_px(self.gfx.scale()));
+        self.gfx
+            .draw_shape(&focus_ring, Point::default(), None, None);
+    }
+
     /// Renders the default focus ring for this widget.
     ///
     /// To ensure the correct color is used, include [`HighlightColor`] in the
@@ -460,14 +472,8 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
             return;
         }
 
-        let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
-        let focus_ring = Shape::stroked_rect(
-            visible_rect,
-            styles.get(&HighlightColor, self),
-            StrokeOptions::default(),
-        );
-        self.gfx
-            .draw_shape(&focus_ring, Point::default(), None, None);
+        let color = styles.get(&HighlightColor, self);
+        self.stroke_outline::<Lp>(color, StrokeOptions::default());
     }
 
     /// Renders the default focus ring for this widget.

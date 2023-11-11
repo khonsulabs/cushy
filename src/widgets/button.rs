@@ -4,16 +4,18 @@ use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
-use kludgine::figures::units::{Px, UPx};
+use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{IntoUnsigned, Point, Rect, ScreenScale, Size};
+use kludgine::shapes::StrokeOptions;
 use kludgine::text::Text;
 use kludgine::Color;
 
-use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
+use crate::animation::{AnimationHandle, AnimationTarget, LinearInterpolate, Spawn};
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::names::Name;
 use crate::styles::components::{
-    AutoFocusableControls, Easing, IntrinsicPadding, SurfaceColor, TextColor,
+    AutoFocusableControls, DisabledOutlineColor, Easing, IntrinsicPadding, OutlineColor,
+    SurfaceColor, TextColor,
 };
 use crate::styles::{ColorExt, ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
 use crate::utils::ModifiersExt;
@@ -31,8 +33,8 @@ pub struct Button {
     pub enabled: Value<bool>,
     currently_enabled: bool,
     buttons_pressed: usize,
-    background_color: Option<Dynamic<Color>>,
-    text_color: Option<Dynamic<Color>>,
+    colors: Option<Dynamic<Colors>>,
+
     color_animation: AnimationHandle,
 }
 
@@ -45,8 +47,7 @@ impl Button {
             enabled: Value::Constant(true),
             currently_enabled: true,
             buttons_pressed: 0,
-            background_color: None,
-            text_color: None,
+            colors: None,
             color_animation: AnimationHandle::default(),
         }
     }
@@ -88,12 +89,16 @@ impl Button {
             &Easing,
             &TextColor,
             &SurfaceColor,
+            &OutlineColor,
+            &DisabledOutlineColor,
         ]);
         let text_color = styles.get(&TextColor, context);
         let surface_color = styles.get(&SurfaceColor, context);
-        let (background_color, text_color, surface_color) = if !self.enabled.get() {
+        let outline_color = styles.get(&OutlineColor, context);
+        let (background, outline, text_color, surface_color) = if !self.enabled.get() {
             (
                 styles.get(&ButtonDisabledBackground, context),
+                styles.get(&DisabledOutlineColor, context),
                 text_color,
                 surface_color,
             )
@@ -101,62 +106,84 @@ impl Button {
             // TODO this probably should be de-prioritized if ButtonBackground is explicitly set.
             (
                 context.theme().primary.color,
+                context.theme().primary.color,
                 context.theme().primary.on_color,
                 context.theme().primary.color,
             )
         } else if context.active() {
             (
                 styles.get(&ButtonActiveBackground, context),
+                outline_color,
                 text_color,
                 surface_color,
             )
         } else if context.hovered() {
             (
                 styles.get(&ButtonHoverBackground, context),
+                outline_color,
                 text_color,
                 surface_color,
             )
         } else {
             (
                 styles.get(&ButtonBackground, context),
+                outline_color,
                 text_color,
                 surface_color,
             )
         };
 
-        let text_color = background_color.most_contrasting(&[text_color, surface_color]);
+        let text = background.most_contrasting(&[text_color, surface_color]);
 
-        match (immediate, &self.background_color, &self.text_color) {
-            (false, Some(bg), Some(text)) => {
-                self.color_animation = (
-                    bg.transition_to(background_color),
-                    text.transition_to(text_color),
-                )
+        let new_colors = Colors {
+            background,
+            text,
+            outline,
+        };
+
+        match (immediate, &self.colors) {
+            (false, Some(colors)) => {
+                self.color_animation = colors
+                    .transition_to(new_colors)
                     .over(Duration::from_millis(150))
                     .with_easing(styles.get(&Easing, context))
                     .spawn();
             }
-            (true, Some(bg), Some(text)) => {
-                bg.update(background_color);
-                text.update(text_color);
+            (true, Some(colors)) => {
+                colors.update(new_colors);
                 self.color_animation.clear();
             }
             _ => {
-                self.background_color = Some(Dynamic::new(background_color));
-                self.text_color = Some(Dynamic::new(text_color));
+                self.colors = Some(Dynamic::new(new_colors));
             }
         }
     }
 
-    fn current_colors(&mut self, context: &WidgetContext<'_, '_>) -> (Color, Color) {
-        if self.background_color.is_none() {
+    fn current_colors(&mut self, context: &WidgetContext<'_, '_>) -> Colors {
+        if self.colors.is_none() {
             self.update_colors(context, false);
         }
 
-        let background_color = self.background_color.as_ref().expect("always initialized");
-        let text_color = self.text_color.as_ref().expect("always initialized"); // TODO combine these into a single option
-        context.redraw_when_changed(background_color);
-        (background_color.get(), text_color.get())
+        let colors = self.colors.as_ref().expect("always initialized");
+        context.redraw_when_changed(colors);
+        colors.get()
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+struct Colors {
+    background: Color,
+    text: Color,
+    outline: Color,
+}
+
+impl LinearInterpolate for Colors {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        Self {
+            background: self.background.lerp(&target.background, percent),
+            text: self.text.lerp(&target.text, percent),
+            outline: self.outline.lerp(&target.outline, percent),
+        }
     }
 }
 
@@ -175,16 +202,18 @@ impl Widget for Button {
         self.label.redraw_when_changed(context);
         self.enabled.redraw_when_changed(context);
 
-        let (background_color, text_color) = self.current_colors(context);
-        context.gfx.fill(background_color);
+        let colors = self.current_colors(context);
+        context.gfx.fill(colors.background);
 
         if context.focused() {
             context.draw_focus_ring();
+        } else {
+            context.stroke_outline::<Lp>(colors.outline, StrokeOptions::default());
         }
 
         self.label.map(|label| {
             context.gfx.draw_text(
-                Text::new(label, text_color)
+                Text::new(label, colors.text)
                     .origin(kludgine::text::TextOrigin::Center)
                     .wrap_at(size.width),
                 center,

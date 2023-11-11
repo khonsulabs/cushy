@@ -394,3 +394,39 @@ impl ComponentDefinition for WidgetBackground {
         Color::CLEAR_WHITE
     }
 }
+
+/// A [`Color`] to be used as an outline color.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct OutlineColor;
+
+impl NamedComponent for OutlineColor {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("outline_color"))
+    }
+}
+
+impl ComponentDefinition for OutlineColor {
+    type ComponentType = Color;
+
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
+        context.theme().surface.outline
+    }
+}
+
+/// A [`Color`] to be used as an outline color.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct DisabledOutlineColor;
+
+impl NamedComponent for DisabledOutlineColor {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("disabled_outline_color"))
+    }
+}
+
+impl ComponentDefinition for DisabledOutlineColor {
+    type ComponentType = Color;
+
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
+        context.theme().surface.outline_variant
+    }
+}
