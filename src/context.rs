@@ -1,4 +1,5 @@
 //! Types that provide access to the Gooey runtime.
+use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -6,7 +7,6 @@ use std::sync::Arc;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
-use kludgine::app::winit::window;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{IntoSigned, Point, Rect, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
@@ -15,10 +15,10 @@ use kludgine::{Color, Kludgine};
 use crate::graphics::Graphics;
 use crate::styles::components::{HighlightColor, VisualOrder, WidgetBackground};
 use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles, Theme, ThemePair};
-use crate::value::Dynamic;
+use crate::value::{Dynamic, Value};
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
 use crate::window::sealed::WindowCommand;
-use crate::window::RunningWindow;
+use crate::window::{RunningWindow, ThemeMode};
 use crate::ConstraintLimit;
 
 /// A context to an event function.
@@ -674,8 +674,9 @@ pub struct WidgetContext<'context, 'window> {
     current_node: ManagedWidget,
     redraw_status: &'context RedrawStatus,
     window: &'context mut RunningWindow<'window>,
-    theme: &'context ThemePair,
+    theme: Cow<'context, ThemePair>,
     pending_state: PendingState<'context>,
+    theme_mode: ThemeMode,
 }
 
 impl<'context, 'window> WidgetContext<'context, 'window> {
@@ -684,6 +685,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         redraw_status: &'context RedrawStatus,
         theme: &'context ThemePair,
         window: &'context mut RunningWindow<'window>,
+        theme_mode: ThemeMode,
     ) -> Self {
         Self {
             pending_state: PendingState::Owned(PendingWidgetState {
@@ -698,7 +700,8 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             }),
             current_node,
             redraw_status,
-            theme,
+            theme: Cow::Borrowed(theme),
+            theme_mode,
             window,
         }
     }
@@ -709,8 +712,9 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             current_node: self.current_node.clone(),
             redraw_status: self.redraw_status,
             window: &mut *self.window,
-            theme: self.theme,
+            theme: Cow::Borrowed(self.theme.as_ref()),
             pending_state: self.pending_state.borrowed(),
+            theme_mode: self.theme_mode,
         }
     }
 
@@ -723,12 +727,26 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         Widget: ManageWidget,
         Widget::Managed: MapManagedWidget<WidgetContext<'child, 'window>>,
     {
-        widget.manage(self).map(|current_node| WidgetContext {
-            current_node,
-            redraw_status: self.redraw_status,
-            window: &mut *self.window,
-            theme: self.theme,
-            pending_state: self.pending_state.borrowed(),
+        widget.manage(self).map(|current_node| {
+            let (theme, theme_mode) = current_node.overidden_theme();
+            let theme = if let Some(theme) = theme {
+                Cow::Owned(theme.get_tracked(self))
+            } else {
+                Cow::Borrowed(self.theme.as_ref())
+            };
+            let theme_mode = if let Some(mode) = theme_mode {
+                mode.get_tracked(self)
+            } else {
+                self.theme_mode
+            };
+            WidgetContext {
+                current_node,
+                redraw_status: self.redraw_status,
+                window: &mut *self.window,
+                theme,
+                pending_state: self.pending_state.borrowed(),
+                theme_mode,
+            }
         })
     }
 
@@ -872,8 +890,22 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     ///
     /// Style queries for children will return any values matching this
     /// collection.
-    pub fn attach_styles(&self, styles: Styles) {
+    pub fn attach_styles(&self, styles: Value<Styles>) {
         self.current_node.attach_styles(styles);
+    }
+
+    /// Attaches `theme` to the widget hierarchy for this widget.
+    ///
+    /// All children nodes will access this theme in their contexts.
+    pub fn attach_theme(&self, theme: Value<ThemePair>) {
+        self.current_node.attach_theme(theme);
+    }
+
+    /// Attaches `theme_mode` to the widget hierarchy for this widget.
+    ///
+    /// All children nodes will use this theme mode.
+    pub fn attach_theme_mode(&self, theme_mode: Value<ThemeMode>) {
+        self.current_node.attach_theme_mode(theme_mode);
     }
 
     /// Queries the widget hierarchy for matching style components.
@@ -890,7 +922,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     pub fn query_styles(&self, query: &[&dyn ComponentDefaultvalue]) -> Styles {
         self.current_node
             .tree
-            .query_styles(&self.current_node, query)
+            .query_styles(&self.current_node, query, self)
     }
 
     /// Queries the widget hierarchy for a single style component.
@@ -931,24 +963,24 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns the theme pair for the window.
     #[must_use]
     pub fn theme_pair(&self) -> &ThemePair {
-        self.theme
+        self.theme.as_ref()
     }
 
     /// Returns the current theme in either light or dark mode.
     #[must_use]
     pub fn theme(&self) -> &Theme {
-        match self.window.theme() {
-            window::Theme::Light => &self.theme.light,
-            window::Theme::Dark => &self.theme.dark,
+        match self.theme_mode {
+            ThemeMode::Light => &self.theme.light,
+            ThemeMode::Dark => &self.theme.dark,
         }
     }
 
     /// Returns the opposite theme of [`Self::theme()`].
     #[must_use]
     pub fn inverse_theme(&self) -> &Theme {
-        match self.window.theme() {
-            window::Theme::Light => &self.theme.dark,
-            window::Theme::Dark => &self.theme.light,
+        match self.theme_mode {
+            ThemeMode::Light => &self.theme.dark,
+            ThemeMode::Dark => &self.theme.light,
         }
     }
 }

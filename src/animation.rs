@@ -674,6 +674,26 @@ impl LinearInterpolate for f64 {
     }
 }
 
+impl LinearInterpolate for bool {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        if percent >= 0.5 {
+            *target
+        } else {
+            *self
+        }
+    }
+}
+
+impl PercentBetween for bool {
+    fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+        if *min == *max || *self == *min {
+            ZeroToOne::ZERO
+        } else {
+            ZeroToOne::ONE
+        }
+    }
+}
+
 #[test]
 fn integer_lerps() {
     #[track_caller]

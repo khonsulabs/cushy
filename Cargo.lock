@@ -481,7 +481,7 @@ checksum = "dd2e7510819d6fbf51a5545c8f922716ecfb14df168a3242f7d33e0239efe6a1"
 [[package]]
 name = "figures"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/figures#3e12470aa10d36d0b38f0441a0e89ae03ccd448b"
+source = "git+https://github.com/khonsulabs/figures#7b41393c44d4def606790e340c98450b603010b4"
 dependencies = [
  "bytemuck",
  "euclid",

@@ -3,7 +3,8 @@ use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair};
 use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
-use gooey::widgets::{Label, Scroll, Slider, Stack};
+use gooey::widgets::{Label, Scroll, Slider, Stack, Themed};
+use gooey::window::ThemeMode;
 use gooey::Run;
 use kludgine::Color;
 
@@ -20,6 +21,7 @@ fn main() -> gooey::Result {
     let (neutral, neutral_editor) = color_editor(PRIMARY_HUE, 0.001, "Neutral");
     let (neutral_variant, neutral_variant_editor) =
         color_editor(PRIMARY_HUE, 0.001, "Neutral Variant");
+    let (theme_mode, theme_switcher) = dark_mode_slider();
 
     let default_theme = (
         &primary,
@@ -42,25 +44,47 @@ fn main() -> gooey::Result {
             },
         );
 
-    Stack::columns(
-        Scroll::vertical(Stack::rows(
-            primary_editor
-                .and(secondary_editor)
-                .and(tertiary_editor)
-                .and(error_editor)
-                .and(neutral_editor)
-                .and(neutral_variant_editor),
-        ))
-        .and(theme(default_theme.map_each(|theme| theme.dark), "Dark"))
-        .and(theme(default_theme.map_each(|theme| theme.light), "Light"))
-        .and(fixed_themes(
-            default_theme.map_each(|theme| theme.primary_fixed),
-            default_theme.map_each(|theme| theme.secondary_fixed),
-            default_theme.map_each(|theme| theme.tertiary_fixed),
-        )),
+    Themed::new(
+        default_theme.clone(),
+        Stack::columns(
+            Scroll::vertical(Stack::rows(
+                theme_switcher
+                    .and(primary_editor)
+                    .and(secondary_editor)
+                    .and(tertiary_editor)
+                    .and(error_editor)
+                    .and(neutral_editor)
+                    .and(neutral_variant_editor),
+            ))
+            .and(theme(default_theme.map_each(|theme| theme.dark), "Dark"))
+            .and(theme(default_theme.map_each(|theme| theme.light), "Light"))
+            .and(fixed_themes(
+                default_theme.map_each(|theme| theme.primary_fixed),
+                default_theme.map_each(|theme| theme.secondary_fixed),
+                default_theme.map_each(|theme| theme.tertiary_fixed),
+            )),
+        ),
     )
     .expand()
+    .into_window()
+    .with_theme_mode(theme_mode)
     .run()
+}
+
+fn dark_mode_slider() -> (Dynamic<ThemeMode>, impl MakeWidget) {
+    let on_off = Dynamic::new(true);
+    let theme_mode = on_off.map_each(|dark| {
+        if *dark {
+            ThemeMode::Dark
+        } else {
+            ThemeMode::Light
+        }
+    });
+
+    (
+        theme_mode,
+        Stack::rows(Label::new("Theme Mode").and(Slider::<bool>::from_value(on_off))),
+    )
 }
 
 fn color_editor(
