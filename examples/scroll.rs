@@ -5,5 +5,6 @@ use gooey::Run;
 fn main() -> gooey::Result {
     Label::new(include_str!("../src/widgets/scroll.rs"))
         .scroll()
+        .expand()
         .run()
 }

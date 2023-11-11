@@ -126,22 +126,17 @@ impl Widget for Scroll {
 
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
         context.redraw_when_changed(&self.scrollbar_opacity);
-        let Some(visible_rect) = context.gfx.visible_rect() else {
-            return;
-        };
-        let visible_bottom_right = visible_rect.into_signed().extent();
 
         let managed = self.contents.mounted(&mut context.as_event_context());
         context.for_other(&managed).redraw();
+
+        let size = context.gfx.region().size;
 
         if self.horizontal_bar.amount_hidden > 0 {
             context.gfx.draw_shape(
                 &Shape::filled_rect(
                     Rect::new(
-                        Point::new(
-                            self.horizontal_bar.offset,
-                            self.control_size.height - self.bar_width,
-                        ),
+                        Point::new(self.horizontal_bar.offset, size.height - self.bar_width),
                         Size::new(self.horizontal_bar.size, self.bar_width),
                     ),
                     Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
@@ -156,10 +151,7 @@ impl Widget for Scroll {
             context.gfx.draw_shape(
                 &Shape::filled_rect(
                     Rect::new(
-                        Point::new(
-                            visible_bottom_right.x - self.bar_width,
-                            self.vertical_bar.offset,
-                        ),
+                        Point::new(size.width - self.bar_width, self.vertical_bar.offset),
                         Size::new(self.bar_width, self.vertical_bar.size),
                     ),
                     Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),

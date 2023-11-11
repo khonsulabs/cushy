@@ -46,6 +46,7 @@ fn main() -> gooey::Result {
         Lp::points(300)..Lp::points(600),
         Stack::rows(username_row.and(password_row).and(buttons)),
     )
+    .scroll()
     .centered()
     .expand()
     .run()
