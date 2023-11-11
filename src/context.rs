@@ -196,7 +196,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                     }
                     true
                 }
-                Err(_) => false,
+                Err(()) => false,
             };
             if new {
                 if let Some(active) = self.pending_state.active.clone() {
@@ -250,7 +250,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                     }
                     true
                 }
-                Err(_) => false,
+                Err(()) => false,
             };
             if new {
                 if let Some(focus) = self.pending_state.focus.clone() {

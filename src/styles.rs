@@ -58,7 +58,7 @@ impl Styles {
 
     /// Adds a [`Component`] for the name provided and returns self.
     #[must_use]
-    pub fn with(mut self, name: &impl NamedComponent, component: impl Into<Component>) -> Self {
+    pub fn with(mut self, name: &impl NamedComponent, component: impl IntoComponentValue) -> Self {
         self.insert(name, component);
         self
     }

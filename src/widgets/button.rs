@@ -5,26 +5,27 @@ use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoUnsigned, Point, Rect, ScreenScale, Size};
-use kludgine::text::Text;
+use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
-use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::names::Name;
 use crate::styles::components::{
     AutoFocusableControls, Easing, IntrinsicPadding, SurfaceColor, TextColor,
 };
-use crate::styles::{ColorExt, ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
+use crate::styles::{
+    ColorExt, ComponentDefinition, ComponentGroup, ComponentName, NamedComponent, Styles,
+};
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, IntoValue, Value};
-use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
+use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
 
 /// A clickable button.
 #[derive(Debug)]
 pub struct Button {
     /// The label to display on the button.
-    pub label: Value<String>,
+    pub content: WidgetRef,
     /// The callback that is invoked when the button is clicked.
     pub on_click: Option<Callback<()>>,
     /// The enabled state of the button.
@@ -38,9 +39,9 @@ pub struct Button {
 
 impl Button {
     /// Returns a new button with the provided label.
-    pub fn new(label: impl IntoValue<String>) -> Self {
+    pub fn new(content: impl MakeWidget) -> Self {
         Self {
-            label: label.into_value(),
+            content: content.widget_ref(),
             on_click: None,
             enabled: Value::Constant(true),
             currently_enabled: true,
@@ -143,25 +144,27 @@ impl Button {
             }
             _ => {
                 self.background_color = Some(Dynamic::new(background_color));
-                self.text_color = Some(Dynamic::new(text_color));
+                let text_color = Dynamic::new(text_color);
+                self.text_color = Some(text_color.clone());
+                context.attach_styles(Styles::new().with(&TextColor, text_color));
             }
         }
     }
 
-    fn current_colors(&mut self, context: &WidgetContext<'_, '_>) -> (Color, Color) {
+    fn current_background(&mut self, context: &WidgetContext<'_, '_>) -> Color {
         if self.background_color.is_none() {
             self.update_colors(context, false);
         }
 
         let background_color = self.background_color.as_ref().expect("always initialized");
-        let text_color = self.text_color.as_ref().expect("always initialized"); // TODO combine these into a single option
         context.redraw_when_changed(background_color);
-        (background_color.get(), text_color.get())
+        background_color.get()
     }
 }
 
 impl Widget for Button {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        #![allow(clippy::similar_names)]
         let enabled = self.enabled.get();
         // TODO This seems ugly. It needs context, so it can't be moved into the
         // dynamic system.
@@ -170,28 +173,17 @@ impl Widget for Button {
             self.currently_enabled = enabled;
         }
 
-        let size = context.gfx.region().size;
-        let center = Point::from(size) / 2;
-        self.label.redraw_when_changed(context);
         self.enabled.redraw_when_changed(context);
 
-        let (background_color, text_color) = self.current_colors(context);
+        let background_color = self.current_background(context);
         context.gfx.fill(background_color);
 
         if context.focused() {
             context.draw_focus_ring();
         }
 
-        self.label.map(|label| {
-            context.gfx.draw_text(
-                Text::new(label, text_color)
-                    .origin(kludgine::text::TextOrigin::Center)
-                    .wrap_at(size.width),
-                center,
-                None,
-                None,
-            );
-        });
+        let content = self.content.mounted(&mut context.as_event_context());
+        context.for_other(&content).redraw();
     }
 
     fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
@@ -266,17 +258,13 @@ impl Widget for Button {
             .query_style(&IntrinsicPadding)
             .into_px(context.gfx.scale())
             .into_unsigned();
-        let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
-        self.label.map(|label| {
-            let measured = context
-                .gfx
-                .measure_text::<Px>(Text::from(label).wrap_at(width));
-
-            let mut size = measured.size.into_unsigned();
-            size.width += padding * 2;
-            size.height = size.height.max(measured.line_height.into_unsigned()) + padding * 2;
-            size
-        })
+        let mounted = self.content.mounted(&mut context.as_event_context());
+        let size = context.for_other(&mounted).layout(available_space);
+        context.set_child_layout(
+            &mounted,
+            Rect::new(Point::new(padding, padding), size).into_signed(),
+        );
+        size + padding * 2
     }
 
     fn keyboard_input(

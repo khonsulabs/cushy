@@ -9,8 +9,8 @@ use kludgine::Color;
 use crate::context::{GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{IntrinsicPadding, TextColor};
 use crate::styles::{ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
-use crate::value::{IntoValue, Value};
-use crate::widget::Widget;
+use crate::value::{Dynamic, IntoValue, Value};
+use crate::widget::{MakeWidget, Widget, WidgetInstance};
 use crate::{ConstraintLimit, Name};
 
 /// A read-only text widget.
@@ -108,3 +108,15 @@ impl ComponentDefinition for LabelBackground {
         Color::CLEAR_WHITE
     }
 }
+
+macro_rules! impl_make_widget {
+    ($($type:ty),*) => {
+        $(impl MakeWidget for $type {
+            fn make_widget(self) -> WidgetInstance {
+                Label::new(self).make_widget()
+            }
+        })*
+    };
+}
+
+impl_make_widget!(&'_ str, String, Value<String>, Dynamic<String>);
