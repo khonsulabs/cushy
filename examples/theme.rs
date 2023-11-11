@@ -72,18 +72,11 @@ fn main() -> gooey::Result {
 }
 
 fn dark_mode_slider() -> (Dynamic<ThemeMode>, impl MakeWidget) {
-    let on_off = Dynamic::new(true);
-    let theme_mode = on_off.map_each(|dark| {
-        if *dark {
-            ThemeMode::Dark
-        } else {
-            ThemeMode::Light
-        }
-    });
+    let theme_mode = Dynamic::default();
 
     (
-        theme_mode,
-        Stack::rows(Label::new("Theme Mode").and(Slider::<bool>::from_value(on_off))),
+        theme_mode.clone(),
+        Stack::rows(Label::new("Theme Mode").and(Slider::<ThemeMode>::from_value(theme_mode))),
     )
 }
 

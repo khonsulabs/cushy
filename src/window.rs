@@ -18,12 +18,13 @@ use kludgine::app::winit::keyboard::Key;
 use kludgine::app::winit::window;
 use kludgine::app::WindowBehavior as _;
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
+use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size};
 use kludgine::render::Drawing;
 use kludgine::wgpu::CompositeAlphaMode;
 use kludgine::Kludgine;
 use tracing::Level;
 
+use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
 use crate::context::{
     AsEventContext, EventContext, Exclusive, GraphicsContext, LayoutContext, RedrawStatus,
     WidgetContext,
@@ -1057,11 +1058,12 @@ pub(crate) mod sealed {
 }
 
 /// Controls whether the light or dark theme is applied.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Default, Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ThemeMode {
     /// Applies the light theme
     Light,
     /// Applies the dark theme
+    #[default]
     Dark,
 }
 
@@ -1081,4 +1083,29 @@ impl From<ThemeMode> for window::Theme {
             ThemeMode::Dark => Self::Dark,
         }
     }
+}
+
+impl LinearInterpolate for ThemeMode {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        if percent >= 0.5 {
+            *target
+        } else {
+            *self
+        }
+    }
+}
+
+impl PercentBetween for ThemeMode {
+    fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+        if *min == *max || *self == *min {
+            ZeroToOne::ZERO
+        } else {
+            ZeroToOne::ONE
+        }
+    }
+}
+
+impl Ranged for ThemeMode {
+    const MAX: Self = Self::Dark;
+    const MIN: Self = Self::Light;
 }
