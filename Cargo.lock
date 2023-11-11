@@ -455,9 +455,9 @@ dependencies = [
 
 [[package]]
 name = "etagere"
-version = "0.2.9"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bf70b9ea3a235a7432b4f481854815e2d4fb2fe824c1f5fb09b8985dd06b3e9"
+checksum = "fcf22f748754352918e082e0039335ee92454a5d62bcaf69b5e8daf5907d9644"
 dependencies = [
  "euclid",
  "svg_fmt",
@@ -481,7 +481,7 @@ checksum = "dd2e7510819d6fbf51a5545c8f922716ecfb14df168a3242f7d33e0239efe6a1"
 [[package]]
 name = "figures"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/figures#f5b9ca5cf181b748897b269ad47d7a9f2d1f3eac"
+source = "git+https://github.com/khonsulabs/figures#3e12470aa10d36d0b38f0441a0e89ae03ccd448b"
 dependencies = [
  "bytemuck",
  "euclid",

@@ -193,12 +193,12 @@ impl Widget for Scroll {
             if self.enabled.x {
                 ConstraintLimit::ClippedAfter(UPx::MAX - scroll.x.into_unsigned())
             } else {
-                ConstraintLimit::Known(control_size.width.into_unsigned())
+                available_space.width
             },
             if self.enabled.y {
                 ConstraintLimit::ClippedAfter(UPx::MAX - scroll.y.into_unsigned())
             } else {
-                ConstraintLimit::Known(control_size.height.into_unsigned())
+                available_space.height
             },
         );
         let managed = self.contents.mounted(&mut context.as_event_context());
@@ -255,7 +255,22 @@ impl Widget for Scroll {
         );
         context.set_child_layout(&managed, region);
 
-        Size::new(available_space.width.max(), available_space.height.max())
+        Size::new(
+            if self.enabled.x {
+                available_space
+                    .width
+                    .fit_measured(self.content_size.width, context.gfx.scale())
+            } else {
+                self.content_size.width.into_unsigned()
+            },
+            if self.enabled.y {
+                available_space
+                    .height
+                    .fit_measured(self.content_size.height, context.gfx.scale())
+            } else {
+                self.content_size.height.into_unsigned()
+            },
+        )
     }
 
     fn mouse_wheel(

@@ -139,6 +139,18 @@ impl<T> Dynamic<T> {
         self.0.get().value
     }
 
+    /// Returns a clone of the currently contained value.
+    ///
+    /// `context` will be invalidated when the value is updated.
+    #[must_use]
+    pub fn get_tracked(&self, context: &WidgetContext<'_, '_>) -> T
+    where
+        T: Clone,
+    {
+        context.redraw_when_changed(self);
+        self.get()
+    }
+
     /// Returns the currently stored value, replacing the current contents with
     /// `T::default()`.
     #[must_use]
@@ -669,6 +681,20 @@ impl<T> Value<T> {
         }
     }
 
+    /// Maps the current contents to `map` and returns the result.
+    ///
+    /// If `self` is a dynamic, `context` will be invalidated when the value is
+    /// updated.
+    pub fn map_tracked<R>(&self, context: &WidgetContext<'_, '_>, map: impl FnOnce(&T) -> R) -> R {
+        match self {
+            Value::Constant(value) => map(value),
+            Value::Dynamic(dynamic) => {
+                context.redraw_when_changed(dynamic);
+                dynamic.map_ref(map)
+            }
+        }
+    }
+
     /// Maps the current contents with exclusive access and returns the result.
     pub fn map_mut<R>(&mut self, map: impl FnOnce(&mut T) -> R) -> R {
         match self {
@@ -683,6 +709,17 @@ impl<T> Value<T> {
         T: Clone,
     {
         self.map(Clone::clone)
+    }
+
+    /// Returns a clone of the currently stored value.
+    ///
+    /// If `self` is a dynamic, `context` will be invalidated when the value is
+    /// updated.
+    pub fn get_tracked(&self, context: &WidgetContext<'_, '_>) -> T
+    where
+        T: Clone,
+    {
+        self.map_tracked(context, Clone::clone)
     }
 
     /// Returns the current generation of the data stored, if the contained

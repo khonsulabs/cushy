@@ -571,9 +571,15 @@ where
 pub struct Group(Name);
 
 impl Group {
+    /// Returns a new group with `name`.
+    #[must_use]
+    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
+        Self(Name::new(name))
+    }
+
     /// Returns a new instance using the group name of `T`.
     #[must_use]
-    pub fn new<T>() -> Self
+    pub fn from_group<T>() -> Self
     where
         T: ComponentGroup,
     {
@@ -625,7 +631,7 @@ impl ComponentName {
 
     /// Returns a new instance using `G` and `name`.
     pub fn named<G: ComponentGroup>(name: impl Into<Name>) -> Self {
-        Self::new(Group::new::<G>(), name)
+        Self::new(Group::from_group::<G>(), name)
     }
 }
 
@@ -1130,10 +1136,10 @@ impl ColorSource {
     /// Returns a new source with the given hue (in degrees) and saturation (0.0
     /// - 1.0).
     #[must_use]
-    pub fn new(hue: f32, saturation: f32) -> Self {
+    pub fn new(hue: impl Into<OklabHue>, saturation: impl Into<ZeroToOne>) -> Self {
         Self {
-            hue: OklabHue::new(hue),
-            saturation: ZeroToOne::new(saturation),
+            hue: hue.into(),
+            saturation: saturation.into(),
         }
     }
 

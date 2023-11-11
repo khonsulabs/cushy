@@ -1,14 +1,15 @@
+use gooey::animation::ZeroToOne;
 use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair};
 use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
-use gooey::widgets::{Input, Label, Stack};
+use gooey::widgets::{Label, Scroll, Slider, Stack};
 use gooey::Run;
 use kludgine::Color;
 
-const PRIMARY_HUE: f32 = -120.;
+const PRIMARY_HUE: f32 = 240.;
 const SECONDARY_HUE: f32 = 0.;
-const TERTIARY_HUE: f32 = -30.;
+const TERTIARY_HUE: f32 = 330.;
 const ERROR_HUE: f32 = 30.;
 
 fn main() -> gooey::Result {
@@ -41,23 +42,21 @@ fn main() -> gooey::Result {
             },
         );
 
-    Stack::rows(
-        Stack::columns(
+    Stack::columns(
+        Scroll::vertical(Stack::rows(
             primary_editor
                 .and(secondary_editor)
                 .and(tertiary_editor)
                 .and(error_editor)
                 .and(neutral_editor)
                 .and(neutral_variant_editor),
-        )
-        .and(Stack::columns(
-            theme(default_theme.map_each(|theme| theme.dark), "Dark")
-                .and(theme(default_theme.map_each(|theme| theme.light), "Light"))
-                .and(fixed_themes(
-                    default_theme.map_each(|theme| theme.primary_fixed),
-                    default_theme.map_each(|theme| theme.secondary_fixed),
-                    default_theme.map_each(|theme| theme.tertiary_fixed),
-                )),
+        ))
+        .and(theme(default_theme.map_each(|theme| theme.dark), "Dark"))
+        .and(theme(default_theme.map_each(|theme| theme.light), "Light"))
+        .and(fixed_themes(
+            default_theme.map_each(|theme| theme.primary_fixed),
+            default_theme.map_each(|theme| theme.secondary_fixed),
+            default_theme.map_each(|theme| theme.tertiary_fixed),
         )),
     )
     .expand()
@@ -66,13 +65,14 @@ fn main() -> gooey::Result {
 
 fn color_editor(
     initial_hue: f32,
-    initial_saturation: f32,
+    initial_saturation: impl Into<ZeroToOne>,
     label: &str,
 ) -> (Dynamic<ColorSource>, impl MakeWidget) {
-    let hue_text = Dynamic::new(initial_hue.to_string());
-    let hue = hue_text.map_each(|hue| hue.parse::<f32>().unwrap_or_default());
-    let saturation_text = Dynamic::new(initial_saturation.to_string());
-    let saturation = saturation_text.map_each(|sat| sat.parse::<f32>().unwrap_or_default());
+    let hue = Dynamic::new(initial_hue);
+    let hue_text = hue.map_each(|hue| hue.to_string());
+    let saturation = Dynamic::new(initial_saturation.into());
+    let saturation_text = saturation.map_each(|saturation| saturation.to_string());
+
     let color =
         (&hue, &saturation).map_each(|(hue, saturation)| ColorSource::new(*hue, *saturation));
 
@@ -80,10 +80,11 @@ fn color_editor(
         color,
         Stack::rows(
             Label::new(label)
-                .and(Input::new(hue_text))
-                .and(Input::new(saturation_text)),
-        )
-        .expand(),
+                .and(Slider::<f32>::new(hue, 0., 360.))
+                .and(Label::new(hue_text))
+                .and(Slider::<ZeroToOne>::from_value(saturation))
+                .and(Label::new(saturation_text)),
+        ),
     )
 }
 
