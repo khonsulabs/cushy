@@ -16,7 +16,7 @@ use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::VisualOrder;
-use crate::styles::{Component, NamedComponent, Styles};
+use crate::styles::{IntoComponentValue, NamedComponent, Styles};
 use crate::tree::Tree;
 use crate::value::{IntoValue, Value};
 use crate::widgets::{Align, Expand, Scroll, Style};
@@ -456,7 +456,7 @@ pub trait MakeWidget: Sized {
     }
 
     /// Associates a style component with `self`.
-    fn with(self, name: &impl NamedComponent, component: impl Into<Component>) -> Style {
+    fn with(self, name: &impl NamedComponent, component: impl IntoComponentValue) -> Style {
         let mut styles = Styles::new();
         styles.insert(name, component);
         Style::new(styles, self)

@@ -89,7 +89,7 @@ impl Stack {
                                 if let Some(expand) = guard.downcast_ref::<Expand>() {
                                     let weight = expand.weight;
                                     (
-                                        WidgetRef::Unmounted(widget.clone()),
+                                        expand.child().clone(),
                                         StackDimension::Fractional { weight },
                                     )
                                 } else if let Some((child, size)) =

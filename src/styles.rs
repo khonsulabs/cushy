@@ -920,9 +920,6 @@ pub struct Theme {
 
     /// The theme to color surfaces.
     pub surface: SurfaceTheme,
-
-    /// A theme of inverse colors to provide high contrast to other elements.
-    pub inverse: InverseTheme,
 }
 
 impl Theme {
@@ -942,7 +939,6 @@ impl Theme {
             tertiary: ColorTheme::light_from_source(tertiary),
             error: ColorTheme::light_from_source(error),
             surface: SurfaceTheme::light_from_sources(neutral, neutral_variant),
-            inverse: InverseTheme::light_from_sources(primary, neutral),
         }
     }
 
@@ -962,7 +958,6 @@ impl Theme {
             tertiary: ColorTheme::dark_from_source(tertiary),
             error: ColorTheme::dark_from_source(error),
             surface: SurfaceTheme::dark_from_sources(neutral, neutral_variant),
-            inverse: InverseTheme::dark_from_sources(primary, neutral),
         }
     }
 }
@@ -1101,40 +1096,6 @@ impl FixedTheme {
             dim_color: source.color(80),
             on_color: source.color(10),
             on_color_variant: source.color(40),
-        }
-    }
-}
-
-/// An inverse color theme for displaying highly contrasted elements.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct InverseTheme {
-    /// An inverse surface color.
-    pub surface: Color,
-    /// The default color for content atop an inverted surface.
-    pub on_surface: Color,
-    /// The inverted primary color.
-    pub primary: Color,
-    // TODO why not inverse for the other colorthemes?
-}
-
-impl InverseTheme {
-    /// Returns the light-mode, inverse theme for given sources.
-    #[must_use]
-    pub fn light_from_sources(primary: ColorSource, surface: ColorSource) -> Self {
-        Self {
-            surface: surface.color(30),
-            on_surface: surface.color(90),
-            primary: primary.color(80),
-        }
-    }
-
-    /// Returns the dark-mode, inverse theme for given sources.
-    #[must_use]
-    pub fn dark_from_sources(primary: ColorSource, surface: ColorSource) -> Self {
-        Self {
-            surface: surface.color(90),
-            on_surface: surface.color(10),
-            primary: primary.color(40),
         }
     }
 }

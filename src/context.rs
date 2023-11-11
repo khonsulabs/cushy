@@ -349,6 +349,9 @@ impl<'context, 'window> EventContext<'context, 'window> {
     ///
     /// This widget does not need to be focused.
     pub fn advance_focus(&mut self, direction: VisualOrder) {
+        // TODO check to see if the current node has an explicit next_focus (or
+        // if we're going in the opposite direction, previous_focus).
+
         self.pending_state.focus = self.next_focus_after(self.current_node.clone(), direction);
     }
 }
@@ -928,6 +931,15 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         match self.window.theme() {
             window::Theme::Light => &self.theme.light,
             window::Theme::Dark => &self.theme.dark,
+        }
+    }
+
+    /// Returns the opposite theme of [`Self::theme()`].
+    #[must_use]
+    pub fn inverse_theme(&self) -> &Theme {
+        match self.window.theme() {
+            window::Theme::Light => &self.theme.dark,
+            window::Theme::Dark => &self.theme.light,
         }
     }
 }

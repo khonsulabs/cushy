@@ -1,30 +1,97 @@
 use gooey::styles::components::TextColor;
-use gooey::styles::{ColorTheme, FixedTheme, InverseTheme, SurfaceTheme, Theme, ThemePair};
+use gooey::styles::{ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair};
+use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
 use gooey::widgets::label::LabelBackground;
-use gooey::widgets::{Label, Stack};
+use gooey::widgets::{Input, Label, Stack};
 use gooey::Run;
 use kludgine::Color;
 
+const PRIMARY_HUE: f32 = -120.;
+const SECONDARY_HUE: f32 = 0.;
+const TERTIARY_HUE: f32 = -30.;
+const ERROR_HUE: f32 = 30.;
+
 fn main() -> gooey::Result {
-    let default_theme = ThemePair::default();
-    Stack::columns(
-        theme(default_theme.dark, "Dark")
-            .and(theme(default_theme.light, "Light"))
-            .and(fixed_themes(
-                default_theme.primary_fixed,
-                default_theme.secondary_fixed,
-                default_theme.tertiary_fixed,
-            )),
+    let (primary, primary_editor) = color_editor(PRIMARY_HUE, 0.8, "Primary");
+    let (secondary, secondary_editor) = color_editor(SECONDARY_HUE, 0.3, "Secondary");
+    let (tertiary, tertiary_editor) = color_editor(TERTIARY_HUE, 0.3, "Tertiary");
+    let (error, error_editor) = color_editor(ERROR_HUE, 0.8, "Error");
+    let (neutral, neutral_editor) = color_editor(PRIMARY_HUE, 0.001, "Neutral");
+    let (neutral_variant, neutral_variant_editor) =
+        color_editor(PRIMARY_HUE, 0.001, "Neutral Variant");
+
+    let default_theme = (
+        &primary,
+        &secondary,
+        &tertiary,
+        &error,
+        &neutral,
+        &neutral_variant,
+    )
+        .map_each(
+            |(primary, secondary, tertiary, error, neutral, neutral_variant)| {
+                ThemePair::from_sources(
+                    *primary,
+                    *secondary,
+                    *tertiary,
+                    *error,
+                    *neutral,
+                    *neutral_variant,
+                )
+            },
+        );
+
+    Stack::rows(
+        Stack::columns(
+            primary_editor
+                .and(secondary_editor)
+                .and(tertiary_editor)
+                .and(error_editor)
+                .and(neutral_editor)
+                .and(neutral_variant_editor),
+        )
+        .and(Stack::columns(
+            theme(default_theme.map_each(|theme| theme.dark), "Dark")
+                .and(theme(default_theme.map_each(|theme| theme.light), "Light"))
+                .and(fixed_themes(
+                    default_theme.map_each(|theme| theme.primary_fixed),
+                    default_theme.map_each(|theme| theme.secondary_fixed),
+                    default_theme.map_each(|theme| theme.tertiary_fixed),
+                )),
+        )),
     )
     .expand()
     .run()
 }
 
+fn color_editor(
+    initial_hue: f32,
+    initial_saturation: f32,
+    label: &str,
+) -> (Dynamic<ColorSource>, impl MakeWidget) {
+    let hue_text = Dynamic::new(initial_hue.to_string());
+    let hue = hue_text.map_each(|hue| hue.parse::<f32>().unwrap_or_default());
+    let saturation_text = Dynamic::new(initial_saturation.to_string());
+    let saturation = saturation_text.map_each(|sat| sat.parse::<f32>().unwrap_or_default());
+    let color =
+        (&hue, &saturation).map_each(|(hue, saturation)| ColorSource::new(*hue, *saturation));
+
+    (
+        color,
+        Stack::rows(
+            Label::new(label)
+                .and(Input::new(hue_text))
+                .and(Input::new(saturation_text)),
+        )
+        .expand(),
+    )
+}
+
 fn fixed_themes(
-    primary: FixedTheme,
-    secondary: FixedTheme,
-    tertiary: FixedTheme,
+    primary: Dynamic<FixedTheme>,
+    secondary: Dynamic<FixedTheme>,
+    tertiary: Dynamic<FixedTheme>,
 ) -> impl MakeWidget {
     Stack::rows(
         Label::new("Fixed")
@@ -35,85 +102,118 @@ fn fixed_themes(
     .expand()
 }
 
-fn fixed_theme(theme: FixedTheme, label: &str) -> impl MakeWidget {
+fn fixed_theme(theme: Dynamic<FixedTheme>, label: &str) -> impl MakeWidget {
+    let color = theme.map_each(|theme| theme.color);
+    let on_color = theme.map_each(|theme| theme.on_color);
     Stack::columns(
-        swatch(theme.color, &format!("{label} Fixed"), theme.on_color)
+        swatch(color.clone(), &format!("{label} Fixed"), on_color.clone())
             .and(swatch(
-                theme.dim_color,
+                theme.map_each(|theme| theme.dim_color),
                 &format!("Dim {label}"),
-                theme.on_color,
+                on_color.clone(),
             ))
             .and(swatch(
-                theme.on_color,
+                on_color.clone(),
                 &format!("On {label} Fixed"),
-                theme.color,
+                color.clone(),
             ))
             .and(swatch(
-                theme.on_color_variant,
+                theme.map_each(|theme| theme.on_color_variant),
                 &format!("Variant On {label} Fixed"),
-                theme.color,
+                color,
             )),
     )
     .expand()
 }
 
-fn theme(theme: Theme, label: &str) -> impl MakeWidget {
+fn theme(theme: Dynamic<Theme>, label: &str) -> impl MakeWidget {
     Stack::rows(
         Label::new(label)
             .and(
                 Stack::columns(
-                    color_theme(theme.primary, "Primary")
-                        .and(color_theme(theme.secondary, "Secondary"))
-                        .and(color_theme(theme.tertiary, "Tertiary"))
-                        .and(color_theme(theme.error, "Error")),
+                    color_theme(theme.map_each(|theme| theme.primary), "Primary")
+                        .and(color_theme(
+                            theme.map_each(|theme| theme.secondary),
+                            "Secondary",
+                        ))
+                        .and(color_theme(
+                            theme.map_each(|theme| theme.tertiary),
+                            "Tertiary",
+                        ))
+                        .and(color_theme(theme.map_each(|theme| theme.error), "Error")),
                 )
                 .expand(),
             )
-            .and(surface_and_inverse_themes(theme.surface, theme.inverse)),
+            .and(surface_theme(theme.map_each(|theme| theme.surface))),
     )
     .expand()
 }
 
-fn surface_and_inverse_themes(theme: SurfaceTheme, inverse: InverseTheme) -> impl MakeWidget {
+fn surface_theme(theme: Dynamic<SurfaceTheme>) -> impl MakeWidget {
+    let color = theme.map_each(|theme| theme.color);
+    let on_color = theme.map_each(|theme| theme.on_color);
     Stack::rows(
         Stack::columns(
-            swatch(theme.color, "Surface", theme.on_color)
-                .and(swatch(theme.dim_color, "Dim Surface", theme.on_color))
-                .and(swatch(theme.bright_color, "Bright Surface", theme.on_color)),
+            swatch(color.clone(), "Surface", on_color.clone())
+                .and(swatch(
+                    theme.map_each(|theme| theme.dim_color),
+                    "Dim Surface",
+                    on_color.clone(),
+                ))
+                .and(swatch(
+                    theme.map_each(|theme| theme.bright_color),
+                    "Bright Surface",
+                    on_color.clone(),
+                )),
         )
         .expand()
-        .and(inverse_theme(inverse))
         .and(
             Stack::columns(
-                swatch(theme.lowest_container, "Lowest Container", theme.on_color)
-                    .and(swatch(theme.low_container, "Low Container", theme.on_color))
-                    .and(swatch(theme.container, "Container", theme.on_color))
-                    .and(swatch(
-                        theme.high_container,
-                        "High Container",
-                        theme.on_color,
-                    ))
-                    .and(swatch(
-                        theme.highest_container,
-                        "Highest Container",
-                        theme.on_color,
-                    )),
+                swatch(
+                    theme.map_each(|theme| theme.lowest_container),
+                    "Lowest Container",
+                    on_color.clone(),
+                )
+                .and(swatch(
+                    theme.map_each(|theme| theme.low_container),
+                    "Low Container",
+                    on_color.clone(),
+                ))
+                .and(swatch(
+                    theme.map_each(|theme| theme.container),
+                    "Container",
+                    on_color.clone(),
+                ))
+                .and(swatch(
+                    theme.map_each(|theme| theme.high_container),
+                    "High Container",
+                    on_color.clone(),
+                ))
+                .and(swatch(
+                    theme.map_each(|theme| theme.highest_container),
+                    "Highest Container",
+                    on_color.clone(),
+                )),
             )
             .expand(),
         )
         .and(
             Stack::columns(
-                swatch(theme.on_color, "On Surface", theme.color)
+                swatch(on_color.clone(), "On Surface", color.clone())
                     .and(swatch(
-                        theme.on_color_variant,
+                        theme.map_each(|theme| theme.on_color_variant),
                         "On Color Variant",
-                        theme.color,
+                        color.clone(),
                     ))
-                    .and(swatch(theme.outline, "Outline", theme.color))
                     .and(swatch(
-                        theme.outline_variant,
+                        theme.map_each(|theme| theme.outline),
+                        "Outline",
+                        color.clone(),
+                    ))
+                    .and(swatch(
+                        theme.map_each(|theme| theme.outline_variant),
                         "Outline Variant",
-                        theme.color,
+                        color,
                     )),
             )
             .expand(),
@@ -122,38 +222,33 @@ fn surface_and_inverse_themes(theme: SurfaceTheme, inverse: InverseTheme) -> imp
     .expand()
 }
 
-fn inverse_theme(theme: InverseTheme) -> impl MakeWidget {
-    Stack::columns(
-        swatch(theme.surface, "Inverse Surface", theme.on_surface)
-            .and(swatch(
-                theme.on_surface,
-                "On Inverse Surface",
-                theme.surface,
-            ))
-            .and(swatch(theme.primary, "Inverse Primary", theme.surface)),
-    )
-    .expand()
-}
-
-fn color_theme(theme: ColorTheme, label: &str) -> impl MakeWidget {
+fn color_theme(theme: Dynamic<ColorTheme>, label: &str) -> impl MakeWidget {
+    let color = theme.map_each(|theme| theme.color);
+    let on_color = theme.map_each(|theme| theme.on_color);
+    let container = theme.map_each(|theme| theme.container);
+    let on_container = theme.map_each(|theme| theme.on_container);
     Stack::rows(
-        swatch(theme.color, label, theme.on_color)
-            .and(swatch(theme.on_color, &format!("On {label}"), theme.color))
+        swatch(color.clone(), label, on_color.clone())
             .and(swatch(
-                theme.container,
-                &format!("{label} Container"),
-                theme.on_container,
+                on_color.clone(),
+                &format!("On {label}"),
+                color.clone(),
             ))
             .and(swatch(
-                theme.on_container,
+                container.clone(),
+                &format!("{label} Container"),
+                on_container.clone(),
+            ))
+            .and(swatch(
+                on_container,
                 &format!("On {label} Container"),
-                theme.container,
+                container,
             )),
     )
     .expand()
 }
 
-fn swatch(background: Color, label: &str, text: Color) -> impl MakeWidget {
+fn swatch(background: Dynamic<Color>, label: &str, text: Dynamic<Color>) -> impl MakeWidget {
     Label::new(label)
         .fit_horizontally()
         .fit_vertically()
