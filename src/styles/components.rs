@@ -376,3 +376,21 @@ impl FocusableWidgets {
         matches!(self, Self::OnlyTextual)
     }
 }
+
+/// A [`Color`] to be used as a highlight color.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct WidgetBackground;
+
+impl NamedComponent for WidgetBackground {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("widget_background_color"))
+    }
+}
+
+impl ComponentDefinition for WidgetBackground {
+    type ComponentType = Color;
+
+    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Color {
+        Color::CLEAR_WHITE
+    }
+}

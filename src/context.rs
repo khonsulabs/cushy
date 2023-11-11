@@ -13,7 +13,7 @@ use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Kludgine;
 
 use crate::graphics::Graphics;
-use crate::styles::components::{HighlightColor, VisualOrder};
+use crate::styles::components::{HighlightColor, VisualOrder, WidgetBackground};
 use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles, Theme, ThemePair};
 use crate::value::Dynamic;
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
@@ -487,6 +487,9 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
             self.last_layout().is_some(),
             "redraw called without set_widget_layout"
         );
+
+        let background = self.query_style(&WidgetBackground);
+        self.gfx.fill(background);
 
         self.current_node
             .tree

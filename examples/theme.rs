@@ -1,8 +1,7 @@
-use gooey::styles::components::TextColor;
+use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair};
 use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
-use gooey::widgets::label::LabelBackground;
 use gooey::widgets::{Input, Label, Stack};
 use gooey::Run;
 use kludgine::Color;
@@ -250,9 +249,9 @@ fn color_theme(theme: Dynamic<ColorTheme>, label: &str) -> impl MakeWidget {
 
 fn swatch(background: Dynamic<Color>, label: &str, text: Dynamic<Color>) -> impl MakeWidget {
     Label::new(label)
+        .with(&TextColor, text)
+        .with(&WidgetBackground, background)
         .fit_horizontally()
         .fit_vertically()
-        .with(&TextColor, text)
-        .with(&LabelBackground, background)
         .expand()
 }
