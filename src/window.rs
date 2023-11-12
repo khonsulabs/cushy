@@ -378,7 +378,7 @@ where
                 let new_min_size = (min_width > 0 || min_height > 0)
                     .then_some(Size::<Px>::new(min_width, min_height).into_unsigned());
 
-                if new_min_size != self.min_inner_size {
+                if new_min_size != self.min_inner_size && resizable {
                     window.set_min_inner_size(new_min_size);
                     self.min_inner_size = new_min_size;
                 }
