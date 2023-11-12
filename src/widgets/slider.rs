@@ -13,6 +13,7 @@ use kludgine::{Color, Origin};
 
 use crate::animation::{LinearInterpolate, PercentBetween};
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::styles::components::OpaqueWidgetColor;
 use crate::styles::{ComponentDefinition, ComponentName, Dimension, Group, NamedComponent};
 use crate::value::{Dynamic, IntoDynamic, IntoValue, Value};
 use crate::widget::{EventHandling, Widget, HANDLED};
@@ -406,7 +407,7 @@ impl ComponentDefinition for InactiveTrackColor {
     type ComponentType = Color;
 
     fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType {
-        context.theme().surface.highest_container // TODO this is the same as ButtonBackground. This should be abstracted into its own component both can depend on.
+        context.query_style(&OpaqueWidgetColor)
     }
 }
 

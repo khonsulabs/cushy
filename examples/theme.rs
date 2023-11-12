@@ -187,13 +187,13 @@ fn surface_theme(theme: Dynamic<SurfaceTheme>) -> impl MakeWidget {
         Stack::columns(
             swatch(color.clone(), "Surface", on_color.clone())
                 .and(swatch(
-                    theme.map_each(|theme| theme.dim_color),
-                    "Dim Surface",
+                    theme.map_each(|theme| theme.bright_color),
+                    "Bright Surface",
                     on_color.clone(),
                 ))
                 .and(swatch(
-                    theme.map_each(|theme| theme.bright_color),
-                    "Bright Surface",
+                    theme.map_each(|theme| theme.dim_color),
+                    "Dim Surface",
                     on_color.clone(),
                 )),
         )
@@ -245,6 +245,11 @@ fn surface_theme(theme: Dynamic<SurfaceTheme>) -> impl MakeWidget {
                         theme.map_each(|theme| theme.outline_variant),
                         "Outline Variant",
                         color,
+                    ))
+                    .and(swatch(
+                        theme.map_each(|theme| theme.opaque_widget),
+                        "Opaque Widget",
+                        on_color,
                     )),
             )
             .expand(),
@@ -255,11 +260,17 @@ fn surface_theme(theme: Dynamic<SurfaceTheme>) -> impl MakeWidget {
 
 fn color_theme(theme: Dynamic<ColorTheme>, label: &str) -> impl MakeWidget {
     let color = theme.map_each(|theme| theme.color);
+    let dim_color = theme.map_each(|theme| theme.color_dim);
     let on_color = theme.map_each(|theme| theme.on_color);
     let container = theme.map_each(|theme| theme.container);
     let on_container = theme.map_each(|theme| theme.on_container);
     Stack::rows(
         swatch(color.clone(), label, on_color.clone())
+            .and(swatch(
+                dim_color.clone(),
+                &format!("{label} Dim"),
+                on_color.clone(),
+            ))
             .and(swatch(
                 on_color.clone(),
                 &format!("On {label}"),

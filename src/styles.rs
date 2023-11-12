@@ -990,6 +990,9 @@ pub struct SurfaceTheme {
     /// The background color for highest-level container widgets.
     pub highest_container: Color,
 
+    /// The default background color for widgets that are opaque.
+    pub opaque_widget: Color,
+
     /// The default text/content color.
     pub on_color: Color,
     /// A variation of the text/content color that is de-emphasized.
@@ -1006,13 +1009,14 @@ impl SurfaceTheme {
     #[must_use]
     pub fn light_from_sources(neutral: ColorSource, neutral_variant: ColorSource) -> Self {
         Self {
-            color: neutral.color(98),
-            dim_color: neutral_variant.color(70),
-            bright_color: neutral.color(100),
-            lowest_container: neutral.color(100),
-            low_container: neutral.color(96),
-            container: neutral.color(95),
-            high_container: neutral.color(90),
+            color: neutral.color(97),
+            dim_color: neutral.color(70),
+            bright_color: neutral.color(99),
+            opaque_widget: neutral_variant.color(75),
+            lowest_container: neutral.color(95),
+            low_container: neutral.color(92),
+            container: neutral.color(90),
+            high_container: neutral.color(85),
             highest_container: neutral.color(80),
             on_color: neutral.color(10),
             on_color_variant: neutral_variant.color(30),
@@ -1027,8 +1031,9 @@ impl SurfaceTheme {
     pub fn dark_from_sources(neutral: ColorSource, neutral_variant: ColorSource) -> Self {
         Self {
             color: neutral.color(10),
-            dim_color: neutral_variant.color(2),
+            dim_color: neutral.color(2),
             bright_color: neutral.color(11),
+            opaque_widget: neutral_variant.color(40),
             lowest_container: neutral.color(15),
             low_container: neutral.color(20),
             container: neutral.color(25),
@@ -1047,6 +1052,8 @@ impl SurfaceTheme {
 pub struct ColorTheme {
     /// The primary color, used for high-emphasis content.
     pub color: Color,
+    /// The primary color, dimmed for de-emphasized or disabled content.
+    pub color_dim: Color,
     /// The color for content that sits atop the primary color.
     pub on_color: Color,
     /// The backgrond color for containers.
@@ -1061,6 +1068,7 @@ impl ColorTheme {
     pub fn light_from_source(source: ColorSource) -> Self {
         Self {
             color: source.color(40),
+            color_dim: source.color(30),
             on_color: source.color(100),
             container: source.color(90),
             on_container: source.color(10),
@@ -1071,10 +1079,11 @@ impl ColorTheme {
     #[must_use]
     pub fn dark_from_source(source: ColorSource) -> Self {
         Self {
-            color: source.color(80),
+            color: source.color(70),
+            color_dim: source.color(60),
             on_color: source.color(10),
             container: source.color(30),
-            on_container: source.color(80),
+            on_container: source.color(90),
         }
     }
 }

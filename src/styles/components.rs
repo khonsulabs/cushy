@@ -476,3 +476,22 @@ impl ComponentDefinition for DisabledOutlineColor {
         context.theme().surface.outline_variant
     }
 }
+
+/// A [`Color`] to be used as a background color for widgets that render an
+/// opaque background.
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct OpaqueWidgetColor;
+
+impl NamedComponent for OpaqueWidgetColor {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::named::<Global>("opaque_color"))
+    }
+}
+
+impl ComponentDefinition for OpaqueWidgetColor {
+    type ComponentType = Color;
+
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
+        context.theme().surface.opaque_widget
+    }
+}
