@@ -47,8 +47,9 @@ macro_rules! define_components {
     };
     ($type:ty, contrasting!($bg:ident, $($fg:ident),+ $(,)?)) => {
         define_components!($type, |context| {
-            context.query_style(&$bg).most_contrasting(&[
-                $(context.query_style(&$fg)),+
+            let styles = context.query_styles(&[&$bg, $(&$fg),*]);
+            styles.get(&$bg, context).most_contrasting(&[
+                $(styles.get(&$fg, context)),+
             ])
         });
     };
