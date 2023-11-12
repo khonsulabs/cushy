@@ -323,9 +323,9 @@ impl ComponentGroup for Button {
 define_components! {
     Button {
         /// The background color of the button.
-        ButtonBackground(Color, "background_color", .surface.color)
+        ButtonBackground(Color, "background_color", .surface.highest_container) // TODO highest_container seems wrong, but it's what material uses. Perhaps we should add another color so that buttons don't blend with the highest container level.
         /// The background color of the button when it is active (depressed).
-        ButtonActiveBackground(Color, "active_background_color", .surface.dim_color)
+        ButtonActiveBackground(Color, "active_background_color", .surface.color)
         /// The background color of the button when the mouse cursor is hovering over
         /// it.
         ButtonHoverBackground(Color, "hover_background_color", .surface.bright_color)
@@ -335,12 +335,12 @@ define_components! {
         /// The foreground color of the button.
         ButtonForeground(Color, "foreground_color", contrasting!(ButtonBackground, TextColor, SurfaceColor))
         /// The foreground color of the button when it is active (depressed).
-        ButtonActiveForeground(Color, "active_foreground_color", contrasting!(ButtonActiveBackground, ButtonForeground, SurfaceColor))
+        ButtonActiveForeground(Color, "active_foreground_color", contrasting!(ButtonActiveBackground, ButtonForeground, TextColor, SurfaceColor))
         /// The foreground color of the button when the mouse cursor is hovering over
         /// it.
-        ButtonHoverForeground(Color, "hover_foreground_color", contrasting!(ButtonHoverBackground, ButtonForeground, SurfaceColor))
+        ButtonHoverForeground(Color, "hover_foreground_color", contrasting!(ButtonHoverBackground, ButtonForeground, TextColor, SurfaceColor))
         /// The foreground color of the button when the mouse cursor is hovering over
         /// it.
-        ButtonDisabledForeground(Color, "disabled_foreground_color", contrasting!(ButtonDisabledBackground, ButtonForeground, SurfaceColor))
+        ButtonDisabledForeground(Color, "disabled_foreground_color", contrasting!(ButtonDisabledBackground, ButtonForeground, TextColor, SurfaceColor))
     }
 }

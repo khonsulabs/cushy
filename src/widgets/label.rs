@@ -1,4 +1,5 @@
 //! A read-only text widget.
+
 use std::borrow::Cow;
 
 use kludgine::figures::units::{Px, UPx};
