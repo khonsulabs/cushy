@@ -1,11 +1,15 @@
 //! Types for storing and interacting with values in Widgets.
 
-use std::fmt::Debug;
+use std::cell::Cell;
+use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::panic::AssertUnwindSafe;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, TryLockError};
 use std::task::{Poll, Waker};
+use std::thread::ThreadId;
+
+use intentional::Assert;
 
 use crate::animation::{DynamicTransition, LinearInterpolate};
 use crate::context::{WidgetContext, WindowHandle};
@@ -30,21 +34,32 @@ impl<T> Dynamic<T> {
                 readers: 0,
                 wakers: Vec::new(),
             }),
+            during_callback_state: Mutex::default(),
             sync: AssertUnwindSafe(Condvar::new()),
         }))
     }
 
     /// Maps the contents with read-only access.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     pub fn map_ref<R>(&self, map: impl FnOnce(&T) -> R) -> R {
-        let state = self.state();
+        let state = self.state().expect("deadlocked");
         map(&state.wrapped.value)
     }
 
     /// Maps the contents with exclusive access. Before returning from this
     /// function, all observers will be notified that the contents have been
     /// updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     pub fn map_mut<R>(&self, map: impl FnOnce(&mut T) -> R) -> R {
-        self.0.map_mut(|value, _| map(value))
+        self.0.map_mut(|value, _| map(value)).expect("deadlocked")
     }
 
     /// Returns a new dynamic that is updated using `U::from(T.clone())` each
@@ -99,6 +114,19 @@ impl<T> Dynamic<T> {
         self.0.map_each(move |gen| map(&gen.value))
     }
 
+    /// Creates a new dynamic value that contains the result of invoking `map`
+    /// each time this value is changed.
+    ///
+    /// This version of `map_each` uses [`Dynamic::try_update`] to prevent
+    /// deadlocks and debounce dependent values.
+    pub fn map_each_unique<R, F>(&self, mut map: F) -> Dynamic<R>
+    where
+        F: for<'a> FnMut(&'a T) -> R + Send + 'static,
+        R: Send + PartialEq + 'static,
+    {
+        self.0.map_each_unique(move |gen| map(&gen.value))
+    }
+
     /// A helper function that invokes `with_clone` with a clone of self. This
     /// code may produce slightly more readable code.
     ///
@@ -131,17 +159,27 @@ impl<T> Dynamic<T> {
     }
 
     /// Returns a clone of the currently contained value.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn get(&self) -> T
     where
         T: Clone,
     {
-        self.0.get().value
+        self.0.get().expect("deadlocked").value
     }
 
     /// Returns a clone of the currently contained value.
     ///
     /// `context` will be invalidated when the value is updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn get_tracked(&self, context: &WidgetContext<'_, '_>) -> T
     where
@@ -153,6 +191,11 @@ impl<T> Dynamic<T> {
 
     /// Returns the currently stored value, replacing the current contents with
     /// `T::default()`.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn take(&self) -> T
     where
@@ -163,6 +206,11 @@ impl<T> Dynamic<T> {
 
     /// Checks if the currently stored value is different than `T::default()`,
     /// and if so, returns `Some(self.take())`.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn take_if_not_default(&self) -> Option<T>
     where
@@ -180,44 +228,99 @@ impl<T> Dynamic<T> {
     /// Replaces the contents with `new_value`, returning the previous contents.
     /// Before returning from this function, all observers will be notified that
     /// the contents have been updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn replace(&self, new_value: T) -> T {
         self.0
             .map_mut(|value, _| std::mem::replace(value, new_value))
+            .expect("deadlocked")
     }
 
     /// Stores `new_value` in this dynamic. Before returning from this function,
     /// all observers will be notified that the contents have been updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     pub fn set(&self, new_value: T) {
         let _old = self.replace(new_value);
     }
 
     /// Updates this dynamic with `new_value`, but only if `new_value` is not
     /// equal to the currently stored value.
-    pub fn update(&self, new_value: T)
+    ///
+    /// Returns true if the value was updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    pub fn update(&self, new_value: T) -> bool
     where
         T: PartialEq,
     {
-        self.0.map_mut(|value, changed| {
-            if *value == new_value {
-                *changed = false;
-            } else {
-                *value = new_value;
-            }
-        });
+        self.0
+            .map_mut(|value, changed| {
+                if *value == new_value {
+                    *changed = false;
+                    false
+                } else {
+                    *value = new_value;
+                    true
+                }
+            })
+            .expect("deadlocked")
+    }
+
+    /// Attempt to store `new_value` in `self`. If the value cannot be stored
+    /// due to a deadlock, it is returned as an error.
+    ///
+    /// Returns true if the value was updated.
+    pub fn try_update(&self, new_value: T) -> Result<bool, T>
+    where
+        T: PartialEq,
+    {
+        let cell = Cell::new(Some(new_value));
+        self.0
+            .map_mut(|value, changed| {
+                let new_value = cell.take().assert("only one callback will be invoked");
+                if *value == new_value {
+                    *changed = false;
+                    false
+                } else {
+                    *value = new_value;
+                    true
+                }
+            })
+            .map_err(|_| cell.take().assert("only one callback will be invoked"))
     }
 
     /// Returns a new reference-based reader for this dynamic value.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn create_reader(&self) -> DynamicReader<T> {
-        self.state().readers += 1;
+        self.state().expect("deadlocked").readers += 1;
         DynamicReader {
             source: self.0.clone(),
-            read_generation: self.0.state().wrapped.generation,
+            read_generation: self.0.state().expect("deadlocked").wrapped.generation,
         }
     }
 
     /// Converts this [`Dynamic`] into a reader.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn into_reader(self) -> DynamicReader<T> {
         self.create_reader()
@@ -227,22 +330,32 @@ impl<T> Dynamic<T> {
     ///
     /// This call will block until all other guards for this dynamic have been
     /// dropped.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn lock(&self) -> DynamicGuard<'_, T> {
         DynamicGuard {
-            guard: self.0.state(),
+            guard: self.0.state().expect("deadlocked"),
             accessed_mut: false,
         }
     }
 
-    fn state(&self) -> MutexGuard<'_, State<T>> {
+    fn state(&self) -> Result<DynamicMutexGuard<'_, T>, DeadlockError> {
         self.0.state()
     }
 
     /// Returns the current generation of the value.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn generation(&self) -> Generation {
-        self.state().wrapped.generation
+        self.state().expect("deadlocked").wrapped.generation
     }
 
     /// Returns a pending transition for this value to `new_value`.
@@ -274,7 +387,7 @@ impl<T> Clone for Dynamic<T> {
 
 impl<T> Drop for Dynamic<T> {
     fn drop(&mut self) {
-        let state = self.state();
+        let state = self.state().expect("deadlocked");
         if state.readers == 0 {
             drop(state);
             self.0.sync.notify_all();
@@ -289,8 +402,46 @@ impl<T> From<Dynamic<T>> for DynamicReader<T> {
 }
 
 #[derive(Debug)]
+struct DynamicMutexGuard<'a, T> {
+    dynamic: &'a DynamicData<T>,
+    guard: MutexGuard<'a, State<T>>,
+}
+
+impl<'a, T> Drop for DynamicMutexGuard<'a, T> {
+    fn drop(&mut self) {
+        let mut during_state = self
+            .dynamic
+            .during_callback_state
+            .lock()
+            .map_or_else(PoisonError::into_inner, |g| g);
+        *during_state = None;
+        drop(during_state);
+        self.dynamic.sync.notify_all();
+    }
+}
+
+impl<'a, T> Deref for DynamicMutexGuard<'a, T> {
+    type Target = State<T>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.guard
+    }
+}
+impl<'a, T> DerefMut for DynamicMutexGuard<'a, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.guard
+    }
+}
+
+#[derive(Debug)]
+struct LockState {
+    locked_thread: ThreadId,
+}
+
+#[derive(Debug)]
 struct DynamicData<T> {
     state: Mutex<State<T>>,
+    during_callback_state: Mutex<Option<LockState>>,
 
     // The AssertUnwindSafe is only needed on Mac. For some reason on
     // Mac OS, Condvar isn't RefUnwindSafe.
@@ -298,27 +449,56 @@ struct DynamicData<T> {
 }
 
 impl<T> DynamicData<T> {
-    fn state(&self) -> MutexGuard<'_, State<T>> {
-        self.state
+    fn state(&self) -> Result<DynamicMutexGuard<'_, T>, DeadlockError> {
+        let mut during_sync = self
+            .during_callback_state
             .lock()
-            .map_or_else(PoisonError::into_inner, |g| g)
+            .map_or_else(PoisonError::into_inner, |g| g);
+
+        let current_thread_id = std::thread::current().id();
+        let guard = loop {
+            match self.state.try_lock() {
+                Ok(g) => break g,
+                Err(TryLockError::Poisoned(poision)) => break poision.into_inner(),
+                Err(TryLockError::WouldBlock) => loop {
+                    match &*during_sync {
+                        Some(state) if state.locked_thread == current_thread_id => {
+                            return Err(DeadlockError)
+                        }
+                        Some(_) => {
+                            during_sync = self
+                                .sync
+                                .wait(during_sync)
+                                .map_or_else(PoisonError::into_inner, |g| g);
+                        }
+                        None => break,
+                    }
+                },
+            }
+        };
+        *during_sync = Some(LockState {
+            locked_thread: current_thread_id,
+        });
+        Ok(DynamicMutexGuard {
+            dynamic: self,
+            guard,
+        })
     }
 
     pub fn redraw_when_changed(&self, window: WindowHandle) {
-        let mut state = self.state();
+        let mut state = self.state().expect("deadlocked");
         state.windows.push(window);
     }
 
-    #[must_use]
-    pub fn get(&self) -> GenerationalValue<T>
+    pub fn get(&self) -> Result<GenerationalValue<T>, DeadlockError>
     where
         T: Clone,
     {
-        self.state().wrapped.clone()
+        self.state().map(|state| state.wrapped.clone())
     }
 
-    pub fn map_mut<R>(&self, map: impl FnOnce(&mut T, &mut bool) -> R) -> R {
-        let mut state = self.state();
+    pub fn map_mut<R>(&self, map: impl FnOnce(&mut T, &mut bool) -> R) -> Result<R, DeadlockError> {
+        let mut state = self.state()?;
         let old = {
             let state = &mut *state;
             let mut changed = true;
@@ -333,14 +513,14 @@ impl<T> DynamicData<T> {
 
         self.sync.notify_all();
 
-        old
+        Ok(old)
     }
 
     pub fn for_each<F>(&self, map: F)
     where
         F: for<'a> FnMut(&'a GenerationalValue<T>) + Send + 'static,
     {
-        let mut state = self.state();
+        let mut state = self.state().expect("deadlocked");
         state.callbacks.push(Box::new(map));
     }
 
@@ -349,7 +529,7 @@ impl<T> DynamicData<T> {
         F: for<'a> FnMut(&'a GenerationalValue<T>) -> R + Send + 'static,
         R: Send + 'static,
     {
-        let mut state = self.state();
+        let mut state = self.state().expect("deadlocked");
         let initial_value = map(&state.wrapped);
         let mapped_value = Dynamic::new(initial_value);
         let returned = mapped_value.clone();
@@ -360,6 +540,39 @@ impl<T> DynamicData<T> {
             }));
 
         returned
+    }
+
+    pub fn map_each_unique<R, F>(&self, mut map: F) -> Dynamic<R>
+    where
+        F: for<'a> FnMut(&'a GenerationalValue<T>) -> R + Send + 'static,
+        R: PartialEq + Send + 'static,
+    {
+        let mut state = self.state().expect("deadlocked");
+        let initial_value = map(&state.wrapped);
+        let mapped_value = Dynamic::new(initial_value);
+        let returned = mapped_value.clone();
+        state
+            .callbacks
+            .push(Box::new(move |updated: &GenerationalValue<T>| {
+                let _deadlock = mapped_value.try_update(map(updated));
+            }));
+
+        returned
+    }
+}
+
+/// A deadlock occurred accessing a [`Dynamic`].
+///
+/// Currently Gooey is only able to detect deadlocks where a single thread tries
+/// to lock the same [`Dynamic`] multiple times.
+#[derive(Debug)]
+pub struct DeadlockError;
+
+impl std::error::Error for DeadlockError {}
+
+impl Display for DeadlockError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("a deadlock was detected")
     }
 }
 
@@ -424,7 +637,7 @@ struct GenerationalValue<T> {
 /// notified of a change when this guard is dropped.
 #[derive(Debug)]
 pub struct DynamicGuard<'a, T> {
-    guard: MutexGuard<'a, State<T>>,
+    guard: DynamicMutexGuard<'a, T>,
     accessed_mut: bool,
 }
 
@@ -462,28 +675,43 @@ impl<T> DynamicReader<T> {
     /// Maps the contents of the dynamic value and returns the result.
     ///
     /// This function marks the currently stored value as being read.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     pub fn map_ref<R>(&mut self, map: impl FnOnce(&T) -> R) -> R {
-        let state = self.source.state();
+        let state = self.source.state().expect("deadlocked");
         self.read_generation = state.wrapped.generation;
         map(&state.wrapped.value)
     }
 
     /// Returns true if the dynamic has been modified since the last time the
     /// value was accessed through this reader.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn has_updated(&self) -> bool {
-        self.source.state().wrapped.generation != self.read_generation
+        self.source.state().expect("deadlocked").wrapped.generation != self.read_generation
     }
 
     /// Returns a clone of the currently contained value.
     ///
     /// This function marks the currently stored value as being read.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     #[must_use]
     pub fn get(&mut self) -> T
     where
         T: Clone,
     {
-        let GenerationalValue { value, generation } = self.source.get();
+        let GenerationalValue { value, generation } = self.source.get().expect("deadlocked");
         self.read_generation = generation;
         value
     }
@@ -492,19 +720,42 @@ impl<T> DynamicReader<T> {
     /// there are no remaining writers for the value.
     ///
     /// Returns true if a newly updated value was discovered.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
     pub fn block_until_updated(&mut self) -> bool {
-        let mut state = self.source.state();
+        let mut deadlock_state = self
+            .source
+            .during_callback_state
+            .lock()
+            .map_or_else(PoisonError::into_inner, |g| g);
+        assert!(
+            deadlock_state
+                .as_ref()
+                .map_or(true, |state| state.locked_thread
+                    != std::thread::current().id()),
+            "deadlocked"
+        );
         loop {
+            let state = self
+                .source
+                .state
+                .lock()
+                .map_or_else(PoisonError::into_inner, |g| g);
             if state.wrapped.generation != self.read_generation {
                 return true;
             } else if state.readers == Arc::strong_count(&self.source) {
                 return false;
             }
+            drop(state);
 
-            state = self
+            // Wait for a notification of a change, which is synch
+            deadlock_state = self
                 .source
                 .sync
-                .wait(state)
+                .wait(deadlock_state)
                 .map_or_else(PoisonError::into_inner, |g| g);
         }
     }
@@ -520,7 +771,7 @@ impl<T> DynamicReader<T> {
 
 impl<T> Clone for DynamicReader<T> {
     fn clone(&self) -> Self {
-        self.source.state().readers += 1;
+        self.source.state().expect("deadlocked").readers += 1;
         Self {
             source: self.source.clone(),
             read_generation: self.read_generation,
@@ -530,7 +781,7 @@ impl<T> Clone for DynamicReader<T> {
 
 impl<T> Drop for DynamicReader<T> {
     fn drop(&mut self) {
-        let mut state = self.source.state();
+        let mut state = self.source.state().expect("deadlocked");
         state.readers -= 1;
     }
 }
@@ -547,7 +798,7 @@ impl<'a, T> Future for BlockUntilUpdatedFuture<'a, T> {
     type Output = bool;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let mut state = self.0.source.state();
+        let mut state = self.0.source.state().expect("deadlocked");
         if state.wrapped.generation != self.0.read_generation {
             return Poll::Ready(true);
         } else if state.readers == Arc::strong_count(&self.0.source) {

@@ -1,9 +1,11 @@
+use std::str::FromStr;
+
 use gooey::animation::ZeroToOne;
 use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair};
 use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
-use gooey::widgets::{Label, Scroll, Slider, Stack, Themed};
+use gooey::widgets::{Input, Label, Scroll, Slider, Stack, Themed};
 use gooey::window::ThemeMode;
 use gooey::Run;
 use kludgine::Color;
@@ -80,15 +82,27 @@ fn dark_mode_slider() -> (Dynamic<ThemeMode>, impl MakeWidget) {
     )
 }
 
+fn create_paired_string<T>(initial_value: T) -> (Dynamic<T>, Dynamic<String>)
+where
+    T: ToString + PartialEq + FromStr + Default + Send + Sync + 'static,
+{
+    let float = Dynamic::new(initial_value);
+    let text = float.map_each_unique(|f| f.to_string());
+    text.for_each(float.with_clone(|float| {
+        move |text: &String| {
+            let _result = float.try_update(text.parse().unwrap_or_default());
+        }
+    }));
+    (float, text)
+}
+
 fn color_editor(
     initial_hue: f32,
     initial_saturation: impl Into<ZeroToOne>,
     label: &str,
 ) -> (Dynamic<ColorSource>, impl MakeWidget) {
-    let hue = Dynamic::new(initial_hue);
-    let hue_text = hue.map_each(|hue| hue.to_string());
-    let saturation = Dynamic::new(initial_saturation.into());
-    let saturation_text = saturation.map_each(|saturation| saturation.to_string());
+    let (hue, hue_text) = create_paired_string(initial_hue);
+    let (saturation, saturation_text) = create_paired_string(initial_saturation.into());
 
     let color =
         (&hue, &saturation).map_each(|(hue, saturation)| ColorSource::new(*hue, *saturation));
@@ -98,9 +112,9 @@ fn color_editor(
         Stack::rows(
             Label::new(label)
                 .and(Slider::<f32>::new(hue, 0., 360.))
-                .and(Label::new(hue_text))
+                .and(Input::new(hue_text))
                 .and(Slider::<ZeroToOne>::from_value(saturation))
-                .and(Label::new(saturation_text)),
+                .and(Input::new(saturation_text)),
         ),
     )
 }

@@ -5,7 +5,8 @@ use std::panic::UnwindSafe;
 use kludgine::app::winit::event::{DeviceId, MouseButton};
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
-    FloatConversion, IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size,
+    FloatConversion, FromComponents, IntoComponents, IntoSigned, IntoUnsigned, Point, Ranged, Rect,
+    ScreenScale, Size,
 };
 use kludgine::shapes::Shape;
 use kludgine::{Color, Origin};
@@ -70,6 +71,68 @@ impl<T> Slider<T> {
         self.minimum = min.into_value();
         self
     }
+
+    fn draw_track(&mut self, spec: &TrackSpec, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        if self.horizontal {
+            self.rendered_size = spec.size.width;
+        } else {
+            self.rendered_size = spec.size.height;
+        }
+        let track_length = self.rendered_size - spec.knob_size;
+        let value_location = (track_length) * spec.percent + spec.half_knob;
+
+        let half_track = spec.track_size / 2;
+        // Draw the track
+        if value_location > spec.half_knob {
+            context.gfx.draw_shape(
+                &Shape::filled_rect(
+                    Rect::new(
+                        flipped(
+                            !self.horizontal,
+                            Point::new(spec.half_knob, spec.half_knob - half_track),
+                        ),
+                        flipped(!self.horizontal, Size::new(value_location, spec.track_size)),
+                    ),
+                    spec.track_color,
+                ),
+                Point::default(),
+                None,
+                None,
+            );
+        }
+
+        if value_location < track_length {
+            context.gfx.draw_shape(
+                &Shape::filled_rect(
+                    Rect::new(
+                        flipped(
+                            !self.horizontal,
+                            Point::new(value_location, spec.half_knob - half_track),
+                        ),
+                        flipped(
+                            !self.horizontal,
+                            Size::new(
+                                track_length - value_location + spec.half_knob,
+                                spec.track_size,
+                            ),
+                        ),
+                    ),
+                    spec.inactive_track_color,
+                ),
+                Point::default(),
+                None,
+                None,
+            );
+        }
+
+        // Draw the knob
+        context.gfx.draw_shape(
+            &Shape::filled_circle(spec.half_knob, spec.knob_color, Origin::Center),
+            flipped(!self.horizontal, Point::new(value_location, spec.half_knob)),
+            None,
+            None,
+        );
+    }
 }
 
 impl<T> Slider<T>
@@ -102,8 +165,10 @@ where
         + 'static,
 {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let styles = context.query_styles(&[&TrackColor, &KnobColor, &TrackSize]);
+        let styles =
+            context.query_styles(&[&TrackColor, &InactiveTrackColor, &KnobColor, &TrackSize]);
         let track_color = styles.get(&TrackColor, context);
+        let inactive_track_color = styles.get(&InactiveTrackColor, context);
         let knob_color = styles.get(&KnobColor, context);
         let knob_size = self.knob_size.into_signed();
         let track_size = styles
@@ -112,7 +177,6 @@ where
             .min(knob_size);
 
         let half_knob = knob_size / 2;
-        let half_track = track_size / 2;
 
         let mut value = self.value.get_tracked(context);
         let min = self.minimum.get_tracked(context);
@@ -140,55 +204,19 @@ where
         let size = context.gfx.region().size;
         self.horizontal = size.width >= size.height;
 
-        if self.horizontal {
-            self.rendered_size = size.width;
-            // Draw the track
-            context.gfx.draw_shape(
-                &Shape::filled_rect(
-                    Rect::new(
-                        Point::new(half_knob, half_knob - half_track),
-                        Size::new(size.width - knob_size, track_size),
-                    ),
-                    track_color,
-                ),
-                Point::default(),
-                None,
-                None,
-            );
-
-            // Draw the knob
-            context.gfx.draw_shape(
-                &Shape::filled_circle(half_knob, knob_color, Origin::Center),
-                Point::new(half_knob + (size.width - knob_size) * *percent, half_knob),
-                None,
-                None,
-            );
-        } else {
-            // Vertical slider
-            self.rendered_size = size.height;
-
-            // Draw the track
-            context.gfx.draw_shape(
-                &Shape::filled_rect(
-                    Rect::new(
-                        Point::new(half_knob - half_track, half_knob),
-                        Size::new(track_size, size.height - knob_size),
-                    ),
-                    track_color,
-                ),
-                Point::default(),
-                None,
-                None,
-            );
-
-            // Draw the knob
-            context.gfx.draw_shape(
-                &Shape::filled_circle(half_knob, knob_color, Origin::Center),
-                Point::new(half_knob, half_knob + (size.height - knob_size) * *percent),
-                None,
-                None,
-            );
-        }
+        self.draw_track(
+            &TrackSpec {
+                size,
+                percent: *percent,
+                half_knob,
+                knob_size,
+                track_size,
+                knob_color,
+                track_color,
+                inactive_track_color,
+            },
+            context,
+        );
     }
 
     fn layout(
@@ -263,6 +291,29 @@ where
     }
 }
 
+struct TrackSpec {
+    size: Size<Px>,
+    percent: f32,
+    half_knob: Px,
+    knob_size: Px,
+    track_size: Px,
+    knob_color: Color,
+    track_color: Color,
+    inactive_track_color: Color,
+}
+
+fn flipped<T, Unit>(flip: bool, value: T) -> T
+where
+    T: IntoComponents<Unit> + FromComponents<Unit>,
+{
+    if flip {
+        let (a, b) = value.into_components();
+        T::from_components((b, a))
+    } else {
+        value
+    }
+}
+
 /// The size of the track that the knob of a [`Slider`] traversesq.
 pub struct TrackSize;
 
@@ -331,19 +382,39 @@ impl NamedComponent for KnobColor {
     }
 }
 
-/// The color of the draggable portion of the knob.
+/// The color of the track that the knob rests on.
 pub struct TrackColor;
 
 impl ComponentDefinition for TrackColor {
     type ComponentType = Color;
 
     fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType {
-        context.theme().surface.on_color_variant
+        context.theme().primary.color
     }
 }
 
 impl NamedComponent for TrackColor {
     fn name(&self) -> Cow<'_, ComponentName> {
         Cow::Owned(ComponentName::new(Group::new("Slider"), "track_color"))
+    }
+}
+
+/// The color of the draggable portion of the knob.
+pub struct InactiveTrackColor;
+
+impl ComponentDefinition for InactiveTrackColor {
+    type ComponentType = Color;
+
+    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType {
+        context.theme().surface.outline
+    }
+}
+
+impl NamedComponent for InactiveTrackColor {
+    fn name(&self) -> Cow<'_, ComponentName> {
+        Cow::Owned(ComponentName::new(
+            Group::new("Slider"),
+            "inactive_track_color",
+        ))
     }
 }

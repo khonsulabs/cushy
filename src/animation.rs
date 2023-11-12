@@ -39,9 +39,10 @@
 
 pub mod easings;
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::ops::{ControlFlow, Deref, Div, Mul};
 use std::panic::{RefUnwindSafe, UnwindSafe};
+use std::str::FromStr;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -803,6 +804,20 @@ impl ZeroToOne {
     #[must_use]
     pub fn into_f32(self) -> f32 {
         self.0
+    }
+}
+
+impl Display for ZeroToOne {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl FromStr for ZeroToOne {
+    type Err = std::num::ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map(Self)
     }
 }
 
