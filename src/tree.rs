@@ -317,24 +317,29 @@ impl Tree {
         &self,
         perspective: &ManagedWidget,
         query: &[&dyn ComponentDefaultvalue],
+        skip_current: bool,
         context: &WidgetContext<'_, '_>,
     ) -> Styles {
         self.data
             .lock()
             .map_or_else(PoisonError::into_inner, |g| g)
-            .query_styles(perspective.id(), query, context)
+            .query_styles(perspective.id(), query, skip_current, context)
     }
 
     pub fn query_style<Component: ComponentDefinition>(
         &self,
         perspective: &ManagedWidget,
         component: &Component,
+        skip_self: bool,
         context: &WidgetContext<'_, '_>,
     ) -> Component::ComponentType {
-        self.data
+        let result = self
+            .data
             .lock()
             .map_or_else(PoisonError::into_inner, |g| g)
-            .query_style(perspective.id(), component, context)
+            .query_style(perspective.id(), component, skip_self, context);
+
+        result.unwrap_or_else(|| component.default_value(context))
     }
 }
 
@@ -423,13 +428,17 @@ impl TreeData {
         &self,
         mut perspective: WidgetId,
         query: &[&dyn ComponentDefaultvalue],
+        skip_self: bool,
         context: &WidgetContext<'_, '_>,
     ) -> Styles {
         let mut query = query.iter().map(|n| n.name()).collect::<Vec<_>>();
         let mut resolved = Styles::new();
+        let mut skip_next = skip_self;
         while !query.is_empty() {
             let node = &self.nodes[&perspective];
-            if let Some(styles) = &node.styles {
+            if skip_next {
+                skip_next = false;
+            } else if let Some(styles) = &node.styles {
                 styles.map_tracked(context, |styles| {
                     query.retain(|name| {
                         if let Some(component) = styles.get_named(name) {
@@ -451,12 +460,16 @@ impl TreeData {
         &self,
         mut perspective: WidgetId,
         query: &Component,
+        skip_self: bool,
         context: &WidgetContext<'_, '_>,
-    ) -> Component::ComponentType {
+    ) -> Option<Component::ComponentType> {
         let name = query.name();
+        let mut skip_next = skip_self;
         loop {
             let node = &self.nodes[&perspective];
-            if let Some(styles) = &node.styles {
+            if skip_next {
+                skip_next = false;
+            } else if let Some(styles) = &node.styles {
                 match styles.map_tracked(context, |styles| {
                     if let Some(component) = styles.get_named(&name) {
                         let Ok(value) =
@@ -469,15 +482,16 @@ impl TreeData {
                     }
                     Ok(None)
                 }) {
-                    Ok(Some(value)) => return value,
+                    Ok(Some(value)) => return Some(value),
                     Ok(None) => {}
                     Err(()) => break,
                 }
             }
+
             let Some(parent) = node.parent else { break };
             perspective = parent;
         }
-        query.default_value(context)
+        None
     }
 }
 

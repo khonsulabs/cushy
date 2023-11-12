@@ -3,6 +3,7 @@
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoUnsigned, Point, ScreenScale, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
+use kludgine::Color;
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{IntrinsicPadding, TextColor};
@@ -15,7 +16,7 @@ use crate::ConstraintLimit;
 pub struct Label {
     /// The contents of the label.
     pub text: Value<String>,
-    prepared_text: Option<MeasuredText<Px>>,
+    prepared_text: Option<(MeasuredText<Px>, Px, Color)>,
 }
 
 impl Label {
@@ -26,6 +27,31 @@ impl Label {
             prepared_text: None,
         }
     }
+
+    fn prepared_text(
+        &mut self,
+        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        color: Color,
+        width: Px,
+    ) -> &MeasuredText<Px> {
+        match &self.prepared_text {
+            Some((_, prepared_width, prepared_color))
+                if *prepared_color == color && *prepared_width == width => {}
+            _ => {
+                let measured = self.text.map(|text| {
+                    context
+                        .gfx
+                        .measure_text(Text::new(text, color).wrap_at(width))
+                });
+                self.prepared_text = Some((measured, width, color));
+            }
+        }
+
+        self.prepared_text
+            .as_ref()
+            .map(|(prepared, _, _)| prepared)
+            .expect("always initialized")
+    }
 }
 
 impl Widget for Label {
@@ -34,25 +60,13 @@ impl Widget for Label {
 
         let size = context.gfx.region().size;
         let center = Point::from(size) / 2;
-        let styles = context.query_styles(&[&TextColor]);
+        let text_color = context.query_style(&TextColor);
 
-        if let Some(measured) = &self.prepared_text {
-            context
-                .gfx
-                .draw_measured_text(measured, TextOrigin::Center, center, None, None);
-        } else {
-            let text_color = styles.get(&TextColor, context);
-            self.text.map(|contents| {
-                context.gfx.draw_text(
-                    Text::new(contents, text_color)
-                        .wrap_at(size.width)
-                        .origin(TextOrigin::Center),
-                    center,
-                    None,
-                    None,
-                );
-            });
-        }
+        let prepared_text = self.prepared_text(context, text_color, size.width);
+
+        context
+            .gfx
+            .draw_measured_text(prepared_text, TextOrigin::Center, center, None, None);
     }
 
     fn layout(
@@ -67,15 +81,11 @@ impl Widget for Label {
             .into_unsigned();
         let color = styles.get(&TextColor, context);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
-        self.text.map(|contents| {
-            let measured = context
-                .gfx
-                .measure_text(Text::new(contents, color).wrap_at(width));
-            let mut size = measured.size.try_cast().unwrap_or_default();
-            size += padding * 2;
-            self.prepared_text = Some(measured);
-            size
-        })
+        let prepared = self.prepared_text(context, color, width);
+
+        let mut size = prepared.size.try_cast().unwrap_or_default();
+        size += padding * 2;
+        size
     }
 }
 

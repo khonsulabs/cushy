@@ -197,6 +197,9 @@ pub enum Component {
     VisualOrder(VisualOrder),
     /// A description of what widgets should be focusable.
     FocusableWidgets(FocusableWidgets),
+    /// A description of the depth of a
+    /// [`Container`](crate::widgets::Container).
+    ContainerLevel(ContainerLevel),
 }
 
 impl From<Color> for Component {
@@ -705,21 +708,48 @@ impl NamedComponent for Cow<'_, ComponentName> {
 pub struct Edges<T = FlexibleDimension> {
     /// The left edge
     pub left: T,
-    /// The right edge
-    pub right: T,
     /// The top edge
     pub top: T,
+    /// The right edge
+    pub right: T,
     /// The bottom edge
     pub bottom: T,
 }
 
 impl<T> Edges<T> {
     /// Returns the sum of the parts as a [`Size`].
-    pub fn size(&self) -> Size<T>
+    pub fn size(self) -> Size<T>
     where
         T: Add<Output = T> + Copy,
     {
-        Size::new(self.left + self.right, self.top + self.bottom)
+        Size::new(self.width(), self.height())
+    }
+
+    /// Returns a new set of edges produced by calling `map` with each of the
+    /// edges.
+    pub fn map<U>(self, mut map: impl FnMut(T) -> U) -> Edges<U> {
+        Edges {
+            left: map(self.left),
+            top: map(self.top),
+            right: map(self.right),
+            bottom: map(self.bottom),
+        }
+    }
+
+    /// Returns the sum of the left and right edges.
+    pub fn width(self) -> T
+    where
+        T: Add<Output = T>,
+    {
+        self.left + self.right
+    }
+
+    /// Returns the sum of the top and bottom edges.
+    pub fn height(self) -> T
+    where
+        T: Add<Output = T>,
+    {
+        self.top + self.bottom
     }
 }
 
@@ -821,9 +851,39 @@ impl IntoValue<Edges<FlexibleDimension>> for FlexibleDimension {
     }
 }
 
+impl IntoValue<Edges<FlexibleDimension>> for Dimension {
+    fn into_value(self) -> Value<Edges<FlexibleDimension>> {
+        FlexibleDimension::Dimension(self).into_value()
+    }
+}
+
+impl IntoValue<Edges<FlexibleDimension>> for Px {
+    fn into_value(self) -> Value<Edges<FlexibleDimension>> {
+        Dimension::from(self).into_value()
+    }
+}
+
+impl IntoValue<Edges<FlexibleDimension>> for Lp {
+    fn into_value(self) -> Value<Edges<FlexibleDimension>> {
+        Dimension::from(self).into_value()
+    }
+}
+
 impl IntoValue<Edges<Dimension>> for Dimension {
     fn into_value(self) -> Value<Edges<Dimension>> {
         Value::Constant(Edges::from(self))
+    }
+}
+
+impl IntoValue<Edges<Dimension>> for Px {
+    fn into_value(self) -> Value<Edges<Dimension>> {
+        Dimension::from(self).into_value()
+    }
+}
+
+impl IntoValue<Edges<Dimension>> for Lp {
+    fn into_value(self) -> Value<Edges<Dimension>> {
+        Dimension::from(self).into_value()
     }
 }
 
@@ -1461,6 +1521,55 @@ impl TryFrom<Component> for FocusableWidgets {
     fn try_from(value: Component) -> Result<Self, Self::Error> {
         match value {
             Component::FocusableWidgets(focus) => Ok(focus),
+            other => Err(other),
+        }
+    }
+}
+
+/// A description of the level of depth a
+/// [`Container`](crate::widgets::Container) is nested at.
+#[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ContainerLevel {
+    /// The lowest container level.
+    #[default]
+    Lowest,
+    /// The second lowest container level.
+    Low,
+    /// The mid-level container level.
+    Mid,
+    /// The second-highest container level.
+    High,
+    /// The highest container level.
+    Highest,
+}
+
+impl ContainerLevel {
+    /// Returns the next container level, or None if already at the highet
+    /// level.
+    #[must_use]
+    pub const fn next(self) -> Option<Self> {
+        match self {
+            Self::Lowest => Some(Self::Low),
+            Self::Low => Some(Self::Mid),
+            Self::Mid => Some(Self::High),
+            Self::High => Some(Self::Highest),
+            Self::Highest => None,
+        }
+    }
+}
+
+impl From<ContainerLevel> for Component {
+    fn from(value: ContainerLevel) -> Self {
+        Self::ContainerLevel(value)
+    }
+}
+
+impl TryFrom<Component> for ContainerLevel {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::ContainerLevel(level) => Ok(level),
             other => Err(other),
         }
     }

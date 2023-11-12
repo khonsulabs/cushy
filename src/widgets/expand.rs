@@ -1,8 +1,8 @@
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, Rect, Size};
+use kludgine::figures::units::UPx;
+use kludgine::figures::{IntoSigned, Size};
 
 use crate::context::{AsEventContext, LayoutContext};
-use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
+use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::widgets::Space;
 use crate::ConstraintLimit;
 
@@ -71,7 +71,7 @@ impl WrapperWidget for Expand {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Rect<Px> {
+    ) -> WrappedLayout {
         let available_space = Size::new(
             ConstraintLimit::Known(available_space.width.max()),
             ConstraintLimit::Known(available_space.height.max()),

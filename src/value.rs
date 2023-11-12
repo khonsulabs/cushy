@@ -954,6 +954,20 @@ impl<T> Value<T> {
         }
     }
 
+    /// Returns a new value that is updated using `U::from(T.clone())` each time
+    /// `self` is updated.
+    #[must_use]
+    pub fn map_each<R, F>(&self, mut map: F) -> Value<R>
+    where
+        F: for<'a> FnMut(&'a T) -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        match self {
+            Value::Constant(value) => Value::Constant(map(value)),
+            Value::Dynamic(dynamic) => Value::Dynamic(dynamic.map_each(map)),
+        }
+    }
+
     /// Returns a clone of the currently stored value.
     pub fn get(&self) -> T
     where

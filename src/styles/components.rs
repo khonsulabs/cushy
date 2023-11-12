@@ -26,9 +26,11 @@ use crate::styles::{Dimension, FocusableWidgets, VisualOrder};
 ///         /// This component whose default value is a color from the current theme.
 ///         ThemedComponent(Color, "themed_component", .primary.color)
 ///         /// This component is a color whose default value is the currently defined `TextColor`.
-///         DependentComponent(Color, "dependent_component", |context| context.query_style(&TextColor))
+///         DependentComponent(Color, "dependent_component", @TextColor)
 ///         /// This component defaults to picking a contrasting color between `TextColor` and `SurfaceColor`
 ///         ContrastingColor(Color, "contrasting_color", contrasting!(ThemedComponent, TextColor, SurfaceColor))
+///         /// This component shows how to use a closure for nearly infinite flexibility in computing the default value.
+///         ClosureDefaultComponent(Color, "closure_component", |context| context.query_style(&TextColor))
 ///     }
 /// }
 /// ```
@@ -72,7 +74,7 @@ macro_rules! define_components {
     ($type:ty, contrasting!($bg:ident, $($fg:ident),+ $(,)?)) => {
         define_components!($type, |context| {
             use $crate::styles::ColorExt;
-            let styles = context.query_styles(&[&$bg, $(&$fg),*]);
+            let styles = context.query_parent_styles(&[&$bg, $(&$fg),*]);
             styles.get(&$bg, context).most_contrasting(&[
                 $(styles.get(&$fg, context)),+
             ])

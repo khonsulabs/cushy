@@ -315,7 +315,7 @@ impl Widget for Button {
 define_components! {
     Button {
         /// The background color of the button.
-        ButtonBackground(Color, "background_color", |context| context.query_style(&OpaqueWidgetColor))
+        ButtonBackground(Color, "background_color", @OpaqueWidgetColor)
         /// The background color of the button when it is active (depressed).
         ButtonActiveBackground(Color, "active_background_color", .surface.color)
         /// The background color of the button when the mouse cursor is hovering over

@@ -3,6 +3,7 @@
 mod align;
 pub mod button;
 mod canvas;
+pub mod container;
 mod expand;
 mod input;
 pub mod label;
@@ -19,6 +20,7 @@ mod tilemap;
 pub use align::Align;
 pub use button::Button;
 pub use canvas::Canvas;
+pub use container::Container;
 pub use expand::Expand;
 pub use input::Input;
 pub use label::Label;

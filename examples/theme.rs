@@ -8,6 +8,7 @@ use gooey::widget::MakeWidget;
 use gooey::widgets::{Input, Label, Scroll, Slider, Stack, Themed};
 use gooey::window::ThemeMode;
 use gooey::Run;
+use kludgine::figures::units::Lp;
 use kludgine::Color;
 
 const PRIMARY_HUE: f32 = 240.;
@@ -67,6 +68,7 @@ fn main() -> gooey::Result {
             )),
         ),
     )
+    .pad_by(Lp::points(16))
     .expand()
     .into_window()
     .with_theme_mode(theme_mode)

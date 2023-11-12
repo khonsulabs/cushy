@@ -1,6 +1,6 @@
 use gooey::value::Dynamic;
 use gooey::widget::{MakeWidget, HANDLED, IGNORED};
-use gooey::widgets::{Input, Label, Space, Stack};
+use gooey::widgets::{Input, Label, Space};
 use gooey::Run;
 use kludgine::app::winit::event::ElementState;
 use kludgine::app::winit::keyboard::Key;
@@ -10,13 +10,11 @@ fn main() -> gooey::Result {
     let chat_log = Dynamic::new("Chat log goes here.\n".repeat(100));
     let chat_message = Dynamic::new(String::new());
 
-    Stack::rows(
-        Stack::columns(
-            Label::new(chat_log.clone())
-                .vertical_scroll()
-                .expand()
-                .and(Space::colored(Color::RED).expand_weighted(2)),
-        )
+    Label::new(chat_log.clone())
+        .vertical_scroll()
+        .expand()
+        .and(Space::colored(Color::RED).expand_weighted(2))
+        .into_columns()
         .expand()
         .and(Input::new(chat_message.clone()).on_key(move |input| {
             match (input.state, input.logical_key) {
@@ -30,8 +28,8 @@ fn main() -> gooey::Result {
                 }
                 _ => IGNORED,
             }
-        })),
-    )
-    .expand()
-    .run()
+        }))
+        .into_rows()
+        .expand()
+        .run()
 }

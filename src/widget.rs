@@ -13,12 +13,16 @@ use kludgine::app::winit::event::{
 };
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
+use kludgine::Color;
 
-use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
-use crate::styles::{IntoComponentValue, NamedComponent, Styles, ThemePair, VisualOrder};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::styles::{
+    ContainerLevel, Dimension, Edges, IntoComponentValue, NamedComponent, Styles, ThemePair,
+    VisualOrder,
+};
 use crate::tree::Tree;
 use crate::value::{IntoValue, Value};
-use crate::widgets::{Align, Expand, Scroll, Style};
+use crate::widgets::{Align, Container, Expand, Scroll, Stack, Style};
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
 
@@ -173,6 +177,33 @@ where
     }
 }
 
+/// The layout of a [wrapped](WrapperWidget) child widget.
+#[derive(Clone, Copy, Debug)]
+pub struct WrappedLayout {
+    /// The region the child widget occupies within its parent.
+    pub child: Rect<Px>,
+    /// The size the wrapper widget should report as.q
+    pub size: Size<UPx>,
+}
+
+impl From<Rect<Px>> for WrappedLayout {
+    fn from(child: Rect<Px>) -> Self {
+        WrappedLayout {
+            child,
+            size: child.size.into_unsigned(),
+        }
+    }
+}
+
+impl From<Size<Px>> for WrappedLayout {
+    fn from(size: Size<Px>) -> Self {
+        WrappedLayout {
+            child: size.into(),
+            size: size.into_unsigned(),
+        }
+    }
+}
+
 /// A [`Widget`] that contains a single child.
 pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the child widget.
@@ -185,14 +216,48 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Rect<Px> {
+    ) -> WrappedLayout {
         let child = self.child_mut().mounted(&mut context.as_event_context());
 
-        context
+        let adjusted_space = self.adjust_child_constraint(available_space, context);
+        let size = context
             .for_other(&child)
-            .layout(available_space)
-            .into_signed()
-            .into()
+            .layout(adjusted_space)
+            .into_signed();
+
+        self.position_child(size, available_space, context)
+    }
+
+    /// Returns the adjusted contraints to use when laying out the child.
+    #[allow(unused_variables)]
+    #[must_use]
+    fn adjust_child_constraint(
+        &mut self,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> Size<ConstraintLimit> {
+        available_space
+    }
+
+    /// Returns the layout after positioning the child that occupies `size`.
+    #[allow(unused_variables)]
+    #[must_use]
+    fn position_child(
+        &mut self,
+        size: Size<Px>,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> WrappedLayout {
+        size.into()
+    }
+
+    /// Returns the background color to render behind the wrapped widget.
+    #[allow(unused_variables)]
+    #[must_use]
+    fn background_color(&mut self, context: &WidgetContext<'_, '_>) -> Option<Color> {
+        // WidgetBackground is already filled, so we don't need to do anything
+        // else by default.
+        None
     }
 
     /// The widget has been mounted into a parent widget.
@@ -323,6 +388,11 @@ where
     }
 
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        let background_color = self.background_color(context);
+        if let Some(color) = background_color {
+            context.gfx.fill(color);
+        }
+
         let child = self.child_mut().mounted(&mut context.as_event_context());
         context.for_other(&child).redraw();
     }
@@ -335,8 +405,8 @@ where
         let child = self.child_mut().mounted(&mut context.as_event_context());
 
         let layout = self.layout_child(available_space, context);
-        context.set_child_layout(&child, layout);
-        layout.size.into_unsigned()
+        context.set_child_layout(&child, layout.child);
+        layout.size
     }
 
     fn mounted(&mut self, context: &mut EventContext<'_, '_>) {
@@ -576,6 +646,31 @@ pub trait MakeWidget: Sized {
     #[must_use]
     fn widget_ref(self) -> WidgetRef {
         WidgetRef::new(self)
+    }
+
+    /// Wraps `self` in a [`Container`].
+    fn contain(self) -> Container {
+        Container::new(self)
+    }
+
+    /// Wraps `self` in a [`Container`] with the specified level.
+    fn contain_level(self, level: impl IntoValue<ContainerLevel>) -> Container {
+        self.contain().contain_level(level)
+    }
+
+    /// Returns a new widget that renders `color` behind `self`.
+    fn background_color(self, color: impl IntoValue<Color>) -> Container {
+        self.contain().pad_by(Px(0)).background_color(color)
+    }
+
+    /// Wraps `self` with the default padding.
+    fn pad(self) -> Container {
+        self.contain().transparent()
+    }
+
+    /// Wraps `self` with the specified padding.
+    fn pad_by(self, padding: impl IntoValue<Edges<Dimension>>) -> Container {
+        self.contain().transparent().pad_by(padding)
     }
 }
 
@@ -1095,6 +1190,18 @@ impl Children {
     /// function does nothing.
     pub fn truncate(&mut self, length: usize) {
         self.ordered.truncate(length);
+    }
+
+    /// Returns `self` as a vertical [`Stack`] of rows.
+    #[must_use]
+    pub fn into_rows(self) -> Stack {
+        Stack::rows(self)
+    }
+
+    /// Returns `self` as a horizontal [`Stack`] of columns.
+    #[must_use]
+    pub fn into_columns(self) -> Stack {
+        Stack::columns(self)
     }
 }
 

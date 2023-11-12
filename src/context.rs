@@ -924,7 +924,25 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     pub fn query_styles(&self, query: &[&dyn ComponentDefaultvalue]) -> Styles {
         self.current_node
             .tree
-            .query_styles(&self.current_node, query, self)
+            .query_styles(&self.current_node, query, false, self)
+    }
+
+    /// Queries the widget hierarchy for matching style components,  starting
+    /// with this widget's parent.
+    ///
+    /// This function traverses up the widget hierarchy looking for the
+    /// components being requested. The resulting styles will contain the values
+    /// from the closest matches in the widget hierarchy.
+    ///
+    /// For style components to be found, they must have previously been
+    /// [attached](Self::attach_styles). The [`Style`](crate::widgets::Style)
+    /// widget is provided as a convenient way to attach styles into the widget
+    /// hierarchy.
+    #[must_use]
+    pub fn query_parent_styles(&self, query: &[&dyn ComponentDefaultvalue]) -> Styles {
+        self.current_node
+            .tree
+            .query_styles(&self.current_node, query, true, self)
     }
 
     /// Queries the widget hierarchy for a single style component.
@@ -940,7 +958,19 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     ) -> Component::ComponentType {
         self.current_node
             .tree
-            .query_style(&self.current_node, query, self)
+            .query_style(&self.current_node, query, false, self)
+    }
+
+    /// Queries the widget hierarchy for a single style component, starting with
+    /// this widget's parent.
+    #[must_use]
+    pub fn query_parent_style<Component: ComponentDefinition>(
+        &self,
+        query: &Component,
+    ) -> Component::ComponentType {
+        self.current_node
+            .tree
+            .query_style(&self.current_node, query, true, self)
     }
 
     pub(crate) fn handle(&self) -> WindowHandle {

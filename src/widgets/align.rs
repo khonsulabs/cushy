@@ -6,7 +6,7 @@ use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenS
 use crate::context::{AsEventContext, LayoutContext};
 use crate::styles::{Edges, FlexibleDimension};
 use crate::value::{IntoValue, Value};
-use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
+use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A widget aligns its contents to its container's boundaries.
@@ -107,8 +107,8 @@ impl Align {
         Layout {
             margin: Edges {
                 left,
-                right,
                 top,
+                right,
                 bottom,
             },
             content: Size::new(width, height),
@@ -186,7 +186,7 @@ impl WrapperWidget for Align {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Rect<kludgine::figures::units::Px> {
+    ) -> WrappedLayout {
         let layout = self.measure(available_space, context);
 
         Rect::new(
@@ -196,6 +196,7 @@ impl WrapperWidget for Align {
             ),
             layout.content.into_signed(),
         )
+        .into()
     }
 }
 

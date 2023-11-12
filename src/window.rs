@@ -4,7 +4,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Not};
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 use std::path::Path;
 use std::string::ToString;
@@ -283,7 +283,7 @@ struct GooeyWindow<T> {
     max_inner_size: Option<Size<UPx>>,
     theme: Option<DynamicReader<ThemePair>>,
     current_theme: ThemePair,
-    theme_mode: Dynamic<ThemeMode>,
+    theme_mode: Value<ThemeMode>,
     transparent: bool,
 }
 
@@ -439,9 +439,10 @@ where
         let theme_mode = match context.settings.borrow_mut().theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
                 dynamic.update(window.theme().into());
-                dynamic
+                Value::Dynamic(dynamic)
             }
-            Some(Value::Constant(_)) | None => Dynamic::new(window.theme().into()),
+            Some(Value::Constant(mode)) => Value::Constant(mode),
+            None => Value::dynamic(window.theme().into()),
         };
         let transparent = context.settings.borrow().transparent;
         let mut behavior = T::initialize(
@@ -512,7 +513,7 @@ where
             ),
             gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
-        context.redraw_when_changed(&self.theme_mode);
+        self.theme_mode.redraw_when_changed(&context);
         let mut layout_context = LayoutContext::new(&mut context);
         let window_size = layout_context.gfx.size();
 
@@ -994,7 +995,9 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.theme_mode.update(window.theme().into());
+        if let Value::Dynamic(theme_mode) = &self.theme_mode {
+            theme_mode.update(window.theme().into());
+        }
     }
 
     fn event(
@@ -1065,6 +1068,30 @@ pub enum ThemeMode {
     /// Applies the dark theme
     #[default]
     Dark,
+}
+
+impl ThemeMode {
+    /// Returns the opposite mode of `self`.
+    #[must_use]
+    pub const fn inverse(self) -> Self {
+        match self {
+            ThemeMode::Light => Self::Dark,
+            ThemeMode::Dark => Self::Light,
+        }
+    }
+
+    /// Updates `self` with its [inverse](Self::inverse).
+    pub fn toggle(&mut self) {
+        *self = !*self;
+    }
+}
+
+impl Not for ThemeMode {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        self.inverse()
+    }
 }
 
 impl From<window::Theme> for ThemeMode {

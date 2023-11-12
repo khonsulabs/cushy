@@ -1,9 +1,9 @@
 use kludgine::figures::units::UPx;
-use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size};
+use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, ScreenScale, Size};
 
 use crate::context::{AsEventContext, LayoutContext};
 use crate::styles::DimensionRange;
-use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
+use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A widget that resizes its contained widget to an explicit size.
@@ -66,7 +66,7 @@ impl WrapperWidget for Resize {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Rect<kludgine::figures::units::Px> {
+    ) -> WrappedLayout {
         let child = self.child.mounted(&mut context.as_event_context());
         let size = if let (Some(width), Some(height)) =
             (self.width.exact_dimension(), self.height.exact_dimension())
