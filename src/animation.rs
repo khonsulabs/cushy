@@ -800,6 +800,12 @@ impl ZeroToOne {
         Self(value.clamp(0., 1.))
     }
 
+    /// Returns the difference between `self` and `other` as a positive number.
+    #[must_use]
+    pub fn difference_between(self, other: Self) -> Self {
+        Self((self.0 - other.0).abs())
+    }
+
     /// Returns the contained floating point value.
     #[must_use]
     pub fn into_f32(self) -> f32 {
