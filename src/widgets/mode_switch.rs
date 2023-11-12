@@ -3,7 +3,7 @@ use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 use crate::window::ThemeMode;
 
-/// A widget that applies a set of [`Styles`] to all contained widgets.
+/// A widget that applies a set of [`ThemeMode`] to all contained widgets.
 #[derive(Debug)]
 pub struct ModeSwitch {
     mode: Value<ThemeMode>,

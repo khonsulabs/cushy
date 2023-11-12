@@ -28,7 +28,7 @@ macro_rules! define_components {
 
             impl ComponentDefinition for $component {
                 type ComponentType = $type;
-                
+
                 define_components!($type, $($default)*);
             }
         };
@@ -144,7 +144,7 @@ impl ComponentDefinition for HighlightColor {
     type ComponentType = Color;
 
     fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
-        context.theme().primary.color
+        context.theme().primary.color.with_alpha(128)
     }
 }
 

@@ -473,7 +473,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         }
 
         let color = styles.get(&HighlightColor, self);
-        self.stroke_outline::<Lp>(color, StrokeOptions::default());
+        self.stroke_outline::<Lp>(color, StrokeOptions::lp_wide(Lp::points(2)));
     }
 
     /// Renders the default focus ring for this widget.

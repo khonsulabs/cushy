@@ -3,7 +3,7 @@ use crate::styles::ThemePair;
 use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 
-/// A widget that applies a set of [`Styles`] to all contained widgets.
+/// A widget that applies a [`ThemePair`] to all contained widgets.
 #[derive(Debug)]
 pub struct Themed {
     theme: Value<ThemePair>,
