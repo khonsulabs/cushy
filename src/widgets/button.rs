@@ -14,9 +14,7 @@ use crate::names::Name;
 use crate::styles::components::{
     AutoFocusableControls, Easing, IntrinsicPadding, SurfaceColor, TextColor,
 };
-use crate::styles::{
-    ColorExt, ComponentDefinition, ComponentGroup, ComponentName, NamedComponent, Styles,
-};
+use crate::styles::{ColorExt, ComponentGroup, Styles};
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
@@ -86,46 +84,36 @@ impl Button {
             &ButtonBackground,
             &ButtonHoverBackground,
             &ButtonDisabledBackground,
+            &ButtonActiveForeground,
+            &ButtonForeground,
+            &ButtonHoverForeground,
+            &ButtonDisabledForeground,
             &Easing,
-            &TextColor,
-            &SurfaceColor,
         ]);
-        let text_color = styles.get(&TextColor, context);
-        let surface_color = styles.get(&SurfaceColor, context);
-        let (background_color, text_color, surface_color) = if !self.enabled.get() {
-            (
+
+        let (background_color, text_color) = match () {
+            () if !self.enabled.get() => (
                 styles.get(&ButtonDisabledBackground, context),
-                text_color,
-                surface_color,
-            )
-        } else if context.is_default() {
-            // TODO this probably should be de-prioritized if ButtonBackground is explicitly set.
-            (
+                styles.get(&ButtonDisabledForeground, context),
+            ),
+            // TODO this probably should use actual style.
+            () if context.is_default() => (
                 context.theme().primary.color,
                 context.theme().primary.on_color,
-                context.theme().primary.color,
-            )
-        } else if context.active() {
-            (
+            ),
+            () if context.active() => (
                 styles.get(&ButtonActiveBackground, context),
-                text_color,
-                surface_color,
-            )
-        } else if context.hovered() {
-            (
+                styles.get(&ButtonActiveForeground, context),
+            ),
+            () if context.hovered() => (
                 styles.get(&ButtonHoverBackground, context),
-                text_color,
-                surface_color,
-            )
-        } else {
-            (
+                styles.get(&ButtonHoverForeground, context),
+            ),
+            () => (
                 styles.get(&ButtonBackground, context),
-                text_color,
-                surface_color,
-            )
+                styles.get(&ButtonForeground, context),
+            ),
         };
-
-        let text_color = background_color.most_contrasting(&[text_color, surface_color]);
 
         match (immediate, &self.background_color, &self.text_color) {
             (false, Some(bg), Some(text)) => {
@@ -332,76 +320,27 @@ impl ComponentGroup for Button {
     }
 }
 
-/// The background color of the button.
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct ButtonBackground;
-
-impl NamedComponent for ButtonBackground {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Button>("background_color"))
-    }
-}
-
-impl ComponentDefinition for ButtonBackground {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
-        context.theme().surface.color
-    }
-}
-
-/// The background color of the button when it is active (depressed).
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct ButtonActiveBackground;
-
-impl NamedComponent for ButtonActiveBackground {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Button>("active_background_color"))
-    }
-}
-
-impl ComponentDefinition for ButtonActiveBackground {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
-        context.theme().surface.dim_color
-    }
-}
-
-/// The background color of the button when the mouse cursor is hovering over
-/// it.
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct ButtonHoverBackground;
-
-impl NamedComponent for ButtonHoverBackground {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Button>("hover_background_color"))
-    }
-}
-
-impl ComponentDefinition for ButtonHoverBackground {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
-        context.theme().surface.bright_color
-    }
-}
-
-/// The background color of the button when the mouse cursor is hovering over
-/// it.
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct ButtonDisabledBackground;
-
-impl NamedComponent for ButtonDisabledBackground {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Button>("disabled_background_color"))
-    }
-}
-
-impl ComponentDefinition for ButtonDisabledBackground {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
-        context.theme().surface.dim_color
+define_components! {
+    Button {
+        /// The background color of the button.
+        ButtonBackground(Color, "background_color", .surface.color)
+        /// The background color of the button when it is active (depressed).
+        ButtonActiveBackground(Color, "active_background_color", .surface.dim_color)
+        /// The background color of the button when the mouse cursor is hovering over
+        /// it.
+        ButtonHoverBackground(Color, "hover_background_color", .surface.bright_color)
+        /// The background color of the button when the mouse cursor is hovering over
+        /// it.
+        ButtonDisabledBackground(Color, "disabled_background_color", .surface.dim_color)
+        /// The foreground color of the button.
+        ButtonForeground(Color, "foreground_color", contrasting!(ButtonBackground, TextColor, SurfaceColor))
+        /// The foreground color of the button when it is active (depressed).
+        ButtonActiveForeground(Color, "active_foreground_color", contrasting!(ButtonActiveBackground, ButtonForeground, SurfaceColor))
+        /// The foreground color of the button when the mouse cursor is hovering over
+        /// it.
+        ButtonHoverForeground(Color, "hover_foreground_color", contrasting!(ButtonHoverBackground, ButtonForeground, SurfaceColor))
+        /// The foreground color of the button when the mouse cursor is hovering over
+        /// it.
+        ButtonDisabledForeground(Color, "disabled_foreground_color", contrasting!(ButtonDisabledBackground, ButtonForeground, SurfaceColor))
     }
 }

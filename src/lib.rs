@@ -9,6 +9,7 @@ pub mod animation;
 pub mod context;
 mod graphics;
 mod names;
+#[macro_use]
 pub mod styles;
 mod tick;
 mod tree;

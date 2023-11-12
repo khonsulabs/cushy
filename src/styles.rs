@@ -22,6 +22,7 @@ use crate::styles::components::{FocusableWidgets, VisualOrder};
 use crate::utils::Lazy;
 use crate::value::{Dynamic, IntoValue, Value};
 
+#[macro_use]
 pub mod components;
 
 /// A collection of style components organized by their name.

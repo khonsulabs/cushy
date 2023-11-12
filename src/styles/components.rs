@@ -12,6 +12,51 @@ use crate::styles::{
     Component, ComponentDefinition, ComponentName, Dimension, Global, NamedComponent,
 };
 
+macro_rules! define_components {
+    ($($widget:ident { $($(#$doc:tt)* $component:ident($type:ty, $name:expr, $($default:tt)*))* })*) => {$($(
+        $(#$doc)*
+        #[derive(Clone, Copy, Eq, PartialEq, Debug)]
+        pub struct $component;
+
+        const _: () = {
+            use $crate::styles::{ComponentDefinition, ComponentName, NamedComponent};
+            impl NamedComponent for $component {
+                fn name(&self) -> Cow<'_, ComponentName> {
+                    Cow::Owned(ComponentName::named::<Button>($name))
+                }
+            }
+
+            impl ComponentDefinition for $component {
+                type ComponentType = $type;
+                
+                define_components!($type, $($default)*);
+            }
+        };
+
+    )*)*};
+    ($type:ty, . $($path:tt)*) => {
+        define_components!($type, |context| context.theme().$($path)*);
+    };
+    ($type:ty, |$context:ident| $($expr:tt)*) => {
+        fn default_value(&self, $context: &WidgetContext<'_, '_>) -> Color {
+            $($expr)*
+        }
+    };
+    ($type:ty, @$path:path) => {
+        define_components!($type, |context| context.query_style(&$path));
+    };
+    ($type:ty, contrasting!($bg:ident, $($fg:ident),+ $(,)?)) => {
+        define_components!($type, |context| {
+            context.query_style(&$bg).most_contrasting(&[
+                $(context.query_style(&$fg)),+
+            ])
+        });
+    };
+    ($type:ty, $($expr:tt)*) => {
+        define_components!($type, |_context| $($expr)*);
+    };
+}
+
 /// The [`Dimension`] to use as the size to render text.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct TextSize;
