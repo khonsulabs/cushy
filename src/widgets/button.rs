@@ -4,50 +4,48 @@ use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoUnsigned, Point, Rect, ScreenScale, Size};
-use kludgine::shapes::StrokeOptions;
-use kludgine::text::Text;
+use kludgine::figures::units::{Px, UPx};
+use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 use kludgine::Color;
 
-use crate::animation::{AnimationHandle, AnimationTarget, LinearInterpolate, Spawn};
-use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::names::Name;
 use crate::styles::components::{
-    AutoFocusableControls, DisabledOutlineColor, Easing, IntrinsicPadding, OutlineColor,
-    SurfaceColor, TextColor,
+    AutoFocusableControls, Easing, IntrinsicPadding, SurfaceColor, TextColor,
 };
-use crate::styles::{ColorExt, ComponentDefinition, ComponentGroup, ComponentName, NamedComponent};
+use crate::styles::{ColorExt, ComponentGroup, Styles};
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, IntoValue, Value};
-use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
+use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
 
 /// A clickable button.
 #[derive(Debug)]
 pub struct Button {
     /// The label to display on the button.
-    pub label: Value<String>,
+    pub content: WidgetRef,
     /// The callback that is invoked when the button is clicked.
     pub on_click: Option<Callback<()>>,
     /// The enabled state of the button.
     pub enabled: Value<bool>,
     currently_enabled: bool,
     buttons_pressed: usize,
-    colors: Option<Dynamic<Colors>>,
-
+    background_color: Option<Dynamic<Color>>,
+    text_color: Option<Dynamic<Color>>,
     color_animation: AnimationHandle,
 }
 
 impl Button {
     /// Returns a new button with the provided label.
-    pub fn new(label: impl IntoValue<String>) -> Self {
+    pub fn new(content: impl MakeWidget) -> Self {
         Self {
-            label: label.into_value(),
+            content: content.widget_ref(),
             on_click: None,
             enabled: Value::Constant(true),
             currently_enabled: true,
             buttons_pressed: 0,
-            colors: None,
+            background_color: None,
+            text_color: None,
             color_animation: AnimationHandle::default(),
         }
     }
@@ -86,109 +84,75 @@ impl Button {
             &ButtonBackground,
             &ButtonHoverBackground,
             &ButtonDisabledBackground,
+            &ButtonActiveForeground,
+            &ButtonForeground,
+            &ButtonHoverForeground,
+            &ButtonDisabledForeground,
             &Easing,
-            &TextColor,
-            &SurfaceColor,
-            &OutlineColor,
-            &DisabledOutlineColor,
         ]);
-        let text_color = styles.get(&TextColor, context);
-        let surface_color = styles.get(&SurfaceColor, context);
-        let outline_color = styles.get(&OutlineColor, context);
-        let (background, outline, text_color, surface_color) = if !self.enabled.get() {
-            (
+
+        let (background_color, text_color) = match () {
+            () if !self.enabled.get() => (
                 styles.get(&ButtonDisabledBackground, context),
-                styles.get(&DisabledOutlineColor, context),
-                text_color,
-                surface_color,
-            )
-        } else if context.is_default() {
-            // TODO this probably should be de-prioritized if ButtonBackground is explicitly set.
-            (
-                context.theme().primary.color,
+                styles.get(&ButtonDisabledForeground, context),
+            ),
+            // TODO this probably should use actual style.
+            () if context.is_default() => (
                 context.theme().primary.color,
                 context.theme().primary.on_color,
-                context.theme().primary.color,
-            )
-        } else if context.active() {
-            (
+            ),
+            () if context.active() => (
                 styles.get(&ButtonActiveBackground, context),
-                outline_color,
-                text_color,
-                surface_color,
-            )
-        } else if context.hovered() {
-            (
+                styles.get(&ButtonActiveForeground, context),
+            ),
+            () if context.hovered() => (
                 styles.get(&ButtonHoverBackground, context),
-                outline_color,
-                text_color,
-                surface_color,
-            )
-        } else {
-            (
+                styles.get(&ButtonHoverForeground, context),
+            ),
+            () => (
                 styles.get(&ButtonBackground, context),
-                outline_color,
-                text_color,
-                surface_color,
-            )
+                styles.get(&ButtonForeground, context),
+            ),
         };
 
-        let text = background.most_contrasting(&[text_color, surface_color]);
-
-        let new_colors = Colors {
-            background,
-            text,
-            outline,
-        };
-
-        match (immediate, &self.colors) {
-            (false, Some(colors)) => {
-                self.color_animation = colors
-                    .transition_to(new_colors)
+        match (immediate, &self.background_color, &self.text_color) {
+            (false, Some(bg), Some(text)) => {
+                self.color_animation = (
+                    bg.transition_to(background_color),
+                    text.transition_to(text_color),
+                )
                     .over(Duration::from_millis(150))
                     .with_easing(styles.get(&Easing, context))
                     .spawn();
             }
-            (true, Some(colors)) => {
-                colors.update(new_colors);
+            (true, Some(bg), Some(text)) => {
+                bg.update(background_color);
+                text.update(text_color);
                 self.color_animation.clear();
             }
             _ => {
-                self.colors = Some(Dynamic::new(new_colors));
+                self.background_color = Some(Dynamic::new(background_color));
+                let text_color = Dynamic::new(text_color);
+                self.text_color = Some(text_color.clone());
+                context.attach_styles(Styles::new().with(&TextColor, text_color));
             }
         }
     }
 
-    fn current_colors(&mut self, context: &WidgetContext<'_, '_>) -> Colors {
-        if self.colors.is_none() {
+    fn current_background(&mut self, context: &WidgetContext<'_, '_>) -> Color {
+        if self.background_color.is_none() {
             self.update_colors(context, false);
         }
 
-        let colors = self.colors.as_ref().expect("always initialized");
-        context.redraw_when_changed(colors);
-        colors.get()
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
-struct Colors {
-    background: Color,
-    text: Color,
-    outline: Color,
-}
-
-impl LinearInterpolate for Colors {
-    fn lerp(&self, target: &Self, percent: f32) -> Self {
-        Self {
-            background: self.background.lerp(&target.background, percent),
-            text: self.text.lerp(&target.text, percent),
-            outline: self.outline.lerp(&target.outline, percent),
-        }
+        let background_color = self.background_color.as_ref().expect("always initialized");
+        context.redraw_when_changed(background_color);
+        background_color.get()
     }
 }
 
 impl Widget for Button {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        #![allow(clippy::similar_names)]
         let enabled = self.enabled.get();
         // TODO This seems ugly. It needs context, so it can't be moved into the
         // dynamic system.
@@ -197,30 +161,17 @@ impl Widget for Button {
             self.currently_enabled = enabled;
         }
 
-        let size = context.gfx.region().size;
-        let center = Point::from(size) / 2;
-        self.label.redraw_when_changed(context);
         self.enabled.redraw_when_changed(context);
 
-        let colors = self.current_colors(context);
-        context.gfx.fill(colors.background);
+        let background_color = self.current_background(context);
+        context.gfx.fill(background_color);
 
         if context.focused() {
             context.draw_focus_ring();
-        } else {
-            context.stroke_outline::<Lp>(colors.outline, StrokeOptions::default());
         }
 
-        self.label.map(|label| {
-            context.gfx.draw_text(
-                Text::new(label, colors.text)
-                    .origin(kludgine::text::TextOrigin::Center)
-                    .wrap_at(size.width),
-                center,
-                None,
-                None,
-            );
-        });
+        let content = self.content.mounted(&mut context.as_event_context());
+        context.for_other(&content).redraw();
     }
 
     fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
@@ -295,17 +246,13 @@ impl Widget for Button {
             .query_style(&IntrinsicPadding)
             .into_px(context.gfx.scale())
             .into_unsigned();
-        let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
-        self.label.map(|label| {
-            let measured = context
-                .gfx
-                .measure_text::<Px>(Text::from(label).wrap_at(width));
-
-            let mut size = measured.size.into_unsigned();
-            size.width += padding * 2;
-            size.height = size.height.max(measured.line_height.into_unsigned()) + padding * 2;
-            size
-        })
+        let mounted = self.content.mounted(&mut context.as_event_context());
+        let size = context.for_other(&mounted).layout(available_space);
+        context.set_child_layout(
+            &mounted,
+            Rect::new(Point::new(padding, padding), size).into_signed(),
+        );
+        size + padding * 2
     }
 
     fn keyboard_input(
@@ -373,76 +320,27 @@ impl ComponentGroup for Button {
     }
 }
 
-/// The background color of the button.
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct ButtonBackground;
-
-impl NamedComponent for ButtonBackground {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Button>("background_color"))
-    }
-}
-
-impl ComponentDefinition for ButtonBackground {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
-        context.theme().surface.color
-    }
-}
-
-/// The background color of the button when it is active (depressed).
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct ButtonActiveBackground;
-
-impl NamedComponent for ButtonActiveBackground {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Button>("active_background_color"))
-    }
-}
-
-impl ComponentDefinition for ButtonActiveBackground {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
-        context.theme().surface.dim_color
-    }
-}
-
-/// The background color of the button when the mouse cursor is hovering over
-/// it.
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct ButtonHoverBackground;
-
-impl NamedComponent for ButtonHoverBackground {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Button>("hover_background_color"))
-    }
-}
-
-impl ComponentDefinition for ButtonHoverBackground {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
-        context.theme().surface.bright_color
-    }
-}
-
-/// The background color of the button when the mouse cursor is hovering over
-/// it.
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-pub struct ButtonDisabledBackground;
-
-impl NamedComponent for ButtonDisabledBackground {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Button>("disabled_background_color"))
-    }
-}
-
-impl ComponentDefinition for ButtonDisabledBackground {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Color {
-        context.theme().surface.dim_color
+define_components! {
+    Button {
+        /// The background color of the button.
+        ButtonBackground(Color, "background_color", .surface.highest_container) // TODO highest_container seems wrong, but it's what material uses. Perhaps we should add another color so that buttons don't blend with the highest container level.
+        /// The background color of the button when it is active (depressed).
+        ButtonActiveBackground(Color, "active_background_color", .surface.color)
+        /// The background color of the button when the mouse cursor is hovering over
+        /// it.
+        ButtonHoverBackground(Color, "hover_background_color", .surface.bright_color)
+        /// The background color of the button when the mouse cursor is hovering over
+        /// it.
+        ButtonDisabledBackground(Color, "disabled_background_color", .surface.dim_color)
+        /// The foreground color of the button.
+        ButtonForeground(Color, "foreground_color", contrasting!(ButtonBackground, TextColor, SurfaceColor))
+        /// The foreground color of the button when it is active (depressed).
+        ButtonActiveForeground(Color, "active_foreground_color", contrasting!(ButtonActiveBackground, ButtonForeground, TextColor, SurfaceColor))
+        /// The foreground color of the button when the mouse cursor is hovering over
+        /// it.
+        ButtonHoverForeground(Color, "hover_foreground_color", contrasting!(ButtonHoverBackground, ButtonForeground, TextColor, SurfaceColor))
+        /// The foreground color of the button when the mouse cursor is hovering over
+        /// it.
+        ButtonDisabledForeground(Color, "disabled_foreground_color", contrasting!(ButtonDisabledBackground, ButtonForeground, TextColor, SurfaceColor))
     }
 }

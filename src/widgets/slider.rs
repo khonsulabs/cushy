@@ -406,7 +406,7 @@ impl ComponentDefinition for InactiveTrackColor {
     type ComponentType = Color;
 
     fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType {
-        context.theme().surface.outline
+        context.theme().surface.highest_container // TODO this is the same as ButtonBackground. This should be abstracted into its own component both can depend on.
     }
 }
 

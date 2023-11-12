@@ -572,6 +572,12 @@ pub trait MakeWidget: Sized {
     fn horizontal_scroll(self) -> Scroll {
         Scroll::horizontal(self)
     }
+
+    /// Creates a [`WidgetRef`] for use as child widget.
+    #[must_use]
+    fn widget_ref(self) -> WidgetRef {
+        WidgetRef::new(self)
+    }
 }
 
 /// A type that can create a [`WidgetInstance`] with a preallocated

@@ -22,6 +22,7 @@ use crate::styles::components::{FocusableWidgets, VisualOrder};
 use crate::utils::Lazy;
 use crate::value::{Dynamic, IntoValue, Value};
 
+#[macro_use]
 pub mod components;
 
 /// A collection of style components organized by their name.
@@ -58,7 +59,7 @@ impl Styles {
 
     /// Adds a [`Component`] for the name provided and returns self.
     #[must_use]
-    pub fn with(mut self, name: &impl NamedComponent, component: impl Into<Component>) -> Self {
+    pub fn with(mut self, name: &impl NamedComponent, component: impl IntoComponentValue) -> Self {
         self.insert(name, component);
         self
     }
@@ -1007,7 +1008,7 @@ impl SurfaceTheme {
         Self {
             color: neutral.color(98),
             dim_color: neutral_variant.color(70),
-            bright_color: neutral.color(99),
+            bright_color: neutral.color(100),
             lowest_container: neutral.color(100),
             low_container: neutral.color(96),
             container: neutral.color(95),
@@ -1027,7 +1028,7 @@ impl SurfaceTheme {
         Self {
             color: neutral.color(10),
             dim_color: neutral_variant.color(2),
-            bright_color: neutral.color(10),
+            bright_color: neutral.color(11),
             lowest_container: neutral.color(15),
             low_container: neutral.color(20),
             container: neutral.color(25),
@@ -1158,6 +1159,7 @@ impl ColorSource {
     #[must_use]
     pub fn contrast_between(self, other: Self) -> ZeroToOne {
         let saturation_delta = self.saturation.difference_between(other.saturation);
+
         let self_hue = self.hue.into_positive_degrees();
         let other_hue = other.hue.into_positive_degrees();
         // Calculate the shortest distance between the hues, taking into account
@@ -1277,7 +1279,7 @@ impl ColorExt for Color {
         let other_alpha = ZeroToOne::new(self.alpha_f32());
         let alpha_delta = check_alpha.difference_between(other_alpha);
 
-        lightness_delta * source_change * alpha_delta
+        ZeroToOne::new((*lightness_delta + *source_change + *alpha_delta) / 3.)
     }
 
     fn most_contrasting(self, others: &[Self]) -> Self

@@ -21,7 +21,7 @@ fn main() -> gooey::Result {
         .and(Input::new(chat_message.clone()).on_key(move |input| {
             match (input.state, input.logical_key) {
                 (ElementState::Pressed, Key::Enter) => {
-                    let new_message = chat_message.map_mut(|text| std::mem::take(text));
+                    let new_message = chat_message.map_mut(std::mem::take);
                     chat_log.map_mut(|chat_log| {
                         chat_log.push_str(&new_message);
                         chat_log.push('\n');

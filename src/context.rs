@@ -15,7 +15,7 @@ use kludgine::{Color, Kludgine};
 use crate::graphics::Graphics;
 use crate::styles::components::{HighlightColor, VisualOrder, WidgetBackground};
 use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles, Theme, ThemePair};
-use crate::value::{Dynamic, Value};
+use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
 use crate::window::sealed::WindowCommand;
 use crate::window::{RunningWindow, ThemeMode};
@@ -196,7 +196,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                     }
                     true
                 }
-                Err(_) => false,
+                Err(()) => false,
             };
             if new {
                 if let Some(active) = self.pending_state.active.clone() {
@@ -250,7 +250,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                     }
                     true
                 }
-                Err(_) => false,
+                Err(()) => false,
             };
             if new {
                 if let Some(focus) = self.pending_state.focus.clone() {
@@ -890,8 +890,8 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     ///
     /// Style queries for children will return any values matching this
     /// collection.
-    pub fn attach_styles(&self, styles: Value<Styles>) {
-        self.current_node.attach_styles(styles);
+    pub fn attach_styles(&self, styles: impl IntoValue<Styles>) {
+        self.current_node.attach_styles(styles.into_value());
     }
 
     /// Attaches `theme` to the widget hierarchy for this widget.
