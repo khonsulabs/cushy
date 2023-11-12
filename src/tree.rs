@@ -6,8 +6,9 @@ use kludgine::figures::units::Px;
 use kludgine::figures::{Point, Rect};
 
 use crate::context::WidgetContext;
-use crate::styles::components::VisualOrder;
-use crate::styles::{ComponentDefaultvalue, ComponentDefinition, ComponentType, Styles, ThemePair};
+use crate::styles::{
+    ComponentDefaultvalue, ComponentDefinition, ComponentType, Styles, ThemePair, VisualOrder,
+};
 use crate::value::Value;
 use crate::widget::{ManagedWidget, WidgetId, WidgetInstance};
 use crate::window::ThemeMode;

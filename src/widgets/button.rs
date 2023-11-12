@@ -1,5 +1,4 @@
 //! A clickable, labeled button
-use std::borrow::Cow;
 use std::panic::UnwindSafe;
 use std::time::Duration;
 
@@ -10,11 +9,10 @@ use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
-use crate::names::Name;
 use crate::styles::components::{
     AutoFocusableControls, Easing, IntrinsicPadding, OpaqueWidgetColor, SurfaceColor, TextColor,
 };
-use crate::styles::{ColorExt, ComponentGroup, Styles};
+use crate::styles::Styles;
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
@@ -311,12 +309,6 @@ impl Widget for Button {
 
     fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {
         self.update_colors(context, false);
-    }
-}
-
-impl ComponentGroup for Button {
-    fn name() -> Name {
-        Name::new("button")
     }
 }
 

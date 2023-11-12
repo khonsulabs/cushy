@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::fmt::Debug;
 use std::panic::UnwindSafe;
 
@@ -12,9 +11,9 @@ use kludgine::shapes::Shape;
 use kludgine::{Color, Origin};
 
 use crate::animation::{LinearInterpolate, PercentBetween};
-use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::context::{EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::OpaqueWidgetColor;
-use crate::styles::{ComponentDefinition, ComponentName, Dimension, Group, NamedComponent};
+use crate::styles::Dimension;
 use crate::value::{Dynamic, IntoDynamic, IntoValue, Value};
 use crate::widget::{EventHandling, Widget, HANDLED};
 use crate::ConstraintLimit;
@@ -315,107 +314,19 @@ where
     }
 }
 
-/// The size of the track that the knob of a [`Slider`] traversesq.
-pub struct TrackSize;
-
-impl ComponentDefinition for TrackSize {
-    type ComponentType = Dimension;
-
-    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Self::ComponentType {
-        Dimension::Lp(Lp::points(5))
-    }
-}
-
-impl NamedComponent for TrackSize {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::new(Group::new("Slider"), "track_size"))
-    }
-}
-
-/// The width and height of the draggable portion of a [`Slider`].
-pub struct KnobSize;
-
-impl ComponentDefinition for KnobSize {
-    type ComponentType = Dimension;
-
-    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Self::ComponentType {
-        Dimension::Lp(Lp::points(14))
-    }
-}
-
-impl NamedComponent for KnobSize {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::new(Group::new("Slider"), "knob_size"))
-    }
-}
-
-/// The minimum length of the slidable dimension.
-pub struct MinimumSliderSize;
-
-impl ComponentDefinition for MinimumSliderSize {
-    type ComponentType = Dimension;
-
-    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Self::ComponentType {
-        Dimension::Lp(Lp::points(14))
-    }
-}
-
-impl NamedComponent for MinimumSliderSize {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::new(Group::new("Slider"), "minimum_size"))
-    }
-}
-
-/// The color of the draggable portion of the knob.
-pub struct KnobColor;
-
-impl ComponentDefinition for KnobColor {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType {
-        context.theme().primary.color
-    }
-}
-
-impl NamedComponent for KnobColor {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::new(Group::new("Slider"), "knob_color"))
-    }
-}
-
-/// The color of the track that the knob rests on.
-pub struct TrackColor;
-
-impl ComponentDefinition for TrackColor {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType {
-        context.theme().primary.color
-    }
-}
-
-impl NamedComponent for TrackColor {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::new(Group::new("Slider"), "track_color"))
-    }
-}
-
-/// The color of the draggable portion of the knob.
-pub struct InactiveTrackColor;
-
-impl ComponentDefinition for InactiveTrackColor {
-    type ComponentType = Color;
-
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType {
-        context.query_style(&OpaqueWidgetColor)
-    }
-}
-
-impl NamedComponent for InactiveTrackColor {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::new(
-            Group::new("Slider"),
-            "inactive_track_color",
-        ))
+define_components! {
+    Slider {
+        /// The size of the track that the knob of a [`Slider`] traversesq.
+        TrackSize(Dimension, "track_size", Dimension::Lp(Lp::points(5)))
+        /// The width and height of the draggable portion of a [`Slider`].
+        KnobSize(Dimension, "knob_size", Dimension::Lp(Lp::points(14)))
+        /// The minimum length of the slidable dimension.
+        MinimumSliderSize(Dimension, "minimum_size", |context| context.query_style(&KnobSize) * 2)
+        /// The color of the draggable portion of the knob.
+        KnobColor(Color, "knob_color", .primary.color) // TODO make this pull from a component multiple widgets can share
+        /// The color of the track that the knob rests on.
+        TrackColor(Color,"track_color", |context| context.query_style(&KnobColor))
+        /// The color of the track that the knob rests on.
+        InactiveTrackColor(Color, "inactive_track_color", |context| context.query_style(&OpaqueWidgetColor))
     }
 }

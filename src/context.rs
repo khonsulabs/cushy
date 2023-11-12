@@ -13,8 +13,10 @@ use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
 use crate::graphics::Graphics;
-use crate::styles::components::{HighlightColor, VisualOrder, WidgetBackground};
-use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles, Theme, ThemePair};
+use crate::styles::components::{HighlightColor, WidgetBackground};
+use crate::styles::{
+    ComponentDefaultvalue, ComponentDefinition, Styles, Theme, ThemePair, VisualOrder,
+};
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
 use crate::window::sealed::WindowCommand;

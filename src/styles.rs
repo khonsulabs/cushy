@@ -5,20 +5,19 @@ use std::borrow::Cow;
 use std::collections::{hash_map, HashMap};
 use std::fmt::Debug;
 use std::ops::{
-    Add, Bound, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
+    Add, Bound, Div, Mul, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
 };
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Fraction, IntoUnsigned, ScreenScale, Size};
+use kludgine::figures::{Fraction, IntoUnsigned, Rect, ScreenScale, Size};
 use kludgine::Color;
 use palette::{IntoColor, Okhsl, OklabHue, Srgb};
 
 use crate::animation::{EasingFunction, ZeroToOne};
 use crate::context::WidgetContext;
 use crate::names::Name;
-use crate::styles::components::{FocusableWidgets, VisualOrder};
 use crate::utils::Lazy;
 use crate::value::{Dynamic, IntoValue, Value};
 
@@ -27,7 +26,7 @@ pub mod components;
 
 /// A collection of style components organized by their name.
 #[derive(Clone, Debug, Default)]
-pub struct Styles(Arc<HashMap<Group, HashMap<Name, Value<Component>>>>);
+pub struct Styles(Arc<HashMap<Name, HashMap<Name, Value<Component>>>>);
 
 impl Styles {
     /// Returns an empty collection.
@@ -157,8 +156,8 @@ impl IntoIterator for Styles {
 
 /// An iterator over the owned contents of a [`Styles`] instance.
 pub struct StylesIntoIter {
-    main: hash_map::IntoIter<Group, HashMap<Name, Value<Component>>>,
-    names: Option<(Group, hash_map::IntoIter<Name, Value<Component>>)>,
+    main: hash_map::IntoIter<Name, HashMap<Name, Value<Component>>>,
+    names: Option<(Name, hash_map::IntoIter<Name, Value<Component>>)>,
 }
 
 impl Iterator for StylesIntoIter {
@@ -365,6 +364,50 @@ impl ScreenScale for Dimension {
     }
 }
 
+impl Mul<i32> for Dimension {
+    type Output = Dimension;
+
+    fn mul(self, rhs: i32) -> Self::Output {
+        match self {
+            Self::Px(val) => Self::Px(val * rhs),
+            Self::Lp(val) => Self::Lp(val * rhs),
+        }
+    }
+}
+
+impl Mul<f32> for Dimension {
+    type Output = Dimension;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        match self {
+            Self::Px(val) => Self::Px(val * rhs),
+            Self::Lp(val) => Self::Lp(val * rhs),
+        }
+    }
+}
+
+impl Div<i32> for Dimension {
+    type Output = Dimension;
+
+    fn div(self, rhs: i32) -> Self::Output {
+        match self {
+            Self::Px(val) => Self::Px(val / rhs),
+            Self::Lp(val) => Self::Lp(val / rhs),
+        }
+    }
+}
+
+impl Div<f32> for Dimension {
+    type Output = Dimension;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        match self {
+            Self::Px(val) => Self::Px(val / rhs),
+            Self::Lp(val) => Self::Lp(val / rhs),
+        }
+    }
+}
+
 /// A range of [`Dimension`]s.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct DimensionRange {
@@ -567,72 +610,22 @@ where
     }
 }
 
-/// A style component group.
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct Group(Name);
-
-impl Group {
-    /// Returns a new group with `name`.
-    #[must_use]
-    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
-        Self(Name::new(name))
-    }
-
-    /// Returns a new instance using the group name of `T`.
-    #[must_use]
-    pub fn from_group<T>() -> Self
-    where
-        T: ComponentGroup,
-    {
-        Self(T::name())
-    }
-
-    /// Returns true if this instance matches the group name of `T`.
-    #[must_use]
-    pub fn matches<T>(&self) -> bool
-    where
-        T: ComponentGroup,
-    {
-        self.0 == T::name()
-    }
-}
-
-/// A type that represents a group of style components.
-pub trait ComponentGroup {
-    /// Returns the name of the group.
-    fn name() -> Name;
-}
-
-/// The Global style components group.
-pub enum Global {}
-
-impl ComponentGroup for Global {
-    fn name() -> Name {
-        Name::new("global")
-    }
-}
-
 /// A fully-qualified style component name.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ComponentName {
     /// The group name.
-    pub group: Group,
+    pub group: Name,
     /// The name of the component within the group.
     pub name: Name,
 }
 
 impl ComponentName {
     /// Returns a new instance using `group` and `name`.
-    pub fn new(group: Group, name: impl Into<Name>) -> Self {
+    pub fn new(group: impl Into<Name>, name: impl Into<Name>) -> Self {
         Self {
-            group,
+            group: group.into(),
             name: name.into(),
         }
-    }
-
-    /// Returns a new instance using `G` and `name`.
-    pub fn named<G: ComponentGroup>(name: impl Into<Name>) -> Self {
-        Self::new(Group::from_group::<G>(), name)
     }
 }
 
@@ -1312,5 +1305,163 @@ impl ColorExt for Color {
         }
 
         most_contrasting
+    }
+}
+
+/// A 2d ordering configuration.
+#[derive(Copy, Debug, Clone, Eq, PartialEq)]
+pub struct VisualOrder {
+    /// The ordering to apply horizontally.
+    pub horizontal: HorizontalOrder,
+    /// The ordering to apply vertically.
+    pub vertical: VerticalOrder,
+}
+
+impl VisualOrder {
+    /// Returns a right-to-left ordering.
+    #[must_use]
+    pub const fn right_to_left() -> Self {
+        Self {
+            horizontal: HorizontalOrder::RightToLeft,
+            vertical: VerticalOrder::TopToBottom,
+        }
+    }
+
+    /// Returns a left-to-right ordering.
+    #[must_use]
+    pub const fn left_to_right() -> Self {
+        Self {
+            horizontal: HorizontalOrder::LeftToRight,
+            vertical: VerticalOrder::TopToBottom,
+        }
+    }
+
+    /// Returns the reverse ordering of `self`.
+    #[must_use]
+    pub fn rev(self) -> Self {
+        Self {
+            horizontal: self.horizontal.rev(),
+            vertical: self.vertical.rev(),
+        }
+    }
+}
+
+impl From<VisualOrder> for Component {
+    fn from(value: VisualOrder) -> Self {
+        Self::VisualOrder(value)
+    }
+}
+
+impl TryFrom<Component> for VisualOrder {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::VisualOrder(order) => Ok(order),
+            other => Err(other),
+        }
+    }
+}
+
+/// A horizontal direction.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum HorizontalOrder {
+    /// Describes an order starting at the left and proceeding to the right.
+    LeftToRight,
+    /// Describes an order starting at the right and proceeding to the left.
+    RightToLeft,
+}
+
+impl HorizontalOrder {
+    /// Returns the reverse order of `self`.
+    #[must_use]
+    pub fn rev(self) -> Self {
+        match self {
+            Self::LeftToRight => Self::RightToLeft,
+            Self::RightToLeft => Self::LeftToRight,
+        }
+    }
+
+    pub(crate) fn sort_key(self, rect: &Rect<Px>) -> Px {
+        match self {
+            HorizontalOrder::LeftToRight => rect.origin.x,
+            HorizontalOrder::RightToLeft => -(rect.origin.x + rect.size.width),
+        }
+    }
+}
+
+/// A vertical direction.
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum VerticalOrder {
+    /// Describes an order starting at the top and proceeding to the bottom.
+    TopToBottom,
+    /// Describes an order starting at the bottom and proceeding to the top.
+    BottomToTop,
+}
+
+impl VerticalOrder {
+    /// Returns the reverse order of `self`.
+    #[must_use]
+    pub fn rev(self) -> Self {
+        match self {
+            Self::TopToBottom => VerticalOrder::BottomToTop,
+            Self::BottomToTop => VerticalOrder::TopToBottom,
+        }
+    }
+
+    pub(crate) fn max_px(self) -> Px {
+        match self {
+            VerticalOrder::TopToBottom => Px::MAX,
+            VerticalOrder::BottomToTop => Px::MIN,
+        }
+    }
+
+    pub(crate) fn smallest_px(self, a: Px, b: Px) -> Px {
+        match self {
+            VerticalOrder::TopToBottom => a.min(b),
+            VerticalOrder::BottomToTop => b.max(a),
+        }
+    }
+}
+
+/// A configuration option to control which controls should be able to receive
+/// focus through keyboard focus handling or initial focus handling.
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
+pub enum FocusableWidgets {
+    /// Allow all widgets that can respond to keyboard input to accept focus.
+    #[default]
+    All,
+    /// Only allow widgets that expect textual input to accept focus.
+    OnlyTextual,
+}
+
+impl FocusableWidgets {
+    /// Returns true if all controls should be focusable.
+    #[must_use]
+    pub const fn is_all(self) -> bool {
+        matches!(self, Self::All)
+    }
+
+    /// Returns true if only textual should be focusable.
+    #[must_use]
+    pub const fn is_only_textual(self) -> bool {
+        matches!(self, Self::OnlyTextual)
+    }
+}
+
+impl From<FocusableWidgets> for Component {
+    fn from(value: FocusableWidgets) -> Self {
+        Self::FocusableWidgets(value)
+    }
+}
+
+impl TryFrom<Component> for FocusableWidgets {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::FocusableWidgets(focus) => Ok(focus),
+            other => Err(other),
+        }
     }
 }

@@ -15,8 +15,7 @@ use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
-use crate::styles::components::VisualOrder;
-use crate::styles::{IntoComponentValue, NamedComponent, Styles, ThemePair};
+use crate::styles::{IntoComponentValue, NamedComponent, Styles, ThemePair, VisualOrder};
 use crate::tree::Tree;
 use crate::value::{IntoValue, Value};
 use crate::widgets::{Align, Expand, Scroll, Style};

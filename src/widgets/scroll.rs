@@ -1,5 +1,4 @@
 //! A container that scrolls its contents on a virtual surface.
-use std::borrow::Cow;
 use std::time::Duration;
 
 use intentional::Cast;
@@ -12,14 +11,12 @@ use kludgine::shapes::Shape;
 use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
-use crate::context::{AsEventContext, EventContext, LayoutContext, WidgetContext};
+use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::components::{EasingIn, EasingOut, LineHeight};
-use crate::styles::{
-    ComponentDefinition, ComponentGroup, ComponentName, Dimension, NamedComponent,
-};
+use crate::styles::Dimension;
 use crate::value::Dynamic;
 use crate::widget::{EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
-use crate::{ConstraintLimit, Name};
+use crate::ConstraintLimit;
 
 /// A widget that supports scrolling its contents.
 #[derive(Debug)]
@@ -319,25 +316,9 @@ fn scrollbar_region(scroll: Px, content_size: Px, control_size: Px) -> Scrollbar
     }
 }
 
-/// The thickness that scrollbars are drawn with.
-pub struct ScrollBarThickness;
-
-impl ComponentDefinition for ScrollBarThickness {
-    type ComponentType = Dimension;
-
-    fn default_value(&self, _context: &WidgetContext<'_, '_>) -> Self::ComponentType {
-        Dimension::Lp(Lp::points(7))
-    }
-}
-
-impl NamedComponent for ScrollBarThickness {
-    fn name(&self) -> Cow<'_, ComponentName> {
-        Cow::Owned(ComponentName::named::<Scroll>("text_size"))
-    }
-}
-
-impl ComponentGroup for Scroll {
-    fn name() -> Name {
-        Name::new("Scroll")
+define_components! {
+    Scroll {
+        /// The thickness that scrollbars are drawn with.
+        ScrollBarThickness(Dimension, "size", Dimension::Lp(Lp::points(7)))
     }
 }
