@@ -459,7 +459,7 @@ where
     fn from(value: RangeInclusive<T>) -> Self {
         Self {
             start: Bound::Included(value.start().clone().into()),
-            end: Bound::Excluded(value.end().clone().into()),
+            end: Bound::Included(value.end().clone().into()),
         }
     }
 }
@@ -572,9 +572,15 @@ where
 pub struct Group(Name);
 
 impl Group {
+    /// Returns a new group with `name`.
+    #[must_use]
+    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
+        Self(Name::new(name))
+    }
+
     /// Returns a new instance using the group name of `T`.
     #[must_use]
-    pub fn new<T>() -> Self
+    pub fn from_group<T>() -> Self
     where
         T: ComponentGroup,
     {
@@ -626,7 +632,7 @@ impl ComponentName {
 
     /// Returns a new instance using `G` and `name`.
     pub fn named<G: ComponentGroup>(name: impl Into<Name>) -> Self {
-        Self::new(Group::new::<G>(), name)
+        Self::new(Group::from_group::<G>(), name)
     }
 }
 
@@ -921,9 +927,6 @@ pub struct Theme {
 
     /// The theme to color surfaces.
     pub surface: SurfaceTheme,
-
-    /// A theme of inverse colors to provide high contrast to other elements.
-    pub inverse: InverseTheme,
 }
 
 impl Theme {
@@ -943,7 +946,6 @@ impl Theme {
             tertiary: ColorTheme::light_from_source(tertiary),
             error: ColorTheme::light_from_source(error),
             surface: SurfaceTheme::light_from_sources(neutral, neutral_variant),
-            inverse: InverseTheme::light_from_sources(primary, neutral),
         }
     }
 
@@ -963,7 +965,6 @@ impl Theme {
             tertiary: ColorTheme::dark_from_source(tertiary),
             error: ColorTheme::dark_from_source(error),
             surface: SurfaceTheme::dark_from_sources(neutral, neutral_variant),
-            inverse: InverseTheme::dark_from_sources(primary, neutral),
         }
     }
 }
@@ -1106,40 +1107,6 @@ impl FixedTheme {
     }
 }
 
-/// An inverse color theme for displaying highly contrasted elements.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct InverseTheme {
-    /// An inverse surface color.
-    pub surface: Color,
-    /// The default color for content atop an inverted surface.
-    pub on_surface: Color,
-    /// The inverted primary color.
-    pub primary: Color,
-    // TODO why not inverse for the other colorthemes?
-}
-
-impl InverseTheme {
-    /// Returns the light-mode, inverse theme for given sources.
-    #[must_use]
-    pub fn light_from_sources(primary: ColorSource, surface: ColorSource) -> Self {
-        Self {
-            surface: surface.color(30),
-            on_surface: surface.color(90),
-            primary: primary.color(80),
-        }
-    }
-
-    /// Returns the dark-mode, inverse theme for given sources.
-    #[must_use]
-    pub fn dark_from_sources(primary: ColorSource, surface: ColorSource) -> Self {
-        Self {
-            surface: surface.color(90),
-            on_surface: surface.color(10),
-            primary: primary.color(40),
-        }
-    }
-}
-
 /// A source for [`Color`]s.
 ///
 /// This type is a combination of an [`OklabHue`] and a saturation ranging from
@@ -1170,10 +1137,10 @@ impl ColorSource {
     /// Returns a new source with the given hue (in degrees) and saturation (0.0
     /// - 1.0).
     #[must_use]
-    pub fn new(hue: f32, saturation: f32) -> Self {
+    pub fn new(hue: impl Into<OklabHue>, saturation: impl Into<ZeroToOne>) -> Self {
         Self {
-            hue: OklabHue::new(hue),
-            saturation: ZeroToOne::new(saturation),
+            hue: hue.into(),
+            saturation: saturation.into(),
         }
     }
 
@@ -1183,6 +1150,32 @@ impl ColorSource {
         let rgb: palette::Srgb =
             Okhsl::new(self.hue, *self.saturation, *lightness.into_lightness()).into_color();
         Color::new_f32(rgb.red, rgb.blue, rgb.green, 1.0)
+    }
+
+    /// Calculates an approximate ratio between 0.0 and 1.0 of how contrasting
+    /// these colors are, with perfect constrast being two clors that are
+    /// opposite of each other on the hue circle and one fully desaturated and
+    /// the other fully saturated.
+    #[must_use]
+    pub fn contrast_between(self, other: Self) -> ZeroToOne {
+        let saturation_delta = self.saturation.difference_between(other.saturation);
+        let self_hue = self.hue.into_positive_degrees();
+        let other_hue = other.hue.into_positive_degrees();
+        // Calculate the shortest distance between the hues, taking into account
+        // that 0 and 359 are one degree apart.
+        let hue_delta = ZeroToOne::new(
+            if self_hue < other_hue {
+                let hue_delta_a = other_hue - self_hue;
+                let hue_delta_b = self_hue + 360. - other_hue;
+                hue_delta_a.min(hue_delta_b)
+            } else {
+                let hue_delta_a = self_hue - other_hue;
+                let hue_delta_b = other_hue + 360. - self_hue;
+                hue_delta_a.min(hue_delta_b)
+            } / 180.,
+        );
+
+        saturation_delta * hue_delta
     }
 }
 
@@ -1231,29 +1224,31 @@ pub trait ColorExt: Copy {
         self.into_source_and_lightness().1
     }
 
+    /// Returns the contrast between this color and the components provided.
+    ///
+    /// To achieve a contrast of 1.0:
+    ///
+    /// - `self`'s hue and `check_source.hue` must be 180 degrees apart.
+    /// - `self`'s saturation and `check_source.saturation` must be different by
+    ///   1.0.
+    /// - `self`'s lightness and `check_lightness` must be different by 1.0.
+    /// - `self`'s alpha and `check_alpha` must be different by 1.0.
+    ///
+    /// The algorithm currently used is purposely left undocumented as it will
+    /// likely change. It should be a reasonable heuristic until someone smarter
+    /// than @ecton comes along.
+    fn contrast_between(
+        self,
+        check_source: ColorSource,
+        check_lightness: ZeroToOne,
+        check_alpha: ZeroToOne,
+    ) -> ZeroToOne;
+
     /// Returns the color in `others` that contrasts the most from `self`.
     #[must_use]
     fn most_contrasting(self, others: &[Self]) -> Self
     where
-        Self: Copy,
-    {
-        // TODO this currently only checks lightness. We should probably factor
-        // in hue/saturation changes too.
-        let check = self.lightness();
-
-        let mut others = others.iter().copied();
-        let mut most_contrasting = others.next().expect("at least one comparison");
-        let mut most_contrast_amount = (*most_contrasting.lightness() - *check).abs();
-        for other in others {
-            let contrast_amount = (*other.lightness() - *check).abs();
-            if contrast_amount > most_contrast_amount {
-                most_contrasting = other;
-                most_contrast_amount = contrast_amount;
-            }
-        }
-
-        most_contrasting
-    }
+        Self: Copy;
 }
 
 impl ColorExt for Color {
@@ -1267,5 +1262,45 @@ impl ColorExt for Color {
             },
             ZeroToOne::new(hsl.lightness * self.alpha_f32()),
         )
+    }
+
+    fn contrast_between(
+        self,
+        check_source: ColorSource,
+        check_lightness: ZeroToOne,
+        check_alpha: ZeroToOne,
+    ) -> ZeroToOne {
+        let (other_source, other_lightness) = self.into_source_and_lightness();
+        let lightness_delta = other_lightness.difference_between(check_lightness);
+
+        let source_change = check_source.contrast_between(other_source);
+
+        let other_alpha = ZeroToOne::new(self.alpha_f32());
+        let alpha_delta = check_alpha.difference_between(other_alpha);
+
+        lightness_delta * source_change * alpha_delta
+    }
+
+    fn most_contrasting(self, others: &[Self]) -> Self
+    where
+        Self: Copy,
+    {
+        let (check_source, check_lightness) = self.into_source_and_lightness();
+        let check_alpha = ZeroToOne::new(self.alpha_f32());
+
+        let mut others = others.iter().copied();
+        let mut most_contrasting = others.next().expect("at least one comparison");
+        let mut most_contrast_amount =
+            most_contrasting.contrast_between(check_source, check_lightness, check_alpha);
+        for other in others {
+            let contrast_amount =
+                other.contrast_between(check_source, check_lightness, check_alpha);
+            if contrast_amount > most_contrast_amount {
+                most_contrasting = other;
+                most_contrast_amount = contrast_amount;
+            }
+        }
+
+        most_contrasting
     }
 }

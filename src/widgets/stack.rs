@@ -89,7 +89,7 @@ impl Stack {
                                 if let Some(expand) = guard.downcast_ref::<Expand>() {
                                     let weight = expand.weight;
                                     (
-                                        WidgetRef::Unmounted(widget.clone()),
+                                        expand.child().clone(),
                                         StackDimension::Fractional { weight },
                                     )
                                 } else if let Some((child, size)) =
@@ -403,18 +403,14 @@ impl Layout {
         // Measure the children that fit their content
         for &id in &self.measured {
             let index = self.children.index_of_id(id).expect("child not found");
-            if remaining > 0 {
-                let (measured, _) = self.orientation.split_size(measure(
-                    index,
-                    self.orientation
-                        .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
-                    false,
-                ));
-                self.layouts[index].size = measured;
-                remaining = remaining.saturating_sub(measured);
-            } else {
-                self.layouts[index].size = UPx(0);
-            }
+            let (measured, _) = self.orientation.split_size(measure(
+                index,
+                self.orientation
+                    .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
+                false,
+            ));
+            self.layouts[index].size = measured;
+            remaining = remaining.saturating_sub(measured);
         }
 
         // Measure the weighted children within the remaining space

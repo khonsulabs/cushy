@@ -39,15 +39,18 @@
 
 pub mod easings;
 
-use std::fmt::Debug;
-use std::ops::{ControlFlow, Deref};
+use std::fmt::{Debug, Display};
+use std::ops::{ControlFlow, Deref, Div, Mul};
 use std::panic::{RefUnwindSafe, UnwindSafe};
+use std::str::FromStr;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use alot::{LotId, Lots};
+use intentional::Cast;
 use kempt::Set;
+use kludgine::figures::Ranged;
 use kludgine::Color;
 
 use crate::animation::easings::Linear;
@@ -672,6 +675,26 @@ impl LinearInterpolate for f64 {
     }
 }
 
+impl LinearInterpolate for bool {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        if percent >= 0.5 {
+            *target
+        } else {
+            *self
+        }
+    }
+}
+
+impl PercentBetween for bool {
+    fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+        if *min == *max || *self == *min {
+            ZeroToOne::ZERO
+        } else {
+            ZeroToOne::ONE
+        }
+    }
+}
+
 #[test]
 fn integer_lerps() {
     #[track_caller]
@@ -703,6 +726,56 @@ impl LinearInterpolate for Color {
     }
 }
 
+/// Calculates the ratio of one value against a minimum and maximum.
+pub trait PercentBetween {
+    /// Return the percentage that `self` is between `min` and `max`.
+    fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne;
+}
+
+macro_rules! impl_percent_between {
+    ($type:ident, $float:ident) => {
+        impl PercentBetween for $type {
+            fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+                let range = *max - *min;
+                ZeroToOne::from(*self as $float / range as $float)
+            }
+        }
+    };
+}
+
+impl_percent_between!(u8, f32);
+impl_percent_between!(u16, f32);
+impl_percent_between!(u32, f32);
+impl_percent_between!(u64, f32);
+impl_percent_between!(u128, f64);
+impl_percent_between!(usize, f64);
+impl_percent_between!(i8, f32);
+impl_percent_between!(i16, f32);
+impl_percent_between!(i32, f32);
+impl_percent_between!(i64, f32);
+impl_percent_between!(i128, f64);
+impl_percent_between!(isize, f64);
+impl_percent_between!(f32, f32);
+impl_percent_between!(f64, f64);
+
+impl PercentBetween for Color {
+    fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+        fn channel_percent(
+            value: Color,
+            min: Color,
+            max: Color,
+            func: impl Fn(Color) -> u8,
+        ) -> ZeroToOne {
+            func(value).percent_between(&func(min), &func(max))
+        }
+
+        channel_percent(*self, *min, *max, Color::red)
+            * channel_percent(*self, *min, *max, Color::green)
+            * channel_percent(*self, *min, *max, Color::blue)
+            * channel_percent(*self, *min, *max, Color::alpha)
+    }
+}
+
 /// An `f32` that is clamped between 0.0 and 1.0 and cannot be NaN or Infinity.
 ///
 /// Because of these restrictions, this type implements `Ord` and `Eq`.
@@ -727,10 +800,42 @@ impl ZeroToOne {
         Self(value.clamp(0., 1.))
     }
 
+    /// Returns the difference between `self` and `other` as a positive number.
+    #[must_use]
+    pub fn difference_between(self, other: Self) -> Self {
+        Self((self.0 - other.0).abs())
+    }
+
     /// Returns the contained floating point value.
     #[must_use]
     pub fn into_f32(self) -> f32 {
         self.0
+    }
+}
+
+impl Display for ZeroToOne {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl FromStr for ZeroToOne {
+    type Err = std::num::ParseFloatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse().map(Self)
+    }
+}
+
+impl From<f32> for ZeroToOne {
+    fn from(value: f32) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<f64> for ZeroToOne {
+    fn from(value: f64) -> Self {
+        Self::new(value.cast())
     }
 }
 
@@ -785,6 +890,33 @@ impl LinearInterpolate for ZeroToOne {
         let delta = **target - **self;
         ZeroToOne::new(**self + delta * percent)
     }
+}
+
+impl PercentBetween for ZeroToOne {
+    fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+        self.0.percent_between(&min.0, &max.0)
+    }
+}
+
+impl Mul for ZeroToOne {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(self.0 * rhs.0)
+    }
+}
+
+impl Div for ZeroToOne {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        Self(self.0 / rhs.0)
+    }
+}
+
+impl Ranged for ZeroToOne {
+    const MAX: Self = Self::ONE;
+    const MIN: Self = Self::ZERO;
 }
 
 /// An easing function for customizing animations.

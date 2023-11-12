@@ -48,10 +48,10 @@ impl ConstraintLimit {
     }
 
     /// Converts `measured` to unsigned pixels, and adjusts it according to the
-    /// contraint's intentions.
+    /// constraint's intentions.
     ///
     /// If this constraint is of a known size, it will return the maximum of the
-    /// measured size and the contraint. If it is of an unknown size, it will
+    /// measured size and the constraint. If it is of an unknown size, it will
     /// return the measured size.
     pub fn fit_measured<Unit>(self, measured: Unit, scale: Fraction) -> UPx
     where

@@ -16,11 +16,11 @@ use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::VisualOrder;
-use crate::styles::{Component, NamedComponent, Styles};
+use crate::styles::{IntoComponentValue, NamedComponent, Styles, ThemePair};
 use crate::tree::Tree;
 use crate::value::{IntoValue, Value};
 use crate::widgets::{Align, Expand, Scroll, Style};
-use crate::window::{RunningWindow, Window, WindowBehavior};
+use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
 
 /// A type that makes up a graphical user interface.
@@ -448,7 +448,7 @@ pub trait MakeWidget: Sized {
     /// Associates `styles` with this widget.
     ///
     /// This is equivalent to `Style::new(styles, self)`.
-    fn with_styles(self, styles: impl Into<Styles>) -> Style
+    fn with_styles(self, styles: impl IntoValue<Styles>) -> Style
     where
         Self: Sized,
     {
@@ -456,7 +456,7 @@ pub trait MakeWidget: Sized {
     }
 
     /// Associates a style component with `self`.
-    fn with(self, name: &impl NamedComponent, component: impl Into<Component>) -> Style {
+    fn with(self, name: &impl NamedComponent, component: impl IntoComponentValue) -> Style {
         let mut styles = Styles::new();
         styles.insert(name, component);
         Style::new(styles, self)
@@ -957,8 +957,20 @@ impl ManagedWidget {
         self.tree.parent(self.id()).is_some()
     }
 
-    pub(crate) fn attach_styles(&self, styles: Styles) {
+    pub(crate) fn attach_styles(&self, styles: Value<Styles>) {
         self.tree.attach_styles(self.id(), styles);
+    }
+
+    pub(crate) fn attach_theme(&self, theme: Value<ThemePair>) {
+        self.tree.attach_theme(self.id(), theme);
+    }
+
+    pub(crate) fn attach_theme_mode(&self, theme: Value<ThemeMode>) {
+        self.tree.attach_theme_mode(self.id(), theme);
+    }
+
+    pub(crate) fn overidden_theme(&self) -> (Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {
+        self.tree.overriden_theme(self.id())
     }
 
     pub(crate) fn reset_child_layouts(&self) {

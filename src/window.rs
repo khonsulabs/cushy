@@ -15,13 +15,16 @@ use kludgine::app::winit::event::{
     DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::keyboard::Key;
+use kludgine::app::winit::window;
 use kludgine::app::WindowBehavior as _;
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
+use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size};
 use kludgine::render::Drawing;
+use kludgine::wgpu::CompositeAlphaMode;
 use kludgine::Kludgine;
 use tracing::Level;
 
+use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
 use crate::context::{
     AsEventContext, EventContext, Exclusive, GraphicsContext, LayoutContext, RedrawStatus,
     WidgetContext,
@@ -31,7 +34,7 @@ use crate::styles::components::LayoutOrder;
 use crate::styles::ThemePair;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
-use crate::value::{Dynamic, DynamicReader, IntoDynamic, Value};
+use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
 use crate::widget::{
     EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
@@ -104,6 +107,7 @@ where
     pub theme: Value<ThemePair>,
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
+    theme_mode: Option<Value<ThemeMode>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -155,6 +159,24 @@ impl Window<WidgetInstance> {
         self.occluded = Some(occluded);
         self
     }
+
+    /// Sets the [`ThemeMode`] for this window.
+    ///
+    /// If a [`ThemeMode`] is provided, the window will be set to this theme
+    /// mode upon creation and will not be updated while the window is running.
+    ///
+    /// If a [`Dynamic`] is provided, the initial value will be ignored and the
+    /// dynamic will be updated when the window opens with the user's current
+    /// theme mode. The dynamic will also be updated any time the user's theme
+    /// mode changes.
+    ///
+    /// Setting the [`Dynamic`]'s value will also update the window with the new
+    /// mode until a mode change is detected, upon which the new mode will be
+    /// stored.
+    pub fn with_theme_mode(mut self, theme_mode: impl IntoValue<ThemeMode>) -> Self {
+        self.theme_mode = Some(theme_mode.into_value());
+        self
+    }
 }
 
 impl<Behavior> Window<Behavior>
@@ -188,6 +210,7 @@ where
             theme: Value::default(),
             occluded: None,
             focused: None,
+            theme_mode: None,
         }
     }
 }
@@ -201,10 +224,12 @@ where
         GooeyWindow::<Behavior>::run_with(AssertUnwindSafe(sealed::Context {
             user: self.context,
             settings: RefCell::new(sealed::WindowSettings {
+                transparent: self.attributes.transparent,
                 attributes: Some(self.attributes),
                 occluded: self.occluded,
                 focused: self.focused,
                 theme: Some(self.theme),
+                theme_mode: self.theme_mode,
             }),
         }))
     }
@@ -258,6 +283,8 @@ struct GooeyWindow<T> {
     max_inner_size: Option<Size<UPx>>,
     theme: Option<DynamicReader<ThemePair>>,
     current_theme: ThemePair,
+    theme_mode: Dynamic<ThemeMode>,
+    transparent: bool,
 }
 
 impl<T> GooeyWindow<T>
@@ -286,6 +313,7 @@ where
                             &self.redraw_status,
                             &self.current_theme,
                             window,
+                            self.theme_mode.get(),
                         ),
                         kludgine,
                     )
@@ -297,6 +325,7 @@ where
                         &self.redraw_status,
                         &self.current_theme,
                         window,
+                        self.theme_mode.get(),
                     ),
                     kludgine,
                 )
@@ -310,6 +339,7 @@ where
                     &self.redraw_status,
                     &self.current_theme,
                     window,
+                    self.theme_mode.get(),
                 ),
                 kludgine,
             )
@@ -348,7 +378,7 @@ where
                 let new_min_size = (min_width > 0 || min_height > 0)
                     .then_some(Size::<Px>::new(min_width, min_height).into_unsigned());
 
-                if new_min_size != self.min_inner_size {
+                if new_min_size != self.min_inner_size && resizable {
                     window.set_min_inner_size(new_min_size);
                     self.min_inner_size = new_min_size;
                 }
@@ -405,6 +435,15 @@ where
             .theme
             .take()
             .expect("theme always present");
+
+        let theme_mode = match context.settings.borrow_mut().theme_mode.take() {
+            Some(Value::Dynamic(dynamic)) => {
+                dynamic.update(window.theme().into());
+                dynamic
+            }
+            Some(Value::Constant(_)) | None => Dynamic::new(window.theme().into()),
+        };
+        let transparent = context.settings.borrow().transparent;
         let mut behavior = T::initialize(
             &mut RunningWindow::new(window, &focused, &occluded),
             context.user,
@@ -435,6 +474,8 @@ where
             max_inner_size: None,
             current_theme,
             theme,
+            theme_mode,
+            transparent,
         }
     }
 
@@ -467,14 +508,19 @@ where
                 &self.redraw_status,
                 &self.current_theme,
                 &mut window,
+                self.theme_mode.get(),
             ),
             gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
+        context.redraw_when_changed(&self.theme_mode);
         let mut layout_context = LayoutContext::new(&mut context);
         let window_size = layout_context.gfx.size();
 
-        let background_color = layout_context.theme().surface.color;
-        layout_context.graphics.gfx.fill(background_color);
+        if !self.transparent {
+            let background_color = layout_context.theme().surface.color;
+            layout_context.graphics.gfx.fill(background_color);
+        }
+
         let actual_size = layout_context.layout(if is_expanded {
             Size::new(
                 ConstraintLimit::Known(window_size.width),
@@ -549,12 +595,16 @@ where
     fn initial_window_attributes(
         context: &Self::Context,
     ) -> kludgine::app::WindowAttributes<WindowCommand> {
-        context
+        let mut attrs = context
             .settings
             .borrow_mut()
             .attributes
             .take()
-            .expect("called more than once")
+            .expect("called more than once");
+        if let Some(Value::Constant(theme_mode)) = &context.settings.borrow().theme_mode {
+            attrs.preferred_theme = Some((*theme_mode).into());
+        }
+        attrs
     }
 
     fn close_requested(
@@ -577,9 +627,21 @@ where
     //     wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter_limits)
     // }
 
-    // fn clear_color() -> Option<kludgine::Color> {
-    //     Some(kludgine::Color::BLACK)
-    // }
+    fn clear_color(&self) -> Option<kludgine::Color> {
+        Some(if self.transparent {
+            kludgine::Color::CLEAR_BLACK
+        } else {
+            kludgine::Color::BLACK
+        })
+    }
+
+    fn composite_alpha_mode(&self, supported_modes: &[CompositeAlphaMode]) -> CompositeAlphaMode {
+        if self.transparent && supported_modes.contains(&CompositeAlphaMode::PreMultiplied) {
+            CompositeAlphaMode::PreMultiplied
+        } else {
+            CompositeAlphaMode::Auto
+        }
+    }
 
     // fn focus_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 
@@ -616,6 +678,7 @@ where
                 &self.redraw_status,
                 &self.current_theme,
                 &mut window,
+                self.theme_mode.get(),
             ),
             kludgine,
         );
@@ -645,6 +708,7 @@ where
                                 &self.redraw_status,
                                 &self.current_theme,
                                 &mut window,
+                                self.theme_mode.get(),
                             ),
                             kludgine,
                         );
@@ -711,6 +775,7 @@ where
                 &self.redraw_status,
                 &self.current_theme,
                 &mut window,
+                self.theme_mode.get(),
             ),
             kludgine,
         );
@@ -745,6 +810,7 @@ where
                 &self.redraw_status,
                 &self.current_theme,
                 &mut window,
+                self.theme_mode.get(),
             ),
             kludgine,
         );
@@ -773,6 +839,7 @@ where
                         &self.redraw_status,
                         &self.current_theme,
                         &mut window,
+                        self.theme_mode.get(),
                     ),
                     kludgine,
                 );
@@ -787,6 +854,7 @@ where
                     &self.redraw_status,
                     &self.current_theme,
                     &mut window,
+                    self.theme_mode.get(),
                 ),
                 kludgine,
             );
@@ -827,6 +895,7 @@ where
                     &self.redraw_status,
                     &self.current_theme,
                     &mut window,
+                    self.theme_mode.get(),
                 ),
                 kludgine,
             );
@@ -851,6 +920,7 @@ where
                         &self.redraw_status,
                         &self.current_theme,
                         &mut window,
+                        self.theme_mode.get(),
                     ),
                     kludgine,
                 )
@@ -866,6 +936,7 @@ where
                                 &self.redraw_status,
                                 &self.current_theme,
                                 &mut window,
+                                self.theme_mode.get(),
                             ),
                             kludgine,
                         ),
@@ -900,6 +971,7 @@ where
                         &self.redraw_status,
                         &self.current_theme,
                         &mut window,
+                        self.theme_mode.get(),
                     ),
                     kludgine,
                 );
@@ -915,6 +987,14 @@ where
                 context.mouse_up(relative, device_id, button);
             }
         }
+    }
+
+    fn theme_changed(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+    ) {
+        self.theme_mode.update(window.theme().into());
     }
 
     fn event(
@@ -955,7 +1035,7 @@ pub(crate) mod sealed {
 
     use crate::styles::ThemePair;
     use crate::value::{Dynamic, Value};
-    use crate::window::WindowAttributes;
+    use crate::window::{ThemeMode, WindowAttributes};
 
     pub struct Context<C> {
         pub user: C,
@@ -967,10 +1047,65 @@ pub(crate) mod sealed {
         pub occluded: Option<Dynamic<bool>>,
         pub focused: Option<Dynamic<bool>>,
         pub theme: Option<Value<ThemePair>>,
+        pub theme_mode: Option<Value<ThemeMode>>,
+        pub transparent: bool,
     }
 
     pub enum WindowCommand {
         Redraw,
         // RequestClose,
     }
+}
+
+/// Controls whether the light or dark theme is applied.
+#[derive(Default, Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ThemeMode {
+    /// Applies the light theme
+    Light,
+    /// Applies the dark theme
+    #[default]
+    Dark,
+}
+
+impl From<window::Theme> for ThemeMode {
+    fn from(value: window::Theme) -> Self {
+        match value {
+            window::Theme::Light => Self::Light,
+            window::Theme::Dark => Self::Dark,
+        }
+    }
+}
+
+impl From<ThemeMode> for window::Theme {
+    fn from(value: ThemeMode) -> Self {
+        match value {
+            ThemeMode::Light => Self::Light,
+            ThemeMode::Dark => Self::Dark,
+        }
+    }
+}
+
+impl LinearInterpolate for ThemeMode {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        if percent >= 0.5 {
+            *target
+        } else {
+            *self
+        }
+    }
+}
+
+impl PercentBetween for ThemeMode {
+    fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+        if *min == *max || *self == *min {
+            ZeroToOne::ZERO
+        } else {
+            ZeroToOne::ONE
+        }
+    }
+}
+
+impl Ranged for ThemeMode {
+    const MAX: Self = Self::Dark;
+    const MIN: Self = Self::Light;
 }

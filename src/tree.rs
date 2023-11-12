@@ -7,8 +7,10 @@ use kludgine::figures::{Point, Rect};
 
 use crate::context::WidgetContext;
 use crate::styles::components::VisualOrder;
-use crate::styles::{ComponentDefaultvalue, ComponentDefinition, ComponentType, Styles};
+use crate::styles::{ComponentDefaultvalue, ComponentDefinition, ComponentType, Styles, ThemePair};
+use crate::value::Value;
 use crate::widget::{ManagedWidget, WidgetId, WidgetInstance};
+use crate::window::ThemeMode;
 
 #[derive(Clone, Default)]
 pub struct Tree {
@@ -31,6 +33,8 @@ impl Tree {
                 parent: parent.map(ManagedWidget::id),
                 layout: None,
                 styles: None,
+                theme: None,
+                theme_mode: None,
             },
         );
         if widget.is_default() {
@@ -277,20 +281,47 @@ impl Tree {
         data.nodes.get(&id).expect("missing widget").parent
     }
 
-    pub(crate) fn attach_styles(&self, id: WidgetId, styles: Styles) {
+    pub(crate) fn attach_styles(&self, id: WidgetId, styles: Value<Styles>) {
         let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
         data.nodes.get_mut(&id).expect("missing widget").styles = Some(styles);
+    }
+
+    pub(crate) fn attach_theme(&self, id: WidgetId, theme: Value<ThemePair>) {
+        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        data.nodes.get_mut(&id).expect("missing widget").theme = Some(theme);
+    }
+
+    pub(crate) fn attach_theme_mode(&self, id: WidgetId, theme: Value<ThemeMode>) {
+        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        data.nodes.get_mut(&id).expect("missing widget").theme_mode = Some(theme);
+    }
+
+    pub(crate) fn overriden_theme(
+        &self,
+        id: WidgetId,
+    ) -> (Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {
+        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+
+        (
+            data.nodes.get(&id).expect("missing widget").theme.clone(),
+            data.nodes
+                .get(&id)
+                .expect("missing widget")
+                .theme_mode
+                .clone(),
+        )
     }
 
     pub fn query_styles(
         &self,
         perspective: &ManagedWidget,
         query: &[&dyn ComponentDefaultvalue],
+        context: &WidgetContext<'_, '_>,
     ) -> Styles {
         self.data
             .lock()
             .map_or_else(PoisonError::into_inner, |g| g)
-            .query_styles(perspective.id(), query)
+            .query_styles(perspective.id(), query, context)
     }
 
     pub fn query_style<Component: ComponentDefinition>(
@@ -391,19 +422,22 @@ impl TreeData {
         &self,
         mut perspective: WidgetId,
         query: &[&dyn ComponentDefaultvalue],
+        context: &WidgetContext<'_, '_>,
     ) -> Styles {
         let mut query = query.iter().map(|n| n.name()).collect::<Vec<_>>();
         let mut resolved = Styles::new();
         while !query.is_empty() {
             let node = &self.nodes[&perspective];
             if let Some(styles) = &node.styles {
-                query.retain(|name| {
-                    if let Some(component) = styles.get_named(name) {
-                        resolved.insert(name, component.clone());
-                        false
-                    } else {
-                        true
-                    }
+                styles.map_tracked(context, |styles| {
+                    query.retain(|name| {
+                        if let Some(component) = styles.get_named(name) {
+                            resolved.insert(name, component.clone());
+                            false
+                        } else {
+                            true
+                        }
+                    });
                 });
             }
             let Some(parent) = node.parent else { break };
@@ -422,13 +456,21 @@ impl TreeData {
         loop {
             let node = &self.nodes[&perspective];
             if let Some(styles) = &node.styles {
-                if let Some(component) = styles.get_named(&name) {
-                    let Ok(value) = <Component::ComponentType>::try_from_component(component.get())
-                    else {
-                        break;
-                    };
-                    component.redraw_when_changed(context);
-                    return value;
+                match styles.map_tracked(context, |styles| {
+                    if let Some(component) = styles.get_named(&name) {
+                        let Ok(value) =
+                            <Component::ComponentType>::try_from_component(component.get())
+                        else {
+                            return Err(());
+                        };
+                        component.redraw_when_changed(context);
+                        return Ok(Some(value));
+                    }
+                    Ok(None)
+                }) {
+                    Ok(Some(value)) => return value,
+                    Ok(None) => {}
+                    Err(()) => break,
                 }
             }
             let Some(parent) = node.parent else { break };
@@ -443,5 +485,7 @@ pub struct Node {
     pub children: Vec<WidgetId>,
     pub parent: Option<WidgetId>,
     pub layout: Option<Rect<Px>>,
-    pub styles: Option<Styles>,
+    pub styles: Option<Value<Styles>>,
+    pub theme: Option<Value<ThemePair>>,
+    pub theme_mode: Option<Value<ThemeMode>>,
 }

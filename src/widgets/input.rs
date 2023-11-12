@@ -5,17 +5,19 @@ use std::time::Duration;
 
 use kludgine::app::winit::event::{ElementState, Ime, KeyEvent};
 use kludgine::app::winit::keyboard::Key;
-use kludgine::cosmic_text::{Action, Attrs, Buffer, Cursor, Edit, Editor, Metrics, Shaping};
-use kludgine::figures::units::{Px, UPx};
+use kludgine::cosmic_text::{
+    Action, Affinity, Attrs, Buffer, Cursor, Edit, Editor, Metrics, Shaping,
+};
+use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
     FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size,
 };
-use kludgine::shapes::Shape;
+use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::text::TextOrigin;
 use kludgine::{Color, Kludgine};
 
 use crate::context::{EventContext, LayoutContext, WidgetContext};
-use crate::styles::components::{HighlightColor, LineHeight, TextColor, TextSize};
+use crate::styles::components::{HighlightColor, LineHeight, OutlineColor, TextColor, TextSize};
 use crate::styles::Styles;
 use crate::utils::ModifiersExt;
 use crate::value::{Generation, IntoValue, Value};
@@ -32,6 +34,8 @@ pub struct Input {
     on_key: Option<Callback<KeyEvent, EventHandling>>,
     editor: Option<LiveEditor>,
     cursor_state: CursorState,
+    needs_to_select_all: bool,
+    mouse_buttons_down: usize,
 }
 
 impl Input {
@@ -47,6 +51,8 @@ impl Input {
             editor: None,
             cursor_state: CursorState::default(),
             on_key: None,
+            mouse_buttons_down: 0,
+            needs_to_select_all: true,
         }
     }
 
@@ -100,6 +106,22 @@ impl Input {
     fn styles(context: &WidgetContext<'_, '_>) -> Styles {
         context.query_styles(&[&TextColor, &TextSize, &LineHeight])
     }
+
+    fn select_all(&mut self) {
+        let Some(editor) = self.editor.as_mut().map(|editor| &mut editor.editor) else {
+            return;
+        };
+        if !editor.buffer().lines.is_empty() {
+            let line = editor.buffer().lines.len() - 1;
+            let end = Cursor::new_with_affinity(
+                line,
+                editor.buffer().lines[line].text().len(),
+                Affinity::After,
+            );
+            editor.set_cursor(end);
+            editor.set_select_opt(Some(Cursor::new_with_affinity(0, 0, Affinity::Before)));
+        }
+    }
 }
 
 impl Default for Input {
@@ -132,7 +154,9 @@ impl Widget for Input {
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
+        self.mouse_buttons_down += 1;
         context.focus();
+        self.needs_to_select_all = false;
         let styles = context.query_styles(&[&TextColor]);
         self.editor_mut(context.kludgine, &styles, &context.widget)
             .action(
@@ -166,12 +190,22 @@ impl Widget for Input {
         context.set_needs_redraw();
     }
 
+    fn mouse_up(
+        &mut self,
+        _location: Option<Point<Px>>,
+        _device_id: kludgine::app::winit::event::DeviceId,
+        _button: kludgine::app::winit::event::MouseButton,
+        _context: &mut EventContext<'_, '_>,
+    ) {
+        self.mouse_buttons_down -= 1;
+    }
+
     #[allow(clippy::too_many_lines)]
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
         self.cursor_state.update(context.elapsed());
         let cursor_state = self.cursor_state;
         let size = context.gfx.size();
-        let styles = context.query_styles(&[&TextColor, &HighlightColor]);
+        let styles = context.query_styles(&[&TextColor, &HighlightColor, &OutlineColor]);
         let highlight = styles.get(&HighlightColor, context);
         let editor = self.editor_mut(&mut context.gfx, &styles, &context.widget);
         let cursor = editor.cursor();
@@ -311,6 +345,9 @@ impl Widget for Input {
                     context.redraw_when_changed(context.window().focused());
                 }
             }
+        } else {
+            let outline_color = styles.get(&OutlineColor, context);
+            context.stroke_outline::<Lp>(outline_color, StrokeOptions::default());
         }
 
         let text_color = styles.get(&TextColor, context);
@@ -330,6 +367,10 @@ impl Widget for Input {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let styles = context.query_styles(&[&TextColor]);
+        if self.needs_to_select_all {
+            self.needs_to_select_all = false;
+            self.select_all();
+        }
         let editor = self.editor_mut(&mut context.graphics.gfx, &styles, &context.graphics.widget);
         let buffer = editor.buffer_mut();
         buffer.set_size(
@@ -362,7 +403,7 @@ impl Widget for Input {
         //     "Keyboard input: {:?}. {:?}, {:?}",
         //     input.logical_key, input.text, input.physical_key
         // );
-        let (text_changed, handled) = match (input.state, input.logical_key, input.text) {
+        let (text_changed, handled) = match (input.state, input.logical_key, input.text.as_deref()) {
             (ElementState::Pressed,  key @ (Key::Backspace | Key::Delete), _) => {
                 editor.action(
                     context.kludgine.font_system(),
@@ -400,6 +441,12 @@ impl Widget for Input {
                 );
                 (false, HANDLED)
             }
+            (state, _, Some("a")) if context.modifiers().primary() => {
+                if state.is_pressed() {
+                    self.select_all();
+                }
+                (false, HANDLED)
+            }
             (state, _, Some(text))
                 if !context.modifiers().primary()
                     && text != "\t" // tab
@@ -408,7 +455,7 @@ impl Widget for Input {
                     =>
             {
                 if state.is_pressed() {
-                    editor.insert_string(&text, None);
+                    editor.insert_string(text, None);
                 }
                 (state.is_pressed(), HANDLED)
             }
@@ -456,6 +503,10 @@ impl Widget for Input {
     }
 
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {
+        if self.mouse_buttons_down == 0 {
+            self.needs_to_select_all = true;
+        }
+
         context.set_ime_allowed(true);
         context.set_needs_redraw();
     }
