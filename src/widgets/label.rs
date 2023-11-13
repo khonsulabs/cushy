@@ -60,7 +60,7 @@ impl Widget for Label {
 
         let size = context.gfx.region().size;
         let center = Point::from(size) / 2;
-        let text_color = context.query_style(&TextColor);
+        let text_color = context.get(&TextColor);
 
         let prepared_text = self.prepared_text(context, text_color, size.width);
 
@@ -74,12 +74,11 @@ impl Widget for Label {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let styles = context.query_styles(&[&TextColor, &IntrinsicPadding]);
-        let padding = styles
-            .get(&IntrinsicPadding, context)
+        let padding = context
+            .get(&IntrinsicPadding)
             .into_px(context.gfx.scale())
             .into_unsigned();
-        let color = styles.get(&TextColor, context);
+        let color = context.get(&TextColor);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width);
 

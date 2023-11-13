@@ -148,7 +148,7 @@ impl Container {
     fn padding(&self, context: &GraphicsContext<'_, '_, '_, '_, '_>) -> Edges<Px> {
         match &self.padding {
             Some(padding) => padding.get(),
-            None => Edges::from(context.query_style(&IntrinsicPadding)),
+            None => Edges::from(context.get(&IntrinsicPadding)),
         }
         .map(|dim| dim.into_px(context.gfx.scale()))
     }
@@ -163,12 +163,12 @@ impl WrapperWidget for Container {
         let background = match self.background.get() {
             ContainerBackground::Color(color) => EffectiveBackground::Color(color),
             ContainerBackground::Level(level) => EffectiveBackground::Level(level),
-            ContainerBackground::Auto => EffectiveBackground::Level(
-                match context.query_parent_style(&CurrentContainerBackground) {
+            ContainerBackground::Auto => {
+                EffectiveBackground::Level(match context.get(&CurrentContainerBackground) {
                     EffectiveBackground::Color(_) => ContainerLevel::default(),
                     EffectiveBackground::Level(level) => level.next().unwrap_or_default(),
-                },
-            ),
+                })
+            }
         };
 
         if self.effective_background != Some(background) {
@@ -253,6 +253,6 @@ impl From<EffectiveBackground> for Component {
 define_components! {
     Container {
         /// The container background behind the current widget.
-        CurrentContainerBackground(EffectiveBackground, "background", |context| EffectiveBackground::Color(context.query_style(&SurfaceColor)))
+        CurrentContainerBackground(EffectiveBackground, "background", |context| EffectiveBackground::Color(context.get(&SurfaceColor)))
     }
 }

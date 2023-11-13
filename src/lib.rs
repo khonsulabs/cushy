@@ -24,7 +24,7 @@ use kludgine::app::winit::error::EventLoopError;
 use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoUnsigned, ScreenUnit};
 pub use names::Name;
-pub use utils::WithClone;
+pub use utils::{Lazy, WithClone};
 
 pub use self::graphics::Graphics;
 pub use self::tick::{InputState, Tick};

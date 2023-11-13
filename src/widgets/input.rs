@@ -18,7 +18,6 @@ use kludgine::{Color, Kludgine};
 
 use crate::context::{EventContext, LayoutContext, WidgetContext};
 use crate::styles::components::{HighlightColor, LineHeight, OutlineColor, TextColor, TextSize};
-use crate::styles::Styles;
 use crate::utils::ModifiersExt;
 use crate::value::{Generation, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
@@ -71,7 +70,6 @@ impl Input {
     fn editor_mut(
         &mut self,
         kludgine: &mut Kludgine,
-        styles: &Styles,
         context: &WidgetContext<'_, '_>,
     ) -> &mut Editor {
         match (&self.editor, self.text.generation()) {
@@ -81,8 +79,8 @@ impl Input {
                 let mut buffer = Buffer::new(
                     kludgine.font_system(),
                     Metrics::new(
-                        styles.get(&TextSize, context).into_px(scale).into_float(),
-                        styles.get(&LineHeight, context).into_px(scale).into_float(),
+                        context.get(&TextSize).into_px(scale).into_float(),
+                        context.get(&LineHeight).into_px(scale).into_float(),
                     ),
                 );
                 self.text.map(|text| {
@@ -101,10 +99,6 @@ impl Input {
         }
 
         &mut self.editor.as_mut().expect("just initialized").editor
-    }
-
-    fn styles(context: &WidgetContext<'_, '_>) -> Styles {
-        context.query_styles(&[&TextColor, &TextSize, &LineHeight])
     }
 
     fn select_all(&mut self) {
@@ -157,15 +151,13 @@ impl Widget for Input {
         self.mouse_buttons_down += 1;
         context.focus();
         self.needs_to_select_all = false;
-        let styles = context.query_styles(&[&TextColor]);
-        self.editor_mut(context.kludgine, &styles, &context.widget)
-            .action(
-                context.kludgine.font_system(),
-                Action::Click {
-                    x: location.x.0,
-                    y: location.y.0,
-                },
-            );
+        self.editor_mut(context.kludgine, &context.widget).action(
+            context.kludgine.font_system(),
+            Action::Click {
+                x: location.x.0,
+                y: location.y.0,
+            },
+        );
         context.set_needs_redraw();
         HANDLED
     }
@@ -177,15 +169,13 @@ impl Widget for Input {
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_, '_>,
     ) {
-        let styles = context.query_styles(&[&TextColor]);
-        self.editor_mut(context.kludgine, &styles, &context.widget)
-            .action(
-                context.kludgine.font_system(),
-                Action::Drag {
-                    x: location.x.0,
-                    y: location.y.0,
-                },
-            );
+        self.editor_mut(context.kludgine, &context.widget).action(
+            context.kludgine.font_system(),
+            Action::Drag {
+                x: location.x.0,
+                y: location.y.0,
+            },
+        );
         self.cursor_state.force_on();
         context.set_needs_redraw();
     }
@@ -205,9 +195,8 @@ impl Widget for Input {
         self.cursor_state.update(context.elapsed());
         let cursor_state = self.cursor_state;
         let size = context.gfx.size();
-        let styles = context.query_styles(&[&TextColor, &HighlightColor, &OutlineColor]);
-        let highlight = styles.get(&HighlightColor, context);
-        let editor = self.editor_mut(&mut context.gfx, &styles, &context.widget);
+        let highlight = context.get(&HighlightColor);
+        let editor = self.editor_mut(&mut context.gfx, &context.widget);
         let cursor = editor.cursor();
         let selection = editor.select_opt();
         let buffer = editor.buffer_mut();
@@ -219,7 +208,7 @@ impl Widget for Input {
         buffer.shape_until_scroll(context.gfx.font_system());
 
         if context.focused() {
-            context.draw_focus_ring_using(&styles);
+            context.draw_focus_ring();
             context.set_ime_allowed(true);
             let line_height = Px::from_float(buffer.metrics().line_height);
             if let Some(selection) = selection {
@@ -346,11 +335,11 @@ impl Widget for Input {
                 }
             }
         } else {
-            let outline_color = styles.get(&OutlineColor, context);
+            let outline_color = context.get(&OutlineColor);
             context.stroke_outline::<Lp>(outline_color, StrokeOptions::default());
         }
 
-        let text_color = styles.get(&TextColor, context);
+        let text_color = context.get(&TextColor);
         context.gfx.draw_text_buffer(
             buffer,
             text_color,
@@ -366,12 +355,11 @@ impl Widget for Input {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let styles = context.query_styles(&[&TextColor]);
         if self.needs_to_select_all {
             self.needs_to_select_all = false;
             self.select_all();
         }
-        let editor = self.editor_mut(&mut context.graphics.gfx, &styles, &context.graphics.widget);
+        let editor = self.editor_mut(&mut context.graphics.gfx, &context.graphics.widget);
         let buffer = editor.buffer_mut();
         buffer.set_size(
             context.gfx.font_system(),
@@ -396,8 +384,7 @@ impl Widget for Input {
             on_key.invoke(input.clone())?;
         }
 
-        let styles = context.query_styles(&[&TextColor]);
-        let editor = self.editor_mut(context.kludgine, &styles, &context.widget);
+        let editor = self.editor_mut(context.kludgine, &context.widget);
 
         // println!(
         //     "Keyboard input: {:?}. {:?}, {:?}",
@@ -489,12 +476,8 @@ impl Widget for Input {
                 tracing::warn!("TODO: preview IME input {text}, cursor: {cursor:?}");
             }
             Ime::Commit(text) => {
-                self.editor_mut(
-                    context.kludgine,
-                    &Self::styles(&context.widget),
-                    &context.widget,
-                )
-                .insert_string(&text, None);
+                self.editor_mut(context.kludgine, &context.widget)
+                    .insert_string(&text, None);
                 context.set_needs_redraw();
             }
         }

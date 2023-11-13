@@ -14,9 +14,7 @@ use kludgine::{Color, Kludgine};
 
 use crate::graphics::Graphics;
 use crate::styles::components::{HighlightColor, WidgetBackground};
-use crate::styles::{
-    ComponentDefaultvalue, ComponentDefinition, Styles, Theme, ThemePair, VisualOrder,
-};
+use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair, VisualOrder};
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
 use crate::window::sealed::WindowCommand;
@@ -185,7 +183,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         let mut activation_changes = 0;
         while activation_changes < MAX_ITERS {
             let active = self.pending_state.active.clone();
-            if self.current_node.tree.active_widget() == active.as_ref().map(ManagedWidget::id) {
+            if self.current_node.tree.active_widget() == active.as_ref().map(|w| w.node_id) {
                 break;
             }
             activation_changes += 1;
@@ -222,7 +220,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         let mut focus_changes = 0;
         while focus_changes < MAX_ITERS {
             let focus = self.pending_state.focus.clone();
-            if self.current_node.tree.focused_widget() == focus.as_ref().map(ManagedWidget::id) {
+            if self.current_node.tree.focused_widget() == focus.as_ref().map(|w| w.node_id) {
                 break;
             }
             focus_changes += 1;
@@ -465,22 +463,14 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     }
 
     /// Renders the default focus ring for this widget.
-    ///
-    /// To ensure the correct color is used, include [`HighlightColor`] in the
-    /// styles request.
-    pub fn draw_focus_ring_using(&mut self, styles: &Styles) {
+    pub fn draw_focus_ring(&mut self) {
         // If this is the root widget, don't draw a focus ring. It's redundant.
         if !self.current_node.has_parent() {
             return;
         }
 
-        let color = styles.get(&HighlightColor, self);
+        let color = self.get(&HighlightColor);
         self.stroke_outline::<Lp>(color, StrokeOptions::lp_wide(Lp::points(2)));
-    }
-
-    /// Renders the default focus ring for this widget.
-    pub fn draw_focus_ring(&mut self) {
-        self.draw_focus_ring_using(&self.query_styles(&[&HighlightColor]));
     }
 
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
@@ -496,12 +486,12 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
             "redraw called without set_widget_layout"
         );
 
-        let background = self.query_style(&WidgetBackground);
+        let background = self.get(&WidgetBackground);
         self.gfx.fill(background);
 
         self.current_node
             .tree
-            .note_widget_rendered(self.current_node.id());
+            .note_widget_rendered(self.current_node.node_id);
         self.current_node.clone().lock().as_widget().redraw(self);
     }
 }
@@ -679,6 +669,7 @@ pub struct WidgetContext<'context, 'window> {
     theme: Cow<'context, ThemePair>,
     pending_state: PendingState<'context>,
     theme_mode: ThemeMode,
+    effective_styles: Styles,
 }
 
 impl<'context, 'window> WidgetContext<'context, 'window> {
@@ -694,12 +685,13 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
                 focus: current_node
                     .tree
                     .focused_widget()
-                    .and_then(|id| current_node.tree.widget(id)),
+                    .and_then(|id| current_node.tree.widget_from_node(id)),
                 active: current_node
                     .tree
                     .active_widget()
-                    .and_then(|id| current_node.tree.widget(id)),
+                    .and_then(|id| current_node.tree.widget_from_node(id)),
             }),
+            effective_styles: current_node.effective_styles(),
             current_node,
             redraw_status,
             theme: Cow::Borrowed(theme),
@@ -717,6 +709,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             theme: Cow::Borrowed(self.theme.as_ref()),
             pending_state: self.pending_state.borrowed(),
             theme_mode: self.theme_mode,
+            effective_styles: self.effective_styles.clone(),
         }
     }
 
@@ -730,7 +723,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         Widget::Managed: MapManagedWidget<WidgetContext<'child, 'window>>,
     {
         widget.manage(self).map(|current_node| {
-            let (theme, theme_mode) = current_node.overidden_theme();
+            let (effective_styles, theme, theme_mode) = current_node.overidden_theme();
             let theme = if let Some(theme) = theme {
                 Cow::Owned(theme.get_tracked(self))
             } else {
@@ -742,6 +735,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
                 self.theme_mode
             };
             WidgetContext {
+                effective_styles,
                 current_node,
                 redraw_status: self.redraw_status,
                 window: &mut *self.window,
@@ -868,7 +862,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// for more information.
     #[must_use]
     pub fn is_default(&self) -> bool {
-        self.current_node.tree.default_widget() == Some(self.current_node.id())
+        self.current_node.tree.default_widget() == Some(self.current_node.node_id)
     }
 
     /// Returns true if this widget is the target to activate when the user
@@ -879,7 +873,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// for more information.
     #[must_use]
     pub fn is_escape(&self) -> bool {
-        self.current_node.tree.escape_widget() == Some(self.current_node.id())
+        self.current_node.tree.escape_widget() == Some(self.current_node.node_id)
     }
 
     /// Returns the widget this context is for.
@@ -910,67 +904,17 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         self.current_node.attach_theme_mode(theme_mode);
     }
 
-    /// Queries the widget hierarchy for matching style components.
-    ///
-    /// This function traverses up the widget hierarchy looking for the
-    /// components being requested. The resulting styles will contain the values
-    /// from the closest matches in the widget hierarchy.
-    ///
-    /// For style components to be found, they must have previously been
-    /// [attached](Self::attach_styles). The [`Style`](crate::widgets::Style)
-    /// widget is provided as a convenient way to attach styles into the widget
-    /// hierarchy.
-    #[must_use]
-    pub fn query_styles(&self, query: &[&dyn ComponentDefaultvalue]) -> Styles {
-        self.current_node
-            .tree
-            .query_styles(&self.current_node, query, false, self)
-    }
-
-    /// Queries the widget hierarchy for matching style components,  starting
-    /// with this widget's parent.
-    ///
-    /// This function traverses up the widget hierarchy looking for the
-    /// components being requested. The resulting styles will contain the values
-    /// from the closest matches in the widget hierarchy.
-    ///
-    /// For style components to be found, they must have previously been
-    /// [attached](Self::attach_styles). The [`Style`](crate::widgets::Style)
-    /// widget is provided as a convenient way to attach styles into the widget
-    /// hierarchy.
-    #[must_use]
-    pub fn query_parent_styles(&self, query: &[&dyn ComponentDefaultvalue]) -> Styles {
-        self.current_node
-            .tree
-            .query_styles(&self.current_node, query, true, self)
-    }
-
     /// Queries the widget hierarchy for a single style component.
     ///
     /// This function traverses up the widget hierarchy looking for the
     /// component being requested. If a matching component is found, it will be
     /// returned. Otherwise, the default value will be returned.
-
     #[must_use]
-    pub fn query_style<Component: ComponentDefinition>(
+    pub fn get<Component: ComponentDefinition>(
         &self,
         query: &Component,
     ) -> Component::ComponentType {
-        self.current_node
-            .tree
-            .query_style(&self.current_node, query, false, self)
-    }
-
-    /// Queries the widget hierarchy for a single style component, starting with
-    /// this widget's parent.
-    #[must_use]
-    pub fn query_parent_style<Component: ComponentDefinition>(
-        &self,
-        query: &Component,
-    ) -> Component::ComponentType {
-        self.current_node
-            .tree
-            .query_style(&self.current_node, query, true, self)
+        self.effective_styles.get(query, self)
     }
 
     pub(crate) fn handle(&self) -> WindowHandle {

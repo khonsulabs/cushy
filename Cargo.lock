@@ -40,6 +40,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91429305e9f0a25f6205c5b8e0d2db09e0708a7a6df0f42212bb56c32c8ac97a"
 dependencies = [
  "cfg-if",
+ "getrandom",
  "once_cell",
  "version_check",
  "zerocopy",
@@ -656,6 +657,7 @@ dependencies = [
 name = "gooey"
 version = "0.1.0"
 dependencies = [
+ "ahash",
  "alot",
  "intentional",
  "interner",

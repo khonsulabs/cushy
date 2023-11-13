@@ -21,6 +21,7 @@ tracing-subscriber = { version = "0.3", optional = true, features = [
     "env-filter",
 ] }
 palette = "0.7.3"
+ahash = "0.8.6"
 
 
 # [patch."https://github.com/khonsulabs/kludgine"]
@@ -38,3 +39,6 @@ opt-level = 2
 
 [dev-dependencies]
 pollster = "0.3.0"
+
+[profile.release]
+debug = true

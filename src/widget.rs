@@ -8,6 +8,7 @@ use std::panic::UnwindSafe;
 use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use alot::LotId;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
@@ -204,6 +205,15 @@ impl From<Size<Px>> for WrappedLayout {
     }
 }
 
+impl From<Size<UPx>> for WrappedLayout {
+    fn from(size: Size<UPx>) -> Self {
+        WrappedLayout {
+            child: size.into_signed().into(),
+            size,
+        }
+    }
+}
+
 /// A [`Widget`] that contains a single child.
 pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the child widget.
@@ -248,7 +258,15 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> WrappedLayout {
-        size.into()
+        Size::<UPx>::new(
+            available_space
+                .width
+                .fit_measured(size.width, context.gfx.scale()),
+            available_space
+                .height
+                .fit_measured(size.height, context.gfx.scale()),
+        )
+        .into()
     }
 
     /// Returns the background color to render behind the wrapped widget.
@@ -965,6 +983,7 @@ where
 /// A [`Widget`] that has been attached to a widget hierarchy.
 #[derive(Clone)]
 pub struct ManagedWidget {
+    pub(crate) node_id: LotId,
     pub(crate) widget: WidgetInstance,
     pub(crate) tree: Tree,
 }
@@ -987,7 +1006,7 @@ impl ManagedWidget {
     }
 
     pub(crate) fn set_layout(&self, rect: Rect<Px>) {
-        self.tree.set_layout(self.id(), rect);
+        self.tree.set_layout(self.node_id, rect);
     }
 
     /// Returns the unique id of this widget instance.
@@ -1010,69 +1029,77 @@ impl ManagedWidget {
     /// Returns the region that the widget was last rendered at.
     #[must_use]
     pub fn last_layout(&self) -> Option<Rect<Px>> {
-        self.tree.layout(self.id())
+        self.tree.layout(self.node_id)
+    }
+
+    /// Returns the effective styles for the current tree.
+    #[must_use]
+    pub fn effective_styles(&self) -> Styles {
+        self.tree.effective_styles(self.node_id)
     }
 
     /// Returns true if this widget is the currently active widget.
     #[must_use]
     pub fn active(&self) -> bool {
-        self.tree.active_widget() == Some(self.id())
+        self.tree.active_widget() == Some(self.node_id)
     }
 
     /// Returns true if this widget is currently the hovered widget.
     #[must_use]
     pub fn hovered(&self) -> bool {
-        self.tree.is_hovered(self.id())
+        self.tree.is_hovered(self.node_id)
     }
 
     /// Returns true if this widget that is directly beneath the cursor.
     #[must_use]
     pub fn primary_hover(&self) -> bool {
-        self.tree.hovered_widget() == Some(self.id())
+        self.tree.hovered_widget() == Some(self.node_id)
     }
 
     /// Returns true if this widget is the currently focused widget.
     #[must_use]
     pub fn focused(&self) -> bool {
-        self.tree.focused_widget() == Some(self.id())
+        self.tree.focused_widget() == Some(self.node_id)
     }
 
     /// Returns the parent of this widget.
     #[must_use]
     pub fn parent(&self) -> Option<ManagedWidget> {
         self.tree
-            .parent(self.id())
-            .and_then(|id| self.tree.widget(id))
+            .parent(self.node_id)
+            .and_then(|id| self.tree.widget_from_node(id))
     }
 
     /// Returns true if this node has a parent.
     #[must_use]
     pub fn has_parent(&self) -> bool {
-        self.tree.parent(self.id()).is_some()
+        self.tree.parent(self.node_id).is_some()
     }
 
     pub(crate) fn attach_styles(&self, styles: Value<Styles>) {
-        self.tree.attach_styles(self.id(), styles);
+        self.tree.attach_styles(self.node_id, styles);
     }
 
     pub(crate) fn attach_theme(&self, theme: Value<ThemePair>) {
-        self.tree.attach_theme(self.id(), theme);
+        self.tree.attach_theme(self.node_id, theme);
     }
 
     pub(crate) fn attach_theme_mode(&self, theme: Value<ThemeMode>) {
-        self.tree.attach_theme_mode(self.id(), theme);
+        self.tree.attach_theme_mode(self.node_id, theme);
     }
 
-    pub(crate) fn overidden_theme(&self) -> (Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {
-        self.tree.overriden_theme(self.id())
+    pub(crate) fn overidden_theme(
+        &self,
+    ) -> (Styles, Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {
+        self.tree.overriden_theme(self.node_id)
     }
 
     pub(crate) fn reset_child_layouts(&self) {
-        self.tree.reset_child_layouts(self.id());
+        self.tree.reset_child_layouts(self.node_id);
     }
 
     pub(crate) fn visually_ordered_children(&self, order: VisualOrder) -> Vec<ManagedWidget> {
-        self.tree.visually_ordered_children(self.id(), order)
+        self.tree.visually_ordered_children(self.node_id, order)
     }
 }
 

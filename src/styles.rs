@@ -2,7 +2,7 @@
 
 use std::any::Any;
 use std::borrow::Cow;
-use std::collections::{hash_map, HashMap};
+use std::collections::hash_map;
 use std::fmt::Debug;
 use std::ops::{
     Add, Bound, Div, Mul, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
@@ -10,6 +10,7 @@ use std::ops::{
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
+use ahash::AHashMap;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{Fraction, IntoUnsigned, Rect, ScreenScale, Size};
 use kludgine::Color;
@@ -26,7 +27,7 @@ pub mod components;
 
 /// A collection of style components organized by their name.
 #[derive(Clone, Debug, Default)]
-pub struct Styles(Arc<HashMap<Name, HashMap<Name, Value<Component>>>>);
+pub struct Styles(Arc<AHashMap<ComponentName, Value<Component>>>);
 
 impl Styles {
     /// Returns an empty collection.
@@ -39,15 +40,12 @@ impl Styles {
     /// without reallocating.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
-        Self(Arc::new(HashMap::with_capacity(capacity)))
+        Self(Arc::new(AHashMap::with_capacity(capacity)))
     }
 
     /// Inserts a [`Component`] with a given name.
     pub fn insert_named(&mut self, name: ComponentName, component: impl IntoComponentValue) {
-        Arc::make_mut(&mut self.0)
-            .entry(name.group)
-            .or_default()
-            .insert(name.name, component.into_component_value());
+        Arc::make_mut(&mut self.0).insert(name, component.into_component_value());
     }
 
     /// Inserts a [`Component`] using then name provided.
@@ -70,9 +68,7 @@ impl Styles {
         Named: NamedComponent + ?Sized,
     {
         let name = component.name();
-        self.0
-            .get(&name.group)
-            .and_then(|group| group.get(&name.name))
+        self.0.get(&name)
     }
 
     /// Returns the component associated with the given name, or if not found,
@@ -88,13 +84,20 @@ impl Styles {
     {
         let name = component.name();
         self.0
-            .get(&name.group)
-            .and_then(|group| group.get(&name.name))
+            .get(&name)
             .and_then(|component| {
                 component.redraw_when_changed(context);
                 <Named::ComponentType>::try_from_component(component.get()).ok()
             })
             .unwrap_or_else(|| component.default_value(context))
+    }
+
+    /// Inserts all components from `other`, overwriting any existing entries
+    /// with the same [`ComponentName`].
+    pub fn append(&mut self, other: Styles) {
+        for (name, value) in other {
+            self.insert_named(name, value);
+        }
     }
 }
 
@@ -141,42 +144,38 @@ impl FromIterator<(ComponentName, Component)> for Styles {
 }
 
 impl IntoIterator for Styles {
-    type IntoIter = StylesIntoIter;
+    type IntoIter = hash_map::IntoIter<ComponentName, Value<Component>>;
     type Item = (ComponentName, Value<Component>);
 
     fn into_iter(self) -> Self::IntoIter {
-        StylesIntoIter {
-            main: Arc::try_unwrap(self.0)
-                .unwrap_or_else(|err| err.as_ref().clone())
-                .into_iter(),
-            names: None,
-        }
+        Arc::try_unwrap(self.0)
+            .unwrap_or_else(|err| err.as_ref().clone())
+            .into_iter()
     }
 }
 
-/// An iterator over the owned contents of a [`Styles`] instance.
-pub struct StylesIntoIter {
-    main: hash_map::IntoIter<Name, HashMap<Name, Value<Component>>>,
-    names: Option<(Name, hash_map::IntoIter<Name, Value<Component>>)>,
-}
+// /// An iterator over the owned contents of a [`Styles`] instance.
+// pub struct StylesIntoIter {
+//     main: hash_map::IntoIter<ComponentName, Value<Component>>,
+// }
 
-impl Iterator for StylesIntoIter {
-    type Item = (ComponentName, Value<Component>);
+// impl Iterator for StylesIntoIter {
+//     type Item = (ComponentName, Value<Component>);
 
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            if let Some((group, names)) = &mut self.names {
-                if let Some((name, component)) = names.next() {
-                    return Some((ComponentName::new(group.clone(), name), component));
-                }
-                self.names = None;
-            }
+//     fn next(&mut self) -> Option<Self::Item> {
+//         loop {
+//             if let Some((group, names)) = &mut self.names {
+//                 if let Some((name, component)) = names.next() {
+//                     return Some((ComponentName::new(group.clone(), name), component));
+//                 }
+//                 self.names = None;
+//             }
 
-            let (group, names) = self.main.next()?;
-            self.names = Some((group, names.into_iter()));
-        }
-    }
-}
+//             let (group, names) = self.main.next()?;
+//             self.names = Some((group, names.into_iter()));
+//         }
+//     }
+// }
 
 /// A value of a style component.
 #[derive(Debug, Clone)]
@@ -189,8 +188,6 @@ pub enum Component {
     DimensionRange(DimensionRange),
     /// A percentage between 0.0 and 1.0.
     Percent(ZeroToOne),
-    /// A custom component type.
-    Custom(CustomComponent),
     /// An easing function for animations.
     Easing(EasingFunction),
     /// A visual ordering to use for layout.
@@ -200,6 +197,9 @@ pub enum Component {
     /// A description of the depth of a
     /// [`Container`](crate::widgets::Container).
     ContainerLevel(ContainerLevel),
+
+    /// A custom component type.
+    Custom(CustomComponent),
 }
 
 impl From<Color> for Component {
@@ -614,7 +614,7 @@ where
 }
 
 /// A fully-qualified style component name.
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub struct ComponentName {
     /// The group name.
     pub group: Name,

@@ -77,22 +77,10 @@ impl Button {
     }
 
     fn update_colors(&mut self, context: &WidgetContext<'_, '_>, immediate: bool) {
-        let styles = context.query_styles(&[
-            &ButtonActiveBackground,
-            &ButtonBackground,
-            &ButtonHoverBackground,
-            &ButtonDisabledBackground,
-            &ButtonActiveForeground,
-            &ButtonForeground,
-            &ButtonHoverForeground,
-            &ButtonDisabledForeground,
-            &Easing,
-        ]);
-
         let (background_color, text_color) = match () {
             () if !self.enabled.get() => (
-                styles.get(&ButtonDisabledBackground, context),
-                styles.get(&ButtonDisabledForeground, context),
+                context.get(&ButtonDisabledBackground),
+                context.get(&ButtonDisabledForeground),
             ),
             // TODO this probably should use actual style.
             () if context.is_default() => (
@@ -100,16 +88,16 @@ impl Button {
                 context.theme().primary.on_color,
             ),
             () if context.active() => (
-                styles.get(&ButtonActiveBackground, context),
-                styles.get(&ButtonActiveForeground, context),
+                context.get(&ButtonActiveBackground),
+                context.get(&ButtonActiveForeground),
             ),
             () if context.hovered() => (
-                styles.get(&ButtonHoverBackground, context),
-                styles.get(&ButtonHoverForeground, context),
+                context.get(&ButtonHoverBackground),
+                context.get(&ButtonHoverForeground),
             ),
             () => (
-                styles.get(&ButtonBackground, context),
-                styles.get(&ButtonForeground, context),
+                context.get(&ButtonBackground),
+                context.get(&ButtonForeground),
             ),
         };
 
@@ -120,7 +108,7 @@ impl Button {
                     text.transition_to(text_color),
                 )
                     .over(Duration::from_millis(150))
-                    .with_easing(styles.get(&Easing, context))
+                    .with_easing(context.get(&Easing))
                     .spawn();
             }
             (true, Some(bg), Some(text)) => {
@@ -177,7 +165,7 @@ impl Widget for Button {
     }
 
     fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
-        self.enabled.get() && context.query_style(&AutoFocusableControls).is_all()
+        self.enabled.get() && context.get(&AutoFocusableControls).is_all()
     }
 
     fn mouse_down(
@@ -241,7 +229,7 @@ impl Widget for Button {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let padding = context
-            .query_style(&IntrinsicPadding)
+            .get(&IntrinsicPadding)
             .into_px(context.gfx.scale())
             .into_unsigned();
         let mounted = self.content.mounted(&mut context.as_event_context());

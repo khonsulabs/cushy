@@ -86,18 +86,17 @@ impl Scroll {
     }
 
     fn show_scrollbars(&mut self, context: &mut EventContext<'_, '_>) {
-        let styles = context.query_styles(&[&EasingIn, &EasingOut]);
         self.scrollbar_opacity_animation = self
             .scrollbar_opacity
             .transition_to(ZeroToOne::ONE)
             .over(Duration::from_millis(300))
-            .with_easing(styles.get(&EasingIn, context))
+            .with_easing(context.get(&EasingIn))
             .and_then(Duration::from_secs(1))
             .and_then(
                 self.scrollbar_opacity
                     .transition_to(ZeroToOne::ZERO)
                     .over(Duration::from_millis(300))
-                    .with_easing(styles.get(&EasingOut, context)),
+                    .with_easing(context.get(&EasingOut)),
             )
             .spawn();
     }
@@ -117,7 +116,7 @@ impl Widget for Scroll {
             .scrollbar_opacity
             .transition_to(ZeroToOne::ZERO)
             .over(Duration::from_millis(300))
-            .with_easing(context.query_style(&EasingOut))
+            .with_easing(context.get(&EasingOut))
             .spawn();
     }
 
@@ -165,13 +164,10 @@ impl Widget for Scroll {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let styles = context.query_styles(&[&ScrollBarThickness, &LineHeight]);
-        self.bar_width = styles
-            .get(&ScrollBarThickness, context)
+        self.bar_width = context
+            .get(&ScrollBarThickness)
             .into_px(context.gfx.scale());
-        self.line_height = styles
-            .get(&LineHeight, context)
-            .into_px(context.gfx.scale());
+        self.line_height = context.get(&LineHeight).into_px(context.gfx.scale());
 
         let (mut scroll, current_max_scroll) = self.constrain_scroll();
 

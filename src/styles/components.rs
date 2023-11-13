@@ -44,11 +44,13 @@ macro_rules! define_components {
         const _: () = {
             use $crate::styles::{ComponentDefinition, ComponentName, NamedComponent};
             use $crate::context::WidgetContext;
+            use $crate::Lazy;
             use ::std::borrow::Cow;
 
             impl NamedComponent for $component {
                 fn name(&self) -> Cow<'_, ComponentName> {
-                    Cow::Owned(ComponentName::new(stringify!($widget), $name))
+                    static NAME: Lazy<ComponentName> = Lazy::new(|| ComponentName::new(stringify!($widget), $name));
+                    Cow::Borrowed(&*NAME)
                 }
             }
 
@@ -69,14 +71,13 @@ macro_rules! define_components {
         }
     };
     ($type:ty, @$path:path) => {
-        define_components!($type, |context| context.query_style(&$path));
+        define_components!($type, |context| context.get(&$path));
     };
     ($type:ty, contrasting!($bg:ident, $($fg:ident),+ $(,)?)) => {
         define_components!($type, |context| {
             use $crate::styles::ColorExt;
-            let styles = context.query_parent_styles(&[&$bg, $(&$fg),*]);
-            styles.get(&$bg, context).most_contrasting(&[
-                $(styles.get(&$fg, context)),+
+            context.get(&$bg).most_contrasting(&[
+                $(context.get(&$fg)),+
             ])
         });
     };

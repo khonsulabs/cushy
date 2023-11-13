@@ -2,7 +2,6 @@
 //! window.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::ops::{Deref, DerefMut, Not};
 use std::panic::{AssertUnwindSafe, UnwindSafe};
@@ -10,6 +9,8 @@ use std::path::Path;
 use std::string::ToString;
 use std::sync::OnceLock;
 
+use ahash::AHashMap;
+use alot::LotId;
 use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
     DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
@@ -35,9 +36,7 @@ use crate::styles::ThemePair;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
-use crate::widget::{
-    EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
-};
+use crate::widget::{EventHandling, ManagedWidget, Widget, WidgetInstance, HANDLED, IGNORED};
 use crate::widgets::{Expand, Resize};
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit, Run};
@@ -300,12 +299,12 @@ where
     fn keyboard_activate_widget(
         &mut self,
         is_pressed: bool,
-        widget: Option<WidgetId>,
+        widget: Option<LotId>,
         window: &mut RunningWindow<'_>,
         kludgine: &mut Kludgine,
     ) {
         if is_pressed {
-            if let Some(default) = widget.and_then(|id| self.root.tree.widget(id)) {
+            if let Some(default) = widget.and_then(|id| self.root.tree.widget_from_node(id)) {
                 if let Some(previously_active) = self.keyboard_activated.take() {
                     EventContext::new(
                         WidgetContext::new(
@@ -464,7 +463,7 @@ where
             mouse_state: MouseState {
                 location: None,
                 widget: None,
-                devices: HashMap::default(),
+                devices: AHashMap::default(),
             },
             redraw_status: RedrawStatus::default(),
             initial_frame: true,
@@ -670,8 +669,12 @@ where
         input: KeyEvent,
         is_synthetic: bool,
     ) {
-        let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
-        let target = self.root.tree.widget(target).expect("missing widget");
+        let target = self.root.tree.focused_widget().unwrap_or(self.root.node_id);
+        let target = self
+            .root
+            .tree
+            .widget_from_node(target)
+            .expect("missing widget");
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut target = EventContext::new(
             WidgetContext::new(
@@ -701,8 +704,12 @@ where
                     if input.state.is_pressed() {
                         let reverse = window.modifiers().state().shift_key();
 
-                        let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
-                        let target = self.root.tree.widget(target).expect("missing widget");
+                        let target = self.root.tree.focused_widget().unwrap_or(self.root.node_id);
+                        let target = self
+                            .root
+                            .tree
+                            .widget_from_node(target)
+                            .expect("missing widget");
                         let mut target = EventContext::new(
                             WidgetContext::new(
                                 target,
@@ -713,7 +720,7 @@ where
                             ),
                             kludgine,
                         );
-                        let mut visual_order = target.query_style(&LayoutOrder);
+                        let mut visual_order = target.get(&LayoutOrder);
                         if reverse {
                             visual_order = visual_order.rev();
                         }
@@ -761,7 +768,7 @@ where
             .root
             .tree
             .hovered_widget()
-            .and_then(|hovered| self.root.tree.widget(hovered))
+            .and_then(|hovered| self.root.tree.widget_from_node(hovered))
             .unwrap_or_else(|| {
                 self.root
                     .tree
@@ -797,7 +804,7 @@ where
             .root
             .tree
             .focused_widget()
-            .and_then(|hovered| self.root.tree.widget(hovered))
+            .and_then(|hovered| self.root.tree.widget_from_node(hovered))
             .unwrap_or_else(|| {
                 self.root
                     .tree
@@ -1030,7 +1037,7 @@ fn recursively_handle_event(
 struct MouseState {
     location: Option<Point<Px>>,
     widget: Option<ManagedWidget>,
-    devices: HashMap<DeviceId, HashMap<MouseButton, ManagedWidget>>,
+    devices: AHashMap<DeviceId, AHashMap<MouseButton, ManagedWidget>>,
 }
 
 pub(crate) mod sealed {

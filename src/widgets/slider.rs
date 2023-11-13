@@ -165,14 +165,12 @@ where
         + 'static,
 {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let styles =
-            context.query_styles(&[&TrackColor, &InactiveTrackColor, &KnobColor, &TrackSize]);
-        let track_color = styles.get(&TrackColor, context);
-        let inactive_track_color = styles.get(&InactiveTrackColor, context);
-        let knob_color = styles.get(&KnobColor, context);
+        let track_color = context.get(&TrackColor);
+        let inactive_track_color = context.get(&InactiveTrackColor);
+        let knob_color = context.get(&KnobColor);
         let knob_size = self.knob_size.into_signed();
-        let track_size = styles
-            .get(&TrackSize, context)
+        let track_size = context
+            .get(&TrackSize)
             .into_px(context.gfx.scale())
             .min(knob_size);
 
@@ -224,13 +222,12 @@ where
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let styles = context.query_styles(&[&KnobSize, &MinimumSliderSize]);
-        self.knob_size = styles
-            .get(&KnobSize, context)
+        self.knob_size = context
+            .get(&KnobSize)
             .into_px(context.gfx.scale())
             .into_unsigned();
-        let minimum_size = styles
-            .get(&MinimumSliderSize, context)
+        let minimum_size = context
+            .get(&MinimumSliderSize)
             .into_px(context.gfx.scale())
             .into_unsigned();
 
@@ -321,12 +318,12 @@ define_components! {
         /// The width and height of the draggable portion of a [`Slider`].
         KnobSize(Dimension, "knob_size", Dimension::Lp(Lp::points(14)))
         /// The minimum length of the slidable dimension.
-        MinimumSliderSize(Dimension, "minimum_size", |context| context.query_style(&KnobSize) * 2)
+        MinimumSliderSize(Dimension, "minimum_size", |context| context.get(&KnobSize) * 2)
         /// The color of the draggable portion of the knob.
         KnobColor(Color, "knob_color", .primary.color) // TODO make this pull from a component multiple widgets can share
         /// The color of the track that the knob rests on.
-        TrackColor(Color,"track_color", |context| context.query_style(&KnobColor))
+        TrackColor(Color,"track_color", |context| context.get(&KnobColor))
         /// The color of the track that the knob rests on.
-        InactiveTrackColor(Color, "inactive_track_color", |context| context.query_style(&OpaqueWidgetColor))
+        InactiveTrackColor(Color, "inactive_track_color", |context| context.get(&OpaqueWidgetColor))
     }
 }

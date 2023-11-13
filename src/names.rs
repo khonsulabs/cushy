@@ -3,7 +3,8 @@ use std::ops::Deref;
 
 use interner::global::{GlobalString, StringPool};
 
-static NAMES: StringPool = StringPool::new();
+static NAMES: StringPool<ahash::RandomState> =
+    StringPool::with_hasher(ahash::RandomState::with_seeds(0, 0, 0, 0));
 
 /// A smart-string type that is used as a "name" in Gooey.
 ///
@@ -12,7 +13,7 @@ static NAMES: StringPool = StringPool::new();
 /// exact underlying instance, optimizations can be made that avoid string
 /// comparisons.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Name(GlobalString);
+pub struct Name(GlobalString<ahash::RandomState>);
 
 impl Name {
     /// Returns a name for the given string.
