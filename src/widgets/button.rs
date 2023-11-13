@@ -3,9 +3,10 @@ use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
-use kludgine::figures::units::{Px, UPx};
+use kludgine::figures::units::{Px, UPx, Lp};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 use kludgine::Color;
+use kludgine::shapes::StrokeOptions;
 
 use crate::animation::{AnimationHandle, AnimationTarget, LinearInterpolate, Spawn};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
@@ -137,7 +138,7 @@ impl Button {
         }
 
         let style = self.active_style.as_ref().expect("always initialized");
-        context.redraw_when_changed(&style);
+        context.redraw_when_changed(style);
         style.get()
     }
 }
@@ -158,7 +159,7 @@ impl Widget for Button {
         let style = self.current_style(context);
         context.gfx.fill(style.background);
 
-        // TODO draw outline
+        context.stroke_outline::<Lp>(style.outline, StrokeOptions::default());
 
         if context.focused() {
             context.draw_focus_ring();
@@ -331,7 +332,7 @@ define_components! {
         /// it.
         ButtonDisabledForeground(Color, "disabled_foreground_color", contrasting!(ButtonDisabledBackground, ButtonForeground, TextColor, SurfaceColor))
         /// The outline color of the button.
-        ButtonOutline(Color, "outline_color", contrasting!(ButtonBackground, TextColor, SurfaceColor))
+        ButtonOutline(Color, "outline_color", Color::CLEAR_BLACK)
         /// The outline color of the button when it is active (depressed).
         ButtonActiveOutline(Color, "active_outline_color", contrasting!(ButtonActiveBackground, ButtonOutline, TextColor, SurfaceColor))
         /// The outline color of the button when the mouse cursor is hovering over

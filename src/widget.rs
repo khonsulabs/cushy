@@ -1199,6 +1199,18 @@ impl Children {
         self
     }
 
+    /// Creates [`Stack::columns`] from self.
+    #[must_use]
+    pub fn in_columns(self) -> Stack {
+        Stack::columns(self)
+    }
+
+    /// Creates [`Stack::rows`] from self.
+    #[must_use]
+    pub fn in_rows(self) -> Stack {
+        Stack::rows(self)
+    }
+
     /// Returns the number of widgets in this list.
     #[must_use]
     pub fn len(&self) -> usize {
