@@ -3,10 +3,10 @@ use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
-use kludgine::figures::units::{Px, UPx, Lp};
+use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
-use kludgine::Color;
 use kludgine::shapes::StrokeOptions;
+use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, LinearInterpolate, Spawn};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
