@@ -22,7 +22,7 @@ fn main() -> gooey::Result {
                 .on_click(count.with_clone(|count| move |_| count.set(count.get() - 1)))
                 .with(&ButtonOutline, Color::DARKRED),
         )
-        .in_columns()
+        .into_columns()
         // Run the button as an an application.
         .run()
     // end rustme snippet
