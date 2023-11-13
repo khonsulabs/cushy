@@ -36,7 +36,9 @@ use crate::styles::ThemePair;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
-use crate::widget::{EventHandling, ManagedWidget, Widget, WidgetInstance, HANDLED, IGNORED};
+use crate::widget::{
+    EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
+};
 use crate::widgets::{Expand, Resize};
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit, Run};
@@ -841,6 +843,9 @@ where
         if let Some(state) = self.mouse_state.devices.get(&device_id) {
             // Mouse Drag
             for (button, handler) in state {
+                let Some(handler) = self.root.tree.widget(*handler) else {
+                    continue;
+                };
                 let mut context = EventContext::new(
                     WidgetContext::new(
                         handler.clone(),
@@ -878,7 +883,7 @@ where
                 if widget_context.hit_test(relative) {
                     widget_context.hover(relative);
                     drop(widget_context);
-                    self.mouse_state.widget = Some(widget);
+                    self.mouse_state.widget = Some(widget.id());
                     break;
                 }
             }
@@ -934,9 +939,13 @@ where
                 )
                 .clear_focus();
 
-                if let (ElementState::Pressed, Some(location), Some(hovered)) =
-                    (state, &self.mouse_state.location, &self.mouse_state.widget)
-                {
+                if let (ElementState::Pressed, Some(location), Some(hovered)) = (
+                    state,
+                    &self.mouse_state.location,
+                    self.mouse_state
+                        .widget
+                        .and_then(|id| self.root.tree.widget(id)),
+                ) {
                     if let Some(handler) = recursively_handle_event(
                         &mut EventContext::new(
                             WidgetContext::new(
@@ -958,7 +967,7 @@ where
                             .devices
                             .entry(device_id)
                             .or_default()
-                            .insert(button, handler);
+                            .insert(button, handler.id());
                     }
                 }
             }
@@ -972,7 +981,9 @@ where
                 if device_buttons.is_empty() {
                     self.mouse_state.devices.remove(&device_id);
                 }
-
+                let Some(handler) = self.root.tree.widget(handler) else {
+                    return;
+                };
                 let mut context = EventContext::new(
                     WidgetContext::new(
                         handler,
@@ -1036,8 +1047,8 @@ fn recursively_handle_event(
 #[derive(Default)]
 struct MouseState {
     location: Option<Point<Px>>,
-    widget: Option<ManagedWidget>,
-    devices: AHashMap<DeviceId, AHashMap<MouseButton, ManagedWidget>>,
+    widget: Option<WidgetId>,
+    devices: AHashMap<DeviceId, AHashMap<MouseButton, WidgetId>>,
 }
 
 pub(crate) mod sealed {

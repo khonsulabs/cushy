@@ -418,6 +418,7 @@ impl TreeData {
 
         while let Some(node) = detached_nodes.pop() {
             let mut node = self.nodes.remove(node).expect("detached node missing");
+            self.nodes_by_id.remove(&node.widget.id());
             detached_nodes.append(&mut node.children);
         }
     }

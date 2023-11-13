@@ -14,6 +14,7 @@ mod slider;
 mod space;
 pub mod stack;
 mod style;
+mod switcher;
 mod themed;
 mod tilemap;
 
@@ -31,5 +32,6 @@ pub use slider::Slider;
 pub use space::Space;
 pub use stack::Stack;
 pub use style::Style;
+pub use switcher::Switcher;
 pub use themed::Themed;
 pub use tilemap::TileMap;

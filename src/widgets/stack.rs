@@ -85,37 +85,38 @@ impl Stack {
                         } else {
                             // This is a brand new child.
                             let guard = widget.lock();
-                            let (mut widget, dimension) =
-                                if let Some(expand) = guard.downcast_ref::<Expand>() {
-                                    let weight = expand.weight;
-                                    (
-                                        expand.child().clone(),
-                                        StackDimension::Fractional { weight },
-                                    )
-                                } else if let Some((child, size)) =
-                                    guard.downcast_ref::<Resize>().and_then(|r| {
-                                        let range = match self.layout.orientation.orientation {
-                                            StackOrientation::Row => r.height,
-                                            StackOrientation::Column => r.width,
-                                        };
-                                        range.minimum().map(|min| {
-                                            (
-                                                r.child().clone(),
-                                                StackDimension::Measured {
-                                                    min,
-                                                    _max: range.end,
-                                                },
-                                            )
-                                        })
+                            let (mut widget, dimension) = if let Some((weight, expand)) = guard
+                                .downcast_ref::<Expand>()
+                                .and_then(|expand| expand.weight().map(|weight| (weight, expand)))
+                            {
+                                (
+                                    expand.child().clone(),
+                                    StackDimension::Fractional { weight },
+                                )
+                            } else if let Some((child, size)) =
+                                guard.downcast_ref::<Resize>().and_then(|r| {
+                                    let range = match self.layout.orientation.orientation {
+                                        StackOrientation::Row => r.height,
+                                        StackOrientation::Column => r.width,
+                                    };
+                                    range.minimum().map(|min| {
+                                        (
+                                            r.child().clone(),
+                                            StackDimension::Measured {
+                                                min,
+                                                _max: range.end,
+                                            },
+                                        )
                                     })
-                                {
-                                    (child, size)
-                                } else {
-                                    (
-                                        WidgetRef::Unmounted(widget.clone()),
-                                        StackDimension::FitContent,
-                                    )
-                                };
+                                })
+                            {
+                                (child, size)
+                            } else {
+                                (
+                                    WidgetRef::Unmounted(widget.clone()),
+                                    StackDimension::FitContent,
+                                )
+                            };
                             drop(guard);
                             self.synced_children.insert(index, widget.mounted(context));
 
@@ -449,7 +450,7 @@ impl Layout {
                     ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
                     other_constraint,
                 ),
-                true,
+                false,
             ));
             self.other = self.other.max(measured);
         }
@@ -458,6 +459,18 @@ impl Layout {
             ConstraintLimit::Known(max) => self.other.max(max),
             ConstraintLimit::ClippedAfter(clip_limit) => self.other.min(clip_limit),
         };
+
+        // Finally layout the widgets with the final constraints
+        for index in 0..self.children.len() {
+            self.orientation.split_size(measure(
+                index,
+                self.orientation.make_size(
+                    ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
+                    ConstraintLimit::Known(self.other),
+                ),
+                true,
+            ));
+        }
 
         self.orientation.make_size(offset, self.other)
     }

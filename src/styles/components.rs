@@ -30,7 +30,7 @@ use crate::styles::{Dimension, FocusableWidgets, VisualOrder};
 ///         /// This component defaults to picking a contrasting color between `TextColor` and `SurfaceColor`
 ///         ContrastingColor(Color, "contrasting_color", contrasting!(ThemedComponent, TextColor, SurfaceColor))
 ///         /// This component shows how to use a closure for nearly infinite flexibility in computing the default value.
-///         ClosureDefaultComponent(Color, "closure_component", |context| context.query_style(&TextColor))
+///         ClosureDefaultComponent(Color, "closure_component", |context| context.get(&TextColor))
 ///     }
 /// }
 /// ```

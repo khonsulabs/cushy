@@ -43,6 +43,12 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx>;
 
+    /// Return true if this widget should expand to fill the window when it is
+    /// the root widget.
+    fn expand_if_at_root(&self) -> Option<bool> {
+        Some(false)
+    }
+
     /// The widget has been mounted into a parent widget.
     #[allow(unused_variables)]
     fn mounted(&mut self, context: &mut EventContext<'_, '_>) {}
@@ -227,9 +233,8 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> WrappedLayout {
-        let child = self.child_mut().mounted(&mut context.as_event_context());
-
         let adjusted_space = self.adjust_child_constraint(available_space, context);
+        let child = self.child_mut().mounted(&mut context.as_event_context());
         let size = context
             .for_other(&child)
             .layout(adjusted_space)
@@ -420,9 +425,8 @@ where
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let child = self.child_mut().mounted(&mut context.as_event_context());
-
         let layout = self.layout_child(available_space, context);
+        let child = self.child_mut().mounted(&mut context.as_event_context());
         context.set_child_layout(&child, layout.child);
         layout.size
     }
@@ -604,6 +608,18 @@ pub trait MakeWidget: Sized {
     #[must_use]
     fn expand_weighted(self, weight: u8) -> Expand {
         Expand::weighted(weight, self)
+    }
+
+    /// Expands `self` to grow to fill its parent horizontally.
+    #[must_use]
+    fn expand_horizontally(self) -> Expand {
+        Expand::horizontal(self)
+    }
+
+    /// Expands `self` to grow to fill its parent vertically.
+    #[must_use]
+    fn expand_vertically(self) -> Expand {
+        Expand::horizontal(self)
     }
 
     /// Aligns `self` to the center vertically and horizontally.

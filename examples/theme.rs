@@ -5,10 +5,9 @@ use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair};
 use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
-use gooey::widgets::{Input, Label, Scroll, Slider, Stack, Themed};
+use gooey::widgets::{Input, Label, ModeSwitch, Scroll, Slider, Stack, Themed};
 use gooey::window::ThemeMode;
 use gooey::Run;
-use kludgine::figures::units::Lp;
 use kludgine::Color;
 
 const PRIMARY_HUE: f32 = 240.;
@@ -59,16 +58,22 @@ fn main() -> gooey::Result {
                     .and(neutral_editor)
                     .and(neutral_variant_editor),
             ))
-            .and(theme(default_theme.map_each(|theme| theme.dark), "Dark"))
-            .and(theme(default_theme.map_each(|theme| theme.light), "Light"))
             .and(fixed_themes(
                 default_theme.map_each(|theme| theme.primary_fixed),
                 default_theme.map_each(|theme| theme.secondary_fixed),
                 default_theme.map_each(|theme| theme.tertiary_fixed),
+            ))
+            .and(theme(
+                default_theme.map_each(|theme| theme.dark),
+                ThemeMode::Dark,
+            ))
+            .and(theme(
+                default_theme.map_each(|theme| theme.light),
+                ThemeMode::Light,
             )),
         ),
     )
-    .pad_by(Lp::points(16))
+    .pad()
     .expand()
     .into_window()
     .with_theme_mode(theme_mode)
@@ -132,6 +137,7 @@ fn fixed_themes(
             .and(fixed_theme(secondary, "Secondary"))
             .and(fixed_theme(tertiary, "Tertiary")),
     )
+    .contain()
     .expand()
 }
 
@@ -156,12 +162,18 @@ fn fixed_theme(theme: Dynamic<FixedTheme>, label: &str) -> impl MakeWidget {
                 color,
             )),
     )
+    .contain()
     .expand()
 }
 
-fn theme(theme: Dynamic<Theme>, label: &str) -> impl MakeWidget {
-    Stack::rows(
-        Label::new(label)
+fn theme(theme: Dynamic<Theme>, mode: ThemeMode) -> impl MakeWidget {
+    ModeSwitch::new(
+        mode,
+        Stack::rows(
+            Label::new(match mode {
+                ThemeMode::Light => "Light",
+                ThemeMode::Dark => "Dark",
+            })
             .and(
                 Stack::columns(
                     color_theme(theme.map_each(|theme| theme.primary), "Primary")
@@ -175,9 +187,12 @@ fn theme(theme: Dynamic<Theme>, label: &str) -> impl MakeWidget {
                         ))
                         .and(color_theme(theme.map_each(|theme| theme.error), "Error")),
                 )
+                .contain()
                 .expand(),
             )
             .and(surface_theme(theme.map_each(|theme| theme.surface))),
+        )
+        .contain(),
     )
     .expand()
 }
@@ -199,6 +214,7 @@ fn surface_theme(theme: Dynamic<SurfaceTheme>) -> impl MakeWidget {
                     on_color.clone(),
                 )),
         )
+        .contain()
         .expand()
         .and(
             Stack::columns(
@@ -228,6 +244,7 @@ fn surface_theme(theme: Dynamic<SurfaceTheme>) -> impl MakeWidget {
                     on_color.clone(),
                 )),
             )
+            .contain()
             .expand(),
         )
         .and(
@@ -254,9 +271,11 @@ fn surface_theme(theme: Dynamic<SurfaceTheme>) -> impl MakeWidget {
                         on_color,
                     )),
             )
+            .contain()
             .expand(),
         ),
     )
+    .contain()
     .expand()
 }
 
@@ -289,6 +308,7 @@ fn color_theme(theme: Dynamic<ColorTheme>, label: &str) -> impl MakeWidget {
                 container,
             )),
     )
+    .contain()
     .expand()
 }
 

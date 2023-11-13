@@ -22,14 +22,14 @@
 //! use gooey::value::Dynamic;
 //!
 //! let value = Dynamic::new(0);
-//!
+//! let mut reader = value.create_reader();
 //! value
 //!     .transition_to(100)
 //!     .over(Duration::from_millis(100))
 //!     .with_easing(EaseInOutElastic)
 //!     .launch();
+//! drop(value);
 //!
-//! let mut reader = value.into_reader();
 //! while reader.block_until_updated() {
 //!     println!("{}", reader.get());
 //! }
@@ -723,6 +723,48 @@ impl LinearInterpolate for Color {
             self.blue().lerp(&target.blue(), percent),
             self.alpha().lerp(&target.alpha(), percent),
         )
+    }
+}
+
+/// A wrapper that implements [`LinearInterpolate`] such that the value switches
+/// after 50%.
+///
+/// This wrapper can be used to add [`LinearInterpolate`] to types that normally
+/// don't support interpolation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct BinaryLerp<T>(T);
+
+impl<T> LinearInterpolate for BinaryLerp<T>
+where
+    T: Clone + PartialEq,
+{
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        if false.lerp(&true, percent) {
+            target.clone()
+        } else {
+            self.clone()
+        }
+    }
+}
+
+/// A wrapper that implements [`LinearInterpolate`] such that the target value
+/// is immediately returned as long as percent is > 0.
+///
+/// This wrapper can be used to add [`LinearInterpolate`] to types that normally
+/// don't support interpolation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct ImmediateLerp<T>(T);
+
+impl<T> LinearInterpolate for ImmediateLerp<T>
+where
+    T: Clone + PartialEq,
+{
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        if percent > 0. {
+            target.clone()
+        } else {
+            self.clone()
+        }
     }
 }
 
