@@ -616,6 +616,8 @@ pub trait LinearInterpolate: PartialEq {
     fn lerp(&self, target: &Self, percent: f32) -> Self;
 }
 
+pub use gooey_macros::LinearInterpolate;
+
 macro_rules! impl_lerp_for_int {
     ($type:ident, $unsigned:ident, $float:ident) => {
         impl LinearInterpolate for $type {
