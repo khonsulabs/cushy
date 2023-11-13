@@ -38,7 +38,7 @@ impl Resize {
 
     /// Resizes `child`'s width to `width`.
     #[must_use]
-    pub fn width(width: impl Into<DimensionRange>, child: impl MakeWidget) -> Self {
+    pub fn from_width(width: impl Into<DimensionRange>, child: impl MakeWidget) -> Self {
         Self {
             child: WidgetRef::new(child),
             width: width.into(),
@@ -46,9 +46,31 @@ impl Resize {
         }
     }
 
+    /// Resizes `self` to `width`.
+    ///
+    /// `width` can be an individual
+    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
+    /// range.
+    #[must_use]
+    pub fn width(mut self, width: impl Into<DimensionRange>) -> Self {
+        self.width = width.into();
+        self
+    }
+
+    /// Resizes `self` to `height`.
+    ///
+    /// `width` can be an individual
+    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
+    /// range.
+    #[must_use]
+    pub fn height(mut self, height: impl Into<DimensionRange>) -> Self {
+        self.height = height.into();
+        self
+    }
+
     /// Resizes `child`'s height to `height`.
     #[must_use]
-    pub fn height(height: impl Into<DimensionRange>, child: impl MakeWidget) -> Self {
+    pub fn from_height(height: impl Into<DimensionRange>, child: impl MakeWidget) -> Self {
         Self {
             child: WidgetRef::new(child),
             width: DimensionRange::from(..),

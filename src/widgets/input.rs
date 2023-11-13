@@ -17,7 +17,9 @@ use kludgine::text::TextOrigin;
 use kludgine::{Color, Kludgine};
 
 use crate::context::{EventContext, LayoutContext, WidgetContext};
-use crate::styles::components::{HighlightColor, LineHeight, OutlineColor, TextColor, TextSize};
+use crate::styles::components::{
+    HighlightColor, IntrinsicPadding, LineHeight, OutlineColor, TextColor, TextSize,
+};
 use crate::utils::ModifiersExt;
 use crate::value::{Generation, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
@@ -195,6 +197,8 @@ impl Widget for Input {
         self.cursor_state.update(context.elapsed());
         let cursor_state = self.cursor_state;
         let size = context.gfx.size();
+        let padding = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
+        let padding = Point::<Px>::new(padding, padding);
         let highlight = context.get(&HighlightColor);
         let editor = self.editor_mut(&mut context.gfx, &context.widget);
         let cursor = editor.cursor();
@@ -228,7 +232,7 @@ impl Widget for Input {
                                     Rect::new(start_position, Size::new(width, line_height)),
                                     highlight,
                                 ),
-                                Point::default(),
+                                padding,
                                 None,
                                 None,
                             );
@@ -240,7 +244,7 @@ impl Widget for Input {
                                     Rect::new(start_position, Size::new(width, line_height)),
                                     highlight,
                                 ),
-                                Point::default(),
+                                padding,
                                 None,
                                 None,
                             );
@@ -256,7 +260,7 @@ impl Widget for Input {
                                         ),
                                         highlight,
                                     ),
-                                    Point::default(),
+                                    padding,
                                     None,
                                     None,
                                 );
@@ -270,7 +274,7 @@ impl Widget for Input {
                                     ),
                                     highlight,
                                 ),
-                                Point::default(),
+                                padding,
                                 None,
                                 None,
                             );
@@ -283,7 +287,7 @@ impl Widget for Input {
                                 Rect::new(start_position, Size::new(width, line_height)),
                                 highlight,
                             ),
-                            Point::default(),
+                            padding,
                             None,
                             None,
                         );
@@ -300,7 +304,7 @@ impl Widget for Input {
                                 ),
                                 highlight,
                             ),
-                            Point::default(),
+                            padding,
                             None,
                             None,
                         );
@@ -323,7 +327,7 @@ impl Widget for Input {
                             ),
                             highlight, // TODO cursor should be a bold color, highlight probably not. This should have its own color.
                         ),
-                        Point::default(),
+                        padding,
                         None,
                         None,
                     );
@@ -340,14 +344,9 @@ impl Widget for Input {
         }
 
         let text_color = context.get(&TextColor);
-        context.gfx.draw_text_buffer(
-            buffer,
-            text_color,
-            TextOrigin::TopLeft,
-            Point::<Px>::default(),
-            None,
-            None,
-        );
+        context
+            .gfx
+            .draw_text_buffer(buffer, text_color, TextOrigin::TopLeft, padding, None, None);
     }
 
     fn layout(
@@ -355,22 +354,34 @@ impl Widget for Input {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
+        let padding = context
+            .get(&IntrinsicPadding)
+            .into_px(context.gfx.scale())
+            .into_unsigned();
         if self.needs_to_select_all {
             self.needs_to_select_all = false;
             self.select_all();
         }
         let editor = self.editor_mut(&mut context.graphics.gfx, &context.graphics.widget);
         let buffer = editor.buffer_mut();
-        buffer.set_size(
-            context.gfx.font_system(),
-            available_space.width.max().into_float(),
-            available_space.height.max().into_float(),
-        );
+        let width = available_space
+            .width
+            .max()
+            .saturating_sub(padding * 2)
+            .into_float();
+        let height = available_space
+            .height
+            .max()
+            .saturating_sub(padding * 2)
+            .into_float();
+
+        buffer.set_size(context.gfx.font_system(), width, height);
         context
             .gfx
             .measure_text_buffer::<Px>(buffer, Color::WHITE)
             .size
             .into_unsigned()
+            + Size::new(padding * 2, padding * 2)
     }
 
     fn keyboard_input(

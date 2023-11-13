@@ -176,12 +176,12 @@ impl Widget for Scroll {
                 .into_signed();
         let max_extents = Size::new(
             if self.enabled.x {
-                ConstraintLimit::ClippedAfter(UPx::MAX - scroll.x.into_unsigned())
+                ConstraintLimit::ClippedAfter((control_size.width).into_unsigned())
             } else {
                 available_space.width
             },
             if self.enabled.y {
-                ConstraintLimit::ClippedAfter(UPx::MAX - scroll.y.into_unsigned())
+                ConstraintLimit::ClippedAfter((control_size.height).into_unsigned())
             } else {
                 available_space.height
             },
@@ -242,16 +242,12 @@ impl Widget for Scroll {
 
         Size::new(
             if self.enabled.x {
-                available_space
-                    .width
-                    .fit_measured(self.content_size.width, context.gfx.scale())
+                constrain_child(available_space.width, self.content_size.width)
             } else {
                 self.content_size.width.into_unsigned()
             },
             if self.enabled.y {
-                available_space
-                    .height
-                    .fit_measured(self.content_size.height, context.gfx.scale())
+                constrain_child(available_space.height, self.content_size.height)
             } else {
                 self.content_size.height.into_unsigned()
             },
@@ -284,6 +280,14 @@ impl Widget for Scroll {
 
             HANDLED
         }
+    }
+}
+
+fn constrain_child(constraint: ConstraintLimit, measured: Px) -> UPx {
+    let measured = measured.into_unsigned();
+    match constraint {
+        ConstraintLimit::Known(size) => size.min(measured),
+        ConstraintLimit::ClippedAfter(_) => measured,
     }
 }
 

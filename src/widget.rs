@@ -18,12 +18,12 @@ use kludgine::Color;
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::{
-    ContainerLevel, Dimension, Edges, IntoComponentValue, NamedComponent, Styles, ThemePair,
-    VisualOrder,
+    ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue, NamedComponent, Styles,
+    ThemePair, VisualOrder,
 };
 use crate::tree::Tree;
 use crate::value::{IntoValue, Value};
-use crate::widgets::{Align, Container, Expand, Scroll, Stack, Style};
+use crate::widgets::{Align, Container, Expand, Resize, Scroll, Stack, Style};
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
 
@@ -620,6 +620,26 @@ pub trait MakeWidget: Sized {
     #[must_use]
     fn expand_vertically(self) -> Expand {
         Expand::horizontal(self)
+    }
+
+    /// Resizes `self` to `width`.
+    ///
+    /// `width` can be an individual
+    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
+    /// range.
+    #[must_use]
+    fn width(self, width: impl Into<DimensionRange>) -> Resize {
+        Resize::from_width(width, self)
+    }
+
+    /// Resizes `self` to `height`.
+    ///
+    /// `height` can be an individual
+    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
+    /// range.
+    #[must_use]
+    fn height(self, height: impl Into<DimensionRange>) -> Resize {
+        Resize::from_height(height, self)
     }
 
     /// Aligns `self` to the center vertically and horizontally.

@@ -2,8 +2,8 @@ use gooey::value::Dynamic;
 use gooey::widgets::Button;
 use gooey::Run;
 
+// begin rustme snippet: readme
 fn main() -> gooey::Result {
-    // begin rustme snippet: readme
     // Create a dynamic usize.
     let count = Dynamic::new(0_usize);
 
@@ -14,5 +14,5 @@ fn main() -> gooey::Result {
         .on_click(count.with_clone(|count| move |_| count.set(count.get() + 1)))
         // Run the button as an an application.
         .run()
-    // end rustme snippet
 }
+// end rustme snippet

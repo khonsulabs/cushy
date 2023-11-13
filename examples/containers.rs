@@ -7,6 +7,7 @@ use gooey::Run;
 fn main() -> gooey::Result {
     let theme_mode = Dynamic::default();
     set_of_containers(1, theme_mode.clone())
+        .centered()
         .into_window()
         .with_theme_mode(theme_mode)
         .run()

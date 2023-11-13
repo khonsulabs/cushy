@@ -2,7 +2,7 @@ use std::process::exit;
 
 use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
-use gooey::widgets::{Button, Expand, Input, Label, Resize, Stack};
+use gooey::widgets::{Button, Expand, Input, Label};
 use gooey::Run;
 use kludgine::figures::units::Lp;
 
@@ -14,42 +14,46 @@ fn main() -> gooey::Result {
         (&username, &password).map_each(|(username, password)| validate(username, password));
 
     // TODO this should be a grid layout to ensure proper visual alignment.
-    let username_row = Stack::columns(
-        Label::new("Username").and(Input::new(username.clone()).fit_horizontally().expand()),
-    );
+    let username_row = Label::new("Username")
+        .and(Input::new(username.clone()).expand())
+        .into_columns();
 
-    let password_row = Stack::columns(Label::new("Password").and(
-        // TODO secure input
-        Input::new(password.clone()).fit_horizontally().expand(),
-    ));
+    let password_row = Label::new("Password")
+        .and(
+            // TODO secure input
+            Input::new(password.clone()).expand(),
+        )
+        .into_columns();
 
-    let buttons = Stack::columns(
-        Button::new("Cancel")
-            .on_click(|_| {
-                eprintln!("Login cancelled");
-                exit(0)
-            })
-            .into_escape()
-            .and(Expand::empty())
-            .and(
-                Button::new("Log In")
-                    .enabled(valid)
-                    .on_click(move |_| {
-                        println!("Welcome, {}", username.get());
-                        exit(0);
-                    })
-                    .into_default(),
-            ),
-    );
+    let buttons = Button::new("Cancel")
+        .on_click(|_| {
+            eprintln!("Login cancelled");
+            exit(0)
+        })
+        .into_escape()
+        .and(Expand::empty())
+        .and(
+            Button::new("Log In")
+                .enabled(valid)
+                .on_click(move |_| {
+                    println!("Welcome, {}", username.get());
+                    exit(0);
+                })
+                .into_default(),
+        )
+        .into_columns();
 
-    Resize::width(
-        Lp::points(300)..Lp::points(600),
-        Stack::rows(username_row.and(password_row).and(buttons)),
-    )
-    .scroll()
-    .centered()
-    .expand()
-    .run()
+    username_row
+        .pad()
+        .and(password_row.pad())
+        .and(buttons.pad())
+        .into_rows()
+        .contain()
+        .width(Lp::points(300)..Lp::points(600))
+        .scroll()
+        .centered()
+        .expand()
+        .run()
 }
 
 fn validate(username: &String, password: &String) -> bool {
