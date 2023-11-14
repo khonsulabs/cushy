@@ -400,6 +400,11 @@ impl Layout {
         let allocated_space =
             self.allocated_space.0 + self.allocated_space.1.into_px(scale).into_unsigned();
         let mut remaining = available_space.saturating_sub(allocated_space);
+        // If our `other_constraint` is not known, we will need to give child
+        // widgets an opportunity to lay themselves out in the full area. This
+        // requires one extra layout call, so we avoid persisting layouts during
+        // the first loop if this is the case.
+        let needs_final_layout = !matches!(other_constraint, ConstraintLimit::Known(_));
 
         // Measure the children that fit their content
         self.other = UPx(0);
@@ -409,7 +414,7 @@ impl Layout {
                 index,
                 self.orientation
                     .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
-                false,
+                !needs_final_layout,
             ));
             self.layouts[index].size = measured;
             self.other = self.other.max(other);
@@ -450,7 +455,7 @@ impl Layout {
                         ),
                         other_constraint,
                     ),
-                    true,
+                    !needs_final_layout,
                 ));
                 self.other = self.other.max(measured);
             }
@@ -461,19 +466,23 @@ impl Layout {
             ConstraintLimit::ClippedAfter(clip_limit) => self.other.min(clip_limit),
         };
 
-        // Finally layout the widgets with the final constraints
+        // Finally, compute the offsets of all of the widgets.
         let mut offset = UPx(0);
         for index in 0..self.children.len() {
             self.layouts[index].offset = offset;
             offset += self.layouts[index].size;
-            self.orientation.split_size(measure(
-                index,
-                self.orientation.make_size(
-                    ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
-                    ConstraintLimit::Known(self.other),
-                ),
-                true,
-            ));
+            if needs_final_layout {
+                self.orientation.split_size(measure(
+                    index,
+                    self.orientation.make_size(
+                        ConstraintLimit::Known(
+                            self.layouts[index].size.into_px(scale).into_unsigned(),
+                        ),
+                        ConstraintLimit::Known(self.other),
+                    ),
+                    true,
+                ));
+            }
         }
 
         self.orientation.make_size(offset, self.other)
