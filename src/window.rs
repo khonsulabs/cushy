@@ -1093,7 +1093,7 @@ pub(crate) mod sealed {
 }
 
 /// Controls whether the light or dark theme is applied.
-#[derive(Default, Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Default, Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, LinearInterpolate)]
 pub enum ThemeMode {
     /// Applies the light theme
     Light,
@@ -1140,16 +1140,6 @@ impl From<ThemeMode> for window::Theme {
         match value {
             ThemeMode::Light => Self::Light,
             ThemeMode::Dark => Self::Dark,
-        }
-    }
-}
-
-impl LinearInterpolate for ThemeMode {
-    fn lerp(&self, target: &Self, percent: f32) -> Self {
-        if percent >= 0.5 {
-            *target
-        } else {
-            *self
         }
     }
 }

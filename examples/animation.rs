@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use gooey::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn};
-use gooey::value::{Dynamic, StringValue};
+use gooey::value::Dynamic;
 use gooey::widget::MakeWidget;
 use gooey::{Run, WithClone};
 

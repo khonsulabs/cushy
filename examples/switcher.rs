@@ -1,4 +1,4 @@
-use gooey::value::{Dynamic, StringValue};
+use gooey::value::Dynamic;
 use gooey::widget::{MakeWidget, WidgetInstance};
 use gooey::widgets::Switcher;
 use gooey::Run;

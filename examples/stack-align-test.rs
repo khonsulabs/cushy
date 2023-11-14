@@ -1,4 +1,3 @@
-use gooey::value::StringValue;
 use gooey::widget::MakeWidget;
 use gooey::Run;
 

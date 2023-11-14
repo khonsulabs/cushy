@@ -24,7 +24,9 @@ use crate::styles::{
 use crate::tree::Tree;
 use crate::utils::IgnorePoison;
 use crate::value::{IntoValue, Value};
-use crate::widgets::{Align, Container, Expand, Resize, Scroll, Stack, Style, Themed, ThemedMode};
+use crate::widgets::{
+    Align, Button, Container, Expand, Resize, Scroll, Stack, Style, Themed, ThemedMode,
+};
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
 
@@ -641,6 +643,11 @@ pub trait MakeWidget: Sized {
     #[must_use]
     fn height(self, height: impl Into<DimensionRange>) -> Resize {
         Resize::from_height(height, self)
+    }
+
+    /// Returns this string as a clickable button.
+    fn into_button(self) -> Button {
+        Button::new(self)
     }
 
     /// Aligns `self` to the center vertically and horizontally.

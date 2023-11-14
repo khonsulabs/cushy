@@ -1,6 +1,6 @@
 use std::string::ToString;
 
-use gooey::value::{Dynamic, StringValue};
+use gooey::value::Dynamic;
 use gooey::widget::MakeWidget;
 use gooey::Run;
 use kludgine::figures::units::Lp;
