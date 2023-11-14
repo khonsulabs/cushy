@@ -1,8 +1,10 @@
 ---
 source: gooey-macros/src/animation.rs
-expression: unparse(&parse2(output).unwrap())
+expression: unparse(ok)
 ---
 impl ::gooey::animation::LinearInterpolate for HelloWorld {
+    /**# Panics
+ Panics if any field's lerp panics (this should only happen on percentages outside 0..1 range).*/
     fn lerp(&self, __target: &Self, __percent: f32) -> Self {
         HelloWorld {
             0: ::gooey::animation::LinearInterpolate::lerp(
