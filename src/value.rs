@@ -15,8 +15,8 @@ use intentional::Assert;
 use crate::animation::{DynamicTransition, LinearInterpolate};
 use crate::context::{WidgetContext, WindowHandle};
 use crate::utils::{IgnorePoison, WithClone};
-use crate::widget::WidgetId;
-use crate::widgets::Input;
+use crate::widget::{WidgetId, WidgetInstance};
+use crate::widgets::{Input, Switcher};
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -392,6 +392,15 @@ impl<T> Dynamic<T> {
             dynamic: self.clone(),
             new_value,
         }
+    }
+}
+
+impl Dynamic<WidgetInstance> {
+    /// Returns a new [`Switcher`] widget whose contents is the value of this
+    /// dynamic.
+    #[must_use]
+    pub fn switcher(self) -> Switcher {
+        Switcher::new(self)
     }
 }
 
@@ -920,6 +929,21 @@ where
         Dynamic::default().with_for_each(self)
     }
 }
+
+/// A type that can be the source of a [`Switcher`] widget.
+pub trait Switchable<T>: IntoDynamic<T> + Sized {
+    /// Returns a new [`Switcher`] whose contents is the result of invoking
+    /// `map` each time `self` is updated.
+    fn switcher<F>(self, map: F) -> Switcher
+    where
+        F: FnMut(&T, &Dynamic<T>) -> WidgetInstance + Send + 'static,
+        T: Send + 'static,
+    {
+        Switcher::mapping(self, map)
+    }
+}
+
+impl<T, W> Switchable<T> for W where W: IntoDynamic<T> {}
 
 /// A value that may be either constant or dynamic.
 #[derive(Debug)]

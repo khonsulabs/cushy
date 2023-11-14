@@ -1,6 +1,5 @@
-use gooey::value::Dynamic;
+use gooey::value::{Dynamic, Switchable};
 use gooey::widget::{MakeWidget, WidgetInstance};
-use gooey::widgets::Switcher;
 use gooey::Run;
 
 #[derive(Debug)]
@@ -12,14 +11,15 @@ enum ActiveContent {
 fn main() -> gooey::Result {
     let active = Dynamic::new(ActiveContent::Intro);
 
-    Switcher::new(active.clone(), move |content| match content {
-        ActiveContent::Intro => intro(active.clone()),
-        ActiveContent::Success => success(active.clone()),
-    })
-    .contain()
-    .centered()
-    .expand()
-    .run()
+    active
+        .switcher(|current, active| match current {
+            ActiveContent::Intro => intro(active.clone()),
+            ActiveContent::Success => success(active.clone()),
+        })
+        .contain()
+        .centered()
+        .expand()
+        .run()
 }
 
 fn intro(active: Dynamic<ActiveContent>) -> WidgetInstance {
