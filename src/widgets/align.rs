@@ -4,9 +4,9 @@ use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
 
 use crate::context::{AsEventContext, LayoutContext};
-use crate::styles::{Dimension, Edges, FlexibleDimension};
+use crate::styles::{Edges, FlexibleDimension};
 use crate::value::{IntoValue, Value};
-use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
+use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A widget aligns its contents to its container's boundaries.
@@ -32,22 +32,54 @@ impl Align {
         Self::new(FlexibleDimension::Auto, widget)
     }
 
-    /// Sets the left and right edges to 0 and returns self.
+    /// Sets the left edge of alignment to 0 and returns self.
+    #[must_use]
+    pub fn align_left(mut self) -> Self {
+        self.edges
+            .map_mut(|edges| edges.left = FlexibleDimension::ZERO);
+        self
+    }
+
+    /// Sets the top edge of alignment to 0 and returns self.
+    #[must_use]
+    pub fn align_top(mut self) -> Self {
+        self.edges
+            .map_mut(|edges| edges.top = FlexibleDimension::ZERO);
+        self
+    }
+
+    /// Sets the bottom edge of alignment to 0 and returns self.
+    #[must_use]
+    pub fn align_bottom(mut self) -> Self {
+        self.edges
+            .map_mut(|edges| edges.bottom = FlexibleDimension::ZERO);
+        self
+    }
+
+    /// Sets the right edge of alignment to 0 and returns self.
+    #[must_use]
+    pub fn align_right(mut self) -> Self {
+        self.edges
+            .map_mut(|edges| edges.right = FlexibleDimension::ZERO);
+        self
+    }
+
+    /// Sets the left and right edges of alignment to 0 and returns self.
     #[must_use]
     pub fn fit_horizontally(mut self) -> Self {
         self.edges.map_mut(|edges| {
-            edges.left = FlexibleDimension::Dimension(Dimension::default());
-            edges.right = FlexibleDimension::Dimension(Dimension::default());
+            edges.left = FlexibleDimension::ZERO;
+            edges.right = FlexibleDimension::ZERO;
         });
         self
     }
 
-    /// Sets the top and bottom edges to 0 and returns self.
+    /// Sets the top and bottom edges of alignment to 0 and returns self.
     #[must_use]
     pub fn fit_vertically(mut self) -> Self {
         self.edges.map_mut(|edges| {
-            edges.top = FlexibleDimension::Dimension(Dimension::default());
-            edges.bottom = FlexibleDimension::Dimension(Dimension::default());
+            edges.top = FlexibleDimension::ZERO;
+            edges.bottom = FlexibleDimension::ZERO;
         });
         self
     }
@@ -58,8 +90,8 @@ impl Align {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Layout {
         let margin = self.edges.get();
-        let vertical = FrameInfo::new(context.graphics.scale(), margin.top, margin.bottom);
-        let horizontal = FrameInfo::new(context.graphics.scale(), margin.left, margin.right);
+        let vertical = FrameInfo::new(context.gfx.scale(), margin.top, margin.bottom);
+        let horizontal = FrameInfo::new(context.gfx.scale(), margin.left, margin.right);
 
         let content_available = Size::new(
             horizontal.child_constraint(available_space.width),
@@ -75,8 +107,8 @@ impl Align {
         Layout {
             margin: Edges {
                 left,
-                right,
                 top,
+                right,
                 bottom,
             },
             content: Size::new(width, height),
@@ -146,7 +178,7 @@ impl FrameInfo {
 }
 
 impl WrapperWidget for Align {
-    fn child(&mut self) -> &mut WidgetRef {
+    fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
     }
 
@@ -154,7 +186,7 @@ impl WrapperWidget for Align {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Rect<kludgine::figures::units::Px> {
+    ) -> WrappedLayout {
         let layout = self.measure(available_space, context);
 
         Rect::new(
@@ -164,6 +196,7 @@ impl WrapperWidget for Align {
             ),
             layout.content.into_signed(),
         )
+        .into()
     }
 }
 

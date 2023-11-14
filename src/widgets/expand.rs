@@ -1,8 +1,8 @@
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, Rect, Size};
+use kludgine::figures::units::UPx;
+use kludgine::figures::{IntoSigned, Size};
 
 use crate::context::{AsEventContext, LayoutContext};
-use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
+use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::widgets::Space;
 use crate::ConstraintLimit;
 
@@ -12,10 +12,15 @@ use crate::ConstraintLimit;
 /// [`Expand`]ed widget.
 #[derive(Debug)]
 pub struct Expand {
-    /// The weight to use when splitting available space with multiple
-    /// [`Expand`] widgets.
-    pub weight: u8,
+    kind: ExpandKind,
     child: WidgetRef,
+}
+
+#[derive(Debug)]
+enum ExpandKind {
+    Weighted(u8),
+    Horizontal,
+    Vertical,
 }
 
 impl Default for Expand {
@@ -30,7 +35,25 @@ impl Expand {
     pub fn new(child: impl MakeWidget) -> Self {
         Self {
             child: WidgetRef::new(child),
-            weight: 1,
+            kind: ExpandKind::Weighted(1),
+        }
+    }
+
+    /// Returns a widget that expands `child` to fill the parent widget horizontally.
+    #[must_use]
+    pub fn horizontal(child: impl MakeWidget) -> Self {
+        Self {
+            child: WidgetRef::new(child),
+            kind: ExpandKind::Horizontal,
+        }
+    }
+
+    /// Returns a widget that expands `child` to fill the parent widget vertically.
+    #[must_use]
+    pub fn vertical(child: impl MakeWidget) -> Self {
+        Self {
+            child: WidgetRef::new(child),
+            kind: ExpandKind::Vertical,
         }
     }
 
@@ -38,8 +61,8 @@ impl Expand {
     #[must_use]
     pub fn empty() -> Self {
         Self {
-            child: WidgetRef::new(Space),
-            weight: 1,
+            child: WidgetRef::new(Space::clear()),
+            kind: ExpandKind::Weighted(1),
         }
     }
 
@@ -51,7 +74,7 @@ impl Expand {
     pub fn weighted(weight: u8, child: impl MakeWidget) -> Self {
         Self {
             child: WidgetRef::new(child),
-            weight,
+            kind: ExpandKind::Weighted(weight),
         }
     }
 
@@ -60,10 +83,18 @@ impl Expand {
     pub const fn child(&self) -> &WidgetRef {
         &self.child
     }
+
+    #[must_use]
+    pub(crate) fn weight(&self) -> Option<u8> {
+        match self.kind {
+            ExpandKind::Weighted(weight) => Some(weight),
+            ExpandKind::Horizontal | ExpandKind::Vertical => None,
+        }
+    }
 }
 
 impl WrapperWidget for Expand {
-    fn child(&mut self) -> &mut WidgetRef {
+    fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
     }
 
@@ -71,7 +102,7 @@ impl WrapperWidget for Expand {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Rect<Px> {
+    ) -> WrappedLayout {
         let available_space = Size::new(
             ConstraintLimit::Known(available_space.width.max()),
             ConstraintLimit::Known(available_space.height.max()),
@@ -79,15 +110,29 @@ impl WrapperWidget for Expand {
         let child = self.child.mounted(&mut context.as_event_context());
         let size = context.for_other(&child).layout(available_space);
 
-        Size::<UPx>::new(
-            available_space
-                .width
-                .fit_measured(size.width, context.graphics.scale()),
-            available_space
-                .height
-                .fit_measured(size.height, context.graphics.scale()),
-        )
-        .into_signed()
-        .into()
+        let (width, height) = match &self.kind {
+            ExpandKind::Weighted(_) => (
+                available_space
+                    .width
+                    .fit_measured(size.width, context.gfx.scale()),
+                available_space
+                    .height
+                    .fit_measured(size.height, context.gfx.scale()),
+            ),
+            ExpandKind::Horizontal => (
+                available_space
+                    .width
+                    .fit_measured(size.width, context.gfx.scale()),
+                size.height,
+            ),
+            ExpandKind::Vertical => (
+                size.width,
+                available_space
+                    .height
+                    .fit_measured(size.height, context.gfx.scale()),
+            ),
+        };
+
+        Size::<UPx>::new(width, height).into_signed().into()
     }
 }

@@ -1,3 +1,5 @@
+[workspace]
+
 [package]
 name = "gooey"
 version = "0.1.0"
@@ -16,8 +18,14 @@ interner = "0.2.1"
 kempt = "0.2.1"
 intentional = "0.1.0"
 tracing = "0.1.40"
+rustix = "=0.38.21"
 
-tracing-subscriber = { version = "0.3", optional = true }
+tracing-subscriber = { version = "0.3", optional = true, features = [
+    "env-filter",
+] }
+palette = "0.7.3"
+ahash = "0.8.6"
+gooey-macros = { version = "0.1.0", path = "gooey-macros" }
 
 
 # [patch."https://github.com/khonsulabs/kludgine"]
@@ -35,3 +43,6 @@ opt-level = 2
 
 [dev-dependencies]
 pollster = "0.3.0"
+
+[profile.release]
+debug = true

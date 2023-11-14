@@ -76,8 +76,9 @@ where
         let focus = self.focus.get();
         // TODO this needs to be updated to support being placed in side of a scroll view.
         self.layers.map(|layers| {
-            tilemap::draw(layers, focus, self.zoom, context.graphics.inner_graphics());
+            tilemap::draw(layers, focus, self.zoom, context.gfx.inner_graphics());
         });
+        context.draw_focus_ring();
 
         if let Some(tick) = &self.tick {
             tick.rendered(context);
@@ -85,6 +86,18 @@ where
             self.focus.redraw_when_changed(context);
             self.layers.redraw_when_changed(context);
         }
+    }
+
+    fn accept_focus(&mut self, _context: &mut EventContext<'_, '_>) -> bool {
+        true
+    }
+
+    fn hit_test(
+        &mut self,
+        _location: kludgine::figures::Point<kludgine::figures::units::Px>,
+        _context: &mut EventContext<'_, '_>,
+    ) -> bool {
+        true
     }
 
     fn layout(
@@ -126,14 +139,6 @@ where
         let world = tilemap::translate_coordinates(local, offset, scale, zoom, size);
 
         self.debug_output.as_ref().unwrap().set(format!("world: {world:?} | local: {local:?}"));
-    }
-
-    fn hit_test(&mut self, _: Point<Px>, _: &mut EventContext<'_, '_>) -> bool {
-        true
-    }
-
-    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
-        true
     }
 
     fn keyboard_input(

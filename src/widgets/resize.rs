@@ -1,17 +1,18 @@
-use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size};
+use kludgine::figures::units::UPx;
+use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, ScreenScale, Size};
 
 use crate::context::{AsEventContext, LayoutContext};
-use crate::styles::Dimension;
-use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
+use crate::styles::DimensionRange;
+use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A widget that resizes its contained widget to an explicit size.
 #[derive(Debug)]
 pub struct Resize {
-    /// If present, the width to apply to the child widget.
-    pub width: Option<Dimension>,
-    /// If present, the height to apply to the child widget.
-    pub height: Option<Dimension>,
+    /// The range of allowed width for the child widget.
+    pub width: DimensionRange,
+    /// The range of allowed height for the child widget.
+    pub height: DimensionRange,
     child: WidgetRef,
 }
 
@@ -26,38 +27,60 @@ impl Resize {
     #[must_use]
     pub fn to<T>(size: Size<T>, child: impl MakeWidget) -> Self
     where
-        T: Into<Dimension>,
+        T: Into<DimensionRange>,
     {
         Self {
             child: WidgetRef::new(child),
-            width: Some(size.width.into()),
-            height: Some(size.height.into()),
+            width: size.width.into(),
+            height: size.height.into(),
         }
     }
 
     /// Resizes `child`'s width to `width`.
     #[must_use]
-    pub fn width(width: impl Into<Dimension>, child: impl MakeWidget) -> Self {
+    pub fn from_width(width: impl Into<DimensionRange>, child: impl MakeWidget) -> Self {
         Self {
             child: WidgetRef::new(child),
-            width: Some(width.into()),
-            height: None,
+            width: width.into(),
+            height: DimensionRange::from(..),
         }
+    }
+
+    /// Resizes `self` to `width`.
+    ///
+    /// `width` can be an individual
+    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
+    /// range.
+    #[must_use]
+    pub fn width(mut self, width: impl Into<DimensionRange>) -> Self {
+        self.width = width.into();
+        self
+    }
+
+    /// Resizes `self` to `height`.
+    ///
+    /// `width` can be an individual
+    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
+    /// range.
+    #[must_use]
+    pub fn height(mut self, height: impl Into<DimensionRange>) -> Self {
+        self.height = height.into();
+        self
     }
 
     /// Resizes `child`'s height to `height`.
     #[must_use]
-    pub fn height(height: impl Into<Dimension>, child: impl MakeWidget) -> Self {
+    pub fn from_height(height: impl Into<DimensionRange>, child: impl MakeWidget) -> Self {
         Self {
             child: WidgetRef::new(child),
-            width: None,
-            height: Some(height.into()),
+            width: DimensionRange::from(..),
+            height: height.into(),
         }
     }
 }
 
 impl WrapperWidget for Resize {
-    fn child(&mut self) -> &mut WidgetRef {
+    fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
     }
 
@@ -65,36 +88,43 @@ impl WrapperWidget for Resize {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Rect<kludgine::figures::units::Px> {
+    ) -> WrappedLayout {
         let child = self.child.mounted(&mut context.as_event_context());
-        let size = if let (Some(width), Some(height)) = (self.width, self.height) {
+        let size = if let (Some(width), Some(height)) =
+            (self.width.exact_dimension(), self.height.exact_dimension())
+        {
             Size::new(
-                width.into_px(context.graphics.scale()).into_unsigned(),
-                height.into_px(context.graphics.scale()).into_unsigned(),
+                width.into_px(context.gfx.scale()).into_unsigned(),
+                height.into_px(context.gfx.scale()).into_unsigned(),
             )
         } else {
             let available_space = Size::new(
-                override_constraint(available_space.width, self.width, context.graphics.scale()),
-                override_constraint(
-                    available_space.height,
-                    self.height,
-                    context.graphics.scale(),
-                ),
+                override_constraint(available_space.width, self.width, context.gfx.scale()),
+                override_constraint(available_space.height, self.height, context.gfx.scale()),
             );
             context.for_other(&child).layout(available_space)
         };
-        Rect::from(size.into_signed())
+        Size::<UPx>::new(
+            self.width.clamp(size.width, context.gfx.scale()),
+            self.height.clamp(size.height, context.gfx.scale()),
+        )
+        .into_signed()
+        .into()
     }
 }
 
 fn override_constraint(
     constraint: ConstraintLimit,
-    explicit: Option<Dimension>,
+    range: DimensionRange,
     scale: Fraction,
 ) -> ConstraintLimit {
-    if let Some(size) = explicit {
-        ConstraintLimit::Known(size.into_px(scale).into_unsigned())
-    } else {
-        constraint
+    match constraint {
+        ConstraintLimit::Known(size) => ConstraintLimit::Known(range.clamp(size, scale)),
+        ConstraintLimit::ClippedAfter(clipped_after) => match (range.minimum(), range.maximum()) {
+            (Some(min), Some(max)) if min == max => {
+                ConstraintLimit::Known(min.into_px(scale).into_unsigned())
+            }
+            _ => ConstraintLimit::ClippedAfter(range.clamp(clipped_after, scale)),
+        },
     }
 }

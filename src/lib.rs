@@ -2,6 +2,9 @@
 #![warn(clippy::pedantic, missing_docs)]
 #![allow(clippy::module_name_repetitions, clippy::missing_errors_doc)]
 
+// for proc-macros
+extern crate self as gooey;
+
 #[macro_use]
 mod utils;
 
@@ -9,6 +12,7 @@ pub mod animation;
 pub mod context;
 mod graphics;
 mod names;
+#[macro_use]
 pub mod styles;
 mod tick;
 mod tree;
@@ -23,7 +27,7 @@ use kludgine::app::winit::error::EventLoopError;
 use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoUnsigned, ScreenUnit};
 pub use names::Name;
-pub use utils::WithClone;
+pub use utils::{Lazy, WithClone};
 
 pub use self::graphics::Graphics;
 pub use self::tick::{InputState, Tick};
@@ -47,10 +51,10 @@ impl ConstraintLimit {
     }
 
     /// Converts `measured` to unsigned pixels, and adjusts it according to the
-    /// contraint's intentions.
+    /// constraint's intentions.
     ///
     /// If this constraint is of a known size, it will return the maximum of the
-    /// measured size and the contraint. If it is of an unknown size, it will
+    /// measured size and the constraint. If it is of an unknown size, it will
     /// return the measured size.
     pub fn fit_measured<Unit>(self, measured: Unit, scale: Fraction) -> UPx
     where
@@ -142,14 +146,24 @@ fn initialize_tracing() {
     #[cfg(feature = "tracing-output")]
     {
         use tracing::Level;
+        use tracing_subscriber::filter::LevelFilter;
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+        use tracing_subscriber::EnvFilter;
 
         #[cfg(debug_assertions)]
-        const MAX_LEVEL: Level = Level::DEBUG;
+        const MAX_LEVEL: Level = Level::INFO;
         #[cfg(not(debug_assertions))]
         const MAX_LEVEL: Level = Level::ERROR;
 
         let _result = tracing_subscriber::fmt::fmt()
             .with_max_level(MAX_LEVEL)
+            .finish()
+            .with(
+                EnvFilter::builder()
+                    .with_default_directive(LevelFilter::from_level(MAX_LEVEL).into())
+                    .from_env_lossy(),
+            )
             .try_init();
     }
 }

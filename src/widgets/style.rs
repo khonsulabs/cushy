@@ -1,27 +1,28 @@
 use crate::context::EventContext;
 use crate::styles::Styles;
+use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 
 /// A widget that applies a set of [`Styles`] to all contained widgets.
 #[derive(Debug)]
 pub struct Style {
-    styles: Styles,
+    styles: Value<Styles>,
     child: WidgetRef,
 }
 
 impl Style {
     /// Returns a new widget that applies `styles` to `child` and any children
     /// it may have.
-    pub fn new(styles: impl Into<Styles>, child: impl MakeWidget) -> Self {
+    pub fn new(styles: impl IntoValue<Styles>, child: impl MakeWidget) -> Self {
         Self {
-            styles: styles.into(),
+            styles: styles.into_value(),
             child: WidgetRef::new(child),
         }
     }
 }
 
 impl WrapperWidget for Style {
-    fn child(&mut self) -> &mut WidgetRef {
+    fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
     }
 

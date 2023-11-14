@@ -5,18 +5,21 @@ use std::time::Duration;
 
 use kludgine::app::winit::event::{ElementState, Ime, KeyEvent};
 use kludgine::app::winit::keyboard::Key;
-use kludgine::cosmic_text::{Action, Attrs, Buffer, Cursor, Edit, Editor, Metrics, Shaping};
-use kludgine::figures::units::{Px, UPx};
+use kludgine::cosmic_text::{
+    Action, Affinity, Attrs, Buffer, Cursor, Edit, Editor, Metrics, Shaping,
+};
+use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
     FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size,
 };
-use kludgine::shapes::Shape;
+use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::text::TextOrigin;
 use kludgine::{Color, Kludgine};
 
 use crate::context::{EventContext, LayoutContext, WidgetContext};
-use crate::styles::components::{HighlightColor, LineHeight, TextColor, TextSize};
-use crate::styles::Styles;
+use crate::styles::components::{
+    HighlightColor, IntrinsicPadding, LineHeight, OutlineColor, TextColor, TextSize,
+};
 use crate::utils::ModifiersExt;
 use crate::value::{Generation, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
@@ -32,6 +35,8 @@ pub struct Input {
     on_key: Option<Callback<KeyEvent, EventHandling>>,
     editor: Option<LiveEditor>,
     cursor_state: CursorState,
+    needs_to_select_all: bool,
+    mouse_buttons_down: usize,
 }
 
 impl Input {
@@ -47,6 +52,8 @@ impl Input {
             editor: None,
             cursor_state: CursorState::default(),
             on_key: None,
+            mouse_buttons_down: 0,
+            needs_to_select_all: true,
         }
     }
 
@@ -62,7 +69,11 @@ impl Input {
         self
     }
 
-    fn editor_mut(&mut self, kludgine: &mut Kludgine, styles: &Styles) -> &mut Editor {
+    fn editor_mut(
+        &mut self,
+        kludgine: &mut Kludgine,
+        context: &WidgetContext<'_, '_>,
+    ) -> &mut Editor {
         match (&self.editor, self.text.generation()) {
             (Some(editor), generation) if editor.generation == generation => {}
             (_, generation) => {
@@ -70,11 +81,8 @@ impl Input {
                 let mut buffer = Buffer::new(
                     kludgine.font_system(),
                     Metrics::new(
-                        styles.get_or_default(&TextSize).into_px(scale).into_float(),
-                        styles
-                            .get_or_default(&LineHeight)
-                            .into_px(scale)
-                            .into_float(),
+                        context.get(&TextSize).into_px(scale).into_float(),
+                        context.get(&LineHeight).into_px(scale).into_float(),
                     ),
                 );
                 self.text.map(|text| {
@@ -95,8 +103,20 @@ impl Input {
         &mut self.editor.as_mut().expect("just initialized").editor
     }
 
-    fn styles(context: &WidgetContext<'_, '_>) -> Styles {
-        context.query_styles(&[&TextColor, &TextSize, &LineHeight])
+    fn select_all(&mut self) {
+        let Some(editor) = self.editor.as_mut().map(|editor| &mut editor.editor) else {
+            return;
+        };
+        if !editor.buffer().lines.is_empty() {
+            let line = editor.buffer().lines.len() - 1;
+            let end = Cursor::new_with_affinity(
+                line,
+                editor.buffer().lines[line].text().len(),
+                Affinity::After,
+            );
+            editor.set_cursor(end);
+            editor.set_select_opt(Some(Cursor::new_with_affinity(0, 0, Affinity::Before)));
+        }
     }
 }
 
@@ -130,9 +150,10 @@ impl Widget for Input {
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
+        self.mouse_buttons_down += 1;
         context.focus();
-        let styles = context.query_styles(&[&TextColor]);
-        self.editor_mut(context.kludgine, &styles).action(
+        self.needs_to_select_all = false;
+        self.editor_mut(context.kludgine, &context.widget).action(
             context.kludgine.font_system(),
             Action::Click {
                 x: location.x.0,
@@ -150,8 +171,7 @@ impl Widget for Input {
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_, '_>,
     ) {
-        let styles = context.query_styles(&[&TextColor]);
-        self.editor_mut(context.kludgine, &styles).action(
+        self.editor_mut(context.kludgine, &context.widget).action(
             context.kludgine.font_system(),
             Action::Drag {
                 x: location.x.0,
@@ -162,26 +182,37 @@ impl Widget for Input {
         context.set_needs_redraw();
     }
 
+    fn mouse_up(
+        &mut self,
+        _location: Option<Point<Px>>,
+        _device_id: kludgine::app::winit::event::DeviceId,
+        _button: kludgine::app::winit::event::MouseButton,
+        _context: &mut EventContext<'_, '_>,
+    ) {
+        self.mouse_buttons_down -= 1;
+    }
+
     #[allow(clippy::too_many_lines)]
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
         self.cursor_state.update(context.elapsed());
         let cursor_state = self.cursor_state;
-        let size = context.graphics.size();
-        let styles = context.query_styles(&[&TextColor, &HighlightColor]);
-        let highlight = styles.get_or_default(&HighlightColor);
-        let editor = self.editor_mut(&mut context.graphics, &styles);
+        let size = context.gfx.size();
+        let padding = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
+        let padding = Point::<Px>::new(padding, padding);
+        let highlight = context.get(&HighlightColor);
+        let editor = self.editor_mut(&mut context.gfx, &context.widget);
         let cursor = editor.cursor();
         let selection = editor.select_opt();
         let buffer = editor.buffer_mut();
         buffer.set_size(
-            context.graphics.font_system(),
+            context.gfx.font_system(),
             size.width.into_float(),
             size.height.into_float(),
         );
-        buffer.shape_until_scroll(context.graphics.font_system());
+        buffer.shape_until_scroll(context.gfx.font_system());
 
         if context.focused() {
-            context.draw_focus_ring_using(&styles);
+            context.draw_focus_ring();
             context.set_ime_allowed(true);
             let line_height = Px::from_float(buffer.metrics().line_height);
             if let Some(selection) = selection {
@@ -196,24 +227,24 @@ impl Widget for Input {
                         if start_position.y == end_position.y {
                             // Single line selection
                             let width = end_position.x - start_position.x + end_width;
-                            context.graphics.draw_shape(
+                            context.gfx.draw_shape(
                                 &Shape::filled_rect(
                                     Rect::new(start_position, Size::new(width, line_height)),
                                     highlight,
                                 ),
-                                Point::default(),
+                                padding,
                                 None,
                                 None,
                             );
                         } else {
                             // Draw from start to end of line,
                             let width = size.width.into_signed() - start_position.x;
-                            context.graphics.draw_shape(
+                            context.gfx.draw_shape(
                                 &Shape::filled_rect(
                                     Rect::new(start_position, Size::new(width, line_height)),
                                     highlight,
                                 ),
-                                Point::default(),
+                                padding,
                                 None,
                                 None,
                             );
@@ -221,7 +252,7 @@ impl Widget for Input {
                             let bottom_of_first_line = start_position.y + line_height;
                             let distance_between = end_position.y - bottom_of_first_line;
                             if distance_between > 0 {
-                                context.graphics.draw_shape(
+                                context.gfx.draw_shape(
                                     &Shape::filled_rect(
                                         Rect::new(
                                             Point::new(Px(0), bottom_of_first_line),
@@ -229,13 +260,13 @@ impl Widget for Input {
                                         ),
                                         highlight,
                                     ),
-                                    Point::default(),
+                                    padding,
                                     None,
                                     None,
                                 );
                             }
                             // Draw from 0 to end + width
-                            context.graphics.draw_shape(
+                            context.gfx.draw_shape(
                                 &Shape::filled_rect(
                                     Rect::new(
                                         Point::new(Px(0), end_position.y),
@@ -243,7 +274,7 @@ impl Widget for Input {
                                     ),
                                     highlight,
                                 ),
-                                Point::default(),
+                                padding,
                                 None,
                                 None,
                             );
@@ -251,12 +282,12 @@ impl Widget for Input {
                     }
                     (Ok((start_position, _)), Err(_)) => {
                         let width = size.width.into_signed() - start_position.x;
-                        context.graphics.draw_shape(
+                        context.gfx.draw_shape(
                             &Shape::filled_rect(
                                 Rect::new(start_position, Size::new(width, line_height)),
                                 highlight,
                             ),
-                            Point::default(),
+                            padding,
                             None,
                             None,
                         );
@@ -265,7 +296,7 @@ impl Widget for Input {
                         if end_position.y > 0 {
                             todo!("fill above start");
                         }
-                        context.graphics.draw_shape(
+                        context.gfx.draw_shape(
                             &Shape::filled_rect(
                                 Rect::new(
                                     Point::new(Px(0), end_position.y),
@@ -273,7 +304,7 @@ impl Widget for Input {
                                 ),
                                 highlight,
                             ),
-                            Point::default(),
+                            padding,
                             None,
                             None,
                         );
@@ -288,15 +319,12 @@ impl Widget for Input {
             } else if let Ok((location, _)) = cursor_glyph(buffer, &cursor) {
                 let window_focused = context.window().focused().get();
                 if window_focused && cursor_state.visible {
-                    context.graphics.draw_shape(
+                    context.gfx.draw_shape(
                         &Shape::filled_rect(
-                            Rect::new(
-                                location,
-                                Size::new(Px(1), line_height),
-                            ),
+                            Rect::new(location, Size::new(Px(1), line_height)),
                             highlight, // TODO cursor should be a bold color, highlight probably not. This should have its own color.
                         ),
-                        Point::default(),
+                        padding,
                         None,
                         None,
                     );
@@ -307,16 +335,15 @@ impl Widget for Input {
                     context.redraw_when_changed(context.window().focused());
                 }
             }
+        } else {
+            let outline_color = context.get(&OutlineColor);
+            context.stroke_outline::<Lp>(outline_color, StrokeOptions::default());
         }
 
-        context.graphics.draw_text_buffer(
-            buffer,
-            styles.get_or_default(&TextColor),
-            TextOrigin::TopLeft,
-            Point::<Px>::default(),
-            None,
-            None,
-        );
+        let text_color = context.get(&TextColor);
+        context
+            .gfx
+            .draw_text_buffer(buffer, text_color, TextOrigin::TopLeft, padding, None, None);
     }
 
     fn layout(
@@ -324,19 +351,34 @@ impl Widget for Input {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let styles = context.query_styles(&[&TextColor]);
-        let editor = self.editor_mut(&mut context.graphics, &styles);
+        let padding = context
+            .get(&IntrinsicPadding)
+            .into_px(context.gfx.scale())
+            .into_unsigned();
+        if self.needs_to_select_all {
+            self.needs_to_select_all = false;
+            self.select_all();
+        }
+        let editor = self.editor_mut(&mut context.graphics.gfx, &context.graphics.widget);
         let buffer = editor.buffer_mut();
-        buffer.set_size(
-            context.graphics.font_system(),
-            available_space.width.max().into_float(),
-            available_space.height.max().into_float(),
-        );
+        let width = available_space
+            .width
+            .max()
+            .saturating_sub(padding * 2)
+            .into_float();
+        let height = available_space
+            .height
+            .max()
+            .saturating_sub(padding * 2)
+            .into_float();
+
+        buffer.set_size(context.gfx.font_system(), width, height);
         context
-            .graphics
+            .gfx
             .measure_text_buffer::<Px>(buffer, Color::WHITE)
             .size
             .into_unsigned()
+            + Size::new(padding * 2, padding * 2)
     }
 
     fn keyboard_input(
@@ -350,14 +392,13 @@ impl Widget for Input {
             on_key.invoke(input.clone())?;
         }
 
-        let styles = context.query_styles(&[&TextColor]);
-        let editor = self.editor_mut(context.kludgine, &styles);
+        let editor = self.editor_mut(context.kludgine, &context.widget);
 
         // println!(
         //     "Keyboard input: {:?}. {:?}, {:?}",
         //     input.logical_key, input.text, input.physical_key
         // );
-        let (text_changed, handled) = match (input.state, input.logical_key, input.text) {
+        let (text_changed, handled) = match (input.state, input.logical_key, input.text.as_deref()) {
             (ElementState::Pressed,  key @ (Key::Backspace | Key::Delete), _) => {
                 editor.action(
                     context.kludgine.font_system(),
@@ -395,6 +436,12 @@ impl Widget for Input {
                 );
                 (false, HANDLED)
             }
+            (state, _, Some("a")) if context.modifiers().primary() => {
+                if state.is_pressed() {
+                    self.select_all();
+                }
+                (false, HANDLED)
+            }
             (state, _, Some(text))
                 if !context.modifiers().primary()
                     && text != "\t" // tab
@@ -403,7 +450,7 @@ impl Widget for Input {
                     =>
             {
                 if state.is_pressed() {
-                    editor.insert_string(&text, None);
+                    editor.insert_string(text, None);
                 }
                 (state.is_pressed(), HANDLED)
             }
@@ -434,10 +481,10 @@ impl Widget for Input {
         match ime {
             Ime::Enabled | Ime::Disabled => {}
             Ime::Preedit(text, cursor) => {
-                println!("TODO: preview IME input {text}, cursor: {cursor:?}");
+                tracing::warn!("TODO: preview IME input {text}, cursor: {cursor:?}");
             }
             Ime::Commit(text) => {
-                self.editor_mut(context.kludgine, &Self::styles(&context.widget))
+                self.editor_mut(context.kludgine, &context.widget)
                     .insert_string(&text, None);
                 context.set_needs_redraw();
             }
@@ -447,6 +494,10 @@ impl Widget for Input {
     }
 
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {
+        if self.mouse_buttons_down == 0 {
+            self.needs_to_select_all = true;
+        }
+
         context.set_ime_allowed(true);
         context.set_needs_redraw();
     }

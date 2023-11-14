@@ -135,6 +135,21 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         self.renderer.scale()
     }
 
+    /// Fills the entire context with `color`.
+    ///
+    /// If the alpha channel of `color` is 0, this function does nothing.
+    pub fn fill(&mut self, color: Color) {
+        if color.alpha() > 0 {
+            let rect = Rect::from(self.region.size);
+            self.draw_shape(
+                &Shape::filled_rect(rect, color),
+                Point::default(),
+                None,
+                None,
+            );
+        }
+    }
+
     /// Draws a shape at the origin, rotating and scaling as needed.
     pub fn draw_shape<Unit>(
         &mut self,

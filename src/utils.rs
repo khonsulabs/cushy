@@ -101,12 +101,19 @@ impl ModifiersExt for Modifiers {
     }
 }
 
+/// A [`OnceLock`]-based lazy initializer.
 pub struct Lazy<T> {
     init: fn() -> T,
     once: OnceLock<T>,
 }
 
 impl<T> Lazy<T> {
+    /// Returns a type that initializes itself once upon being accessed.
+    ///
+    /// `init` is guaranteed to be called only once, but this type can't accept
+    /// `FnOnce` generic types due to being unable to allocate a `Box<dyn T>` in
+    /// `const` or being able to give a name to the type of a function so that
+    /// users could use this type in static variables.
     pub const fn new(init: fn() -> T) -> Self {
         Self {
             init,

@@ -3,24 +3,28 @@
 use std::any::Any;
 use std::clone::Clone;
 use std::fmt::Debug;
-use std::ops::{ControlFlow, Deref};
+use std::ops::{ControlFlow, Deref, DerefMut};
 use std::panic::UnwindSafe;
 use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+use alot::LotId;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
+use kludgine::Color;
 
-use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
-use crate::styles::components::VisualOrder;
-use crate::styles::Styles;
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::styles::{
+    ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue, NamedComponent, Styles,
+    ThemePair, VisualOrder,
+};
 use crate::tree::Tree;
 use crate::value::{IntoValue, Value};
-use crate::widgets::{Align, Expand, Scroll, Style};
-use crate::window::{RunningWindow, Window, WindowBehavior};
+use crate::widgets::{Align, Container, Expand, Resize, Scroll, Stack, Style};
+use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
 
 /// A type that makes up a graphical user interface.
@@ -38,6 +42,12 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx>;
+
+    /// Return true if this widget should expand to fill the window when it is
+    /// the root widget.
+    fn expand_if_at_root(&self) -> Option<bool> {
+        Some(false)
+    }
 
     /// The widget has been mounted into a parent widget.
     #[allow(unused_variables)]
@@ -156,6 +166,13 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     ) -> EventHandling {
         IGNORED
     }
+
+    /// Returns a reference to a single child widget if this widget is a widget
+    /// that primarily wraps a single other widget to customize its behavior.
+    #[must_use]
+    fn wraps(&mut self) -> Option<&WidgetInstance> {
+        None
+    }
 }
 
 impl<T> Run for T
@@ -167,10 +184,46 @@ where
     }
 }
 
+/// The layout of a [wrapped](WrapperWidget) child widget.
+#[derive(Clone, Copy, Debug)]
+pub struct WrappedLayout {
+    /// The region the child widget occupies within its parent.
+    pub child: Rect<Px>,
+    /// The size the wrapper widget should report as.q
+    pub size: Size<UPx>,
+}
+
+impl From<Rect<Px>> for WrappedLayout {
+    fn from(child: Rect<Px>) -> Self {
+        WrappedLayout {
+            child,
+            size: child.size.into_unsigned(),
+        }
+    }
+}
+
+impl From<Size<Px>> for WrappedLayout {
+    fn from(size: Size<Px>) -> Self {
+        WrappedLayout {
+            child: size.into(),
+            size: size.into_unsigned(),
+        }
+    }
+}
+
+impl From<Size<UPx>> for WrappedLayout {
+    fn from(size: Size<UPx>) -> Self {
+        WrappedLayout {
+            child: size.into_signed().into(),
+            size,
+        }
+    }
+}
+
 /// A [`Widget`] that contains a single child.
 pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the child widget.
-    fn child(&mut self) -> &mut WidgetRef;
+    fn child_mut(&mut self) -> &mut WidgetRef;
 
     /// Returns the rectangle that the child widget should occupy given
     /// `available_space`.
@@ -179,14 +232,55 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Rect<Px> {
-        let child = self.child().mounted(&mut context.as_event_context());
-
-        context
+    ) -> WrappedLayout {
+        let adjusted_space = self.adjust_child_constraint(available_space, context);
+        let child = self.child_mut().mounted(&mut context.as_event_context());
+        let size = context
             .for_other(&child)
-            .layout(available_space)
-            .into_signed()
-            .into()
+            .layout(adjusted_space)
+            .into_signed();
+
+        self.position_child(size, available_space, context)
+    }
+
+    /// Returns the adjusted contraints to use when laying out the child.
+    #[allow(unused_variables)]
+    #[must_use]
+    fn adjust_child_constraint(
+        &mut self,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> Size<ConstraintLimit> {
+        available_space
+    }
+
+    /// Returns the layout after positioning the child that occupies `size`.
+    #[allow(unused_variables)]
+    #[must_use]
+    fn position_child(
+        &mut self,
+        size: Size<Px>,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> WrappedLayout {
+        Size::<UPx>::new(
+            available_space
+                .width
+                .fit_measured(size.width, context.gfx.scale()),
+            available_space
+                .height
+                .fit_measured(size.height, context.gfx.scale()),
+        )
+        .into()
+    }
+
+    /// Returns the background color to render behind the wrapped widget.
+    #[allow(unused_variables)]
+    #[must_use]
+    fn background_color(&mut self, context: &WidgetContext<'_, '_>) -> Option<Color> {
+        // WidgetBackground is already filled, so we don't need to do anything
+        // else by default.
+        None
     }
 
     /// The widget has been mounted into a parent widget.
@@ -312,8 +406,17 @@ impl<T> Widget for T
 where
     T: WrapperWidget,
 {
+    fn wraps(&mut self) -> Option<&WidgetInstance> {
+        Some(self.child_mut().widget())
+    }
+
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let child = self.child().mounted(&mut context.as_event_context());
+        let background_color = self.background_color(context);
+        if let Some(color) = background_color {
+            context.gfx.fill(color);
+        }
+
+        let child = self.child_mut().mounted(&mut context.as_event_context());
         context.for_other(&child).redraw();
     }
 
@@ -322,11 +425,10 @@ where
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let child = self.child().mounted(&mut context.as_event_context());
-
         let layout = self.layout_child(available_space, context);
-        context.set_child_layout(&child, layout);
-        layout.size.into_unsigned()
+        let child = self.child_mut().mounted(&mut context.as_event_context());
+        context.set_child_layout(&child, layout.child);
+        layout.size
     }
 
     fn mounted(&mut self, context: &mut EventContext<'_, '_>) {
@@ -437,10 +539,17 @@ pub trait MakeWidget: Sized {
     /// Associates `styles` with this widget.
     ///
     /// This is equivalent to `Style::new(styles, self)`.
-    fn with_styles(self, styles: impl Into<Styles>) -> Style
+    fn with_styles(self, styles: impl IntoValue<Styles>) -> Style
     where
         Self: Sized,
     {
+        Style::new(styles, self)
+    }
+
+    /// Associates a style component with `self`.
+    fn with(self, name: &impl NamedComponent, component: impl IntoComponentValue) -> Style {
+        let mut styles = Styles::new();
+        styles.insert(name, component);
         Style::new(styles, self)
     }
 
@@ -501,10 +610,72 @@ pub trait MakeWidget: Sized {
         Expand::weighted(weight, self)
     }
 
+    /// Expands `self` to grow to fill its parent horizontally.
+    #[must_use]
+    fn expand_horizontally(self) -> Expand {
+        Expand::horizontal(self)
+    }
+
+    /// Expands `self` to grow to fill its parent vertically.
+    #[must_use]
+    fn expand_vertically(self) -> Expand {
+        Expand::horizontal(self)
+    }
+
+    /// Resizes `self` to `width`.
+    ///
+    /// `width` can be an individual
+    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
+    /// range.
+    #[must_use]
+    fn width(self, width: impl Into<DimensionRange>) -> Resize {
+        Resize::from_width(width, self)
+    }
+
+    /// Resizes `self` to `height`.
+    ///
+    /// `height` can be an individual
+    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
+    /// range.
+    #[must_use]
+    fn height(self, height: impl Into<DimensionRange>) -> Resize {
+        Resize::from_height(height, self)
+    }
+
     /// Aligns `self` to the center vertically and horizontally.
     #[must_use]
     fn centered(self) -> Align {
         Align::centered(self)
+    }
+
+    /// Aligns `self` to the left.
+    fn align_left(self) -> Align {
+        self.centered().align_left()
+    }
+
+    /// Aligns `self` to the right.
+    fn align_right(self) -> Align {
+        self.centered().align_right()
+    }
+
+    /// Aligns `self` to the top.
+    fn align_top(self) -> Align {
+        self.centered().align_top()
+    }
+
+    /// Aligns `self` to the bottom.
+    fn align_bottom(self) -> Align {
+        self.centered().align_bottom()
+    }
+
+    /// Fits `self` horizontally within its parent.
+    fn fit_horizontally(self) -> Align {
+        self.centered().fit_horizontally()
+    }
+
+    /// Fits `self` vertically within its parent.
+    fn fit_vertically(self) -> Align {
+        self.centered().fit_vertically()
     }
 
     /// Allows scrolling `self` both vertically and horizontally.
@@ -523,6 +694,37 @@ pub trait MakeWidget: Sized {
     #[must_use]
     fn horizontal_scroll(self) -> Scroll {
         Scroll::horizontal(self)
+    }
+
+    /// Creates a [`WidgetRef`] for use as child widget.
+    #[must_use]
+    fn widget_ref(self) -> WidgetRef {
+        WidgetRef::new(self)
+    }
+
+    /// Wraps `self` in a [`Container`].
+    fn contain(self) -> Container {
+        Container::new(self)
+    }
+
+    /// Wraps `self` in a [`Container`] with the specified level.
+    fn contain_level(self, level: impl IntoValue<ContainerLevel>) -> Container {
+        self.contain().contain_level(level)
+    }
+
+    /// Returns a new widget that renders `color` behind `self`.
+    fn background_color(self, color: impl IntoValue<Color>) -> Container {
+        self.contain().pad_by(Px(0)).background_color(color)
+    }
+
+    /// Wraps `self` with the default padding.
+    fn pad(self) -> Container {
+        self.contain().transparent()
+    }
+
+    /// Wraps `self` with the specified padding.
+    fn pad_by(self, padding: impl IntoValue<Edges<Dimension>>) -> Container {
+        self.contain().transparent().pad_by(padding)
     }
 }
 
@@ -817,6 +1019,7 @@ where
 /// A [`Widget`] that has been attached to a widget hierarchy.
 #[derive(Clone)]
 pub struct ManagedWidget {
+    pub(crate) node_id: LotId,
     pub(crate) widget: WidgetInstance,
     pub(crate) tree: Tree,
 }
@@ -839,7 +1042,7 @@ impl ManagedWidget {
     }
 
     pub(crate) fn set_layout(&self, rect: Rect<Px>) {
-        self.tree.set_layout(self.id(), rect);
+        self.tree.set_layout(self.node_id, rect);
     }
 
     /// Returns the unique id of this widget instance.
@@ -862,51 +1065,77 @@ impl ManagedWidget {
     /// Returns the region that the widget was last rendered at.
     #[must_use]
     pub fn last_layout(&self) -> Option<Rect<Px>> {
-        self.tree.layout(self.id())
+        self.tree.layout(self.node_id)
+    }
+
+    /// Returns the effective styles for the current tree.
+    #[must_use]
+    pub fn effective_styles(&self) -> Styles {
+        self.tree.effective_styles(self.node_id)
     }
 
     /// Returns true if this widget is the currently active widget.
     #[must_use]
     pub fn active(&self) -> bool {
-        self.tree.active_widget() == Some(self.id())
+        self.tree.active_widget() == Some(self.node_id)
     }
 
     /// Returns true if this widget is currently the hovered widget.
     #[must_use]
     pub fn hovered(&self) -> bool {
-        self.tree.is_hovered(self.id())
+        self.tree.is_hovered(self.node_id)
     }
 
     /// Returns true if this widget that is directly beneath the cursor.
     #[must_use]
     pub fn primary_hover(&self) -> bool {
-        self.tree.hovered_widget() == Some(self.id())
+        self.tree.hovered_widget() == Some(self.node_id)
     }
 
     /// Returns true if this widget is the currently focused widget.
     #[must_use]
     pub fn focused(&self) -> bool {
-        self.tree.focused_widget() == Some(self.id())
+        self.tree.focused_widget() == Some(self.node_id)
     }
 
     /// Returns the parent of this widget.
     #[must_use]
     pub fn parent(&self) -> Option<ManagedWidget> {
         self.tree
-            .parent(self.id())
-            .and_then(|id| self.tree.widget(id))
+            .parent(self.node_id)
+            .and_then(|id| self.tree.widget_from_node(id))
     }
 
-    pub(crate) fn attach_styles(&self, styles: Styles) {
-        self.tree.attach_styles(self.id(), styles);
+    /// Returns true if this node has a parent.
+    #[must_use]
+    pub fn has_parent(&self) -> bool {
+        self.tree.parent(self.node_id).is_some()
+    }
+
+    pub(crate) fn attach_styles(&self, styles: Value<Styles>) {
+        self.tree.attach_styles(self.node_id, styles);
+    }
+
+    pub(crate) fn attach_theme(&self, theme: Value<ThemePair>) {
+        self.tree.attach_theme(self.node_id, theme);
+    }
+
+    pub(crate) fn attach_theme_mode(&self, theme: Value<ThemeMode>) {
+        self.tree.attach_theme_mode(self.node_id, theme);
+    }
+
+    pub(crate) fn overidden_theme(
+        &self,
+    ) -> (Styles, Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {
+        self.tree.overriden_theme(self.node_id)
     }
 
     pub(crate) fn reset_child_layouts(&self) {
-        self.tree.reset_child_layouts(self.id());
+        self.tree.reset_child_layouts(self.node_id);
     }
 
     pub(crate) fn visually_ordered_children(&self, order: VisualOrder) -> Vec<ManagedWidget> {
-        self.tree.visually_ordered_children(self.id(), order)
+        self.tree.visually_ordered_children(self.node_id, order)
     }
 }
 
@@ -989,6 +1218,14 @@ impl Children {
         self.ordered.push(widget.make_widget());
     }
 
+    /// Inserts `widget` into the list at `index`.
+    pub fn insert<W>(&mut self, index: usize, widget: W)
+    where
+        W: MakeWidget,
+    {
+        self.ordered.insert(index, widget.make_widget());
+    }
+
     /// Adds `widget` to self and returns the updated list.
     pub fn and<W>(mut self, widget: W) -> Self
     where
@@ -1009,6 +1246,26 @@ impl Children {
     pub fn is_empty(&self) -> bool {
         self.ordered.is_empty()
     }
+
+    /// Truncates the collection of children to `length`.
+    ///
+    /// If this collection is already smaller or the same size as `length`, this
+    /// function does nothing.
+    pub fn truncate(&mut self, length: usize) {
+        self.ordered.truncate(length);
+    }
+
+    /// Returns `self` as a vertical [`Stack`] of rows.
+    #[must_use]
+    pub fn into_rows(self) -> Stack {
+        Stack::rows(self)
+    }
+
+    /// Returns `self` as a horizontal [`Stack`] of columns.
+    #[must_use]
+    pub fn into_columns(self) -> Stack {
+        Stack::columns(self)
+    }
 }
 
 impl<W> FromIterator<W> for Children
@@ -1027,6 +1284,12 @@ impl Deref for Children {
 
     fn deref(&self) -> &Self::Target {
         &self.ordered
+    }
+}
+
+impl DerefMut for Children {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.ordered
     }
 }
 
@@ -1055,6 +1318,15 @@ impl WidgetRef {
             unreachable!("just initialized")
         };
         widget.clone()
+    }
+
+    /// Returns the a reference to the underlying widget instance.
+    #[must_use]
+    pub fn widget(&self) -> &WidgetInstance {
+        match self {
+            WidgetRef::Unmounted(widget) => widget,
+            WidgetRef::Mounted(managed) => &managed.widget,
+        }
     }
 }
 

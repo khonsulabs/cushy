@@ -1,7 +1,7 @@
 //! A widget that combines a collection of [`Children`] widgets into one.
 // TODO on scale change, all `Lp` children need to resize
 
-use std::ops::Deref;
+use std::ops::{Bound, Deref};
 
 use alot::{LotId, OrderedLots};
 use kludgine::figures::units::{Lp, UPx};
@@ -85,30 +85,38 @@ impl Stack {
                         } else {
                             // This is a brand new child.
                             let guard = widget.lock();
-                            let (mut widget, dimension) =
-                                if let Some(expand) = guard.downcast_ref::<Expand>() {
-                                    (
-                                        expand.child().clone(),
-                                        StackDimension::Fractional {
-                                            weight: expand.weight,
-                                        },
-                                    )
-                                } else if let Some((child, size)) =
-                                    guard.downcast_ref::<Resize>().and_then(|r| {
-                                        match self.layout.orientation.orientation {
-                                            StackOrientation::Row => r.height,
-                                            StackOrientation::Column => r.width,
-                                        }
-                                        .map(|size| (r.child().clone(), size))
+                            let (mut widget, dimension) = if let Some((weight, expand)) = guard
+                                .downcast_ref::<Expand>()
+                                .and_then(|expand| expand.weight().map(|weight| (weight, expand)))
+                            {
+                                (
+                                    expand.child().clone(),
+                                    StackDimension::Fractional { weight },
+                                )
+                            } else if let Some((child, size)) =
+                                guard.downcast_ref::<Resize>().and_then(|r| {
+                                    let range = match self.layout.orientation.orientation {
+                                        StackOrientation::Row => r.height,
+                                        StackOrientation::Column => r.width,
+                                    };
+                                    range.minimum().map(|min| {
+                                        (
+                                            r.child().clone(),
+                                            StackDimension::Measured {
+                                                min,
+                                                _max: range.end,
+                                            },
+                                        )
                                     })
-                                {
-                                    (child, StackDimension::Exact(size))
-                                } else {
-                                    (
-                                        WidgetRef::Unmounted(widget.clone()),
-                                        StackDimension::FitContent,
-                                    )
-                                };
+                                })
+                            {
+                                (child, size)
+                            } else {
+                                (
+                                    WidgetRef::Unmounted(widget.clone()),
+                                    StackDimension::FitContent,
+                                )
+                            };
                             drop(guard);
                             self.synced_children.insert(index, widget.mounted(context));
 
@@ -131,8 +139,10 @@ impl Stack {
 
 impl Widget for Stack {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        for child in &self.synced_children {
-            context.for_other(child).redraw();
+        for (layout, child) in self.layout.iter().zip(&self.synced_children) {
+            if layout.size > 0 {
+                context.for_other(child).redraw();
+            }
         }
     }
 
@@ -145,7 +155,7 @@ impl Widget for Stack {
 
         let content_size = self.layout.update(
             available_space,
-            context.graphics.scale(),
+            context.gfx.scale(),
             |child_index, constraints, persist| {
                 let mut context = context.for_other(&self.synced_children[child_index]);
                 if !persist {
@@ -260,7 +270,7 @@ pub enum StackOrientation {
 
 /// The strategy to use when laying a widget out inside of an [`Stack`].
 #[derive(Debug, Clone, Copy)]
-pub enum StackDimension {
+enum StackDimension {
     /// Attempt to lay out the widget based on its contents.
     FitContent,
     /// Use a fractional amount of the available space.
@@ -269,8 +279,13 @@ pub enum StackDimension {
         /// fractionally.
         weight: u8,
     },
-    /// Use an exact measurement for this widget's size.
-    Exact(Dimension),
+    /// Use a range for this widget's size.
+    Measured {
+        /// The minimum size for the widget.
+        min: Dimension,
+        /// The optional maximum size for the widget.
+        _max: Bound<Dimension>,
+    },
 }
 
 #[derive(Debug)]
@@ -322,7 +337,7 @@ impl Layout {
                 self.fractional.retain(|(measured, _)| *measured != id);
                 self.total_weights -= u32::from(weight);
             }
-            StackDimension::Exact(size) => match size {
+            StackDimension::Measured { min, .. } => match min {
                 Dimension::Px(pixels) => {
                     self.allocated_space.0 -= pixels.into_unsigned();
                 }
@@ -357,12 +372,12 @@ impl Layout {
                 self.fractional.push((id, weight));
                 UPx(0)
             }
-            StackDimension::Exact(size) => {
-                match size {
+            StackDimension::Measured { min, .. } => {
+                match min {
                     Dimension::Px(size) => self.allocated_space.0 += size.into_unsigned(),
                     Dimension::Lp(size) => self.allocated_space.1 += size,
                 }
-                size.into_px(scale).into_unsigned()
+                min.into_px(scale).into_unsigned()
             }
         };
         self.layouts.insert(
@@ -389,18 +404,14 @@ impl Layout {
         // Measure the children that fit their content
         for &id in &self.measured {
             let index = self.children.index_of_id(id).expect("child not found");
-            if remaining > 0 {
-                let (measured, _) = self.orientation.split_size(measure(
-                    index,
-                    self.orientation
-                        .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
-                    false,
-                ));
-                self.layouts[index].size = measured;
-                remaining = remaining.saturating_sub(measured);
-            } else {
-                self.layouts[index].size = UPx(0);
-            }
+            let (measured, _) = self.orientation.split_size(measure(
+                index,
+                self.orientation
+                    .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
+                false,
+            ));
+            self.layouts[index].size = measured;
+            remaining = remaining.saturating_sub(measured);
         }
 
         // Measure the weighted children within the remaining space
@@ -439,7 +450,7 @@ impl Layout {
                     ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
                     other_constraint,
                 ),
-                true,
+                false,
             ));
             self.other = self.other.max(measured);
         }
@@ -448,6 +459,18 @@ impl Layout {
             ConstraintLimit::Known(max) => self.other.max(max),
             ConstraintLimit::ClippedAfter(clip_limit) => self.other.min(clip_limit),
         };
+
+        // Finally layout the widgets with the final constraints
+        for index in 0..self.children.len() {
+            self.orientation.split_size(measure(
+                index,
+                self.orientation.make_size(
+                    ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
+                    ConstraintLimit::Known(self.other),
+                ),
+                true,
+            ));
+        }
 
         self.orientation.make_size(offset, self.other)
     }
@@ -464,6 +487,7 @@ impl Deref for Layout {
 #[cfg(test)]
 mod tests {
     use std::cmp::Ordering;
+    use std::ops::Bound;
 
     use kludgine::figures::units::UPx;
     use kludgine::figures::{Fraction, IntoSigned, Size};
@@ -490,7 +514,10 @@ mod tests {
         }
 
         pub fn fixed_size(mut self, size: UPx) -> Self {
-            self.dimension = StackDimension::Exact(Dimension::Px(size.into_signed()));
+            self.dimension = StackDimension::Measured {
+                min: Dimension::Px(size.into_signed()),
+                _max: Bound::Unbounded,
+            };
             self
         }
 

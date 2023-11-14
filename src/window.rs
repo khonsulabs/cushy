@@ -2,38 +2,44 @@
 //! window.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Not};
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 use std::path::Path;
 use std::string::ToString;
 use std::sync::OnceLock;
 
-use kludgine::app::winit::dpi::PhysicalPosition;
+use ahash::AHashMap;
+use alot::LotId;
+use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
     DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::keyboard::Key;
+use kludgine::app::winit::window;
 use kludgine::app::WindowBehavior as _;
-use kludgine::figures::units::Px;
-use kludgine::figures::{IntoSigned, Point, Rect, Size};
+use kludgine::figures::units::{Px, UPx};
+use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size};
 use kludgine::render::Drawing;
+use kludgine::wgpu::CompositeAlphaMode;
 use kludgine::Kludgine;
 use tracing::Level;
 
+use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
 use crate::context::{
     AsEventContext, EventContext, Exclusive, GraphicsContext, LayoutContext, RedrawStatus,
     WidgetContext,
 };
 use crate::graphics::Graphics;
-use crate::styles::components::VisualOrder;
+use crate::styles::components::LayoutOrder;
+use crate::styles::ThemePair;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
-use crate::value::{Dynamic, IntoDynamic};
+use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
 use crate::widget::{
     EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
+use crate::widgets::{Expand, Resize};
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit, Run};
 
@@ -98,8 +104,11 @@ where
     context: Behavior::Context,
     /// The attributes of this window.
     pub attributes: WindowAttributes,
+    /// The colors to use to theme the user interface.
+    pub theme: Value<ThemePair>,
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
+    theme_mode: Option<Value<ThemeMode>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -151,6 +160,24 @@ impl Window<WidgetInstance> {
         self.occluded = Some(occluded);
         self
     }
+
+    /// Sets the [`ThemeMode`] for this window.
+    ///
+    /// If a [`ThemeMode`] is provided, the window will be set to this theme
+    /// mode upon creation and will not be updated while the window is running.
+    ///
+    /// If a [`Dynamic`] is provided, the initial value will be ignored and the
+    /// dynamic will be updated when the window opens with the user's current
+    /// theme mode. The dynamic will also be updated any time the user's theme
+    /// mode changes.
+    ///
+    /// Setting the [`Dynamic`]'s value will also update the window with the new
+    /// mode until a mode change is detected, upon which the new mode will be
+    /// stored.
+    pub fn with_theme_mode(mut self, theme_mode: impl IntoValue<ThemeMode>) -> Self {
+        self.theme_mode = Some(theme_mode.into_value());
+        self
+    }
 }
 
 impl<Behavior> Window<Behavior>
@@ -181,8 +208,10 @@ where
                 ..WindowAttributes::default()
             },
             context,
+            theme: Value::default(),
             occluded: None,
             focused: None,
+            theme_mode: None,
         }
     }
 }
@@ -196,9 +225,12 @@ where
         GooeyWindow::<Behavior>::run_with(AssertUnwindSafe(sealed::Context {
             user: self.context,
             settings: RefCell::new(sealed::WindowSettings {
+                transparent: self.attributes.transparent,
                 attributes: Some(self.attributes),
                 occluded: self.occluded,
                 focused: self.focused,
+                theme: Some(self.theme),
+                theme_mode: self.theme_mode,
             }),
         }))
     }
@@ -248,6 +280,12 @@ struct GooeyWindow<T> {
     occluded: Dynamic<bool>,
     focused: Dynamic<bool>,
     keyboard_activated: Option<ManagedWidget>,
+    min_inner_size: Option<Size<UPx>>,
+    max_inner_size: Option<Size<UPx>>,
+    theme: Option<DynamicReader<ThemePair>>,
+    current_theme: ThemePair,
+    theme_mode: Value<ThemeMode>,
+    transparent: bool,
 }
 
 impl<T> GooeyWindow<T>
@@ -263,21 +301,33 @@ where
     fn keyboard_activate_widget(
         &mut self,
         is_pressed: bool,
-        widget: Option<WidgetId>,
+        widget: Option<LotId>,
         window: &mut RunningWindow<'_>,
         kludgine: &mut Kludgine,
     ) {
         if is_pressed {
-            if let Some(default) = widget.and_then(|id| self.root.tree.widget(id)) {
+            if let Some(default) = widget.and_then(|id| self.root.tree.widget_from_node(id)) {
                 if let Some(previously_active) = self.keyboard_activated.take() {
                     EventContext::new(
-                        WidgetContext::new(previously_active, &self.redraw_status, window),
+                        WidgetContext::new(
+                            previously_active,
+                            &self.redraw_status,
+                            &self.current_theme,
+                            window,
+                            self.theme_mode.get(),
+                        ),
                         kludgine,
                     )
                     .deactivate();
                 }
                 EventContext::new(
-                    WidgetContext::new(default.clone(), &self.redraw_status, window),
+                    WidgetContext::new(
+                        default.clone(),
+                        &self.redraw_status,
+                        &self.current_theme,
+                        window,
+                        self.theme_mode.get(),
+                    ),
                     kludgine,
                 )
                 .activate();
@@ -285,11 +335,75 @@ where
             }
         } else if let Some(keyboard_activated) = self.keyboard_activated.take() {
             EventContext::new(
-                WidgetContext::new(keyboard_activated, &self.redraw_status, window),
+                WidgetContext::new(
+                    keyboard_activated,
+                    &self.redraw_status,
+                    &self.current_theme,
+                    window,
+                    self.theme_mode.get(),
+                ),
                 kludgine,
             )
             .deactivate();
         }
+    }
+
+    fn constrain_window_resizing(
+        &mut self,
+        resizable: bool,
+        window: &kludgine::app::Window<'_, WindowCommand>,
+        graphics: &mut kludgine::Graphics<'_>,
+    ) -> bool {
+        let mut root_or_child = self.root.widget.clone();
+        let mut is_expanded = false;
+        loop {
+            let mut widget = root_or_child.lock();
+            if let Some(resize) = widget.downcast_ref::<Resize>() {
+                let min_width = resize
+                    .width
+                    .minimum()
+                    .map_or(Px(0), |width| width.into_px(graphics.scale()));
+                let max_width = resize
+                    .width
+                    .maximum()
+                    .map_or(Px::MAX, |width| width.into_px(graphics.scale()));
+                let min_height = resize
+                    .height
+                    .minimum()
+                    .map_or(Px(0), |height| height.into_px(graphics.scale()));
+                let max_height = resize
+                    .height
+                    .maximum()
+                    .map_or(Px::MAX, |height| height.into_px(graphics.scale()));
+
+                let new_min_size = (min_width > 0 || min_height > 0)
+                    .then_some(Size::<Px>::new(min_width, min_height).into_unsigned());
+
+                if new_min_size != self.min_inner_size && resizable {
+                    window.set_min_inner_size(new_min_size);
+                    self.min_inner_size = new_min_size;
+                }
+                let new_max_size = (max_width > 0 || max_height > 0)
+                    .then_some(Size::<Px>::new(max_width, max_height).into_unsigned());
+
+                if new_max_size != self.max_inner_size && resizable {
+                    window.set_max_inner_size(new_max_size);
+                }
+                self.max_inner_size = new_max_size;
+            } else if widget.downcast_ref::<Expand>().is_some() {
+                is_expanded = true;
+            }
+
+            if let Some(wraps) = widget.as_widget().wraps().cloned() {
+                drop(widget);
+
+                root_or_child = wraps;
+            } else {
+                break;
+            }
+        }
+
+        is_expanded
     }
 }
 
@@ -316,11 +430,32 @@ where
             .focused
             .take()
             .unwrap_or_default();
+        let theme = context
+            .settings
+            .borrow_mut()
+            .theme
+            .take()
+            .expect("theme always present");
+
+        let theme_mode = match context.settings.borrow_mut().theme_mode.take() {
+            Some(Value::Dynamic(dynamic)) => {
+                dynamic.update(window.theme().into());
+                Value::Dynamic(dynamic)
+            }
+            Some(Value::Constant(mode)) => Value::Constant(mode),
+            None => Value::dynamic(window.theme().into()),
+        };
+        let transparent = context.settings.borrow().transparent;
         let mut behavior = T::initialize(
             &mut RunningWindow::new(window, &focused, &occluded),
             context.user,
         );
         let root = Tree::default().push_boxed(behavior.make_root(), None);
+
+        let (current_theme, theme) = match theme {
+            Value::Constant(theme) => (theme, None),
+            Value::Dynamic(dynamic) => (dynamic.get(), Some(dynamic.into_reader())),
+        };
 
         Self {
             behavior,
@@ -330,13 +465,19 @@ where
             mouse_state: MouseState {
                 location: None,
                 widget: None,
-                devices: HashMap::default(),
+                devices: AHashMap::default(),
             },
             redraw_status: RedrawStatus::default(),
             initial_frame: true,
             occluded,
             focused,
             keyboard_activated: None,
+            min_inner_size: None,
+            max_inner_size: None,
+            current_theme,
+            theme,
+            theme_mode,
+            transparent,
         }
     }
 
@@ -345,22 +486,67 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         graphics: &mut kludgine::Graphics<'_>,
     ) {
+        if let Some(theme) = &mut self.theme {
+            if theme.has_updated() {
+                self.current_theme = theme.get();
+                // TODO invalidate everything, but right now we don't have much
+                // cached. Maybe widgets should be told the theme has changed in
+                // case some things like images have been cached.
+            }
+        }
+
         self.redraw_status.refresh_received();
         graphics.reset_text_attributes();
         self.root.tree.reset_render_order();
+
+        let resizable = window.winit().is_resizable();
+        let is_expanded = self.constrain_window_resizing(resizable, &window, graphics);
+
         let graphics = self.contents.new_frame(graphics);
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut context = GraphicsContext {
-            widget: WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
-            graphics: Exclusive::Owned(Graphics::new(graphics)),
+            widget: WidgetContext::new(
+                self.root.clone(),
+                &self.redraw_status,
+                &self.current_theme,
+                &mut window,
+                self.theme_mode.get(),
+            ),
+            gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
+        self.theme_mode.redraw_when_changed(&context);
         let mut layout_context = LayoutContext::new(&mut context);
-        let window_size = layout_context.graphics.size();
-        let actual_size = layout_context.layout(Size::new(
-            ConstraintLimit::ClippedAfter(window_size.width),
-            ConstraintLimit::ClippedAfter(window_size.height),
-        ));
+        let window_size = layout_context.gfx.size();
+
+        if !self.transparent {
+            let background_color = layout_context.theme().surface.color;
+            layout_context.graphics.gfx.fill(background_color);
+        }
+
+        let actual_size = layout_context.layout(if is_expanded {
+            Size::new(
+                ConstraintLimit::Known(window_size.width),
+                ConstraintLimit::Known(window_size.height),
+            )
+        } else {
+            Size::new(
+                ConstraintLimit::ClippedAfter(window_size.width),
+                ConstraintLimit::ClippedAfter(window_size.height),
+            )
+        });
         let render_size = actual_size.min(window_size);
+        if actual_size != window_size && !resizable {
+            let mut new_size = actual_size;
+            if let Some(min_size) = self.min_inner_size {
+                new_size = new_size.max(min_size);
+            }
+            if let Some(max_size) = self.max_inner_size {
+                new_size = new_size.min(max_size);
+            }
+            let _ = layout_context
+                .winit()
+                .request_inner_size(PhysicalSize::from(new_size));
+        }
         self.root.set_layout(Rect::from(render_size.into_signed()));
 
         if self.initial_frame {
@@ -411,12 +597,16 @@ where
     fn initial_window_attributes(
         context: &Self::Context,
     ) -> kludgine::app::WindowAttributes<WindowCommand> {
-        context
+        let mut attrs = context
             .settings
             .borrow_mut()
             .attributes
             .take()
-            .expect("called more than once")
+            .expect("called more than once");
+        if let Some(Value::Constant(theme_mode)) = &context.settings.borrow().theme_mode {
+            attrs.preferred_theme = Some((*theme_mode).into());
+        }
+        attrs
     }
 
     fn close_requested(
@@ -439,9 +629,21 @@ where
     //     wgpu::Limits::downlevel_webgl2_defaults().using_resolution(adapter_limits)
     // }
 
-    // fn clear_color() -> Option<kludgine::Color> {
-    //     Some(kludgine::Color::BLACK)
-    // }
+    fn clear_color(&self) -> Option<kludgine::Color> {
+        Some(if self.transparent {
+            kludgine::Color::CLEAR_BLACK
+        } else {
+            kludgine::Color::BLACK
+        })
+    }
+
+    fn composite_alpha_mode(&self, supported_modes: &[CompositeAlphaMode]) -> CompositeAlphaMode {
+        if self.transparent && supported_modes.contains(&CompositeAlphaMode::PreMultiplied) {
+            CompositeAlphaMode::PreMultiplied
+        } else {
+            CompositeAlphaMode::Auto
+        }
+    }
 
     // fn focus_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 
@@ -469,11 +671,21 @@ where
         input: KeyEvent,
         is_synthetic: bool,
     ) {
-        let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
-        let target = self.root.tree.widget(target).expect("missing widget");
+        let target = self.root.tree.focused_widget().unwrap_or(self.root.node_id);
+        let target = self
+            .root
+            .tree
+            .widget_from_node(target)
+            .expect("missing widget");
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut target = EventContext::new(
-            WidgetContext::new(target, &self.redraw_status, &mut window),
+            WidgetContext::new(
+                target,
+                &self.redraw_status,
+                &self.current_theme,
+                &mut window,
+                self.theme_mode.get(),
+            ),
             kludgine,
         );
 
@@ -492,18 +704,29 @@ where
                 }
                 Key::Tab if !window.modifiers().possible_shortcut() => {
                     if input.state.is_pressed() {
-                        let direction = if window.modifiers().state().shift_key() {
-                            VisualOrder::left_to_right().rev()
-                        } else {
-                            VisualOrder::left_to_right()
-                        };
-                        let target = self.root.tree.focused_widget().unwrap_or(self.root.id());
-                        let target = self.root.tree.widget(target).expect("missing widget");
+                        let reverse = window.modifiers().state().shift_key();
+
+                        let target = self.root.tree.focused_widget().unwrap_or(self.root.node_id);
+                        let target = self
+                            .root
+                            .tree
+                            .widget_from_node(target)
+                            .expect("missing widget");
                         let mut target = EventContext::new(
-                            WidgetContext::new(target, &self.redraw_status, &mut window),
+                            WidgetContext::new(
+                                target,
+                                &self.redraw_status,
+                                &self.current_theme,
+                                &mut window,
+                                self.theme_mode.get(),
+                            ),
                             kludgine,
                         );
-                        target.advance_focus(direction);
+                        let mut visual_order = target.get(&LayoutOrder);
+                        if reverse {
+                            visual_order = visual_order.rev();
+                        }
+                        target.advance_focus(visual_order);
                     }
                 }
                 Key::Enter => {
@@ -547,7 +770,7 @@ where
             .root
             .tree
             .hovered_widget()
-            .and_then(|hovered| self.root.tree.widget(hovered))
+            .and_then(|hovered| self.root.tree.widget_from_node(hovered))
             .unwrap_or_else(|| {
                 self.root
                     .tree
@@ -557,7 +780,13 @@ where
 
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut widget = EventContext::new(
-            WidgetContext::new(widget, &self.redraw_status, &mut window),
+            WidgetContext::new(
+                widget,
+                &self.redraw_status,
+                &self.current_theme,
+                &mut window,
+                self.theme_mode.get(),
+            ),
             kludgine,
         );
         recursively_handle_event(&mut widget, |widget| {
@@ -577,7 +806,7 @@ where
             .root
             .tree
             .focused_widget()
-            .and_then(|hovered| self.root.tree.widget(hovered))
+            .and_then(|hovered| self.root.tree.widget_from_node(hovered))
             .unwrap_or_else(|| {
                 self.root
                     .tree
@@ -586,7 +815,13 @@ where
             });
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut target = EventContext::new(
-            WidgetContext::new(widget, &self.redraw_status, &mut window),
+            WidgetContext::new(
+                widget,
+                &self.redraw_status,
+                &self.current_theme,
+                &mut window,
+                self.theme_mode.get(),
+            ),
             kludgine,
         );
 
@@ -608,8 +843,17 @@ where
         if let Some(state) = self.mouse_state.devices.get(&device_id) {
             // Mouse Drag
             for (button, handler) in state {
+                let Some(handler) = self.root.tree.widget(*handler) else {
+                    continue;
+                };
                 let mut context = EventContext::new(
-                    WidgetContext::new(handler.clone(), &self.redraw_status, &mut window),
+                    WidgetContext::new(
+                        handler.clone(),
+                        &self.redraw_status,
+                        &self.current_theme,
+                        &mut window,
+                        self.theme_mode.get(),
+                    ),
                     kludgine,
                 );
                 let last_rendered_at = context.last_layout().expect("passed hit test");
@@ -618,7 +862,13 @@ where
         } else {
             // Hover
             let mut context = EventContext::new(
-                WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
+                WidgetContext::new(
+                    self.root.clone(),
+                    &self.redraw_status,
+                    &self.current_theme,
+                    &mut window,
+                    self.theme_mode.get(),
+                ),
                 kludgine,
             );
             self.mouse_state.widget = None;
@@ -633,7 +883,7 @@ where
                 if widget_context.hit_test(relative) {
                     widget_context.hover(relative);
                     drop(widget_context);
-                    self.mouse_state.widget = Some(widget);
+                    self.mouse_state.widget = Some(widget.id());
                     break;
                 }
             }
@@ -653,7 +903,13 @@ where
         if self.mouse_state.widget.take().is_some() {
             let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
             let mut context = EventContext::new(
-                WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
+                WidgetContext::new(
+                    self.root.clone(),
+                    &self.redraw_status,
+                    &self.current_theme,
+                    &mut window,
+                    self.theme_mode.get(),
+                ),
                 kludgine,
             );
             context.clear_hover();
@@ -672,17 +928,33 @@ where
         match state {
             ElementState::Pressed => {
                 EventContext::new(
-                    WidgetContext::new(self.root.clone(), &self.redraw_status, &mut window),
+                    WidgetContext::new(
+                        self.root.clone(),
+                        &self.redraw_status,
+                        &self.current_theme,
+                        &mut window,
+                        self.theme_mode.get(),
+                    ),
                     kludgine,
                 )
                 .clear_focus();
 
-                if let (ElementState::Pressed, Some(location), Some(hovered)) =
-                    (state, &self.mouse_state.location, &self.mouse_state.widget)
-                {
+                if let (ElementState::Pressed, Some(location), Some(hovered)) = (
+                    state,
+                    &self.mouse_state.location,
+                    self.mouse_state
+                        .widget
+                        .and_then(|id| self.root.tree.widget(id)),
+                ) {
                     if let Some(handler) = recursively_handle_event(
                         &mut EventContext::new(
-                            WidgetContext::new(hovered.clone(), &self.redraw_status, &mut window),
+                            WidgetContext::new(
+                                hovered.clone(),
+                                &self.redraw_status,
+                                &self.current_theme,
+                                &mut window,
+                                self.theme_mode.get(),
+                            ),
                             kludgine,
                         ),
                         |context| {
@@ -695,7 +967,7 @@ where
                             .devices
                             .entry(device_id)
                             .or_default()
-                            .insert(button, handler);
+                            .insert(button, handler.id());
                     }
                 }
             }
@@ -709,9 +981,17 @@ where
                 if device_buttons.is_empty() {
                     self.mouse_state.devices.remove(&device_id);
                 }
-
+                let Some(handler) = self.root.tree.widget(handler) else {
+                    return;
+                };
                 let mut context = EventContext::new(
-                    WidgetContext::new(handler, &self.redraw_status, &mut window),
+                    WidgetContext::new(
+                        handler,
+                        &self.redraw_status,
+                        &self.current_theme,
+                        &mut window,
+                        self.theme_mode.get(),
+                    ),
                     kludgine,
                 );
 
@@ -728,6 +1008,16 @@ where
         }
     }
 
+    fn theme_changed(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+    ) {
+        if let Value::Dynamic(theme_mode) = &self.theme_mode {
+            theme_mode.update(window.theme().into());
+        }
+    }
+
     fn event(
         &mut self,
         mut window: kludgine::app::Window<'_, WindowCommand>,
@@ -736,8 +1026,6 @@ where
     ) {
         match event {
             WindowCommand::Redraw => {
-                // TODO we should attempt to batch redraw events so that we're
-                // not constantly sending them from animations.
                 window.set_needs_redraw();
             }
         }
@@ -759,15 +1047,16 @@ fn recursively_handle_event(
 #[derive(Default)]
 struct MouseState {
     location: Option<Point<Px>>,
-    widget: Option<ManagedWidget>,
-    devices: HashMap<DeviceId, HashMap<MouseButton, ManagedWidget>>,
+    widget: Option<WidgetId>,
+    devices: AHashMap<DeviceId, AHashMap<MouseButton, WidgetId>>,
 }
 
 pub(crate) mod sealed {
     use std::cell::RefCell;
 
-    use crate::value::Dynamic;
-    use crate::window::WindowAttributes;
+    use crate::styles::ThemePair;
+    use crate::value::{Dynamic, Value};
+    use crate::window::{ThemeMode, WindowAttributes};
 
     pub struct Context<C> {
         pub user: C,
@@ -778,10 +1067,90 @@ pub(crate) mod sealed {
         pub attributes: Option<WindowAttributes>,
         pub occluded: Option<Dynamic<bool>>,
         pub focused: Option<Dynamic<bool>>,
+        pub theme: Option<Value<ThemePair>>,
+        pub theme_mode: Option<Value<ThemeMode>>,
+        pub transparent: bool,
     }
 
     pub enum WindowCommand {
         Redraw,
         // RequestClose,
     }
+}
+
+/// Controls whether the light or dark theme is applied.
+#[derive(Default, Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum ThemeMode {
+    /// Applies the light theme
+    Light,
+    /// Applies the dark theme
+    #[default]
+    Dark,
+}
+
+impl ThemeMode {
+    /// Returns the opposite mode of `self`.
+    #[must_use]
+    pub const fn inverse(self) -> Self {
+        match self {
+            ThemeMode::Light => Self::Dark,
+            ThemeMode::Dark => Self::Light,
+        }
+    }
+
+    /// Updates `self` with its [inverse](Self::inverse).
+    pub fn toggle(&mut self) {
+        *self = !*self;
+    }
+}
+
+impl Not for ThemeMode {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        self.inverse()
+    }
+}
+
+impl From<window::Theme> for ThemeMode {
+    fn from(value: window::Theme) -> Self {
+        match value {
+            window::Theme::Light => Self::Light,
+            window::Theme::Dark => Self::Dark,
+        }
+    }
+}
+
+impl From<ThemeMode> for window::Theme {
+    fn from(value: ThemeMode) -> Self {
+        match value {
+            ThemeMode::Light => Self::Light,
+            ThemeMode::Dark => Self::Dark,
+        }
+    }
+}
+
+impl LinearInterpolate for ThemeMode {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        if percent >= 0.5 {
+            *target
+        } else {
+            *self
+        }
+    }
+}
+
+impl PercentBetween for ThemeMode {
+    fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+        if *min == *max || *self == *min {
+            ZeroToOne::ZERO
+        } else {
+            ZeroToOne::ONE
+        }
+    }
+}
+
+impl Ranged for ThemeMode {
+    const MAX: Self = Self::Dark;
+    const MIN: Self = Self::Light;
 }

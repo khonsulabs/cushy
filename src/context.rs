@@ -1,4 +1,5 @@
 //! Types that provide access to the Gooey runtime.
+use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -6,18 +7,18 @@ use std::sync::Arc;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Rect, Size};
+use kludgine::figures::units::{Lp, Px, UPx};
+use kludgine::figures::{IntoSigned, Point, Rect, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
-use kludgine::Kludgine;
+use kludgine::{Color, Kludgine};
 
 use crate::graphics::Graphics;
-use crate::styles::components::{HighlightColor, VisualOrder};
-use crate::styles::{ComponentDefaultvalue, ComponentDefinition, Styles};
-use crate::value::Dynamic;
+use crate::styles::components::{HighlightColor, WidgetBackground};
+use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair, VisualOrder};
+use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
 use crate::window::sealed::WindowCommand;
-use crate::window::RunningWindow;
+use crate::window::{RunningWindow, ThemeMode};
 use crate::ConstraintLimit;
 
 /// A context to an event function.
@@ -182,7 +183,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         let mut activation_changes = 0;
         while activation_changes < MAX_ITERS {
             let active = self.pending_state.active.clone();
-            if self.current_node.tree.active_widget() == active.as_ref().map(ManagedWidget::id) {
+            if self.current_node.tree.active_widget() == active.as_ref().map(|w| w.node_id) {
                 break;
             }
             activation_changes += 1;
@@ -195,7 +196,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                     }
                     true
                 }
-                Err(_) => false,
+                Err(()) => false,
             };
             if new {
                 if let Some(active) = self.pending_state.active.clone() {
@@ -219,7 +220,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         let mut focus_changes = 0;
         while focus_changes < MAX_ITERS {
             let focus = self.pending_state.focus.clone();
-            if self.current_node.tree.focused_widget() == focus.as_ref().map(ManagedWidget::id) {
+            if self.current_node.tree.focused_widget() == focus.as_ref().map(|w| w.node_id) {
                 break;
             }
             focus_changes += 1;
@@ -249,7 +250,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                     }
                     true
                 }
-                Err(_) => false,
+                Err(()) => false,
             };
             if new {
                 if let Some(focus) = self.pending_state.focus.clone() {
@@ -348,6 +349,9 @@ impl<'context, 'window> EventContext<'context, 'window> {
     ///
     /// This widget does not need to be focused.
     pub fn advance_focus(&mut self, direction: VisualOrder) {
+        // TODO check to see if the current node has an explicit next_focus (or
+        // if we're going in the opposite direction, previous_focus).
+
         self.pending_state.focus = self.next_focus_after(self.current_node.clone(), direction);
     }
 }
@@ -401,7 +405,7 @@ pub struct GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass> {
     /// The graphics context clipped and offset to the area of the widget being
     /// rendered. Drawing at 0,0 will draw at the top-left pixel of the laid-out
     /// widget region.
-    pub graphics: Exclusive<'context, Graphics<'clip, 'gfx, 'pass>>,
+    pub gfx: Exclusive<'context, Graphics<'clip, 'gfx, 'pass>>,
 }
 
 impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass> {
@@ -409,7 +413,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     pub fn borrowed(&mut self) -> GraphicsContext<'_, 'window, 'clip, 'gfx, 'pass> {
         GraphicsContext {
             widget: self.widget.borrowed(),
-            graphics: Exclusive::Borrowed(&mut self.graphics),
+            gfx: Exclusive::Borrowed(&mut self.gfx),
         }
     }
 
@@ -428,12 +432,12 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         widget.manage(self).map(|widget| {
             let widget = self.widget.for_other(&widget);
             let layout = widget.last_layout().map_or_else(
-                || Rect::from(self.graphics.clip_rect().size).into_signed(),
-                |rect| rect - self.graphics.region().origin,
+                || Rect::from(self.gfx.clip_rect().size).into_signed(),
+                |rect| rect - self.gfx.region().origin,
             );
             GraphicsContext {
                 widget,
-                graphics: Exclusive::Owned(self.graphics.clipped_to(layout)),
+                gfx: Exclusive::Owned(self.gfx.clipped_to(layout)),
             }
         })
     }
@@ -442,28 +446,31 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     pub fn clipped_to(&mut self, clip: Rect<Px>) -> GraphicsContext<'_, 'window, '_, 'gfx, 'pass> {
         GraphicsContext {
             widget: self.widget.borrowed(),
-            graphics: Exclusive::Owned(self.graphics.clipped_to(clip)),
+            gfx: Exclusive::Owned(self.gfx.clipped_to(clip)),
         }
     }
 
-    /// Renders the default focus ring for this widget.
-    ///
-    /// To ensure the correct color is used, include [`HighlightColor`] in the
-    /// styles request.
-    pub fn draw_focus_ring_using(&mut self, styles: &Styles) {
-        let visible_rect = Rect::from(self.graphics.region().size - (Px(1), Px(1)));
-        let focus_ring = Shape::stroked_rect(
-            visible_rect,
-            styles.get_or_default(&HighlightColor),
-            StrokeOptions::default(),
-        );
-        self.graphics
+    /// Strokes an outline around this widget's contents.
+    pub fn stroke_outline<Unit>(&mut self, color: Color, options: StrokeOptions<Unit>)
+    where
+        Unit: ScreenScale<Px = Px, Lp = Lp>,
+    {
+        let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
+        let focus_ring =
+            Shape::stroked_rect(visible_rect, color, options.into_px(self.gfx.scale()));
+        self.gfx
             .draw_shape(&focus_ring, Point::default(), None, None);
     }
 
     /// Renders the default focus ring for this widget.
     pub fn draw_focus_ring(&mut self) {
-        self.draw_focus_ring_using(&self.query_styles(&[&HighlightColor]));
+        // If this is the root widget, don't draw a focus ring. It's redundant.
+        if !self.current_node.has_parent() {
+            return;
+        }
+
+        let color = self.get(&HighlightColor);
+        self.stroke_outline::<Lp>(color, StrokeOptions::lp_wide(Lp::points(2)));
     }
 
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
@@ -479,9 +486,12 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
             "redraw called without set_widget_layout"
         );
 
+        let background = self.get(&WidgetBackground);
+        self.gfx.fill(background);
+
         self.current_node
             .tree
-            .note_widget_rendered(self.current_node.id());
+            .note_widget_rendered(self.current_node.node_id);
         self.current_node.clone().lock().as_widget().redraw(self);
     }
 }
@@ -514,7 +524,9 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> DerefMut
 
 /// A context to a function that is rendering a widget.
 pub struct LayoutContext<'context, 'window, 'clip, 'gfx, 'pass> {
-    graphics: GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
+    /// The graphics context that this layout operation is being performed
+    /// within.
+    pub graphics: GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
     persist_layout: bool,
 }
 
@@ -642,7 +654,7 @@ impl<'window> AsEventContext<'window> for EventContext<'_, 'window> {
 
 impl<'window> AsEventContext<'window> for GraphicsContext<'_, 'window, '_, '_, '_> {
     fn as_event_context(&mut self) -> EventContext<'_, 'window> {
-        EventContext::new(self.widget.borrowed(), &mut self.graphics)
+        EventContext::new(self.widget.borrowed(), &mut self.gfx)
     }
 }
 
@@ -654,28 +666,36 @@ pub struct WidgetContext<'context, 'window> {
     current_node: ManagedWidget,
     redraw_status: &'context RedrawStatus,
     window: &'context mut RunningWindow<'window>,
+    theme: Cow<'context, ThemePair>,
     pending_state: PendingState<'context>,
+    theme_mode: ThemeMode,
+    effective_styles: Styles,
 }
 
 impl<'context, 'window> WidgetContext<'context, 'window> {
     pub(crate) fn new(
         current_node: ManagedWidget,
         redraw_status: &'context RedrawStatus,
+        theme: &'context ThemePair,
         window: &'context mut RunningWindow<'window>,
+        theme_mode: ThemeMode,
     ) -> Self {
         Self {
             pending_state: PendingState::Owned(PendingWidgetState {
                 focus: current_node
                     .tree
                     .focused_widget()
-                    .and_then(|id| current_node.tree.widget(id)),
+                    .and_then(|id| current_node.tree.widget_from_node(id)),
                 active: current_node
                     .tree
                     .active_widget()
-                    .and_then(|id| current_node.tree.widget(id)),
+                    .and_then(|id| current_node.tree.widget_from_node(id)),
             }),
+            effective_styles: current_node.effective_styles(),
             current_node,
             redraw_status,
+            theme: Cow::Borrowed(theme),
+            theme_mode,
             window,
         }
     }
@@ -686,7 +706,10 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             current_node: self.current_node.clone(),
             redraw_status: self.redraw_status,
             window: &mut *self.window,
+            theme: Cow::Borrowed(self.theme.as_ref()),
             pending_state: self.pending_state.borrowed(),
+            theme_mode: self.theme_mode,
+            effective_styles: self.effective_styles.clone(),
         }
     }
 
@@ -699,11 +722,27 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         Widget: ManageWidget,
         Widget::Managed: MapManagedWidget<WidgetContext<'child, 'window>>,
     {
-        widget.manage(self).map(|current_node| WidgetContext {
-            current_node,
-            redraw_status: self.redraw_status,
-            window: &mut *self.window,
-            pending_state: self.pending_state.borrowed(),
+        widget.manage(self).map(|current_node| {
+            let (effective_styles, theme, theme_mode) = current_node.overidden_theme();
+            let theme = if let Some(theme) = theme {
+                Cow::Owned(theme.get_tracked(self))
+            } else {
+                Cow::Borrowed(self.theme.as_ref())
+            };
+            let theme_mode = if let Some(mode) = theme_mode {
+                mode.get_tracked(self)
+            } else {
+                self.theme_mode
+            };
+            WidgetContext {
+                effective_styles,
+                current_node,
+                redraw_status: self.redraw_status,
+                window: &mut *self.window,
+                theme,
+                pending_state: self.pending_state.borrowed(),
+                theme_mode,
+            }
         })
     }
 
@@ -823,7 +862,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// for more information.
     #[must_use]
     pub fn is_default(&self) -> bool {
-        self.current_node.tree.default_widget() == Some(self.current_node.id())
+        self.current_node.tree.default_widget() == Some(self.current_node.node_id)
     }
 
     /// Returns true if this widget is the target to activate when the user
@@ -834,7 +873,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// for more information.
     #[must_use]
     pub fn is_escape(&self) -> bool {
-        self.current_node.tree.escape_widget() == Some(self.current_node.id())
+        self.current_node.tree.escape_widget() == Some(self.current_node.node_id)
     }
 
     /// Returns the widget this context is for.
@@ -847,25 +886,22 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     ///
     /// Style queries for children will return any values matching this
     /// collection.
-    pub fn attach_styles(&self, styles: Styles) {
-        self.current_node.attach_styles(styles);
+    pub fn attach_styles(&self, styles: impl IntoValue<Styles>) {
+        self.current_node.attach_styles(styles.into_value());
     }
 
-    /// Queries the widget hierarchy for matching style components.
+    /// Attaches `theme` to the widget hierarchy for this widget.
     ///
-    /// This function traverses up the widget hierarchy looking for the
-    /// components being requested. The resulting styles will contain the values
-    /// from the closest matches in the widget hierarchy.
+    /// All children nodes will access this theme in their contexts.
+    pub fn attach_theme(&self, theme: Value<ThemePair>) {
+        self.current_node.attach_theme(theme);
+    }
+
+    /// Attaches `theme_mode` to the widget hierarchy for this widget.
     ///
-    /// For style components to be found, they must have previously been
-    /// [attached](Self::attach_styles). The [`Style`](crate::widgets::Style)
-    /// widget is provided as a convenient way to attach styles into the widget
-    /// hierarchy.
-    #[must_use]
-    pub fn query_styles(&self, query: &[&dyn ComponentDefaultvalue]) -> Styles {
-        self.current_node
-            .tree
-            .query_styles(&self.current_node, query)
+    /// All children nodes will use this theme mode.
+    pub fn attach_theme_mode(&self, theme_mode: Value<ThemeMode>) {
+        self.current_node.attach_theme_mode(theme_mode);
     }
 
     /// Queries the widget hierarchy for a single style component.
@@ -873,15 +909,12 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// This function traverses up the widget hierarchy looking for the
     /// component being requested. If a matching component is found, it will be
     /// returned. Otherwise, the default value will be returned.
-
     #[must_use]
-    pub fn query_style<Component: ComponentDefinition>(
+    pub fn get<Component: ComponentDefinition>(
         &self,
         query: &Component,
     ) -> Component::ComponentType {
-        self.current_node
-            .tree
-            .query_style(&self.current_node, query)
+        self.effective_styles.get(query, self)
     }
 
     pub(crate) fn handle(&self) -> WindowHandle {
@@ -901,6 +934,30 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     #[must_use]
     pub fn window_mut(&mut self) -> &mut RunningWindow<'window> {
         self.window
+    }
+
+    /// Returns the theme pair for the window.
+    #[must_use]
+    pub fn theme_pair(&self) -> &ThemePair {
+        self.theme.as_ref()
+    }
+
+    /// Returns the current theme in either light or dark mode.
+    #[must_use]
+    pub fn theme(&self) -> &Theme {
+        match self.theme_mode {
+            ThemeMode::Light => &self.theme.light,
+            ThemeMode::Dark => &self.theme.dark,
+        }
+    }
+
+    /// Returns the opposite theme of [`Self::theme()`].
+    #[must_use]
+    pub fn inverse_theme(&self) -> &Theme {
+        match self.theme_mode {
+            ThemeMode::Light => &self.theme.dark,
+            ThemeMode::Dark => &self.theme.light,
+        }
     }
 }
 
