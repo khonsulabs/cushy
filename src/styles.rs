@@ -915,54 +915,42 @@ pub struct ThemePair {
 impl ThemePair {
     /// Returns a new theme generated from the provided color sources.
     #[must_use]
-    pub fn from_sources(
-        primary: ColorSource,
-        secondary: ColorSource,
-        tertiary: ColorSource,
-        error: ColorSource,
-        neutral: ColorSource,
-        neutral_variant: ColorSource,
-    ) -> Self {
+    pub fn from_scheme(scheme: &ColorScheme) -> Self {
         Self {
             light: Theme::light_from_sources(
-                primary,
-                secondary,
-                tertiary,
-                error,
-                neutral,
-                neutral_variant,
+                scheme.primary,
+                scheme.secondary,
+                scheme.tertiary,
+                scheme.error,
+                scheme.neutral,
+                scheme.neutral_variant,
             ),
             dark: Theme::dark_from_sources(
-                primary,
-                secondary,
-                tertiary,
-                error,
-                neutral,
-                neutral_variant,
+                scheme.primary,
+                scheme.secondary,
+                scheme.tertiary,
+                scheme.error,
+                scheme.neutral,
+                scheme.neutral_variant,
             ),
-            primary_fixed: FixedTheme::from_source(primary),
-            secondary_fixed: FixedTheme::from_source(secondary),
-            tertiary_fixed: FixedTheme::from_source(tertiary),
-            scrim: neutral.color(1),
-            shadow: neutral.color(1),
+            primary_fixed: FixedTheme::from_source(scheme.primary),
+            secondary_fixed: FixedTheme::from_source(scheme.secondary),
+            tertiary_fixed: FixedTheme::from_source(scheme.tertiary),
+            scrim: scheme.neutral.color(1),
+            shadow: scheme.neutral.color(1),
         }
+    }
+}
+
+impl From<ColorScheme> for ThemePair {
+    fn from(scheme: ColorScheme) -> Self {
+        Self::from_scheme(&scheme)
     }
 }
 
 impl Default for ThemePair {
     fn default() -> Self {
-        const PRIMARY_HUE: f32 = -120.;
-        const SECONDARY_HUE: f32 = 0.;
-        const TERTIARY_HUE: f32 = -30.;
-        const ERROR_HUE: f32 = 30.;
-        Self::from_sources(
-            ColorSource::new(PRIMARY_HUE, 0.8),
-            ColorSource::new(SECONDARY_HUE, 0.3),
-            ColorSource::new(TERTIARY_HUE, 0.3),
-            ColorSource::new(ERROR_HUE, 0.8),
-            ColorSource::new(0., 0.001),
-            ColorSource::new(30., 0.),
-        )
+        Self::from(ColorScheme::default())
     }
 }
 
@@ -1177,7 +1165,7 @@ impl FixedTheme {
 ///
 /// The goal of this type is to allow various tones of a given hue/saturation to
 /// be generated easily.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ColorSource {
     /// A measurement of hue, in degees, from -180 to 180.
     ///
@@ -1238,7 +1226,7 @@ impl ColorSource {
             } / 180.,
         );
 
-        saturation_delta * hue_delta
+        saturation_delta.one_minus() * hue_delta
     }
 }
 
@@ -1572,5 +1560,156 @@ impl TryFrom<Component> for ContainerLevel {
             Component::ContainerLevel(level) => Ok(level),
             other => Err(other),
         }
+    }
+}
+
+/// A builder of [`ColorScheme`]s.
+#[derive(Clone, Copy, Debug)]
+pub struct ColorSchemeBuilder {
+    /// The primary color of the scheme.
+    pub primary: ColorSource,
+    /// The secondary color of the scheme. If not provided, a complimentary
+    /// color will be chosen.
+    pub secondary: Option<ColorSource>,
+    /// The tertiary color of the scheme. If not provided, a complimentary
+    /// color will be chosen.
+    pub tertiary: Option<ColorSource>,
+    /// The error color of the scheme. If not provided, red will be used unless
+    /// it contrasts poorly with any of the other colors.
+    pub error: Option<ColorSource>,
+    /// The neutral color of the scheme. If not provided, a nearly fully
+    /// desaturated variation of the primary color will be used.
+    pub neutral: Option<ColorSource>,
+    /// The neutral variant color of the scheme. If not provided, a mostly
+    /// desaturated variation of the primary color will be used.
+    pub neutral_variant: Option<ColorSource>,
+    hue_shift: f32,
+}
+
+impl ColorSchemeBuilder {
+    /// Returns a builder for the provided hue, in degrees.
+    #[must_use]
+    pub fn from_hue(hue: impl Into<OklabHue>) -> Self {
+        Self::new(ColorSource::new(hue, 0.8))
+    }
+
+    /// Returns a builder for the provided primary color.
+    #[must_use]
+    pub fn new(primary: ColorSource) -> Self {
+        Self {
+            primary,
+            secondary: None,
+            tertiary: None,
+            error: None,
+            neutral: None,
+            neutral_variant: None,
+            hue_shift: 30.,
+        }
+    }
+
+    fn generate_secondary(&self) -> ColorSource {
+        ColorSource {
+            hue: self.primary.hue + self.hue_shift,
+            saturation: self.primary.saturation / 2.,
+        }
+    }
+
+    fn generate_tertiary(&self, secondary: ColorSource) -> ColorSource {
+        let hue_shift = (secondary.hue - self.primary.hue).into_degrees().signum() * self.hue_shift;
+        ColorSource {
+            hue: self.primary.hue - hue_shift,
+            saturation: self.primary.saturation / 3.,
+        }
+    }
+
+    fn generate_error(&self, secondary: ColorSource, tertiary: ColorSource) -> ColorSource {
+        let mut error = ColorSource::new(30., self.primary.saturation);
+        while [self.primary, secondary, tertiary]
+            .iter()
+            .any(|c| c.contrast_between(error) < 0.10)
+        {
+            error.hue -= self.hue_shift;
+        }
+
+        error
+    }
+
+    fn generate_neutral(&self) -> ColorSource {
+        ColorSource {
+            hue: self.primary.hue,
+            saturation: ZeroToOne::new(0.01),
+        }
+    }
+
+    fn generate_neutral_variant(&self) -> ColorSource {
+        ColorSource {
+            hue: self.primary.hue,
+            saturation: ZeroToOne::new(0.1),
+        }
+    }
+
+    /// Builds a color scheme from the provided colors, generating any
+    /// unspecified colors.
+    #[must_use]
+    pub fn build(self) -> ColorScheme {
+        let secondary = self.secondary.unwrap_or_else(|| self.generate_secondary());
+        let tertiary = self
+            .tertiary
+            .unwrap_or_else(|| self.generate_tertiary(secondary));
+        ColorScheme {
+            primary: self.primary,
+            secondary,
+            tertiary,
+            error: self
+                .error
+                .unwrap_or_else(|| self.generate_error(secondary, tertiary)),
+            neutral: self.neutral.unwrap_or_else(|| self.generate_neutral()),
+            neutral_variant: self
+                .neutral_variant
+                .unwrap_or_else(|| self.generate_neutral_variant()),
+        }
+    }
+}
+
+/// A color scheme for a Gooey application.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ColorScheme {
+    /// The primary accent color.
+    pub primary: ColorSource,
+    /// A secondary accent color.
+    pub secondary: ColorSource,
+    /// A tertiary accent color.
+    pub tertiary: ColorSource,
+    /// A color used to denote errors.
+    pub error: ColorSource,
+    /// A neutral color.
+    pub neutral: ColorSource,
+    /// A neutral color with a different tone than `neutral`.
+    pub neutral_variant: ColorSource,
+}
+
+impl ColorScheme {
+    /// Returns a generated color scheme based on a `primary` color.
+    #[must_use]
+    pub fn from_primary(primary: ColorSource) -> Self {
+        ColorSchemeBuilder::new(primary).build()
+    }
+
+    /// Returns a generated color scheme based on a `primary` hue, in degrees.
+    #[must_use]
+    pub fn from_primary_hue(hue: impl Into<OklabHue>) -> Self {
+        ColorSchemeBuilder::from_hue(hue).build()
+    }
+}
+
+impl Default for ColorScheme {
+    fn default() -> Self {
+        Self::from_primary_hue(138.5)
+    }
+}
+
+impl From<ColorSource> for ColorScheme {
+    fn from(primary: ColorSource) -> Self {
+        ColorScheme::from_primary(primary)
     }
 }

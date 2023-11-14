@@ -2,7 +2,9 @@ use std::str::FromStr;
 
 use gooey::animation::ZeroToOne;
 use gooey::styles::components::{TextColor, WidgetBackground};
-use gooey::styles::{ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair};
+use gooey::styles::{
+    ColorScheme, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair,
+};
 use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
 use gooey::widgets::{Input, Label, ModeSwitch, Scroll, Slider, Stack, Themed};
@@ -10,19 +12,15 @@ use gooey::window::ThemeMode;
 use gooey::Run;
 use kludgine::Color;
 
-const PRIMARY_HUE: f32 = 240.;
-const SECONDARY_HUE: f32 = 0.;
-const TERTIARY_HUE: f32 = 330.;
-const ERROR_HUE: f32 = 30.;
-
 fn main() -> gooey::Result {
-    let (primary, primary_editor) = color_editor(PRIMARY_HUE, 0.8, "Primary");
-    let (secondary, secondary_editor) = color_editor(SECONDARY_HUE, 0.3, "Secondary");
-    let (tertiary, tertiary_editor) = color_editor(TERTIARY_HUE, 0.3, "Tertiary");
-    let (error, error_editor) = color_editor(ERROR_HUE, 0.8, "Error");
-    let (neutral, neutral_editor) = color_editor(PRIMARY_HUE, 0.001, "Neutral");
+    let scheme = ColorScheme::default();
+    let (primary, primary_editor) = color_editor(scheme.primary, "Primary");
+    let (secondary, secondary_editor) = color_editor(scheme.secondary, "Secondary");
+    let (tertiary, tertiary_editor) = color_editor(scheme.tertiary, "Tertiary");
+    let (error, error_editor) = color_editor(scheme.error, "Error");
+    let (neutral, neutral_editor) = color_editor(scheme.neutral, "Neutral");
     let (neutral_variant, neutral_variant_editor) =
-        color_editor(PRIMARY_HUE, 0.001, "Neutral Variant");
+        color_editor(scheme.neutral_variant, "Neutral Variant");
     let (theme_mode, theme_switcher) = dark_mode_slider();
 
     let default_theme = (
@@ -35,14 +33,14 @@ fn main() -> gooey::Result {
     )
         .map_each(
             |(primary, secondary, tertiary, error, neutral, neutral_variant)| {
-                ThemePair::from_sources(
-                    *primary,
-                    *secondary,
-                    *tertiary,
-                    *error,
-                    *neutral,
-                    *neutral_variant,
-                )
+                ThemePair::from(ColorScheme {
+                    primary: *primary,
+                    secondary: *secondary,
+                    tertiary: *tertiary,
+                    error: *error,
+                    neutral: *neutral,
+                    neutral_variant: *neutral_variant,
+                })
             },
         );
 
@@ -104,12 +102,11 @@ where
 }
 
 fn color_editor(
-    initial_hue: f32,
-    initial_saturation: impl Into<ZeroToOne>,
+    initial_color: ColorSource,
     label: &str,
 ) -> (Dynamic<ColorSource>, impl MakeWidget) {
-    let (hue, hue_text) = create_paired_string(initial_hue);
-    let (saturation, saturation_text) = create_paired_string(initial_saturation.into());
+    let (hue, hue_text) = create_paired_string(initial_color.hue.into_degrees());
+    let (saturation, saturation_text) = create_paired_string(initial_color.saturation);
 
     let color =
         (&hue, &saturation).map_each(|(hue, saturation)| ColorSource::new(*hue, *saturation));

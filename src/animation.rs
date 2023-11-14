@@ -853,6 +853,12 @@ impl ZeroToOne {
     pub fn into_f32(self) -> f32 {
         self.0
     }
+
+    /// Returns the result of 1.0 - `self`.
+    #[must_use]
+    pub fn one_minus(self) -> Self {
+        Self(1. - self.0)
+    }
 }
 
 impl Display for ZeroToOne {
@@ -952,7 +958,15 @@ impl Div for ZeroToOne {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
-        Self(self.0 / rhs.0)
+        self / rhs.0
+    }
+}
+
+impl Div<f32> for ZeroToOne {
+    type Output = Self;
+
+    fn div(self, rhs: f32) -> Self::Output {
+        Self(self.0 / rhs)
     }
 }
 
