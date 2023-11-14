@@ -48,6 +48,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use alot::{LotId, Lots};
+use derive_more::From;
 use intentional::Cast;
 use kempt::Set;
 use kludgine::figures::Ranged;
@@ -607,12 +608,49 @@ impl Animate for Duration {
 }
 
 /// Performs a linear interpolation between two values.
+///
+/// This trait can be derived for structs and fieldless enums.
+///
+/// Note: for fields that don't implement [`LinerarInterpolate`](trait@LinearInterpolate)
+/// the wrappers [`BinaryLerp`] and [`ImmediateLerp`] can be used.
+///
+/// ```
+/// use gooey::animation::{BinaryLerp, ImmediateLerp, LinearInterpolate};
+/// use gooey::kludgine::Color;
+///
+/// #[derive(LinearInterpolate, PartialEq, Debug)]
+/// struct Struct(Color, BinaryLerp<&'static str>, ImmediateLerp<&'static str>);
+///
+/// let from = Struct(Color::BLACK, "hello".into(), "hello".into());
+/// let to = Struct(Color::WHITE, "world".into(), "world".into());
+///
+/// assert_eq!(
+///     from.lerp(&to, 0.41),
+///     Struct(Color::DIMGRAY, "hello".into(), "world".into())
+/// );
+/// assert_eq!(
+///     from.lerp(&to, 0.663),
+///     Struct(Color::DARKGRAY, "world".into(), "world".into())
+/// );
+///
+/// #[derive(LinearInterpolate, PartialEq, Debug)]
+/// enum Enum {
+///     A,
+///     B,
+///     C,
+/// }
+/// assert_eq!(Enum::A.lerp(&Enum::B, 0.4), Enum::A);
+/// assert_eq!(Enum::A.lerp(&Enum::C, 0.1), Enum::A);
+/// assert_eq!(Enum::A.lerp(&Enum::C, 0.4), Enum::B);
+/// assert_eq!(Enum::A.lerp(&Enum::C, 0.9), Enum::C);
+/// ```
 pub trait LinearInterpolate: PartialEq {
     /// Interpolate linearly between `self` and `target` using `percent`.
     #[must_use]
     fn lerp(&self, target: &Self, percent: f32) -> Self;
 }
 
+/// Derives [`LinerarInterpolate`](trait@LinearInterpolate) for structs and fieldless enums.
 pub use gooey_macros::LinearInterpolate;
 
 macro_rules! impl_lerp_for_int {
@@ -732,7 +770,7 @@ impl LinearInterpolate for Color {
 ///
 /// This wrapper can be used to add [`LinearInterpolate`] to types that normally
 /// don't support interpolation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, From)]
 pub struct BinaryLerp<T>(T);
 
 impl<T> LinearInterpolate for BinaryLerp<T>
@@ -753,7 +791,7 @@ where
 ///
 /// This wrapper can be used to add [`LinearInterpolate`] to types that normally
 /// don't support interpolation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, From)]
 pub struct ImmediateLerp<T>(T);
 
 impl<T> LinearInterpolate for ImmediateLerp<T>
