@@ -1665,27 +1665,21 @@ pub struct ColorSchemeBuilder {
     /// The neutral variant color of the scheme. If not provided, a mostly
     /// desaturated variation of the primary color will be used.
     pub neutral_variant: Option<ColorSource>,
-    hue_shift: f32,
+    hue_shift: OklabHue,
 }
 
 impl ColorSchemeBuilder {
-    /// Returns a builder for the provided hue, in degrees.
-    #[must_use]
-    pub fn from_hue(hue: impl Into<OklabHue>) -> Self {
-        Self::new(ColorSource::new(hue, 0.8))
-    }
-
     /// Returns a builder for the provided primary color.
     #[must_use]
-    pub fn new(primary: ColorSource) -> Self {
+    pub fn new(primary: impl ProtoColor) -> Self {
         Self {
-            primary,
+            primary: primary.into_source(ZeroToOne::new(0.8)),
             secondary: None,
             tertiary: None,
             error: None,
             neutral: None,
             neutral_variant: None,
-            hue_shift: 30.,
+            hue_shift: OklabHue::new(30.),
         }
     }
 
@@ -1697,7 +1691,8 @@ impl ColorSchemeBuilder {
     }
 
     fn generate_tertiary(&self, secondary: ColorSource) -> ColorSource {
-        let hue_shift = (secondary.hue - self.primary.hue).into_degrees().signum() * self.hue_shift;
+        let hue_shift = (secondary.hue - self.primary.hue).into_degrees().signum()
+            * self.hue_shift.into_degrees();
         ColorSource {
             hue: self.primary.hue - hue_shift,
             saturation: self.primary.saturation / 3.,
@@ -1726,8 +1721,57 @@ impl ColorSchemeBuilder {
     fn generate_neutral_variant(&self) -> ColorSource {
         ColorSource {
             hue: self.primary.hue,
-            saturation: ZeroToOne::new(0.1),
+            saturation: self.primary.saturation / 10.,
         }
+    }
+
+    /// Sets the secondary color and returns self.
+    ///
+    /// If `secondary` doesn't specify a saturation, a saturation value that is
+    /// 50% of the primary saturation will be picked.
+    #[must_use]
+    pub fn secondary(mut self, secondary: impl ProtoColor) -> Self {
+        self.secondary = Some(secondary.into_source(self.primary.saturation / 2.));
+        self
+    }
+
+    /// Sets the tertiary color and returns self.
+    ///
+    /// If `tertiary` doesn't specify a saturation, a saturation value that is
+    /// 33% of the primary saturation will be picked.
+    #[must_use]
+    pub fn tertiary(mut self, tertiary: impl ProtoColor) -> Self {
+        self.secondary = Some(tertiary.into_source(self.primary.saturation / 3.));
+        self
+    }
+
+    /// Sets the neutral color and returns self.
+    ///
+    /// If `neutral` doesn't specify a saturation, a saturation of 1%.
+    #[must_use]
+    pub fn neutral(mut self, neutral: impl ProtoColor) -> Self {
+        self.neutral = Some(neutral.into_source(0.01));
+        self
+    }
+
+    /// Sets the neutral color and returns self.
+    ///
+    /// If `neutral_variant` doesn't specify a saturation, a saturation value
+    /// that is 10% of the primary saturation will be picked.
+    #[must_use]
+    pub fn neutral_variant(mut self, neutral_variant: impl ProtoColor) -> Self {
+        self.neutral_variant = Some(neutral_variant.into_source(self.primary.saturation / 10.));
+        self
+    }
+
+    /// Sets the amount the hue component is shifted when auto-generating colors
+    /// to fill in the palette.
+    ///
+    /// The default hue shift is 30 degrees.
+    #[must_use]
+    pub fn hue_shift(mut self, hue_shift: impl Into<OklabHue>) -> Self {
+        self.hue_shift = hue_shift.into();
+        self
     }
 
     /// Builds a color scheme from the provided colors, generating any
@@ -1753,6 +1797,69 @@ impl ColorSchemeBuilder {
     }
 }
 
+/// A type that can be interpretted as a hue or hue and saturation.
+pub trait ProtoColor: Sized {
+    /// Returns the hue of this prototype color.
+    #[must_use]
+    fn hue(&self) -> OklabHue;
+    /// Returns the saturation of this prototype color, if available.
+    #[must_use]
+    fn saturation(&self) -> Option<ZeroToOne>;
+
+    /// Returns a color source built from this prototype color
+    #[must_use]
+    fn into_source(self, saturation_if_not_provided: impl Into<ZeroToOne>) -> ColorSource {
+        let saturation = self
+            .saturation()
+            .unwrap_or_else(|| saturation_if_not_provided.into());
+        ColorSource::new(self.hue(), saturation)
+    }
+}
+
+impl ProtoColor for f32 {
+    fn hue(&self) -> OklabHue {
+        (*self).into()
+    }
+
+    fn saturation(&self) -> Option<ZeroToOne> {
+        None
+    }
+}
+
+impl ProtoColor for OklabHue {
+    fn hue(&self) -> OklabHue {
+        *self
+    }
+
+    fn saturation(&self) -> Option<ZeroToOne> {
+        None
+    }
+}
+
+impl ProtoColor for ColorSource {
+    fn hue(&self) -> OklabHue {
+        self.hue
+    }
+
+    fn saturation(&self) -> Option<ZeroToOne> {
+        Some(self.saturation)
+    }
+}
+
+impl<Hue, Saturation> ProtoColor for (Hue, Saturation)
+where
+    Hue: Into<OklabHue> + Copy,
+    Saturation: Into<ZeroToOne> + Copy,
+{
+    fn hue(&self) -> OklabHue {
+        self.0.into()
+    }
+
+    fn saturation(&self) -> Option<ZeroToOne> {
+        Some(self.1.into())
+    }
+}
+
 /// A color scheme for a Gooey application.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ColorScheme {
@@ -1773,20 +1880,14 @@ pub struct ColorScheme {
 impl ColorScheme {
     /// Returns a generated color scheme based on a `primary` color.
     #[must_use]
-    pub fn from_primary(primary: ColorSource) -> Self {
+    pub fn from_primary(primary: impl ProtoColor) -> Self {
         ColorSchemeBuilder::new(primary).build()
-    }
-
-    /// Returns a generated color scheme based on a `primary` hue, in degrees.
-    #[must_use]
-    pub fn from_primary_hue(hue: impl Into<OklabHue>) -> Self {
-        ColorSchemeBuilder::from_hue(hue).build()
     }
 }
 
 impl Default for ColorScheme {
     fn default() -> Self {
-        Self::from_primary_hue(138.5)
+        Self::from_primary(138.5)
     }
 }
 
