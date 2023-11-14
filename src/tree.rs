@@ -56,12 +56,8 @@ impl Tree {
             let parent = &mut data.nodes[parent];
             parent.children.push(node_id);
         }
-        if let Some(next_focus) = widget
-            .next_focus()
-            .and_then(|id| data.nodes_by_id.get(&id))
-            .copied()
-        {
-            data.previous_focuses.insert(next_focus, node_id);
+        if let Some(next_focus) = widget.next_focus() {
+            data.previous_focuses.insert(next_focus, id);
         }
         ManagedWidget {
             node_id,
@@ -252,6 +248,12 @@ impl Tree {
         data.update_tracked_widget(new_focus, self, |data| &mut data.focus)
     }
 
+    pub fn previous_focus(&self, focus: WidgetId) -> Option<ManagedWidget> {
+        let data = self.data.lock().ignore_poison();
+        let previous = *data.previous_focuses.get(&focus)?;
+        data.widget_from_id(previous, self)
+    }
+
     pub fn activate(
         &self,
         new_active: Option<&ManagedWidget>,
@@ -372,7 +374,7 @@ struct TreeData {
     defaults: Vec<LotId>,
     escapes: Vec<LotId>,
     render_order: Vec<LotId>,
-    previous_focuses: AHashMap<LotId, LotId>,
+    previous_focuses: AHashMap<WidgetId, WidgetId>,
 }
 
 impl TreeData {
@@ -435,17 +437,16 @@ impl TreeData {
         parent.children.remove(index);
         let mut detached_nodes = removed_node.children;
 
-        if let Some(next_focus) = removed_node
-            .widget
-            .next_focus()
-            .and_then(|id| self.nodes_by_id.get(&id))
-        {
-            self.previous_focuses.remove(next_focus);
+        if let Some(next_focus) = removed_node.widget.next_focus() {
+            self.previous_focuses.remove(&next_focus);
         }
 
         while let Some(node) = detached_nodes.pop() {
             let mut node = self.nodes.remove(node).expect("detached node missing");
             self.nodes_by_id.remove(&node.widget.id());
+            if let Some(next_focus) = node.widget.next_focus() {
+                self.previous_focuses.remove(&next_focus);
+            }
             detached_nodes.append(&mut node.children);
         }
     }

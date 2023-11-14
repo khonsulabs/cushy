@@ -31,7 +31,6 @@ use crate::context::{
     WidgetContext,
 };
 use crate::graphics::Graphics;
-use crate::styles::components::LayoutOrder;
 use crate::styles::ThemePair;
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
@@ -736,11 +735,11 @@ where
                             ),
                             kludgine,
                         );
-                        let mut visual_order = target.get(&LayoutOrder);
                         if reverse {
-                            visual_order = visual_order.rev();
+                            target.return_focus();
+                        } else {
+                            target.advance_focus();
                         }
-                        target.advance_focus(visual_order);
                     }
                 }
                 Key::Enter => {

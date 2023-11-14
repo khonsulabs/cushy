@@ -15,8 +15,8 @@ use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
 use crate::graphics::Graphics;
-use crate::styles::components::{HighlightColor, WidgetBackground};
-use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair, VisualOrder};
+use crate::styles::components::{HighlightColor, LayoutOrder, WidgetBackground};
+use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
@@ -235,10 +235,12 @@ impl<'context, 'window> EventContext<'context, 'window> {
                     .accept_focus(&mut self.for_other(&focus))
                 {
                     break Some(focus);
-                } else if let Some(next_focus) = focus.next_focus() {
+                } else if let Some(next_focus) =
+                    focus.explicit_focus_target(self.pending_state.focus_is_advancing)
+                {
                     focus = next_focus;
                 } else {
-                    break self.next_focus_after(focus, VisualOrder::left_to_right());
+                    break self.next_focus_after(focus, self.pending_state.focus_is_advancing);
                 }
             });
             let new = match self
@@ -272,17 +274,17 @@ impl<'context, 'window> EventContext<'context, 'window> {
     fn next_focus_after(
         &mut self,
         mut focus: ManagedWidget,
-        order: VisualOrder,
+        advance: bool,
     ) -> Option<ManagedWidget> {
         // First, look within the current focus for any focusable children.
         let stop_at = focus.id();
-        if let Some(focus) = self.next_focus_within(&focus, None, stop_at, order) {
+        if let Some(focus) = self.next_focus_within(&focus, None, stop_at, advance) {
             return Some(focus);
         }
 
         // Now, look for the next widget in each hierarchy
         let root = loop {
-            if let Some(focus) = self.next_focus_sibling(&focus, stop_at, order) {
+            if let Some(focus) = self.next_focus_sibling(&focus, stop_at, advance) {
                 return Some(focus);
             }
             let Some(parent) = focus.parent() else {
@@ -293,16 +295,16 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
         // We've exhausted a forward scan, we can now start searching the final
         // parent, which is the root.
-        self.next_focus_within(&root, None, stop_at, order)
+        self.next_focus_within(&root, None, stop_at, advance)
     }
 
     fn next_focus_sibling(
         &mut self,
         focus: &ManagedWidget,
         stop_at: WidgetId,
-        order: VisualOrder,
+        advance: bool,
     ) -> Option<ManagedWidget> {
-        self.next_focus_within(&focus.parent()?, Some(focus.id()), stop_at, order)
+        self.next_focus_within(&focus.parent()?, Some(focus.id()), stop_at, advance)
     }
 
     /// Searches for the next focus inside of `focus`, returning `None` if
@@ -313,10 +315,14 @@ impl<'context, 'window> EventContext<'context, 'window> {
         focus: &ManagedWidget,
         start_at: Option<WidgetId>,
         stop_at: WidgetId,
-        order: VisualOrder,
+        advance: bool,
     ) -> Option<ManagedWidget> {
+        let mut visual_order = self.get(&LayoutOrder);
+        if !advance {
+            visual_order = visual_order.rev();
+        }
         let mut children = focus
-            .visually_ordered_children(order)
+            .visually_ordered_children(visual_order)
             .into_iter()
             .peekable();
         if let Some(start_at) = start_at {
@@ -340,7 +346,9 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 .accept_focus(&mut self.for_other(&child))
             {
                 return Some(child);
-            } else if let Some(focus) = self.next_focus_within(&child, None, stop_at, order) {
+            } else if let Some(next_focus) = self.widget().explicit_focus_target(advance) {
+                return Some(next_focus);
+            } else if let Some(focus) = self.next_focus_within(&child, None, stop_at, advance) {
                 return Some(focus);
             }
         }
@@ -348,14 +356,31 @@ impl<'context, 'window> EventContext<'context, 'window> {
         None
     }
 
-    /// Advances the focus from this widget to the next widget in `direction`.
+    /// Advances the focus to the next widget after this widget in the
+    /// configured focus order.
     ///
-    /// This widget does not need to be focused.
-    pub fn advance_focus(&mut self, direction: VisualOrder) {
-        // TODO check to see if the current node has an explicit next_focus (or
-        // if we're going in the opposite direction, previous_focus).
+    /// To focus in the reverse order, use [`EventContext::return_focus()`].
+    pub fn advance_focus(&mut self) {
+        self.move_focus(true);
+    }
 
-        self.pending_state.focus = self.next_focus_after(self.current_node.clone(), direction);
+    /// Returns the focus to the previous widget before this widget in the
+    /// configured fous order.
+    ///
+    /// To focus in the forward order, use [`EventContext::advance_focus()`].
+    pub fn return_focus(&mut self) {
+        self.move_focus(false);
+    }
+
+    fn move_focus(&mut self, advance: bool) {
+        if let Some(explicit_next_focus) = self.current_node.explicit_focus_target(advance) {
+            self.for_other(&explicit_next_focus).focus();
+        } else {
+            self.pending_state.focus = self.next_focus_after(self.current_node.clone(), advance);
+        }
+        // It is important to set focus-is_advancing after `focus()` because it
+        // sets it to `true` explicitly.
+        self.pending_state.focus_is_advancing = advance;
     }
 }
 
@@ -702,6 +727,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
                     .tree
                     .active_widget()
                     .and_then(|id| current_node.tree.widget_from_node(id)),
+                focus_is_advancing: false,
             }),
             effective_styles: current_node.effective_styles(),
             current_node,
@@ -783,6 +809,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Widget events relating to focus changes are deferred until after the all
     /// contexts for the currently firing event are dropped.
     pub fn focus(&mut self) {
+        self.pending_state.focus_is_advancing = true;
         self.pending_state.focus = Some(self.current_node.clone());
     }
 
@@ -1045,6 +1072,7 @@ enum PendingState<'a> {
 
 #[derive(Default)]
 struct PendingWidgetState {
+    focus_is_advancing: bool,
     focus: Option<ManagedWidget>,
     active: Option<ManagedWidget>,
 }

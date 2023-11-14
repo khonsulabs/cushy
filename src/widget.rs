@@ -1081,6 +1081,26 @@ impl ManagedWidget {
             .and_then(|next_focus| self.tree.widget(next_focus))
     }
 
+    /// Returns the widget to focus before this widget.
+    ///
+    /// There is no direct way to set this value. This relationship is created
+    /// automatically using [`MakeWidget::with_next_focus()`].
+    #[must_use]
+    pub fn previous_focus(&self) -> Option<ManagedWidget> {
+        self.tree.previous_focus(self.id())
+    }
+
+    /// Returns the next or previous focus target, if one was set using
+    /// [`MakeWidget::with_next_focus()`].
+    #[must_use]
+    pub fn explicit_focus_target(&self, advance: bool) -> Option<ManagedWidget> {
+        if advance {
+            self.next_focus()
+        } else {
+            self.previous_focus()
+        }
+    }
+
     /// Returns the region that the widget was last rendered at.
     #[must_use]
     pub fn last_layout(&self) -> Option<Rect<Px>> {
