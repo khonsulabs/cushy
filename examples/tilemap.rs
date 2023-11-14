@@ -46,8 +46,7 @@ fn main() -> gooey::Result {
             id: myself,
         })
         .tick(Tick::times_per_second(60, move |elapsed, input| {
-            // get mouse cursor position and subsequently get the object under
-            // the mouse
+            // get mouse cursor position and subsequently get the object under the cursor
 
             let mut direction = Point::new(0., 0.);
             if input.keys.contains(&Key::ArrowDown) {
@@ -65,11 +64,20 @@ fn main() -> gooey::Result {
 
             let one_second_movement = direction * TILE_SIZE.0 as f32;
 
+            let cursor_pos = input.mouse.pos;
+
             layers.map_mut(|layers| {
-                layers.1[myself].position += Point::new(
+                let pos = &mut layers.1[myself].position;
+                *pos += Point::new(
                     one_second_movement.x * elapsed.as_secs_f32(),
                     one_second_movement.y * elapsed.as_secs_f32(),
-                )
+                );
+
+                let rect = Rect::new(*pos, Size::new(16., 16.));
+                let color = match rect.cast().contains(cursor_pos) {
+                    true => Color::RED,
+                    false => Color::BLUE,
+                };
             });
         }));
 

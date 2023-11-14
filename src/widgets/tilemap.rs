@@ -135,6 +135,10 @@ where
         let zoom = self.zoom;
         let world = tilemap::translate_coordinates(local, offset, scale, zoom, size);
 
+        if let Some(tick) = &self.tick {
+            tick.set_cursor_position(world);
+        }
+
         self.debug_output.as_ref().unwrap().set(format!("world: {world:?} | local: {local:?}"));
     }
 

@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 
 use kludgine::app::winit::event::KeyEvent;
 use kludgine::app::winit::keyboard::Key;
+use kludgine::figures::Point;
+use kludgine::figures::units::Px;
 
 use crate::context::WidgetContext;
 use crate::value::Dynamic;
@@ -48,6 +50,11 @@ impl Tick {
         }
     }
 
+    pub fn set_cursor_position(&self, pos: Point<Px>) {
+        let mut state = self.data.state();
+        state.input.mouse.pos = pos;
+    }
+
     /// Returns a new tick that invokes `tick`, aiming to repeat at the given
     /// duration.
     pub fn new<F>(tick_every: Duration, tick: F) -> Self
@@ -62,6 +69,7 @@ impl Tick {
                 keep_running: true,
                 frame: 0,
                 input: InputState::default(),
+                mouse: None,
             }),
             period: tick_every,
             sync: Condvar::new(),
@@ -110,7 +118,14 @@ impl Tick {
 pub struct InputState {
     /// A collection of all keys currently pressed.
     pub keys: HashSet<Key>,
+    pub mouse: Mouse,
 }
+
+#[derive(Debug, Default)]
+pub struct Mouse {
+    pub pos: Point<Px>,
+}
+
 
 #[derive(Debug)]
 struct TickData {
@@ -136,6 +151,7 @@ struct TickState {
     keep_running: bool,
     frame: usize,
     input: InputState,
+    mouse: Option<Mouse>,
 }
 
 fn tick_loop<F>(data: &TickData, mut tick: F)
