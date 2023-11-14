@@ -18,7 +18,6 @@ interner = "0.2.1"
 kempt = "0.2.1"
 intentional = "0.1.0"
 tracing = "0.1.40"
-rustix = "=0.38.21"
 
 tracing-subscriber = { version = "0.3", optional = true, features = [
     "env-filter",
