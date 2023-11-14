@@ -779,6 +779,8 @@ macro_rules! impl_percent_between {
     ($type:ident, $float:ident) => {
         impl PercentBetween for $type {
             fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+                assert!(min <= max, "percent_between requires min <= max");
+
                 let range = *max - *min;
                 ZeroToOne::from(*self as $float / range as $float)
             }
@@ -812,10 +814,13 @@ impl PercentBetween for Color {
             func(value).percent_between(&func(min), &func(max))
         }
 
-        channel_percent(*self, *min, *max, Color::red)
-            * channel_percent(*self, *min, *max, Color::green)
-            * channel_percent(*self, *min, *max, Color::blue)
-            * channel_percent(*self, *min, *max, Color::alpha)
+        ZeroToOne::new(
+            (*channel_percent(*self, *min, *max, Color::red)
+                + *channel_percent(*self, *min, *max, Color::green)
+                + *channel_percent(*self, *min, *max, Color::blue)
+                + *channel_percent(*self, *min, *max, Color::alpha))
+                / 4.,
+        )
     }
 }
 
