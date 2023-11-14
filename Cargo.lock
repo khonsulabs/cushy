@@ -728,7 +728,6 @@ dependencies = [
  "kludgine",
  "palette",
  "pollster",
- "rustix",
  "tracing",
  "tracing-subscriber",
 ]

@@ -127,9 +127,6 @@ where
     }
 
     fn hover(&mut self, local: Point<Px>, context: &mut EventContext<'_, '_>) {
-        // translate location to local location
-        // * effective zoom
-        
         let Some(size) = context.last_layout().map(|rect| rect.size) else { return };
 
         let offset = self.layers.map(|layers| self.focus.get().world_coordinate(layers));
