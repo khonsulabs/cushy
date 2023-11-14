@@ -1381,12 +1381,19 @@ impl ColorExt for Color {
         let (other_source, other_lightness) = self.into_source_and_lightness();
         let lightness_delta = other_lightness.difference_between(check_lightness);
 
+        let average_lightness = ZeroToOne::new((*check_lightness + *other_lightness) / 2.);
+
         let source_change = check_source.contrast_between(other_source);
 
         let other_alpha = ZeroToOne::new(self.alpha_f32());
         let alpha_delta = check_alpha.difference_between(other_alpha);
 
-        ZeroToOne::new((*lightness_delta + *source_change + *alpha_delta) / 3.)
+        ZeroToOne::new(
+            (*lightness_delta
+                + *average_lightness * *source_change
+                + *average_lightness * *alpha_delta)
+                / 3.,
+        )
     }
 
     fn most_contrasting(self, others: &[Self]) -> Self
