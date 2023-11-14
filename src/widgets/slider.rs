@@ -176,7 +176,7 @@ where
 
         let half_knob = knob_size / 2;
 
-        let mut value = self.value.get_tracked(context);
+        let mut value = self.value.get_tracking_refresh(context);
         let min = self.minimum.get_tracked(context);
         let mut max = self.maximum.get_tracked(context);
 

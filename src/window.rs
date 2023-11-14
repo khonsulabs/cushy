@@ -27,7 +27,7 @@ use tracing::Level;
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
 use crate::context::{
-    AsEventContext, EventContext, Exclusive, GraphicsContext, LayoutContext, RedrawStatus,
+    AsEventContext, EventContext, Exclusive, GraphicsContext, InvalidationStatus, LayoutContext,
     WidgetContext,
 };
 use crate::graphics::Graphics;
@@ -275,7 +275,7 @@ struct GooeyWindow<T> {
     contents: Drawing,
     should_close: bool,
     mouse_state: MouseState,
-    redraw_status: RedrawStatus,
+    redraw_status: InvalidationStatus,
     initial_frame: bool,
     occluded: Dynamic<bool>,
     focused: Dynamic<bool>,
@@ -467,7 +467,7 @@ where
                 widget: None,
                 devices: AHashMap::default(),
             },
-            redraw_status: RedrawStatus::default(),
+            redraw_status: InvalidationStatus::default(),
             initial_frame: true,
             occluded,
             focused,
@@ -497,7 +497,9 @@ where
 
         self.redraw_status.refresh_received();
         graphics.reset_text_attributes();
-        self.root.tree.reset_render_order();
+        // TODO re-check why we can't add drain without a range to kempt. Or even intoiter.
+        let invalidations = std::mem::take(&mut *self.redraw_status.invalidations());
+        self.root.tree.new_frame(invalidations.iter().copied());
 
         let resizable = window.winit().is_resizable();
         let is_expanded = self.constrain_window_resizing(resizable, &window, graphics);
@@ -651,7 +653,13 @@ where
 
     // fn scale_factor_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 
-    // fn resized(&mut self, window: kludgine::app::Window<'_, ()>) {}
+    fn resized(
+        &mut self,
+        _window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+    ) {
+        self.root.invalidate();
+    }
 
     // fn theme_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 

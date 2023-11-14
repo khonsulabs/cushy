@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::panic::UnwindSafe;
 use std::sync::atomic::{self, AtomicU64};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use alot::LotId;
 use kludgine::app::winit::event::{
@@ -22,6 +22,7 @@ use crate::styles::{
     ThemePair, VisualOrder,
 };
 use crate::tree::Tree;
+use crate::utils::IgnorePoison;
 use crate::value::{IntoValue, Value};
 use crate::widgets::{Align, Container, Expand, Resize, Scroll, Stack, Style};
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
@@ -908,13 +909,9 @@ impl WidgetInstance {
     /// Locks the widget for exclusive access. Locking widgets should only be
     /// done for brief moments of time when you are certain no deadlocks can
     /// occur due to other widget locks being held.
+    #[must_use]
     pub fn lock(&self) -> WidgetGuard<'_> {
-        WidgetGuard(
-            self.data
-                .widget
-                .lock()
-                .map_or_else(PoisonError::into_inner, |g| g),
-        )
+        WidgetGuard(self.data.widget.lock().ignore_poison())
     }
 
     /// Runs this widget instance as an application.
@@ -1041,6 +1038,11 @@ impl ManagedWidget {
         self.widget.lock()
     }
 
+    /// Invalidates this widget.
+    pub fn invalidate(&self) {
+        self.tree.invalidate(self.node_id, false);
+    }
+
     pub(crate) fn set_layout(&self, rect: Rect<Px>) {
         self.tree.set_layout(self.node_id, rect);
     }
@@ -1130,8 +1132,12 @@ impl ManagedWidget {
         self.tree.overriden_theme(self.node_id)
     }
 
-    pub(crate) fn reset_child_layouts(&self) {
-        self.tree.reset_child_layouts(self.node_id);
+    pub(crate) fn begin_layout(&self, constraints: Size<ConstraintLimit>) -> Option<Size<UPx>> {
+        self.tree.begin_layout(self.node_id, constraints)
+    }
+
+    pub(crate) fn persist_layout(&self, constraints: Size<ConstraintLimit>, size: Size<UPx>) {
+        self.tree.persist_layout(self.node_id, constraints, size);
     }
 
     pub(crate) fn visually_ordered_children(&self, order: VisualOrder) -> Vec<ManagedWidget> {
@@ -1343,7 +1349,7 @@ impl AsRef<WidgetId> for WidgetRef {
 ///
 /// Each [`WidgetInstance`] is guaranteed to have a unique [`WidgetId`] across
 /// the lifetime of an application.
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash, Ord, PartialOrd)]
 pub struct WidgetId(u64);
 
 impl WidgetId {

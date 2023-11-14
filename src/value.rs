@@ -5,15 +5,17 @@ use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::panic::AssertUnwindSafe;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, TryLockError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
 
+use ahash::AHashSet;
 use intentional::Assert;
 
 use crate::animation::{DynamicTransition, LinearInterpolate};
 use crate::context::{WidgetContext, WindowHandle};
-use crate::utils::WithClone;
+use crate::utils::{IgnorePoison, WithClone};
+use crate::widget::WidgetId;
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -30,9 +32,10 @@ impl<T> Dynamic<T> {
                     generation: Generation::default(),
                 },
                 callbacks: Vec::new(),
-                windows: Vec::new(),
+                windows: AHashSet::new(),
                 readers: 0,
                 wakers: Vec::new(),
+                widgets: AHashSet::new(),
             }),
             during_callback_state: Mutex::default(),
             sync: AssertUnwindSafe(Condvar::new()),
@@ -158,6 +161,10 @@ impl<T> Dynamic<T> {
         self.0.redraw_when_changed(window);
     }
 
+    pub(crate) fn invalidate_when_changed(&self, window: WindowHandle, widget: WidgetId) {
+        self.0.invalidate_when_changed(window, widget);
+    }
+
     /// Returns a clone of the currently contained value.
     ///
     /// # Panics
@@ -181,11 +188,28 @@ impl<T> Dynamic<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     #[must_use]
-    pub fn get_tracked(&self, context: &WidgetContext<'_, '_>) -> T
+    pub fn get_tracking_refresh(&self, context: &WidgetContext<'_, '_>) -> T
     where
         T: Clone,
     {
         context.redraw_when_changed(self);
+        self.get()
+    }
+
+    /// Returns a clone of the currently contained value.
+    ///
+    /// `context` will be invalidated when the value is updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    #[must_use]
+    pub fn get_tracking_invalidate(&self, context: &WidgetContext<'_, '_>) -> T
+    where
+        T: Clone,
+    {
+        context.invalidate_when_changed(self);
         self.get()
     }
 
@@ -409,11 +433,7 @@ struct DynamicMutexGuard<'a, T> {
 
 impl<'a, T> Drop for DynamicMutexGuard<'a, T> {
     fn drop(&mut self) {
-        let mut during_state = self
-            .dynamic
-            .during_callback_state
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
+        let mut during_state = self.dynamic.during_callback_state.lock().ignore_poison();
         *during_state = None;
         drop(during_state);
         self.dynamic.sync.notify_all();
@@ -450,10 +470,7 @@ struct DynamicData<T> {
 
 impl<T> DynamicData<T> {
     fn state(&self) -> Result<DynamicMutexGuard<'_, T>, DeadlockError> {
-        let mut during_sync = self
-            .during_callback_state
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
+        let mut during_sync = self.during_callback_state.lock().ignore_poison();
 
         let current_thread_id = std::thread::current().id();
         let guard = loop {
@@ -466,10 +483,7 @@ impl<T> DynamicData<T> {
                             return Err(DeadlockError)
                         }
                         Some(_) => {
-                            during_sync = self
-                                .sync
-                                .wait(during_sync)
-                                .map_or_else(PoisonError::into_inner, |g| g);
+                            during_sync = self.sync.wait(during_sync).ignore_poison();
                         }
                         None => break,
                     }
@@ -487,7 +501,12 @@ impl<T> DynamicData<T> {
 
     pub fn redraw_when_changed(&self, window: WindowHandle) {
         let mut state = self.state().expect("deadlocked");
-        state.windows.push(window);
+        state.windows.insert(window);
+    }
+
+    pub fn invalidate_when_changed(&self, window: WindowHandle, widget: WidgetId) {
+        let mut state = self.state().expect("deadlocked");
+        state.widgets.insert((window, widget));
     }
 
     pub fn get(&self) -> Result<GenerationalValue<T>, DeadlockError>
@@ -579,7 +598,8 @@ impl Display for DeadlockError {
 struct State<T> {
     wrapped: GenerationalValue<T>,
     callbacks: Vec<Box<dyn ValueCallback<T>>>,
-    windows: Vec<WindowHandle>,
+    windows: AHashSet<WindowHandle>,
+    widgets: AHashSet<(WindowHandle, WidgetId)>,
     wakers: Vec<Waker>,
     readers: usize,
 }
@@ -591,7 +611,10 @@ impl<T> State<T> {
         for callback in &mut self.callbacks {
             callback.update(&self.wrapped);
         }
-        for window in self.windows.drain(..) {
+        for (window, widget) in self.widgets.drain() {
+            window.invalidate(widget);
+        }
+        for window in self.windows.drain() {
             window.redraw();
         }
         for waker in self.wakers.drain(..) {
@@ -726,11 +749,7 @@ impl<T> DynamicReader<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     pub fn block_until_updated(&mut self) -> bool {
-        let mut deadlock_state = self
-            .source
-            .during_callback_state
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
+        let mut deadlock_state = self.source.during_callback_state.lock().ignore_poison();
         assert!(
             deadlock_state
                 .as_ref()
@@ -739,11 +758,7 @@ impl<T> DynamicReader<T> {
             "deadlocked"
         );
         loop {
-            let state = self
-                .source
-                .state
-                .lock()
-                .map_or_else(PoisonError::into_inner, |g| g);
+            let state = self.source.state.lock().ignore_poison();
             if state.wrapped.generation != self.read_generation {
                 return true;
             } else if state.readers == Arc::strong_count(&self.source) {
@@ -752,11 +767,7 @@ impl<T> DynamicReader<T> {
             drop(state);
 
             // Wait for a notification of a change, which is synch
-            deadlock_state = self
-                .source
-                .sync
-                .wait(deadlock_state)
-                .map_or_else(PoisonError::into_inner, |g| g);
+            deadlock_state = self.source.sync.wait(deadlock_state).ignore_poison();
         }
     }
 
@@ -936,11 +947,33 @@ impl<T> Value<T> {
     ///
     /// If `self` is a dynamic, `context` will be invalidated when the value is
     /// updated.
-    pub fn map_tracked<R>(&self, context: &WidgetContext<'_, '_>, map: impl FnOnce(&T) -> R) -> R {
+    pub fn map_tracking_redraw<R>(
+        &self,
+        context: &WidgetContext<'_, '_>,
+        map: impl FnOnce(&T) -> R,
+    ) -> R {
         match self {
             Value::Constant(value) => map(value),
             Value::Dynamic(dynamic) => {
                 context.redraw_when_changed(dynamic);
+                dynamic.map_ref(map)
+            }
+        }
+    }
+
+    /// Maps the current contents to `map` and returns the result.
+    ///
+    /// If `self` is a dynamic, `context` will be invalidated when the value is
+    /// updated.
+    pub fn map_tracking_invalidate<R>(
+        &self,
+        context: &WidgetContext<'_, '_>,
+        map: impl FnOnce(&T) -> R,
+    ) -> R {
+        match self {
+            Value::Constant(value) => map(value),
+            Value::Dynamic(dynamic) => {
+                context.invalidate_when_changed(dynamic);
                 dynamic.map_ref(map)
             }
         }
@@ -984,7 +1017,7 @@ impl<T> Value<T> {
     where
         T: Clone,
     {
-        self.map_tracked(context, Clone::clone)
+        self.map_tracking_redraw(context, Clone::clone)
     }
 
     /// Returns the current generation of the data stored, if the contained
@@ -1002,6 +1035,15 @@ impl<T> Value<T> {
     pub fn redraw_when_changed(&self, context: &WidgetContext<'_, '_>) {
         if let Value::Dynamic(dynamic) = self {
             context.redraw_when_changed(dynamic);
+        }
+    }
+
+    /// Marks the widget for redraw when this value is updated.
+    ///
+    /// This function has no effect if the value is constant.
+    pub fn invalidate_when_changed(&self, context: &WidgetContext<'_, '_>) {
+        if let Value::Dynamic(dynamic) = self {
+            context.invalidate_when_changed(dynamic);
         }
     }
 }
@@ -1155,7 +1197,7 @@ macro_rules! impl_tuple_for_each {
             move |$var: &$type| {
                 $(let $rvar = $rvar.lock();)+
                 let mut for_each =
-                    for_each.lock().map_or_else(PoisonError::into_inner, |g| g);
+                    for_each.lock().ignore_poison();
                 (for_each)(($(&$avar,)+));
             }
         }));

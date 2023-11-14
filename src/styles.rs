@@ -86,8 +86,17 @@ impl Styles {
         self.0
             .get(&name)
             .and_then(|component| {
-                component.redraw_when_changed(context);
-                <Named::ComponentType>::try_from_component(component.get()).ok()
+                match <Named::ComponentType>::try_from_component(component.get()) {
+                    Ok(value) => {
+                        if value.requires_invalidation() {
+                            component.invalidate_when_changed(context);
+                        } else {
+                            component.redraw_when_changed(context);
+                        }
+                        Some(value)
+                    }
+                    Err(_) => None,
+                }
             })
             .unwrap_or_else(|| component.default_value(context))
     }
@@ -219,6 +228,12 @@ impl TryFrom<Component> for Color {
     }
 }
 
+impl RequireInvalidation for Color {
+    fn requires_invalidation(&self) -> bool {
+        false
+    }
+}
+
 impl From<Dimension> for Component {
     fn from(value: Dimension) -> Self {
         Self::Dimension(value)
@@ -233,6 +248,12 @@ impl TryFrom<Component> for Dimension {
             Component::Dimension(color) => Ok(color),
             other => Err(other),
         }
+    }
+}
+
+impl RequireInvalidation for Dimension {
+    fn requires_invalidation(&self) -> bool {
+        true
     }
 }
 
@@ -253,6 +274,12 @@ impl TryFrom<Component> for Px {
     }
 }
 
+impl RequireInvalidation for Px {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
 impl From<Lp> for Component {
     fn from(value: Lp) -> Self {
         Self::from(Dimension::from(value))
@@ -267,6 +294,12 @@ impl TryFrom<Component> for Lp {
             Component::Dimension(Dimension::Lp(px)) => Ok(px),
             other => Err(other),
         }
+    }
+}
+
+impl RequireInvalidation for Lp {
+    fn requires_invalidation(&self) -> bool {
+        true
     }
 }
 
@@ -563,6 +596,12 @@ impl TryFrom<Component> for DimensionRange {
     }
 }
 
+impl RequireInvalidation for DimensionRange {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
 /// A custom component value.
 #[derive(Debug, Clone)]
 pub struct CustomComponent(Arc<dyn AnyComponent>);
@@ -571,7 +610,7 @@ impl CustomComponent {
     /// Wraps an arbitrary value so that it can be used as a [`Component`].
     pub fn new<T>(value: T) -> Self
     where
-        T: RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
+        T: RequireInvalidation + RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
     {
         Self(Arc::new(value))
     }
@@ -584,6 +623,12 @@ impl CustomComponent {
         T: Debug + Send + Sync + 'static,
     {
         self.0.as_ref().as_any().downcast_ref()
+    }
+}
+
+impl RequireInvalidation for CustomComponent {
+    fn requires_invalidation(&self) -> bool {
+        self.0.requires_invalidation()
     }
 }
 
@@ -600,13 +645,13 @@ impl ComponentType for CustomComponent {
     }
 }
 
-trait AnyComponent: Send + Sync + RefUnwindSafe + UnwindSafe + Debug {
+trait AnyComponent: RequireInvalidation + Send + Sync + RefUnwindSafe + UnwindSafe + Debug {
     fn as_any(&self) -> &dyn Any;
 }
 
 impl<T> AnyComponent for T
 where
-    T: RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
+    T: RequireInvalidation + RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
 {
     fn as_any(&self) -> &dyn Any {
         self
@@ -654,8 +699,20 @@ pub trait ComponentDefinition: NamedComponent {
     fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType;
 }
 
+/// Describes whether a type should invalidate a widget.
+pub trait RequireInvalidation {
+    /// Gooey tracks two different states:
+    ///
+    /// - Whether to repaint the window
+    /// - Whether to relayout a widget
+    ///
+    /// If a value change of `self` may require a relayout, this should return
+    /// true.
+    fn requires_invalidation(&self) -> bool;
+}
+
 /// A type that can be converted to and from [`Component`].
-pub trait ComponentType: Sized {
+pub trait ComponentType: RequireInvalidation + Sized {
     /// Returns this type, wrapped in a [`Component`].
     fn into_component(self) -> Component;
     /// Attempts to extract this type from `component`. If `component` does not
@@ -665,7 +722,7 @@ pub trait ComponentType: Sized {
 
 impl<T> ComponentType for T
 where
-    T: Into<Component> + TryFrom<Component, Error = Component>,
+    T: RequireInvalidation + Into<Component> + TryFrom<Component, Error = Component>,
 {
     fn into_component(self) -> Component {
         self.into()
@@ -1411,6 +1468,12 @@ impl TryFrom<Component> for VisualOrder {
     }
 }
 
+impl RequireInvalidation for VisualOrder {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
 /// A horizontal direction.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum HorizontalOrder {
@@ -1514,6 +1577,12 @@ impl TryFrom<Component> for FocusableWidgets {
     }
 }
 
+impl RequireInvalidation for FocusableWidgets {
+    fn requires_invalidation(&self) -> bool {
+        false
+    }
+}
+
 /// A description of the level of depth a
 /// [`Container`](crate::widgets::Container) is nested at.
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
@@ -1560,6 +1629,12 @@ impl TryFrom<Component> for ContainerLevel {
             Component::ContainerLevel(level) => Ok(level),
             other => Err(other),
         }
+    }
+}
+
+impl RequireInvalidation for ContainerLevel {
+    fn requires_invalidation(&self) -> bool {
+        true
     }
 }
 

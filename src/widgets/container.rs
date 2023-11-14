@@ -6,7 +6,7 @@ use kludgine::Color;
 
 use crate::context::{GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{IntrinsicPadding, SurfaceColor};
-use crate::styles::{Component, ContainerLevel, Dimension, Edges, Styles};
+use crate::styles::{Component, ContainerLevel, Dimension, Edges, RequireInvalidation, Styles};
 use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
@@ -247,6 +247,12 @@ impl From<EffectiveBackground> for Component {
             EffectiveBackground::Level(level) => Self::ContainerLevel(level),
             EffectiveBackground::Color(color) => Self::Color(color),
         }
+    }
+}
+
+impl RequireInvalidation for EffectiveBackground {
+    fn requires_invalidation(&self) -> bool {
+        false
     }
 }
 

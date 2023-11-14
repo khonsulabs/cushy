@@ -1,15 +1,17 @@
 use std::mem;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex};
 
 use ahash::AHashMap;
 use alot::{LotId, Lots};
-use kludgine::figures::units::Px;
-use kludgine::figures::{Point, Rect};
+use kludgine::figures::units::{Px, UPx};
+use kludgine::figures::{Point, Rect, Size};
 
 use crate::styles::{Styles, ThemePair, VisualOrder};
+use crate::utils::IgnorePoison;
 use crate::value::Value;
 use crate::widget::{ManagedWidget, WidgetId, WidgetInstance};
 use crate::window::ThemeMode;
+use crate::ConstraintLimit;
 
 #[derive(Clone, Default)]
 pub struct Tree {
@@ -22,7 +24,7 @@ impl Tree {
         widget: WidgetInstance,
         parent: Option<&ManagedWidget>,
     ) -> ManagedWidget {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut data = self.data.lock().ignore_poison();
         let id = widget.id();
         let (effective_styles, parent_id) = if let Some(parent) = parent {
             (
@@ -36,6 +38,7 @@ impl Tree {
             widget: widget.clone(),
             children: Vec::new(),
             parent: parent_id,
+            last_layout_query: None,
             layout: None,
             associated_styles: None,
             effective_styles,
@@ -68,7 +71,7 @@ impl Tree {
     }
 
     pub fn remove_child(&self, child: &ManagedWidget, parent: &ManagedWidget) {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut data = self.data.lock().ignore_poison();
         data.remove_child(child.node_id, parent.node_id);
 
         if child.widget.is_default() {
@@ -80,7 +83,7 @@ impl Tree {
     }
 
     pub(crate) fn set_layout(&self, widget: LotId, rect: Rect<Px>) {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut data = self.data.lock().ignore_poison();
 
         let node = &mut data.nodes[widget];
         node.layout = Some(rect);
@@ -98,26 +101,62 @@ impl Tree {
     }
 
     pub(crate) fn layout(&self, widget: LotId) -> Option<Rect<Px>> {
-        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let data = self.data.lock().ignore_poison();
         data.nodes.get(widget).and_then(|widget| widget.layout)
     }
 
-    pub(crate) fn reset_render_order(&self) {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+    pub(crate) fn new_frame(&self, invalidations: impl IntoIterator<Item = WidgetId>) {
+        let mut data = self.data.lock().ignore_poison();
         data.render_order.clear();
+
+        for id in invalidations {
+            let Some(id) = data.nodes_by_id.get(&id).copied() else {
+                continue;
+            };
+
+            data.invalidate(id, true);
+        }
     }
 
     pub(crate) fn note_widget_rendered(&self, widget: LotId) {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut data = self.data.lock().ignore_poison();
         data.render_order.push(widget);
     }
 
-    pub(crate) fn reset_child_layouts(&self, parent: LotId) {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
-        let children = data.nodes[parent].children.clone();
-        for child in children {
-            data.nodes.get_mut(child).expect("missing widget").layout = None;
+    pub(crate) fn begin_layout(
+        &self,
+        parent: LotId,
+        constraints: Size<ConstraintLimit>,
+    ) -> Option<Size<UPx>> {
+        let mut data = self.data.lock().ignore_poison();
+
+        let node = &mut data.nodes[parent];
+        if let Some(cached_layout) = &node.last_layout_query {
+            if constraints.width.max() < cached_layout.constraints.width.max()
+                && constraints.height.max() < cached_layout.constraints.height.max()
+            {
+                return Some(cached_layout.size);
+            }
+
+            node.last_layout_query = None;
         }
+
+        let children = node.children.clone();
+        for child in children {
+            data.invalidate(child, false);
+        }
+
+        None
+    }
+
+    pub(crate) fn persist_layout(
+        &self,
+        id: LotId,
+        constraints: Size<ConstraintLimit>,
+        size: Size<UPx>,
+    ) {
+        let mut data = self.data.lock().ignore_poison();
+        data.nodes[id].last_layout_query = Some(CachedLayoutQuery { constraints, size });
     }
 
     pub(crate) fn visually_ordered_children(
@@ -125,7 +164,7 @@ impl Tree {
         parent: LotId,
         order: VisualOrder,
     ) -> Vec<ManagedWidget> {
-        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let data = self.data.lock().ignore_poison();
         let node = &data.nodes[parent];
         let mut unordered = node.children.clone();
         let mut ordered = Vec::<ManagedWidget>::with_capacity(unordered.len());
@@ -182,12 +221,12 @@ impl Tree {
     }
 
     pub(crate) fn effective_styles(&self, id: LotId) -> Styles {
-        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let data = self.data.lock().ignore_poison();
         data.nodes[id].effective_styles.clone()
     }
 
     pub(crate) fn hover(&self, new_hover: Option<&ManagedWidget>) -> HoverResults {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut data = self.data.lock().ignore_poison();
         let hovered = new_hover
             .map(|new_hover| data.widget_hierarchy(new_hover.node_id, self))
             .unwrap_or_default();
@@ -209,7 +248,7 @@ impl Tree {
     }
 
     pub fn focus(&self, new_focus: Option<&ManagedWidget>) -> Result<Option<ManagedWidget>, ()> {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut data = self.data.lock().ignore_poison();
         data.update_tracked_widget(new_focus, self, |data| &mut data.focus)
     }
 
@@ -217,54 +256,38 @@ impl Tree {
         &self,
         new_active: Option<&ManagedWidget>,
     ) -> Result<Option<ManagedWidget>, ()> {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut data = self.data.lock().ignore_poison();
         data.update_tracked_widget(new_active, self, |data| &mut data.active)
     }
 
     pub fn widget(&self, id: WidgetId) -> Option<ManagedWidget> {
-        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let data = self.data.lock().ignore_poison();
         data.widget_from_id(id, self)
     }
 
     pub(crate) fn widget_from_node(&self, id: LotId) -> Option<ManagedWidget> {
-        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let data = self.data.lock().ignore_poison();
         data.widget_from_node(id, self)
     }
 
     pub(crate) fn active_widget(&self) -> Option<LotId> {
-        self.data
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g)
-            .active
+        self.data.lock().ignore_poison().active
     }
 
     pub(crate) fn hovered_widget(&self) -> Option<LotId> {
-        self.data
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g)
-            .hover
+        self.data.lock().ignore_poison().hover
     }
 
     pub(crate) fn default_widget(&self) -> Option<LotId> {
-        self.data
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g)
-            .defaults
-            .last()
-            .copied()
+        self.data.lock().ignore_poison().defaults.last().copied()
     }
 
     pub(crate) fn escape_widget(&self) -> Option<LotId> {
-        self.data
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g)
-            .escapes
-            .last()
-            .copied()
+        self.data.lock().ignore_poison().escapes.last().copied()
     }
 
     pub(crate) fn is_hovered(&self, id: LotId) -> bool {
-        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let data = self.data.lock().ignore_poison();
         let mut search = data.hover;
         while let Some(hovered) = search {
             if hovered == id {
@@ -277,14 +300,11 @@ impl Tree {
     }
 
     pub(crate) fn focused_widget(&self) -> Option<LotId> {
-        self.data
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g)
-            .focus
+        self.data.lock().ignore_poison().focus
     }
 
     pub(crate) fn widgets_at_point(&self, point: Point<Px>) -> Vec<ManagedWidget> {
-        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let data = self.data.lock().ignore_poison();
         let mut hits = Vec::new();
         for id in data.render_order.iter().rev() {
             if let Some(last_rendered) = data.nodes.get(*id).and_then(|widget| widget.layout) {
@@ -297,22 +317,22 @@ impl Tree {
     }
 
     pub(crate) fn parent(&self, id: LotId) -> Option<LotId> {
-        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let data = self.data.lock().ignore_poison();
         data.nodes.get(id).expect("missing widget").parent
     }
 
     pub(crate) fn attach_styles(&self, id: LotId, styles: Value<Styles>) {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut data = self.data.lock().ignore_poison();
         data.attach_styles(id, styles);
     }
 
     pub(crate) fn attach_theme(&self, id: LotId, theme: Value<ThemePair>) {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut data = self.data.lock().ignore_poison();
         data.nodes.get_mut(id).expect("missing widget").theme = Some(theme);
     }
 
     pub(crate) fn attach_theme_mode(&self, id: LotId, theme: Value<ThemeMode>) {
-        let mut data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let mut data = self.data.lock().ignore_poison();
         data.nodes.get_mut(id).expect("missing widget").theme_mode = Some(theme);
     }
 
@@ -320,13 +340,20 @@ impl Tree {
         &self,
         id: LotId,
     ) -> (Styles, Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {
-        let data = self.data.lock().map_or_else(PoisonError::into_inner, |g| g);
+        let data = self.data.lock().ignore_poison();
         let node = data.nodes.get(id).expect("missing widget");
         (
             node.effective_styles.clone(),
             node.theme.clone(),
             node.theme_mode.clone(),
         )
+    }
+
+    pub fn invalidate(&self, id: LotId, include_hierarchy: bool) {
+        self.data
+            .lock()
+            .ignore_poison()
+            .invalidate(id, include_hierarchy);
     }
 }
 
@@ -453,17 +480,31 @@ impl TreeData {
             (None, _) => Ok(None),
         }
     }
+
+    fn invalidate(&mut self, id: LotId, include_hierarchy: bool) {
+        let mut node = &mut self.nodes[id];
+        while node.layout.is_some() {
+            node.layout = None;
+            node.last_layout_query = None;
+
+            let (true, Some(parent)) = (include_hierarchy, node.parent) else {
+                break;
+            };
+            node = &mut self.nodes[parent];
+        }
+    }
 }
 
-pub struct Node {
-    pub widget: WidgetInstance,
-    pub children: Vec<LotId>,
-    pub parent: Option<LotId>,
-    pub layout: Option<Rect<Px>>,
-    pub associated_styles: Option<Value<Styles>>,
-    pub effective_styles: Styles,
-    pub theme: Option<Value<ThemePair>>,
-    pub theme_mode: Option<Value<ThemeMode>>,
+struct Node {
+    widget: WidgetInstance,
+    children: Vec<LotId>,
+    parent: Option<LotId>,
+    layout: Option<Rect<Px>>,
+    last_layout_query: Option<CachedLayoutQuery>,
+    associated_styles: Option<Value<Styles>>,
+    effective_styles: Styles,
+    theme: Option<Value<ThemePair>>,
+    theme_mode: Option<Value<ThemeMode>>,
 }
 
 impl Node {
@@ -474,4 +515,9 @@ impl Node {
         }
         effective_styles
     }
+}
+
+struct CachedLayoutQuery {
+    constraints: Size<ConstraintLimit>,
+    size: Size<UPx>,
 }

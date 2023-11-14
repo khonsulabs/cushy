@@ -43,7 +43,7 @@ use std::fmt::{Debug, Display};
 use std::ops::{ControlFlow, Deref, Div, Mul};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::str::FromStr;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -54,7 +54,8 @@ use kludgine::figures::Ranged;
 use kludgine::Color;
 
 use crate::animation::easings::Linear;
-use crate::styles::Component;
+use crate::styles::{Component, RequireInvalidation};
+use crate::utils::IgnorePoison;
 use crate::value::Dynamic;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
@@ -65,9 +66,7 @@ fn thread_state() -> MutexGuard<'static, Animating> {
     THREAD.get_or_init(|| {
         thread::spawn(animation_thread);
     });
-    ANIMATIONS
-        .lock()
-        .map_or_else(PoisonError::into_inner, |g| g)
+    ANIMATIONS.lock().ignore_poison()
 }
 
 fn animation_thread() {
@@ -75,9 +74,7 @@ fn animation_thread() {
     loop {
         if state.running.is_empty() {
             state.last_updated = None;
-            state = NEW_ANIMATIONS
-                .wait(state)
-                .map_or_else(PoisonError::into_inner, |g| g);
+            state = NEW_ANIMATIONS.wait(state).ignore_poison();
         } else {
             let start = Instant::now();
             let last_tick = state.last_updated.unwrap_or(start);
@@ -641,9 +638,9 @@ macro_rules! impl_lerp_for_uint {
             fn lerp(&self, target: &Self, percent: f32) -> Self {
                 let percent = $float::from(percent);
                 if let Some(delta) = target.checked_sub(*self) {
-                    *self + (delta as $float * percent).round() as $type
+                    self.saturating_add((delta as $float * percent).round() as $type)
                 } else {
-                    *self - ((*self - *target) as $float * percent).round() as $type
+                    self.saturating_sub(((*self - *target) as $float * percent).round() as $type)
                 }
             }
         }
@@ -701,8 +698,10 @@ impl PercentBetween for bool {
 fn integer_lerps() {
     #[track_caller]
     fn test_lerps<T: LinearInterpolate + Debug + Eq>(a: &T, b: &T, mid: &T) {
+        assert_eq!(&b.lerp(a, 1.), a);
         assert_eq!(&a.lerp(b, 1.), b);
         assert_eq!(&a.lerp(b, 0.), a);
+        assert_eq!(&b.lerp(a, 0.), b);
         assert_eq!(&a.lerp(b, 0.5), mid);
     }
 
@@ -1009,6 +1008,12 @@ impl TryFrom<Component> for EasingFunction {
             Component::Easing(easing) => Ok(easing),
             other => Err(other),
         }
+    }
+}
+
+impl RequireInvalidation for EasingFunction {
+    fn requires_invalidation(&self) -> bool {
+        false
     }
 }
 

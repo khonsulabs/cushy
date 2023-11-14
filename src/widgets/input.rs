@@ -85,7 +85,7 @@ impl Input {
                         context.get(&LineHeight).into_px(scale).into_float(),
                     ),
                 );
-                self.text.map(|text| {
+                self.text.map_tracking_invalidate(context, |text| {
                     buffer.set_text(
                         kludgine.font_system(),
                         text,

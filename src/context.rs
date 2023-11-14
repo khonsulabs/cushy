@@ -1,9 +1,11 @@
 //! Types that provide access to the Gooey runtime.
 use std::borrow::Cow;
+use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
+use kempt::Set;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
@@ -15,6 +17,7 @@ use kludgine::{Color, Kludgine};
 use crate::graphics::Graphics;
 use crate::styles::components::{HighlightColor, WidgetBackground};
 use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair, VisualOrder};
+use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
 use crate::window::sealed::WindowCommand;
@@ -572,14 +575,23 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'cl
     /// context's widget and returns the result.
     pub fn layout(&mut self, available_space: Size<ConstraintLimit>) -> Size<UPx> {
         if self.persist_layout {
-            self.graphics.current_node.reset_child_layouts();
+            if let Some(cached) = self.graphics.current_node.begin_layout(available_space) {
+                return cached;
+            }
         }
-        self.graphics
+        let result = self
+            .graphics
             .current_node
             .clone()
             .lock()
             .as_widget()
-            .layout(available_space, self)
+            .layout(available_space, self);
+        if self.persist_layout {
+            self.graphics
+                .current_node
+                .persist_layout(available_space, result);
+        }
+        result
     }
 
     /// Sets the layout for `child` to `layout`.
@@ -664,7 +676,7 @@ impl<'window> AsEventContext<'window> for GraphicsContext<'_, 'window, '_, '_, '
 /// specific widget.
 pub struct WidgetContext<'context, 'window> {
     current_node: ManagedWidget,
-    redraw_status: &'context RedrawStatus,
+    redraw_status: &'context InvalidationStatus,
     window: &'context mut RunningWindow<'window>,
     theme: Cow<'context, ThemePair>,
     pending_state: PendingState<'context>,
@@ -675,7 +687,7 @@ pub struct WidgetContext<'context, 'window> {
 impl<'context, 'window> WidgetContext<'context, 'window> {
     pub(crate) fn new(
         current_node: ManagedWidget,
-        redraw_status: &'context RedrawStatus,
+        redraw_status: &'context InvalidationStatus,
         theme: &'context ThemePair,
         window: &'context mut RunningWindow<'window>,
         theme_mode: ThemeMode,
@@ -753,6 +765,11 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Ensures that this widget will be redrawn when `value` has been updated.
     pub fn redraw_when_changed<T>(&self, value: &Dynamic<T>) {
         value.redraw_when_changed(self.handle());
+    }
+
+    /// Ensures that this widget will be redrawn when `value` has been updated.
+    pub fn invalidate_when_changed<T>(&self, value: &Dynamic<T>) {
+        value.invalidate_when_changed(self.handle(), self.current_node.id());
     }
 
     /// Returns the last layout of this widget.
@@ -963,13 +980,36 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
 
 pub(crate) struct WindowHandle {
     kludgine: kludgine::app::WindowHandle<WindowCommand>,
-    redraw_status: RedrawStatus,
+    redraw_status: InvalidationStatus,
+}
+
+impl Eq for WindowHandle {}
+
+impl PartialEq for WindowHandle {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(
+            &self.redraw_status.invalidated,
+            &other.redraw_status.invalidated,
+        )
+    }
+}
+
+impl Hash for WindowHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.redraw_status.invalidated).hash(state);
+    }
 }
 
 impl WindowHandle {
     pub fn redraw(&self) {
         if self.redraw_status.should_send_refresh() {
             let _result = self.kludgine.send(WindowCommand::Redraw);
+        }
+    }
+
+    pub fn invalidate(&self, widget: WidgetId) {
+        if self.redraw_status.invalidate(widget) {
+            self.redraw();
         }
     }
 }
@@ -1036,11 +1076,12 @@ impl DerefMut for PendingState<'_> {
 }
 
 #[derive(Default, Clone)]
-pub(crate) struct RedrawStatus {
+pub(crate) struct InvalidationStatus {
     refresh_sent: Arc<AtomicBool>,
+    invalidated: Arc<Mutex<Set<WidgetId>>>,
 }
 
-impl RedrawStatus {
+impl InvalidationStatus {
     pub fn should_send_refresh(&self) -> bool {
         self.refresh_sent
             .compare_exchange(false, true, Ordering::Release, Ordering::Acquire)
@@ -1049,6 +1090,15 @@ impl RedrawStatus {
 
     pub fn refresh_received(&self) {
         self.refresh_sent.store(false, Ordering::Release);
+    }
+
+    pub fn invalidate(&self, widget: WidgetId) -> bool {
+        let mut invalidated = self.invalidated.lock().ignore_poison();
+        invalidated.insert(widget)
+    }
+
+    pub fn invalidations(&self) -> MutexGuard<'_, Set<WidgetId>> {
+        self.invalidated.lock().ignore_poison()
     }
 }
 

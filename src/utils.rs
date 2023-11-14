@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, PoisonError};
 
 use kludgine::app::winit::event::Modifiers;
 use kludgine::app::winit::keyboard::ModifiersState;
@@ -127,5 +127,18 @@ impl<T> Deref for Lazy<T> {
 
     fn deref(&self) -> &Self::Target {
         self.once.get_or_init(self.init)
+    }
+}
+
+pub trait IgnorePoison {
+    type Unwrapped;
+    fn ignore_poison(self) -> Self::Unwrapped;
+}
+
+impl<T> IgnorePoison for Result<T, PoisonError<T>> {
+    type Unwrapped = T;
+
+    fn ignore_poison(self) -> Self::Unwrapped {
+        self.map_or_else(PoisonError::into_inner, |g| g)
     }
 }
