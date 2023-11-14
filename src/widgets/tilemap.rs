@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 
 use intentional::Cast;
+use kludgine::figures::units::Px;
+use kludgine::figures::Point;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
 use crate::kludgine::app::winit::event::{DeviceId, KeyEvent, MouseScrollDelta, TouchPhase};
@@ -21,6 +23,7 @@ pub struct TileMap<Layers> {
     focus: Value<TileMapFocus>,
     zoom: f32,
     tick: Option<Tick>,
+    debug_output: Option<Dynamic<String>>,
 }
 
 impl<Layers> TileMap<Layers> {
@@ -30,7 +33,13 @@ impl<Layers> TileMap<Layers> {
             focus: Value::default(),
             zoom: 1.,
             tick: None,
+            debug_output: None,
         }
+    }
+
+    pub fn debug_output(mut self, message: Dynamic<String>) -> Self {
+        self.debug_output = Some(message);
+        self
     }
 
     /// Returns a new tilemap that contains dynamic layers.
@@ -102,6 +111,29 @@ where
 
         context.set_needs_redraw();
         HANDLED
+    }
+
+    fn hover(&mut self, local: Point<Px>, context: &mut EventContext<'_, '_>) {
+        // translate location to local location
+        // * effective zoom
+        
+        let Some(size) = context.last_layout().map(|rect| rect.size) else { return };
+
+        let offset = self.layers.map(|layers| self.focus.get().world_coordinate(layers));
+
+        let scale = context.kludgine.scale();
+        let zoom = self.zoom;
+        let world = tilemap::translate_coordinates(local, offset, scale, zoom, size);
+
+        self.debug_output.as_ref().unwrap().set(format!("world: {world:?} | local: {local:?}"));
+    }
+
+    fn hit_test(&mut self, _: Point<Px>, _: &mut EventContext<'_, '_>) -> bool {
+        true
+    }
+
+    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        true
     }
 
     fn keyboard_input(

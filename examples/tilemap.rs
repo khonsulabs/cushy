@@ -6,7 +6,8 @@ use gooey::kludgine::shapes::Shape;
 use gooey::kludgine::tilemap::{Object, ObjectLayer, TileKind, TileMapFocus, Tiles, TILE_SIZE};
 use gooey::kludgine::Color;
 use gooey::value::Dynamic;
-use gooey::widgets::TileMap;
+use gooey::widget::MakeWidget;
+use gooey::widgets::{TileMap, Label, Stack};
 use gooey::{Run, Tick};
 
 const PLAYER_SIZE: Px = Px(16);
@@ -37,12 +38,17 @@ fn main() -> gooey::Result {
 
     let layers = Dynamic::new((Tiles::new(8, 8, TILES), characters));
 
-    TileMap::dynamic(layers.clone())
+    let debug_message = Dynamic::new(String::new());
+
+    let tilemap = TileMap::dynamic(layers.clone())
         .focus_on(TileMapFocus::Object {
             layer: 1,
             id: myself,
         })
         .tick(Tick::times_per_second(60, move |elapsed, input| {
+            // get mouse cursor position and subsequently get the object under
+            // the mouse
+
             let mut direction = Point::new(0., 0.);
             if input.keys.contains(&Key::ArrowDown) {
                 direction.y += 1.0;
@@ -65,8 +71,9 @@ fn main() -> gooey::Result {
                     one_second_movement.y * elapsed.as_secs_f32(),
                 )
             });
-        }))
-        .run()
+        }));
+
+    Stack::rows(tilemap.debug_output(debug_message.clone()).expand().and(Label::new(debug_message))).run()
 }
 
 #[derive(Debug)]
