@@ -1,0 +1,21 @@
+---
+source: gooey-macros/src/animation.rs
+expression: unparse(&parse2(output).unwrap())
+---
+impl ::gooey::animation::LinearInterpolate for HelloWorld {
+    fn lerp(&self, __target: &Self, __percent: f32) -> Self {
+        HelloWorld {
+            0: ::gooey::animation::LinearInterpolate::lerp(
+                &self.0,
+                &__target.0,
+                __percent,
+            ),
+            1: ::gooey::animation::LinearInterpolate::lerp(
+                &self.1,
+                &__target.1,
+                __percent,
+            ),
+        }
+    }
+}
+

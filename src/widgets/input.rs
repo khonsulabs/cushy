@@ -321,10 +321,7 @@ impl Widget for Input {
                 if window_focused && cursor_state.visible {
                     context.gfx.draw_shape(
                         &Shape::filled_rect(
-                            Rect::new(
-                                location,
-                                Size::new(Px(1), line_height),
-                            ),
+                            Rect::new(location, Size::new(Px(1), line_height)),
                             highlight, // TODO cursor should be a bold color, highlight probably not. This should have its own color.
                         ),
                         padding,

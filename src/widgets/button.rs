@@ -3,11 +3,12 @@ use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
-use kludgine::figures::units::{Px, UPx};
+use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
+use kludgine::shapes::StrokeOptions;
 use kludgine::Color;
 
-use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
+use crate::animation::{AnimationHandle, AnimationTarget, LinearInterpolate, Spawn};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{
     AutoFocusableControls, Easing, IntrinsicPadding, OpaqueWidgetColor, SurfaceColor, TextColor,
@@ -28,9 +29,15 @@ pub struct Button {
     pub enabled: Value<bool>,
     currently_enabled: bool,
     buttons_pressed: usize,
-    background_color: Option<Dynamic<Color>>,
-    text_color: Option<Dynamic<Color>>,
+    active_style: Option<Dynamic<ButtonStyle>>,
     color_animation: AnimationHandle,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, LinearInterpolate)]
+struct ButtonStyle {
+    background: Color,
+    foreground: Color,
+    outline: Color,
 }
 
 impl Button {
@@ -42,8 +49,7 @@ impl Button {
             enabled: Value::Constant(true),
             currently_enabled: true,
             buttons_pressed: 0,
-            background_color: None,
-            text_color: None,
+            active_style: None,
             color_animation: AnimationHandle::default(),
         }
     }
@@ -77,62 +83,63 @@ impl Button {
     }
 
     fn update_colors(&mut self, context: &WidgetContext<'_, '_>, immediate: bool) {
-        let (background_color, text_color) = match () {
-            () if !self.enabled.get() => (
-                context.get(&ButtonDisabledBackground),
-                context.get(&ButtonDisabledForeground),
-            ),
+        let new_style = match () {
+            () if !self.enabled.get() => ButtonStyle {
+                background: context.get(&ButtonDisabledBackground),
+                foreground: context.get(&ButtonDisabledForeground),
+                outline: context.get(&ButtonDisabledOutline),
+            },
             // TODO this probably should use actual style.
-            () if context.is_default() => (
-                context.theme().primary.color,
-                context.theme().primary.on_color,
-            ),
-            () if context.active() => (
-                context.get(&ButtonActiveBackground),
-                context.get(&ButtonActiveForeground),
-            ),
-            () if context.hovered() => (
-                context.get(&ButtonHoverBackground),
-                context.get(&ButtonHoverForeground),
-            ),
-            () => (
-                context.get(&ButtonBackground),
-                context.get(&ButtonForeground),
-            ),
+            () if context.is_default() => ButtonStyle {
+                background: context.theme().primary.color,
+                foreground: context.theme().primary.on_color,
+                outline: Color::CLEAR_BLACK,
+            },
+            () if context.active() => ButtonStyle {
+                background: context.get(&ButtonActiveBackground),
+                foreground: context.get(&ButtonActiveForeground),
+                outline: context.get(&ButtonActiveOutline),
+            },
+            () if context.hovered() => ButtonStyle {
+                background: context.get(&ButtonHoverBackground),
+                foreground: context.get(&ButtonHoverForeground),
+                outline: context.get(&ButtonHoverOutline),
+            },
+            () => ButtonStyle {
+                background: context.get(&ButtonBackground),
+                foreground: context.get(&ButtonForeground),
+                outline: context.get(&ButtonOutline),
+            },
         };
 
-        match (immediate, &self.background_color, &self.text_color) {
-            (false, Some(bg), Some(text)) => {
-                self.color_animation = (
-                    bg.transition_to(background_color),
-                    text.transition_to(text_color),
-                )
+        match (immediate, &self.active_style) {
+            (false, Some(style)) => {
+                self.color_animation = (style.transition_to(new_style))
                     .over(Duration::from_millis(150))
                     .with_easing(context.get(&Easing))
                     .spawn();
             }
-            (true, Some(bg), Some(text)) => {
-                bg.update(background_color);
-                text.update(text_color);
+            (true, Some(style)) => {
+                style.update(new_style);
                 self.color_animation.clear();
             }
             _ => {
-                self.background_color = Some(Dynamic::new(background_color));
-                let text_color = Dynamic::new(text_color);
-                self.text_color = Some(text_color.clone());
-                context.attach_styles(Styles::new().with(&TextColor, text_color));
+                let new_style = Dynamic::new(new_style);
+                let foreground = new_style.map_each(|s| s.foreground);
+                self.active_style = Some(new_style);
+                context.attach_styles(Styles::new().with(&TextColor, foreground));
             }
         }
     }
 
-    fn current_background(&mut self, context: &WidgetContext<'_, '_>) -> Color {
-        if self.background_color.is_none() {
+    fn current_style(&mut self, context: &WidgetContext<'_, '_>) -> ButtonStyle {
+        if self.active_style.is_none() {
             self.update_colors(context, false);
         }
 
-        let background_color = self.background_color.as_ref().expect("always initialized");
-        context.redraw_when_changed(background_color);
-        background_color.get()
+        let style = self.active_style.as_ref().expect("always initialized");
+        context.redraw_when_changed(style);
+        style.get()
     }
 }
 
@@ -149,8 +156,10 @@ impl Widget for Button {
 
         self.enabled.redraw_when_changed(context);
 
-        let background_color = self.current_background(context);
-        context.gfx.fill(background_color);
+        let style = self.current_style(context);
+        context.gfx.fill(style.background);
+
+        context.stroke_outline::<Lp>(style.outline, StrokeOptions::default());
 
         if context.focused() {
             context.draw_focus_ring();
@@ -322,5 +331,15 @@ define_components! {
         /// The foreground color of the button when the mouse cursor is hovering over
         /// it.
         ButtonDisabledForeground(Color, "disabled_foreground_color", contrasting!(ButtonDisabledBackground, ButtonForeground, TextColor, SurfaceColor))
+        /// The outline color of the button.
+        ButtonOutline(Color, "outline_color", Color::CLEAR_BLACK)
+        /// The outline color of the button when it is active (depressed).
+        ButtonActiveOutline(Color, "active_outline_color", contrasting!(ButtonActiveBackground, ButtonOutline, TextColor, SurfaceColor))
+        /// The outline color of the button when the mouse cursor is hovering over
+        /// it.
+        ButtonHoverOutline(Color, "hover_outline_color", contrasting!(ButtonHoverBackground, ButtonOutline, TextColor, SurfaceColor))
+        /// The outline color of the button when the mouse cursor is hovering over
+        /// it.
+        ButtonDisabledOutline(Color, "disabled_outline_color", contrasting!(ButtonDisabledBackground, ButtonOutline, TextColor, SurfaceColor))
     }
 }
