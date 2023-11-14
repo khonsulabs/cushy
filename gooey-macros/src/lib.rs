@@ -1,6 +1,6 @@
 use manyhow::{manyhow, Result};
-use quote_use::quote_use as quote;
 use proc_macro2::TokenStream;
+use quote_use::quote_use as quote;
 mod animation;
 
 #[manyhow(proc_macro_derive(LinearInterpolate))]

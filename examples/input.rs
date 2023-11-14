@@ -1,7 +1,7 @@
+use gooey::value::StringValue;
 use gooey::widget::MakeWidget;
-use gooey::widgets::Input;
 use gooey::Run;
 
 fn main() -> gooey::Result {
-    Input::new("Hello").expand().run()
+    "Hello".into_input().expand().run()
 }

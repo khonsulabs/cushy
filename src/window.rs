@@ -139,7 +139,7 @@ impl Window<WidgetInstance> {
     ///
     /// `focused` will be initialized with an initial state
     /// of `false`.
-    pub fn with_focused(mut self, focused: impl IntoDynamic<bool>) -> Self {
+    pub fn focused(mut self, focused: impl IntoDynamic<bool>) -> Self {
         let focused = focused.into_dynamic();
         focused.update(false);
         self.focused = Some(focused);
@@ -154,7 +154,7 @@ impl Window<WidgetInstance> {
     /// visible, this value will contain `true`.
     ///
     /// `occluded` will be initialized with an initial state of `false`.
-    pub fn with_occluded(mut self, occluded: impl IntoDynamic<bool>) -> Self {
+    pub fn occluded(mut self, occluded: impl IntoDynamic<bool>) -> Self {
         let occluded = occluded.into_dynamic();
         occluded.update(false);
         self.occluded = Some(occluded);
@@ -174,8 +174,14 @@ impl Window<WidgetInstance> {
     /// Setting the [`Dynamic`]'s value will also update the window with the new
     /// mode until a mode change is detected, upon which the new mode will be
     /// stored.
-    pub fn with_theme_mode(mut self, theme_mode: impl IntoValue<ThemeMode>) -> Self {
+    pub fn themed_mode(mut self, theme_mode: impl IntoValue<ThemeMode>) -> Self {
         self.theme_mode = Some(theme_mode.into_value());
+        self
+    }
+
+    /// Applies `theme` to the widgets in this window.
+    pub fn themed(mut self, theme: impl IntoValue<ThemePair>) -> Self {
+        self.theme = theme.into_value();
         self
     }
 }

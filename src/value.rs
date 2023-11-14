@@ -16,6 +16,7 @@ use crate::animation::{DynamicTransition, LinearInterpolate};
 use crate::context::{WidgetContext, WindowHandle};
 use crate::utils::{IgnorePoison, WithClone};
 use crate::widget::WidgetId;
+use crate::widgets::{Button, Input};
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -1251,3 +1252,18 @@ macro_rules! impl_tuple_map_each {
 }
 
 impl_all_tuples!(impl_tuple_map_each);
+
+/// A type that can be converted into a [`Value<String>`].
+pub trait StringValue: IntoValue<String> + Sized {
+    /// Returns this string as a text input widget.
+    fn into_input(self) -> Input {
+        Input::new(self.into_value())
+    }
+
+    /// Returns this string as a clickable button.
+    fn into_button(self) -> Button {
+        Button::new(self.into_value())
+    }
+}
+
+impl<T> StringValue for T where T: IntoValue<String> {}

@@ -5,12 +5,12 @@ use crate::window::ThemeMode;
 
 /// A widget that applies a set of [`ThemeMode`] to all contained widgets.
 #[derive(Debug)]
-pub struct ModeSwitch {
+pub struct ThemedMode {
     mode: Value<ThemeMode>,
     child: WidgetRef,
 }
 
-impl ModeSwitch {
+impl ThemedMode {
     /// Returns a new widget that applies `mode` to all of its children.
     pub fn new(mode: impl IntoValue<ThemeMode>, child: impl MakeWidget) -> Self {
         Self {
@@ -20,7 +20,7 @@ impl ModeSwitch {
     }
 }
 
-impl WrapperWidget for ModeSwitch {
+impl WrapperWidget for ThemedMode {
     fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
     }

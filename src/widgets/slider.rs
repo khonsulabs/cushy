@@ -1,3 +1,4 @@
+//! A widget that allows a user to "slide" between values.
 use std::fmt::Debug;
 use std::panic::UnwindSafe;
 
@@ -326,4 +327,45 @@ define_components! {
         /// The color of the track that the knob rests on.
         InactiveTrackColor(Color, "inactive_track_color", |context| context.get(&OpaqueWidgetColor))
     }
+}
+
+/// A value that can be used in a [`Slider`] widget.
+pub trait Slidable<T>: IntoDynamic<T> + Sized
+where
+    T: Clone
+        + Debug
+        + PartialOrd
+        + LinearInterpolate
+        + PercentBetween
+        + UnwindSafe
+        + Send
+        + 'static,
+{
+    /// Returns a new slider over the full [range](Ranged) of the type.
+    fn slider(self) -> Slider<T>
+    where
+        T: Ranged,
+    {
+        Slider::from_value(self.into_dynamic())
+    }
+
+    /// Returns a new slider using the value of `self`. The slider will be
+    /// limited to values between `min` and `max`.
+    fn slider_between(self, min: impl IntoValue<T>, max: impl IntoValue<T>) -> Slider<T> {
+        Slider::new(self.into_dynamic(), min, max)
+    }
+}
+
+impl<U, T> Slidable<U> for T
+where
+    T: IntoDynamic<U>,
+    U: Clone
+        + Debug
+        + PartialOrd
+        + LinearInterpolate
+        + PercentBetween
+        + UnwindSafe
+        + Send
+        + 'static,
+{
 }

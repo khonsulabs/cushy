@@ -1,6 +1,6 @@
-use gooey::value::Dynamic;
+use gooey::value::{Dynamic, StringValue};
 use gooey::widget::{MakeWidget, WidgetInstance};
-use gooey::widgets::{Button, Label, Switcher};
+use gooey::widgets::Switcher;
 use gooey::Run;
 
 #[derive(Debug)]
@@ -24,9 +24,10 @@ fn main() -> gooey::Result {
 
 fn intro(active: Dynamic<ActiveContent>) -> WidgetInstance {
     const INTRO: &str = "This example demonstrates the Switcher<T> widget, which uses a mapping function to convert from a generic type to the widget it uses for its contents.";
-    Label::new(INTRO)
+    INTRO
         .and(
-            Button::new("Switch!")
+            "Switch!"
+                .into_button()
                 .on_click(move |_| active.set(ActiveContent::Success))
                 .centered(),
         )
@@ -35,11 +36,12 @@ fn intro(active: Dynamic<ActiveContent>) -> WidgetInstance {
 }
 
 fn success(active: Dynamic<ActiveContent>) -> WidgetInstance {
-    Label::new("The value changed to `ActiveContent::Success`!")
+    "The value changed to `ActiveContent::Success`!"
         .and(
-            Button::new("Start Over")
+            "Start Over"
+                .into_button()
                 .on_click(move |_| active.set(ActiveContent::Intro))
-                // .centered(),
+                .centered(),
         )
         .into_rows()
         .make_widget()

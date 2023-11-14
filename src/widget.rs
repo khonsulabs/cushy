@@ -24,7 +24,7 @@ use crate::styles::{
 use crate::tree::Tree;
 use crate::utils::IgnorePoison;
 use crate::value::{IntoValue, Value};
-use crate::widgets::{Align, Container, Expand, Resize, Scroll, Stack, Style};
+use crate::widgets::{Align, Container, Expand, Resize, Scroll, Stack, Style, Themed, ThemedMode};
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
 
@@ -726,6 +726,16 @@ pub trait MakeWidget: Sized {
     /// Wraps `self` with the specified padding.
     fn pad_by(self, padding: impl IntoValue<Edges<Dimension>>) -> Container {
         self.contain().transparent().pad_by(padding)
+    }
+
+    /// Applies `theme` to `self` and its children.
+    fn themed(self, theme: impl IntoValue<ThemePair>) -> Themed {
+        Themed::new(theme, self)
+    }
+
+    /// Applies `mode` to `self` and its children.
+    fn themed_mode(self, mode: impl IntoValue<ThemeMode>) -> ThemedMode {
+        ThemedMode::new(mode, self)
     }
 }
 

@@ -16,7 +16,7 @@ reactive data models work, consider this example that displays a button that
 increments its own label:
 
 ```rust,ignore
-$../examples/button.rs:readme$
+$../examples/basic-button.rs:readme$
 ```
 
 [widget]: $widget$
@@ -24,4 +24,4 @@ $../examples/button.rs:readme$
 [wgpu]: https://github.com/gfx-rs/wgpu
 [winit]: https://github.com/rust-windowing/winit
 [widgets]: $widgets$
-[button-example]: https://github.com/khonsulabs/gooey/tree/$ref-name$/examples/button.rs
+[button-example]: https://github.com/khonsulabs/gooey/tree/$ref-name$/examples/basic-button.rs

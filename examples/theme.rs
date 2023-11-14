@@ -5,9 +5,10 @@ use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{
     ColorScheme, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair,
 };
-use gooey::value::{Dynamic, MapEach};
+use gooey::value::{Dynamic, MapEach, StringValue};
 use gooey::widget::MakeWidget;
-use gooey::widgets::{Input, Label, ModeSwitch, Scroll, Slider, Stack, Themed};
+use gooey::widgets::slider::Slidable;
+use gooey::widgets::{Slider, Stack};
 use gooey::window::ThemeMode;
 use gooey::Run;
 use kludgine::Color;
@@ -44,38 +45,37 @@ fn main() -> gooey::Result {
             },
         );
 
-    Themed::new(
-        default_theme.clone(),
-        Stack::columns(
-            Scroll::vertical(Stack::rows(
-                theme_switcher
-                    .and(primary_editor)
-                    .and(secondary_editor)
-                    .and(tertiary_editor)
-                    .and(error_editor)
-                    .and(neutral_editor)
-                    .and(neutral_variant_editor),
-            ))
-            .and(fixed_themes(
-                default_theme.map_each(|theme| theme.primary_fixed),
-                default_theme.map_each(|theme| theme.secondary_fixed),
-                default_theme.map_each(|theme| theme.tertiary_fixed),
-            ))
-            .and(theme(
-                default_theme.map_each(|theme| theme.dark),
-                ThemeMode::Dark,
-            ))
-            .and(theme(
-                default_theme.map_each(|theme| theme.light),
-                ThemeMode::Light,
-            )),
-        ),
-    )
-    .pad()
-    .expand()
-    .into_window()
-    .with_theme_mode(theme_mode)
-    .run()
+    let editors = theme_switcher
+        .and(primary_editor)
+        .and(secondary_editor)
+        .and(tertiary_editor)
+        .and(error_editor)
+        .and(neutral_editor)
+        .and(neutral_variant_editor)
+        .into_rows()
+        .vertical_scroll();
+
+    editors
+        .and(fixed_themes(
+            default_theme.map_each(|theme| theme.primary_fixed),
+            default_theme.map_each(|theme| theme.secondary_fixed),
+            default_theme.map_each(|theme| theme.tertiary_fixed),
+        ))
+        .and(theme(
+            default_theme.map_each(|theme| theme.dark),
+            ThemeMode::Dark,
+        ))
+        .and(theme(
+            default_theme.map_each(|theme| theme.light),
+            ThemeMode::Light,
+        ))
+        .into_columns()
+        .themed(default_theme)
+        .pad()
+        .expand()
+        .into_window()
+        .themed_mode(theme_mode)
+        .run()
 }
 
 fn dark_mode_slider() -> (Dynamic<ThemeMode>, impl MakeWidget) {
@@ -83,7 +83,7 @@ fn dark_mode_slider() -> (Dynamic<ThemeMode>, impl MakeWidget) {
 
     (
         theme_mode.clone(),
-        Stack::rows(Label::new("Theme Mode").and(Slider::<ThemeMode>::from_value(theme_mode))),
+        "Theme Mode".and(theme_mode.slider()).into_rows(),
     )
 }
 
@@ -114,11 +114,11 @@ fn color_editor(
     (
         color,
         Stack::rows(
-            Label::new(label)
-                .and(Slider::<f32>::new(hue, 0., 360.))
-                .and(Input::new(hue_text))
+            label
+                .and(hue.slider_between(0., 360.))
+                .and(hue_text.into_input())
                 .and(Slider::<ZeroToOne>::from_value(saturation))
-                .and(Input::new(saturation_text)),
+                .and(saturation_text.into_input()),
         ),
     )
 }
@@ -128,69 +128,64 @@ fn fixed_themes(
     secondary: Dynamic<FixedTheme>,
     tertiary: Dynamic<FixedTheme>,
 ) -> impl MakeWidget {
-    Stack::rows(
-        Label::new("Fixed")
-            .and(fixed_theme(primary, "Primary"))
-            .and(fixed_theme(secondary, "Secondary"))
-            .and(fixed_theme(tertiary, "Tertiary")),
-    )
-    .contain()
-    .expand()
+    "Fixed"
+        .and(fixed_theme(primary, "Primary"))
+        .and(fixed_theme(secondary, "Secondary"))
+        .and(fixed_theme(tertiary, "Tertiary"))
+        .into_rows()
+        .contain()
+        .expand()
 }
 
 fn fixed_theme(theme: Dynamic<FixedTheme>, label: &str) -> impl MakeWidget {
     let color = theme.map_each(|theme| theme.color);
     let on_color = theme.map_each(|theme| theme.on_color);
-    Stack::columns(
-        swatch(color.clone(), &format!("{label} Fixed"), on_color.clone())
-            .and(swatch(
-                theme.map_each(|theme| theme.dim_color),
-                &format!("Dim {label}"),
-                on_color.clone(),
-            ))
-            .and(swatch(
-                on_color.clone(),
-                &format!("On {label} Fixed"),
-                color.clone(),
-            ))
-            .and(swatch(
-                theme.map_each(|theme| theme.on_color_variant),
-                &format!("Variant On {label} Fixed"),
-                color,
-            )),
-    )
-    .contain()
-    .expand()
+
+    swatch(color.clone(), &format!("{label} Fixed"), on_color.clone())
+        .and(swatch(
+            theme.map_each(|theme| theme.dim_color),
+            &format!("Dim {label}"),
+            on_color.clone(),
+        ))
+        .and(swatch(
+            on_color.clone(),
+            &format!("On {label} Fixed"),
+            color.clone(),
+        ))
+        .and(swatch(
+            theme.map_each(|theme| theme.on_color_variant),
+            &format!("Variant On {label} Fixed"),
+            color,
+        ))
+        .into_columns()
+        .contain()
+        .expand()
 }
 
 fn theme(theme: Dynamic<Theme>, mode: ThemeMode) -> impl MakeWidget {
-    ModeSwitch::new(
-        mode,
-        Stack::rows(
-            Label::new(match mode {
-                ThemeMode::Light => "Light",
-                ThemeMode::Dark => "Dark",
-            })
-            .and(
-                Stack::columns(
-                    color_theme(theme.map_each(|theme| theme.primary), "Primary")
-                        .and(color_theme(
-                            theme.map_each(|theme| theme.secondary),
-                            "Secondary",
-                        ))
-                        .and(color_theme(
-                            theme.map_each(|theme| theme.tertiary),
-                            "Tertiary",
-                        ))
-                        .and(color_theme(theme.map_each(|theme| theme.error), "Error")),
-                )
-                .contain()
-                .expand(),
-            )
-            .and(surface_theme(theme.map_each(|theme| theme.surface))),
-        )
-        .contain(),
+    match mode {
+        ThemeMode::Light => "Light",
+        ThemeMode::Dark => "Dark",
+    }
+    .and(
+        color_theme(theme.map_each(|theme| theme.primary), "Primary")
+            .and(color_theme(
+                theme.map_each(|theme| theme.secondary),
+                "Secondary",
+            ))
+            .and(color_theme(
+                theme.map_each(|theme| theme.tertiary),
+                "Tertiary",
+            ))
+            .and(color_theme(theme.map_each(|theme| theme.error), "Error"))
+            .into_columns()
+            .contain()
+            .expand(),
     )
+    .and(surface_theme(theme.map_each(|theme| theme.surface)))
+    .into_rows()
+    .contain()
+    .themed_mode(mode)
     .expand()
 }
 
@@ -310,7 +305,7 @@ fn color_theme(theme: Dynamic<ColorTheme>, label: &str) -> impl MakeWidget {
 }
 
 fn swatch(background: Dynamic<Color>, label: &str, text: Dynamic<Color>) -> impl MakeWidget {
-    Label::new(label)
+    label
         .with(&TextColor, text)
         .with(&WidgetBackground, background)
         .fit_horizontally()
