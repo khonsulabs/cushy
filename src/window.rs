@@ -278,7 +278,8 @@ struct GooeyWindow<T> {
     root: ManagedWidget,
     contents: Drawing,
     should_close: bool,
-    mouse_state: MouseState,
+    cursor: CursorState,
+    mouse_buttons: AHashMap<DeviceId, AHashMap<MouseButton, WidgetId>>,
     redraw_status: InvalidationStatus,
     initial_frame: bool,
     occluded: Dynamic<bool>,
@@ -319,6 +320,7 @@ where
                             &self.current_theme,
                             window,
                             self.theme_mode.get(),
+                            &mut self.cursor,
                         ),
                         kludgine,
                     )
@@ -331,6 +333,7 @@ where
                         &self.current_theme,
                         window,
                         self.theme_mode.get(),
+                        &mut self.cursor,
                     ),
                     kludgine,
                 )
@@ -345,6 +348,7 @@ where
                     &self.current_theme,
                     window,
                     self.theme_mode.get(),
+                    &mut self.cursor,
                 ),
                 kludgine,
             )
@@ -466,11 +470,11 @@ where
             root,
             contents: Drawing::default(),
             should_close: false,
-            mouse_state: MouseState {
+            cursor: CursorState {
                 location: None,
                 widget: None,
-                devices: AHashMap::default(),
             },
+            mouse_buttons: AHashMap::default(),
             redraw_status: InvalidationStatus::default(),
             initial_frame: true,
             occluded,
@@ -517,6 +521,7 @@ where
                 &self.current_theme,
                 &mut window,
                 self.theme_mode.get(),
+                &mut self.cursor,
             ),
             gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
@@ -684,11 +689,9 @@ where
         is_synthetic: bool,
     ) {
         let target = self.root.tree.focused_widget().unwrap_or(self.root.node_id);
-        let target = self
-            .root
-            .tree
-            .widget_from_node(target)
-            .expect("missing widget");
+        let Some(target) = self.root.tree.widget_from_node(target) else {
+            return;
+        };
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
         let mut target = EventContext::new(
             WidgetContext::new(
@@ -697,6 +700,7 @@ where
                 &self.current_theme,
                 &mut window,
                 self.theme_mode.get(),
+                &mut self.cursor,
             ),
             kludgine,
         );
@@ -731,6 +735,7 @@ where
                                 &self.current_theme,
                                 &mut window,
                                 self.theme_mode.get(),
+                                &mut self.cursor,
                             ),
                             kludgine,
                         );
@@ -798,6 +803,7 @@ where
                 &self.current_theme,
                 &mut window,
                 self.theme_mode.get(),
+                &mut self.cursor,
             ),
             kludgine,
         );
@@ -833,6 +839,7 @@ where
                 &self.current_theme,
                 &mut window,
                 self.theme_mode.get(),
+                &mut self.cursor,
             ),
             kludgine,
         );
@@ -849,10 +856,24 @@ where
         position: PhysicalPosition<f64>,
     ) {
         let location = Point::<Px>::from(position);
-        self.mouse_state.location = Some(location);
+        self.cursor.location = Some(location);
 
         let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
-        if let Some(state) = self.mouse_state.devices.get(&device_id) {
+
+        EventContext::new(
+            WidgetContext::new(
+                self.root.clone(),
+                &self.redraw_status,
+                &self.current_theme,
+                &mut window,
+                self.theme_mode.get(),
+                &mut self.cursor,
+            ),
+            kludgine,
+        )
+        .update_hovered_widget();
+
+        if let Some(state) = self.mouse_buttons.get(&device_id) {
             // Mouse Drag
             for (button, handler) in state {
                 let Some(handler) = self.root.tree.widget(*handler) else {
@@ -865,6 +886,7 @@ where
                         &self.current_theme,
                         &mut window,
                         self.theme_mode.get(),
+                        &mut self.cursor,
                     ),
                     kludgine,
                 );
@@ -872,37 +894,6 @@ where
                     continue;
                 };
                 context.mouse_drag(location - last_rendered_at.origin, device_id, *button);
-            }
-        } else {
-            // Hover
-            let mut context = EventContext::new(
-                WidgetContext::new(
-                    self.root.clone(),
-                    &self.redraw_status,
-                    &self.current_theme,
-                    &mut window,
-                    self.theme_mode.get(),
-                ),
-                kludgine,
-            );
-            self.mouse_state.widget = None;
-            for widget in self.root.tree.widgets_at_point(location) {
-                let mut widget_context = context.for_other(&widget);
-                let Some(widget_layout) = widget_context.last_layout() else {
-                    continue;
-                };
-                let relative = location - widget_layout.origin;
-
-                if widget_context.hit_test(relative) {
-                    widget_context.hover(relative);
-                    drop(widget_context);
-                    self.mouse_state.widget = Some(widget.id());
-                    break;
-                }
-            }
-
-            if self.mouse_state.widget.is_none() {
-                context.clear_hover();
             }
         }
     }
@@ -913,7 +904,7 @@ where
         kludgine: &mut Kludgine,
         _device_id: DeviceId,
     ) {
-        if self.mouse_state.widget.take().is_some() {
+        if self.cursor.widget.take().is_some() {
             let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
             let mut context = EventContext::new(
                 WidgetContext::new(
@@ -922,6 +913,7 @@ where
                     &self.current_theme,
                     &mut window,
                     self.theme_mode.get(),
+                    &mut self.cursor,
                 ),
                 kludgine,
             );
@@ -947,6 +939,7 @@ where
                         &self.current_theme,
                         &mut window,
                         self.theme_mode.get(),
+                        &mut self.cursor,
                     ),
                     kludgine,
                 )
@@ -954,10 +947,8 @@ where
 
                 if let (ElementState::Pressed, Some(location), Some(hovered)) = (
                     state,
-                    &self.mouse_state.location,
-                    self.mouse_state
-                        .widget
-                        .and_then(|id| self.root.tree.widget(id)),
+                    self.cursor.location,
+                    self.cursor.widget.and_then(|id| self.root.tree.widget(id)),
                 ) {
                     if let Some(handler) = recursively_handle_event(
                         &mut EventContext::new(
@@ -967,6 +958,7 @@ where
                                 &self.current_theme,
                                 &mut window,
                                 self.theme_mode.get(),
+                                &mut self.cursor,
                             ),
                             kludgine,
                         ),
@@ -974,12 +966,11 @@ where
                             let Some(layout) = context.last_layout() else {
                                 return IGNORED;
                             };
-                            let relative = *location - layout.origin;
+                            let relative = location - layout.origin;
                             context.mouse_down(relative, device_id, button)
                         },
                     ) {
-                        self.mouse_state
-                            .devices
+                        self.mouse_buttons
                             .entry(device_id)
                             .or_default()
                             .insert(button, handler.id());
@@ -987,18 +978,19 @@ where
                 }
             }
             ElementState::Released => {
-                let Some(device_buttons) = self.mouse_state.devices.get_mut(&device_id) else {
+                let Some(device_buttons) = self.mouse_buttons.get_mut(&device_id) else {
                     return;
                 };
                 let Some(handler) = device_buttons.remove(&button) else {
                     return;
                 };
                 if device_buttons.is_empty() {
-                    self.mouse_state.devices.remove(&device_id);
+                    self.mouse_buttons.remove(&device_id);
                 }
                 let Some(handler) = self.root.tree.widget(handler) else {
                     return;
                 };
+                let cursor_location = self.cursor.location;
                 let mut context = EventContext::new(
                     WidgetContext::new(
                         handler,
@@ -1006,12 +998,13 @@ where
                         &self.current_theme,
                         &mut window,
                         self.theme_mode.get(),
+                        &mut self.cursor,
                     ),
                     kludgine,
                 );
 
                 let relative = if let (Some(last_rendered), Some(location)) =
-                    (context.last_layout(), self.mouse_state.location)
+                    (context.last_layout(), cursor_location)
                 {
                     Some(location - last_rendered.origin)
                 } else {
@@ -1060,10 +1053,9 @@ fn recursively_handle_event(
 }
 
 #[derive(Default)]
-struct MouseState {
-    location: Option<Point<Px>>,
-    widget: Option<WidgetId>,
-    devices: AHashMap<DeviceId, AHashMap<MouseButton, WidgetId>>,
+pub(crate) struct CursorState {
+    pub(crate) location: Option<Point<Px>>,
+    pub(crate) widget: Option<WidgetId>,
 }
 
 pub(crate) mod sealed {

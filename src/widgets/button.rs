@@ -219,11 +219,6 @@ impl Button {
             kind,
         };
 
-        // TODO this should be genericized to happen automatically.
-        if !context.enabled() {
-            context.blur();
-        }
-
         if context.is_default() {
             kind.colors_for_default(visual_state, context)
         } else {

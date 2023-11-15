@@ -231,24 +231,27 @@ impl Tree {
         let hovered = new_hover
             .map(|new_hover| data.widget_hierarchy(new_hover.node_id, self))
             .unwrap_or_default();
-        let unhovered = match data.update_tracked_widget(new_hover, self, |data| &mut data.hover) {
-            Ok(Some(old_hover)) => {
-                let mut old_hovered = data.widget_hierarchy(old_hover.node_id, self);
-                // For any widgets that were shared, remove them, as they don't
-                // need to have their events fired again.
-                let mut new_index = 0;
-                while !old_hovered.is_empty() && old_hovered.get(0) == hovered.get(new_index) {
-                    old_hovered.remove(0);
-                    new_index += 1;
+        let unhovered =
+            match data.update_tracked_widget(new_hover.map(ManagedWidget::id), self, |data| {
+                &mut data.hover
+            }) {
+                Ok(Some(old_hover)) => {
+                    let mut old_hovered = data.widget_hierarchy(old_hover.node_id, self);
+                    // For any widgets that were shared, remove them, as they don't
+                    // need to have their events fired again.
+                    let mut new_index = 0;
+                    while !old_hovered.is_empty() && old_hovered.get(0) == hovered.get(new_index) {
+                        old_hovered.remove(0);
+                        new_index += 1;
+                    }
+                    old_hovered
                 }
-                old_hovered
-            }
-            _ => Vec::new(),
-        };
+                _ => Vec::new(),
+            };
         HoverResults { unhovered, hovered }
     }
 
-    pub fn focus(&self, new_focus: Option<&ManagedWidget>) -> Result<Option<ManagedWidget>, ()> {
+    pub fn focus(&self, new_focus: Option<WidgetId>) -> Result<Option<ManagedWidget>, ()> {
         let mut data = self.data.lock().ignore_poison();
         data.update_tracked_widget(new_focus, self, |data| &mut data.focus)
     }
@@ -264,7 +267,9 @@ impl Tree {
         new_active: Option<&ManagedWidget>,
     ) -> Result<Option<ManagedWidget>, ()> {
         let mut data = self.data.lock().ignore_poison();
-        data.update_tracked_widget(new_active, self, |data| &mut data.active)
+        data.update_tracked_widget(new_active.map(ManagedWidget::id), self, |data| {
+            &mut data.active
+        })
     }
 
     pub fn widget(&self, id: WidgetId) -> Option<ManagedWidget> {
@@ -334,7 +339,7 @@ impl Tree {
         self.data.lock().ignore_poison().focus
     }
 
-    pub(crate) fn widgets_at_point(&self, point: Point<Px>) -> Vec<ManagedWidget> {
+    pub(crate) fn widgets_under_point(&self, point: Point<Px>) -> Vec<ManagedWidget> {
         let data = self.data.lock().ignore_poison();
         data.render_info.widgets_under_point(point, &data, self)
     }
@@ -489,12 +494,13 @@ impl TreeData {
 
     fn update_tracked_widget(
         &mut self,
-        new_widget: Option<&ManagedWidget>,
+        new_widget: Option<WidgetId>,
         tree: &Tree,
         property: impl FnOnce(&mut Self) -> &mut Option<LotId>,
     ) -> Result<Option<ManagedWidget>, ()> {
+        let new_widget = new_widget.and_then(|w| self.widget_from_id(w, tree));
         match (
-            mem::replace(property(self), new_widget.map(|w| w.node_id)),
+            mem::replace(property(self), new_widget.as_ref().map(|w| w.node_id)),
             new_widget,
         ) {
             (Some(old_widget), Some(new_widget)) if old_widget == new_widget.node_id => Err(()),

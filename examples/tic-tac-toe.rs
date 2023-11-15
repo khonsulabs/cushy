@@ -141,9 +141,14 @@ fn game_end(winner: Option<Player>, app: &Dynamic<AppState>) -> impl MakeWidget 
     };
 
     label
-        .and("Play Again".into_button().on_click(move |_| {
-            app.set(AppState::Playing);
-        }))
+        .and(
+            "Play Again"
+                .into_button()
+                .on_click(move |_| {
+                    app.set(AppState::Playing);
+                })
+                .into_default(),
+        )
         .into_rows()
         .centered()
         .expand()
