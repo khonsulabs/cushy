@@ -6,10 +6,11 @@ use std::ops::{Deref, DerefMut, Not};
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 use std::path::Path;
 use std::string::ToString;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use ahash::AHashMap;
 use alot::LotId;
+use arboard::Clipboard;
 use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
     DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
@@ -32,7 +33,7 @@ use crate::context::{
 use crate::graphics::Graphics;
 use crate::styles::ThemePair;
 use crate::tree::Tree;
-use crate::utils::ModifiersExt;
+use crate::utils::{IgnorePoison, ModifiersExt};
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
 use crate::widget::{
     EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
@@ -44,6 +45,7 @@ use crate::{initialize_tracing, ConstraintLimit, Run};
 /// A currently running Gooey window.
 pub struct RunningWindow<'window> {
     window: kludgine::app::Window<'window, WindowCommand>,
+    clipboard: Option<Arc<Mutex<Clipboard>>>,
     focused: Dynamic<bool>,
     occluded: Dynamic<bool>,
 }
@@ -51,11 +53,13 @@ pub struct RunningWindow<'window> {
 impl<'window> RunningWindow<'window> {
     pub(crate) fn new(
         window: kludgine::app::Window<'window, WindowCommand>,
+        clipboard: &Option<Arc<Mutex<Clipboard>>>,
         focused: &Dynamic<bool>,
         occluded: &Dynamic<bool>,
     ) -> Self {
         Self {
             window,
+            clipboard: clipboard.clone(),
             focused: focused.clone(),
             occluded: occluded.clone(),
         }
@@ -73,6 +77,15 @@ impl<'window> RunningWindow<'window> {
     #[must_use]
     pub fn occluded(&self) -> &Dynamic<bool> {
         &self.occluded
+    }
+
+    /// Returns a locked mutex guard to the OS's clipboard, if one was able to be
+    /// initialized when the window opened.
+    #[must_use]
+    pub fn clipboard_guard(&mut self) -> Option<MutexGuard<'_, Clipboard>> {
+        self.clipboard
+            .as_ref()
+            .map(|mutex| mutex.lock().ignore_poison())
     }
 }
 
@@ -291,16 +304,21 @@ struct GooeyWindow<T> {
     current_theme: ThemePair,
     theme_mode: Value<ThemeMode>,
     transparent: bool,
+    clipboard: Option<Arc<Mutex<Clipboard>>>,
 }
 
 impl<T> GooeyWindow<T>
 where
     T: WindowBehavior,
 {
-    fn request_close(&mut self, window: &mut RunningWindow<'_>) -> bool {
-        self.should_close |= self.behavior.close_requested(window);
+    fn request_close(
+        should_close: &mut bool,
+        behavior: &mut T,
+        window: &mut RunningWindow<'_>,
+    ) -> bool {
+        *should_close |= behavior.close_requested(window);
 
-        self.should_close
+        *should_close
     }
 
     fn keyboard_activate_widget(
@@ -453,6 +471,10 @@ where
             .take()
             .expect("theme always present");
 
+        let clipboard = Clipboard::new()
+            .ok()
+            .map(|clipboard| Arc::new(Mutex::new(clipboard)));
+
         let theme_mode = match context.settings.borrow_mut().theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
                 dynamic.update(window.theme().into());
@@ -463,7 +485,7 @@ where
         };
         let transparent = context.settings.borrow().transparent;
         let mut behavior = T::initialize(
-            &mut RunningWindow::new(window, &focused, &occluded),
+            &mut RunningWindow::new(window, &clipboard, &focused, &occluded),
             context.user,
         );
         let root = Tree::default().push_boxed(behavior.make_root(), None);
@@ -494,6 +516,7 @@ where
             theme,
             theme_mode,
             transparent,
+            clipboard,
         }
     }
 
@@ -521,7 +544,7 @@ where
         let is_expanded = self.constrain_window_resizing(resizable, &window, graphics);
 
         let graphics = self.contents.new_frame(graphics);
-        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
         let mut context = GraphicsContext {
             widget: WidgetContext::new(
                 self.root.clone(),
@@ -633,11 +656,11 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) -> bool {
-        self.request_close(&mut RunningWindow::new(
-            window,
-            &self.focused,
-            &self.occluded,
-        ))
+        Self::request_close(
+            &mut self.should_close,
+            &mut self.behavior,
+            &mut RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded),
+        )
     }
 
     // fn power_preference() -> wgpu::PowerPreference {
@@ -700,7 +723,7 @@ where
         let Some(target) = self.root.tree.widget_from_node(target) else {
             return;
         };
-        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
         let mut target = EventContext::new(
             WidgetContext::new(
                 target,
@@ -722,7 +745,13 @@ where
         if !handled {
             match input.logical_key {
                 Key::Character(ch) if ch == "w" && window.modifiers().primary() => {
-                    if input.state.is_pressed() && self.request_close(&mut window) {
+                    if input.state.is_pressed()
+                        && Self::request_close(
+                            &mut self.should_close,
+                            &mut self.behavior,
+                            &mut window,
+                        )
+                    {
                         window.set_needs_redraw();
                     }
                 }
@@ -803,7 +832,7 @@ where
                     .expect("missing widget")
             });
 
-        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
         let mut widget = EventContext::new(
             WidgetContext::new(
                 widget,
@@ -839,7 +868,7 @@ where
                     .widget(self.root.id())
                     .expect("missing widget")
             });
-        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
         let mut target = EventContext::new(
             WidgetContext::new(
                 widget,
@@ -866,7 +895,7 @@ where
         let location = Point::<Px>::from(position);
         self.cursor.location = Some(location);
 
-        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
 
         EventContext::new(
             WidgetContext::new(
@@ -913,7 +942,8 @@ where
         _device_id: DeviceId,
     ) {
         if self.cursor.widget.take().is_some() {
-            let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
+            let mut window =
+                RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
             let mut context = EventContext::new(
                 WidgetContext::new(
                     self.root.clone(),
@@ -937,7 +967,7 @@ where
         state: ElementState,
         button: MouseButton,
     ) {
-        let mut window = RunningWindow::new(window, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
         match state {
             ElementState::Pressed => {
                 EventContext::new(

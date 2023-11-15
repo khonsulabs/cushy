@@ -118,6 +118,101 @@ impl Input {
             editor.set_select_opt(Some(Cursor::new_with_affinity(0, 0, Affinity::Before)));
         }
     }
+
+    fn handle_key(
+        &mut self,
+        input: KeyEvent,
+        context: &mut EventContext<'_, '_>,
+    ) -> (bool, EventHandling) {
+        let editor = self.editor_mut(context.kludgine, &context.widget);
+
+        match (input.state, input.logical_key, input.text.as_deref()) {
+            (ElementState::Pressed,  key @ (Key::Backspace | Key::Delete), _) => {
+                editor.action(
+                    context.kludgine.font_system(),
+                    match key {
+                        Key::Backspace => Action::Backspace,
+                        Key::Delete => Action::Delete,
+                        _ => unreachable!("previously matched"),
+                    },
+                );
+                (true, HANDLED)
+            }
+            (ElementState::Pressed, key @ (Key::ArrowLeft | Key::ArrowDown | Key::ArrowUp | Key::ArrowRight), _) => {
+                let modifiers = context.modifiers();
+                match (editor.select_opt(), modifiers.state().shift_key()) {
+                    (None, true) => {
+                        editor.set_select_opt(Some(editor.cursor()));
+                    }
+                    (Some(_), false) => {
+                        editor.set_select_opt(None);
+                    }
+                    _ => {}
+                };
+
+                editor.action(
+                    context.kludgine.font_system(),
+                    match key {
+                        Key::ArrowLeft if modifiers.word_select() => Action::PreviousWord,
+                        Key::ArrowLeft => Action::Left,
+                        Key::ArrowDown => Action::Down,
+                        Key::ArrowUp => Action::Up,
+                        Key::ArrowRight if modifiers.word_select() => Action::NextWord,
+                        Key::ArrowRight => Action::Right,
+                        _ => unreachable!("previously matched"),
+                    },
+                );
+                (false, HANDLED)
+            }
+            (state, _, Some("a")) if context.modifiers().primary() => {
+                if state.is_pressed() {
+                    self.select_all();
+                }
+                (false, HANDLED)
+            }
+            (state, _, Some("c")) if context.modifiers().primary() => {
+
+                if state.is_pressed() {
+                    if let Some(mut clipboard) = context.clipboard_guard() {
+                        if let Some(selection) = editor.copy_selection() {
+                            match clipboard.set_text(selection) {
+                                Ok(()) => {},
+                                Err(err) => tracing::error!("error copying to clipboard: {err}"),
+                            }
+                        }
+                    }
+                }
+                (false, HANDLED)
+            }
+            (state, _, Some("v")) if context.modifiers().primary() => {
+                let pasted = state.is_pressed() &&
+                    match context.clipboard_guard().map(|mut clipboard| clipboard.get_text()) {
+                        Some(Ok(text)) => {
+                            editor.insert_string(&text, None);
+                            true
+                        },
+                        None | Some(Err(arboard::Error::ConversionFailure)) => false,
+                        Some(Err(err)) => {tracing::error!("error retrieving clipboard contents: {err}"); false},
+                    }
+
+                ;
+                (pasted, HANDLED)
+            }
+            (state, _, Some(text))
+                if !context.modifiers().primary()
+                    && text != "\t" // tab
+                    && text != "\r" // enter/return
+                    && text != "\u{1b}" // escape
+                    =>
+            {
+                if state.is_pressed() {
+                    editor.insert_string(text, None);
+                }
+                (state.is_pressed(), HANDLED)
+            }
+            (_, _, _) => (false, IGNORED),
+        }
+    }
 }
 
 impl Default for Input {
@@ -389,70 +484,11 @@ impl Widget for Input {
             on_key.invoke(input.clone())?;
         }
 
-        let editor = self.editor_mut(context.kludgine, &context.widget);
-
         // println!(
         //     "Keyboard input: {:?}. {:?}, {:?}",
         //     input.logical_key, input.text, input.physical_key
         // );
-        let (text_changed, handled) = match (input.state, input.logical_key, input.text.as_deref()) {
-            (ElementState::Pressed,  key @ (Key::Backspace | Key::Delete), _) => {
-                editor.action(
-                    context.kludgine.font_system(),
-                    match key {
-                        Key::Backspace => Action::Backspace,
-                        Key::Delete => Action::Delete,
-                        _ => unreachable!("previously matched"),
-                    },
-                );
-                (true, HANDLED)
-            }
-            (ElementState::Pressed, key @ (Key::ArrowLeft | Key::ArrowDown | Key::ArrowUp | Key::ArrowRight), _) => {
-                let modifiers = context.modifiers();
-                match (editor.select_opt(), modifiers.state().shift_key()) {
-                    (None, true) => {
-                        editor.set_select_opt(Some(editor.cursor()));
-                    }
-                    (Some(_), false) => {
-                        editor.set_select_opt(None);
-                    }
-                    _ => {}
-                };
-
-                editor.action(
-                    context.kludgine.font_system(),
-                    match key {
-                        Key::ArrowLeft if modifiers.word_select() => Action::PreviousWord,
-                        Key::ArrowLeft => Action::Left,
-                        Key::ArrowDown => Action::Down,
-                        Key::ArrowUp => Action::Up,
-                        Key::ArrowRight if modifiers.word_select() => Action::NextWord,
-                        Key::ArrowRight => Action::Right,
-                        _ => unreachable!("previously matched"),
-                    },
-                );
-                (false, HANDLED)
-            }
-            (state, _, Some("a")) if context.modifiers().primary() => {
-                if state.is_pressed() {
-                    self.select_all();
-                }
-                (false, HANDLED)
-            }
-            (state, _, Some(text))
-                if !context.modifiers().primary()
-                    && text != "\t" // tab
-                    && text != "\r" // enter/return
-                    && text != "\u{1b}" // escape
-                    =>
-            {
-                if state.is_pressed() {
-                    editor.insert_string(text, None);
-                }
-                (state.is_pressed(), HANDLED)
-            }
-            (_, _, _) => (false, IGNORED),
-        };
+        let (text_changed, handled) = self.handle_key(input, context);
 
         if handled.is_break() {
             context.set_needs_redraw();
