@@ -103,7 +103,7 @@ impl Tree {
 
     pub(crate) fn new_frame(&self, invalidations: impl IntoIterator<Item = WidgetId>) {
         let mut data = self.data.lock().ignore_poison();
-        data.render_order.clear();
+        data.render_info.clear();
 
         for id in invalidations {
             let Some(id) = data.nodes_by_id.get(&id).copied() else {
@@ -116,7 +116,10 @@ impl Tree {
 
     pub(crate) fn note_widget_rendered(&self, widget: LotId) {
         let mut data = self.data.lock().ignore_poison();
-        data.render_order.push(widget);
+        let Some(layout) = data.nodes.get(widget).and_then(|node| node.layout) else {
+            return;
+        };
+        data.render_info.push(widget, layout);
     }
 
     pub(crate) fn begin_layout(
@@ -307,15 +310,7 @@ impl Tree {
 
     pub(crate) fn widgets_at_point(&self, point: Point<Px>) -> Vec<ManagedWidget> {
         let data = self.data.lock().ignore_poison();
-        let mut hits = Vec::new();
-        for id in data.render_order.iter().rev() {
-            if let Some(last_rendered) = data.nodes.get(*id).and_then(|widget| widget.layout) {
-                if last_rendered.contains(point) {
-                    hits.push(data.widget_from_node(*id, self).expect("just accessed"));
-                }
-            }
-        }
-        hits
+        data.render_info.widgets_under_point(point, &data, self)
     }
 
     pub(crate) fn parent(&self, id: LotId) -> Option<LotId> {
@@ -373,7 +368,7 @@ struct TreeData {
     hover: Option<LotId>,
     defaults: Vec<LotId>,
     escapes: Vec<LotId>,
-    render_order: Vec<LotId>,
+    render_info: RenderInfo,
     previous_focuses: AHashMap<WidgetId, WidgetId>,
 }
 
@@ -493,6 +488,62 @@ impl TreeData {
             };
             node = &mut self.nodes[parent];
         }
+    }
+}
+
+#[derive(Default)]
+struct RenderInfo {
+    order: Vec<RenderArea>,
+}
+
+impl RenderInfo {
+    pub fn push(&mut self, node: LotId, region: Rect<Px>) {
+        let area = RenderArea::new(node, region);
+        self.order.push(area);
+    }
+
+    pub fn clear(&mut self) {
+        self.order.clear();
+    }
+
+    fn widgets_under_point(
+        &self,
+        point: Point<Px>,
+        tree_data: &TreeData,
+        tree: &Tree,
+    ) -> Vec<ManagedWidget> {
+        // We pessimistically allocate a vector as if all widgets match, up to a
+        // reasonable limit. This should ensure minimal allocations in all but
+        // extreme circumstances where widgets are nested with a significant
+        // amount of depth.
+        let mut hits = Vec::with_capacity(self.order.len().min(256));
+        for area in self.order.iter().rev() {
+            if area.min.x <= point.x
+                && area.min.y <= point.y
+                && area.max.x >= point.x
+                && area.max.y >= point.y
+            {
+                let Some(widget) = tree_data.widget_from_node(area.node, tree) else {
+                    continue;
+                };
+                hits.push(widget);
+            }
+        }
+        hits
+    }
+}
+
+#[derive(Eq, PartialEq, Clone, Copy)]
+struct RenderArea {
+    node: LotId,
+    min: Point<Px>,
+    max: Point<Px>,
+}
+
+impl RenderArea {
+    fn new(node: LotId, area: Rect<Px>) -> Self {
+        let (min, max) = area.extents();
+        Self { node, min, max }
     }
 }
 
