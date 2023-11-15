@@ -868,7 +868,9 @@ where
                     ),
                     kludgine,
                 );
-                let last_rendered_at = context.last_layout().expect("passed hit test");
+                let Some(last_rendered_at) = context.last_layout() else {
+                    continue;
+                };
                 context.mouse_drag(location - last_rendered_at.origin, device_id, *button);
             }
         } else {
@@ -886,11 +888,10 @@ where
             self.mouse_state.widget = None;
             for widget in self.root.tree.widgets_at_point(location) {
                 let mut widget_context = context.for_other(&widget);
-                let relative = location
-                    - widget_context
-                        .last_layout()
-                        .expect("passed hit test")
-                        .origin;
+                let Some(widget_layout) = widget_context.last_layout() else {
+                    continue;
+                };
+                let relative = location - widget_layout.origin;
 
                 if widget_context.hit_test(relative) {
                     widget_context.hover(relative);
@@ -970,8 +971,10 @@ where
                             kludgine,
                         ),
                         |context| {
-                            let relative =
-                                *location - context.last_layout().expect("passed hit test").origin;
+                            let Some(layout) = context.last_layout() else {
+                                return IGNORED;
+                            };
+                            let relative = *location - layout.origin;
                             context.mouse_down(relative, device_id, button)
                         },
                     ) {
