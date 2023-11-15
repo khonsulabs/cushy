@@ -10,7 +10,7 @@ use gooey::{Run, WithClone};
 use kludgine::figures::units::Lp;
 
 fn main() -> gooey::Result {
-    let app = Dynamic::new(AppState::Winner(None));
+    let app = Dynamic::default();
     app.map_each(app.with_clone(|app| {
         move |state: &AppState| match state {
             AppState::Playing => play_screen(&app).make_widget(),
@@ -194,5 +194,6 @@ fn square(row: usize, column: usize, game: &Dynamic<GameState>) -> impl MakeWidg
         .enabled(enabled)
         .kind(ButtonKind::Outline)
         .on_click(move |_| game.lock().play(row, column))
+        .pad()
         .expand()
 }
