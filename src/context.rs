@@ -776,7 +776,6 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             cache: WidgetCacheKey {
                 theme_mode,
                 enabled,
-                invalidation: current_node.invalidation(),
             },
             cursor,
             current_node,
@@ -826,7 +825,6 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
                 cache: WidgetCacheKey {
                     theme_mode,
                     enabled: current_node.enabled(&self.handle()),
-                    invalidation: current_node.invalidation(),
                 },
                 current_node,
                 redraw_status: self.redraw_status,
@@ -1263,7 +1261,6 @@ impl<T> MapManagedWidget<T> for ManagedWidget {
 pub struct WidgetCacheKey {
     theme_mode: ThemeMode,
     enabled: bool,
-    invalidation: u64,
 }
 
 impl Default for WidgetCacheKey {
@@ -1271,7 +1268,6 @@ impl Default for WidgetCacheKey {
         Self {
             theme_mode: ThemeMode::default().inverse(),
             enabled: false,
-            invalidation: u64::MAX,
         }
     }
 }

@@ -1186,10 +1186,6 @@ impl ManagedWidget {
         self.tree.is_enabled(self.node_id, handle)
     }
 
-    pub(crate) fn invalidation(&self) -> u64 {
-        self.tree.invalidation(self.node_id).expect("missing node")
-    }
-
     /// Returns true if this widget is currently the hovered widget.
     #[must_use]
     pub fn hovered(&self) -> bool {

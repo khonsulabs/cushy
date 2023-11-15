@@ -45,7 +45,6 @@ impl Tree {
             effective_styles,
             theme: None,
             theme_mode: None,
-            invalidation: 0,
         });
         data.nodes_by_id.insert(id, node_id);
         if widget.is_default() {
@@ -282,11 +281,6 @@ impl Tree {
         data.widget_from_node(id, self)
     }
 
-    pub(crate) fn invalidation(&self, id: LotId) -> Option<u64> {
-        let data = self.data.lock().ignore_poison();
-        data.nodes.get(id).map(|node| node.invalidation)
-    }
-
     pub(crate) fn is_enabled(&self, mut id: LotId, context: &WindowHandle) -> bool {
         let data = self.data.lock().ignore_poison();
         loop {
@@ -513,7 +507,6 @@ impl TreeData {
         let mut node = &mut self.nodes[id];
         while node.layout.is_some() {
             node.layout = None;
-            node.invalidation += 1;
             node.last_layout_query = None;
 
             let (true, Some(parent)) = (include_hierarchy, node.parent) else {
@@ -585,7 +578,6 @@ struct Node {
     children: Vec<LotId>,
     parent: Option<LotId>,
     layout: Option<Rect<Px>>,
-    invalidation: u64,
     last_layout_query: Option<CachedLayoutQuery>,
     associated_styles: Option<Value<Styles>>,
     effective_styles: Styles,
