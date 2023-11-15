@@ -32,6 +32,13 @@ fn main() -> gooey::Result {
                         .kind(ButtonKind::Outline),
                 )
                 .and(
+                    Button::new("Transparent Button")
+                        .on_click(clicked_label.with_clone(|label| {
+                            move |_| label.set(String::from("Clicked Transparent Button"))
+                        }))
+                        .kind(ButtonKind::Transparent),
+                )
+                .and(
                     Button::new("Default Button")
                         .on_click(clicked_label.with_clone(|label| {
                             move |_| label.set(String::from("Clicked Default Button"))
