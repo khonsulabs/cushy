@@ -277,6 +277,11 @@ impl Tree {
         data.widget_from_node(id, self)
     }
 
+    pub(crate) fn invalidation(&self, id: LotId) -> Option<u64> {
+        let data = self.data.lock().ignore_poison();
+        data.nodes.get(id).map(|node| node.invalidation)
+    }
+
     pub(crate) fn is_enabled(&self, mut id: LotId, context: &WindowHandle) -> bool {
         let data = self.data.lock().ignore_poison();
         loop {

@@ -706,9 +706,8 @@ pub struct WidgetContext<'context, 'window> {
     window: &'context mut RunningWindow<'window>,
     theme: Cow<'context, ThemePair>,
     pending_state: PendingState<'context>,
-    theme_mode: ThemeMode,
     effective_styles: Styles,
-    enabled: bool,
+    cache: WidgetCacheKey,
 }
 
 impl<'context, 'window> WidgetContext<'context, 'window> {
@@ -736,11 +735,14 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
                 focus_is_advancing: false,
             }),
             effective_styles: current_node.effective_styles(),
-            enabled,
+            cache: WidgetCacheKey {
+                theme_mode,
+                enabled,
+                invalidation: current_node.invalidation(),
+            },
             current_node,
             redraw_status,
             theme: Cow::Borrowed(theme),
-            theme_mode,
             window,
         }
     }
@@ -753,9 +755,8 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             window: &mut *self.window,
             theme: Cow::Borrowed(self.theme.as_ref()),
             pending_state: self.pending_state.borrowed(),
-            theme_mode: self.theme_mode,
+            cache: self.cache,
             effective_styles: self.effective_styles.clone(),
-            enabled: self.enabled,
         }
     }
 
@@ -778,17 +779,20 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             let theme_mode = if let Some(mode) = theme_mode {
                 mode.get_tracked(self)
             } else {
-                self.theme_mode
+                self.cache.theme_mode
             };
             WidgetContext {
                 effective_styles,
-                enabled: current_node.enabled(&self.handle()),
+                cache: WidgetCacheKey {
+                    theme_mode,
+                    enabled: current_node.enabled(&self.handle()),
+                    invalidation: current_node.invalidation(),
+                },
                 current_node,
                 redraw_status: self.redraw_status,
                 window: &mut *self.window,
                 theme,
                 pending_state: self.pending_state.borrowed(),
-                theme_mode,
             }
         })
     }
@@ -796,7 +800,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns true if this widget is enabled.
     #[must_use]
     pub const fn enabled(&self) -> bool {
-        self.enabled
+        self.cache.enabled
     }
 
     pub(crate) fn parent(&self) -> Option<ManagedWidget> {
@@ -1004,7 +1008,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns the current theme in either light or dark mode.
     #[must_use]
     pub fn theme(&self) -> &Theme {
-        match self.theme_mode {
+        match self.cache.theme_mode {
             ThemeMode::Light => &self.theme.light,
             ThemeMode::Dark => &self.theme.dark,
         }
@@ -1013,10 +1017,17 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns the opposite theme of [`Self::theme()`].
     #[must_use]
     pub fn inverse_theme(&self) -> &Theme {
-        match self.theme_mode {
+        match self.cache.theme_mode {
             ThemeMode::Light => &self.theme.dark,
             ThemeMode::Dark => &self.theme.light,
         }
+    }
+
+    /// Returns a key that can be checked to see if a widget should invalidate
+    /// caches it stores.
+    #[must_use]
+    pub fn cache_key(&self) -> WidgetCacheKey {
+        self.cache
     }
 }
 
@@ -1205,5 +1216,26 @@ impl<T> MapManagedWidget<T> for ManagedWidget {
 
     fn map(self, map: impl FnOnce(ManagedWidget) -> T) -> Self::Result {
         map(self)
+    }
+}
+
+/// An type that contains information about the state of a widget.
+///
+/// This value can be stored and compared in future widget events. If the cache
+/// keys are not equal, the widget should clear all caches.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct WidgetCacheKey {
+    theme_mode: ThemeMode,
+    enabled: bool,
+    invalidation: u64,
+}
+
+impl Default for WidgetCacheKey {
+    fn default() -> Self {
+        Self {
+            theme_mode: ThemeMode::default().inverse(),
+            enabled: false,
+            invalidation: u64::MAX,
+        }
     }
 }

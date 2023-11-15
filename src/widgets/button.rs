@@ -9,7 +9,9 @@ use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, LinearInterpolate, Spawn};
-use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::context::{
+    AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetCacheKey, WidgetContext,
+};
 use crate::styles::components::{
     AutoFocusableControls, Easing, HighlightColor, IntrinsicPadding, OpaqueWidgetColor,
     OutlineColor, SurfaceColor, TextColor,
@@ -36,7 +38,7 @@ pub struct Button {
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 struct CacheState {
-    enabled: bool,
+    key: WidgetCacheKey,
     kind: ButtonKind,
 }
 
@@ -129,7 +131,7 @@ impl Button {
             content: content.widget_ref(),
             on_click: None,
             cached_state: CacheState {
-                enabled: true,
+                key: WidgetCacheKey::default(),
                 kind: ButtonKind::default(),
             },
             buttons_pressed: 0,
@@ -213,11 +215,12 @@ impl Button {
         let visual_state = Self::visual_style(context);
 
         self.cached_state = CacheState {
-            enabled: !matches!(visual_state, VisualState::Disabled),
+            key: context.cache_key(),
             kind,
         };
 
-        if !self.cached_state.enabled {
+        // TODO this should be genericized to happen automatically.
+        if !context.enabled() {
             context.blur();
         }
 
@@ -331,12 +334,9 @@ impl VisualState {
 impl Widget for Button {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         #![allow(clippy::similar_names)]
-        let enabled = context.enabled();
 
-        // TODO This seems ugly. It needs context, so it can't be moved into the
-        // dynamic system.
         let current_style = self.kind.get_tracked(context);
-        if self.cached_state.enabled != enabled || self.cached_state.kind != current_style {
+        if self.cached_state.key != context.cache_key() || self.cached_state.kind != current_style {
             self.update_colors(context, false);
         }
 
