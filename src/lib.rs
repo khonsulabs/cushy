@@ -25,7 +25,7 @@ use std::ops::Sub;
 pub use kludgine;
 use kludgine::app::winit::error::EventLoopError;
 use kludgine::figures::units::UPx;
-use kludgine::figures::{Fraction, IntoUnsigned, ScreenUnit};
+use kludgine::figures::{Fraction, ScreenUnit};
 pub use names::Name;
 pub use utils::{Lazy, WithClone};
 
@@ -60,7 +60,7 @@ impl ConstraintLimit {
     where
         Unit: ScreenUnit,
     {
-        let measured = measured.into_px(scale).into_unsigned();
+        let measured = measured.into_upx(scale);
         match self {
             ConstraintLimit::Known(size) => size.max(measured),
             ConstraintLimit::ClippedAfter(_) => measured,

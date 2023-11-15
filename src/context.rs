@@ -481,7 +481,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// Strokes an outline around this widget's contents.
     pub fn stroke_outline<Unit>(&mut self, color: Color, options: StrokeOptions<Unit>)
     where
-        Unit: ScreenScale<Px = Px, Lp = Lp>,
+        Unit: ScreenScale<Px = Px, Lp = Lp, UPx = UPx>,
     {
         let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
         let focus_ring =

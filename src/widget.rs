@@ -228,6 +228,18 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the child widget.
     fn child_mut(&mut self) -> &mut WidgetRef;
 
+    /// Draws the background of the widget.
+    ///
+    /// This is invoked before the wrapped widget is drawn.
+    #[allow(unused_variables)]
+    fn redraw_background(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {}
+
+    /// Draws the foreground of the widget.
+    ///
+    /// This is invoked after the wrapped widget is drawn.
+    #[allow(unused_variables)]
+    fn redraw_foreground(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {}
+
     /// Returns the rectangle that the child widget should occupy given
     /// `available_space`.
     #[allow(unused_variables)]
@@ -266,7 +278,7 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> WrappedLayout {
-        Size::<UPx>::new(
+        Size::new(
             available_space
                 .width
                 .fit_measured(size.width, context.gfx.scale()),
@@ -419,8 +431,12 @@ where
             context.gfx.fill(color);
         }
 
+        self.redraw_background(context);
+
         let child = self.child_mut().mounted(&mut context.as_event_context());
         context.for_other(&child).redraw();
+
+        self.redraw_foreground(context);
     }
 
     fn layout(
@@ -627,9 +643,12 @@ pub trait MakeWidget: Sized {
 
     /// Resizes `self` to `width`.
     ///
-    /// `width` can be an individual
-    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
-    /// range.
+    /// `width` can be an any of:
+    ///
+    /// - [`Dimension`]
+    /// - [`Px`]
+    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - A range of any fo the above.
     #[must_use]
     fn width(self, width: impl Into<DimensionRange>) -> Resize {
         Resize::from_width(width, self)
@@ -637,9 +656,12 @@ pub trait MakeWidget: Sized {
 
     /// Resizes `self` to `height`.
     ///
-    /// `height` can be an individual
-    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
-    /// range.
+    /// `height` can be an any of:
+    ///
+    /// - [`Dimension`]
+    /// - [`Px`]
+    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - A range of any fo the above.
     #[must_use]
     fn height(self, height: impl Into<DimensionRange>) -> Resize {
         Resize::from_height(height, self)

@@ -193,11 +193,7 @@ impl WrapperWidget for Container {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<ConstraintLimit> {
-        let padding_amount = self
-            .padding(context)
-            .size()
-            .into_px(context.gfx.scale())
-            .into_unsigned();
+        let padding_amount = self.padding(context).size().into_upx(context.gfx.scale());
         Size::new(
             available_space.width - padding_amount.width,
             available_space.height - padding_amount.height,

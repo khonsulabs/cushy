@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use ahash::AHashMap;
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Fraction, IntoUnsigned, Rect, ScreenScale, Size};
+use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size};
 use kludgine::Color;
 use palette::{IntoColor, Okhsl, OklabHue, Srgb};
 
@@ -376,6 +376,7 @@ impl From<Lp> for Dimension {
 impl ScreenScale for Dimension {
     type Lp = Lp;
     type Px = Px;
+    type UPx = UPx;
 
     fn into_px(self, scale: kludgine::figures::Fraction) -> Px {
         match self {
@@ -397,6 +398,17 @@ impl ScreenScale for Dimension {
 
     fn from_lp(lp: Lp, _scale: kludgine::figures::Fraction) -> Self {
         Self::from(lp)
+    }
+
+    fn into_upx(self, scale: Fraction) -> Self::UPx {
+        match self {
+            Dimension::Px(px) => px.into_unsigned(),
+            Dimension::Lp(lp) => lp.into_upx(scale),
+        }
+    }
+
+    fn from_upx(px: Self::UPx, _scale: Fraction) -> Self {
+        Self::from(px.into_signed())
     }
 }
 
@@ -469,10 +481,10 @@ impl DimensionRange {
     #[must_use]
     pub fn clamp(&self, mut size: UPx, scale: Fraction) -> UPx {
         if let Some(min) = self.minimum() {
-            size = size.max(min.into_px(scale).into_unsigned());
+            size = size.max(min.into_upx(scale));
         }
         if let Some(max) = self.maximum() {
-            size = size.min(max.into_px(scale).into_unsigned());
+            size = size.min(max.into_upx(scale));
         }
         size
     }
@@ -1152,6 +1164,8 @@ pub struct ColorTheme {
     pub color: Color,
     /// The primary color, dimmed for de-emphasized or disabled content.
     pub color_dim: Color,
+    /// The primary color, brightened for highlighting content.
+    pub color_bright: Color,
     /// The color for content that sits atop the primary color.
     pub on_color: Color,
     /// The backgrond color for containers.
@@ -1167,6 +1181,7 @@ impl ColorTheme {
         Self {
             color: source.color(40),
             color_dim: source.color(30),
+            color_bright: source.color(45),
             on_color: source.color(100),
             container: source.color(90),
             on_container: source.color(10),
@@ -1179,6 +1194,7 @@ impl ColorTheme {
         Self {
             color: source.color(70),
             color_dim: source.color(60),
+            color_bright: source.color(75),
             on_color: source.color(10),
             container: source.color(30),
             on_container: source.color(90),

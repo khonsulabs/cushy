@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use gooey::animation::ZeroToOne;
 use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{
@@ -87,26 +85,14 @@ fn dark_mode_slider() -> (Dynamic<ThemeMode>, impl MakeWidget) {
     )
 }
 
-fn create_paired_string<T>(initial_value: T) -> (Dynamic<T>, Dynamic<String>)
-where
-    T: ToString + PartialEq + FromStr + Default + Send + Sync + 'static,
-{
-    let float = Dynamic::new(initial_value);
-    let text = float.map_each_unique(|f| f.to_string());
-    text.for_each(float.with_clone(|float| {
-        move |text: &String| {
-            let _result = float.try_update(text.parse().unwrap_or_default());
-        }
-    }));
-    (float, text)
-}
-
 fn color_editor(
     initial_color: ColorSource,
     label: &str,
 ) -> (Dynamic<ColorSource>, impl MakeWidget) {
-    let (hue, hue_text) = create_paired_string(initial_color.hue.into_degrees());
-    let (saturation, saturation_text) = create_paired_string(initial_color.saturation);
+    let hue = Dynamic::new(initial_color.hue.into_degrees());
+    let hue_text = hue.linked_string();
+    let saturation = Dynamic::new(initial_color.saturation);
+    let saturation_text = saturation.linked_string();
 
     let color =
         (&hue, &saturation).map_each(|(hue, saturation)| ColorSource::new(*hue, *saturation));
@@ -274,6 +260,7 @@ fn surface_theme(theme: Dynamic<SurfaceTheme>) -> impl MakeWidget {
 fn color_theme(theme: Dynamic<ColorTheme>, label: &str) -> impl MakeWidget {
     let color = theme.map_each(|theme| theme.color);
     let dim_color = theme.map_each(|theme| theme.color_dim);
+    let bright_color = theme.map_each(|theme| theme.color_bright);
     let on_color = theme.map_each(|theme| theme.on_color);
     let container = theme.map_each(|theme| theme.container);
     let on_container = theme.map_each(|theme| theme.on_container);
@@ -282,6 +269,11 @@ fn color_theme(theme: Dynamic<ColorTheme>, label: &str) -> impl MakeWidget {
             .and(swatch(
                 dim_color.clone(),
                 &format!("{label} Dim"),
+                on_color.clone(),
+            ))
+            .and(swatch(
+                bright_color.clone(),
+                &format!("{label} bright"),
                 on_color.clone(),
             ))
             .and(swatch(

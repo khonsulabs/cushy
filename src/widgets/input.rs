@@ -351,10 +351,7 @@ impl Widget for Input {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let padding = context
-            .get(&IntrinsicPadding)
-            .into_px(context.gfx.scale())
-            .into_unsigned();
+        let padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
         if self.needs_to_select_all {
             self.needs_to_select_all = false;
             self.select_all();

@@ -1,5 +1,4 @@
-//! Types for displaying a [`Widget`](crate::widget::Widget) inside of a desktop
-//! window.
+//! Types for displaying a [`Widget`] inside of a desktop window.
 
 use std::cell::RefCell;
 use std::ffi::OsStr;
@@ -382,14 +381,14 @@ where
                     .map_or(Px::MAX, |height| height.into_px(graphics.scale()));
 
                 let new_min_size = (min_width > 0 || min_height > 0)
-                    .then_some(Size::<Px>::new(min_width, min_height).into_unsigned());
+                    .then_some(Size::new(min_width, min_height).into_unsigned());
 
                 if new_min_size != self.min_inner_size && resizable {
                     window.set_min_inner_size(new_min_size);
                     self.min_inner_size = new_min_size;
                 }
                 let new_max_size = (max_width > 0 || max_height > 0)
-                    .then_some(Size::<Px>::new(max_width, max_height).into_unsigned());
+                    .then_some(Size::new(max_width, max_height).into_unsigned());
 
                 if new_max_size != self.max_inner_size && resizable {
                     window.set_max_inner_size(new_max_size);

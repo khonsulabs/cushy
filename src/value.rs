@@ -5,6 +5,7 @@ use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::panic::AssertUnwindSafe;
+use std::str::FromStr;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
@@ -41,6 +42,74 @@ impl<T> Dynamic<T> {
             during_callback_state: Mutex::default(),
             sync: AssertUnwindSafe(Condvar::new()),
         }))
+    }
+
+    /// Returns a new dynamic that has its contents linked with `self` by the
+    /// pair of mapping functions provided.
+    ///
+    /// When the returned dynamic is updated, `r_into_t` will be invoked. This
+    /// function accepts `&R` and can return `T`, or `Option<T>`. If a value is
+    /// produced, `self` will be updated with the new value.
+    ///
+    /// When `self` is updated, `t_into_r` will be invoked. This function
+    /// accepts `&T` and can return `R` or `Option<R>`. If a value is produced,
+    /// the returned dynamic will be updated with the new value.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if calling `t_into_r` with the current contents of
+    /// the Dynamic produces a `None` value. This requirement is only for the
+    /// first invocation, and it is guaranteed to occur before this function
+    /// returns.
+    pub fn linked<R, TIntoR, TIntoRResult, RIntoT, RIntoTResult>(
+        &self,
+        mut t_into_r: TIntoR,
+        mut r_into_t: RIntoT,
+    ) -> Dynamic<R>
+    where
+        T: PartialEq + Send + 'static,
+        R: PartialEq + Send + 'static,
+        TIntoRResult: Into<Option<R>> + Send + 'static,
+        RIntoTResult: Into<Option<T>> + Send + 'static,
+        TIntoR: FnMut(&T) -> TIntoRResult + Send + 'static,
+        RIntoT: FnMut(&R) -> RIntoTResult + Send + 'static,
+    {
+        let initial_r = self
+            .map_ref(&mut t_into_r)
+            .into()
+            .expect("t_into_r must succeed with the current value");
+        let r = Dynamic::new(initial_r);
+        r.with_clone(move |r| {
+            self.for_each(move |t| {
+                if let Some(update) = t_into_r(t).into() {
+                    let _result = r.try_update(update);
+                }
+            });
+        });
+
+        self.with_clone(|t| {
+            r.with_for_each(move |r| {
+                if let Some(update) = r_into_t(r).into() {
+                    let _result = t.try_update(update);
+                }
+            })
+        })
+    }
+
+    /// Creates a [linked](Self::linked) dynamic containing a `String`.
+    ///
+    /// When `self` is updated, [`ToString::to_string()`] will be called to
+    /// produce a new string value to store in the returned dynamic.
+    ///
+    /// When the returned dynamic is updated, [`str::parse`](std::str) is called
+    /// to produce a new `T`. If an error is returned, `self` will not be
+    /// updated. Otherwise, `self` will be updated with the produced value.
+    #[must_use]
+    pub fn linked_string(&self) -> Dynamic<String>
+    where
+        T: ToString + FromStr + PartialEq + Send + 'static,
+    {
+        self.linked(ToString::to_string, |s: &String| s.parse().ok())
     }
 
     /// Maps the contents with read-only access.
@@ -747,6 +816,45 @@ impl<T> DynamicReader<T> {
         let GenerationalValue { value, generation } = self.source.get().expect("deadlocked");
         self.read_generation = generation;
         value
+    }
+
+    /// Returns a clone of the currently contained value.
+    ///
+    /// This function marks the currently stored value as being read.
+    ///
+    /// `context` will be invalidated when the value is updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    #[must_use]
+    pub fn get_tracking_refresh(&mut self, context: &WidgetContext<'_, '_>) -> T
+    where
+        T: Clone,
+    {
+        self.source.redraw_when_changed(context.handle());
+        self.get()
+    }
+
+    /// Returns a clone of the currently contained value.
+    ///
+    /// This function marks the currently stored value as being read.
+    ///
+    /// `context` will be invalidated when the value is updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    #[must_use]
+    pub fn get_tracking_invalidate(&mut self, context: &WidgetContext<'_, '_>) -> T
+    where
+        T: Clone,
+    {
+        self.source
+            .invalidate_when_changed(context.handle(), context.widget().id());
+        self.get()
     }
 
     /// Blocks the current thread until the contained value has been updated or

@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use kludgine::figures::units::UPx;
-use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
+use kludgine::figures::{Fraction, IntoSigned, Point, Rect, ScreenScale, Size};
 
 use crate::context::{AsEventContext, LayoutContext};
 use crate::styles::{Edges, FlexibleDimension};
@@ -125,15 +125,11 @@ impl FrameInfo {
     fn new(scale: Fraction, a: FlexibleDimension, b: FlexibleDimension) -> Self {
         let a = match a {
             FlexibleDimension::Auto => None,
-            FlexibleDimension::Dimension(dimension) => {
-                Some(dimension.into_px(scale).into_unsigned())
-            }
+            FlexibleDimension::Dimension(dimension) => Some(dimension.into_upx(scale)),
         };
         let b = match b {
             FlexibleDimension::Auto => None,
-            FlexibleDimension::Dimension(dimension) => {
-                Some(dimension.into_px(scale).into_unsigned())
-            }
+            FlexibleDimension::Dimension(dimension) => Some(dimension.into_upx(scale)),
         };
         Self { a, b }
     }

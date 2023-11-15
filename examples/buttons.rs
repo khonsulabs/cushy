@@ -1,29 +1,49 @@
 use gooey::value::Dynamic;
 use gooey::widget::MakeWidget;
-use gooey::widgets::button::ButtonOutline;
-use gooey::widgets::Button;
+use gooey::widgets::button::ButtonKind;
+use gooey::widgets::{Button, Checkbox};
 use gooey::Run;
-use kludgine::Color;
 
-// begin rustme snippet: readme
 fn main() -> gooey::Result {
-    // Create a dynamic usize.
-    let count = Dynamic::new(0_isize);
+    let clicked_label = Dynamic::new(String::from("Click a Button"));
+    let default_is_outline = Dynamic::new(false);
+    let default_button_style = default_is_outline.map_each(|is_outline| {
+        if *is_outline {
+            ButtonKind::Outline
+        } else {
+            ButtonKind::Solid
+        }
+    });
 
-    // Create a new button with a label that is produced by mapping the contents
-    // of `count`.
-    Button::new(count.map_each(ToString::to_string))
-        // Set the `on_click` callback to a closure that increments the counter.
-        .on_click(count.with_clone(|count| move |_| count.set(count.get() + 1)))
+    clicked_label
+        .clone()
         .and(
-            // Creates a second, outlined button
-            Button::new(count.map_each(ToString::to_string))
-                // Set the `on_click` callback to a closure that decrements the counter.
-                .on_click(count.with_clone(|count| move |_| count.set(count.get() - 1)))
-                .with(&ButtonOutline, Color::DARKRED),
+            Button::new("Normal Button")
+                .on_click(
+                    clicked_label.with_clone(|label| {
+                        move |_| label.set(String::from("Clicked Normal Button"))
+                    }),
+                )
+                .and(
+                    Button::new("Outline Button")
+                        .on_click(clicked_label.with_clone(|label| {
+                            move |_| label.set(String::from("Clicked Outline Button"))
+                        }))
+                        .kind(ButtonKind::Outline),
+                )
+                .and(
+                    Button::new("Default Button")
+                        .on_click(clicked_label.with_clone(|label| {
+                            move |_| label.set(String::from("Clicked Default Button"))
+                        }))
+                        .kind(default_button_style)
+                        .into_default(),
+                )
+                .and(Checkbox::new(default_is_outline, "Set Default to Outline"))
+                .into_columns(),
         )
-        .into_columns()
-        // Run the button as an an application.
+        .into_rows()
+        .centered()
+        .expand()
         .run()
 }
-// end rustme snippet

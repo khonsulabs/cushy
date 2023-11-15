@@ -1,4 +1,3 @@
-use kludgine::figures::units::UPx;
 use kludgine::figures::{IntoSigned, Size};
 
 use crate::context::{AsEventContext, LayoutContext};
@@ -133,6 +132,6 @@ impl WrapperWidget for Expand {
             ),
         };
 
-        Size::<UPx>::new(width, height).into_signed().into()
+        Size::new(width, height).into_signed().into()
     }
 }

@@ -1,7 +1,7 @@
 //! A read-only text widget.
 
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoUnsigned, Point, ScreenScale, Size};
+use kludgine::figures::{Point, ScreenScale, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::Color;
 
@@ -79,10 +79,7 @@ impl Widget for Label {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let padding = context
-            .get(&IntrinsicPadding)
-            .into_px(context.gfx.scale())
-            .into_unsigned();
+        let padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
         let color = context.get(&TextColor);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width);

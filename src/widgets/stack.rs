@@ -377,7 +377,7 @@ impl Layout {
                     Dimension::Px(size) => self.allocated_space.0 += size.into_unsigned(),
                     Dimension::Lp(size) => self.allocated_space.1 += size,
                 }
-                min.into_px(scale).into_unsigned()
+                min.into_upx(scale)
             }
         };
         self.layouts.insert(
@@ -397,8 +397,7 @@ impl Layout {
     ) -> Size<UPx> {
         let (space_constraint, other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
-        let allocated_space =
-            self.allocated_space.0 + self.allocated_space.1.into_px(scale).into_unsigned();
+        let allocated_space = self.allocated_space.0 + self.allocated_space.1.into_upx(scale);
         let mut remaining = available_space.saturating_sub(allocated_space);
         // If our `other_constraint` is not known, we will need to give child
         // widgets an opportunity to lay themselves out in the full area. This
@@ -450,9 +449,7 @@ impl Layout {
                 let (_, measured) = self.orientation.split_size(measure(
                     index,
                     self.orientation.make_size(
-                        ConstraintLimit::Known(
-                            self.layouts[index].size.into_px(scale).into_unsigned(),
-                        ),
+                        ConstraintLimit::Known(self.layouts[index].size.into_upx(scale)),
                         other_constraint,
                     ),
                     !needs_final_layout,
@@ -475,9 +472,7 @@ impl Layout {
                 self.orientation.split_size(measure(
                     index,
                     self.orientation.make_size(
-                        ConstraintLimit::Known(
-                            self.layouts[index].size.into_px(scale).into_unsigned(),
-                        ),
+                        ConstraintLimit::Known(self.layouts[index].size.into_upx(scale)),
                         ConstraintLimit::Known(self.other),
                     ),
                     true,

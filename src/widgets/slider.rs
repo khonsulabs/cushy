@@ -5,15 +5,15 @@ use std::panic::UnwindSafe;
 use kludgine::app::winit::event::{DeviceId, MouseButton};
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
-    FloatConversion, FromComponents, IntoComponents, IntoSigned, IntoUnsigned, Point, Ranged, Rect,
-    ScreenScale, Size,
+    FloatConversion, FromComponents, IntoComponents, IntoSigned, Point, Ranged, Rect, ScreenScale,
+    Size,
 };
 use kludgine::shapes::Shape;
 use kludgine::{Color, Origin};
 
 use crate::animation::{LinearInterpolate, PercentBetween};
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
-use crate::styles::components::OpaqueWidgetColor;
+use crate::styles::components::{OpaqueWidgetColor, WidgetAccentColor};
 use crate::styles::Dimension;
 use crate::value::{Dynamic, IntoDynamic, IntoValue, Value};
 use crate::widget::{EventHandling, Widget, HANDLED};
@@ -223,14 +223,10 @@ where
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        self.knob_size = context
-            .get(&KnobSize)
-            .into_px(context.gfx.scale())
-            .into_unsigned();
+        self.knob_size = context.get(&KnobSize).into_upx(context.gfx.scale());
         let minimum_size = context
             .get(&MinimumSliderSize)
-            .into_px(context.gfx.scale())
-            .into_unsigned();
+            .into_upx(context.gfx.scale());
 
         match (available_space.width, available_space.height) {
             (ConstraintLimit::Known(width), ConstraintLimit::Known(height)) => {
@@ -321,7 +317,7 @@ define_components! {
         /// The minimum length of the slidable dimension.
         MinimumSliderSize(Dimension, "minimum_size", |context| context.get(&KnobSize) * 2)
         /// The color of the draggable portion of the knob.
-        KnobColor(Color, "knob_color", .primary.color) // TODO make this pull from a component multiple widgets can share
+        KnobColor(Color, "knob_color", @WidgetAccentColor)
         /// The color of the track that the knob rests on.
         TrackColor(Color,"track_color", |context| context.get(&KnobColor))
         /// The color of the track that the knob rests on.
