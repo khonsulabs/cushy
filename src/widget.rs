@@ -16,7 +16,9 @@ use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use kludgine::Color;
 
-use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::context::{
+    AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext, WindowHandle,
+};
 use crate::styles::{
     ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue, NamedComponent, Styles,
     ThemePair, VisualOrder,
@@ -580,6 +582,19 @@ pub trait MakeWidget: Sized {
         self.make_widget().with_next_focus(next_focus)
     }
 
+    /// Sets this widget to be enabled/disabled based on `enabled` and returns
+    /// self.
+    ///
+    /// If this widget is disabled, all children widgets will also be disabled.
+    ///
+    /// # Panics
+    ///
+    /// This function can only be called when one instance of the widget exists.
+    /// If any clones exist, a panic will occur.
+    fn with_enabled(self, enabled: impl IntoValue<bool>) -> WidgetInstance {
+        self.make_widget().with_enabled(enabled)
+    }
+
     /// Sets this widget as a "default" widget.
     ///
     /// Default widgets are automatically activated when the user signals they
@@ -846,6 +861,7 @@ struct WidgetInstanceData {
     default: bool,
     cancel: bool,
     next_focus: Value<Option<WidgetId>>,
+    enabled: Value<bool>,
     widget: Box<Mutex<dyn AnyWidget>>,
 }
 
@@ -863,6 +879,7 @@ impl WidgetInstance {
                 default: false,
                 cancel: false,
                 widget: Box::new(Mutex::new(widget)),
+                enabled: Value::Constant(true),
             }),
         }
     }
@@ -898,6 +915,23 @@ impl WidgetInstance {
         let data = Arc::get_mut(&mut self.data)
             .expect("with_next_focus can only be called on newly created widget instances");
         data.next_focus = next_focus.into_value();
+        self
+    }
+
+    /// Sets this widget to be enabled/disabled based on `enabled` and returns
+    /// self.
+    ///
+    /// If this widget is disabled, all children widgets will also be disabled.
+    ///
+    /// # Panics
+    ///
+    /// This function can only be called when one instance of the widget exists.
+    /// If any clones exist, a panic will occur.
+    #[must_use]
+    pub fn with_enabled(mut self, enabled: impl IntoValue<bool>) -> WidgetInstance {
+        let data = Arc::get_mut(&mut self.data)
+            .expect("with_enabled can only be called on newly created widget instances");
+        data.enabled = enabled.into_value();
         self
     }
 
@@ -981,6 +1015,13 @@ impl WidgetInstance {
     #[must_use]
     pub fn is_escape(&self) -> bool {
         self.data.cancel
+    }
+
+    pub(crate) fn enabled(&self, context: &WindowHandle) -> bool {
+        if let Value::Dynamic(dynamic) = &self.data.enabled {
+            dynamic.redraw_when_changed(context.clone());
+        }
+        self.data.enabled.get()
     }
 }
 
@@ -1139,6 +1180,10 @@ impl ManagedWidget {
     #[must_use]
     pub fn active(&self) -> bool {
         self.tree.active_widget() == Some(self.node_id)
+    }
+
+    pub(crate) fn enabled(&self, handle: &WindowHandle) -> bool {
+        self.tree.is_enabled(self.node_id, handle)
     }
 
     /// Returns true if this widget is currently the hovered widget.

@@ -6,6 +6,7 @@ use alot::{LotId, Lots};
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Rect, Size};
 
+use crate::context::WindowHandle;
 use crate::styles::{Styles, ThemePair, VisualOrder};
 use crate::utils::IgnorePoison;
 use crate::value::Value;
@@ -44,6 +45,7 @@ impl Tree {
             effective_styles,
             theme: None,
             theme_mode: None,
+            invalidation: 0,
         });
         data.nodes_by_id.insert(id, node_id);
         if widget.is_default() {
@@ -275,6 +277,25 @@ impl Tree {
         data.widget_from_node(id, self)
     }
 
+    pub(crate) fn is_enabled(&self, mut id: LotId, context: &WindowHandle) -> bool {
+        let data = self.data.lock().ignore_poison();
+        loop {
+            let Some(node) = data.nodes.get(id) else {
+                return false;
+            };
+
+            if !node.widget.enabled(context) {
+                return false;
+            }
+
+            let Some(parent) = node.parent else { break };
+
+            id = parent;
+        }
+
+        true
+    }
+
     pub(crate) fn active_widget(&self) -> Option<LotId> {
         self.data.lock().ignore_poison().active
     }
@@ -481,6 +502,7 @@ impl TreeData {
         let mut node = &mut self.nodes[id];
         while node.layout.is_some() {
             node.layout = None;
+            node.invalidation += 1;
             node.last_layout_query = None;
 
             let (true, Some(parent)) = (include_hierarchy, node.parent) else {
@@ -552,6 +574,7 @@ struct Node {
     children: Vec<LotId>,
     parent: Option<LotId>,
     layout: Option<Rect<Px>>,
+    invalidation: u64,
     last_layout_query: Option<CachedLayoutQuery>,
     associated_styles: Option<Value<Styles>>,
     effective_styles: Styles,

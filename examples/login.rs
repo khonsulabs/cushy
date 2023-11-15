@@ -36,12 +36,12 @@ fn main() -> gooey::Result {
         .and(
             "Log In"
                 .into_button()
-                .enabled(valid)
                 .on_click(move |_| {
                     println!("Welcome, {}", username.get());
                     exit(0);
                 })
-                .into_default(),
+                .into_default()
+                .with_enabled(valid),
         )
         .into_columns();
 

@@ -1087,6 +1087,7 @@ pub(crate) mod sealed {
         pub transparent: bool,
     }
 
+    #[derive(Clone)]
     pub enum WindowCommand {
         Redraw,
         // RequestClose,

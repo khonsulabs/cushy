@@ -229,11 +229,12 @@ impl<'context, 'window> EventContext<'context, 'window> {
             focus_changes += 1;
 
             self.pending_state.focus = focus.and_then(|mut focus| loop {
-                if focus
-                    .lock()
-                    .as_widget()
-                    .accept_focus(&mut self.for_other(&focus))
-                {
+                let mut focus_context = self.for_other(&focus);
+                let accept_focus = focus_context.enabled()
+                    && focus.lock().as_widget().accept_focus(&mut focus_context);
+                drop(focus_context);
+
+                if accept_focus {
                     break Some(focus);
                 } else if let Some(next_focus) =
                     focus.explicit_focus_target(self.pending_state.focus_is_advancing)
@@ -707,6 +708,7 @@ pub struct WidgetContext<'context, 'window> {
     pending_state: PendingState<'context>,
     theme_mode: ThemeMode,
     effective_styles: Styles,
+    enabled: bool,
 }
 
 impl<'context, 'window> WidgetContext<'context, 'window> {
@@ -717,6 +719,10 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         window: &'context mut RunningWindow<'window>,
         theme_mode: ThemeMode,
     ) -> Self {
+        let enabled = current_node.enabled(&WindowHandle {
+            kludgine: window.handle(),
+            redraw_status: redraw_status.clone(),
+        });
         Self {
             pending_state: PendingState::Owned(PendingWidgetState {
                 focus: current_node
@@ -730,6 +736,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
                 focus_is_advancing: false,
             }),
             effective_styles: current_node.effective_styles(),
+            enabled,
             current_node,
             redraw_status,
             theme: Cow::Borrowed(theme),
@@ -748,6 +755,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             pending_state: self.pending_state.borrowed(),
             theme_mode: self.theme_mode,
             effective_styles: self.effective_styles.clone(),
+            enabled: self.enabled,
         }
     }
 
@@ -774,6 +782,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             };
             WidgetContext {
                 effective_styles,
+                enabled: current_node.enabled(&self.handle()),
                 current_node,
                 redraw_status: self.redraw_status,
                 window: &mut *self.window,
@@ -782,6 +791,12 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
                 theme_mode,
             }
         })
+    }
+
+    /// Returns true if this widget is enabled.
+    #[must_use]
+    pub const fn enabled(&self) -> bool {
+        self.enabled
     }
 
     pub(crate) fn parent(&self) -> Option<ManagedWidget> {
@@ -1005,6 +1020,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct WindowHandle {
     kludgine: kludgine::app::WindowHandle<WindowCommand>,
     redraw_status: InvalidationStatus,

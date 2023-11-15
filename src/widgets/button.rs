@@ -26,8 +26,6 @@ pub struct Button {
     pub content: WidgetRef,
     /// The callback that is invoked when the button is clicked.
     pub on_click: Option<Callback<()>>,
-    /// The enabled state of the button.
-    pub enabled: Value<bool>,
     /// The kind of button to draw.
     pub kind: Value<ButtonKind>,
     buttons_pressed: usize,
@@ -130,7 +128,6 @@ impl Button {
         Self {
             content: content.widget_ref(),
             on_click: None,
-            enabled: Value::Constant(true),
             cached_state: CacheState {
                 enabled: true,
                 kind: ButtonKind::default(),
@@ -161,23 +158,16 @@ impl Button {
         self
     }
 
-    /// Sets the value to use for the button's enabled status.
-    #[must_use]
-    pub fn enabled(mut self, enabled: impl IntoValue<bool>) -> Self {
-        self.enabled = enabled.into_value();
-        self
-    }
-
-    fn invoke_on_click(&mut self) {
-        if self.enabled.get() {
+    fn invoke_on_click(&mut self, context: &WidgetContext<'_, '_>) {
+        if context.enabled() {
             if let Some(on_click) = self.on_click.as_mut() {
                 on_click.invoke(());
             }
         }
     }
 
-    fn visual_style(&self, context: &WidgetContext<'_, '_>) -> VisualState {
-        if !self.enabled.get_tracked(context) {
+    fn visual_style(context: &WidgetContext<'_, '_>) -> VisualState {
+        if !context.enabled() {
             VisualState::Disabled
         } else if context.active() {
             VisualState::Active
@@ -220,7 +210,7 @@ impl Button {
 
     fn determine_stateful_colors(&mut self, context: &mut WidgetContext<'_, '_>) -> ButtonColors {
         let kind = self.kind.get_tracked(context);
-        let visual_state = self.visual_style(context);
+        let visual_state = Self::visual_style(context);
 
         self.cached_state = CacheState {
             enabled: !matches!(visual_state, VisualState::Disabled),
@@ -341,7 +331,7 @@ impl VisualState {
 impl Widget for Button {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         #![allow(clippy::similar_names)]
-        let enabled = self.enabled.get_tracked(context);
+        let enabled = context.enabled();
 
         // TODO This seems ugly. It needs context, so it can't be moved into the
         // dynamic system.
@@ -403,7 +393,7 @@ impl Widget for Button {
     }
 
     fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
-        self.enabled.get() && context.get(&AutoFocusableControls).is_all()
+        context.get(&AutoFocusableControls).is_all()
     }
 
     fn mouse_down(
@@ -455,7 +445,7 @@ impl Widget for Button {
                 {
                     context.focus();
 
-                    self.invoke_on_click();
+                    self.invoke_on_click(context);
                 }
             }
         }
@@ -503,7 +493,7 @@ impl Widget for Button {
                     let changed = context.activate();
                     if !changed {
                         // The widget was already active. This is now a repeated keypress
-                        self.invoke_on_click();
+                        self.invoke_on_click(context);
                     }
                     changed
                 }
@@ -538,7 +528,7 @@ impl Widget for Button {
         // If we have no buttons pressed, the event should fire on activate not
         // on deactivate.
         if self.buttons_pressed == 0 {
-            self.invoke_on_click();
+            self.invoke_on_click(context);
         }
         self.update_colors(context, true);
     }
