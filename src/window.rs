@@ -284,7 +284,7 @@ struct GooeyWindow<T> {
     initial_frame: bool,
     occluded: Dynamic<bool>,
     focused: Dynamic<bool>,
-    keyboard_activated: Option<ManagedWidget>,
+    keyboard_activated: Option<WidgetId>,
     min_inner_size: Option<Size<UPx>>,
     max_inner_size: Option<Size<UPx>>,
     theme: Option<DynamicReader<ThemePair>>,
@@ -312,7 +312,11 @@ where
     ) {
         if is_pressed {
             if let Some(default) = widget.and_then(|id| self.root.tree.widget_from_node(id)) {
-                if let Some(previously_active) = self.keyboard_activated.take() {
+                if let Some(previously_active) = self
+                    .keyboard_activated
+                    .take()
+                    .and_then(|id| self.root.tree.widget(id))
+                {
                     EventContext::new(
                         WidgetContext::new(
                             previously_active,
@@ -338,9 +342,13 @@ where
                     kludgine,
                 )
                 .activate();
-                self.keyboard_activated = Some(default);
+                self.keyboard_activated = Some(default.id());
             }
-        } else if let Some(keyboard_activated) = self.keyboard_activated.take() {
+        } else if let Some(keyboard_activated) = self
+            .keyboard_activated
+            .take()
+            .and_then(|id| self.root.tree.widget(id))
+        {
             EventContext::new(
                 WidgetContext::new(
                     keyboard_activated,

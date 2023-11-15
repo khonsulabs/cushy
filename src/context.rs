@@ -228,10 +228,14 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
         let mut focus_changes = 0;
         while focus_changes < MAX_ITERS {
-            let focus = self
+            let focus = match self
                 .pending_state
                 .focus
-                .and_then(|w| self.current_node.tree.widget(w));
+                .and_then(|w| self.current_node.tree.widget(w))
+            {
+                Some(focus) => self.for_other(&focus).enabled().then_some(focus),
+                None => None,
+            };
             if self.current_node.tree.focused_widget() == focus.as_ref().map(|w| w.node_id) {
                 break;
             }
@@ -377,11 +381,11 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 break;
             }
 
-            if child
-                .lock()
-                .as_widget()
-                .accept_focus(&mut self.for_other(&child))
-            {
+            let mut child_context = self.for_other(&child);
+            let accept_focus = child_context.enabled()
+                && child.lock().as_widget().accept_focus(&mut child_context);
+            drop(child_context);
+            if accept_focus {
                 return Some(child.id());
             } else if let Some(next_focus) = self.widget().explicit_focus_target(advance) {
                 return Some(next_focus.id());
