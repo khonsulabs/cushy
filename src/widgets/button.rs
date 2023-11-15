@@ -218,7 +218,7 @@ impl Button {
         }
     }
 
-    fn determine_stateful_colors(&mut self, context: &WidgetContext<'_, '_>) -> ButtonColors {
+    fn determine_stateful_colors(&mut self, context: &mut WidgetContext<'_, '_>) -> ButtonColors {
         let kind = self.kind.get_tracked(context);
         let visual_state = self.visual_style(context);
 
@@ -226,6 +226,10 @@ impl Button {
             enabled: !matches!(visual_state, VisualState::Disabled),
             kind,
         };
+
+        if !self.cached_state.enabled {
+            context.blur();
+        }
 
         if context.is_default() {
             kind.colors_for_default(visual_state, context)
@@ -238,7 +242,7 @@ impl Button {
         }
     }
 
-    fn update_colors(&mut self, context: &WidgetContext<'_, '_>, immediate: bool) {
+    fn update_colors(&mut self, context: &mut WidgetContext<'_, '_>, immediate: bool) {
         let new_style = self.determine_stateful_colors(context);
 
         match (immediate, &self.active_colors) {
@@ -261,7 +265,7 @@ impl Button {
         }
     }
 
-    fn current_style(&mut self, context: &WidgetContext<'_, '_>) -> ButtonColors {
+    fn current_style(&mut self, context: &mut WidgetContext<'_, '_>) -> ButtonColors {
         if self.active_colors.is_none() {
             self.update_colors(context, false);
         }
@@ -463,13 +467,26 @@ impl Widget for Button {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
+        let double_padding = padding * 2;
         let mounted = self.content.mounted(&mut context.as_event_context());
+        let available_space = Size::new(
+            available_space.width - double_padding,
+            available_space.height - double_padding,
+        );
         let size = context.for_other(&mounted).layout(available_space);
+        let size = Size::new(
+            available_space
+                .width
+                .fit_measured(size.width, context.gfx.scale()),
+            available_space
+                .height
+                .fit_measured(size.height, context.gfx.scale()),
+        );
         context.set_child_layout(
             &mounted,
             Rect::new(Point::new(padding, padding), size).into_signed(),
         );
-        size + padding * 2
+        size + double_padding
     }
 
     fn keyboard_input(
