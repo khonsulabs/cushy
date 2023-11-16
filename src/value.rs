@@ -5,15 +5,19 @@ use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::panic::AssertUnwindSafe;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, TryLockError};
+use std::str::FromStr;
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
 
+use ahash::AHashSet;
 use intentional::Assert;
 
 use crate::animation::{DynamicTransition, LinearInterpolate};
 use crate::context::{WidgetContext, WindowHandle};
-use crate::utils::WithClone;
+use crate::utils::{IgnorePoison, WithClone};
+use crate::widget::{WidgetId, WidgetInstance};
+use crate::widgets::{Input, Switcher};
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -30,13 +34,82 @@ impl<T> Dynamic<T> {
                     generation: Generation::default(),
                 },
                 callbacks: Vec::new(),
-                windows: Vec::new(),
+                windows: AHashSet::new(),
                 readers: 0,
                 wakers: Vec::new(),
+                widgets: AHashSet::new(),
             }),
             during_callback_state: Mutex::default(),
             sync: AssertUnwindSafe(Condvar::new()),
         }))
+    }
+
+    /// Returns a new dynamic that has its contents linked with `self` by the
+    /// pair of mapping functions provided.
+    ///
+    /// When the returned dynamic is updated, `r_into_t` will be invoked. This
+    /// function accepts `&R` and can return `T`, or `Option<T>`. If a value is
+    /// produced, `self` will be updated with the new value.
+    ///
+    /// When `self` is updated, `t_into_r` will be invoked. This function
+    /// accepts `&T` and can return `R` or `Option<R>`. If a value is produced,
+    /// the returned dynamic will be updated with the new value.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if calling `t_into_r` with the current contents of
+    /// the Dynamic produces a `None` value. This requirement is only for the
+    /// first invocation, and it is guaranteed to occur before this function
+    /// returns.
+    pub fn linked<R, TIntoR, TIntoRResult, RIntoT, RIntoTResult>(
+        &self,
+        mut t_into_r: TIntoR,
+        mut r_into_t: RIntoT,
+    ) -> Dynamic<R>
+    where
+        T: PartialEq + Send + 'static,
+        R: PartialEq + Send + 'static,
+        TIntoRResult: Into<Option<R>> + Send + 'static,
+        RIntoTResult: Into<Option<T>> + Send + 'static,
+        TIntoR: FnMut(&T) -> TIntoRResult + Send + 'static,
+        RIntoT: FnMut(&R) -> RIntoTResult + Send + 'static,
+    {
+        let initial_r = self
+            .map_ref(&mut t_into_r)
+            .into()
+            .expect("t_into_r must succeed with the current value");
+        let r = Dynamic::new(initial_r);
+        r.with_clone(move |r| {
+            self.for_each(move |t| {
+                if let Some(update) = t_into_r(t).into() {
+                    let _result = r.try_update(update);
+                }
+            });
+        });
+
+        self.with_clone(|t| {
+            r.with_for_each(move |r| {
+                if let Some(update) = r_into_t(r).into() {
+                    let _result = t.try_update(update);
+                }
+            })
+        })
+    }
+
+    /// Creates a [linked](Self::linked) dynamic containing a `String`.
+    ///
+    /// When `self` is updated, [`ToString::to_string()`] will be called to
+    /// produce a new string value to store in the returned dynamic.
+    ///
+    /// When the returned dynamic is updated, [`str::parse`](std::str) is called
+    /// to produce a new `T`. If an error is returned, `self` will not be
+    /// updated. Otherwise, `self` will be updated with the produced value.
+    #[must_use]
+    pub fn linked_string(&self) -> Dynamic<String>
+    where
+        T: ToString + FromStr + PartialEq + Send + 'static,
+    {
+        self.linked(ToString::to_string, |s: &String| s.parse().ok())
     }
 
     /// Maps the contents with read-only access.
@@ -158,6 +231,10 @@ impl<T> Dynamic<T> {
         self.0.redraw_when_changed(window);
     }
 
+    pub(crate) fn invalidate_when_changed(&self, window: WindowHandle, widget: WidgetId) {
+        self.0.invalidate_when_changed(window, widget);
+    }
+
     /// Returns a clone of the currently contained value.
     ///
     /// # Panics
@@ -181,11 +258,28 @@ impl<T> Dynamic<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     #[must_use]
-    pub fn get_tracked(&self, context: &WidgetContext<'_, '_>) -> T
+    pub fn get_tracking_refresh(&self, context: &WidgetContext<'_, '_>) -> T
     where
         T: Clone,
     {
         context.redraw_when_changed(self);
+        self.get()
+    }
+
+    /// Returns a clone of the currently contained value.
+    ///
+    /// `context` will be invalidated when the value is updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    #[must_use]
+    pub fn get_tracking_invalidate(&self, context: &WidgetContext<'_, '_>) -> T
+    where
+        T: Clone,
+    {
+        context.invalidate_when_changed(self);
         self.get()
     }
 
@@ -370,6 +464,15 @@ impl<T> Dynamic<T> {
     }
 }
 
+impl Dynamic<WidgetInstance> {
+    /// Returns a new [`Switcher`] widget whose contents is the value of this
+    /// dynamic.
+    #[must_use]
+    pub fn switcher(self) -> Switcher {
+        Switcher::new(self)
+    }
+}
+
 impl<T> Default for Dynamic<T>
 where
     T: Default,
@@ -409,11 +512,7 @@ struct DynamicMutexGuard<'a, T> {
 
 impl<'a, T> Drop for DynamicMutexGuard<'a, T> {
     fn drop(&mut self) {
-        let mut during_state = self
-            .dynamic
-            .during_callback_state
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
+        let mut during_state = self.dynamic.during_callback_state.lock().ignore_poison();
         *during_state = None;
         drop(during_state);
         self.dynamic.sync.notify_all();
@@ -450,10 +549,7 @@ struct DynamicData<T> {
 
 impl<T> DynamicData<T> {
     fn state(&self) -> Result<DynamicMutexGuard<'_, T>, DeadlockError> {
-        let mut during_sync = self
-            .during_callback_state
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
+        let mut during_sync = self.during_callback_state.lock().ignore_poison();
 
         let current_thread_id = std::thread::current().id();
         let guard = loop {
@@ -466,10 +562,7 @@ impl<T> DynamicData<T> {
                             return Err(DeadlockError)
                         }
                         Some(_) => {
-                            during_sync = self
-                                .sync
-                                .wait(during_sync)
-                                .map_or_else(PoisonError::into_inner, |g| g);
+                            during_sync = self.sync.wait(during_sync).ignore_poison();
                         }
                         None => break,
                     }
@@ -487,7 +580,12 @@ impl<T> DynamicData<T> {
 
     pub fn redraw_when_changed(&self, window: WindowHandle) {
         let mut state = self.state().expect("deadlocked");
-        state.windows.push(window);
+        state.windows.insert(window);
+    }
+
+    pub fn invalidate_when_changed(&self, window: WindowHandle, widget: WidgetId) {
+        let mut state = self.state().expect("deadlocked");
+        state.widgets.insert((window, widget));
     }
 
     pub fn get(&self) -> Result<GenerationalValue<T>, DeadlockError>
@@ -579,7 +677,8 @@ impl Display for DeadlockError {
 struct State<T> {
     wrapped: GenerationalValue<T>,
     callbacks: Vec<Box<dyn ValueCallback<T>>>,
-    windows: Vec<WindowHandle>,
+    windows: AHashSet<WindowHandle>,
+    widgets: AHashSet<(WindowHandle, WidgetId)>,
     wakers: Vec<Waker>,
     readers: usize,
 }
@@ -591,7 +690,10 @@ impl<T> State<T> {
         for callback in &mut self.callbacks {
             callback.update(&self.wrapped);
         }
-        for window in self.windows.drain(..) {
+        for (window, widget) in self.widgets.drain() {
+            window.invalidate(widget);
+        }
+        for window in self.windows.drain() {
             window.redraw();
         }
         for waker in self.wakers.drain(..) {
@@ -716,6 +818,45 @@ impl<T> DynamicReader<T> {
         value
     }
 
+    /// Returns a clone of the currently contained value.
+    ///
+    /// This function marks the currently stored value as being read.
+    ///
+    /// `context` will be invalidated when the value is updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    #[must_use]
+    pub fn get_tracking_refresh(&mut self, context: &WidgetContext<'_, '_>) -> T
+    where
+        T: Clone,
+    {
+        self.source.redraw_when_changed(context.handle());
+        self.get()
+    }
+
+    /// Returns a clone of the currently contained value.
+    ///
+    /// This function marks the currently stored value as being read.
+    ///
+    /// `context` will be invalidated when the value is updated.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    #[must_use]
+    pub fn get_tracking_invalidate(&mut self, context: &WidgetContext<'_, '_>) -> T
+    where
+        T: Clone,
+    {
+        self.source
+            .invalidate_when_changed(context.handle(), context.widget().id());
+        self.get()
+    }
+
     /// Blocks the current thread until the contained value has been updated or
     /// there are no remaining writers for the value.
     ///
@@ -726,11 +867,7 @@ impl<T> DynamicReader<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     pub fn block_until_updated(&mut self) -> bool {
-        let mut deadlock_state = self
-            .source
-            .during_callback_state
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g);
+        let mut deadlock_state = self.source.during_callback_state.lock().ignore_poison();
         assert!(
             deadlock_state
                 .as_ref()
@@ -739,11 +876,7 @@ impl<T> DynamicReader<T> {
             "deadlocked"
         );
         loop {
-            let state = self
-                .source
-                .state
-                .lock()
-                .map_or_else(PoisonError::into_inner, |g| g);
+            let state = self.source.state.lock().ignore_poison();
             if state.wrapped.generation != self.read_generation {
                 return true;
             } else if state.readers == Arc::strong_count(&self.source) {
@@ -752,11 +885,7 @@ impl<T> DynamicReader<T> {
             drop(state);
 
             // Wait for a notification of a change, which is synch
-            deadlock_state = self
-                .source
-                .sync
-                .wait(deadlock_state)
-                .map_or_else(PoisonError::into_inner, |g| g);
+            deadlock_state = self.source.sync.wait(deadlock_state).ignore_poison();
         }
     }
 
@@ -909,6 +1038,21 @@ where
     }
 }
 
+/// A type that can be the source of a [`Switcher`] widget.
+pub trait Switchable<T>: IntoDynamic<T> + Sized {
+    /// Returns a new [`Switcher`] whose contents is the result of invoking
+    /// `map` each time `self` is updated.
+    fn switcher<F>(self, map: F) -> Switcher
+    where
+        F: FnMut(&T, &Dynamic<T>) -> WidgetInstance + Send + 'static,
+        T: Send + 'static,
+    {
+        Switcher::mapping(self, map)
+    }
+}
+
+impl<T, W> Switchable<T> for W where W: IntoDynamic<T> {}
+
 /// A value that may be either constant or dynamic.
 #[derive(Debug)]
 pub enum Value<T> {
@@ -936,11 +1080,33 @@ impl<T> Value<T> {
     ///
     /// If `self` is a dynamic, `context` will be invalidated when the value is
     /// updated.
-    pub fn map_tracked<R>(&self, context: &WidgetContext<'_, '_>, map: impl FnOnce(&T) -> R) -> R {
+    pub fn map_tracking_redraw<R>(
+        &self,
+        context: &WidgetContext<'_, '_>,
+        map: impl FnOnce(&T) -> R,
+    ) -> R {
         match self {
             Value::Constant(value) => map(value),
             Value::Dynamic(dynamic) => {
                 context.redraw_when_changed(dynamic);
+                dynamic.map_ref(map)
+            }
+        }
+    }
+
+    /// Maps the current contents to `map` and returns the result.
+    ///
+    /// If `self` is a dynamic, `context` will be invalidated when the value is
+    /// updated.
+    pub fn map_tracking_invalidate<R>(
+        &self,
+        context: &WidgetContext<'_, '_>,
+        map: impl FnOnce(&T) -> R,
+    ) -> R {
+        match self {
+            Value::Constant(value) => map(value),
+            Value::Dynamic(dynamic) => {
+                context.invalidate_when_changed(dynamic);
                 dynamic.map_ref(map)
             }
         }
@@ -984,7 +1150,7 @@ impl<T> Value<T> {
     where
         T: Clone,
     {
-        self.map_tracked(context, Clone::clone)
+        self.map_tracking_redraw(context, Clone::clone)
     }
 
     /// Returns the current generation of the data stored, if the contained
@@ -1002,6 +1168,15 @@ impl<T> Value<T> {
     pub fn redraw_when_changed(&self, context: &WidgetContext<'_, '_>) {
         if let Value::Dynamic(dynamic) = self {
             context.redraw_when_changed(dynamic);
+        }
+    }
+
+    /// Marks the widget for redraw when this value is updated.
+    ///
+    /// This function has no effect if the value is constant.
+    pub fn invalidate_when_changed(&self, context: &WidgetContext<'_, '_>) {
+        if let Value::Dynamic(dynamic) = self {
+            context.invalidate_when_changed(dynamic);
         }
     }
 }
@@ -1155,7 +1330,7 @@ macro_rules! impl_tuple_for_each {
             move |$var: &$type| {
                 $(let $rvar = $rvar.lock();)+
                 let mut for_each =
-                    for_each.lock().map_or_else(PoisonError::into_inner, |g| g);
+                    for_each.lock().ignore_poison();
                 (for_each)(($(&$avar,)+));
             }
         }));
@@ -1209,3 +1384,13 @@ macro_rules! impl_tuple_map_each {
 }
 
 impl_all_tuples!(impl_tuple_map_each);
+
+/// A type that can be converted into a [`Value<String>`].
+pub trait StringValue: IntoValue<String> + Sized {
+    /// Returns this string as a text input widget.
+    fn into_input(self) -> Input {
+        Input::new(self.into_value())
+    }
+}
+
+impl<T> StringValue for T where T: IntoValue<String> {}

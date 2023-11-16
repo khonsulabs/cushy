@@ -39,22 +39,25 @@
 
 pub mod easings;
 
+use std::cmp::Ordering;
 use std::fmt::{Debug, Display};
 use std::ops::{ControlFlow, Deref, Div, Mul};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::str::FromStr;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use alot::{LotId, Lots};
+use derive_more::From;
 use intentional::Cast;
 use kempt::Set;
 use kludgine::figures::Ranged;
 use kludgine::Color;
 
 use crate::animation::easings::Linear;
-use crate::styles::Component;
+use crate::styles::{Component, RequireInvalidation};
+use crate::utils::IgnorePoison;
 use crate::value::Dynamic;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
@@ -65,9 +68,7 @@ fn thread_state() -> MutexGuard<'static, Animating> {
     THREAD.get_or_init(|| {
         thread::spawn(animation_thread);
     });
-    ANIMATIONS
-        .lock()
-        .map_or_else(PoisonError::into_inner, |g| g)
+    ANIMATIONS.lock().ignore_poison()
 }
 
 fn animation_thread() {
@@ -75,9 +76,7 @@ fn animation_thread() {
     loop {
         if state.running.is_empty() {
             state.last_updated = None;
-            state = NEW_ANIMATIONS
-                .wait(state)
-                .map_or_else(PoisonError::into_inner, |g| g);
+            state = NEW_ANIMATIONS.wait(state).ignore_poison();
         } else {
             let start = Instant::now();
             let last_tick = state.last_updated.unwrap_or(start);
@@ -610,12 +609,49 @@ impl Animate for Duration {
 }
 
 /// Performs a linear interpolation between two values.
+///
+/// This trait can be derived for structs and fieldless enums.
+///
+/// Note: for fields that don't implement [`LinerarInterpolate`](trait@LinearInterpolate)
+/// the wrappers [`BinaryLerp`] and [`ImmediateLerp`] can be used.
+///
+/// ```
+/// use gooey::animation::{BinaryLerp, ImmediateLerp, LinearInterpolate};
+/// use gooey::kludgine::Color;
+///
+/// #[derive(LinearInterpolate, PartialEq, Debug)]
+/// struct Struct(Color, BinaryLerp<&'static str>, ImmediateLerp<&'static str>);
+///
+/// let from = Struct(Color::BLACK, "hello".into(), "hello".into());
+/// let to = Struct(Color::WHITE, "world".into(), "world".into());
+///
+/// assert_eq!(
+///     from.lerp(&to, 0.41),
+///     Struct(Color::DIMGRAY, "hello".into(), "world".into())
+/// );
+/// assert_eq!(
+///     from.lerp(&to, 0.663),
+///     Struct(Color::DARKGRAY, "world".into(), "world".into())
+/// );
+///
+/// #[derive(LinearInterpolate, PartialEq, Debug)]
+/// enum Enum {
+///     A,
+///     B,
+///     C,
+/// }
+/// assert_eq!(Enum::A.lerp(&Enum::B, 0.4), Enum::A);
+/// assert_eq!(Enum::A.lerp(&Enum::C, 0.1), Enum::A);
+/// assert_eq!(Enum::A.lerp(&Enum::C, 0.4), Enum::B);
+/// assert_eq!(Enum::A.lerp(&Enum::C, 0.9), Enum::C);
+/// ```
 pub trait LinearInterpolate: PartialEq {
     /// Interpolate linearly between `self` and `target` using `percent`.
     #[must_use]
     fn lerp(&self, target: &Self, percent: f32) -> Self;
 }
 
+/// Derives [`LinerarInterpolate`](trait@LinearInterpolate) for structs and fieldless enums.
 pub use gooey_macros::LinearInterpolate;
 
 macro_rules! impl_lerp_for_int {
@@ -641,9 +677,9 @@ macro_rules! impl_lerp_for_uint {
             fn lerp(&self, target: &Self, percent: f32) -> Self {
                 let percent = $float::from(percent);
                 if let Some(delta) = target.checked_sub(*self) {
-                    *self + (delta as $float * percent).round() as $type
+                    self.saturating_add((delta as $float * percent).round() as $type)
                 } else {
-                    *self - ((*self - *target) as $float * percent).round() as $type
+                    self.saturating_sub(((*self - *target) as $float * percent).round() as $type)
                 }
             }
         }
@@ -701,8 +737,10 @@ impl PercentBetween for bool {
 fn integer_lerps() {
     #[track_caller]
     fn test_lerps<T: LinearInterpolate + Debug + Eq>(a: &T, b: &T, mid: &T) {
+        assert_eq!(&b.lerp(a, 1.), a);
         assert_eq!(&a.lerp(b, 1.), b);
         assert_eq!(&a.lerp(b, 0.), a);
+        assert_eq!(&b.lerp(a, 0.), b);
         assert_eq!(&a.lerp(b, 0.5), mid);
     }
 
@@ -733,7 +771,7 @@ impl LinearInterpolate for Color {
 ///
 /// This wrapper can be used to add [`LinearInterpolate`] to types that normally
 /// don't support interpolation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, From)]
 pub struct BinaryLerp<T>(T);
 
 impl<T> LinearInterpolate for BinaryLerp<T>
@@ -754,7 +792,7 @@ where
 ///
 /// This wrapper can be used to add [`LinearInterpolate`] to types that normally
 /// don't support interpolation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, From)]
 pub struct ImmediateLerp<T>(T);
 
 impl<T> LinearInterpolate for ImmediateLerp<T>
@@ -780,8 +818,14 @@ macro_rules! impl_percent_between {
     ($type:ident, $float:ident) => {
         impl PercentBetween for $type {
             fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+                assert!(min <= max, "percent_between requires min <= max");
+                assert!(
+                    self >= min && self <= max,
+                    "self must satisfy min <= self <= max"
+                );
+
                 let range = *max - *min;
-                ZeroToOne::from(*self as $float / range as $float)
+                ZeroToOne::from((*self - *min) as $float / range as $float)
             }
         }
     };
@@ -809,15 +853,58 @@ impl PercentBetween for Color {
             min: Color,
             max: Color,
             func: impl Fn(Color) -> u8,
-        ) -> ZeroToOne {
-            func(value).percent_between(&func(min), &func(max))
+        ) -> Option<ZeroToOne> {
+            let value = func(value);
+            let min = func(min);
+            let max = func(max);
+            match min.cmp(&max) {
+                Ordering::Less => Some(value.percent_between(&min, &max)),
+                Ordering::Equal => None,
+                Ordering::Greater => Some(value.percent_between(&max, &min).one_minus()),
+            }
         }
 
-        channel_percent(*self, *min, *max, Color::red)
-            * channel_percent(*self, *min, *max, Color::green)
-            * channel_percent(*self, *min, *max, Color::blue)
-            * channel_percent(*self, *min, *max, Color::alpha)
+        let mut total_percent_change = 0.;
+        let mut different_channels = 0_u8;
+
+        for func in [Color::red, Color::green, Color::blue, Color::alpha] {
+            if let Some(red) = channel_percent(*self, *min, *max, func) {
+                total_percent_change += *red;
+                different_channels += 1;
+            }
+        }
+
+        if different_channels > 0 {
+            ZeroToOne::new(total_percent_change / f32::from(different_channels))
+        } else {
+            ZeroToOne::ZERO
+        }
     }
+}
+
+#[test]
+fn int_percent_between() {
+    assert_eq!(1_u8.percent_between(&1_u8, &2_u8), ZeroToOne::ZERO);
+}
+
+#[test]
+fn color_lerp() {
+    let gray = Color::new(51, 51, 51, 51);
+    let percent_gray = gray.percent_between(&Color::CLEAR_BLACK, &Color::WHITE);
+
+    assert_eq!(gray, Color::CLEAR_BLACK.lerp(&Color::WHITE, *percent_gray));
+
+    let gray = Color::new(51, 51, 51, 255);
+    let percent_gray = gray.percent_between(&Color::BLACK, &Color::WHITE);
+
+    assert_eq!(gray, Color::BLACK.lerp(&Color::WHITE, *percent_gray));
+
+    let red_green = Color::RED.lerp(&Color::GREEN, 0.5);
+    let percent_between = red_green.percent_between(&Color::RED, &Color::GREEN);
+    // Why 1 / 255 / 4? This operation is working on u8s, and there are 4
+    // channels that can be averaged. The percent is guaranteed to be within
+    // this range, which works out to be 0.0098 percent.
+    assert!((*percent_between - 0.5).abs() < 1. / 255. / 4.);
 }
 
 /// An `f32` that is clamped between 0.0 and 1.0 and cannot be NaN or Infinity.
@@ -918,19 +1005,19 @@ impl PartialEq<f32> for ZeroToOne {
 }
 
 impl Ord for ZeroToOne {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.0.total_cmp(&other.0)
     }
 }
 
 impl PartialOrd for ZeroToOne {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl PartialOrd<f32> for ZeroToOne {
-    fn partial_cmp(&self, other: &f32) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &f32) -> Option<Ordering> {
         Some(self.0.total_cmp(other))
     }
 }
@@ -1009,6 +1096,12 @@ impl TryFrom<Component> for EasingFunction {
             Component::Easing(easing) => Ok(easing),
             other => Err(other),
         }
+    }
+}
+
+impl RequireInvalidation for EasingFunction {
+    fn requires_invalidation(&self) -> bool {
+        false
     }
 }
 

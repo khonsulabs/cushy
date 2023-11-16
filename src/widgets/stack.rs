@@ -296,7 +296,8 @@ struct Layout {
     total_weights: u32,
     allocated_space: (UPx, Lp),
     fractional: Vec<(LotId, u8)>,
-    measured: Vec<LotId>,
+    fit_to_content: Vec<LotId>,
+    premeasured: Vec<LotId>,
     pub orientation: StackDirection,
 }
 
@@ -316,7 +317,8 @@ impl Layout {
             total_weights: 0,
             allocated_space: (UPx(0), Lp(0)),
             fractional: Vec::new(),
-            measured: Vec::new(),
+            fit_to_content: Vec::new(),
+            premeasured: Vec::new(),
         }
     }
 
@@ -331,20 +333,23 @@ impl Layout {
 
         match dimension {
             StackDimension::FitContent => {
-                self.measured.retain(|&measured| measured != id);
+                self.fit_to_content.retain(|&measured| measured != id);
             }
             StackDimension::Fractional { weight } => {
                 self.fractional.retain(|(measured, _)| *measured != id);
                 self.total_weights -= u32::from(weight);
             }
-            StackDimension::Measured { min, .. } => match min {
-                Dimension::Px(pixels) => {
-                    self.allocated_space.0 -= pixels.into_unsigned();
+            StackDimension::Measured { min, .. } => {
+                self.premeasured.retain(|&measured| measured != id);
+                match min {
+                    Dimension::Px(pixels) => {
+                        self.allocated_space.0 -= pixels.into_unsigned();
+                    }
+                    Dimension::Lp(lp) => {
+                        self.allocated_space.1 -= lp;
+                    }
                 }
-                Dimension::Lp(lp) => {
-                    self.allocated_space.1 -= lp;
-                }
-            },
+            }
         }
 
         dimension
@@ -364,7 +369,7 @@ impl Layout {
         let id = self.children.insert(index, child);
         let layout = match child {
             StackDimension::FitContent => {
-                self.measured.push(id);
+                self.fit_to_content.push(id);
                 UPx(0)
             }
             StackDimension::Fractional { weight } => {
@@ -373,11 +378,12 @@ impl Layout {
                 UPx(0)
             }
             StackDimension::Measured { min, .. } => {
+                self.premeasured.push(id);
                 match min {
                     Dimension::Px(size) => self.allocated_space.0 += size.into_unsigned(),
                     Dimension::Lp(size) => self.allocated_space.1 += size,
                 }
-                min.into_px(scale).into_unsigned()
+                min.into_upx(scale)
             }
         };
         self.layouts.insert(
@@ -397,21 +403,41 @@ impl Layout {
     ) -> Size<UPx> {
         let (space_constraint, other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
-        let allocated_space =
-            self.allocated_space.0 + self.allocated_space.1.into_px(scale).into_unsigned();
+        let allocated_space = self.allocated_space.0 + self.allocated_space.1.into_upx(scale);
         let mut remaining = available_space.saturating_sub(allocated_space);
+        // If our `other_constraint` is not known, we will need to give child
+        // widgets an opportunity to lay themselves out in the full area. This
+        // requires one extra layout call, so we avoid persisting layouts during
+        // the first loop if this is the case.
+        let needs_final_layout = !matches!(other_constraint, ConstraintLimit::Known(_));
 
         // Measure the children that fit their content
-        for &id in &self.measured {
+        self.other = UPx(0);
+        for &id in &self.fit_to_content {
             let index = self.children.index_of_id(id).expect("child not found");
-            let (measured, _) = self.orientation.split_size(measure(
+            let (measured, other) = self.orientation.split_size(measure(
                 index,
                 self.orientation
                     .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
-                false,
+                !needs_final_layout,
             ));
             self.layouts[index].size = measured;
+            self.other = self.other.max(other);
             remaining = remaining.saturating_sub(measured);
+        }
+
+        // Measure measure the "other" dimension for children that we know their size already.
+        for &id in &self.premeasured {
+            let index = self.children.index_of_id(id).expect("child not found");
+            let (_, other) = self.orientation.split_size(measure(
+                index,
+                self.orientation.make_size(
+                    ConstraintLimit::Known(self.layouts[index].size),
+                    other_constraint,
+                ),
+                !needs_final_layout,
+            ));
+            self.other = self.other.max(other);
         }
 
         // Measure the weighted children within the remaining space
@@ -435,24 +461,21 @@ impl Layout {
 
                 self.layouts[index].size = size;
             }
-        }
 
-        // Now that we know the constrained sizes, we can measure the children
-        // to get the other measurement using the constrainted measurement.
-        self.other = UPx(0);
-        let mut offset = UPx(0);
-        for index in 0..self.children.len() {
-            self.layouts[index].offset = offset;
-            offset += self.layouts[index].size;
-            let (_, measured) = self.orientation.split_size(measure(
-                index,
-                self.orientation.make_size(
-                    ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
-                    other_constraint,
-                ),
-                false,
-            ));
-            self.other = self.other.max(measured);
+            // Now that we know the constrained sizes, we can measure the children
+            // to get the other measurement using the constrainted measurement.
+            for (id, _) in &self.fractional {
+                let index = self.children.index_of_id(*id).expect("child not found");
+                let (_, measured) = self.orientation.split_size(measure(
+                    index,
+                    self.orientation.make_size(
+                        ConstraintLimit::Known(self.layouts[index].size.into_upx(scale)),
+                        other_constraint,
+                    ),
+                    !needs_final_layout,
+                ));
+                self.other = self.other.max(measured);
+            }
         }
 
         self.other = match other_constraint {
@@ -460,16 +483,21 @@ impl Layout {
             ConstraintLimit::ClippedAfter(clip_limit) => self.other.min(clip_limit),
         };
 
-        // Finally layout the widgets with the final constraints
+        // Finally, compute the offsets of all of the widgets.
+        let mut offset = UPx(0);
         for index in 0..self.children.len() {
-            self.orientation.split_size(measure(
-                index,
-                self.orientation.make_size(
-                    ConstraintLimit::Known(self.layouts[index].size.into_px(scale).into_unsigned()),
-                    ConstraintLimit::Known(self.other),
-                ),
-                true,
-            ));
+            self.layouts[index].offset = offset;
+            offset += self.layouts[index].size;
+            if needs_final_layout {
+                self.orientation.split_size(measure(
+                    index,
+                    self.orientation.make_size(
+                        ConstraintLimit::Known(self.layouts[index].size.into_upx(scale)),
+                        ConstraintLimit::Known(self.other),
+                    ),
+                    true,
+                ));
+            }
         }
 
         self.orientation.make_size(offset, self.other)

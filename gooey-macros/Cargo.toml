@@ -10,7 +10,7 @@ proc-macro = true
 
 [dependencies]
 attribute-derive = "0.8.1"
-manyhow = "0.9.0"
+manyhow = "0.10.0"
 proc-macro2 = "1.0.69"
 quote = "1.0.33"
 quote-use = "0.7.2"

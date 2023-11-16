@@ -1,18 +1,19 @@
+//! A widget that allows a user to "slide" between values.
 use std::fmt::Debug;
 use std::panic::UnwindSafe;
 
 use kludgine::app::winit::event::{DeviceId, MouseButton};
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
-    FloatConversion, FromComponents, IntoComponents, IntoSigned, IntoUnsigned, Point, Ranged, Rect,
-    ScreenScale, Size,
+    FloatConversion, FromComponents, IntoComponents, IntoSigned, Point, Ranged, Rect, ScreenScale,
+    Size,
 };
 use kludgine::shapes::Shape;
 use kludgine::{Color, Origin};
 
 use crate::animation::{LinearInterpolate, PercentBetween};
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
-use crate::styles::components::OpaqueWidgetColor;
+use crate::styles::components::{OpaqueWidgetColor, WidgetAccentColor};
 use crate::styles::Dimension;
 use crate::value::{Dynamic, IntoDynamic, IntoValue, Value};
 use crate::widget::{EventHandling, Widget, HANDLED};
@@ -176,7 +177,7 @@ where
 
         let half_knob = knob_size / 2;
 
-        let mut value = self.value.get_tracked(context);
+        let mut value = self.value.get_tracking_refresh(context);
         let min = self.minimum.get_tracked(context);
         let mut max = self.maximum.get_tracked(context);
 
@@ -222,14 +223,10 @@ where
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        self.knob_size = context
-            .get(&KnobSize)
-            .into_px(context.gfx.scale())
-            .into_unsigned();
+        self.knob_size = context.get(&KnobSize).into_upx(context.gfx.scale());
         let minimum_size = context
             .get(&MinimumSliderSize)
-            .into_px(context.gfx.scale())
-            .into_unsigned();
+            .into_upx(context.gfx.scale());
 
         match (available_space.width, available_space.height) {
             (ConstraintLimit::Known(width), ConstraintLimit::Known(height)) => {
@@ -320,10 +317,51 @@ define_components! {
         /// The minimum length of the slidable dimension.
         MinimumSliderSize(Dimension, "minimum_size", |context| context.get(&KnobSize) * 2)
         /// The color of the draggable portion of the knob.
-        KnobColor(Color, "knob_color", .primary.color) // TODO make this pull from a component multiple widgets can share
+        KnobColor(Color, "knob_color", @WidgetAccentColor)
         /// The color of the track that the knob rests on.
         TrackColor(Color,"track_color", |context| context.get(&KnobColor))
         /// The color of the track that the knob rests on.
         InactiveTrackColor(Color, "inactive_track_color", |context| context.get(&OpaqueWidgetColor))
     }
+}
+
+/// A value that can be used in a [`Slider`] widget.
+pub trait Slidable<T>: IntoDynamic<T> + Sized
+where
+    T: Clone
+        + Debug
+        + PartialOrd
+        + LinearInterpolate
+        + PercentBetween
+        + UnwindSafe
+        + Send
+        + 'static,
+{
+    /// Returns a new slider over the full [range](Ranged) of the type.
+    fn slider(self) -> Slider<T>
+    where
+        T: Ranged,
+    {
+        Slider::from_value(self.into_dynamic())
+    }
+
+    /// Returns a new slider using the value of `self`. The slider will be
+    /// limited to values between `min` and `max`.
+    fn slider_between(self, min: impl IntoValue<T>, max: impl IntoValue<T>) -> Slider<T> {
+        Slider::new(self.into_dynamic(), min, max)
+    }
+}
+
+impl<U, T> Slidable<U> for T
+where
+    T: IntoDynamic<U>,
+    U: Clone
+        + Debug
+        + PartialOrd
+        + LinearInterpolate
+        + PercentBetween
+        + UnwindSafe
+        + Send
+        + 'static,
+{
 }

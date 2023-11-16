@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use ahash::AHashMap;
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Fraction, IntoUnsigned, Rect, ScreenScale, Size};
+use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size};
 use kludgine::Color;
 use palette::{IntoColor, Okhsl, OklabHue, Srgb};
 
@@ -86,8 +86,17 @@ impl Styles {
         self.0
             .get(&name)
             .and_then(|component| {
-                component.redraw_when_changed(context);
-                <Named::ComponentType>::try_from_component(component.get()).ok()
+                match <Named::ComponentType>::try_from_component(component.get()) {
+                    Ok(value) => {
+                        if value.requires_invalidation() {
+                            component.invalidate_when_changed(context);
+                        } else {
+                            component.redraw_when_changed(context);
+                        }
+                        Some(value)
+                    }
+                    Err(_) => None,
+                }
             })
             .unwrap_or_else(|| component.default_value(context))
     }
@@ -219,6 +228,12 @@ impl TryFrom<Component> for Color {
     }
 }
 
+impl RequireInvalidation for Color {
+    fn requires_invalidation(&self) -> bool {
+        false
+    }
+}
+
 impl From<Dimension> for Component {
     fn from(value: Dimension) -> Self {
         Self::Dimension(value)
@@ -233,6 +248,12 @@ impl TryFrom<Component> for Dimension {
             Component::Dimension(color) => Ok(color),
             other => Err(other),
         }
+    }
+}
+
+impl RequireInvalidation for Dimension {
+    fn requires_invalidation(&self) -> bool {
+        true
     }
 }
 
@@ -253,6 +274,12 @@ impl TryFrom<Component> for Px {
     }
 }
 
+impl RequireInvalidation for Px {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
 impl From<Lp> for Component {
     fn from(value: Lp) -> Self {
         Self::from(Dimension::from(value))
@@ -267,6 +294,12 @@ impl TryFrom<Component> for Lp {
             Component::Dimension(Dimension::Lp(px)) => Ok(px),
             other => Err(other),
         }
+    }
+}
+
+impl RequireInvalidation for Lp {
+    fn requires_invalidation(&self) -> bool {
+        true
     }
 }
 
@@ -343,6 +376,7 @@ impl From<Lp> for Dimension {
 impl ScreenScale for Dimension {
     type Lp = Lp;
     type Px = Px;
+    type UPx = UPx;
 
     fn into_px(self, scale: kludgine::figures::Fraction) -> Px {
         match self {
@@ -364,6 +398,17 @@ impl ScreenScale for Dimension {
 
     fn from_lp(lp: Lp, _scale: kludgine::figures::Fraction) -> Self {
         Self::from(lp)
+    }
+
+    fn into_upx(self, scale: Fraction) -> Self::UPx {
+        match self {
+            Dimension::Px(px) => px.into_unsigned(),
+            Dimension::Lp(lp) => lp.into_upx(scale),
+        }
+    }
+
+    fn from_upx(px: Self::UPx, _scale: Fraction) -> Self {
+        Self::from(px.into_signed())
     }
 }
 
@@ -436,10 +481,10 @@ impl DimensionRange {
     #[must_use]
     pub fn clamp(&self, mut size: UPx, scale: Fraction) -> UPx {
         if let Some(min) = self.minimum() {
-            size = size.max(min.into_px(scale).into_unsigned());
+            size = size.max(min.into_upx(scale));
         }
         if let Some(max) = self.maximum() {
-            size = size.min(max.into_px(scale).into_unsigned());
+            size = size.min(max.into_upx(scale));
         }
         size
     }
@@ -563,6 +608,12 @@ impl TryFrom<Component> for DimensionRange {
     }
 }
 
+impl RequireInvalidation for DimensionRange {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
 /// A custom component value.
 #[derive(Debug, Clone)]
 pub struct CustomComponent(Arc<dyn AnyComponent>);
@@ -571,7 +622,7 @@ impl CustomComponent {
     /// Wraps an arbitrary value so that it can be used as a [`Component`].
     pub fn new<T>(value: T) -> Self
     where
-        T: RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
+        T: RequireInvalidation + RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
     {
         Self(Arc::new(value))
     }
@@ -584,6 +635,12 @@ impl CustomComponent {
         T: Debug + Send + Sync + 'static,
     {
         self.0.as_ref().as_any().downcast_ref()
+    }
+}
+
+impl RequireInvalidation for CustomComponent {
+    fn requires_invalidation(&self) -> bool {
+        self.0.requires_invalidation()
     }
 }
 
@@ -600,13 +657,13 @@ impl ComponentType for CustomComponent {
     }
 }
 
-trait AnyComponent: Send + Sync + RefUnwindSafe + UnwindSafe + Debug {
+trait AnyComponent: RequireInvalidation + Send + Sync + RefUnwindSafe + UnwindSafe + Debug {
     fn as_any(&self) -> &dyn Any;
 }
 
 impl<T> AnyComponent for T
 where
-    T: RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
+    T: RequireInvalidation + RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
 {
     fn as_any(&self) -> &dyn Any {
         self
@@ -654,8 +711,20 @@ pub trait ComponentDefinition: NamedComponent {
     fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType;
 }
 
+/// Describes whether a type should invalidate a widget.
+pub trait RequireInvalidation {
+    /// Gooey tracks two different states:
+    ///
+    /// - Whether to repaint the window
+    /// - Whether to relayout a widget
+    ///
+    /// If a value change of `self` may require a relayout, this should return
+    /// true.
+    fn requires_invalidation(&self) -> bool;
+}
+
 /// A type that can be converted to and from [`Component`].
-pub trait ComponentType: Sized {
+pub trait ComponentType: RequireInvalidation + Sized {
     /// Returns this type, wrapped in a [`Component`].
     fn into_component(self) -> Component;
     /// Attempts to extract this type from `component`. If `component` does not
@@ -665,7 +734,7 @@ pub trait ComponentType: Sized {
 
 impl<T> ComponentType for T
 where
-    T: Into<Component> + TryFrom<Component, Error = Component>,
+    T: RequireInvalidation + Into<Component> + TryFrom<Component, Error = Component>,
 {
     fn into_component(self) -> Component {
         self.into()
@@ -1095,6 +1164,8 @@ pub struct ColorTheme {
     pub color: Color,
     /// The primary color, dimmed for de-emphasized or disabled content.
     pub color_dim: Color,
+    /// The primary color, brightened for highlighting content.
+    pub color_bright: Color,
     /// The color for content that sits atop the primary color.
     pub on_color: Color,
     /// The backgrond color for containers.
@@ -1110,6 +1181,7 @@ impl ColorTheme {
         Self {
             color: source.color(40),
             color_dim: source.color(30),
+            color_bright: source.color(45),
             on_color: source.color(100),
             container: source.color(90),
             on_container: source.color(10),
@@ -1122,6 +1194,7 @@ impl ColorTheme {
         Self {
             color: source.color(70),
             color_dim: source.color(60),
+            color_bright: source.color(75),
             on_color: source.color(10),
             container: source.color(30),
             on_container: source.color(90),
@@ -1324,12 +1397,19 @@ impl ColorExt for Color {
         let (other_source, other_lightness) = self.into_source_and_lightness();
         let lightness_delta = other_lightness.difference_between(check_lightness);
 
+        let average_lightness = ZeroToOne::new((*check_lightness + *other_lightness) / 2.);
+
         let source_change = check_source.contrast_between(other_source);
 
         let other_alpha = ZeroToOne::new(self.alpha_f32());
         let alpha_delta = check_alpha.difference_between(other_alpha);
 
-        ZeroToOne::new((*lightness_delta + *source_change + *alpha_delta) / 3.)
+        ZeroToOne::new(
+            (*lightness_delta
+                + *average_lightness * *source_change
+                + *average_lightness * *alpha_delta)
+                / 3.,
+        )
     }
 
     fn most_contrasting(self, others: &[Self]) -> Self
@@ -1408,6 +1488,12 @@ impl TryFrom<Component> for VisualOrder {
             Component::VisualOrder(order) => Ok(order),
             other => Err(other),
         }
+    }
+}
+
+impl RequireInvalidation for VisualOrder {
+    fn requires_invalidation(&self) -> bool {
+        true
     }
 }
 
@@ -1514,6 +1600,12 @@ impl TryFrom<Component> for FocusableWidgets {
     }
 }
 
+impl RequireInvalidation for FocusableWidgets {
+    fn requires_invalidation(&self) -> bool {
+        false
+    }
+}
+
 /// A description of the level of depth a
 /// [`Container`](crate::widgets::Container) is nested at.
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
@@ -1563,6 +1655,12 @@ impl TryFrom<Component> for ContainerLevel {
     }
 }
 
+impl RequireInvalidation for ContainerLevel {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
 /// A builder of [`ColorScheme`]s.
 #[derive(Clone, Copy, Debug)]
 pub struct ColorSchemeBuilder {
@@ -1583,27 +1681,21 @@ pub struct ColorSchemeBuilder {
     /// The neutral variant color of the scheme. If not provided, a mostly
     /// desaturated variation of the primary color will be used.
     pub neutral_variant: Option<ColorSource>,
-    hue_shift: f32,
+    hue_shift: OklabHue,
 }
 
 impl ColorSchemeBuilder {
-    /// Returns a builder for the provided hue, in degrees.
-    #[must_use]
-    pub fn from_hue(hue: impl Into<OklabHue>) -> Self {
-        Self::new(ColorSource::new(hue, 0.8))
-    }
-
     /// Returns a builder for the provided primary color.
     #[must_use]
-    pub fn new(primary: ColorSource) -> Self {
+    pub fn new(primary: impl ProtoColor) -> Self {
         Self {
-            primary,
+            primary: primary.into_source(ZeroToOne::new(0.8)),
             secondary: None,
             tertiary: None,
             error: None,
             neutral: None,
             neutral_variant: None,
-            hue_shift: 30.,
+            hue_shift: OklabHue::new(30.),
         }
     }
 
@@ -1615,7 +1707,8 @@ impl ColorSchemeBuilder {
     }
 
     fn generate_tertiary(&self, secondary: ColorSource) -> ColorSource {
-        let hue_shift = (secondary.hue - self.primary.hue).into_degrees().signum() * self.hue_shift;
+        let hue_shift = (secondary.hue - self.primary.hue).into_degrees().signum()
+            * self.hue_shift.into_degrees();
         ColorSource {
             hue: self.primary.hue - hue_shift,
             saturation: self.primary.saturation / 3.,
@@ -1644,8 +1737,57 @@ impl ColorSchemeBuilder {
     fn generate_neutral_variant(&self) -> ColorSource {
         ColorSource {
             hue: self.primary.hue,
-            saturation: ZeroToOne::new(0.1),
+            saturation: self.primary.saturation / 10.,
         }
+    }
+
+    /// Sets the secondary color and returns self.
+    ///
+    /// If `secondary` doesn't specify a saturation, a saturation value that is
+    /// 50% of the primary saturation will be picked.
+    #[must_use]
+    pub fn secondary(mut self, secondary: impl ProtoColor) -> Self {
+        self.secondary = Some(secondary.into_source(self.primary.saturation / 2.));
+        self
+    }
+
+    /// Sets the tertiary color and returns self.
+    ///
+    /// If `tertiary` doesn't specify a saturation, a saturation value that is
+    /// 33% of the primary saturation will be picked.
+    #[must_use]
+    pub fn tertiary(mut self, tertiary: impl ProtoColor) -> Self {
+        self.secondary = Some(tertiary.into_source(self.primary.saturation / 3.));
+        self
+    }
+
+    /// Sets the neutral color and returns self.
+    ///
+    /// If `neutral` doesn't specify a saturation, a saturation of 1%.
+    #[must_use]
+    pub fn neutral(mut self, neutral: impl ProtoColor) -> Self {
+        self.neutral = Some(neutral.into_source(0.01));
+        self
+    }
+
+    /// Sets the neutral color and returns self.
+    ///
+    /// If `neutral_variant` doesn't specify a saturation, a saturation value
+    /// that is 10% of the primary saturation will be picked.
+    #[must_use]
+    pub fn neutral_variant(mut self, neutral_variant: impl ProtoColor) -> Self {
+        self.neutral_variant = Some(neutral_variant.into_source(self.primary.saturation / 10.));
+        self
+    }
+
+    /// Sets the amount the hue component is shifted when auto-generating colors
+    /// to fill in the palette.
+    ///
+    /// The default hue shift is 30 degrees.
+    #[must_use]
+    pub fn hue_shift(mut self, hue_shift: impl Into<OklabHue>) -> Self {
+        self.hue_shift = hue_shift.into();
+        self
     }
 
     /// Builds a color scheme from the provided colors, generating any
@@ -1671,6 +1813,69 @@ impl ColorSchemeBuilder {
     }
 }
 
+/// A type that can be interpretted as a hue or hue and saturation.
+pub trait ProtoColor: Sized {
+    /// Returns the hue of this prototype color.
+    #[must_use]
+    fn hue(&self) -> OklabHue;
+    /// Returns the saturation of this prototype color, if available.
+    #[must_use]
+    fn saturation(&self) -> Option<ZeroToOne>;
+
+    /// Returns a color source built from this prototype color
+    #[must_use]
+    fn into_source(self, saturation_if_not_provided: impl Into<ZeroToOne>) -> ColorSource {
+        let saturation = self
+            .saturation()
+            .unwrap_or_else(|| saturation_if_not_provided.into());
+        ColorSource::new(self.hue(), saturation)
+    }
+}
+
+impl ProtoColor for f32 {
+    fn hue(&self) -> OklabHue {
+        (*self).into()
+    }
+
+    fn saturation(&self) -> Option<ZeroToOne> {
+        None
+    }
+}
+
+impl ProtoColor for OklabHue {
+    fn hue(&self) -> OklabHue {
+        *self
+    }
+
+    fn saturation(&self) -> Option<ZeroToOne> {
+        None
+    }
+}
+
+impl ProtoColor for ColorSource {
+    fn hue(&self) -> OklabHue {
+        self.hue
+    }
+
+    fn saturation(&self) -> Option<ZeroToOne> {
+        Some(self.saturation)
+    }
+}
+
+impl<Hue, Saturation> ProtoColor for (Hue, Saturation)
+where
+    Hue: Into<OklabHue> + Copy,
+    Saturation: Into<ZeroToOne> + Copy,
+{
+    fn hue(&self) -> OklabHue {
+        self.0.into()
+    }
+
+    fn saturation(&self) -> Option<ZeroToOne> {
+        Some(self.1.into())
+    }
+}
+
 /// A color scheme for a Gooey application.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ColorScheme {
@@ -1691,20 +1896,14 @@ pub struct ColorScheme {
 impl ColorScheme {
     /// Returns a generated color scheme based on a `primary` color.
     #[must_use]
-    pub fn from_primary(primary: ColorSource) -> Self {
+    pub fn from_primary(primary: impl ProtoColor) -> Self {
         ColorSchemeBuilder::new(primary).build()
-    }
-
-    /// Returns a generated color scheme based on a `primary` hue, in degrees.
-    #[must_use]
-    pub fn from_primary_hue(hue: impl Into<OklabHue>) -> Self {
-        ColorSchemeBuilder::from_hue(hue).build()
     }
 }
 
 impl Default for ColorScheme {
     fn default() -> Self {
-        Self::from_primary_hue(138.5)
+        Self::from_primary(138.5)
     }
 }
 

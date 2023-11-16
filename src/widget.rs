@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::panic::UnwindSafe;
 use std::sync::atomic::{self, AtomicU64};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use alot::LotId;
 use kludgine::app::winit::event::{
@@ -16,14 +16,19 @@ use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use kludgine::Color;
 
-use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::context::{
+    AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext, WindowHandle,
+};
 use crate::styles::{
     ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue, NamedComponent, Styles,
     ThemePair, VisualOrder,
 };
 use crate::tree::Tree;
+use crate::utils::IgnorePoison;
 use crate::value::{IntoValue, Value};
-use crate::widgets::{Align, Container, Expand, Resize, Scroll, Stack, Style};
+use crate::widgets::{
+    Align, Button, Container, Expand, Resize, Scroll, Stack, Style, Themed, ThemedMode,
+};
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
 
@@ -225,6 +230,18 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the child widget.
     fn child_mut(&mut self) -> &mut WidgetRef;
 
+    /// Draws the background of the widget.
+    ///
+    /// This is invoked before the wrapped widget is drawn.
+    #[allow(unused_variables)]
+    fn redraw_background(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {}
+
+    /// Draws the foreground of the widget.
+    ///
+    /// This is invoked after the wrapped widget is drawn.
+    #[allow(unused_variables)]
+    fn redraw_foreground(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {}
+
     /// Returns the rectangle that the child widget should occupy given
     /// `available_space`.
     #[allow(unused_variables)]
@@ -263,7 +280,7 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> WrappedLayout {
-        Size::<UPx>::new(
+        Size::new(
             available_space
                 .width
                 .fit_measured(size.width, context.gfx.scale()),
@@ -416,8 +433,12 @@ where
             context.gfx.fill(color);
         }
 
+        self.redraw_background(context);
+
         let child = self.child_mut().mounted(&mut context.as_event_context());
         context.for_other(&child).redraw();
+
+        self.redraw_foreground(context);
     }
 
     fn layout(
@@ -561,6 +582,19 @@ pub trait MakeWidget: Sized {
         self.make_widget().with_next_focus(next_focus)
     }
 
+    /// Sets this widget to be enabled/disabled based on `enabled` and returns
+    /// self.
+    ///
+    /// If this widget is disabled, all children widgets will also be disabled.
+    ///
+    /// # Panics
+    ///
+    /// This function can only be called when one instance of the widget exists.
+    /// If any clones exist, a panic will occur.
+    fn with_enabled(self, enabled: impl IntoValue<bool>) -> WidgetInstance {
+        self.make_widget().with_enabled(enabled)
+    }
+
     /// Sets this widget as a "default" widget.
     ///
     /// Default widgets are automatically activated when the user signals they
@@ -624,9 +658,12 @@ pub trait MakeWidget: Sized {
 
     /// Resizes `self` to `width`.
     ///
-    /// `width` can be an individual
-    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
-    /// range.
+    /// `width` can be an any of:
+    ///
+    /// - [`Dimension`]
+    /// - [`Px`]
+    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - A range of any fo the above.
     #[must_use]
     fn width(self, width: impl Into<DimensionRange>) -> Resize {
         Resize::from_width(width, self)
@@ -634,12 +671,20 @@ pub trait MakeWidget: Sized {
 
     /// Resizes `self` to `height`.
     ///
-    /// `height` can be an individual
-    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
-    /// range.
+    /// `height` can be an any of:
+    ///
+    /// - [`Dimension`]
+    /// - [`Px`]
+    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - A range of any fo the above.
     #[must_use]
     fn height(self, height: impl Into<DimensionRange>) -> Resize {
         Resize::from_height(height, self)
+    }
+
+    /// Returns this string as a clickable button.
+    fn into_button(self) -> Button {
+        Button::new(self)
     }
 
     /// Aligns `self` to the center vertically and horizontally.
@@ -726,6 +771,16 @@ pub trait MakeWidget: Sized {
     fn pad_by(self, padding: impl IntoValue<Edges<Dimension>>) -> Container {
         self.contain().transparent().pad_by(padding)
     }
+
+    /// Applies `theme` to `self` and its children.
+    fn themed(self, theme: impl IntoValue<ThemePair>) -> Themed {
+        Themed::new(theme, self)
+    }
+
+    /// Applies `mode` to `self` and its children.
+    fn themed_mode(self, mode: impl IntoValue<ThemeMode>) -> ThemedMode {
+        ThemedMode::new(mode, self)
+    }
 }
 
 /// A type that can create a [`WidgetInstance`] with a preallocated
@@ -806,6 +861,7 @@ struct WidgetInstanceData {
     default: bool,
     cancel: bool,
     next_focus: Value<Option<WidgetId>>,
+    enabled: Value<bool>,
     widget: Box<Mutex<dyn AnyWidget>>,
 }
 
@@ -823,6 +879,7 @@ impl WidgetInstance {
                 default: false,
                 cancel: false,
                 widget: Box::new(Mutex::new(widget)),
+                enabled: Value::Constant(true),
             }),
         }
     }
@@ -858,6 +915,23 @@ impl WidgetInstance {
         let data = Arc::get_mut(&mut self.data)
             .expect("with_next_focus can only be called on newly created widget instances");
         data.next_focus = next_focus.into_value();
+        self
+    }
+
+    /// Sets this widget to be enabled/disabled based on `enabled` and returns
+    /// self.
+    ///
+    /// If this widget is disabled, all children widgets will also be disabled.
+    ///
+    /// # Panics
+    ///
+    /// This function can only be called when one instance of the widget exists.
+    /// If any clones exist, a panic will occur.
+    #[must_use]
+    pub fn with_enabled(mut self, enabled: impl IntoValue<bool>) -> WidgetInstance {
+        let data = Arc::get_mut(&mut self.data)
+            .expect("with_enabled can only be called on newly created widget instances");
+        data.enabled = enabled.into_value();
         self
     }
 
@@ -908,13 +982,9 @@ impl WidgetInstance {
     /// Locks the widget for exclusive access. Locking widgets should only be
     /// done for brief moments of time when you are certain no deadlocks can
     /// occur due to other widget locks being held.
+    #[must_use]
     pub fn lock(&self) -> WidgetGuard<'_> {
-        WidgetGuard(
-            self.data
-                .widget
-                .lock()
-                .map_or_else(PoisonError::into_inner, |g| g),
-        )
+        WidgetGuard(self.data.widget.lock().ignore_poison())
     }
 
     /// Runs this widget instance as an application.
@@ -945,6 +1015,13 @@ impl WidgetInstance {
     #[must_use]
     pub fn is_escape(&self) -> bool {
         self.data.cancel
+    }
+
+    pub(crate) fn enabled(&self, context: &WindowHandle) -> bool {
+        if let Value::Dynamic(dynamic) = &self.data.enabled {
+            dynamic.redraw_when_changed(context.clone());
+        }
+        self.data.enabled.get()
     }
 }
 
@@ -1041,6 +1118,11 @@ impl ManagedWidget {
         self.widget.lock()
     }
 
+    /// Invalidates this widget.
+    pub fn invalidate(&self) {
+        self.tree.invalidate(self.node_id, false);
+    }
+
     pub(crate) fn set_layout(&self, rect: Rect<Px>) {
         self.tree.set_layout(self.node_id, rect);
     }
@@ -1062,6 +1144,26 @@ impl ManagedWidget {
             .and_then(|next_focus| self.tree.widget(next_focus))
     }
 
+    /// Returns the widget to focus before this widget.
+    ///
+    /// There is no direct way to set this value. This relationship is created
+    /// automatically using [`MakeWidget::with_next_focus()`].
+    #[must_use]
+    pub fn previous_focus(&self) -> Option<ManagedWidget> {
+        self.tree.previous_focus(self.id())
+    }
+
+    /// Returns the next or previous focus target, if one was set using
+    /// [`MakeWidget::with_next_focus()`].
+    #[must_use]
+    pub fn explicit_focus_target(&self, advance: bool) -> Option<ManagedWidget> {
+        if advance {
+            self.next_focus()
+        } else {
+            self.previous_focus()
+        }
+    }
+
     /// Returns the region that the widget was last rendered at.
     #[must_use]
     pub fn last_layout(&self) -> Option<Rect<Px>> {
@@ -1078,6 +1180,10 @@ impl ManagedWidget {
     #[must_use]
     pub fn active(&self) -> bool {
         self.tree.active_widget() == Some(self.node_id)
+    }
+
+    pub(crate) fn enabled(&self, handle: &WindowHandle) -> bool {
+        self.tree.is_enabled(self.node_id, handle)
     }
 
     /// Returns true if this widget is currently the hovered widget.
@@ -1130,8 +1236,12 @@ impl ManagedWidget {
         self.tree.overriden_theme(self.node_id)
     }
 
-    pub(crate) fn reset_child_layouts(&self) {
-        self.tree.reset_child_layouts(self.node_id);
+    pub(crate) fn begin_layout(&self, constraints: Size<ConstraintLimit>) -> Option<Size<UPx>> {
+        self.tree.begin_layout(self.node_id, constraints)
+    }
+
+    pub(crate) fn persist_layout(&self, constraints: Size<ConstraintLimit>, size: Size<UPx>) {
+        self.tree.persist_layout(self.node_id, constraints, size);
     }
 
     pub(crate) fn visually_ordered_children(&self, order: VisualOrder) -> Vec<ManagedWidget> {
@@ -1343,7 +1453,7 @@ impl AsRef<WidgetId> for WidgetRef {
 ///
 /// Each [`WidgetInstance`] is guaranteed to have a unique [`WidgetId`] across
 /// the lifetime of an application.
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash, Ord, PartialOrd)]
 pub struct WidgetId(u64);
 
 impl WidgetId {

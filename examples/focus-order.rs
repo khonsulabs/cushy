@@ -1,11 +1,14 @@
 use std::process::exit;
 
 use gooey::value::{Dynamic, MapEach, StringValue};
-use gooey::widget::MakeWidget;
+use gooey::widget::{MakeWidget, MakeWidgetWithId, WidgetTag};
 use gooey::widgets::Expand;
 use gooey::Run;
 use kludgine::figures::units::Lp;
 
+/// This example is the same as login, but it has an explicit tab order to
+/// change from the default order (username, password, cancel, log in) to
+/// username, password, log in, cancel.
 fn main() -> gooey::Result {
     let username = Dynamic::default();
     let password = Dynamic::default();
@@ -13,15 +16,29 @@ fn main() -> gooey::Result {
     let valid =
         (&username, &password).map_each(|(username, password)| validate(username, password));
 
+    let (login_tag, login_id) = WidgetTag::new();
+    let (cancel_tag, cancel_id) = WidgetTag::new();
+    let (username_tag, username_id) = WidgetTag::new();
+
     // TODO this should be a grid layout to ensure proper visual alignment.
     let username_row = "Username"
-        .and(username.clone().into_input().expand())
+        .and(
+            username
+                .clone()
+                .into_input()
+                .make_with_id(username_tag)
+                .expand(),
+        )
         .into_columns();
 
     let password_row = "Password"
         .and(
             // TODO secure input
-            password.clone().into_input().expand(),
+            password
+                .clone()
+                .into_input()
+                .with_next_focus(login_id)
+                .expand(),
         )
         .into_columns();
 
@@ -31,7 +48,9 @@ fn main() -> gooey::Result {
             eprintln!("Login cancelled");
             exit(0)
         })
+        .make_with_id(cancel_tag)
         .into_escape()
+        .with_next_focus(username_id)
         .and(Expand::empty())
         .and(
             "Log In"
@@ -40,8 +59,10 @@ fn main() -> gooey::Result {
                     println!("Welcome, {}", username.get());
                     exit(0);
                 })
+                .make_with_id(login_tag)
+                .with_enabled(valid)
                 .into_default()
-                .with_enabled(valid),
+                .with_next_focus(cancel_id),
         )
         .into_columns();
 

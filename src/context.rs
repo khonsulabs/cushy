@@ -1,9 +1,11 @@
 //! Types that provide access to the Gooey runtime.
 use std::borrow::Cow;
+use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
 
+use kempt::Set;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
@@ -13,12 +15,13 @@ use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
 use crate::graphics::Graphics;
-use crate::styles::components::{HighlightColor, WidgetBackground};
-use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair, VisualOrder};
+use crate::styles::components::{HighlightColor, LayoutOrder, WidgetBackground};
+use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
+use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
 use crate::window::sealed::WindowCommand;
-use crate::window::{RunningWindow, ThemeMode};
+use crate::window::{CursorState, RunningWindow, ThemeMode};
 use crate::ConstraintLimit;
 
 /// A context to an event function.
@@ -182,7 +185,10 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
         let mut activation_changes = 0;
         while activation_changes < MAX_ITERS {
-            let active = self.pending_state.active.clone();
+            let active = self
+                .pending_state
+                .active
+                .and_then(|w| self.current_node.tree.widget(w));
             if self.current_node.tree.active_widget() == active.as_ref().map(|w| w.node_id) {
                 break;
             }
@@ -199,13 +205,16 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 Err(()) => false,
             };
             if new {
-                if let Some(active) = self.pending_state.active.clone() {
+                let active = self
+                    .pending_state
+                    .active
+                    .and_then(|w| self.current_node.tree.widget(w));
+                if let Some(active) = &active {
                     active
                         .lock()
                         .as_widget()
-                        .activate(&mut self.for_other(&active));
+                        .activate(&mut self.for_other(active));
                 }
-                self.pending_state.active = active;
             } else {
                 break;
             }
@@ -219,30 +228,36 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
         let mut focus_changes = 0;
         while focus_changes < MAX_ITERS {
-            let focus = self.pending_state.focus.clone();
+            let focus = match self
+                .pending_state
+                .focus
+                .and_then(|w| self.current_node.tree.widget(w))
+            {
+                Some(focus) => self.for_other(&focus).enabled().then_some(focus),
+                None => None,
+            };
             if self.current_node.tree.focused_widget() == focus.as_ref().map(|w| w.node_id) {
                 break;
             }
             focus_changes += 1;
 
             self.pending_state.focus = focus.and_then(|mut focus| loop {
-                if focus
-                    .lock()
-                    .as_widget()
-                    .accept_focus(&mut self.for_other(&focus))
+                let mut focus_context = self.for_other(&focus);
+                let accept_focus = focus_context.enabled()
+                    && focus.lock().as_widget().accept_focus(&mut focus_context);
+                drop(focus_context);
+
+                if accept_focus {
+                    break Some(focus.id());
+                } else if let Some(next_focus) =
+                    focus.explicit_focus_target(self.pending_state.focus_is_advancing)
                 {
-                    break Some(focus);
-                } else if let Some(next_focus) = focus.next_focus() {
                     focus = next_focus;
                 } else {
-                    break self.next_focus_after(focus, VisualOrder::left_to_right());
+                    break self.next_focus_after(focus, self.pending_state.focus_is_advancing);
                 }
             });
-            let new = match self
-                .current_node
-                .tree
-                .focus(self.pending_state.focus.as_ref())
-            {
+            let new = match self.current_node.tree.focus(self.pending_state.focus) {
                 Ok(old) => {
                     if let Some(old) = old {
                         let mut old_context = self.for_other(&old);
@@ -253,7 +268,11 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 Err(()) => false,
             };
             if new {
-                if let Some(focus) = self.pending_state.focus.clone() {
+                if let Some(focus) = self
+                    .pending_state
+                    .focus
+                    .and_then(|w| self.current_node.tree.widget(w))
+                {
                     focus.lock().as_widget().focus(&mut self.for_other(&focus));
                 }
             } else {
@@ -264,22 +283,49 @@ impl<'context, 'window> EventContext<'context, 'window> {
         if focus_changes == MAX_ITERS {
             tracing::error!("focus change force stopped after {focus_changes} sequential changes");
         }
+
+        // Check that our hover widget still exists. If not, we should try to find a new one.
+        if let Some(hover) = self.current_node.tree.hovered_widget() {
+            if self.current_node.tree.widget_from_node(hover).is_none() {
+                self.update_hovered_widget();
+            }
+        }
     }
 
-    fn next_focus_after(
-        &mut self,
-        mut focus: ManagedWidget,
-        order: VisualOrder,
-    ) -> Option<ManagedWidget> {
+    pub(crate) fn update_hovered_widget(&mut self) {
+        self.cursor.widget = None;
+        if let Some(location) = self.cursor.location {
+            for widget in self.current_node.tree.widgets_under_point(location) {
+                let mut widget_context = self.for_other(&widget);
+                let Some(widget_layout) = widget_context.last_layout() else {
+                    continue;
+                };
+                let relative = location - widget_layout.origin;
+
+                if widget_context.hit_test(relative) {
+                    widget_context.hover(relative);
+                    drop(widget_context);
+                    self.cursor.widget = Some(widget.id());
+                    break;
+                }
+            }
+        }
+
+        if self.cursor.widget.is_none() {
+            self.clear_hover();
+        }
+    }
+
+    fn next_focus_after(&mut self, mut focus: ManagedWidget, advance: bool) -> Option<WidgetId> {
         // First, look within the current focus for any focusable children.
         let stop_at = focus.id();
-        if let Some(focus) = self.next_focus_within(&focus, None, stop_at, order) {
+        if let Some(focus) = self.next_focus_within(&focus, None, stop_at, advance) {
             return Some(focus);
         }
 
         // Now, look for the next widget in each hierarchy
         let root = loop {
-            if let Some(focus) = self.next_focus_sibling(&focus, stop_at, order) {
+            if let Some(focus) = self.next_focus_sibling(&focus, stop_at, advance) {
                 return Some(focus);
             }
             let Some(parent) = focus.parent() else {
@@ -290,16 +336,16 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
         // We've exhausted a forward scan, we can now start searching the final
         // parent, which is the root.
-        self.next_focus_within(&root, None, stop_at, order)
+        self.next_focus_within(&root, None, stop_at, advance)
     }
 
     fn next_focus_sibling(
         &mut self,
         focus: &ManagedWidget,
         stop_at: WidgetId,
-        order: VisualOrder,
-    ) -> Option<ManagedWidget> {
-        self.next_focus_within(&focus.parent()?, Some(focus.id()), stop_at, order)
+        advance: bool,
+    ) -> Option<WidgetId> {
+        self.next_focus_within(&focus.parent()?, Some(focus.id()), stop_at, advance)
     }
 
     /// Searches for the next focus inside of `focus`, returning `None` if
@@ -310,10 +356,14 @@ impl<'context, 'window> EventContext<'context, 'window> {
         focus: &ManagedWidget,
         start_at: Option<WidgetId>,
         stop_at: WidgetId,
-        order: VisualOrder,
-    ) -> Option<ManagedWidget> {
+        advance: bool,
+    ) -> Option<WidgetId> {
+        let mut visual_order = self.get(&LayoutOrder);
+        if !advance {
+            visual_order = visual_order.rev();
+        }
         let mut children = focus
-            .visually_ordered_children(order)
+            .visually_ordered_children(visual_order)
             .into_iter()
             .peekable();
         if let Some(start_at) = start_at {
@@ -331,13 +381,15 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 break;
             }
 
-            if child
-                .lock()
-                .as_widget()
-                .accept_focus(&mut self.for_other(&child))
-            {
-                return Some(child);
-            } else if let Some(focus) = self.next_focus_within(&child, None, stop_at, order) {
+            let mut child_context = self.for_other(&child);
+            let accept_focus = child_context.enabled()
+                && child.lock().as_widget().accept_focus(&mut child_context);
+            drop(child_context);
+            if accept_focus {
+                return Some(child.id());
+            } else if let Some(next_focus) = self.widget().explicit_focus_target(advance) {
+                return Some(next_focus.id());
+            } else if let Some(focus) = self.next_focus_within(&child, None, stop_at, advance) {
                 return Some(focus);
             }
         }
@@ -345,14 +397,31 @@ impl<'context, 'window> EventContext<'context, 'window> {
         None
     }
 
-    /// Advances the focus from this widget to the next widget in `direction`.
+    /// Advances the focus to the next widget after this widget in the
+    /// configured focus order.
     ///
-    /// This widget does not need to be focused.
-    pub fn advance_focus(&mut self, direction: VisualOrder) {
-        // TODO check to see if the current node has an explicit next_focus (or
-        // if we're going in the opposite direction, previous_focus).
+    /// To focus in the reverse order, use [`EventContext::return_focus()`].
+    pub fn advance_focus(&mut self) {
+        self.move_focus(true);
+    }
 
-        self.pending_state.focus = self.next_focus_after(self.current_node.clone(), direction);
+    /// Returns the focus to the previous widget before this widget in the
+    /// configured fous order.
+    ///
+    /// To focus in the forward order, use [`EventContext::advance_focus()`].
+    pub fn return_focus(&mut self) {
+        self.move_focus(false);
+    }
+
+    fn move_focus(&mut self, advance: bool) {
+        if let Some(explicit_next_focus) = self.current_node.explicit_focus_target(advance) {
+            self.for_other(&explicit_next_focus).focus();
+        } else {
+            self.pending_state.focus = self.next_focus_after(self.current_node.clone(), advance);
+        }
+        // It is important to set focus-is_advancing after `focus()` because it
+        // sets it to `true` explicitly.
+        self.pending_state.focus_is_advancing = advance;
     }
 }
 
@@ -453,7 +522,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// Strokes an outline around this widget's contents.
     pub fn stroke_outline<Unit>(&mut self, color: Color, options: StrokeOptions<Unit>)
     where
-        Unit: ScreenScale<Px = Px, Lp = Lp>,
+        Unit: ScreenScale<Px = Px, Lp = Lp, UPx = UPx>,
     {
         let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
         let focus_ring =
@@ -572,14 +641,23 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'cl
     /// context's widget and returns the result.
     pub fn layout(&mut self, available_space: Size<ConstraintLimit>) -> Size<UPx> {
         if self.persist_layout {
-            self.graphics.current_node.reset_child_layouts();
+            if let Some(cached) = self.graphics.current_node.begin_layout(available_space) {
+                return cached;
+            }
         }
-        self.graphics
+        let result = self
+            .graphics
             .current_node
             .clone()
             .lock()
             .as_widget()
-            .layout(available_space, self)
+            .layout(available_space, self);
+        if self.persist_layout {
+            self.graphics
+                .current_node
+                .persist_layout(available_space, result);
+        }
+        result
     }
 
     /// Sets the layout for `child` to `layout`.
@@ -664,38 +742,49 @@ impl<'window> AsEventContext<'window> for GraphicsContext<'_, 'window, '_, '_, '
 /// specific widget.
 pub struct WidgetContext<'context, 'window> {
     current_node: ManagedWidget,
-    redraw_status: &'context RedrawStatus,
+    redraw_status: &'context InvalidationStatus,
     window: &'context mut RunningWindow<'window>,
     theme: Cow<'context, ThemePair>,
+    cursor: &'context mut CursorState,
     pending_state: PendingState<'context>,
-    theme_mode: ThemeMode,
     effective_styles: Styles,
+    cache: WidgetCacheKey,
 }
 
 impl<'context, 'window> WidgetContext<'context, 'window> {
     pub(crate) fn new(
         current_node: ManagedWidget,
-        redraw_status: &'context RedrawStatus,
+        redraw_status: &'context InvalidationStatus,
         theme: &'context ThemePair,
         window: &'context mut RunningWindow<'window>,
         theme_mode: ThemeMode,
+        cursor: &'context mut CursorState,
     ) -> Self {
+        let enabled = current_node.enabled(&WindowHandle {
+            kludgine: window.handle(),
+            redraw_status: redraw_status.clone(),
+        });
         Self {
             pending_state: PendingState::Owned(PendingWidgetState {
                 focus: current_node
                     .tree
                     .focused_widget()
-                    .and_then(|id| current_node.tree.widget_from_node(id)),
+                    .and_then(|id| current_node.tree.widget_from_node(id).map(|w| w.id())),
                 active: current_node
                     .tree
                     .active_widget()
-                    .and_then(|id| current_node.tree.widget_from_node(id)),
+                    .and_then(|id| current_node.tree.widget_from_node(id).map(|w| w.id())),
+                focus_is_advancing: false,
             }),
             effective_styles: current_node.effective_styles(),
+            cache: WidgetCacheKey {
+                theme_mode,
+                enabled,
+            },
+            cursor,
             current_node,
             redraw_status,
             theme: Cow::Borrowed(theme),
-            theme_mode,
             window,
         }
     }
@@ -708,8 +797,9 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             window: &mut *self.window,
             theme: Cow::Borrowed(self.theme.as_ref()),
             pending_state: self.pending_state.borrowed(),
-            theme_mode: self.theme_mode,
+            cache: self.cache,
             effective_styles: self.effective_styles.clone(),
+            cursor: &mut *self.cursor,
         }
     }
 
@@ -732,18 +822,28 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             let theme_mode = if let Some(mode) = theme_mode {
                 mode.get_tracked(self)
             } else {
-                self.theme_mode
+                self.cache.theme_mode
             };
             WidgetContext {
                 effective_styles,
+                cache: WidgetCacheKey {
+                    theme_mode,
+                    enabled: current_node.enabled(&self.handle()),
+                },
                 current_node,
                 redraw_status: self.redraw_status,
                 window: &mut *self.window,
                 theme,
                 pending_state: self.pending_state.borrowed(),
-                theme_mode,
+                cursor: &mut *self.cursor,
             }
         })
+    }
+
+    /// Returns true if this widget is enabled.
+    #[must_use]
+    pub const fn enabled(&self) -> bool {
+        self.cache.enabled
     }
 
     pub(crate) fn parent(&self) -> Option<ManagedWidget> {
@@ -753,6 +853,11 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Ensures that this widget will be redrawn when `value` has been updated.
     pub fn redraw_when_changed<T>(&self, value: &Dynamic<T>) {
         value.redraw_when_changed(self.handle());
+    }
+
+    /// Ensures that this widget will be redrawn when `value` has been updated.
+    pub fn invalidate_when_changed<T>(&self, value: &Dynamic<T>) {
+        value.invalidate_when_changed(self.handle(), self.current_node.id());
     }
 
     /// Returns the last layout of this widget.
@@ -766,7 +871,8 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Widget events relating to focus changes are deferred until after the all
     /// contexts for the currently firing event are dropped.
     pub fn focus(&mut self) {
-        self.pending_state.focus = Some(self.current_node.clone());
+        self.pending_state.focus_is_advancing = true;
+        self.pending_state.focus = Some(self.current_node.id());
     }
 
     pub(crate) fn clear_focus(&mut self) {
@@ -796,16 +902,11 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Widget events relating to activation changes are deferred until after
     /// the all contexts for the currently firing event are dropped.
     pub fn activate(&mut self) -> bool {
-        if self
-            .pending_state
-            .active
-            .as_ref()
-            .map_or(true, |active| active != &self.current_node)
-        {
-            self.pending_state.active = Some(self.current_node.clone());
-            true
-        } else {
+        if self.pending_state.active == Some(self.current_node.id()) {
             false
+        } else {
+            self.pending_state.active = Some(self.current_node.id());
+            true
         }
     }
 
@@ -832,7 +933,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns true if this widget is currently the active widget.
     #[must_use]
     pub fn active(&self) -> bool {
-        self.pending_state.active.as_ref() == Some(&self.current_node)
+        self.pending_state.active == Some(self.current_node.id())
     }
 
     /// Returns true if this widget is currently hovered, even if the cursor is
@@ -851,7 +952,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns true if this widget is currently focused for user input.
     #[must_use]
     pub fn focused(&self) -> bool {
-        self.pending_state.focus.as_ref() == Some(&self.current_node)
+        self.pending_state.focus == Some(self.current_node.id())
     }
 
     /// Returns true if this widget is the target to activate when the user
@@ -945,7 +1046,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns the current theme in either light or dark mode.
     #[must_use]
     pub fn theme(&self) -> &Theme {
-        match self.theme_mode {
+        match self.cache.theme_mode {
             ThemeMode::Light => &self.theme.light,
             ThemeMode::Dark => &self.theme.dark,
         }
@@ -954,22 +1055,53 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Returns the opposite theme of [`Self::theme()`].
     #[must_use]
     pub fn inverse_theme(&self) -> &Theme {
-        match self.theme_mode {
+        match self.cache.theme_mode {
             ThemeMode::Light => &self.theme.dark,
             ThemeMode::Dark => &self.theme.light,
         }
     }
+
+    /// Returns a key that can be checked to see if a widget should invalidate
+    /// caches it stores.
+    #[must_use]
+    pub fn cache_key(&self) -> WidgetCacheKey {
+        self.cache
+    }
 }
 
+#[derive(Clone)]
 pub(crate) struct WindowHandle {
     kludgine: kludgine::app::WindowHandle<WindowCommand>,
-    redraw_status: RedrawStatus,
+    redraw_status: InvalidationStatus,
+}
+
+impl Eq for WindowHandle {}
+
+impl PartialEq for WindowHandle {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(
+            &self.redraw_status.invalidated,
+            &other.redraw_status.invalidated,
+        )
+    }
+}
+
+impl Hash for WindowHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.redraw_status.invalidated).hash(state);
+    }
 }
 
 impl WindowHandle {
     pub fn redraw(&self) {
         if self.redraw_status.should_send_refresh() {
             let _result = self.kludgine.send(WindowCommand::Redraw);
+        }
+    }
+
+    pub fn invalidate(&self, widget: WidgetId) {
+        if self.redraw_status.invalidate(widget) {
+            self.redraw();
         }
     }
 }
@@ -1005,8 +1137,9 @@ enum PendingState<'a> {
 
 #[derive(Default)]
 struct PendingWidgetState {
-    focus: Option<ManagedWidget>,
-    active: Option<ManagedWidget>,
+    focus_is_advancing: bool,
+    focus: Option<WidgetId>,
+    active: Option<WidgetId>,
 }
 
 impl PendingState<'_> {
@@ -1036,11 +1169,12 @@ impl DerefMut for PendingState<'_> {
 }
 
 #[derive(Default, Clone)]
-pub(crate) struct RedrawStatus {
+pub(crate) struct InvalidationStatus {
     refresh_sent: Arc<AtomicBool>,
+    invalidated: Arc<Mutex<Set<WidgetId>>>,
 }
 
-impl RedrawStatus {
+impl InvalidationStatus {
     pub fn should_send_refresh(&self) -> bool {
         self.refresh_sent
             .compare_exchange(false, true, Ordering::Release, Ordering::Acquire)
@@ -1049,6 +1183,15 @@ impl RedrawStatus {
 
     pub fn refresh_received(&self) {
         self.refresh_sent.store(false, Ordering::Release);
+    }
+
+    pub fn invalidate(&self, widget: WidgetId) -> bool {
+        let mut invalidated = self.invalidated.lock().ignore_poison();
+        invalidated.insert(widget)
+    }
+
+    pub fn invalidations(&self) -> MutexGuard<'_, Set<WidgetId>> {
+        self.invalidated.lock().ignore_poison()
     }
 }
 
@@ -1111,5 +1254,24 @@ impl<T> MapManagedWidget<T> for ManagedWidget {
 
     fn map(self, map: impl FnOnce(ManagedWidget) -> T) -> Self::Result {
         map(self)
+    }
+}
+
+/// An type that contains information about the state of a widget.
+///
+/// This value can be stored and compared in future widget events. If the cache
+/// keys are not equal, the widget should clear all caches.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct WidgetCacheKey {
+    theme_mode: ThemeMode,
+    enabled: bool,
+}
+
+impl Default for WidgetCacheKey {
+    fn default() -> Self {
+        Self {
+            theme_mode: ThemeMode::default().inverse(),
+            enabled: false,
+        }
     }
 }

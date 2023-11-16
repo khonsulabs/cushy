@@ -25,6 +25,8 @@ tracing-subscriber = { version = "0.3", optional = true, features = [
 palette = "0.7.3"
 ahash = "0.8.6"
 gooey-macros = { version = "0.1.0", path = "gooey-macros" }
+derive_more = { version = "1.0.0-beta.6", features = ["from"] }
+arboard = "3.2.1"
 
 
 # [patch."https://github.com/khonsulabs/kludgine"]

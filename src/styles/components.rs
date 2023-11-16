@@ -96,6 +96,8 @@ define_components! {
         SurfaceColor(Color, "surface_color", .surface.color)
         /// The [`Color`] to use when rendering text.
         TextColor(Color, "text_color", .surface.on_color)
+        /// The [`Color`] to use when rendering text in a more subdued tone.
+        TextColorVariant(Color, "text_color_variant", .surface.on_color_variant)
         /// A [`Color`] to be used as a highlight color.
         HighlightColor(Color,"highlight_color",.primary.color.with_alpha(128))
         /// Intrinsic, uniform padding for a widget.
@@ -122,6 +124,8 @@ define_components! {
         AutoFocusableControls(FocusableWidgets, "focus", FocusableWidgets::default())
         /// A [`Color`] to be used as the background color of a widget.
         WidgetBackground(Color, "widget_backgrond_color", Color::CLEAR_WHITE)
+        /// A [`Color`] to be used to accent a widget.
+        WidgetAccentColor(Color, "widget_accent_color", .primary.color)
         /// A [`Color`] to be used as an outline color.
         OutlineColor(Color, "outline_color", .surface.outline)
         /// A [`Color`] to be used as an outline color.

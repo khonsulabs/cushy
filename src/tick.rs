@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use kludgine::app::winit::event::KeyEvent;
@@ -9,6 +9,7 @@ use kludgine::figures::Point;
 use kludgine::figures::units::Px;
 
 use crate::context::WidgetContext;
+use crate::utils::IgnorePoison;
 use crate::value::Dynamic;
 use crate::widget::{EventHandling, HANDLED, IGNORED};
 
@@ -138,9 +139,7 @@ struct TickData {
 
 impl TickData {
     fn state(&self) -> MutexGuard<'_, TickState> {
-        self.state
-            .lock()
-            .map_or_else(PoisonError::into_inner, |g| g)
+        self.state.lock().ignore_poison()
     }
 }
 
@@ -189,10 +188,7 @@ where
         while state.keep_running {
             let current_frame = data.rendered_frame.load(Ordering::Acquire);
             if state.frame == current_frame {
-                state = data
-                    .sync
-                    .wait(state)
-                    .map_or_else(PoisonError::into_inner, |g| g);
+                state = data.sync.wait(state).ignore_poison();
             } else {
                 break;
             }

@@ -1,5 +1,4 @@
-use kludgine::figures::units::UPx;
-use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, ScreenScale, Size};
+use kludgine::figures::{Fraction, IntoSigned, ScreenScale, Size};
 
 use crate::context::{AsEventContext, LayoutContext};
 use crate::styles::DimensionRange;
@@ -48,9 +47,12 @@ impl Resize {
 
     /// Resizes `self` to `width`.
     ///
-    /// `width` can be an individual
-    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
-    /// range.
+    /// `width` can be an any of:
+    ///
+    /// - [`Dimension`](crate::styles::Dimension)
+    /// - [`Px`](crate::kludgine::figures::units::Px)
+    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - A range of any fo the above.
     #[must_use]
     pub fn width(mut self, width: impl Into<DimensionRange>) -> Self {
         self.width = width.into();
@@ -59,9 +61,12 @@ impl Resize {
 
     /// Resizes `self` to `height`.
     ///
-    /// `width` can be an individual
-    /// [`Dimension`]/[`Px`]/[`Lp`](crate::kludgine::figures::units::Lp) or a
-    /// range.
+    /// `height` can be an any of:
+    ///
+    /// - [`Dimension`](crate::styles::Dimension)
+    /// - [`Px`](crate::kludgine::figures::units::Px)
+    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - A range of any fo the above.
     #[must_use]
     pub fn height(mut self, height: impl Into<DimensionRange>) -> Self {
         self.height = height.into();
@@ -94,8 +99,8 @@ impl WrapperWidget for Resize {
             (self.width.exact_dimension(), self.height.exact_dimension())
         {
             Size::new(
-                width.into_px(context.gfx.scale()).into_unsigned(),
-                height.into_px(context.gfx.scale()).into_unsigned(),
+                width.into_upx(context.gfx.scale()),
+                height.into_upx(context.gfx.scale()),
             )
         } else {
             let available_space = Size::new(
@@ -104,7 +109,7 @@ impl WrapperWidget for Resize {
             );
             context.for_other(&child).layout(available_space)
         };
-        Size::<UPx>::new(
+        Size::new(
             self.width.clamp(size.width, context.gfx.scale()),
             self.height.clamp(size.height, context.gfx.scale()),
         )
@@ -121,9 +126,7 @@ fn override_constraint(
     match constraint {
         ConstraintLimit::Known(size) => ConstraintLimit::Known(range.clamp(size, scale)),
         ConstraintLimit::ClippedAfter(clipped_after) => match (range.minimum(), range.maximum()) {
-            (Some(min), Some(max)) if min == max => {
-                ConstraintLimit::Known(min.into_px(scale).into_unsigned())
-            }
+            (Some(min), Some(max)) if min == max => ConstraintLimit::Known(min.into_upx(scale)),
             _ => ConstraintLimit::ClippedAfter(range.clamp(clipped_after, scale)),
         },
     }

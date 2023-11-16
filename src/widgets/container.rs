@@ -6,7 +6,7 @@ use kludgine::Color;
 
 use crate::context::{GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{IntrinsicPadding, SurfaceColor};
-use crate::styles::{Component, ContainerLevel, Dimension, Edges, Styles};
+use crate::styles::{Component, ContainerLevel, Dimension, Edges, RequireInvalidation, Styles};
 use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
@@ -193,11 +193,7 @@ impl WrapperWidget for Container {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<ConstraintLimit> {
-        let padding_amount = self
-            .padding(context)
-            .size()
-            .into_px(context.gfx.scale())
-            .into_unsigned();
+        let padding_amount = self.padding(context).size().into_upx(context.gfx.scale());
         Size::new(
             available_space.width - padding_amount.width,
             available_space.height - padding_amount.height,
@@ -247,6 +243,12 @@ impl From<EffectiveBackground> for Component {
             EffectiveBackground::Level(level) => Self::ContainerLevel(level),
             EffectiveBackground::Color(color) => Self::Color(color),
         }
+    }
+}
+
+impl RequireInvalidation for EffectiveBackground {
+    fn requires_invalidation(&self) -> bool {
+        false
     }
 }
 

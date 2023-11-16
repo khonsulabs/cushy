@@ -1,13 +1,13 @@
 //! A read-only text widget.
 
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoUnsigned, Point, ScreenScale, Size};
+use kludgine::figures::{Point, ScreenScale, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::Color;
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{IntrinsicPadding, TextColor};
-use crate::value::{Dynamic, IntoValue, Value};
+use crate::value::{Dynamic, Generation, IntoValue, Value};
 use crate::widget::{MakeWidget, Widget, WidgetInstance};
 use crate::ConstraintLimit;
 
@@ -16,7 +16,7 @@ use crate::ConstraintLimit;
 pub struct Label {
     /// The contents of the label.
     pub text: Value<String>,
-    prepared_text: Option<(MeasuredText<Px>, Px, Color)>,
+    prepared_text: Option<(MeasuredText<Px>, Option<Generation>, Px, Color)>,
 }
 
 impl Label {
@@ -34,29 +34,34 @@ impl Label {
         color: Color,
         width: Px,
     ) -> &MeasuredText<Px> {
+        let check_generation = self.text.generation();
         match &self.prepared_text {
-            Some((_, prepared_width, prepared_color))
-                if *prepared_color == color && *prepared_width == width => {}
+            Some((prepared, prepared_generation, prepared_width, prepared_color))
+                if *prepared_generation == check_generation
+                    && *prepared_color == color
+                    && (*prepared_width == width
+                        || (*prepared_width < width
+                            && prepared.line_height == prepared.size.height)) => {}
             _ => {
                 let measured = self.text.map(|text| {
                     context
                         .gfx
                         .measure_text(Text::new(text, color).wrap_at(width))
                 });
-                self.prepared_text = Some((measured, width, color));
+                self.prepared_text = Some((measured, check_generation, width, color));
             }
         }
 
         self.prepared_text
             .as_ref()
-            .map(|(prepared, _, _)| prepared)
+            .map(|(prepared, _, _, _)| prepared)
             .expect("always initialized")
     }
 }
 
 impl Widget for Label {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        self.text.redraw_when_changed(context);
+        self.text.invalidate_when_changed(context);
 
         let size = context.gfx.region().size;
         let center = Point::from(size) / 2;
@@ -74,10 +79,7 @@ impl Widget for Label {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let padding = context
-            .get(&IntrinsicPadding)
-            .into_px(context.gfx.scale())
-            .into_unsigned();
+        let padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
         let color = context.get(&TextColor);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width);
