@@ -6,7 +6,7 @@ mod canvas;
 pub mod checkbox;
 pub mod container;
 mod expand;
-mod input;
+pub mod input;
 pub mod label;
 mod mode_switch;
 mod resize;

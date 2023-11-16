@@ -3,8 +3,9 @@ use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{
     ColorScheme, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair,
 };
-use gooey::value::{Dynamic, MapEach, StringValue};
+use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
+use gooey::widgets::input::InputValue;
 use gooey::widgets::slider::Slidable;
 use gooey::widgets::{Slider, Stack};
 use gooey::window::ThemeMode;

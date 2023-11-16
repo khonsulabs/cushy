@@ -1,5 +1,6 @@
-use gooey::value::{Dynamic, StringValue};
+use gooey::value::Dynamic;
 use gooey::widget::{MakeWidget, HANDLED, IGNORED};
+use gooey::widgets::input::InputValue;
 use gooey::widgets::Space;
 use gooey::Run;
 use kludgine::app::winit::event::ElementState;

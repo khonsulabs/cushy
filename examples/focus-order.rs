@@ -1,7 +1,8 @@
 use std::process::exit;
 
-use gooey::value::{Dynamic, MapEach, StringValue};
+use gooey::value::{Dynamic, MapEach};
 use gooey::widget::{MakeWidget, MakeWidgetWithId, WidgetTag};
+use gooey::widgets::input::{InputValue, MaskedString};
 use gooey::widgets::Expand;
 use gooey::Run;
 use kludgine::figures::units::Lp;
@@ -33,7 +34,6 @@ fn main() -> gooey::Result {
 
     let password_row = "Password"
         .and(
-            // TODO secure input
             password
                 .clone()
                 .into_input()
@@ -79,6 +79,6 @@ fn main() -> gooey::Result {
         .run()
 }
 
-fn validate(username: &String, password: &String) -> bool {
+fn validate(username: &String, password: &MaskedString) -> bool {
     !username.is_empty() && !password.is_empty()
 }

@@ -1,6 +1,7 @@
 use gooey::animation::{LinearInterpolate, PercentBetween};
-use gooey::value::{Dynamic, StringValue};
+use gooey::value::Dynamic;
 use gooey::widget::MakeWidget;
+use gooey::widgets::input::InputValue;
 use gooey::widgets::slider::Slidable;
 use gooey::Run;
 use kludgine::figures::units::Lp;

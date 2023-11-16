@@ -831,6 +831,8 @@ dependencies = [
  "pollster",
  "tracing",
  "tracing-subscriber",
+ "unicode-segmentation",
+ "zeroize",
 ]
 
 [[package]]
@@ -1087,7 +1089,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/kludgine#c0135da62309896fab58a2f5b517c32cde151fb3"
+source = "git+https://github.com/khonsulabs/kludgine#220df4ed07fcf86459a34591a7923d7ddb25e67e"
 dependencies = [
  "ahash",
  "alot",
@@ -1101,6 +1103,7 @@ dependencies = [
  "lyon_tessellation",
  "pollster",
  "smallvec",
+ "unicode-bidi",
  "wgpu",
 ]
 
@@ -3152,3 +3155,9 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "zeroize"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "525b4ec142c6b68a2d10f01f7bbf6755599ca3f81ea53b8431b7dd348f5fdb2d"

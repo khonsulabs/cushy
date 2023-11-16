@@ -17,7 +17,7 @@ use crate::animation::{DynamicTransition, LinearInterpolate};
 use crate::context::{WidgetContext, WindowHandle};
 use crate::utils::{IgnorePoison, WithClone};
 use crate::widget::{WidgetId, WidgetInstance};
-use crate::widgets::{Input, Switcher};
+use crate::widgets::Switcher;
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -501,6 +501,18 @@ impl<T> Drop for Dynamic<T> {
 impl<T> From<Dynamic<T>> for DynamicReader<T> {
     fn from(value: Dynamic<T>) -> Self {
         value.create_reader()
+    }
+}
+
+impl From<&str> for Dynamic<String> {
+    fn from(value: &str) -> Self {
+        Dynamic::from(value.to_string())
+    }
+}
+
+impl From<String> for Dynamic<String> {
+    fn from(value: String) -> Self {
+        Dynamic::new(value)
     }
 }
 
@@ -1384,13 +1396,3 @@ macro_rules! impl_tuple_map_each {
 }
 
 impl_all_tuples!(impl_tuple_map_each);
-
-/// A type that can be converted into a [`Value<String>`].
-pub trait StringValue: IntoValue<String> + Sized {
-    /// Returns this string as a text input widget.
-    fn into_input(self) -> Input {
-        Input::new(self.into_value())
-    }
-}
-
-impl<T> StringValue for T where T: IntoValue<String> {}
