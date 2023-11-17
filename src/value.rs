@@ -4,9 +4,8 @@ use std::cell::Cell;
 use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
-use std::panic::AssertUnwindSafe;
 use std::str::FromStr;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError};
+use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
 
@@ -15,7 +14,7 @@ use intentional::Assert;
 
 use crate::animation::{DynamicTransition, LinearInterpolate};
 use crate::context::{WidgetContext, WindowHandle};
-use crate::utils::{IgnorePoison, WithClone};
+use crate::utils::{IgnorePoison, UnwindsafeCondvar, WithClone};
 use crate::widget::{WidgetId, WidgetInstance};
 use crate::widgets::Switcher;
 
@@ -40,7 +39,7 @@ impl<T> Dynamic<T> {
                 widgets: AHashSet::new(),
             }),
             during_callback_state: Mutex::default(),
-            sync: AssertUnwindSafe(Condvar::new()),
+            sync: UnwindsafeCondvar::default(),
         }))
     }
 
@@ -553,10 +552,7 @@ struct LockState {
 struct DynamicData<T> {
     state: Mutex<State<T>>,
     during_callback_state: Mutex<Option<LockState>>,
-
-    // The AssertUnwindSafe is only needed on Mac. For some reason on
-    // Mac OS, Condvar isn't RefUnwindSafe.
-    sync: AssertUnwindSafe<Condvar>,
+    sync: UnwindsafeCondvar,
 }
 
 impl<T> DynamicData<T> {

@@ -44,7 +44,7 @@ use std::fmt::{Debug, Display};
 use std::ops::{ControlFlow, Deref, Div, Mul};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::str::FromStr;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -57,11 +57,11 @@ use kludgine::Color;
 
 use crate::animation::easings::Linear;
 use crate::styles::{Component, RequireInvalidation};
-use crate::utils::IgnorePoison;
+use crate::utils::{IgnorePoison, UnwindsafeCondvar};
 use crate::value::Dynamic;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
-static NEW_ANIMATIONS: Condvar = Condvar::new();
+static NEW_ANIMATIONS: UnwindsafeCondvar = UnwindsafeCondvar::new();
 
 fn thread_state() -> MutexGuard<'static, Animating> {
     static THREAD: OnceLock<()> = OnceLock::new();
