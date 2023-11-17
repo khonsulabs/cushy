@@ -141,15 +141,15 @@ impl FrameInfo {
             // into ClippedAfter mode to make the widget attempt to size the
             // content to fit.
             (Some(one), None) | (None, Some(one)) => {
-                ConstraintLimit::ClippedAfter(available.max() - one)
+                ConstraintLimit::SizeToFit(available.max() - one)
             }
-            (None, None) => ConstraintLimit::ClippedAfter(available.max()),
+            (None, None) => ConstraintLimit::SizeToFit(available.max()),
         }
     }
 
     fn measure(&self, available: ConstraintLimit, content: UPx) -> (UPx, UPx, UPx) {
         match available {
-            ConstraintLimit::Known(size) => {
+            ConstraintLimit::Fill(size) => {
                 let remaining = size.saturating_sub(content);
                 let (a, b) = match (self.a, self.b) {
                     (Some(a), Some(b)) => (a, b),
@@ -164,7 +164,7 @@ impl FrameInfo {
 
                 (a, b, size - a - b)
             }
-            ConstraintLimit::ClippedAfter(_) => (
+            ConstraintLimit::SizeToFit(_) => (
                 self.a.unwrap_or_default(),
                 self.b.unwrap_or_default(),
                 content,

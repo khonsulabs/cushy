@@ -124,10 +124,10 @@ fn override_constraint(
     scale: Fraction,
 ) -> ConstraintLimit {
     match constraint {
-        ConstraintLimit::Known(size) => ConstraintLimit::Known(range.clamp(size, scale)),
-        ConstraintLimit::ClippedAfter(clipped_after) => match (range.minimum(), range.maximum()) {
-            (Some(min), Some(max)) if min == max => ConstraintLimit::Known(min.into_upx(scale)),
-            _ => ConstraintLimit::ClippedAfter(range.clamp(clipped_after, scale)),
+        ConstraintLimit::Fill(size) => ConstraintLimit::Fill(range.clamp(size, scale)),
+        ConstraintLimit::SizeToFit(clipped_after) => match (range.minimum(), range.maximum()) {
+            (Some(min), Some(max)) if min == max => ConstraintLimit::Fill(min.into_upx(scale)),
+            _ => ConstraintLimit::SizeToFit(range.clamp(clipped_after, scale)),
         },
     }
 }

@@ -369,9 +369,7 @@ impl Widget for Button {
                     color,
                     two_lp_stroke,
                 );
-                context
-                    .gfx
-                    .draw_shape(&focus_ring, Point::default(), None, None);
+                context.gfx.draw_shape(&focus_ring);
             } else if context.is_default() {
                 context.stroke_outline(context.get(&OutlineColor), two_lp_stroke);
             } else {

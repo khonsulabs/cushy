@@ -15,16 +15,18 @@ fn main() -> gooey::Result {
         (&username, &password).map_each(|(username, password)| validate(username, password));
 
     // TODO this should be a grid layout to ensure proper visual alignment.
-    let username_row = "Username"
-        .and(username.clone().into_input().expand())
-        .into_columns();
+    let username_field = "Username"
+        .align_left()
+        .and(username.clone().into_input())
+        .into_rows();
 
-    let password_row = "Password"
+    let password_field = "Password"
+        .align_left()
         .and(
             // TODO secure input
-            password.clone().into_input().expand(),
+            password.clone().into_input(),
         )
-        .into_columns();
+        .into_rows();
 
     let buttons = "Cancel"
         .into_button()
@@ -46,13 +48,14 @@ fn main() -> gooey::Result {
         )
         .into_columns();
 
-    username_row
+    username_field
         .pad()
-        .and(password_row.pad())
+        .and(password_field.pad())
         .and(buttons.pad())
         .into_rows()
         .contain()
-        .width(Lp::points(300)..Lp::points(600))
+        .width(Lp::inches(3)..Lp::inches(6))
+        .pad()
         .scroll()
         .centered()
         .expand()

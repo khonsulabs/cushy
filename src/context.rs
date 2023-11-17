@@ -527,8 +527,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
         let focus_ring =
             Shape::stroked_rect(visible_rect, color, options.into_px(self.gfx.scale()));
-        self.gfx
-            .draw_shape(&focus_ring, Point::default(), None, None);
+        self.gfx.draw_shape(&focus_ring);
     }
 
     /// Renders the default focus ring for this widget.

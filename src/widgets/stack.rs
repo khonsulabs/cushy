@@ -409,7 +409,7 @@ impl Layout {
         // widgets an opportunity to lay themselves out in the full area. This
         // requires one extra layout call, so we avoid persisting layouts during
         // the first loop if this is the case.
-        let needs_final_layout = !matches!(other_constraint, ConstraintLimit::Known(_));
+        let needs_final_layout = !matches!(other_constraint, ConstraintLimit::Fill(_));
 
         // Measure the children that fit their content
         self.other = UPx(0);
@@ -418,7 +418,7 @@ impl Layout {
             let (measured, other) = self.orientation.split_size(measure(
                 index,
                 self.orientation
-                    .make_size(ConstraintLimit::ClippedAfter(remaining), other_constraint),
+                    .make_size(ConstraintLimit::SizeToFit(remaining), other_constraint),
                 !needs_final_layout,
             ));
             self.layouts[index].size = measured;
@@ -432,7 +432,7 @@ impl Layout {
             let (_, other) = self.orientation.split_size(measure(
                 index,
                 self.orientation.make_size(
-                    ConstraintLimit::Known(self.layouts[index].size),
+                    ConstraintLimit::Fill(self.layouts[index].size),
                     other_constraint,
                 ),
                 !needs_final_layout,
@@ -469,7 +469,7 @@ impl Layout {
                 let (_, measured) = self.orientation.split_size(measure(
                     index,
                     self.orientation.make_size(
-                        ConstraintLimit::Known(self.layouts[index].size.into_upx(scale)),
+                        ConstraintLimit::Fill(self.layouts[index].size.into_upx(scale)),
                         other_constraint,
                     ),
                     !needs_final_layout,
@@ -479,8 +479,8 @@ impl Layout {
         }
 
         self.other = match other_constraint {
-            ConstraintLimit::Known(max) => self.other.max(max),
-            ConstraintLimit::ClippedAfter(clip_limit) => self.other.min(clip_limit),
+            ConstraintLimit::Fill(max) => self.other.max(max),
+            ConstraintLimit::SizeToFit(clip_limit) => self.other.min(clip_limit),
         };
 
         // Finally, compute the offsets of all of the widgets.
@@ -492,8 +492,8 @@ impl Layout {
                 self.orientation.split_size(measure(
                     index,
                     self.orientation.make_size(
-                        ConstraintLimit::Known(self.layouts[index].size.into_upx(scale)),
-                        ConstraintLimit::Known(self.other),
+                        ConstraintLimit::Fill(self.layouts[index].size.into_upx(scale)),
+                        ConstraintLimit::Fill(self.other),
                     ),
                     true,
                 ));
@@ -635,8 +635,8 @@ mod tests {
     fn size_to_fit() {
         assert_measured_children(
             &[Child::new(3, 1), Child::new(3, 1), Child::new(3, 1)],
-            ConstraintLimit::ClippedAfter(UPx(10)),
-            ConstraintLimit::ClippedAfter(UPx(10)),
+            ConstraintLimit::SizeToFit(UPx(10)),
+            ConstraintLimit::SizeToFit(UPx(10)),
             &[UPx(3), UPx(3), UPx(3)],
             UPx(9),
             UPx(1),
@@ -660,8 +660,8 @@ mod tests {
                 Child::new(3, 1).weighted(1),
                 Child::new(3, 1).weighted(1),
             ],
-            ConstraintLimit::Known(UPx(10)),
-            ConstraintLimit::ClippedAfter(UPx(10)),
+            ConstraintLimit::Fill(UPx(10)),
+            ConstraintLimit::SizeToFit(UPx(10)),
             &[UPx(4), UPx(3), UPx(3)],
             UPx(10),
             UPx(7), // 20 / 3 = 6.666, rounded up is 7
@@ -674,8 +674,8 @@ mod tests {
                 Child::new(3, 1).weighted(1),
                 Child::new(3, 1).weighted(1),
             ],
-            ConstraintLimit::Known(UPx(11)),
-            ConstraintLimit::ClippedAfter(UPx(11)),
+            ConstraintLimit::Fill(UPx(11)),
+            ConstraintLimit::SizeToFit(UPx(11)),
             &[UPx(5), UPx(3), UPx(3)],
             UPx(11),
             UPx(7), // 20 / 3 = 6.666, rounded up is 7
@@ -687,8 +687,8 @@ mod tests {
                 Child::new(3, 1).weighted(1),
                 Child::new(3, 1).weighted(1),
             ],
-            ConstraintLimit::Known(UPx(12)),
-            ConstraintLimit::ClippedAfter(UPx(12)),
+            ConstraintLimit::Fill(UPx(12)),
+            ConstraintLimit::SizeToFit(UPx(12)),
             &[UPx(6), UPx(3), UPx(3)],
             UPx(12),
             UPx(4), // 20 / 6 = 3.666, rounded up is 4
@@ -701,8 +701,8 @@ mod tests {
                 Child::new(3, 1).weighted(1),
                 Child::new(3, 1).weighted(1),
             ],
-            ConstraintLimit::Known(UPx(13)),
-            ConstraintLimit::ClippedAfter(UPx(13)),
+            ConstraintLimit::Fill(UPx(13)),
+            ConstraintLimit::SizeToFit(UPx(13)),
             &[UPx(6), UPx(3), UPx(4)],
             UPx(13),
             UPx(4), // 20 / 6 = 3.666, rounded up is 4
@@ -717,8 +717,8 @@ mod tests {
                 Child::new(3, 1).weighted(1),
                 Child::new(3, 1).weighted(1),
             ],
-            ConstraintLimit::Known(UPx(15)),
-            ConstraintLimit::ClippedAfter(UPx(15)),
+            ConstraintLimit::Fill(UPx(15)),
+            ConstraintLimit::SizeToFit(UPx(15)),
             &[UPx(7), UPx(4), UPx(4)],
             UPx(15),
             UPx(1),

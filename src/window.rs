@@ -567,13 +567,13 @@ where
 
         let actual_size = layout_context.layout(if is_expanded {
             Size::new(
-                ConstraintLimit::Known(window_size.width),
-                ConstraintLimit::Known(window_size.height),
+                ConstraintLimit::Fill(window_size.width),
+                ConstraintLimit::Fill(window_size.height),
             )
         } else {
             Size::new(
-                ConstraintLimit::ClippedAfter(window_size.width),
-                ConstraintLimit::ClippedAfter(window_size.height),
+                ConstraintLimit::SizeToFit(window_size.width),
+                ConstraintLimit::SizeToFit(window_size.height),
             )
         });
         let render_size = actual_size.min(window_size);

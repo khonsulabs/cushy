@@ -3,7 +3,7 @@
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, ScreenScale, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
-use kludgine::Color;
+use kludgine::{Color, DrawableExt};
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{IntrinsicPadding, TextColor};
@@ -71,7 +71,7 @@ impl Widget for Label {
 
         context
             .gfx
-            .draw_measured_text(prepared_text, TextOrigin::Center, center, None, None);
+            .draw_measured_text(prepared_text.translate_by(center), TextOrigin::Center);
     }
 
     fn layout(

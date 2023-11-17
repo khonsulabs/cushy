@@ -103,8 +103,8 @@ impl WrapperWidget for Expand {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> WrappedLayout {
         let available_space = Size::new(
-            ConstraintLimit::Known(available_space.width.max()),
-            ConstraintLimit::Known(available_space.height.max()),
+            ConstraintLimit::Fill(available_space.width.max()),
+            ConstraintLimit::Fill(available_space.height.max()),
         );
         let child = self.child.mounted(&mut context.as_event_context());
         let size = context.for_other(&child).layout(available_space);

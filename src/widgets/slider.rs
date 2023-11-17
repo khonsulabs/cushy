@@ -9,7 +9,7 @@ use kludgine::figures::{
     Size,
 };
 use kludgine::shapes::Shape;
-use kludgine::{Color, Origin};
+use kludgine::{Color, DrawableExt, Origin};
 
 use crate::animation::{LinearInterpolate, PercentBetween};
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
@@ -85,53 +85,42 @@ impl<T> Slider<T> {
         let half_track = spec.track_size / 2;
         // Draw the track
         if value_location > spec.half_knob {
-            context.gfx.draw_shape(
-                &Shape::filled_rect(
-                    Rect::new(
-                        flipped(
-                            !self.horizontal,
-                            Point::new(spec.half_knob, spec.half_knob - half_track),
-                        ),
-                        flipped(!self.horizontal, Size::new(value_location, spec.track_size)),
+            context.gfx.draw_shape(&Shape::filled_rect(
+                Rect::new(
+                    flipped(
+                        !self.horizontal,
+                        Point::new(spec.half_knob, spec.half_knob - half_track),
                     ),
-                    spec.track_color,
+                    flipped(!self.horizontal, Size::new(value_location, spec.track_size)),
                 ),
-                Point::default(),
-                None,
-                None,
-            );
+                spec.track_color,
+            ));
         }
 
         if value_location < track_length {
-            context.gfx.draw_shape(
-                &Shape::filled_rect(
-                    Rect::new(
-                        flipped(
-                            !self.horizontal,
-                            Point::new(value_location, spec.half_knob - half_track),
-                        ),
-                        flipped(
-                            !self.horizontal,
-                            Size::new(
-                                track_length - value_location + spec.half_knob,
-                                spec.track_size,
-                            ),
+            context.gfx.draw_shape(&Shape::filled_rect(
+                Rect::new(
+                    flipped(
+                        !self.horizontal,
+                        Point::new(value_location, spec.half_knob - half_track),
+                    ),
+                    flipped(
+                        !self.horizontal,
+                        Size::new(
+                            track_length - value_location + spec.half_knob,
+                            spec.track_size,
                         ),
                     ),
-                    spec.inactive_track_color,
                 ),
-                Point::default(),
-                None,
-                None,
-            );
+                spec.inactive_track_color,
+            ));
         }
 
         // Draw the knob
         context.gfx.draw_shape(
-            &Shape::filled_circle(spec.half_knob, spec.knob_color, Origin::Center),
-            flipped(!self.horizontal, Point::new(value_location, spec.half_knob)),
-            None,
-            None,
+            Shape::filled_circle(spec.half_knob, spec.knob_color, Origin::Center).translate_by(
+                flipped(!self.horizontal, Point::new(value_location, spec.half_knob)),
+            ),
         );
     }
 }
@@ -229,7 +218,7 @@ where
             .into_upx(context.gfx.scale());
 
         match (available_space.width, available_space.height) {
-            (ConstraintLimit::Known(width), ConstraintLimit::Known(height)) => {
+            (ConstraintLimit::Fill(width), ConstraintLimit::Fill(height)) => {
                 // This comparison is done such that if width == height, we end
                 // up with a horizontal slider.
                 if width < height {
@@ -240,13 +229,13 @@ where
                     Size::new(width.max(minimum_size), self.knob_size)
                 }
             }
-            (ConstraintLimit::Known(width), ConstraintLimit::ClippedAfter(_)) => {
+            (ConstraintLimit::Fill(width), ConstraintLimit::SizeToFit(_)) => {
                 Size::new(width.max(minimum_size), self.knob_size)
             }
-            (ConstraintLimit::ClippedAfter(_), ConstraintLimit::Known(height)) => {
+            (ConstraintLimit::SizeToFit(_), ConstraintLimit::Fill(height)) => {
                 Size::new(self.knob_size, height.max(minimum_size))
             }
-            (ConstraintLimit::ClippedAfter(width), ConstraintLimit::ClippedAfter(_)) => {
+            (ConstraintLimit::SizeToFit(width), ConstraintLimit::SizeToFit(_)) => {
                 // When we have no limit on our, we still want to be draggable.
                 // Since we have no limit in both directions, we have to make a
                 // choice: horizontal or vertical. It seems to @ecton at the

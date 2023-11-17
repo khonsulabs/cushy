@@ -178,12 +178,9 @@ impl WrapperWidget for CheckboxLabel {
         match self.value.get_tracking_refresh(context) {
             state @ (CheckboxState::Checked | CheckboxState::Indeterminant) => {
                 let color = context.get(&WidgetAccentColor);
-                context.gfx.draw_shape(
-                    &Shape::filled_rect(checkbox_rect, color),
-                    Point::default(),
-                    None,
-                    None,
-                );
+                context
+                    .gfx
+                    .draw_shape(&Shape::filled_rect(checkbox_rect, color));
                 let icon_area = checkbox_rect.inset(Lp::points(3).into_px(context.gfx.scale()));
                 let text_color = context.get(&TextColor);
                 let center = icon_area.origin + icon_area.size / 2;
@@ -200,9 +197,6 @@ impl WrapperWidget for CheckboxLabel {
                             ))
                             .build()
                             .stroke(text_color, stroke_options),
-                        Point::default(),
-                        None,
-                        None,
                     );
                 } else {
                     context.gfx.draw_shape(
@@ -213,20 +207,14 @@ impl WrapperWidget for CheckboxLabel {
                             ))
                             .build()
                             .stroke(text_color, stroke_options),
-                        Point::default(),
-                        None,
-                        None,
                     );
                 }
             }
             CheckboxState::Unchecked => {
                 let color = context.get(&OutlineColor);
-                context.gfx.draw_shape(
-                    &Shape::stroked_rect(checkbox_rect, color, stroke_options),
-                    Point::default(),
-                    None,
-                    None,
-                );
+                context
+                    .gfx
+                    .draw_shape(&Shape::stroked_rect(checkbox_rect, color, stroke_options));
             }
         }
     }

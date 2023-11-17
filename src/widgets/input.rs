@@ -19,7 +19,7 @@ use kludgine::figures::{
 };
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
-use kludgine::Color;
+use kludgine::{Color, DrawableExt};
 use unicode_segmentation::UnicodeSegmentation;
 use zeroize::Zeroizing;
 
@@ -849,55 +849,47 @@ where
                     // Single line selection
                     let width = end_position.x - start_position.x;
                     context.gfx.draw_shape(
-                        &Shape::filled_rect(
+                        Shape::filled_rect(
                             Rect::new(start_position, Size::new(width, cache.measured.line_height)),
                             highlight,
-                        ),
-                        padding,
-                        None,
-                        None,
+                        )
+                        .translate_by(padding),
                     );
                 } else {
                     // Draw from start to end of line,
                     let width = size.width.into_signed() - start_position.x;
                     context.gfx.draw_shape(
-                        &Shape::filled_rect(
+                        Shape::filled_rect(
                             Rect::new(start_position, Size::new(width, cache.measured.line_height)),
                             highlight,
-                        ),
-                        padding,
-                        None,
-                        None,
+                        )
+                        .translate_by(padding),
                     );
                     // Fill region between
                     let bottom_of_first_line = start_position.y + cache.measured.line_height;
                     let distance_between = end_position.y - bottom_of_first_line;
                     if distance_between > 0 {
                         context.gfx.draw_shape(
-                            &Shape::filled_rect(
+                            Shape::filled_rect(
                                 Rect::new(
                                     Point::new(Px(0), bottom_of_first_line),
                                     Size::new(size.width.into_signed(), distance_between),
                                 ),
                                 highlight,
-                            ),
-                            padding,
-                            None,
-                            None,
+                            )
+                            .translate_by(padding),
                         );
                     }
                     // Draw from 0 to end + width
                     context.gfx.draw_shape(
-                        &Shape::filled_rect(
+                        Shape::filled_rect(
                             Rect::new(
                                 Point::new(Px(0), end_position.y),
                                 Size::new(end_position.x + end_width, cache.measured.line_height),
                             ),
                             highlight,
-                        ),
-                        padding,
-                        None,
-                        None,
+                        )
+                        .translate_by(padding),
                     );
                 }
             } else {
@@ -906,16 +898,14 @@ where
                 if window_focused && cursor_state.visible {
                     let cursor_width = Lp::points(2).into_px(context.gfx.scale());
                     context.gfx.draw_shape(
-                        &Shape::filled_rect(
+                        Shape::filled_rect(
                             Rect::new(
                                 Point::new(location.x - cursor_width / 2, location.y),
                                 Size::new(cursor_width, cache.measured.line_height),
                             ),
-                            highlight, // TODO cursor should be a bold color, highlight probably not. This should have its own color.
-                        ),
-                        padding,
-                        None,
-                        None,
+                            highlight,
+                        )
+                        .translate_by(padding),
                     );
                 }
                 if window_focused {
@@ -931,7 +921,7 @@ where
 
         context
             .gfx
-            .draw_measured_text(cache.measured, TextOrigin::TopLeft, padding, None, None);
+            .draw_measured_text(cache.measured.translate_by(padding), TextOrigin::TopLeft);
     }
 
     fn layout(

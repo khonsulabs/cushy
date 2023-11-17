@@ -36,9 +36,9 @@ pub use self::tick::{InputState, Tick};
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ConstraintLimit {
     /// The widget is expected to occupy a known size.
-    Known(UPx),
+    Fill(UPx),
     /// The widget is expected to resize itself to fit within the size provided.
-    ClippedAfter(UPx),
+    SizeToFit(UPx),
 }
 
 impl ConstraintLimit {
@@ -46,7 +46,7 @@ impl ConstraintLimit {
     #[must_use]
     pub fn max(self) -> UPx {
         match self {
-            ConstraintLimit::Known(v) | ConstraintLimit::ClippedAfter(v) => v,
+            ConstraintLimit::Fill(v) | ConstraintLimit::SizeToFit(v) => v,
         }
     }
 
@@ -62,8 +62,8 @@ impl ConstraintLimit {
     {
         let measured = measured.into_upx(scale);
         match self {
-            ConstraintLimit::Known(size) => size.max(measured),
-            ConstraintLimit::ClippedAfter(_) => measured,
+            ConstraintLimit::Fill(size) => size.max(measured),
+            ConstraintLimit::SizeToFit(_) => measured,
         }
     }
 }
@@ -73,10 +73,8 @@ impl Sub<UPx> for ConstraintLimit {
 
     fn sub(self, rhs: UPx) -> Self::Output {
         match self {
-            ConstraintLimit::Known(px) => ConstraintLimit::Known(px.saturating_sub(rhs)),
-            ConstraintLimit::ClippedAfter(px) => {
-                ConstraintLimit::ClippedAfter(px.saturating_sub(rhs))
-            }
+            ConstraintLimit::Fill(px) => ConstraintLimit::Fill(px.saturating_sub(rhs)),
+            ConstraintLimit::SizeToFit(px) => ConstraintLimit::SizeToFit(px.saturating_sub(rhs)),
         }
     }
 }

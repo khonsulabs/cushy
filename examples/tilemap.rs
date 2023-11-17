@@ -8,6 +8,7 @@ use gooey::kludgine::Color;
 use gooey::value::Dynamic;
 use gooey::widgets::TileMap;
 use gooey::{Run, Tick};
+use kludgine::DrawableExt;
 
 const PLAYER_SIZE: Px = Px(16);
 
@@ -83,16 +84,14 @@ impl Object for Player {
     fn render(&self, center: Point<Px>, zoom: f32, context: &mut Renderer<'_, '_>) {
         let zoomed_size = PLAYER_SIZE * zoom;
         context.draw_shape(
-            &Shape::filled_rect(
+            Shape::filled_rect(
                 Rect::new(
                     Point::new(-zoomed_size / 2, -zoomed_size / 2),
                     Size::squared(zoomed_size),
                 ),
                 self.color,
-            ),
-            center,
-            None,
-            None,
+            )
+            .translate_by(center),
         )
     }
 }

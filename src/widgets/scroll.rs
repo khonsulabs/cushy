@@ -129,33 +129,23 @@ impl Widget for Scroll {
         let size = context.gfx.region().size;
 
         if self.horizontal_bar.amount_hidden > 0 {
-            context.gfx.draw_shape(
-                &Shape::filled_rect(
-                    Rect::new(
-                        Point::new(self.horizontal_bar.offset, size.height - self.bar_width),
-                        Size::new(self.horizontal_bar.size, self.bar_width),
-                    ),
-                    Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
+            context.gfx.draw_shape(&Shape::filled_rect(
+                Rect::new(
+                    Point::new(self.horizontal_bar.offset, size.height - self.bar_width),
+                    Size::new(self.horizontal_bar.size, self.bar_width),
                 ),
-                Point::default(),
-                None,
-                None,
-            );
+                Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
+            ));
         }
 
         if self.vertical_bar.amount_hidden > 0 {
-            context.gfx.draw_shape(
-                &Shape::filled_rect(
-                    Rect::new(
-                        Point::new(size.width - self.bar_width, self.vertical_bar.offset),
-                        Size::new(self.bar_width, self.vertical_bar.size),
-                    ),
-                    Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
+            context.gfx.draw_shape(&Shape::filled_rect(
+                Rect::new(
+                    Point::new(size.width - self.bar_width, self.vertical_bar.offset),
+                    Size::new(self.bar_width, self.vertical_bar.size),
                 ),
-                Point::default(),
-                None,
-                None,
-            );
+                Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
+            ));
         }
     }
 
@@ -175,12 +165,12 @@ impl Widget for Scroll {
             Size::new(available_space.width.max(), available_space.height.max()).into_signed();
         let max_extents = Size::new(
             if self.enabled.x {
-                ConstraintLimit::ClippedAfter((control_size.width).into_unsigned())
+                ConstraintLimit::SizeToFit((control_size.width).into_unsigned())
             } else {
                 available_space.width
             },
             if self.enabled.y {
-                ConstraintLimit::ClippedAfter((control_size.height).into_unsigned())
+                ConstraintLimit::SizeToFit((control_size.height).into_unsigned())
             } else {
                 available_space.height
             },
@@ -285,8 +275,8 @@ impl Widget for Scroll {
 fn constrain_child(constraint: ConstraintLimit, measured: Px) -> UPx {
     let measured = measured.into_unsigned();
     match constraint {
-        ConstraintLimit::Known(size) => size.min(measured),
-        ConstraintLimit::ClippedAfter(_) => measured,
+        ConstraintLimit::Fill(size) => size.min(measured),
+        ConstraintLimit::SizeToFit(_) => measured,
     }
 }
 
