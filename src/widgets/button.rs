@@ -336,7 +336,7 @@ impl Widget for Button {
         }
 
         let style = self.current_style(context);
-        context.gfx.fill(style.background);
+        context.fill(style.background);
 
         let two_lp_stroke = StrokeOptions::lp_wide(Lp::points(2));
         context.stroke_outline(style.outline, two_lp_stroke);

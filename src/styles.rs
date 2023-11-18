@@ -12,7 +12,8 @@ use std::sync::Arc;
 
 use ahash::AHashMap;
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size};
+use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, IsZero, Rect, ScreenScale, Size};
+use kludgine::shapes::CornerRadii;
 use kludgine::Color;
 use palette::{IntoColor, Okhsl, OklabHue, Srgb};
 
@@ -211,6 +212,18 @@ pub enum Component {
     Custom(CustomComponent),
 }
 
+impl Component {
+    /// Returns a [`CustomComponent`] created from `component`.
+    ///
+    /// Custom components allow storing nearly any type in the style system.
+    pub fn custom<T>(component: T) -> Self
+    where
+        T: RequireInvalidation + RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
+    {
+        Self::Custom(CustomComponent::new(component))
+    }
+}
+
 impl From<Color> for Component {
     fn from(value: Color) -> Self {
         Self::Color(value)
@@ -303,6 +316,42 @@ impl RequireInvalidation for Lp {
     }
 }
 
+impl<Unit> From<CornerRadii<Unit>> for Component
+where
+    Dimension: From<Unit>,
+    Unit: Debug + UnwindSafe + RefUnwindSafe + Send + Sync + 'static,
+{
+    fn from(radii: CornerRadii<Unit>) -> Self {
+        let radii = CornerRadii {
+            top_left: Dimension::from(radii.top_left),
+            top_right: Dimension::from(radii.top_right),
+            bottom_right: Dimension::from(radii.bottom_right),
+            bottom_left: Dimension::from(radii.bottom_left),
+        };
+        Component::custom(radii)
+    }
+}
+
+impl<Unit> RequireInvalidation for CornerRadii<Unit> {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
+impl TryFrom<Component> for CornerRadii<Dimension> {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Custom(custom) => custom
+                .downcast()
+                .copied()
+                .ok_or_else(|| Component::Custom(custom)),
+            other => Err(other),
+        }
+    }
+}
+
 /// A 1-dimensional measurement that may be automatically calculated.
 #[derive(Debug, Clone, Copy)]
 pub enum FlexibleDimension {
@@ -370,6 +419,15 @@ impl From<Px> for Dimension {
 impl From<Lp> for Dimension {
     fn from(value: Lp) -> Self {
         Self::Lp(value)
+    }
+}
+
+impl IsZero for Dimension {
+    fn is_zero(&self) -> bool {
+        match self {
+            Dimension::Px(x) => x.is_zero(),
+            Dimension::Lp(x) => x.is_zero(),
+        }
     }
 }
 

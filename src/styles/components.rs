@@ -1,6 +1,7 @@
 //! All style components supported by the built-in widgets.
 
 use kludgine::figures::units::Lp;
+use kludgine::shapes::CornerRadii;
 use kludgine::Color;
 
 use crate::animation::easings::{EaseInOutQuadradic, EaseInQuadradic, EaseOutQuadradic};
@@ -133,5 +134,8 @@ define_components! {
         /// A [`Color`] to be used as a background color for widgets that render an
         /// opaque background.
         OpaqueWidgetColor(Color, "opaque_color", .surface.opaque_widget)
+        /// A set of radius descriptions for how much roundness to apply to the
+        /// shapes of widgets.
+        CornerRadius(CornerRadii<Dimension>, "corner_radius", CornerRadii::from(Dimension::Lp(Lp::points(100))))
     }
 }

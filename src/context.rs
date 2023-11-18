@@ -10,12 +10,12 @@ use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Rect, ScreenScale, Size};
+use kludgine::figures::{IntoSigned, IsZero, Point, Rect, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
 use crate::graphics::Graphics;
-use crate::styles::components::{HighlightColor, LayoutOrder, WidgetBackground};
+use crate::styles::components::{CornerRadius, HighlightColor, LayoutOrder, WidgetBackground};
 use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, IntoValue, Value};
@@ -519,15 +519,49 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         }
     }
 
+    /// Fills the background of this widget with `color`, honoring the current
+    /// [`CornerRadius`] setting.
+    ///
+    /// If the alpha channel of `color` is 0, this function does nothing.
+    pub fn fill(&mut self, color: Color) {
+        if color.alpha() > 0 {
+            let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
+
+            let radii = self.get(&CornerRadius);
+            let radii = radii.map(|r| r.into_px(self.gfx.scale()));
+
+            let focus_ring = if radii.is_zero() {
+                Shape::filled_rect(visible_rect, color)
+            } else {
+                Shape::filled_round_rect(visible_rect, radii, color)
+            };
+            self.gfx.draw_shape(&focus_ring);
+        }
+    }
+
     /// Strokes an outline around this widget's contents.
     pub fn stroke_outline<Unit>(&mut self, color: Color, options: StrokeOptions<Unit>)
     where
-        Unit: ScreenScale<Px = Px, Lp = Lp, UPx = UPx>,
+        Unit: ScreenScale<Px = Px, Lp = Lp, UPx = UPx> + IsZero,
     {
-        let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
-        let focus_ring =
-            Shape::stroked_rect(visible_rect, color, options.into_px(self.gfx.scale()));
-        self.gfx.draw_shape(&focus_ring);
+        if color.alpha() > 0 {
+            let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
+
+            let radii = self.get(&CornerRadius);
+            let radii = radii.map(|r| r.into_px(self.gfx.scale()));
+
+            let focus_ring = if radii.is_zero() {
+                Shape::stroked_rect(visible_rect, color, options.into_px(self.gfx.scale()))
+            } else {
+                Shape::stroked_round_rect(
+                    visible_rect,
+                    radii,
+                    color,
+                    options.into_px(self.gfx.scale()),
+                )
+            };
+            self.gfx.draw_shape(&focus_ring);
+        }
     }
 
     /// Renders the default focus ring for this widget.
