@@ -10,7 +10,7 @@ use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
+use kludgine::figures::{IntoSigned, Point, Px2D, Rect, ScreenScale, Size, Zero};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
