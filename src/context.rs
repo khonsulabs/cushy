@@ -10,7 +10,7 @@ use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Px2D, Rect, ScreenScale, Size, Zero};
+use kludgine::figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
@@ -545,7 +545,8 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         Unit: ScreenScale<Px = Px, Lp = Lp, UPx = UPx> + Zero,
     {
         if color.alpha() > 0 {
-            let options = options.colored(color).into_px(self.gfx.scale());
+            let mut options = options.colored(color).into_px(self.gfx.scale());
+            options.line_width = options.line_width.round();
             let inset = options.line_width / 2;
             let visible_rect = Rect::new(
                 Point::squared(inset),
