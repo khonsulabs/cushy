@@ -686,6 +686,9 @@ where
         if location.y < 0 {
             location.y = Px::ZERO;
         }
+        if location.x < 0 {
+            location.x = Px::ZERO;
+        }
 
         let mut closest: Option<(Cursor, i32)> = None;
         let mut current_line = usize::MAX;
