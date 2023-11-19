@@ -186,7 +186,7 @@ impl Widget for Scroll {
         let max_scroll_x = if self.enabled.x {
             -self.horizontal_bar.amount_hidden
         } else {
-            Px(0)
+            Px::ZERO
         };
 
         self.vertical_bar =
@@ -194,7 +194,7 @@ impl Widget for Scroll {
         let max_scroll_y = if self.enabled.y {
             -self.vertical_bar.amount_hidden
         } else {
-            Px(0)
+            Px::ZERO
         };
         let new_max_scroll = Point::new(max_scroll_x, max_scroll_y);
         if current_max_scroll != new_max_scroll {

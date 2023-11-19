@@ -396,7 +396,7 @@ where
                 let min_width = resize
                     .width
                     .minimum()
-                    .map_or(Px(0), |width| width.into_px(graphics.scale()));
+                    .map_or(Px::ZERO, |width| width.into_px(graphics.scale()));
                 let max_width = resize
                     .width
                     .maximum()
@@ -404,7 +404,7 @@ where
                 let min_height = resize
                     .height
                     .minimum()
-                    .map_or(Px(0), |height| height.into_px(graphics.scale()));
+                    .map_or(Px::ZERO, |height| height.into_px(graphics.scale()));
                 let max_height = resize
                     .height
                     .maximum()
@@ -566,15 +566,9 @@ where
         }
 
         let actual_size = layout_context.layout(if is_expanded {
-            Size::new(
-                ConstraintLimit::Fill(window_size.width),
-                ConstraintLimit::Fill(window_size.height),
-            )
+            window_size.map(ConstraintLimit::Fill)
         } else {
-            Size::new(
-                ConstraintLimit::SizeToFit(window_size.width),
-                ConstraintLimit::SizeToFit(window_size.height),
-            )
+            window_size.map(ConstraintLimit::SizeToFit)
         });
         let render_size = actual_size.min(window_size);
         if actual_size != window_size && !resizable {

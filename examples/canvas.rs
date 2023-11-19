@@ -1,7 +1,6 @@
 use gooey::widgets::Canvas;
 use gooey::{Run, Tick};
-use kludgine::figures::units::Px;
-use kludgine::figures::{Angle, IntoSigned, Point, Rect, Size};
+use kludgine::figures::{Angle, IntoSigned, Point, Px2D, Rect, Size};
 use kludgine::shapes::Shape;
 use kludgine::text::{Text, TextOrigin};
 use kludgine::{Color, DrawableExt};
@@ -15,11 +14,11 @@ fn main() -> gooey::Result<()> {
         context.gfx.draw_text(
             Text::new("Canvas exposes the full power of Kludgine", Color::WHITE)
                 .origin(TextOrigin::Center)
-                .translate_by(center - Point::new(Px(0), Px(100))),
+                .translate_by(center - Point::px(0, 100)),
         );
         context.gfx.draw_shape(
             Shape::filled_rect(
-                Rect::new(Point::new(Px(-50), Px(-50)), Size::new(Px(100), Px(100))),
+                Rect::new(Point::px(-50, -50), Size::px(100, 100)),
                 Color::RED,
             )
             .translate_by(center)

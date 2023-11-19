@@ -759,7 +759,7 @@ pub trait MakeWidget: Sized {
 
     /// Returns a new widget that renders `color` behind `self`.
     fn background_color(self, color: impl IntoValue<Color>) -> Container {
-        self.contain().pad_by(Px(0)).background_color(color)
+        self.contain().pad_by(Px::ZERO).background_color(color)
     }
 
     /// Wraps `self` with the default padding.

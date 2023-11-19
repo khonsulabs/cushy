@@ -186,10 +186,7 @@ impl WrapperWidget for Align {
         let layout = self.measure(available_space, context);
 
         Rect::new(
-            Point::new(
-                layout.margin.left.into_signed(),
-                layout.margin.top.into_signed(),
-            ),
+            Point::new(layout.margin.left, layout.margin.top).into_signed(),
             layout.content.into_signed(),
         )
         .into()

@@ -172,7 +172,7 @@ impl Widget for Stack {
                     Rect::new(
                         self.layout
                             .orientation
-                            .make_point(layout.offset, UPx(0))
+                            .make_point(layout.offset, UPx::ZERO)
                             .into_signed(),
                         self.layout
                             .orientation
@@ -313,9 +313,9 @@ impl Layout {
             orientation,
             children: OrderedLots::new(),
             layouts: Vec::new(),
-            other: UPx(0),
+            other: UPx::ZERO,
             total_weights: 0,
-            allocated_space: (UPx(0), Lp(0)),
+            allocated_space: (UPx::ZERO, Lp::ZERO),
             fractional: Vec::new(),
             fit_to_content: Vec::new(),
             premeasured: Vec::new(),
@@ -370,12 +370,12 @@ impl Layout {
         let layout = match child {
             StackDimension::FitContent => {
                 self.fit_to_content.push(id);
-                UPx(0)
+                UPx::ZERO
             }
             StackDimension::Fractional { weight } => {
                 self.total_weights += u32::from(weight);
                 self.fractional.push((id, weight));
-                UPx(0)
+                UPx::ZERO
             }
             StackDimension::Measured { min, .. } => {
                 self.premeasured.push(id);
@@ -389,7 +389,7 @@ impl Layout {
         self.layouts.insert(
             index,
             StackLayout {
-                offset: UPx(0),
+                offset: UPx::ZERO,
                 size: layout,
             },
         );
@@ -412,7 +412,7 @@ impl Layout {
         let needs_final_layout = !matches!(other_constraint, ConstraintLimit::Fill(_));
 
         // Measure the children that fit their content
-        self.other = UPx(0);
+        self.other = UPx::ZERO;
         for &id in &self.fit_to_content {
             let index = self.children.index_of_id(id).expect("child not found");
             let (measured, other) = self.orientation.split_size(measure(
@@ -484,7 +484,7 @@ impl Layout {
         };
 
         // Finally, compute the offsets of all of the widgets.
-        let mut offset = UPx(0);
+        let mut offset = UPx::ZERO;
         for index in 0..self.children.len() {
             self.layouts[index].offset = offset;
             offset += self.layouts[index].size;
@@ -593,7 +593,7 @@ mod tests {
                 orientation.make_size(measured, other)
             });
         assert_eq!(computed_size, expected_size);
-        let mut offset = UPx(0);
+        let mut offset = UPx::ZERO;
         for ((index, &child), &expected) in flex.iter().enumerate().zip(expected) {
             assert_eq!(
                 child.size,
@@ -635,11 +635,11 @@ mod tests {
     fn size_to_fit() {
         assert_measured_children(
             &[Child::new(3, 1), Child::new(3, 1), Child::new(3, 1)],
-            ConstraintLimit::SizeToFit(UPx(10)),
-            ConstraintLimit::SizeToFit(UPx(10)),
-            &[UPx(3), UPx(3), UPx(3)],
-            UPx(9),
-            UPx(1),
+            ConstraintLimit::SizeToFit(UPx::new(10)),
+            ConstraintLimit::SizeToFit(UPx::new(10)),
+            &[UPx::new(3), UPx::new(3), UPx::new(3)],
+            UPx::new(9),
+            UPx::new(1),
         );
     }
 
@@ -660,11 +660,11 @@ mod tests {
                 Child::new(3, 1).weighted(1),
                 Child::new(3, 1).weighted(1),
             ],
-            ConstraintLimit::Fill(UPx(10)),
-            ConstraintLimit::SizeToFit(UPx(10)),
-            &[UPx(4), UPx(3), UPx(3)],
-            UPx(10),
-            UPx(7), // 20 / 3 = 6.666, rounded up is 7
+            ConstraintLimit::Fill(UPx::new(10)),
+            ConstraintLimit::SizeToFit(UPx::new(10)),
+            &[UPx::new(4), UPx::new(3), UPx::new(3)],
+            UPx::new(10),
+            UPx::new(7), // 20 / 3 = 6.666, rounded up is 7
         );
         // Same as above, but with an 11px box. This creates a leftover of 3 px
         // (11 % 4), adding 1px to all three children.
@@ -674,11 +674,11 @@ mod tests {
                 Child::new(3, 1).weighted(1),
                 Child::new(3, 1).weighted(1),
             ],
-            ConstraintLimit::Fill(UPx(11)),
-            ConstraintLimit::SizeToFit(UPx(11)),
-            &[UPx(5), UPx(3), UPx(3)],
-            UPx(11),
-            UPx(7), // 20 / 3 = 6.666, rounded up is 7
+            ConstraintLimit::Fill(UPx::new(11)),
+            ConstraintLimit::SizeToFit(UPx::new(11)),
+            &[UPx::new(5), UPx::new(3), UPx::new(3)],
+            UPx::new(11),
+            UPx::new(7), // 20 / 3 = 6.666, rounded up is 7
         );
         // 12px box. This creates no leftover.
         assert_measured_children(
@@ -687,11 +687,11 @@ mod tests {
                 Child::new(3, 1).weighted(1),
                 Child::new(3, 1).weighted(1),
             ],
-            ConstraintLimit::Fill(UPx(12)),
-            ConstraintLimit::SizeToFit(UPx(12)),
-            &[UPx(6), UPx(3), UPx(3)],
-            UPx(12),
-            UPx(4), // 20 / 6 = 3.666, rounded up is 4
+            ConstraintLimit::Fill(UPx::new(12)),
+            ConstraintLimit::SizeToFit(UPx::new(12)),
+            &[UPx::new(6), UPx::new(3), UPx::new(3)],
+            UPx::new(12),
+            UPx::new(4), // 20 / 6 = 3.666, rounded up is 4
         );
         // 13px box. This creates a leftover of 1 px (13 % 4), adding 1px only
         // to the final child
@@ -701,11 +701,11 @@ mod tests {
                 Child::new(3, 1).weighted(1),
                 Child::new(3, 1).weighted(1),
             ],
-            ConstraintLimit::Fill(UPx(13)),
-            ConstraintLimit::SizeToFit(UPx(13)),
-            &[UPx(6), UPx(3), UPx(4)],
-            UPx(13),
-            UPx(4), // 20 / 6 = 3.666, rounded up is 4
+            ConstraintLimit::Fill(UPx::new(13)),
+            ConstraintLimit::SizeToFit(UPx::new(13)),
+            &[UPx::new(6), UPx::new(3), UPx::new(4)],
+            UPx::new(13),
+            UPx::new(4), // 20 / 6 = 3.666, rounded up is 4
         );
     }
 
@@ -713,15 +713,15 @@ mod tests {
     fn fixed_size() {
         assert_measured_children(
             &[
-                Child::new(3, 1).fixed_size(UPx(7)),
+                Child::new(3, 1).fixed_size(UPx::new(7)),
                 Child::new(3, 1).weighted(1),
                 Child::new(3, 1).weighted(1),
             ],
-            ConstraintLimit::Fill(UPx(15)),
-            ConstraintLimit::SizeToFit(UPx(15)),
-            &[UPx(7), UPx(4), UPx(4)],
-            UPx(15),
-            UPx(1),
+            ConstraintLimit::Fill(UPx::new(15)),
+            ConstraintLimit::SizeToFit(UPx::new(15)),
+            &[UPx::new(7), UPx::new(4), UPx::new(4)],
+            UPx::new(15),
+            UPx::new(1),
         );
     }
 }

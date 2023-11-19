@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use ahash::AHashMap;
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, IsZero, Rect, ScreenScale, Size};
+use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size, Zero};
 use kludgine::shapes::CornerRadii;
 use kludgine::Color;
 use palette::{IntoColor, Okhsl, OklabHue, Srgb};
@@ -399,11 +399,6 @@ pub enum Dimension {
     Lp(Lp),
 }
 
-impl Dimension {
-    /// A dimension of 0 pixels.
-    pub const ZERO: Self = Self::Px(Px(0));
-}
-
 impl Default for Dimension {
     fn default() -> Self {
         Self::ZERO
@@ -422,7 +417,9 @@ impl From<Lp> for Dimension {
     }
 }
 
-impl IsZero for Dimension {
+impl Zero for Dimension {
+    const ZERO: Self = Dimension::Px(Px::ZERO);
+
     fn is_zero(&self) -> bool {
         match self {
             Dimension::Px(x) => x.is_zero(),

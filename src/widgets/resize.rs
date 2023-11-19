@@ -98,10 +98,7 @@ impl WrapperWidget for Resize {
         let size = if let (Some(width), Some(height)) =
             (self.width.exact_dimension(), self.height.exact_dimension())
         {
-            Size::new(
-                width.into_upx(context.gfx.scale()),
-                height.into_upx(context.gfx.scale()),
-            )
+            Size::new(width, height).map(|i| i.into_upx(context.gfx.scale()))
         } else {
             let available_space = Size::new(
                 override_constraint(available_space.width, self.width, context.gfx.scale()),

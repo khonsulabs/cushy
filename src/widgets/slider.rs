@@ -53,9 +53,9 @@ impl<T> Slider<T> {
             value: value.into_dynamic(),
             minimum: min.into_value(),
             maximum: max.into_value(),
-            knob_size: UPx(0),
+            knob_size: UPx::ZERO,
             horizontal: true,
-            rendered_size: Px(0),
+            rendered_size: Px::ZERO,
         }
     }
 
@@ -135,7 +135,7 @@ where
         } else {
             position.y
         };
-        let position = position.clamp(Px(0), self.rendered_size);
+        let position = position.clamp(Px::ZERO, self.rendered_size);
         let percent = position.into_float() / self.rendered_size.into_float();
         let min = self.minimum.get();
         let max = self.maximum.get();

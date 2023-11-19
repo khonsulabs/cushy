@@ -13,7 +13,7 @@ fn main() -> gooey::Result {
         .and("Masked Input Field:")
         .and(password.into_input())
         .into_rows()
-        .width(Px(100)..Px(800))
+        .width(Px::new(100)..Px::new(800))
         .scroll()
         .centered()
         .expand()

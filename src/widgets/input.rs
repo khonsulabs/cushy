@@ -522,7 +522,7 @@ where
     ) -> (Point<Px>, Px) {
         if measured.glyphs.is_empty() || (cursor.offset == 0 && cursor.affinity == Affinity::Before)
         {
-            return (Point::default(), Px(0));
+            return (Point::default(), Px::ZERO);
         }
 
         // Space between glyphs isn't represented in the glyphs. If the cursor rests
@@ -553,7 +553,7 @@ where
             ) {
                 (Ordering::Less | Ordering::Equal, Ordering::Less) => {
                     // cosmic text may have grouped multiple graphemes into a single glyph.
-                    let mut grapheme_offset = Px(0);
+                    let mut grapheme_offset = Px::ZERO;
                     if glyph.info.start < cursor.offset {
                         let clustered_bytes = glyph.info.end - glyph.info.start;
                         if clustered_bytes > 1 {
@@ -567,8 +567,8 @@ where
                     return (
                         Point::new(
                             rect.origin.x + grapheme_offset,
-                            measured.line_height.saturating_mul(Px(
-                                i32::try_from(glyph.info.line).unwrap_or(i32::MAX)
+                            measured.line_height.saturating_mul(Px::new(
+                                i32::try_from(glyph.info.line).unwrap_or(i32::MAX),
                             )),
                         ),
                         rect.size.width,
@@ -586,9 +586,9 @@ where
 
         if closest_after_index == usize::MAX {
             let bottom_right = &measured.glyphs[bottom_right_index];
-            let bottom_y = measured
-                .line_height
-                .saturating_mul(Px(i32::try_from(bottom_right.info.line).unwrap_or(i32::MAX)));
+            let bottom_y = measured.line_height.saturating_mul(Px::new(
+                i32::try_from(bottom_right.info.line).unwrap_or(i32::MAX),
+            ));
             // No glyph could be found that started/contained the cursors offset.
             let mut bottom_right_cursor = Point::new(
                 bottom_right_rect.origin.x + bottom_right_rect.size.width,
@@ -609,7 +609,7 @@ where
             }
 
             // The cursor should be placed after the bottom_right glyph
-            (bottom_right_cursor, Px(0))
+            (bottom_right_cursor, Px::ZERO)
         } else {
             let before = &measured.glyphs[closest_before_index];
             let after = &measured.glyphs[closest_after_index];
@@ -617,7 +617,7 @@ where
             let after_rect = after.rect();
             let before_y = measured
                 .line_height
-                .saturating_mul(Px(i32::try_from(before.info.line).unwrap_or(i32::MAX)));
+                .saturating_mul(Px::new(i32::try_from(before.info.line).unwrap_or(i32::MAX)));
 
             if before.info.line == after.info.line {
                 let before_right = before_rect.origin.x + before_rect.size.width;
@@ -639,7 +639,10 @@ where
                         origin.x += before_rect.size.width;
                         (origin, before_y)
                     }
-                    Affinity::After => (Point::new(Px(0), before_y + measured.line_height), Px(0)),
+                    Affinity::After => (
+                        Point::new(Px::ZERO, before_y + measured.line_height),
+                        Px::ZERO,
+                    ),
                 }
             }
         }
@@ -665,7 +668,7 @@ where
 
         let mut closest: Option<(Cursor, i32)> = None;
         let mut current_line = usize::MAX;
-        let mut current_line_y = Px(0);
+        let mut current_line_y = Px::ZERO;
         for glyph in &cache.measured.glyphs {
             if current_line != glyph.info.line {
                 current_line = glyph.info.line;
@@ -673,7 +676,7 @@ where
                 current_line_y = cache
                     .measured
                     .line_height
-                    .saturating_mul(Px(i32::try_from(current_line).unwrap_or(i32::MAX)));
+                    .saturating_mul(Px::new(i32::try_from(current_line).unwrap_or(i32::MAX)));
             }
             let rect = glyph.rect();
             let relative = location - Point::new(rect.origin.x, current_line_y);
@@ -704,7 +707,7 @@ where
 
             // Make relative be relative to the center of the glyph for a nearest search.
             let relative = relative + rect.size / 2;
-            let xy = (relative.x.0.saturating_mul(relative.y.0)).saturating_abs();
+            let xy = (relative.x.get().saturating_mul(relative.y.get())).saturating_abs();
             match closest {
                 Some((_, closest_xy)) if xy < closest_xy => {
                     closest = Some((
@@ -872,7 +875,7 @@ where
                         context.gfx.draw_shape(
                             Shape::filled_rect(
                                 Rect::new(
-                                    Point::new(Px(0), bottom_of_first_line),
+                                    Point::new(Px::ZERO, bottom_of_first_line),
                                     Size::new(size.width.into_signed(), distance_between),
                                 ),
                                 highlight,
@@ -884,7 +887,7 @@ where
                     context.gfx.draw_shape(
                         Shape::filled_rect(
                             Rect::new(
-                                Point::new(Px(0), end_position.y),
+                                Point::new(Px::ZERO, end_position.y),
                                 Size::new(end_position.x + end_width, cache.measured.line_height),
                             ),
                             highlight,
@@ -939,7 +942,7 @@ where
 
         let cache = self.layout_text(Some(width.into_signed()), &mut context.graphics);
 
-        cache.measured.size.into_unsigned() + Size::new(padding * 2, padding * 2)
+        cache.measured.size.into_unsigned() + Size::squared(padding * 2)
     }
 
     fn keyboard_input(

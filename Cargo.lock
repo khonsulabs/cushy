@@ -623,7 +623,7 @@ dependencies = [
 [[package]]
 name = "figures"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/figures#4712514fbed861ad530bd48d4e62f8efcaa4df1f"
+source = "git+https://github.com/khonsulabs/figures#0745fc0ff95e94ce2181aa1528a30bda3d6152f2"
 dependencies = [
  "bytemuck",
  "euclid",
@@ -1089,7 +1089,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/kludgine#ca138e79a4b8ebc3bdd463006b1dadd3269183f3"
+source = "git+https://github.com/khonsulabs/kludgine#0530299bbe79431b5fa398182991c63e06d94b90"
 dependencies = [
  "ahash",
  "alot",
@@ -1974,9 +1974,9 @@ checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustix"
-version = "0.38.24"
+version = "0.38.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ad981d6c340a49cdc40a1028d9c6084ec7e9fa33fcb839cab656a267071e234"
+checksum = "dc99bc2d4f1fed22595588a013687477aedf3cdcfb26558c559edb67b4d9b22e"
 dependencies = [
  "bitflags 2.4.1",
  "errno",

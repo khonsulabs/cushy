@@ -8,9 +8,10 @@ use gooey::kludgine::Color;
 use gooey::value::Dynamic;
 use gooey::widgets::TileMap;
 use gooey::{Run, Tick};
+use kludgine::figures::FloatConversion;
 use kludgine::DrawableExt;
 
-const PLAYER_SIZE: Px = Px(16);
+const PLAYER_SIZE: Px = Px::new(16);
 
 #[rustfmt::skip]
 const TILES: [TileKind; 64] = {
@@ -33,7 +34,7 @@ fn main() -> gooey::Result {
 
     let myself = characters.push(Player {
         color: Color::RED,
-        position: Point::new(TILE_SIZE.0 as f32, TILE_SIZE.0 as f32),
+        position: Point::new(TILE_SIZE.into_float(), TILE_SIZE.into_float()),
     });
 
     let layers = Dynamic::new((Tiles::new(8, 8, TILES), characters));
@@ -58,10 +59,11 @@ fn main() -> gooey::Result {
                 direction.x -= 1.0;
             }
 
-            let one_second_movement = direction * TILE_SIZE.0 as f32;
+            let one_second_movement = direction * TILE_SIZE.into_float();
 
             layers.map_mut(|layers| {
                 layers.1[myself].position += Point::new(
+                    // TODO fix this in figures
                     one_second_movement.x * elapsed.as_secs_f32(),
                     one_second_movement.y * elapsed.as_secs_f32(),
                 )
@@ -85,10 +87,7 @@ impl Object for Player {
         let zoomed_size = PLAYER_SIZE * zoom;
         context.draw_shape(
             Shape::filled_rect(
-                Rect::new(
-                    Point::new(-zoomed_size / 2, -zoomed_size / 2),
-                    Size::squared(zoomed_size),
-                ),
+                Rect::new(Point::squared(-zoomed_size / 2), Size::squared(zoomed_size)),
                 self.color,
             )
             .translate_by(center),

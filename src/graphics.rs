@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{
-    self, Fraction, IntoSigned, IntoUnsigned, IsZero, Point, Rect, ScreenScale, ScreenUnit, Size,
+    self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
 };
 use kludgine::render::Renderer;
 use kludgine::shapes::Shape;
@@ -45,12 +45,12 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         let clip_origin = self.renderer.clip_rect().origin.into_signed();
         -Point::new(
             if clip_origin.x <= self.region.origin.x {
-                Px(0)
+                Px::ZERO
             } else {
                 clip_origin.x - self.region.origin.x
             },
             if clip_origin.y <= self.region.origin.y {
-                Px(0)
+                Px::ZERO
             } else {
                 clip_origin.y - self.region.origin.y
             },
@@ -147,7 +147,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     /// Draws a shape at the origin, rotating and scaling as needed.
     pub fn draw_shape<'a, Unit>(&mut self, shape: impl Into<Drawable<&'a Shape<Unit, false>, Unit>>)
     where
-        Unit: IsZero + ShaderScalable + figures::ScreenUnit + Copy,
+        Unit: Zero + ShaderScalable + figures::ScreenUnit + Copy,
     {
         let mut shape = shape.into();
         shape.translation += Point::<Unit>::from_px(self.translation(), self.scale());
@@ -171,7 +171,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         shape: impl Into<Drawable<&'shape Shape, Unit>>,
         texture: &impl TextureSource,
     ) where
-        Unit: IsZero + ShaderScalable + figures::ScreenUnit + Copy,
+        Unit: Zero + ShaderScalable + figures::ScreenUnit + Copy,
         i32: From<<Unit as IntoSigned>::Signed>,
         Shape: ShapeSource<Unit, true> + 'shape,
     {

@@ -7,7 +7,7 @@ use kludgine::figures::Size;
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::value::Dynamic;
 use crate::widget::Widget;
-use crate::Tick;
+use crate::{ConstraintLimit, Tick};
 
 /// A 2d drawable surface.
 #[must_use]
@@ -55,7 +55,7 @@ impl Widget for Canvas {
         available_space: Size<crate::ConstraintLimit>,
         _context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        Size::new(available_space.width.max(), available_space.height.max())
+        available_space.map(ConstraintLimit::max)
     }
 }
 

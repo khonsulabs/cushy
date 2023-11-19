@@ -162,7 +162,7 @@ impl WrapperWidget for CheckboxLabel {
         let label_inset = checkbox_size + padding;
         let size_with_checkbox = Size::new(size.width + label_inset, size.height).into_unsigned();
         WrappedLayout {
-            child: Rect::new(Point::new(label_inset, Px(0)), size),
+            child: Rect::new(Point::new(label_inset, Px::ZERO), size),
             size: size_with_checkbox,
         }
     }
@@ -170,10 +170,7 @@ impl WrapperWidget for CheckboxLabel {
     fn redraw_background(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let checkbox_size = context.get(&LineHeight).into_px(context.gfx.scale());
         let padding = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
-        let checkbox_rect = Rect::new(
-            Point::new(padding, padding),
-            Size::new(checkbox_size, checkbox_size),
-        );
+        let checkbox_rect = Rect::new(Point::squared(padding), Size::squared(checkbox_size));
         let stroke_options = StrokeOptions::lp_wide(Lp::points(2)).into_px(context.gfx.scale());
         match self.value.get_tracking_refresh(context) {
             state @ (CheckboxState::Checked | CheckboxState::Indeterminant) => {
@@ -196,7 +193,7 @@ impl WrapperWidget for CheckboxLabel {
                                 icon_area.origin.y,
                             ))
                             .build()
-                            .stroke(text_color, stroke_options),
+                            .stroke(stroke_options.colored(text_color)),
                     );
                 } else {
                     context.gfx.draw_shape(
@@ -206,15 +203,16 @@ impl WrapperWidget for CheckboxLabel {
                                 center.y,
                             ))
                             .build()
-                            .stroke(text_color, stroke_options),
+                            .stroke(stroke_options.colored(text_color)),
                     );
                 }
             }
             CheckboxState::Unchecked => {
                 let color = context.get(&OutlineColor);
-                context
-                    .gfx
-                    .draw_shape(&Shape::stroked_rect(checkbox_rect, color, stroke_options));
+                context.gfx.draw_shape(&Shape::stroked_rect(
+                    checkbox_rect,
+                    stroke_options.colored(color),
+                ));
             }
         }
     }

@@ -10,7 +10,7 @@ use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, IsZero, Point, Rect, ScreenScale, Size};
+use kludgine::figures::{IntoSigned, Point, Px2D, Rect, ScreenScale, Size, Zero};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
@@ -525,7 +525,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// If the alpha channel of `color` is 0, this function does nothing.
     pub fn fill(&mut self, color: Color) {
         if color.alpha() > 0 {
-            let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
+            let visible_rect = Rect::from(self.gfx.region().size - Size::px(1, 1));
 
             let radii = self.get(&CornerRadius);
             let radii = radii.map(|r| r.into_px(self.gfx.scale()));
@@ -542,23 +542,23 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// Strokes an outline around this widget's contents.
     pub fn stroke_outline<Unit>(&mut self, color: Color, options: StrokeOptions<Unit>)
     where
-        Unit: ScreenScale<Px = Px, Lp = Lp, UPx = UPx> + IsZero,
+        Unit: ScreenScale<Px = Px, Lp = Lp, UPx = UPx> + Zero,
     {
         if color.alpha() > 0 {
-            let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
+            let options = options.colored(color).into_px(self.gfx.scale());
+            let inset = options.line_width;
+            let visible_rect = Rect::new(
+                Point::squared(inset),
+                self.gfx.region().size - Point::new(inset * 2, inset * 2),
+            );
 
             let radii = self.get(&CornerRadius);
             let radii = radii.map(|r| r.into_px(self.gfx.scale()));
 
             let focus_ring = if radii.is_zero() {
-                Shape::stroked_rect(visible_rect, color, options.into_px(self.gfx.scale()))
+                Shape::stroked_rect(visible_rect, options.into_px(self.gfx.scale()))
             } else {
-                Shape::stroked_round_rect(
-                    visible_rect,
-                    radii,
-                    color,
-                    options.into_px(self.gfx.scale()),
-                )
+                Shape::stroked_round_rect(visible_rect, radii, options)
             };
             self.gfx.draw_shape(&focus_ring);
         }

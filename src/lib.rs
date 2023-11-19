@@ -25,7 +25,7 @@ use std::ops::Sub;
 pub use kludgine;
 use kludgine::app::winit::error::EventLoopError;
 use kludgine::figures::units::UPx;
-use kludgine::figures::{Fraction, ScreenUnit};
+use kludgine::figures::{Fraction, ScreenUnit, Size};
 pub use names::Name;
 pub use utils::{Lazy, WithClone};
 
@@ -65,6 +65,27 @@ impl ConstraintLimit {
             ConstraintLimit::Fill(size) => size.max(measured),
             ConstraintLimit::SizeToFit(_) => measured,
         }
+    }
+}
+
+/// An extension trait for `Size<ConstraintLimit>`.
+pub trait FitMeasuredSize {
+    /// Returns the result of calling [`ConstraintLimit::fit_measured`] for each
+    /// matching component in `self` and `measured`.
+    fn fit_measured<Unit>(self, measured: Size<Unit>, scale: Fraction) -> Size<UPx>
+    where
+        Unit: ScreenUnit;
+}
+
+impl FitMeasuredSize for Size<ConstraintLimit> {
+    fn fit_measured<Unit>(self, measured: Size<Unit>, scale: Fraction) -> Size<UPx>
+    where
+        Unit: ScreenUnit,
+    {
+        Size::new(
+            self.width.fit_measured(measured.width, scale),
+            self.height.fit_measured(measured.height, scale),
+        )
     }
 }
 
