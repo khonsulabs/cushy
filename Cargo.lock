@@ -623,7 +623,7 @@ dependencies = [
 [[package]]
 name = "figures"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/figures#0745fc0ff95e94ce2181aa1528a30bda3d6152f2"
+source = "git+https://github.com/khonsulabs/figures#40045fa1940f6212bc4876a4ef9ae2cd0bd89808"
 dependencies = [
  "bytemuck",
  "euclid",
@@ -1089,7 +1089,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/kludgine#f286d7de3f37ec7430890f6eeeb5d98a1ff0314e"
+source = "git+https://github.com/khonsulabs/kludgine#6b56d6524a8843f9a1a598e4d344407798971732"
 dependencies = [
  "ahash",
  "alot",

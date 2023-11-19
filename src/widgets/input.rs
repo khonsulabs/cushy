@@ -496,8 +496,10 @@ where
         if mask_bytes > 0 {
             self.value.map_ref(|value| {
                 let value = value.as_str();
+                assert!(cursor.offset <= value.len());
                 cursor.offset = value[..cursor.offset].graphemes(true).count() * mask_bytes;
                 if let Some(selection) = &mut selection {
+                    assert!(selection.offset <= value.len());
                     selection.offset =
                         value[..selection.offset].graphemes(true).count() * mask_bytes;
                 }
@@ -653,17 +655,36 @@ where
         location: Point<Px>,
         context: &mut EventContext<'_, '_>,
     ) -> Cursor {
+        let mut cursor = self.cached_cursor_from_point(location, context);
+        if let Some(symbol) = self.mask.graphemes(true).next() {
+            let grapheme_offset = cursor.offset / symbol.len();
+            cursor.offset = self.value.map_ref(|value| {
+                value
+                    .as_str()
+                    .graphemes(true)
+                    .take(grapheme_offset)
+                    .map(str::len)
+                    .sum::<usize>()
+            });
+        }
+        cursor
+    }
+
+    fn cached_cursor_from_point(
+        &mut self,
+        location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Cursor {
         let Some(cache) = &self.cache else {
             return Cursor::default();
         };
 
-        let text_length = self.value.map_ref(|value| value.as_str().len());
         let padding = context
             .get(&IntrinsicPadding)
             .into_px(context.kludgine.scale());
-        let location = location - padding;
+        let mut location = location - padding;
         if location.y < 0 {
-            return Cursor::default();
+            location.y = Px::ZERO;
         }
 
         let mut closest: Option<(Cursor, i32)> = None;
@@ -686,7 +707,7 @@ where
                 && relative.y < cache.measured.line_height
             {
                 return if relative.x > rect.size.width / 2 {
-                    if glyph.info.start + 1 < text_length {
+                    if glyph.info.start + 1 < cache.bytes {
                         Cursor {
                             offset: glyph.info.start + 1,
                             affinity: Affinity::Before,
@@ -730,7 +751,7 @@ where
             closest
         } else {
             Cursor {
-                offset: text_length,
+                offset: cache.bytes,
                 affinity: Affinity::After,
             }
         }
