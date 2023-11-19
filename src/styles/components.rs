@@ -136,6 +136,6 @@ define_components! {
         OpaqueWidgetColor(Color, "opaque_color", .surface.opaque_widget)
         /// A set of radius descriptions for how much roundness to apply to the
         /// shapes of widgets.
-        CornerRadius(CornerRadii<Dimension>, "corner_radius", CornerRadii::from(Dimension::Lp(Lp::points(100))))
+        CornerRadius(CornerRadii<Dimension>, "corner_radius", CornerRadii::from(Dimension::Lp(Lp::points(7))))
     }
 }

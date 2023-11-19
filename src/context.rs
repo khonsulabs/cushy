@@ -546,10 +546,10 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     {
         if color.alpha() > 0 {
             let options = options.colored(color).into_px(self.gfx.scale());
-            let inset = options.line_width;
+            let inset = options.line_width / 2;
             let visible_rect = Rect::new(
                 Point::squared(inset),
-                self.gfx.region().size - Point::new(inset * 2, inset * 2),
+                self.gfx.region().size - Point::squared(inset),
             );
 
             let radii = self.get(&CornerRadius);
