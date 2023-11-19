@@ -545,12 +545,10 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         Unit: ScreenScale<Px = Px, Lp = Lp, UPx = UPx> + Zero,
     {
         if color.alpha() > 0 {
-            let mut options = options.colored(color).into_px(self.gfx.scale());
-            options.line_width = options.line_width.round();
-            let inset = options.line_width / 2;
+            let options = options.colored(color).into_px(self.gfx.scale());
             let visible_rect = Rect::new(
-                Point::squared(inset),
-                self.gfx.region().size - Point::squared(inset),
+                Point::squared(options.line_width / 2),
+                self.gfx.region().size - Point::squared(options.line_width),
             );
 
             let radii = self.get(&CornerRadius);
