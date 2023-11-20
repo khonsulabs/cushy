@@ -1,5 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
+use ahash::{HashSet, HashSetExt};
+use kludgine::cosmic_text::FamilyOwned;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{
     self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
@@ -10,6 +12,8 @@ use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{
     cosmic_text, ClipGuard, Color, Drawable, Kludgine, ShaderScalable, ShapeSource, TextureSource,
 };
+
+use crate::styles::FontFamilyList;
 
 /// A 2d graphics context
 pub struct Graphics<'clip, 'gfx, 'pass> {
@@ -55,6 +59,36 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
                 clip_origin.y - self.region.origin.y
             },
         )
+    }
+
+    pub(crate) fn inner_find_available_font_family(
+        db: &cosmic_text::fontdb::Database,
+        list: &FontFamilyList,
+    ) -> Option<FamilyOwned> {
+        let mut fonts = HashSet::new();
+        for (family, _) in db.faces().filter_map(|f| f.families.first()) {
+            fonts.insert(family.clone());
+        }
+
+        list.iter()
+            .find(|family| match family {
+                FamilyOwned::Name(name) => fonts.contains(name),
+                _ => true,
+            })
+            .cloned()
+    }
+
+    /// Returns the first font family in `list` that is currently in the font
+    /// system, or None if no font families match.
+    pub fn find_available_font_family(&mut self, list: &FontFamilyList) -> Option<FamilyOwned> {
+        Self::inner_find_available_font_family(self.font_system().db(), list)
+    }
+
+    /// Sets the font family to the first family in `list`.
+    pub fn set_available_font_family(&mut self, list: &FontFamilyList) {
+        if let Some(family) = self.find_available_font_family(list) {
+            self.set_font_family(family);
+        }
     }
 
     /// Returns the underlying renderer.

@@ -15,7 +15,10 @@ use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
 use crate::graphics::Graphics;
-use crate::styles::components::{CornerRadius, HighlightColor, LayoutOrder, WidgetBackground};
+use crate::styles::components::{
+    CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, TextSize,
+    WidgetBackground,
+};
 use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, IntoValue, Value};
@@ -574,6 +577,25 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         self.stroke_outline::<Lp>(color, StrokeOptions::lp_wide(Lp::points(2)));
     }
 
+    /// Applies the current style settings for font family, text size, font
+    /// style, and font weight.
+    pub fn apply_current_font_settings(&mut self) {
+        self.gfx
+            .set_available_font_family(&self.widget.get(&FontFamily));
+        self.gfx.set_font_size(self.widget.get(&TextSize));
+        self.gfx.set_font_style(self.widget.get(&FontStyle));
+        self.gfx.set_font_weight(self.widget.get(&FontWeight));
+    }
+
+    // /// Applies the current style settings for font family, text size, font
+    // /// style, and font weight.
+    // pub fn apply_current_font_settings_to<'a>(&self, attrs: Attrs<'a>) -> Attrs<'a> {
+    //     attrs.set_available_font_family(&self.widget.get(&FontFamily));
+    //     attrs.set_font_size(self.widget.get(&TextSize));
+    //     attrs.set_font_style(self.widget.get(&FontStyle));
+    //     attrs.set_font_weight(self.widget.get(&FontWeight));
+    // }
+
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
     /// context's widget.
     ///
@@ -589,6 +611,8 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
 
         let background = self.get(&WidgetBackground);
         self.gfx.fill(background);
+
+        self.apply_current_font_settings();
 
         self.current_node
             .tree

@@ -5,12 +5,14 @@ use std::borrow::Cow;
 use std::collections::hash_map;
 use std::fmt::Debug;
 use std::ops::{
-    Add, Bound, Div, Mul, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive,
+    Add, Bound, Deref, Div, Mul, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    RangeToInclusive,
 };
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
 use ahash::AHashMap;
+use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size, Zero};
 use kludgine::shapes::CornerRadii;
@@ -57,8 +59,15 @@ impl Styles {
 
     /// Adds a [`Component`] for the name provided and returns self.
     #[must_use]
-    pub fn with(mut self, name: &impl NamedComponent, component: impl IntoComponentValue) -> Self {
-        self.insert(name, component);
+    pub fn with<C: ComponentDefinition>(
+        mut self,
+        name: &C,
+        component: impl IntoValue<C::ComponentType>,
+    ) -> Self
+    where
+        Value<C::ComponentType>: IntoComponentValue,
+    {
+        self.insert(name, component.into_value());
         self
     }
 
@@ -126,9 +135,13 @@ where
     }
 }
 
-impl IntoComponentValue for Value<Component> {
+impl<T> IntoComponentValue for Value<T>
+where
+    T: Clone,
+    Component: From<T>,
+{
     fn into_component_value(self) -> Value<Component> {
-        self
+        self.map_each(|v| Component::from(v.clone()))
     }
 }
 
@@ -207,6 +220,12 @@ pub enum Component {
     /// A description of the depth of a
     /// [`Container`](crate::widgets::Container).
     ContainerLevel(ContainerLevel),
+    /// A font family.
+    FontFamily(FamilyOwned),
+    /// The weight (boldness) of a font.
+    FontWeight(Weight),
+    /// The style of a font.
+    FontStyle(Style),
 
     /// A custom component type.
     Custom(CustomComponent),
@@ -221,6 +240,75 @@ impl Component {
         T: RequireInvalidation + RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
     {
         Self::Custom(CustomComponent::new(component))
+    }
+}
+
+impl From<FamilyOwned> for Component {
+    fn from(value: FamilyOwned) -> Self {
+        Self::FontFamily(value)
+    }
+}
+
+impl TryFrom<Component> for FamilyOwned {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::FontFamily(family) => Ok(family),
+            other => Err(other),
+        }
+    }
+}
+
+impl RequireInvalidation for FamilyOwned {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
+impl From<Weight> for Component {
+    fn from(value: Weight) -> Self {
+        Self::FontWeight(value)
+    }
+}
+
+impl TryFrom<Component> for Weight {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::FontWeight(weight) => Ok(weight),
+            other => Err(other),
+        }
+    }
+}
+
+impl RequireInvalidation for Weight {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
+impl From<Style> for Component {
+    fn from(value: Style) -> Self {
+        Self::FontStyle(value)
+    }
+}
+
+impl TryFrom<Component> for Style {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::FontStyle(style) => Ok(style),
+            other => Err(other),
+        }
+    }
+}
+
+impl RequireInvalidation for Style {
+    fn requires_invalidation(&self) -> bool {
+        true
     }
 }
 
@@ -1235,7 +1323,7 @@ impl ColorTheme {
     pub fn light_from_source(source: ColorSource) -> Self {
         Self {
             color: source.color(40),
-            color_dim: source.color(30),
+            color_dim: source.color(20),
             color_bright: source.color(45),
             on_color: source.color(100),
             container: source.color(90),
@@ -1247,9 +1335,9 @@ impl ColorTheme {
     #[must_use]
     pub fn dark_from_source(source: ColorSource) -> Self {
         Self {
-            color: source.color(70),
+            color: source.color(80),
             color_dim: source.color(60),
-            color_bright: source.color(75),
+            color_bright: source.color(85),
             on_color: source.color(10),
             container: source.color(30),
             on_container: source.color(90),
@@ -1965,5 +2053,75 @@ impl Default for ColorScheme {
 impl From<ColorSource> for ColorScheme {
     fn from(primary: ColorSource) -> Self {
         ColorScheme::from_primary(primary)
+    }
+}
+
+/// A list of font families.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FontFamilyList(Arc<Vec<FamilyOwned>>);
+
+impl Default for FontFamilyList {
+    fn default() -> Self {
+        static DEFAULT: Lazy<FontFamilyList> = Lazy::new(|| FontFamilyList::from(vec![]));
+        DEFAULT.clone()
+    }
+}
+
+impl FontFamilyList {
+    /// Pushes `family` on the end of this list.
+    pub fn push(&mut self, family: FamilyOwned) {
+        Arc::make_mut(&mut self.0).push(family);
+    }
+}
+
+impl Deref for FontFamilyList {
+    type Target = [FamilyOwned];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl FromIterator<FamilyOwned> for FontFamilyList {
+    fn from_iter<T: IntoIterator<Item = FamilyOwned>>(iter: T) -> Self {
+        Self(Arc::new(iter.into_iter().collect()))
+    }
+}
+
+impl From<FamilyOwned> for FontFamilyList {
+    fn from(value: FamilyOwned) -> Self {
+        Self::from(vec![value])
+    }
+}
+
+impl From<Vec<FamilyOwned>> for FontFamilyList {
+    fn from(value: Vec<FamilyOwned>) -> Self {
+        Self(Arc::new(value))
+    }
+}
+
+impl From<FontFamilyList> for Component {
+    fn from(list: FontFamilyList) -> Self {
+        Component::custom(list)
+    }
+}
+
+impl RequireInvalidation for FontFamilyList {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
+impl TryFrom<Component> for FontFamilyList {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Custom(custom) => custom
+                .downcast()
+                .cloned()
+                .ok_or_else(|| Component::Custom(custom)),
+            other => Err(other),
+        }
     }
 }

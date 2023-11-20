@@ -6,8 +6,9 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["tracing-output"]
+default = ["tracing-output", "roboto-flex"]
 tracing-output = ["dep:tracing-subscriber"]
+roboto-flex = []
 
 [dependencies]
 kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [

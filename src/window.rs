@@ -18,6 +18,7 @@ use kludgine::app::winit::event::{
 use kludgine::app::winit::keyboard::Key;
 use kludgine::app::winit::window;
 use kludgine::app::WindowBehavior as _;
+use kludgine::cosmic_text::FamilyOwned;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size};
 use kludgine::render::Drawing;
@@ -31,7 +32,7 @@ use crate::context::{
     WidgetContext,
 };
 use crate::graphics::Graphics;
-use crate::styles::ThemePair;
+use crate::styles::{FontFamilyList, ThemePair};
 use crate::tree::Tree;
 use crate::utils::{IgnorePoison, ModifiersExt};
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
@@ -117,6 +118,25 @@ where
     pub attributes: WindowAttributes,
     /// The colors to use to theme the user interface.
     pub theme: Value<ThemePair>,
+    /// When true, the system fonts will be loaded into the font database. This
+    /// is on by default.
+    pub load_system_fonts: bool,
+    /// The list of font families to try to find when a [`FamilyOwned::Serif`]
+    /// font is requested.
+    pub serif_font_family: FontFamilyList,
+    /// The list of font families to try to find when a
+    /// [`FamilyOwned::SansSerif`] font is requested.
+    pub sans_serif_font_family: FontFamilyList,
+    /// The list of font families to try to find when a [`FamilyOwned::Fantasy`]
+    /// font is requested.
+    pub fantasy_font_family: FontFamilyList,
+    /// The list of font families to try to find when a
+    /// [`FamilyOwned::Monospace`] font is requested.
+    pub monospace_font_family: FontFamilyList,
+    /// The list of font families to try to find when a [`FamilyOwned::Cursive`]
+    /// font is requested.
+    pub cursive_font_family: FontFamilyList,
+
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
     theme_mode: Option<Value<ThemeMode>>,
@@ -225,10 +245,16 @@ where
                 ..WindowAttributes::default()
             },
             context,
+            load_system_fonts: true,
             theme: Value::default(),
             occluded: None,
             focused: None,
             theme_mode: None,
+            serif_font_family: FontFamilyList::default(),
+            sans_serif_font_family: FontFamilyList::default(),
+            fantasy_font_family: FontFamilyList::default(),
+            monospace_font_family: FontFamilyList::default(),
+            cursive_font_family: FontFamilyList::default(),
         }
     }
 }
@@ -248,6 +274,12 @@ where
                 focused: self.focused,
                 theme: Some(self.theme),
                 theme_mode: self.theme_mode,
+                load_system_fonts: self.load_system_fonts,
+                serif_font_family: self.serif_font_family,
+                sans_serif_font_family: self.sans_serif_font_family,
+                fantasy_font_family: self.fantasy_font_family,
+                monospace_font_family: self.monospace_font_family,
+                cursive_font_family: self.cursive_font_family,
             }),
         }))
     }
@@ -449,33 +481,52 @@ where
 
     fn initialize(
         window: kludgine::app::Window<'_, WindowCommand>,
-        _graphics: &mut kludgine::Graphics<'_>,
+        graphics: &mut kludgine::Graphics<'_>,
         AssertUnwindSafe(context): Self::Context,
     ) -> Self {
-        let occluded = context
-            .settings
-            .borrow_mut()
-            .occluded
-            .take()
-            .unwrap_or_default();
-        let focused = context
-            .settings
-            .borrow_mut()
-            .focused
-            .take()
-            .unwrap_or_default();
-        let theme = context
-            .settings
-            .borrow_mut()
-            .theme
-            .take()
-            .expect("theme always present");
+        let mut settings = context.settings.borrow_mut();
+        let occluded = settings.occluded.take().unwrap_or_default();
+        let focused = settings.focused.take().unwrap_or_default();
+        let theme = settings.theme.take().expect("theme always present");
+
+        let fontdb = graphics.font_system().db_mut();
+        if let Some(FamilyOwned::Name(name)) =
+            Graphics::inner_find_available_font_family(fontdb, &settings.serif_font_family)
+        {
+            fontdb.set_serif_family(name);
+        }
+        if let Some(FamilyOwned::Name(name)) =
+            Graphics::inner_find_available_font_family(fontdb, &settings.sans_serif_font_family)
+        {
+            fontdb.set_sans_serif_family(name);
+        } else {
+            #[cfg(feature = "roboto-flex")]
+            {
+                fontdb.load_font_data(include_bytes!("../assets/RobotoFlex.ttf").to_vec());
+                fontdb.set_sans_serif_family("Roboto Flex");
+            }
+        }
+        if let Some(FamilyOwned::Name(name)) =
+            Graphics::inner_find_available_font_family(fontdb, &settings.fantasy_font_family)
+        {
+            fontdb.set_fantasy_family(name);
+        }
+        if let Some(FamilyOwned::Name(name)) =
+            Graphics::inner_find_available_font_family(fontdb, &settings.monospace_font_family)
+        {
+            fontdb.set_monospace_family(name);
+        }
+        if let Some(FamilyOwned::Name(name)) =
+            Graphics::inner_find_available_font_family(fontdb, &settings.cursive_font_family)
+        {
+            fontdb.set_cursive_family(name);
+        }
 
         let clipboard = Clipboard::new()
             .ok()
             .map(|clipboard| Arc::new(Mutex::new(clipboard)));
 
-        let theme_mode = match context.settings.borrow_mut().theme_mode.take() {
+        let theme_mode = match settings.theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
                 dynamic.update(window.theme().into());
                 Value::Dynamic(dynamic)
@@ -483,7 +534,7 @@ where
             Some(Value::Constant(mode)) => Value::Constant(mode),
             None => Value::dynamic(window.theme().into()),
         };
-        let transparent = context.settings.borrow().transparent;
+        let transparent = settings.transparent;
         let mut behavior = T::initialize(
             &mut RunningWindow::new(window, &clipboard, &focused, &occluded),
             context.user,
@@ -1093,7 +1144,7 @@ pub(crate) struct CursorState {
 pub(crate) mod sealed {
     use std::cell::RefCell;
 
-    use crate::styles::ThemePair;
+    use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
     use crate::window::{ThemeMode, WindowAttributes};
 
@@ -1109,6 +1160,12 @@ pub(crate) mod sealed {
         pub theme: Option<Value<ThemePair>>,
         pub theme_mode: Option<Value<ThemeMode>>,
         pub transparent: bool,
+        pub load_system_fonts: bool,
+        pub serif_font_family: FontFamilyList,
+        pub sans_serif_font_family: FontFamilyList,
+        pub fantasy_font_family: FontFamilyList,
+        pub monospace_font_family: FontFamilyList,
+        pub cursive_font_family: FontFamilyList,
     }
 
     #[derive(Clone)]

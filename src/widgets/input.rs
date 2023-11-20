@@ -273,7 +273,7 @@ where
 
     fn selected_range(&mut self) -> (Cursor, Option<Cursor>) {
         match self.selection.start {
-            Some(start) => match start.cmp(&self.selection.cursor) {
+            Some(start) => match start.offset.cmp(&self.selection.cursor.offset) {
                 Ordering::Less => (start, Some(self.selection.cursor)),
                 Ordering::Equal => {
                     if self.mouse_buttons_down == 0 {

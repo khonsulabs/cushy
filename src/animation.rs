@@ -41,7 +41,7 @@ pub mod easings;
 
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display};
-use std::ops::{ControlFlow, Deref, Div, Mul};
+use std::ops::{ControlFlow, Deref, Div, Mul, Sub};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
@@ -52,7 +52,8 @@ use alot::{LotId, Lots};
 use derive_more::From;
 use intentional::Cast;
 use kempt::Set;
-use kludgine::figures::Ranged;
+use kludgine::figures::units::{Lp, Px, UPx};
+use kludgine::figures::{Ranged, UnscaledUnit};
 use kludgine::Color;
 
 use crate::animation::easings::Linear;
@@ -733,6 +734,27 @@ impl PercentBetween for bool {
     }
 }
 
+macro_rules! impl_unscaled_lerp {
+    ($wrapper:ident) => {
+        impl LinearInterpolate for $wrapper {
+            fn lerp(&self, target: &Self, percent: f32) -> Self {
+                Self::from_unscaled(self.into_unscaled().lerp(&target.into_unscaled(), percent))
+            }
+        }
+
+        impl PercentBetween for $wrapper {
+            fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+                self.into_unscaled()
+                    .percent_between(&min.into_unscaled(), &max.into_unscaled())
+            }
+        }
+    };
+}
+
+impl_unscaled_lerp!(Px);
+impl_unscaled_lerp!(Lp);
+impl_unscaled_lerp!(UPx);
+
 #[test]
 fn integer_lerps() {
     #[track_caller]
@@ -815,7 +837,7 @@ pub trait PercentBetween {
 }
 
 macro_rules! impl_percent_between {
-    ($type:ident, $float:ident) => {
+    ($type:ident, $float:ident, $sub:ident) => {
         impl PercentBetween for $type {
             fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
                 assert!(min <= max, "percent_between requires min <= max");
@@ -824,27 +846,27 @@ macro_rules! impl_percent_between {
                     "self must satisfy min <= self <= max"
                 );
 
-                let range = *max - *min;
-                ZeroToOne::from((*self - *min) as $float / range as $float)
+                let range = max.$sub(*min);
+                ZeroToOne::from(self.$sub(*min) as $float / range as $float)
             }
         }
     };
 }
 
-impl_percent_between!(u8, f32);
-impl_percent_between!(u16, f32);
-impl_percent_between!(u32, f32);
-impl_percent_between!(u64, f32);
-impl_percent_between!(u128, f64);
-impl_percent_between!(usize, f64);
-impl_percent_between!(i8, f32);
-impl_percent_between!(i16, f32);
-impl_percent_between!(i32, f32);
-impl_percent_between!(i64, f32);
-impl_percent_between!(i128, f64);
-impl_percent_between!(isize, f64);
-impl_percent_between!(f32, f32);
-impl_percent_between!(f64, f64);
+impl_percent_between!(u8, f32, saturating_sub);
+impl_percent_between!(u16, f32, saturating_sub);
+impl_percent_between!(u32, f32, saturating_sub);
+impl_percent_between!(u64, f32, saturating_sub);
+impl_percent_between!(u128, f64, saturating_sub);
+impl_percent_between!(usize, f64, saturating_sub);
+impl_percent_between!(i8, f32, saturating_sub);
+impl_percent_between!(i16, f32, saturating_sub);
+impl_percent_between!(i32, f32, saturating_sub);
+impl_percent_between!(i64, f32, saturating_sub);
+impl_percent_between!(i128, f64, saturating_sub);
+impl_percent_between!(isize, f64, saturating_sub);
+impl_percent_between!(f32, f32, sub);
+impl_percent_between!(f64, f64, sub);
 
 impl PercentBetween for Color {
     fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {

@@ -20,8 +20,8 @@ use crate::context::{
     AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext, WindowHandle,
 };
 use crate::styles::{
-    ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue, NamedComponent, Styles,
-    ThemePair, VisualOrder,
+    ComponentDefinition, ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue,
+    Styles, ThemePair, VisualOrder,
 };
 use crate::tree::Tree;
 use crate::utils::IgnorePoison;
@@ -568,10 +568,15 @@ pub trait MakeWidget: Sized {
     }
 
     /// Associates a style component with `self`.
-    fn with(self, name: &impl NamedComponent, component: impl IntoComponentValue) -> Style {
-        let mut styles = Styles::new();
-        styles.insert(name, component);
-        Style::new(styles, self)
+    fn with<C: ComponentDefinition>(
+        self,
+        name: &C,
+        component: impl IntoValue<C::ComponentType>,
+    ) -> Style
+    where
+        Value<C::ComponentType>: IntoComponentValue,
+    {
+        Style::new(Styles::new().with(name, component), self)
     }
 
     /// Sets the widget that should be focused next.

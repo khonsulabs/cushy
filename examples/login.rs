@@ -22,10 +22,7 @@ fn main() -> gooey::Result {
 
     let password_field = "Password"
         .align_left()
-        .and(
-            // TODO secure input
-            password.clone().into_input(),
-        )
+        .and(password.clone().into_input())
         .into_rows();
 
     let buttons = "Cancel"

@@ -1,12 +1,13 @@
 //! All style components supported by the built-in widgets.
 
+use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
 use kludgine::figures::units::Lp;
 use kludgine::shapes::CornerRadii;
 use kludgine::Color;
 
 use crate::animation::easings::{EaseInOutQuadradic, EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::EasingFunction;
-use crate::styles::{Dimension, FocusableWidgets, VisualOrder};
+use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
 
 /// Defines a set of style components for Gooey.
 ///
@@ -104,7 +105,7 @@ define_components! {
         /// Intrinsic, uniform padding for a widget.
         ///
         /// This component is opt-in and does not automatically work for all widgets.
-        IntrinsicPadding(Dimension, "padding", Dimension::Lp(Lp::points(5)))
+        IntrinsicPadding(Dimension, "padding", Dimension::Lp(Lp::points(6)))
         /// The [`EasingFunction`] to apply to animations that have no inherent
         /// directionality.
         Easing(EasingFunction, "Easing", EasingFunction::from(EaseInOutQuadradic))
@@ -136,6 +137,12 @@ define_components! {
         OpaqueWidgetColor(Color, "opaque_color", .surface.opaque_widget)
         /// A set of radius descriptions for how much roundness to apply to the
         /// shapes of widgets.
-        CornerRadius(CornerRadii<Dimension>, "corner_radius", CornerRadii::from(Dimension::Lp(Lp::points(7))))
+        CornerRadius(CornerRadii<Dimension>, "corner_radius", CornerRadii::from(Dimension::Lp(Lp::points(10))))
+        /// The font family to render text using.
+        FontFamily(FontFamilyList, "font_family", FontFamilyList::from(FamilyOwned::SansSerif))
+        /// The font (boldness) weight to apply to text rendering.
+        FontWeight(Weight, "font_weight", Weight::NORMAL)
+        /// The font style to apply to text rendering.
+        FontStyle(Style, "font_style", Style::Normal)
     }
 }
