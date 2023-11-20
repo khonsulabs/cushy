@@ -80,46 +80,51 @@ impl<T> Slider<T> {
             self.rendered_size = spec.size.height;
         }
         let track_length = self.rendered_size - spec.knob_size;
-        let value_location = (track_length) * spec.percent + spec.half_knob;
+        let value_location = track_length * spec.percent;
 
         let half_track = spec.track_size / 2;
         // Draw the track
-        if value_location > spec.half_knob {
-            context.gfx.draw_shape(&Shape::filled_rect(
+        if value_location < track_length {
+            context.gfx.draw_shape(&Shape::filled_round_rect(
                 Rect::new(
                     flipped(
                         !self.horizontal,
-                        Point::new(spec.half_knob, spec.half_knob - half_track),
+                        Point::new(value_location + spec.half_knob, spec.half_knob - half_track),
                     ),
-                    flipped(!self.horizontal, Size::new(value_location, spec.track_size)),
+                    flipped(
+                        !self.horizontal,
+                        Size::new(track_length - value_location + half_track, spec.track_size),
+                    ),
                 ),
-                spec.track_color,
+                half_track,
+                spec.inactive_track_color,
             ));
         }
 
-        if value_location < track_length {
-            context.gfx.draw_shape(&Shape::filled_rect(
+        if value_location > 0 {
+            context.gfx.draw_shape(&Shape::filled_round_rect(
                 Rect::new(
                     flipped(
                         !self.horizontal,
-                        Point::new(value_location, spec.half_knob - half_track),
+                        Point::new(spec.half_knob - half_track, spec.half_knob - half_track),
                     ),
                     flipped(
                         !self.horizontal,
-                        Size::new(
-                            track_length - value_location + spec.half_knob,
-                            spec.track_size,
-                        ),
+                        Size::new(value_location + spec.track_size, spec.track_size),
                     ),
                 ),
-                spec.inactive_track_color,
+                half_track,
+                spec.track_color,
             ));
         }
 
         // Draw the knob
         context.gfx.draw_shape(
             Shape::filled_circle(spec.half_knob, spec.knob_color, Origin::Center).translate_by(
-                flipped(!self.horizontal, Point::new(value_location, spec.half_knob)),
+                flipped(
+                    !self.horizontal,
+                    Point::new(value_location + spec.half_knob, spec.half_knob),
+                ),
             ),
         );
     }
@@ -130,13 +135,15 @@ where
     T: LinearInterpolate + Clone,
 {
     fn update_from_click(&mut self, position: Point<Px>) {
+        let knob_size = self.knob_size.into_signed();
         let position = if self.horizontal {
-            position.x
+            position.x - knob_size / 2
         } else {
-            position.y
+            position.y - knob_size / 2
         };
-        let position = position.clamp(Px::ZERO, self.rendered_size);
-        let percent = position.into_float() / self.rendered_size.into_float();
+        let track_width = self.rendered_size - knob_size;
+        let position = position.clamp(Px::ZERO, track_width);
+        let percent = position.into_float() / track_width.into_float();
         let min = self.minimum.get();
         let max = self.maximum.get();
         self.value.update(min.lerp(&max, percent));
