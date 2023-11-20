@@ -188,7 +188,7 @@ impl WrapperWidget for Container {
         })
     }
 
-    fn adjust_child_constraint(
+    fn adjust_child_constraints(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,

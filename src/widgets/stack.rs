@@ -5,7 +5,9 @@ use std::ops::{Bound, Deref};
 
 use alot::{LotId, OrderedLots};
 use kludgine::figures::units::{Lp, UPx};
-use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
+use kludgine::figures::{
+    Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size,
+};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::Dimension;
@@ -343,7 +345,7 @@ impl Layout {
                 self.premeasured.retain(|&measured| measured != id);
                 match min {
                     Dimension::Px(pixels) => {
-                        self.allocated_space.0 -= pixels.into_unsigned();
+                        self.allocated_space.0 -= pixels.into_unsigned().ceil();
                     }
                     Dimension::Lp(lp) => {
                         self.allocated_space.1 -= lp;
@@ -403,7 +405,8 @@ impl Layout {
     ) -> Size<UPx> {
         let (space_constraint, other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
-        let allocated_space = self.allocated_space.0 + self.allocated_space.1.into_upx(scale);
+        let allocated_space =
+            self.allocated_space.0 + self.allocated_space.1.into_upx(scale).ceil();
         let mut remaining = available_space.saturating_sub(allocated_space);
         // If our `other_constraint` is not known, we will need to give child
         // widgets an opportunity to lay themselves out in the full area. This
@@ -442,8 +445,8 @@ impl Layout {
 
         // Measure the weighted children within the remaining space
         if self.total_weights > 0 {
-            let space_per_weight = remaining / self.total_weights;
-            remaining %= self.total_weights;
+            let space_per_weight = (remaining / self.total_weights).floor();
+            remaining -= space_per_weight * self.total_weights;
             for (fractional_index, &(id, weight)) in self.fractional.iter().enumerate() {
                 let index = self.children.index_of_id(id).expect("child not found");
                 let mut size = space_per_weight * u32::from(weight);
@@ -453,7 +456,7 @@ impl Layout {
                     let from_end = u32::try_from(self.fractional.len() - fractional_index)
                         .expect("too many items");
                     if remaining >= from_end {
-                        let amount = (remaining + from_end - 1) / from_end;
+                        let amount = (remaining / from_end).ceil().min(remaining);
                         remaining -= amount;
                         size += amount;
                     }

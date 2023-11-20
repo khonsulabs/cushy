@@ -20,6 +20,7 @@ use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
 /// use gooey::styles::Dimension;
 /// use gooey::styles::components::{SurfaceColor, TextColor};
 /// use gooey::kludgine::Color;
+/// use gooey::kludgine::figures::Zero;
 ///
 /// define_components! {
 ///     GroupName {

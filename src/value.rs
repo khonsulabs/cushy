@@ -3,7 +3,7 @@
 use std::cell::Cell;
 use std::fmt::{Debug, Display};
 use std::future::Future;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Not};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
 use std::task::{Poll, Waker};
@@ -132,6 +132,19 @@ impl<T> Dynamic<T> {
     /// thread.
     pub fn map_mut<R>(&self, map: impl FnOnce(&mut T) -> R) -> R {
         self.0.map_mut(|value, _| map(value)).expect("deadlocked")
+    }
+
+    /// Updates the value to the result of invoking [`Not`] on the current
+    /// value. This function returns the new value.
+    #[allow(clippy::must_use_candidate)]
+    pub fn toggle(&self) -> T
+    where
+        T: Not<Output = T> + Clone,
+    {
+        self.map_mut(|value| {
+            *value = !value.clone();
+            value.clone()
+        })
     }
 
     /// Returns a new dynamic that is updated using `U::from(T.clone())` each

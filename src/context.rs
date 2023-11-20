@@ -10,7 +10,7 @@ use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Px2D, Rect, ScreenScale, Size, Zero};
+use kludgine::figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
@@ -610,7 +610,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         );
 
         let background = self.get(&WidgetBackground);
-        self.gfx.fill(background);
+        self.fill(background);
 
         self.apply_current_font_settings();
 
@@ -707,7 +707,8 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'cl
             .clone()
             .lock()
             .as_widget()
-            .layout(available_space, self);
+            .layout(available_space, self)
+            .map(Round::ceil);
         if self.persist_layout {
             self.graphics
                 .current_node

@@ -42,6 +42,16 @@ pub enum ConstraintLimit {
 }
 
 impl ConstraintLimit {
+    /// Returns `UPx::ZERO` when sizing to fit, otherwise it returns the size
+    /// being filled.
+    #[must_use]
+    pub fn min(self) -> UPx {
+        match self {
+            ConstraintLimit::Fill(v) => v,
+            ConstraintLimit::SizeToFit(_) => UPx::ZERO,
+        }
+    }
+
     /// Returns the maximum measurement that will fit the constraint.
     #[must_use]
     pub fn max(self) -> UPx {

@@ -132,8 +132,8 @@ impl Tree {
 
         let node = &mut data.nodes[parent];
         if let Some(cached_layout) = &node.last_layout_query {
-            if constraints.width.max() < cached_layout.constraints.width.max()
-                && constraints.height.max() < cached_layout.constraints.height.max()
+            if constraints.width.max() <= cached_layout.constraints.width.max()
+                && constraints.height.max() <= cached_layout.constraints.height.max()
             {
                 return Some(cached_layout.size);
             }

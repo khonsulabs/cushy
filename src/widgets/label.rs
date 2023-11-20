@@ -40,7 +40,7 @@ impl Label {
                 if *prepared_generation == check_generation
                     && *prepared_color == color
                     && (*prepared_width == width
-                        || (*prepared_width < width
+                        || ((*prepared_width < width || prepared.size.width <= width)
                             && prepared.line_height == prepared.size.height)) => {}
             _ => {
                 let measured = self.text.map(|text| {

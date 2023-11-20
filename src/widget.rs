@@ -42,11 +42,14 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
 
     /// Layout this widget and returns the ideal size based on its contents and
     /// the `available_space`.
+    #[allow(unused_variables)]
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Size<UPx>;
+    ) -> Size<UPx> {
+        available_space.map(ConstraintLimit::min)
+    }
 
     /// Return true if this widget should expand to fill the window when it is
     /// the root widget.
@@ -250,7 +253,7 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> WrappedLayout {
-        let adjusted_space = self.adjust_child_constraint(available_space, context);
+        let adjusted_space = self.adjust_child_constraints(available_space, context);
         let child = self.child_mut().mounted(&mut context.as_event_context());
         let size = context
             .for_other(&child)
@@ -263,7 +266,7 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the adjusted contraints to use when laying out the child.
     #[allow(unused_variables)]
     #[must_use]
-    fn adjust_child_constraint(
+    fn adjust_child_constraints(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
@@ -430,7 +433,7 @@ where
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let background_color = self.background_color(context);
         if let Some(color) = background_color {
-            context.gfx.fill(color);
+            context.fill(color);
         }
 
         self.redraw_background(context);
