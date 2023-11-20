@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use intentional::Cast;
 use kludgine::app::winit::event::{ElementState, Ime, KeyEvent};
-use kludgine::app::winit::keyboard::Key;
+use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window::ImePurpose;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
@@ -355,18 +355,18 @@ where
 
     fn handle_key(&mut self, input: KeyEvent, context: &mut EventContext<'_, '_>) -> EventHandling {
         match (input.state, input.logical_key, input.text.as_deref()) {
-            (ElementState::Pressed,  key @ (Key::Backspace | Key::Delete), _) => {
+            (ElementState::Pressed,  Key::Named(key @ (NamedKey::Backspace| NamedKey::Delete)), _) => {
                 match key {
-                    Key::Backspace => self.delete(),
-                    Key::Delete => self.forward_delete(),
+                    NamedKey::Backspace => self.delete(),
+                    NamedKey::Delete => self.forward_delete(),
                     _ => unreachable!("previously matched"),
                 }
 
                 HANDLED
             }
-            (ElementState::Pressed, key @ (Key::ArrowLeft | Key::ArrowDown | Key::ArrowUp | Key::ArrowRight), _) => {
+            (ElementState::Pressed, Key::Named(key @ (NamedKey::ArrowLeft | NamedKey::ArrowDown | NamedKey::ArrowUp | NamedKey::ArrowRight)), _) => {
                 let modifiers = context.modifiers();
-                let affinity = if matches!(key, Key::ArrowLeft  | Key::ArrowUp) {
+                let affinity = if matches!(key, NamedKey::ArrowLeft  | NamedKey::ArrowUp) {
                     Affinity::Before
                 } else {
                     Affinity::After
@@ -383,8 +383,8 @@ where
 
                 match key {
                     // Key::ArrowLeft | Key::ArrowRight if modifiers.primary() => self.move_cursor(affinity, CursorNavigationMode::LineExtent),
-                    Key::ArrowLeft | Key::ArrowRight if modifiers.word_select() => self.move_cursor(affinity, CursorNavigationMode::Word),
-                    Key::ArrowLeft | Key::ArrowRight => self.move_cursor(affinity, CursorNavigationMode::Grapheme),
+                    NamedKey::ArrowLeft | NamedKey::ArrowRight if modifiers.word_select() => self.move_cursor(affinity, CursorNavigationMode::Word),
+                    NamedKey::ArrowLeft | NamedKey::ArrowRight => self.move_cursor(affinity, CursorNavigationMode::Grapheme),
                     // Key::ArrowDown | Key::ArrowUp => self.move_cursor(affinity, CursorNavigationMode::Line),
                     _ => tracing::warn!("unhandled key: {key:?}"),
                 }

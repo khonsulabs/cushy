@@ -15,7 +15,7 @@ use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
     DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
-use kludgine::app::winit::keyboard::Key;
+use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window;
 use kludgine::app::WindowBehavior as _;
 use kludgine::cosmic_text::FamilyOwned;
@@ -105,7 +105,7 @@ impl<'window> DerefMut for RunningWindow<'window> {
 }
 
 /// The attributes of a Gooey window.
-pub type WindowAttributes = kludgine::app::WindowAttributes<WindowCommand>;
+pub type WindowAttributes = kludgine::app::WindowAttributes;
 
 /// A Gooey window that is not yet running.
 #[must_use]
@@ -681,9 +681,7 @@ where
         !self.should_close
     }
 
-    fn initial_window_attributes(
-        context: &Self::Context,
-    ) -> kludgine::app::WindowAttributes<WindowCommand> {
+    fn initial_window_attributes(context: &Self::Context) -> kludgine::app::WindowAttributes {
         let mut attrs = context
             .settings
             .borrow_mut()
@@ -800,7 +798,7 @@ where
                         window.set_needs_redraw();
                     }
                 }
-                Key::Tab if !window.modifiers().possible_shortcut() => {
+                Key::Named(NamedKey::Tab) if !window.modifiers().possible_shortcut() => {
                     if input.state.is_pressed() {
                         let reverse = window.modifiers().state().shift_key();
 
@@ -828,7 +826,7 @@ where
                         }
                     }
                 }
-                Key::Enter => {
+                Key::Named(NamedKey::Enter) => {
                     self.keyboard_activate_widget(
                         input.state.is_pressed(),
                         self.root.tree.default_widget(),
@@ -836,7 +834,7 @@ where
                         kludgine,
                     );
                 }
-                Key::Escape => {
+                Key::Named(NamedKey::Escape) => {
                     self.keyboard_activate_widget(
                         input.state.is_pressed(),
                         self.root.tree.escape_widget(),

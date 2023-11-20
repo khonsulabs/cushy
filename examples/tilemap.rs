@@ -8,6 +8,7 @@ use gooey::kludgine::Color;
 use gooey::value::Dynamic;
 use gooey::widgets::TileMap;
 use gooey::{Run, Tick};
+use kludgine::app::winit::keyboard::NamedKey;
 use kludgine::figures::FloatConversion;
 use kludgine::DrawableExt;
 
@@ -46,16 +47,16 @@ fn main() -> gooey::Result {
         })
         .tick(Tick::times_per_second(60, move |elapsed, input| {
             let mut direction = Point::new(0., 0.);
-            if input.keys.contains(&Key::ArrowDown) {
+            if input.keys.contains(&Key::Named(NamedKey::ArrowDown)) {
                 direction.y += 1.0;
             }
-            if input.keys.contains(&Key::ArrowUp) {
+            if input.keys.contains(&Key::Named(NamedKey::ArrowUp)) {
                 direction.y -= 1.0;
             }
-            if input.keys.contains(&Key::ArrowRight) {
+            if input.keys.contains(&Key::Named(NamedKey::ArrowRight)) {
                 direction.x += 1.0;
             }
-            if input.keys.contains(&Key::ArrowLeft) {
+            if input.keys.contains(&Key::Named(NamedKey::ArrowLeft)) {
                 direction.x -= 1.0;
             }
 
