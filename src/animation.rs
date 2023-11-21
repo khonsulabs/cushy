@@ -171,6 +171,7 @@ pub trait Animate: Send + Sync {
 }
 
 /// A pending transition for a [`Dynamic`] to a new value.
+#[derive(Clone)]
 pub struct DynamicTransition<T> {
     /// The dynamic value to change.
     pub dynamic: Dynamic<T>,
@@ -226,6 +227,7 @@ where
 /// [`Duration`], using the `Easing` generic parameter to control how the value
 /// is interpolated.
 #[must_use = "animations are not performed until they are spawned"]
+#[derive(Clone)]
 pub struct Animation<Target, Easing = Linear>
 where
     Target: AnimationTarget,
@@ -319,6 +321,22 @@ pub trait IntoAnimate: Sized + Send + Sync {
     /// sequence.
     fn and_then<Other: IntoAnimate>(self, other: Other) -> Chain<Self, Other> {
         Chain::new(self, other)
+    }
+
+    /// Returns an animation that repeats `self` indefinitely.
+    fn cycle(self) -> Cycle<Self>
+    where
+        Self: Clone,
+    {
+        Cycle::forever(self)
+    }
+
+    /// Returns an animation that repeats a number of times before completing.
+    fn repeat(self, times: usize) -> Cycle<Self>
+    where
+        Self: Clone,
+    {
+        Cycle::n_times(times, self)
     }
 
     /// Invokes `on_complete` after this animation finishes.
@@ -473,6 +491,7 @@ impl Drop for AnimationHandle {
 }
 
 /// An animation combinator that runs animation `A`, then animation `B`.
+#[derive(Clone)]
 pub struct Chain<A: IntoAnimate, B: IntoAnimate>(A, B);
 
 /// A [`Chain`] that is currently animating.
@@ -526,6 +545,90 @@ where
             },
             ChainState::AnimatingSecond(b) => b.animate(elapsed),
         }
+    }
+}
+
+/// An animation that repeats another animation.
+pub struct Cycle<A>
+where
+    A: IntoAnimate + Clone,
+{
+    cycles: Option<usize>,
+    animation: A,
+    running: Option<A::Animate>,
+}
+
+impl<A> Cycle<A>
+where
+    A: IntoAnimate + Clone,
+{
+    /// Returns a new animation that repeats `animation` an unlimited number of
+    /// times.
+    pub fn forever(animation: A) -> Self {
+        Self {
+            animation,
+            cycles: None,
+            running: None,
+        }
+    }
+
+    /// Returns a new animation that repeats `animation` a specific number of
+    /// times.
+    ///
+    /// Passing 1 as `cycles` is equivalent to executing the animation directly.
+    pub fn n_times(cycles: usize, animation: A) -> Self {
+        Self {
+            animation,
+            cycles: Some(cycles),
+            running: None,
+        }
+    }
+
+    fn keep_cycling(&mut self) -> bool {
+        match &mut self.cycles {
+            Some(0) => false,
+            Some(cycles) => {
+                *cycles -= 1;
+                true
+            }
+            None => true,
+        }
+    }
+}
+
+impl<A> IntoAnimate for Cycle<A>
+where
+    A: IntoAnimate + Clone,
+{
+    type Animate = Self;
+
+    fn into_animate(self) -> Self::Animate {
+        self
+    }
+}
+
+impl<A> Animate for Cycle<A>
+where
+    A: IntoAnimate + Clone,
+{
+    fn animate(&mut self, mut elapsed: Duration) -> ControlFlow<Duration> {
+        while !elapsed.is_zero() {
+            if let Some(running) = &mut self.running {
+                match running.animate(elapsed) {
+                    ControlFlow::Break(remaining) => elapsed = remaining,
+                    ControlFlow::Continue(()) => return ControlFlow::Continue(()),
+                }
+            }
+
+            if self.keep_cycling() {
+                self.running = Some(self.animation.clone().into_animate());
+            } else {
+                self.running = None;
+                return ControlFlow::Break(elapsed);
+            }
+        }
+
+        ControlFlow::Continue(())
     }
 }
 

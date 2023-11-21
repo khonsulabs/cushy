@@ -46,6 +46,8 @@ where
     ///
     /// This defaults to `0.05`/5%.
     pub step: Value<ZeroToOne>,
+    knob_visible: bool,
+    interactive: bool,
     knob_size: UPx,
     horizontal: bool,
     rendered_size: Px,
@@ -88,6 +90,8 @@ where
             value: value.into_dynamic(),
             minimum: min.into_value(),
             maximum: max.into_value(),
+            knob_visible: true,
+            interactive: true,
             step: Value::Constant(ZeroToOne::new(0.05)),
             knob_size: UPx::ZERO,
             horizontal: true,
@@ -126,15 +130,32 @@ where
         self
     }
 
+    /// Updates this slider to not show knobs and returns self.
+    ///
+    /// This also prevents the slider from being focused.
+    #[must_use]
+    pub fn knobless(mut self) -> Self {
+        self.knob_visible = false;
+        self
+    }
+
+    /// Updates this slider to ignore all user input and returns self.
+    #[must_use]
+    pub fn non_interactive(mut self) -> Self {
+        self.interactive = false;
+        self
+    }
+
     fn draw_track(&mut self, spec: &TrackSpec, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         if self.horizontal {
             self.rendered_size = spec.size.width;
         } else {
             self.rendered_size = spec.size.height;
         }
-        let half_focus_ring = (Lp::points(2).into_px(context.gfx.scale()) / 2).ceil();
+        let half_focus_ring =
+            spec.if_knobbed(|| (Lp::points(2).into_px(context.gfx.scale()) / 2).ceil());
         let focus_ring = half_focus_ring * 2;
-        let track_length = self.rendered_size - spec.knob_size - focus_ring;
+        let track_length = self.rendered_size - spec.if_knobbed(|| spec.knob_size - focus_ring);
         let (start, end) = if let Some(end) = spec.end {
             (track_length * spec.start, track_length * end)
         } else {
@@ -143,15 +164,13 @@ where
         let inset = Point::squared(half_focus_ring);
 
         let half_track = spec.track_size / 2;
+        let start_inset = (spec.half_knob - half_track).max(Px::ZERO);
         // Draw the track
         if start > 0 {
             context.gfx.draw_shape(
                 Shape::filled_round_rect(
                     Rect::new(
-                        flipped(
-                            !self.horizontal,
-                            Point::new(spec.half_knob - half_track, spec.half_knob - half_track),
-                        ),
+                        flipped(!self.horizontal, Point::new(start_inset, start_inset)),
                         flipped(!self.horizontal, Size::new(start, spec.track_size)),
                     ),
                     half_track,
@@ -166,11 +185,14 @@ where
                     Rect::new(
                         flipped(
                             !self.horizontal,
-                            Point::new(end + spec.half_knob, spec.half_knob - half_track),
+                            Point::new(end + spec.if_knobbed(|| spec.half_knob), start_inset),
                         ),
                         flipped(
                             !self.horizontal,
-                            Size::new(track_length - end + half_track, spec.track_size),
+                            Size::new(
+                                track_length - end + spec.if_knobbed(|| half_track),
+                                spec.track_size,
+                            ),
                         ),
                     ),
                     half_track,
@@ -187,13 +209,16 @@ where
                         flipped(
                             !self.horizontal,
                             Point::new(
-                                start + spec.half_knob - half_track,
-                                spec.half_knob - half_track,
+                                start + spec.if_knobbed(|| spec.half_knob - half_track),
+                                start_inset,
                             ),
                         ),
                         flipped(
                             !self.horizontal,
-                            Size::new(end - start + spec.track_size, spec.track_size),
+                            Size::new(
+                                end - start + spec.if_knobbed(|| spec.track_size),
+                                spec.track_size,
+                            ),
                         ),
                     ),
                     half_track,
@@ -204,34 +229,73 @@ where
         }
 
         // Draw the knob
-        let focused = context.focused();
-        let this_knob_role = if spec.end.is_some() {
-            Knob::End
-        } else {
-            Knob::Start
-        };
-        self.draw_knob(
-            flipped(
-                !self.horizontal,
-                Point::new(end + spec.half_knob, spec.half_knob) + inset,
-            ),
-            focused && self.focused_knob == Some(this_knob_role),
-            focus_ring,
-            spec,
-            context,
-        );
-
-        if spec.end.is_some() {
-            self.draw_knob(
+        if spec.knob_size > 0 {
+            let focus = context.focused().then_some(self.focused_knob).flatten();
+            self.draw_knobs(
                 flipped(
                     !self.horizontal,
-                    Point::new(start + spec.half_knob, spec.half_knob) + inset,
+                    Point::new(end + spec.half_knob, spec.half_knob) + inset,
                 ),
-                focused && matches!(self.focused_knob, Some(Knob::Start)),
+                spec.end.map(|_| {
+                    flipped(
+                        !self.horizontal,
+                        Point::new(start + spec.half_knob, spec.half_knob) + inset,
+                    )
+                }),
+                focus,
                 focus_ring,
                 spec,
                 context,
             );
+            // let this_knob_role = if spec.end.is_some() {
+            //     Knob::End
+            // } else {
+            //     Knob::Start
+            // };
+            // self.draw_knob(
+            //     flipped(
+            //         !self.horizontal,
+            //         Point::new(end + spec.half_knob, spec.half_knob) + inset,
+            //     ),
+            //     focused && self.focused_knob == Some(this_knob_role),
+            //     focus_ring,
+            //     spec,
+            //     context,
+            // );
+
+            // if spec.end.is_some() {
+            //     self.draw_knob(
+            //         flipped(
+            //             !self.horizontal,
+            //             Point::new(start + spec.half_knob, spec.half_knob) + inset,
+            //         ),
+            //         focused && matches!(self.focused_knob, Some(Knob::Start)),
+            //         focus_ring,
+            //         spec,
+            //         context,
+            //     );
+            // }
+        }
+    }
+
+    fn draw_knobs(
+        &mut self,
+        end_knob: Point<Px>,
+        start_knob: Option<Point<Px>>,
+        focus: Option<Knob>,
+        focus_ring_width: Px,
+        spec: &TrackSpec,
+        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+    ) {
+        let (a, a_is_focused, b) = match (start_knob, focus) {
+            (Some(start_knob), Some(Knob::Start)) => (end_knob, false, Some((start_knob, true))),
+            (Some(start_knob), focus) => (start_knob, false, Some((end_knob, focus.is_some()))),
+            (None, focus) => (end_knob, focus.is_some(), None),
+        };
+
+        self.draw_knob(a, a_is_focused, focus_ring_width, spec, context);
+        if let Some((b, b_is_focused)) = b {
+            self.draw_knob(b, b_is_focused, focus_ring_width, spec, context);
         }
     }
 
@@ -291,20 +355,16 @@ where
                 let end_percent = end.percent_between(&min, &max);
                 let knob_width_as_percent =
                     self.knob_size.into_float() / 2. / track_width.into_float();
-                if percent - *start_percent <= knob_width_as_percent
-                    && matches!(previous_focus, Some(Knob::Start))
-                {
+                let start_delta = percent - *start_percent;
+                let end_delta = *end_percent - percent;
+                let on_overlapping_knobs =
+                    end_delta <= knob_width_as_percent && start_delta <= knob_width_as_percent;
+                if let (true, Some(previous)) = (on_overlapping_knobs, previous_focus) {
+                    previous
+                } else if start_delta < end_delta {
                     Knob::Start
-                } else if *end_percent - percent <= knob_width_as_percent
-                    && matches!(previous_focus, Some(Knob::End))
-                {
-                    Knob::End
-                } else if value <= start {
-                    Knob::Start
-                } else if &value >= end {
-                    Knob::End
                 } else {
-                    Knob::Start
+                    Knob::End
                 }
             };
             match knob {
@@ -390,10 +450,10 @@ where
         let inactive_track_color = context.get(&InactiveTrackColor);
         let knob_color = context.get(&KnobColor);
         let knob_size = self.knob_size.into_signed();
-        let track_size = context
-            .get(&TrackSize)
-            .into_px(context.gfx.scale())
-            .min(knob_size);
+        let mut track_size = context.get(&TrackSize).into_px(context.gfx.scale());
+        if knob_size > 0 {
+            track_size = track_size.min(knob_size);
+        }
 
         let half_knob = knob_size / 2;
 
@@ -460,12 +520,24 @@ where
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        self.knob_size = context.get(&KnobSize).into_upx(context.gfx.scale());
+        self.knob_size = if self.knob_visible {
+            context.get(&KnobSize).into_upx(context.gfx.scale())
+        } else {
+            UPx::ZERO
+        };
         let minimum_size = context
             .get(&MinimumSliderSize)
             .into_upx(context.gfx.scale());
-        let focus_ring_width = (Lp::points(2).into_upx(context.gfx.scale()) / 2).ceil() * 2;
-        let focused_knob_size = self.knob_size + focus_ring_width;
+        let focus_ring_width = if self.knob_visible {
+            (Lp::points(2).into_upx(context.gfx.scale()) / 2).ceil() * 2
+        } else {
+            UPx::ZERO
+        };
+        let static_side = if self.knob_visible {
+            self.knob_size + focus_ring_width
+        } else {
+            context.get(&TrackSize).into_upx(context.gfx.scale())
+        };
 
         match (available_space.width, available_space.height) {
             (ConstraintLimit::Fill(width), ConstraintLimit::Fill(height)) => {
@@ -473,17 +545,17 @@ where
                 // up with a horizontal slider.
                 if width < height {
                     // Vertical slider
-                    Size::new(focused_knob_size, height.max(minimum_size))
+                    Size::new(static_side, height.max(minimum_size))
                 } else {
                     // Horizontal slider
-                    Size::new(width.max(minimum_size), focused_knob_size)
+                    Size::new(width.max(minimum_size), static_side)
                 }
             }
             (ConstraintLimit::Fill(width), ConstraintLimit::SizeToFit(_)) => {
-                Size::new(width.max(minimum_size), focused_knob_size)
+                Size::new(width.max(minimum_size), static_side)
             }
             (ConstraintLimit::SizeToFit(_), ConstraintLimit::Fill(height)) => {
-                Size::new(focused_knob_size, height.max(minimum_size))
+                Size::new(static_side, height.max(minimum_size))
             }
             (ConstraintLimit::SizeToFit(width), ConstraintLimit::SizeToFit(_)) => {
                 // When we have no limit on our, we still want to be draggable.
@@ -493,17 +565,17 @@ where
                 // user of the slider, a horizontal slider is expected. So, we
                 // set the minimum measurement based on a horizontal
                 // orientation.
-                Size::new(width.min(minimum_size), focused_knob_size)
+                Size::new(width.min(minimum_size), static_side)
             }
         }
     }
 
     fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
-        true
+        self.interactive
     }
 
     fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
-        context.get(&AutoFocusableControls).is_all()
+        self.interactive && self.knob_visible && context.get(&AutoFocusableControls).is_all()
     }
 
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {
@@ -556,6 +628,10 @@ where
         _button: MouseButton,
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
+        let true = self.interactive else {
+            return IGNORED;
+        };
+
         let previous_focus = match (self.previous_focus.take(), self.focused_knob.take()) {
             (None | Some(_), Some(focus)) | (Some(focus), None) => Some(focus),
             (None, None) => None,
@@ -593,6 +669,10 @@ where
         _is_synthetic: bool,
         _context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
+        let true = self.interactive else {
+            return IGNORED;
+        };
+
         let forwards = match input.logical_key {
             Key::Named(NamedKey::ArrowLeft | NamedKey::ArrowUp) => false,
             Key::Named(NamedKey::ArrowRight | NamedKey::ArrowDown) => true,
@@ -614,6 +694,10 @@ where
         _phase: TouchPhase,
         _context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
+        let true = self.interactive else {
+            return IGNORED;
+        };
+
         let factor: f32 = match delta {
             MouseScrollDelta::LineDelta(_, y) => y,
             MouseScrollDelta::PixelDelta(pt) => pt.y.cast(),
@@ -643,6 +727,19 @@ struct TrackSpec {
     knob_color: Color,
     track_color: Color,
     inactive_track_color: Color,
+}
+
+impl TrackSpec {
+    fn if_knobbed<R>(&self, knobbed: impl FnOnce() -> R) -> R
+    where
+        R: Default,
+    {
+        if self.knob_size > 0 {
+            knobbed()
+        } else {
+            R::default()
+        }
+    }
 }
 
 fn flipped<T, Unit>(flip: bool, value: T) -> T

@@ -1201,6 +1201,16 @@ impl<T> Value<T> {
         }
     }
 }
+
+impl<T> IntoDynamic<T> for Value<T> {
+    fn into_dynamic(self) -> Dynamic<T> {
+        match self {
+            Value::Constant(value) => Dynamic::new(value),
+            Value::Dynamic(value) => value,
+        }
+    }
+}
+
 impl<T> Clone for Value<T>
 where
     T: Clone,
