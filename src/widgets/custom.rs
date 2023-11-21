@@ -9,6 +9,7 @@ use kludgine::figures::{Point, Size};
 use kludgine::Color;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::styles::VisualOrder;
 use crate::value::{IntoValue, Value};
 use crate::widget::{EventHandling, MakeWidget, WidgetRef, WrappedLayout, WrapperWidget, IGNORED};
 use crate::widgets::Space;
@@ -44,6 +45,8 @@ pub struct Custom {
     keyboard_input: Option<Box<dyn ThreeParamEventFunc<DeviceId, KeyEvent, bool, EventHandling>>>,
     mouse_wheel:
         Option<Box<dyn ThreeParamEventFunc<DeviceId, MouseScrollDelta, TouchPhase, EventHandling>>>,
+    allow_blur: Option<Box<dyn EventFunc<bool>>>,
+    advance_focus: Option<Box<dyn OneParamEventFunc<VisualOrder, EventHandling>>>,
 }
 
 impl Debug for Custom {
@@ -91,6 +94,8 @@ impl Custom {
             ime: None,
             keyboard_input: None,
             mouse_wheel: None,
+            allow_blur: None,
+            advance_focus: None,
         }
     }
 
@@ -259,6 +264,42 @@ impl Custom {
             + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>) -> bool,
     {
         self.accept_focus = Some(Box::new(accept));
+        self
+    }
+
+    /// Invokes `allow_blur` when this widget is about to lose focus. If
+    /// `allow_blur` returns false, focus will be disallowed from leaving this
+    /// widget.
+    ///
+    /// This callback corresponds to [`WrapperWidget::allow_blur`].
+    pub fn on_allow_blur<AllowBlur>(mut self, allow_blur: AllowBlur) -> Self
+    where
+        AllowBlur: Send
+            + UnwindSafe
+            + 'static
+            + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>) -> bool,
+    {
+        self.allow_blur = Some(Box::new(allow_blur));
+        self
+    }
+
+    /// Invokes `advance_focus` when this widget has focus and focus is
+    /// requested to advance to another widget. Returning
+    /// [`HANDLED`](crate::widget::HANDLED) will signal to Gooey that the focus
+    /// has moved and the request should not be processed any further.
+    ///
+    /// This callback corresponds to [`WrapperWidget::advance_focus`].
+    pub fn on_advance_focus<AdvanceFocus>(mut self, advance_focus: AdvanceFocus) -> Self
+    where
+        AdvanceFocus: Send
+            + UnwindSafe
+            + 'static
+            + for<'context, 'window> FnMut(
+                VisualOrder,
+                &mut EventContext<'context, 'window>,
+            ) -> EventHandling,
+    {
+        self.advance_focus = Some(Box::new(advance_focus));
         self
     }
 
@@ -637,6 +678,26 @@ impl WrapperWidget for Custom {
             mouse_wheel.invoke(device_id, delta, phase, context)
         } else {
             IGNORED
+        }
+    }
+
+    fn advance_focus(
+        &mut self,
+        direction: VisualOrder,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        if let Some(advance_focus) = &mut self.advance_focus {
+            advance_focus.invoke(direction, context)
+        } else {
+            IGNORED
+        }
+    }
+
+    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        if let Some(allow_blur) = &mut self.allow_blur {
+            allow_blur.invoke(context)
+        } else {
+            true
         }
     }
 }

@@ -51,12 +51,6 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         available_space.map(ConstraintLimit::min)
     }
 
-    /// Return true if this widget should expand to fill the window when it is
-    /// the root widget.
-    fn expand_if_at_root(&self) -> Option<bool> {
-        Some(false)
-    }
-
     /// The widget has been mounted into a parent widget.
     #[allow(unused_variables)]
     fn mounted(&mut self, context: &mut EventContext<'_, '_>) {}
@@ -90,6 +84,25 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     /// The widget has received focus for user input.
     #[allow(unused_variables)]
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// The widget should switch to the next focusable area within this widget,
+    /// honoring `direction` in a consistent manner. Returning `HANDLED` will
+    /// cause the search for the next focus widget stop.
+    #[allow(unused_variables)]
+    fn advance_focus(
+        &mut self,
+        direction: VisualOrder,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        IGNORED
+    }
+
+    /// The widget is about to lose focus. Returning true allows the focus to
+    /// switch away from this widget.
+    #[allow(unused_variables)]
+    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        true
+    }
 
     /// The widget is no longer focused for user input.
     #[allow(unused_variables)]
@@ -333,9 +346,28 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         false
     }
 
+    /// The widget should switch to the next focusable area within this widget,
+    /// honoring `direction` in a consistent manner. Returning `HANDLED` will
+    /// cause the search for the next focus widget stop.
+    #[allow(unused_variables)]
+    fn advance_focus(
+        &mut self,
+        direction: VisualOrder,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        IGNORED
+    }
+
     /// The widget has received focus for user input.
     #[allow(unused_variables)]
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// The widget is about to lose focus. Returning true allows the focus to
+    /// switch away from this widget.
+    #[allow(unused_variables)]
+    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        true
+    }
 
     /// The widget is no longer focused for user input.
     #[allow(unused_variables)]
@@ -547,6 +579,18 @@ where
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         T::mouse_wheel(self, device_id, delta, phase, context)
+    }
+
+    fn advance_focus(
+        &mut self,
+        direction: VisualOrder,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        T::advance_focus(self, direction, context)
+    }
+
+    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        T::allow_blur(self, context)
     }
 }
 

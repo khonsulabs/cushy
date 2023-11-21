@@ -178,6 +178,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         }
     }
 
+    #[allow(clippy::too_many_lines)] // TODO
     pub(crate) fn apply_pending_state(&mut self) {
         const MAX_ITERS: u8 = 100;
         // These two blocks apply active/focus in a loop to pick up the event
@@ -262,9 +263,18 @@ impl<'context, 'window> EventContext<'context, 'window> {
             });
             let new = match self.current_node.tree.focus(self.pending_state.focus) {
                 Ok(old) => {
-                    if let Some(old) = old {
-                        let mut old_context = self.for_other(&old);
-                        old.lock().as_widget().blur(&mut old_context);
+                    if let Some(old_widget) = old {
+                        let mut old_context = self.for_other(&old_widget);
+                        let mut old = old_widget.lock();
+                        if old.as_widget().allow_blur(&mut old_context) {
+                            old.as_widget().blur(&mut old_context);
+                        } else {
+                            // This widget is rejecting the focus change.
+                            drop(old_context);
+                            let _result = self.current_node.tree.focus(Some(old_widget.id()));
+                            self.pending_state.focus = Some(old_widget.id());
+                            break;
+                        }
                     }
                     true
                 }
@@ -417,6 +427,20 @@ impl<'context, 'window> EventContext<'context, 'window> {
     }
 
     fn move_focus(&mut self, advance: bool) {
+        let node = self.current_node.clone();
+        let mut direction = self.get(&LayoutOrder);
+        if !advance {
+            direction = direction.rev();
+        }
+        if node
+            .lock()
+            .as_widget()
+            .advance_focus(direction, self)
+            .is_break()
+        {
+            return;
+        }
+
         if let Some(explicit_next_focus) = self.current_node.explicit_focus_target(advance) {
             self.for_other(&explicit_next_focus).focus();
         } else {
@@ -949,6 +973,14 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         } else {
             false
         }
+    }
+
+    /// Returns true if the last focus event was an advancing motion, not a
+    /// returning motion.
+    ///
+    /// This value is meaningless outside of focus-related events.
+    pub fn focus_is_advancing(&mut self) -> bool {
+        self.pending_state.focus_is_advancing
     }
 
     /// Activates this widget, if it is not already active.

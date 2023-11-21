@@ -819,6 +819,7 @@ where
                             ),
                             kludgine,
                         );
+
                         if reverse {
                             target.return_focus();
                         } else {
