@@ -4,12 +4,14 @@
 use std::ops::{Bound, Deref};
 
 use alot::{LotId, OrderedLots};
+use intentional::Cast;
 use kludgine::figures::units::{Lp, UPx};
 use kludgine::figures::{
     Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size,
 };
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
+use crate::styles::components::IntrinsicPadding;
 use crate::styles::Dimension;
 use crate::value::{Generation, IntoValue, Value};
 use crate::widget::{Children, ManagedWidget, Widget, WidgetRef};
@@ -157,6 +159,7 @@ impl Widget for Stack {
 
         let content_size = self.layout.update(
             available_space,
+            context.get(&IntrinsicPadding).into_upx(context.gfx.scale()),
             context.gfx.scale(),
             |child_index, constraints, persist| {
                 let mut context = context.for_other(&self.synced_children[child_index]);
@@ -400,13 +403,15 @@ impl Layout {
     pub fn update(
         &mut self,
         available: Size<ConstraintLimit>,
+        gutter: UPx,
         scale: Fraction,
         mut measure: impl FnMut(usize, Size<ConstraintLimit>, bool) -> Size<UPx>,
     ) -> Size<UPx> {
         let (space_constraint, other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
+        let gutter_space = gutter.saturating_mul(UPx::new((self.children.len() - 1).cast::<u32>()));
         let allocated_space =
-            self.allocated_space.0 + self.allocated_space.1.into_upx(scale).ceil();
+            self.allocated_space.0 + self.allocated_space.1.into_upx(scale).ceil() + gutter_space;
         let mut remaining = available_space.saturating_sub(allocated_space);
         // If our `other_constraint` is not known, we will need to give child
         // widgets an opportunity to lay themselves out in the full area. This
@@ -490,7 +495,7 @@ impl Layout {
         let mut offset = UPx::ZERO;
         for index in 0..self.children.len() {
             self.layouts[index].offset = offset;
-            offset += self.layouts[index].size;
+            offset += self.layouts[index].size + gutter;
             if needs_final_layout {
                 self.orientation.split_size(measure(
                     index,
@@ -576,8 +581,11 @@ mod tests {
             flex.push(child.dimension, Fraction::ONE);
         }
 
-        let computed_size =
-            flex.update(available, Fraction::ONE, |index, constraints, _persist| {
+        let computed_size = flex.update(
+            available,
+            UPx::ZERO,
+            Fraction::ONE,
+            |index, constraints, _persist| {
                 let (measured_constraint, _other_constraint) = orientation.split_size(constraints);
                 let child = &children[index];
                 let maximum_measured = measured_constraint.max();
@@ -594,7 +602,8 @@ mod tests {
                         _ => (child.size, child.other),
                     };
                 orientation.make_size(measured, other)
-            });
+            },
+        );
         assert_eq!(computed_size, expected_size);
         let mut offset = UPx::ZERO;
         for ((index, &child), &expected) in flex.iter().enumerate().zip(expected) {

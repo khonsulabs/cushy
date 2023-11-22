@@ -67,9 +67,8 @@ fn main() -> gooey::Result {
         .into_columns();
 
     username_row
-        .pad()
-        .and(password_row.pad())
-        .and(buttons.pad())
+        .and(password_row)
+        .and(buttons)
         .into_rows()
         .contain()
         .width(Lp::points(300)..Lp::points(600))
