@@ -1,6 +1,7 @@
 use gooey::animation::{LinearInterpolate, PercentBetween};
 use gooey::value::{Dynamic, ForEach};
 use gooey::widget::MakeWidget;
+use gooey::widgets::checkbox::Checkable;
 use gooey::widgets::input::InputValue;
 use gooey::widgets::slider::Slidable;
 use gooey::Run;
@@ -8,9 +9,13 @@ use kludgine::figures::units::Lp;
 use kludgine::figures::Ranged;
 
 fn main() -> gooey::Result {
+    let enabled = Dynamic::new(true);
     u8_slider()
         .and(u8_range_slider())
         .and(enum_slider())
+        .into_rows()
+        .with_enabled(enabled.clone())
+        .and(enabled.into_checkbox("Enabled"))
         .into_rows()
         .expand_horizontally()
         .contain()

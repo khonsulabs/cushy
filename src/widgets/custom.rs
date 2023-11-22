@@ -4,6 +4,7 @@ use std::panic::UnwindSafe;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
+use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::Px;
 use kludgine::figures::{Point, Size};
 use kludgine::Color;
@@ -36,7 +37,7 @@ pub struct Custom {
     adjust_child: Option<Box<dyn AdjustChildConstraintsFunc>>,
     position_child: Option<Box<dyn PositionChildFunc>>,
     hit_test: Option<Box<dyn OneParamEventFunc<Point<Px>, bool>>>,
-    hover: Option<Box<dyn OneParamEventFunc<Point<Px>>>>,
+    hover: Option<Box<dyn OneParamEventFunc<Point<Px>, Option<CursorIcon>>>>,
     mouse_down:
         Option<Box<dyn ThreeParamEventFunc<Point<Px>, DeviceId, MouseButton, EventHandling>>>,
     mouse_drag: Option<Box<dyn ThreeParamEventFunc<Point<Px>, DeviceId, MouseButton>>>,
@@ -366,7 +367,10 @@ impl Custom {
         Hover: Send
             + UnwindSafe
             + 'static
-            + for<'context, 'window> FnMut(Point<Px>, &mut EventContext<'context, 'window>),
+            + for<'context, 'window> FnMut(
+                Point<Px>,
+                &mut EventContext<'context, 'window>,
+            ) -> Option<CursorIcon>,
     {
         self.hover = Some(Box::new(hover));
         self
@@ -563,10 +567,13 @@ impl WrapperWidget for Custom {
         }
     }
 
-    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) {
-        if let Some(hover) = &mut self.hover {
-            hover.invoke(location, context);
-        }
+    fn hover(
+        &mut self,
+        location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        let hover = self.hover.as_mut()?;
+        hover.invoke(location, context)
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {

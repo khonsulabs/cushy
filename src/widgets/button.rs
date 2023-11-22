@@ -3,6 +3,7 @@ use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
+use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{IntoSigned, Point, Rect, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
@@ -383,7 +384,7 @@ impl Widget for Button {
     }
 
     fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
-        context.get(&AutoFocusableControls).is_all()
+        context.enabled() && context.get(&AutoFocusableControls).is_all()
     }
 
     fn mouse_down(
@@ -492,8 +493,18 @@ impl Widget for Button {
         self.update_colors(context, false);
     }
 
-    fn hover(&mut self, _location: Point<Px>, context: &mut EventContext<'_, '_>) {
+    fn hover(
+        &mut self,
+        _location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
         self.update_colors(context, false);
+
+        if context.enabled() {
+            Some(CursorIcon::Pointer)
+        } else {
+            Some(CursorIcon::NotAllowed)
+        }
     }
 
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {

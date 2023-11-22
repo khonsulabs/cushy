@@ -12,6 +12,7 @@ use alot::LotId;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
+use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use kludgine::Color;
@@ -68,7 +69,13 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
 
     /// The widget is currently has a cursor hovering it at `location`.
     #[allow(unused_variables)]
-    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) {}
+    fn hover(
+        &mut self,
+        location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        None
+    }
 
     /// The widget is no longer being hovered.
     #[allow(unused_variables)]
@@ -333,7 +340,13 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
 
     /// The widget is currently has a cursor hovering it at `location`.
     #[allow(unused_variables)]
-    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) {}
+    fn hover(
+        &mut self,
+        location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        None
+    }
 
     /// The widget is no longer being hovered.
     #[allow(unused_variables)]
@@ -500,8 +513,12 @@ where
         T::hit_test(self, location, context)
     }
 
-    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) {
-        T::hover(self, location, context);
+    fn hover(
+        &mut self,
+        location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        T::hover(self, location, context)
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {

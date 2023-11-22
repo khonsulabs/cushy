@@ -8,6 +8,7 @@ use kempt::Set;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
+use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::shapes::{Shape, StrokeOptions};
@@ -163,10 +164,17 @@ impl<'context, 'window> EventContext<'context, 'window> {
             let mut context = self.for_other(&unhovered);
             unhovered.lock().as_widget().unhover(&mut context);
         }
-        for hover in changes.hovered {
+
+        let mut cursor = None;
+        for hover in changes.hovered.into_iter().rev() {
             let mut context = self.for_other(&hover);
-            hover.lock().as_widget().hover(location, &mut context);
+            let widget_cursor = hover.lock().as_widget().hover(location, &mut context);
+
+            if cursor.is_none() {
+                cursor = widget_cursor;
+            }
         }
+        self.winit().set_cursor_icon(cursor.unwrap_or_default());
     }
 
     pub(crate) fn clear_hover(&mut self) {
@@ -177,6 +185,8 @@ impl<'context, 'window> EventContext<'context, 'window> {
             let mut old_hover_context = self.for_other(&old_hover);
             old_hover.lock().as_widget().unhover(&mut old_hover_context);
         }
+
+        self.winit().set_cursor_icon(CursorIcon::Default);
     }
 
     fn apply_pending_activation(&mut self) {
@@ -227,14 +237,10 @@ impl<'context, 'window> EventContext<'context, 'window> {
     fn apply_pending_focus(&mut self) {
         let mut focus_changes = 0;
         while focus_changes < Self::MAX_PENDING_CHANGE_CYCLES {
-            let focus = match self
+            let focus = self
                 .pending_state
                 .focus
-                .and_then(|w| self.current_node.tree.widget(w))
-            {
-                Some(focus) => self.for_other(&focus).enabled().then_some(focus),
-                None => None,
-            };
+                .and_then(|w| self.current_node.tree.widget(w));
             if self.current_node.tree.focused_widget() == focus.as_ref().map(|w| w.node_id) {
                 break;
             }
@@ -242,8 +248,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
             self.pending_state.focus = focus.and_then(|mut focus| loop {
                 let mut focus_context = self.for_other(&focus);
-                let accept_focus = focus_context.enabled()
-                    && focus.lock().as_widget().accept_focus(&mut focus_context);
+                let accept_focus = focus.lock().as_widget().accept_focus(&mut focus_context);
                 drop(focus_context);
 
                 if accept_focus {
@@ -402,8 +407,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
             }
 
             let mut child_context = self.for_other(&child);
-            let accept_focus = child_context.enabled()
-                && child.lock().as_widget().accept_focus(&mut child_context);
+            let accept_focus = child.lock().as_widget().accept_focus(&mut child_context);
             drop(child_context);
             if accept_focus {
                 return Some(child.id());

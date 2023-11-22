@@ -7,6 +7,7 @@ use std::panic::UnwindSafe;
 use intentional::{Assert, Cast as _};
 use kludgine::app::winit::event::{DeviceId, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::keyboard::{Key, NamedKey};
+use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
     FloatConversion, IntoSigned, Point, Ranged, Rect, Round, ScreenScale, Size,
@@ -17,7 +18,8 @@ use kludgine::{Color, DrawableExt, Origin};
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::{
-    AutoFocusableControls, OpaqueWidgetColor, OutlineColor, WidgetAccentColor,
+    AutoFocusableControls, DisabledWidgetAccentColor, OpaqueWidgetColor, OutlineColor,
+    WidgetAccentColor,
 };
 use crate::styles::{Dimension, HorizontalOrder, VerticalOrder, VisualOrder};
 use crate::value::{Dynamic, IntoDynamic, IntoValue, Value};
@@ -420,9 +422,19 @@ where
     T: SliderValue,
 {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let track_color = context.get(&TrackColor);
-        let inactive_track_color = context.get(&InactiveTrackColor);
-        let knob_color = context.get(&KnobColor);
+        let (track_color, inactive_track_color, knob_color) = if context.enabled() {
+            (
+                context.get(&TrackColor),
+                context.get(&InactiveTrackColor),
+                context.get(&KnobColor),
+            )
+        } else {
+            (
+                context.get(&DisabledTrackColor),
+                context.get(&DisabledInactiveTrackColor),
+                context.get(&DisabledKnobColor),
+            )
+        };
         let knob_size = self.knob_size.into_signed();
         let mut track_size = context.get(&TrackSize).into_px(context.gfx.scale());
         if knob_size > 0 {
@@ -548,8 +560,29 @@ where
         self.interactive
     }
 
+    fn hover(
+        &mut self,
+        _location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        (self.interactive && self.knob_visible).then_some({
+            if context.enabled() {
+                if self.mouse_buttons_down > 0 {
+                    CursorIcon::Grabbing
+                } else {
+                    CursorIcon::Grab
+                }
+            } else {
+                CursorIcon::NotAllowed
+            }
+        })
+    }
+
     fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
-        self.interactive && self.knob_visible && context.get(&AutoFocusableControls).is_all()
+        context.enabled()
+            && self.interactive
+            && self.knob_visible
+            && context.get(&AutoFocusableControls).is_all()
     }
 
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {
@@ -606,13 +639,15 @@ where
             return IGNORED;
         };
 
-        let previous_focus = match (self.previous_focus.take(), self.focused_knob.take()) {
-            (None | Some(_), Some(focus)) | (Some(focus), None) => Some(focus),
-            (None, None) => None,
-        };
-        self.update_from_click(location, previous_focus);
+        if context.enabled() {
+            let previous_focus = match (self.previous_focus.take(), self.focused_knob.take()) {
+                (None | Some(_), Some(focus)) | (Some(focus), None) => Some(focus),
+                (None, None) => None,
+            };
+            self.update_from_click(location, previous_focus);
+            context.focus();
+        }
         self.mouse_buttons_down += 1;
-        context.focus();
         HANDLED
     }
 
@@ -621,9 +656,11 @@ where
         location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        _context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) {
-        self.update_from_click(location, None);
+        if context.enabled() {
+            self.update_from_click(location, None);
+        }
     }
 
     fn mouse_up(
@@ -666,24 +703,26 @@ where
         _device_id: DeviceId,
         delta: MouseScrollDelta,
         _phase: TouchPhase,
-        _context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         let true = self.interactive else {
             return IGNORED;
         };
 
-        let factor: f32 = match delta {
-            MouseScrollDelta::LineDelta(_, y) => y,
-            MouseScrollDelta::PixelDelta(pt) => pt.y.cast(),
-        };
+        if context.enabled() {
+            let factor: f32 = match delta {
+                MouseScrollDelta::LineDelta(_, y) => y,
+                MouseScrollDelta::PixelDelta(pt) => pt.y.cast(),
+            };
 
-        let (forwards, factor) = if factor.is_sign_negative() {
-            (false, -factor)
-        } else {
-            (true, factor)
-        };
+            let (forwards, factor) = if factor.is_sign_negative() {
+                (false, -factor)
+            } else {
+                (true, factor)
+            };
 
-        self.step(forwards, factor);
+            self.step(forwards, factor);
+        }
 
         // @ecton: Unlike scroll alreas cascasing, I feel like scrolling while
         // using a mouse wheel as an input is annoying.
@@ -726,10 +765,16 @@ define_components! {
         MinimumSliderSize(Dimension, "minimum_size", |context| context.get(&KnobSize) * 2)
         /// The color of the draggable portion of the knob.
         KnobColor(Color, "knob_color", @WidgetAccentColor)
+        /// The color of the draggable portion of the knob.
+        DisabledKnobColor(Color, "disabled_knob_color", @DisabledWidgetAccentColor)
         /// The color of the track that the knob rests on.
         TrackColor(Color,"track_color", |context| context.get(&KnobColor))
-        /// The color of the track that the knob rests on.
+        /// The color of the track that the knob rests on when the widget is disabled.
+        DisabledTrackColor(Color,"track_color", |context| context.get(&DisabledKnobColor))
+        /// The color of the track that the knob rests.
         InactiveTrackColor(Color, "inactive_track_color", |context| context.get(&OpaqueWidgetColor))
+        /// The color of the track that the knob rests.
+        DisabledInactiveTrackColor(Color, "disabled_inactive_track_color", |context| context.get(&OpaqueWidgetColor))
     }
 }
 

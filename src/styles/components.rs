@@ -129,6 +129,8 @@ define_components! {
         WidgetBackground(Color, "widget_backgrond_color", Color::CLEAR_WHITE)
         /// A [`Color`] to be used to accent a widget.
         WidgetAccentColor(Color, "widget_accent_color", .primary.color)
+        /// A [`Color`] to be used to accent a disabled widget.
+        DisabledWidgetAccentColor(Color, "disabled_widget_accent_color", .primary.color_dim)
         /// A [`Color`] to be used as an outline color.
         OutlineColor(Color, "outline_color", .surface.outline)
         /// A [`Color`] to be used as an outline color.

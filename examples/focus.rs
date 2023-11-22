@@ -17,7 +17,7 @@ fn main() -> gooey::Result {
         .and("Allow Custom Widget to Lose Focus".into_checkbox(allow_blur.clone()))
         .and(
             Custom::empty()
-                .on_accept_focus(|_| true)
+                .on_accept_focus(|context| context.enabled())
                 .on_redraw(|context| {
                     context.fill(context.theme().secondary.color);
                     if context.focused() {

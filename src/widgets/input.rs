@@ -12,7 +12,7 @@ use std::time::Duration;
 use intentional::Cast;
 use kludgine::app::winit::event::{ElementState, Ime, KeyEvent};
 use kludgine::app::winit::keyboard::{Key, NamedKey};
-use kludgine::app::winit::window::ImePurpose;
+use kludgine::app::winit::window::{CursorIcon, ImePurpose};
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
     FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size,
@@ -163,7 +163,11 @@ where
         });
     }
 
-    fn forward_delete(&mut self) {
+    fn forward_delete(&mut self, context: &mut EventContext<'_, '_>) {
+        if !context.enabled() {
+            return;
+        }
+
         let (cursor, selection) = self.selected_range();
         if let Some(selection) = selection {
             self.replace_range(cursor, selection, "");
@@ -193,7 +197,11 @@ where
         });
     }
 
-    fn delete(&mut self) {
+    fn delete(&mut self, context: &mut EventContext<'_, '_>) {
+        if !context.enabled() {
+            return;
+        }
+
         let (cursor, selection) = self.selected_range();
         if let Some(selection) = selection {
             self.replace_range(cursor, selection, "");
@@ -395,7 +403,11 @@ where
         });
     }
 
-    fn replace_selection(&mut self, new_text: &str) {
+    fn replace_selection(&mut self, new_text: &str, context: &mut EventContext<'_, '_>) {
+        if !context.enabled() {
+            return;
+        }
+
         let selected_range = self.selected_range();
         match selected_range {
             (start, Some(end)) => {
@@ -415,12 +427,16 @@ where
     }
 
     fn paste_from_clipboard(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        if !context.enabled() {
+            return false;
+        }
+
         match context
             .clipboard_guard()
             .map(|mut clipboard| clipboard.get_text())
         {
             Some(Ok(text)) => {
-                self.replace_selection(&text);
+                self.replace_selection(&text, context);
                 true
             }
             None | Some(Err(arboard::Error::ConversionFailure)) => false,
@@ -435,8 +451,8 @@ where
         match (input.state, input.logical_key, input.text.as_deref()) {
             (ElementState::Pressed,  Key::Named(key @ (NamedKey::Backspace| NamedKey::Delete)), _) => {
                 match key {
-                    NamedKey::Backspace => self.delete(),
-                    NamedKey::Delete => self.forward_delete(),
+                    NamedKey::Backspace => self.delete(context),
+                    NamedKey::Delete => self.forward_delete(context),
                     _ => unreachable!("previously matched"),
                 }
 
@@ -505,7 +521,7 @@ where
                     =>
             {
                 if state.is_pressed() {
-                    self.replace_selection(text);
+                    self.replace_selection(text, context);
                 }
                 HANDLED
             }
@@ -914,6 +930,14 @@ where
         HANDLED
     }
 
+    fn hover(
+        &mut self,
+        _location: Point<Px>,
+        _context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        Some(CursorIcon::Text)
+    }
+
     fn mouse_drag(
         &mut self,
         location: Point<Px>,
@@ -963,6 +987,7 @@ where
             } else {
                 ImePurpose::Normal
             });
+
             if let Some(selection) = cache.selection {
                 let (start, end) = if selection < cache.cursor {
                     (selection, cache.cursor)
@@ -1098,7 +1123,7 @@ where
                 tracing::warn!("TODO: preview IME input {text}, cursor: {cursor:?}");
             }
             Ime::Commit(text) => {
-                self.replace_selection(&text);
+                self.replace_selection(&text, context);
                 context.set_needs_redraw();
             }
         }

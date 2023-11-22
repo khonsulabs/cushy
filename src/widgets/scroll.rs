@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use intentional::Cast;
 use kludgine::app::winit::event::{DeviceId, MouseScrollDelta, TouchPhase};
+use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
     FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size,
@@ -107,8 +108,14 @@ impl Widget for Scroll {
         true
     }
 
-    fn hover(&mut self, _location: Point<Px>, context: &mut EventContext<'_, '_>) {
+    fn hover(
+        &mut self,
+        _location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
         self.show_scrollbars(context);
+
+        None
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
