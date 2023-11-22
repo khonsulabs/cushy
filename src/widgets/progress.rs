@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use kludgine::figures::Ranged;
 
-use crate::animation::easings::EaseInOutQuadradic;
+use crate::animation::easings::{EaseInOutQuadradic, EaseOutQuadradic};
 use crate::animation::{
     AnimationHandle, AnimationTarget, IntoAnimate, PercentBetween, Spawn, ZeroToOne,
 };
@@ -90,25 +90,25 @@ fn update_progress_bar(
                     )
                         .immediately()
                         .and_then(
-                            end.transition_to(ZeroToOne::new(0.66))
+                            end.transition_to(ZeroToOne::new(0.75))
                                 .over(Duration::from_millis(500))
-                                .with_easing(EaseInOutQuadradic),
+                                .with_easing(EaseOutQuadradic),
                         )
                         .and_then(
                             start
-                                .transition_to(ZeroToOne::new(0.33))
+                                .transition_to(ZeroToOne::new(0.25))
                                 .over(Duration::from_millis(500))
-                                .with_easing(EaseInOutQuadradic),
+                                .with_easing(EaseOutQuadradic),
                         )
                         .and_then(
                             end.transition_to(ZeroToOne::ONE)
-                                .over(Duration::from_millis(500))
-                                .with_easing(EaseInOutQuadradic),
+                                .over(Duration::from_millis(250))
+                                .with_easing(EaseOutQuadradic),
                         )
                         .and_then(
                             start
                                 .transition_to(ZeroToOne::ONE)
-                                .over(Duration::from_millis(500))
+                                .over(Duration::from_millis(250))
                                 .with_easing(EaseInOutQuadradic),
                         )
                         .cycle()

@@ -28,8 +28,8 @@ use crate::utils::IgnorePoison;
 use crate::value::{IntoDynamic, IntoValue, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::{
-    Align, Button, Checkbox, Container, Expand, Resize, Scroll, Space, Stack, Style, Themed,
-    ThemedMode,
+    Align, Button, Checkbox, Collapse, Container, Expand, Resize, Scroll, Space, Stack, Style,
+    Themed, ThemedMode,
 };
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
@@ -864,6 +864,23 @@ pub trait MakeWidget: Sized {
     /// Applies `mode` to `self` and its children.
     fn themed_mode(self, mode: impl IntoValue<ThemeMode>) -> ThemedMode {
         ThemedMode::new(mode, self)
+    }
+
+    /// Returns a widget that collapses `self` horizontally based on the dynamic boolean value.
+    ///
+    /// This widget will be collapsed when the dynamic contains `true`, and
+    /// revealed when the dynamic contains `false`.
+    fn collapse_horizontally(self, collapse_when: impl IntoDynamic<bool>) -> Collapse {
+        Collapse::horizontal(collapse_when, self)
+    }
+
+    /// Returns a widget that collapses `self` vertically based on the dynamic
+    /// boolean value.
+    ///
+    /// This widget will be collapsed when the dynamic contains `true`, and
+    /// revealed when the dynamic contains `false`.
+    fn collapse_vertically(self, collapse_when: impl IntoDynamic<bool>) -> Collapse {
+        Collapse::vertical(collapse_when, self)
     }
 }
 

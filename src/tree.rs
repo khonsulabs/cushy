@@ -505,7 +505,7 @@ impl TreeData {
 
     fn invalidate(&mut self, id: LotId, include_hierarchy: bool) {
         let mut node = &mut self.nodes[id];
-        while node.layout.is_some() {
+        loop {
             node.layout = None;
             node.last_layout_query = None;
 
