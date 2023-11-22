@@ -708,6 +708,15 @@ pub trait MakeWidget: Sized {
         Expand::horizontal(self)
     }
 
+    /// Resizes `self` to `size`.
+    #[must_use]
+    fn size<T>(self, size: Size<T>) -> Resize
+    where
+        T: Into<DimensionRange>,
+    {
+        Resize::to(size, self)
+    }
+
     /// Resizes `self` to `width`.
     ///
     /// `width` can be an any of:

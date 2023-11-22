@@ -159,10 +159,15 @@ impl WrapperWidget for CheckboxLabel {
     ) -> WrappedLayout {
         let checkbox_size = context.get(&LineHeight).into_px(context.gfx.scale()); // TODO create a component?
         let padding = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
-        let label_inset = checkbox_size + padding;
-        let size_with_checkbox = Size::new(size.width + label_inset, size.height).into_unsigned();
+        let label_inset = checkbox_size + padding * 2;
+        let effective_height = size.height.max(label_inset);
+        let size_with_checkbox =
+            Size::new(size.width + label_inset + padding, effective_height).into_unsigned();
         WrappedLayout {
-            child: Rect::new(Point::new(label_inset, Px::ZERO), size),
+            child: Rect::new(
+                Point::new(label_inset, Px::ZERO),
+                Size::new(size.width, effective_height),
+            ),
             size: size_with_checkbox,
         }
     }

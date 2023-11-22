@@ -9,8 +9,7 @@ use kludgine::app::winit::event::{DeviceId, MouseButton, MouseScrollDelta, Touch
 use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
-    FloatConversion, FromComponents, IntoComponents, IntoSigned, Point, Ranged, Rect, Round,
-    ScreenScale, Size,
+    FloatConversion, IntoSigned, Point, Ranged, Rect, Round, ScreenScale, Size,
 };
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, DrawableExt, Origin};
@@ -155,7 +154,7 @@ where
         let half_focus_ring =
             spec.if_knobbed(|| (Lp::points(2).into_px(context.gfx.scale()) / 2).ceil());
         let focus_ring = half_focus_ring * 2;
-        let track_length = self.rendered_size - spec.if_knobbed(|| spec.knob_size - focus_ring);
+        let track_length = self.rendered_size - spec.if_knobbed(|| spec.knob_size + focus_ring);
         let (start, end) = if let Some(end) = spec.end {
             (track_length * spec.start, track_length * end)
         } else {
@@ -169,10 +168,10 @@ where
         if start > 0 {
             context.gfx.draw_shape(
                 Shape::filled_round_rect(
-                    Rect::new(
-                        flipped(!self.horizontal, Point::new(start_inset, start_inset)),
-                        flipped(!self.horizontal, Size::new(start, spec.track_size)),
-                    ),
+                    self.orient_rectangle(Rect::new(
+                        Point::new(start_inset, start_inset),
+                        Size::new(start, spec.track_size),
+                    )),
                     half_track,
                     spec.inactive_track_color,
                 )
@@ -182,19 +181,13 @@ where
         if end < track_length {
             context.gfx.draw_shape(
                 Shape::filled_round_rect(
-                    Rect::new(
-                        flipped(
-                            !self.horizontal,
-                            Point::new(end + spec.if_knobbed(|| spec.half_knob), start_inset),
+                    self.orient_rectangle(Rect::new(
+                        Point::new(end + spec.if_knobbed(|| spec.half_knob), start_inset),
+                        Size::new(
+                            track_length - end + spec.if_knobbed(|| half_track),
+                            spec.track_size,
                         ),
-                        flipped(
-                            !self.horizontal,
-                            Size::new(
-                                track_length - end + spec.if_knobbed(|| half_track),
-                                spec.track_size,
-                            ),
-                        ),
-                    ),
+                    )),
                     half_track,
                     spec.inactive_track_color,
                 )
@@ -205,22 +198,16 @@ where
         if start != end {
             context.gfx.draw_shape(
                 Shape::filled_round_rect(
-                    Rect::new(
-                        flipped(
-                            !self.horizontal,
-                            Point::new(
-                                start + spec.if_knobbed(|| spec.half_knob - half_track),
-                                start_inset,
-                            ),
+                    self.orient_rectangle(Rect::new(
+                        Point::new(
+                            start + spec.if_knobbed(|| spec.half_knob - half_track),
+                            start_inset,
                         ),
-                        flipped(
-                            !self.horizontal,
-                            Size::new(
-                                end - start + spec.if_knobbed(|| spec.track_size),
-                                spec.track_size,
-                            ),
+                        Size::new(
+                            end - start + spec.if_knobbed(|| spec.track_size),
+                            spec.track_size,
                         ),
-                    ),
+                    )),
                     half_track,
                     spec.track_color,
                 )
@@ -231,14 +218,10 @@ where
         // Draw the knob
         if spec.knob_size > 0 {
             let focus = context.focused().then_some(self.focused_knob).flatten();
-            self.draw_knobs(
-                flipped(
-                    !self.horizontal,
-                    Point::new(end + spec.half_knob, spec.half_knob) + inset,
-                ),
+            Self::draw_knobs(
+                self.flip_pt_if_vertical(Point::new(end + spec.half_knob, spec.half_knob) + inset),
                 spec.end.map(|_| {
-                    flipped(
-                        !self.horizontal,
+                    self.flip_pt_if_vertical(
                         Point::new(start + spec.half_knob, spec.half_knob) + inset,
                     )
                 }),
@@ -247,39 +230,10 @@ where
                 spec,
                 context,
             );
-            // let this_knob_role = if spec.end.is_some() {
-            //     Knob::End
-            // } else {
-            //     Knob::Start
-            // };
-            // self.draw_knob(
-            //     flipped(
-            //         !self.horizontal,
-            //         Point::new(end + spec.half_knob, spec.half_knob) + inset,
-            //     ),
-            //     focused && self.focused_knob == Some(this_knob_role),
-            //     focus_ring,
-            //     spec,
-            //     context,
-            // );
-
-            // if spec.end.is_some() {
-            //     self.draw_knob(
-            //         flipped(
-            //             !self.horizontal,
-            //             Point::new(start + spec.half_knob, spec.half_knob) + inset,
-            //         ),
-            //         focused && matches!(self.focused_knob, Some(Knob::Start)),
-            //         focus_ring,
-            //         spec,
-            //         context,
-            //     );
-            // }
         }
     }
 
     fn draw_knobs(
-        &mut self,
         end_knob: Point<Px>,
         start_knob: Option<Point<Px>>,
         focus: Option<Knob>,
@@ -293,14 +247,13 @@ where
             (None, focus) => (end_knob, focus.is_some(), None),
         };
 
-        self.draw_knob(a, a_is_focused, focus_ring_width, spec, context);
+        Self::draw_knob(a, a_is_focused, focus_ring_width, spec, context);
         if let Some((b, b_is_focused)) = b {
-            self.draw_knob(b, b_is_focused, focus_ring_width, spec, context);
+            Self::draw_knob(b, b_is_focused, focus_ring_width, spec, context);
         }
     }
 
     fn draw_knob(
-        &mut self,
         knob_center: Point<Px>,
         is_focused: bool,
         focus_ring_width: Px,
@@ -309,7 +262,7 @@ where
     ) {
         context.gfx.draw_shape(
             Shape::filled_circle(spec.half_knob, spec.knob_color, Origin::Center)
-                .translate_by(flipped(!self.horizontal, knob_center)),
+                .translate_by(knob_center),
         );
 
         if is_focused {
@@ -336,7 +289,7 @@ where
         let position = if self.horizontal {
             position.x - knob_size / 2
         } else {
-            position.y - knob_size / 2
+            self.rendered_size - position.y - knob_size / 2
         };
         let track_width = self.rendered_size - knob_size;
         let position = position.clamp(Px::ZERO, track_width);
@@ -437,6 +390,27 @@ where
                 (Knob::End, Some(start)) => (start, Some(new_value)),
             };
             self.value.update(T::from_parts(start, end));
+        }
+    }
+
+    fn orient_rectangle(&self, rect: Rect<Px>) -> Rect<Px> {
+        if self.horizontal {
+            rect
+        } else {
+            let (tl, br) = rect.extents();
+
+            Rect::from_extents(
+                Point::new(tl.y, self.rendered_size - tl.x),
+                Point::new(br.y, self.rendered_size - br.x),
+            )
+        }
+    }
+
+    fn flip_pt_if_vertical(&self, pt: Point<Px>) -> Point<Px> {
+        if self.horizontal {
+            pt
+        } else {
+            Point::new(pt.y, self.rendered_size - pt.x)
         }
     }
 }
@@ -739,18 +713,6 @@ impl TrackSpec {
         } else {
             R::default()
         }
-    }
-}
-
-fn flipped<T, Unit>(flip: bool, value: T) -> T
-where
-    T: IntoComponents<Unit> + FromComponents<Unit>,
-{
-    if flip {
-        let (a, b) = value.into_components();
-        T::from_components((b, a))
-    } else {
-        value
     }
 }
 

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use kludgine::figures::Ranged;
 
-use crate::animation::easings::EaseInOutSine;
+use crate::animation::easings::EaseInOutQuadradic;
 use crate::animation::{
     AnimationHandle, AnimationTarget, IntoAnimate, PercentBetween, Spawn, ZeroToOne,
 };
@@ -82,37 +82,39 @@ fn update_progress_bar(
 ) {
     match progress {
         Progress::Indeterminant => {
-            *indeterminant_animation = Some(
-                end.transition_to(ZeroToOne::new(0.66))
-                    .over(Duration::from_millis(500))
-                    .with_easing(EaseInOutSine)
-                    .and_then(
-                        start
-                            .transition_to(ZeroToOne::new(0.33))
-                            .over(Duration::from_millis(500))
-                            .with_easing(EaseInOutSine),
+            if indeterminant_animation.is_none() {
+                *indeterminant_animation = Some(
+                    (
+                        start.transition_to(ZeroToOne::ZERO),
+                        end.transition_to(ZeroToOne::ZERO),
                     )
-                    .and_then(
-                        end.transition_to(ZeroToOne::ONE)
-                            .over(Duration::from_millis(500))
-                            .with_easing(EaseInOutSine),
-                    )
-                    .and_then(
-                        start
-                            .transition_to(ZeroToOne::ONE)
-                            .over(Duration::from_millis(500))
-                            .with_easing(EaseInOutSine),
-                    )
-                    .and_then(
-                        (
-                            start.transition_to(ZeroToOne::ZERO),
-                            end.transition_to(ZeroToOne::ZERO),
+                        .over(Duration::ZERO)
+                        .and_then(
+                            end.transition_to(ZeroToOne::new(0.66))
+                                .over(Duration::from_millis(500))
+                                .with_easing(EaseInOutQuadradic),
                         )
-                            .over(Duration::ZERO),
-                    )
-                    .cycle()
-                    .spawn(),
-            );
+                        .and_then(
+                            start
+                                .transition_to(ZeroToOne::new(0.33))
+                                .over(Duration::from_millis(500))
+                                .with_easing(EaseInOutQuadradic),
+                        )
+                        .and_then(
+                            end.transition_to(ZeroToOne::ONE)
+                                .over(Duration::from_millis(500))
+                                .with_easing(EaseInOutQuadradic),
+                        )
+                        .and_then(
+                            start
+                                .transition_to(ZeroToOne::ONE)
+                                .over(Duration::from_millis(500))
+                                .with_easing(EaseInOutQuadradic),
+                        )
+                        .cycle()
+                        .spawn(),
+                );
+            }
         }
         Progress::Percent(value) => {
             let _stopped_animation = indeterminant_animation.take();
