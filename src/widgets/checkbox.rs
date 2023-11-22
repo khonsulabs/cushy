@@ -3,16 +3,14 @@ use std::error::Error;
 use std::fmt::Display;
 use std::ops::Not;
 
-use kludgine::figures::units::{Lp, Px};
-use kludgine::figures::{IntoUnsigned, Point, Rect, ScreenScale, Size};
+use kludgine::figures::units::Lp;
+use kludgine::figures::{Point, Rect, ScreenScale, Size};
 use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 
 use crate::context::{GraphicsContext, LayoutContext};
-use crate::styles::components::{
-    IntrinsicPadding, LineHeight, OutlineColor, TextColor, WidgetAccentColor,
-};
+use crate::styles::components::{LineHeight, OutlineColor, TextColor, WidgetAccentColor};
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
-use crate::widget::{MakeWidget, WidgetInstance, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::widget::{MakeWidget, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
 
@@ -56,8 +54,9 @@ impl MakeWidget for Checkbox {
     fn make_widget(self) -> WidgetInstance {
         CheckboxLabel {
             value: self.state.create_reader(),
-            label: WidgetRef::new(self.label),
         }
+        .and(self.label)
+        .into_columns()
         .into_button()
         .on_click(move |()| {
             let mut value = self.state.lock();
@@ -172,39 +171,18 @@ impl Error for CheckboxToBoolError {}
 #[derive(Debug)]
 struct CheckboxLabel {
     value: DynamicReader<CheckboxState>,
-    label: WidgetRef,
 }
 
-impl WrapperWidget for CheckboxLabel {
-    fn child_mut(&mut self) -> &mut WidgetRef {
-        &mut self.label
-    }
+impl Widget for CheckboxLabel {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        let checkbox_size = context
+            .gfx
+            .region()
+            .size
+            .width
+            .min(context.gfx.region().size.height);
 
-    fn position_child(
-        &mut self,
-        size: Size<Px>,
-        _available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> WrappedLayout {
-        let checkbox_size = context.get(&LineHeight).into_px(context.gfx.scale()); // TODO create a component?
-        let padding = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
-        let label_inset = checkbox_size + padding * 2;
-        let effective_height = size.height.max(label_inset);
-        let size_with_checkbox =
-            Size::new(size.width + label_inset + padding, effective_height).into_unsigned();
-        WrappedLayout {
-            child: Rect::new(
-                Point::new(label_inset, Px::ZERO),
-                Size::new(size.width, effective_height),
-            ),
-            size: size_with_checkbox,
-        }
-    }
-
-    fn redraw_background(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let checkbox_size = context.get(&LineHeight).into_px(context.gfx.scale());
-        let padding = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
-        let checkbox_rect = Rect::new(Point::squared(padding), Size::squared(checkbox_size));
+        let checkbox_rect = Rect::from(Size::squared(checkbox_size));
         let stroke_options = StrokeOptions::lp_wide(Lp::points(2)).into_px(context.gfx.scale());
         match self.value.get_tracking_refresh(context) {
             state @ (CheckboxState::Checked | CheckboxState::Indeterminant) => {
@@ -249,6 +227,15 @@ impl WrapperWidget for CheckboxLabel {
                 ));
             }
         }
+    }
+
+    fn layout(
+        &mut self,
+        _available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> Size<kludgine::figures::units::UPx> {
+        let checkbox_size = context.get(&LineHeight).into_upx(context.gfx.scale()); // TODO create a component?
+        Size::squared(checkbox_size)
     }
 }
 

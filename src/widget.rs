@@ -16,9 +16,8 @@ use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use kludgine::Color;
 
-use crate::context::{
-    AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext, WindowHandle,
-};
+use crate::context::sealed::WindowHandle;
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::{
     ComponentDefinition, ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue,
     Styles, ThemePair, VisualOrder,

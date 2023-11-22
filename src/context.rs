@@ -1,6 +1,5 @@
 //! Types that provide access to the Gooey runtime.
 use std::borrow::Cow;
-use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -14,6 +13,7 @@ use kludgine::figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size,
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
+use crate::context::sealed::WindowHandle;
 use crate::graphics::Graphics;
 use crate::styles::components::{
     CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, TextSize,
@@ -21,9 +21,8 @@ use crate::styles::components::{
 };
 use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::utils::IgnorePoison;
-use crate::value::{Dynamic, IntoValue, Value};
+use crate::value::{IntoValue, Value};
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
-use crate::window::sealed::WindowCommand;
 use crate::window::{CursorState, RunningWindow, ThemeMode};
 use crate::ConstraintLimit;
 
@@ -940,12 +939,12 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     }
 
     /// Ensures that this widget will be redrawn when `value` has been updated.
-    pub fn redraw_when_changed<T>(&self, value: &Dynamic<T>) {
+    pub fn redraw_when_changed(&self, value: &impl Trackable) {
         value.redraw_when_changed(self.handle());
     }
 
     /// Ensures that this widget will be redrawn when `value` has been updated.
-    pub fn invalidate_when_changed<T>(&self, value: &Dynamic<T>) {
+    pub fn invalidate_when_changed(&self, value: &impl Trackable) {
         value.invalidate_when_changed(self.handle(), self.current_node.id());
     }
 
@@ -1166,43 +1165,6 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct WindowHandle {
-    kludgine: kludgine::app::WindowHandle<WindowCommand>,
-    redraw_status: InvalidationStatus,
-}
-
-impl Eq for WindowHandle {}
-
-impl PartialEq for WindowHandle {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(
-            &self.redraw_status.invalidated,
-            &other.redraw_status.invalidated,
-        )
-    }
-}
-
-impl Hash for WindowHandle {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.redraw_status.invalidated).hash(state);
-    }
-}
-
-impl WindowHandle {
-    pub fn redraw(&self) {
-        if self.redraw_status.should_send_refresh() {
-            let _result = self.kludgine.send(WindowCommand::Redraw);
-        }
-    }
-
-    pub fn invalidate(&self, widget: WidgetId) {
-        if self.redraw_status.invalidate(widget) {
-            self.redraw();
-        }
-    }
-}
-
 impl dyn AsEventContext<'_> {}
 
 impl Drop for EventContext<'_, '_> {
@@ -1369,6 +1331,62 @@ impl Default for WidgetCacheKey {
         Self {
             theme_mode: ThemeMode::default().inverse(),
             enabled: false,
+        }
+    }
+}
+
+/// A type that can be tracked to refresh or invalidate widgets.
+pub trait Trackable: sealed::Trackable {}
+
+impl<T> Trackable for T where T: sealed::Trackable {}
+
+pub(crate) mod sealed {
+    use std::hash::{Hash, Hasher};
+    use std::sync::Arc;
+
+    use crate::context::InvalidationStatus;
+    use crate::widget::WidgetId;
+    use crate::window::sealed::WindowCommand;
+
+    pub trait Trackable {
+        fn redraw_when_changed(&self, handle: WindowHandle);
+        fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId);
+    }
+
+    #[derive(Clone)]
+    pub struct WindowHandle {
+        pub(crate) kludgine: kludgine::app::WindowHandle<WindowCommand>,
+        pub(crate) redraw_status: InvalidationStatus,
+    }
+
+    impl Eq for WindowHandle {}
+
+    impl PartialEq for WindowHandle {
+        fn eq(&self, other: &Self) -> bool {
+            Arc::ptr_eq(
+                &self.redraw_status.invalidated,
+                &other.redraw_status.invalidated,
+            )
+        }
+    }
+
+    impl Hash for WindowHandle {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            Arc::as_ptr(&self.redraw_status.invalidated).hash(state);
+        }
+    }
+
+    impl WindowHandle {
+        pub fn redraw(&self) {
+            if self.redraw_status.should_send_refresh() {
+                let _result = self.kludgine.send(WindowCommand::Redraw);
+            }
+        }
+
+        pub fn invalidate(&self, widget: WidgetId) {
+            if self.redraw_status.invalidate(widget) {
+                self.redraw();
+            }
         }
     }
 }

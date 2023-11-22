@@ -13,10 +13,11 @@ use ahash::AHashSet;
 use intentional::Assert;
 
 use crate::animation::{DynamicTransition, LinearInterpolate};
-use crate::context::{WidgetContext, WindowHandle};
+use crate::context::sealed::WindowHandle;
+use crate::context::{self, WidgetContext};
 use crate::utils::{IgnorePoison, UnwindsafeCondvar, WithClone};
-use crate::widget::{WidgetId, WidgetInstance};
-use crate::widgets::Switcher;
+use crate::widget::{MakeWidget, WidgetId, WidgetInstance};
+use crate::widgets::{Radio, Switcher};
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -474,6 +475,21 @@ impl<T> Dynamic<T> {
             new_value,
         }
     }
+
+    /// Returns a new [`Radio`] that updates this dynamic to `widget_value` when
+    /// pressed. `label` is drawn next to the checkbox and is also clickable to
+    /// select the radio.
+    #[must_use]
+    pub fn new_radio(&self, widget_value: T, label: impl MakeWidget) -> Radio<T>
+    where
+        Self: Clone,
+        // Technically this trait bound isn't necessary, but it prevents trying
+        // to call into_radio on unsupported types. The MakeWidget/Widget
+        // implementations require these bounds (and more).
+        T: Clone + Eq,
+    {
+        Radio::new(widget_value, self.clone(), label)
+    }
 }
 
 impl Dynamic<WidgetInstance> {
@@ -482,6 +498,16 @@ impl Dynamic<WidgetInstance> {
     #[must_use]
     pub fn switcher(self) -> Switcher {
         Switcher::new(self)
+    }
+}
+
+impl<T> context::sealed::Trackable for Dynamic<T> {
+    fn redraw_when_changed(&self, handle: WindowHandle) {
+        self.redraw_when_changed(handle);
+    }
+
+    fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
+        self.invalidate_when_changed(handle, id);
     }
 }
 
@@ -916,6 +942,16 @@ impl<T> DynamicReader<T> {
     /// Returns true if a newly updated value was discovered.
     pub fn wait_until_updated(&mut self) -> BlockUntilUpdatedFuture<'_, T> {
         BlockUntilUpdatedFuture(self)
+    }
+}
+
+impl<T> context::sealed::Trackable for DynamicReader<T> {
+    fn redraw_when_changed(&self, handle: WindowHandle) {
+        self.source.redraw_when_changed(handle);
+    }
+
+    fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
+        self.source.invalidate_when_changed(handle, id);
     }
 }
 
