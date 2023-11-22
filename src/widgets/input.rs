@@ -45,6 +45,7 @@ pub struct Input<Storage> {
     blink_state: BlinkState,
     needs_to_select_all: bool,
     mouse_buttons_down: usize,
+    line_navigation_x_target: Option<Px>,
 }
 
 struct CachedLayout {
@@ -123,6 +124,7 @@ where
             on_key: None,
             mouse_buttons_down: 0,
             needs_to_select_all: true,
+            line_navigation_x_target: None,
         }
     }
 
@@ -208,15 +210,33 @@ where
         }
     }
 
-    fn move_cursor(&mut self, direction: Affinity, mode: CursorNavigationMode) {
-        let value = self.value.lock();
-        let length = value.as_str().len();
+    fn move_cursor(
+        &mut self,
+        direction: Affinity,
+        mode: CursorNavigationMode,
+        context: &mut EventContext<'_, '_>,
+    ) {
+        if !matches!(mode, CursorNavigationMode::Line) {
+            self.line_navigation_x_target = None;
+        }
 
         // @ecton: After a lot of thought, it seems like the only way for
         // affinity to be switched to After is via dragging the mouse.
         self.selection.cursor.affinity = Affinity::Before;
-        match (direction, mode) {
-            (Affinity::Before, CursorNavigationMode::Grapheme) => {
+        match mode {
+            CursorNavigationMode::Grapheme => self.move_cursor_by_grapheme(direction),
+            CursorNavigationMode::Word => self.move_cursor_by_word(direction),
+            CursorNavigationMode::Line => self.move_cursor_by_line(direction, context),
+            CursorNavigationMode::LineExtent => self.move_cursor_by_line_extent(direction, context),
+        }
+    }
+
+    fn move_cursor_by_grapheme(&mut self, affinity: Affinity) {
+        let value = self.value.lock();
+        let length = value.as_str().len();
+
+        match affinity {
+            Affinity::Before => {
                 if let Some((_, grapheme)) =
                     value
                         .as_str()
@@ -230,7 +250,7 @@ where
                     self.selection.cursor.offset = 0;
                 }
             }
-            (Affinity::After, CursorNavigationMode::Grapheme) => {
+            Affinity::After => {
                 if self.selection.cursor.offset < length {
                     if let Some(grapheme) = value.as_str()[self.selection.cursor.offset..]
                         .graphemes(true)
@@ -242,7 +262,14 @@ where
                     }
                 }
             }
-            (Affinity::Before, CursorNavigationMode::Word) => {
+        }
+    }
+
+    fn move_cursor_by_word(&mut self, affinity: Affinity) {
+        let value = self.value.lock();
+        let length = value.as_str().len();
+        match affinity {
+            Affinity::Before => {
                 let mut words = value.as_str().unicode_word_indices().peekable();
                 while let Some((index, _)) = words.next() {
                     let next_starts_after_selection = words
@@ -256,7 +283,7 @@ where
 
                 self.selection.cursor.offset = 0;
             }
-            (Affinity::After, CursorNavigationMode::Word) => {
+            Affinity::After => {
                 if self.selection.cursor.offset < length {
                     if let Some((index, word)) = value.as_str()[self.selection.cursor.offset..]
                         .unicode_word_indices()
@@ -269,6 +296,57 @@ where
                 }
             }
         }
+    }
+
+    fn move_cursor_by_line_extent(
+        &mut self,
+        affinity: Affinity,
+        context: &mut EventContext<'_, '_>,
+    ) {
+        let Some(cache) = self.cache.as_ref() else {
+            return;
+        };
+
+        let (mut position, _) =
+            Self::point_from_cursor(&cache.measured, self.selection.cursor, cache.bytes);
+        position.y += context
+            .get(&IntrinsicPadding)
+            .into_px(context.kludgine.scale());
+        match affinity {
+            Affinity::Before => position.x = Px::ZERO,
+            Affinity::After => {
+                position.x = context.last_layout().map_or(Px::MAX, |r| r.size.width);
+            }
+        };
+
+        self.selection.cursor = self.cursor_from_point(position, context);
+    }
+
+    fn move_cursor_by_line(&mut self, affinity: Affinity, context: &mut EventContext<'_, '_>) {
+        let Some(cache) = self.cache.as_ref() else {
+            return;
+        };
+
+        let (mut position, _) =
+            Self::point_from_cursor(&cache.measured, self.selection.cursor, cache.bytes);
+        position += Point::squared(
+            context
+                .get(&IntrinsicPadding)
+                .into_px(context.kludgine.scale()),
+        );
+        if let Some(target_x) = self.line_navigation_x_target {
+            position.x = target_x;
+        } else {
+            self.line_navigation_x_target = Some(position.x);
+        }
+        match affinity {
+            Affinity::Before => position.y -= cache.measured.line_height,
+            Affinity::After => {
+                position.y += cache.measured.line_height;
+            }
+        };
+
+        self.selection.cursor = self.cursor_from_point(position, context);
     }
 
     fn selected_range(&mut self) -> (Cursor, Option<Cursor>) {
@@ -364,9 +442,9 @@ where
 
                 HANDLED
             }
-            (ElementState::Pressed, Key::Named(key @ (NamedKey::ArrowLeft | NamedKey::ArrowDown | NamedKey::ArrowUp | NamedKey::ArrowRight)), _) => {
+            (ElementState::Pressed, Key::Named(key @ (NamedKey::ArrowLeft | NamedKey::ArrowDown | NamedKey::ArrowUp | NamedKey::ArrowRight | NamedKey::Home | NamedKey::End)), _) => {
                 let modifiers = context.modifiers();
-                let affinity = if matches!(key, NamedKey::ArrowLeft  | NamedKey::ArrowUp) {
+                let affinity = if matches!(key, NamedKey::ArrowLeft | NamedKey::ArrowUp | NamedKey::Home) {
                     Affinity::Before
                 } else {
                     Affinity::After
@@ -375,17 +453,25 @@ where
                     (None, true) => {
                         self.selection.start = Some(self.selection.cursor);
                     }
-                    (Some(_), false) => {
+                    (Some(start), false) => {
+                        self.selection.cursor = if affinity == Affinity::Before {
+                            start.min(self.selection.cursor)
+                        } else {
+                            start.max(self.selection.cursor)
+                        };
                         self.selection.start = None;
                     }
                     _ => {}
                 };
 
                 match key {
-                    // Key::ArrowLeft | Key::ArrowRight if modifiers.primary() => self.move_cursor(affinity, CursorNavigationMode::LineExtent),
-                    NamedKey::ArrowLeft | NamedKey::ArrowRight if modifiers.word_select() => self.move_cursor(affinity, CursorNavigationMode::Word),
-                    NamedKey::ArrowLeft | NamedKey::ArrowRight => self.move_cursor(affinity, CursorNavigationMode::Grapheme),
-                    // Key::ArrowDown | Key::ArrowUp => self.move_cursor(affinity, CursorNavigationMode::Line),
+                    #[cfg(any(target_os = "ios", target_os = "macos"))]
+                    NamedKey::ArrowLeft | NamedKey::ArrowRight if modifiers.primary() => self.move_cursor(affinity, CursorNavigationMode::LineExtent, context),
+                    #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+                    NamedKey::Home | NamedKey::End => self.move_cursor(affinity, CursorNavigationMode::LineExtent, context),
+                    NamedKey::ArrowLeft | NamedKey::ArrowRight if modifiers.word_select() => self.move_cursor(affinity, CursorNavigationMode::Word, context),
+                    NamedKey::ArrowLeft | NamedKey::ArrowRight => self.move_cursor(affinity, CursorNavigationMode::Grapheme, context),
+                    NamedKey::ArrowDown | NamedKey::ArrowUp => self.move_cursor(affinity, CursorNavigationMode::Line, context),
                     _ => tracing::warn!("unhandled key: {key:?}"),
                 }
 
@@ -517,7 +603,7 @@ where
     }
 
     #[allow(clippy::too_many_lines)] // it's text layout, c'mon
-    fn locate_cursor(
+    fn point_from_cursor(
         measured: &MeasuredText<Px>,
         cursor: Cursor,
         total_bytes: usize,
@@ -690,10 +776,10 @@ where
             location.x = Px::ZERO;
         }
 
-        let mut closest: Option<(Cursor, i32)> = None;
+        let mut closest: Option<(Cursor, i32, usize, Point<Px>)> = None;
         let mut current_line = usize::MAX;
         let mut current_line_y = Px::ZERO;
-        for glyph in &cache.measured.glyphs {
+        for (index, glyph) in cache.measured.glyphs.iter().enumerate() {
             if current_line != glyph.info.line {
                 current_line = glyph.info.line;
 
@@ -731,32 +817,43 @@ where
 
             // Make relative be relative to the center of the glyph for a nearest search.
             let relative = relative + rect.size / 2;
-            let xy = (relative.x.get().saturating_mul(relative.y.get())).saturating_abs();
+            let xy = relative
+                .x
+                .get()
+                .saturating_mul(current_line_y.get().saturating_pow(2))
+                .saturating_abs();
+            let cursor = Cursor {
+                offset: if relative.x < 0 || relative.y < 0 {
+                    glyph.info.start
+                } else {
+                    glyph.info.end
+                },
+                affinity: Affinity::Before,
+            };
             match closest {
-                Some((_, closest_xy)) if xy < closest_xy => {
-                    closest = Some((
-                        Cursor {
-                            offset: glyph.info.start,
-                            affinity: if relative.x < 0 || relative.y < 0 {
-                                Affinity::Before
-                            } else {
-                                Affinity::After
-                            },
-                        },
-                        xy,
-                    ));
+                Some((_, closest_xy, ..)) if xy < closest_xy => {
+                    closest = Some((cursor, xy, index, relative));
                 }
+                None => closest = Some((cursor, xy, index, relative)),
                 _ => {}
             }
         }
 
-        if let Some((closest, _)) = closest {
-            closest
-        } else {
-            Cursor {
-                offset: cache.bytes,
-                affinity: Affinity::After,
+        if let Some((closest, _, index, relative)) = closest {
+            // Having whitespace not in the measured text is really annoying.
+            // This trick only works for the first line of text. Maybe we should
+            // try and create a structure that organizes the glyphs into lines
+            // so that it's easier to inspect and detect when there's
+            // whitespace. For now, this is just a hack that helps get *some*
+            // selection at the end of the input for trailing whitespace.
+            if relative.x < 0 && index < cache.measured.glyphs.len() {
+                return closest;
             }
+        }
+
+        Cursor {
+            offset: cache.bytes,
+            affinity: Affinity::After,
         }
     }
 }
@@ -773,8 +870,8 @@ struct CacheInfo<'a> {
 enum CursorNavigationMode {
     Grapheme,
     Word,
-    // LineExtent,
-    // Line,
+    LineExtent,
+    Line,
     // Document,
 }
 
@@ -844,6 +941,11 @@ where
 
     #[allow(clippy::too_many_lines)]
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+        if self.needs_to_select_all {
+            self.needs_to_select_all = false;
+            self.select_all();
+        }
+
         self.blink_state.update(context.elapsed());
         let cursor_state = self.blink_state;
         let size = context.gfx.size();
@@ -868,9 +970,10 @@ where
                     (cache.cursor, selection)
                 };
 
-                let (start_position, _) = Self::locate_cursor(cache.measured, start, cache.bytes);
+                let (start_position, _) =
+                    Self::point_from_cursor(cache.measured, start, cache.bytes);
                 let (end_position, end_width) =
-                    Self::locate_cursor(cache.measured, end, cache.bytes);
+                    Self::point_from_cursor(cache.measured, end, cache.bytes);
 
                 if start_position.y == end_position.y {
                     // Single line selection
@@ -920,7 +1023,8 @@ where
                     );
                 }
             } else {
-                let (location, _) = Self::locate_cursor(cache.measured, cache.cursor, cache.bytes);
+                let (location, _) =
+                    Self::point_from_cursor(cache.measured, cache.cursor, cache.bytes);
                 let window_focused = context.window().focused().get();
                 if window_focused && cursor_state.visible {
                     let cursor_width = Lp::points(2).into_px(context.gfx.scale());
@@ -957,10 +1061,6 @@ where
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         let padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
-        if self.needs_to_select_all {
-            self.needs_to_select_all = false;
-            self.select_all();
-        }
 
         let width = available_space.width.max().saturating_sub(padding * 2);
 

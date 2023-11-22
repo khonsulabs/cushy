@@ -42,6 +42,8 @@ pub struct EventContext<'context, 'window> {
 }
 
 impl<'context, 'window> EventContext<'context, 'window> {
+    const MAX_PENDING_CHANGE_CYCLES: u8 = 100;
+
     pub(crate) fn new(
         widget: WidgetContext<'context, 'window>,
         kludgine: &'context mut Kludgine,
@@ -178,17 +180,9 @@ impl<'context, 'window> EventContext<'context, 'window> {
         }
     }
 
-    #[allow(clippy::too_many_lines)] // TODO
-    pub(crate) fn apply_pending_state(&mut self) {
-        const MAX_ITERS: u8 = 100;
-        // These two blocks apply active/focus in a loop to pick up the event
-        // where during the process of calling deactivate/blur or activate/focus
-        // the active/focus widget is changed again. This can lead to infinite
-        // loops, which is a programmer error. However, rather than block
-        // forever, we log a message that this is happening and break.
-
+    fn apply_pending_activation(&mut self) {
         let mut activation_changes = 0;
-        while activation_changes < MAX_ITERS {
+        while activation_changes < Self::MAX_PENDING_CHANGE_CYCLES {
             let active = self
                 .pending_state
                 .active
@@ -224,14 +218,16 @@ impl<'context, 'window> EventContext<'context, 'window> {
             }
         }
 
-        if activation_changes == MAX_ITERS {
+        if activation_changes == Self::MAX_PENDING_CHANGE_CYCLES {
             tracing::error!(
                 "activation change force stopped after {activation_changes} sequential changes"
             );
         }
+    }
 
+    fn apply_pending_focus(&mut self) {
         let mut focus_changes = 0;
-        while focus_changes < MAX_ITERS {
+        while focus_changes < Self::MAX_PENDING_CHANGE_CYCLES {
             let focus = match self
                 .pending_state
                 .focus
@@ -293,9 +289,21 @@ impl<'context, 'window> EventContext<'context, 'window> {
             }
         }
 
-        if focus_changes == MAX_ITERS {
+        if focus_changes == Self::MAX_PENDING_CHANGE_CYCLES {
             tracing::error!("focus change force stopped after {focus_changes} sequential changes");
         }
+    }
+
+    pub(crate) fn apply_pending_state(&mut self) {
+        // These two blocks apply active/focus in a loop to pick up the event
+        // where during the process of calling deactivate/blur or activate/focus
+        // the active/focus widget is changed again. This can lead to infinite
+        // loops, which is a programmer error. However, rather than block
+        // forever, we log a message that this is happening and break.
+
+        self.apply_pending_activation();
+
+        self.apply_pending_focus();
 
         // Check that our hover widget still exists. If not, we should try to find a new one.
         if let Some(hover) = self.current_node.tree.hovered_widget() {
