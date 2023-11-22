@@ -40,11 +40,11 @@ impl ProgressBar {
 
 /// A measurement of progress for an indicator widget like [`ProgressBar`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Progress {
+pub enum Progress<T = ZeroToOne> {
     /// The task has an indeterminant length.
     Indeterminant,
-    /// The task is a specified percent complete.
-    Percent(ZeroToOne),
+    /// The task is a specified amount complete.
+    Percent(T),
 }
 
 impl MakeWidget for ProgressBar {
@@ -123,16 +123,16 @@ fn update_progress_bar(
 }
 
 /// A value that can be used in a progress indicator.
-pub trait Progressable<T>: IntoDynamic<T> + Sized {
+pub trait Progressable<T>: IntoDynamic<T> + Sized
+where
+    T: ProgressValue,
+{
     /// Returns a new progress bar that displays progress from `T::MIN` to
     /// `T::MAX`.
-    fn progress_bar(self) -> ProgressBar
-    where
-        T: Ranged + PercentBetween,
-    {
+    fn progress_bar(self) -> ProgressBar {
         ProgressBar::new(
             self.into_dynamic()
-                .map_each(|t| Progress::Percent(t.percent_between(&T::MIN, &T::MAX))),
+                .map_each(|value| value.to_progress(None)),
         )
     }
 
@@ -140,15 +140,16 @@ pub trait Progressable<T>: IntoDynamic<T> + Sized {
     /// `max`. The maximum value can be either a `T` or an `Option<T>`. If
     /// `None` is the maximum value, an indeterminant progress bar will be
     /// displayed.
-    fn progress_bar_to(self, max: impl IntoValue<Option<T>>) -> ProgressBar
+    fn progress_bar_to(self, max: impl IntoValue<T::Value>) -> ProgressBar
     where
-        T: Ranged + PercentBetween + Clone + Send + Sync + 'static,
+        T: Send,
+        T::Value: Ranged + Send + Clone,
     {
         let max = max.into_value();
         match max {
-            Value::Constant(max) => self.progress_bar_between(max.map(|max| T::MIN..=max)),
+            Value::Constant(max) => self.progress_bar_between(<T::Value>::MIN..=max),
             Value::Dynamic(max) => {
-                self.progress_bar_between(max.map_each(|max| max.clone().map(|max| T::MIN..=max)))
+                self.progress_bar_between(max.map_each(|max| <T::Value>::MIN..=max.clone()))
             }
         }
     }
@@ -159,27 +160,74 @@ pub trait Progressable<T>: IntoDynamic<T> + Sized {
     /// displayed.
     fn progress_bar_between<Range>(self, range: Range) -> ProgressBar
     where
-        T: PercentBetween + Clone + Send + Sync + 'static,
-        Range: IntoValue<Option<RangeInclusive<T>>>,
+        T: Send,
+        T::Value: Send,
+        Range: IntoValue<RangeInclusive<T::Value>>,
     {
         let value = self.into_dynamic();
         let range = range.into_value();
         match range {
-            Value::Constant(range) => ProgressBar::new(value.map_each(move |value| {
-                range
-                    .as_ref()
-                    .map(|range| value.percent_between(range.start(), range.end()))
-                    .map_or(Progress::Indeterminant, Progress::Percent)
-            })),
+            Value::Constant(range) => ProgressBar::new(
+                value.map_each(move |value| value.to_progress(Some(range.start()..=range.end()))),
+            ),
             Value::Dynamic(range) => {
                 ProgressBar::new((&range, &value).map_each(|(range, value)| {
-                    range.clone().map_or(Progress::Indeterminant, |range| {
-                        Progress::Percent(value.percent_between(range.start(), range.end()))
-                    })
+                    value.to_progress(Some(range.start()..=range.end()))
                 }))
             }
         }
     }
 }
 
-impl<U, T> Progressable<U> for T where T: IntoDynamic<U> {}
+impl<U> Progressable<U> for Dynamic<U> where U: ProgressValue {}
+
+/// A value that can be used in a progress indicator.
+pub trait ProgressValue: 'static {
+    /// The type that progress is ranged over.
+    type Value;
+
+    /// Converts this value to a progress using the range given, if provided. If
+    /// no range is provided, the full range of the type should be considered.
+    fn to_progress(&self, range: Option<RangeInclusive<&Self::Value>>) -> Progress;
+}
+
+impl<T> ProgressValue for T
+where
+    T: Ranged + PercentBetween + 'static,
+{
+    type Value = T;
+
+    fn to_progress(&self, range: Option<RangeInclusive<&Self::Value>>) -> Progress {
+        if let Some(range) = range {
+            Progress::Percent(self.percent_between(range.start(), range.end()))
+        } else {
+            Progress::Percent(self.percent_between(&T::MIN, &T::MAX))
+        }
+    }
+}
+
+impl<T> ProgressValue for Option<T>
+where
+    T: Ranged + PercentBetween + 'static,
+{
+    type Value = T;
+
+    fn to_progress(&self, range: Option<RangeInclusive<&Self::Value>>) -> Progress {
+        self.as_ref()
+            .map_or(Progress::Indeterminant, |value| value.to_progress(range))
+    }
+}
+
+impl<T> ProgressValue for Progress<T>
+where
+    T: Ranged + PercentBetween + 'static,
+{
+    type Value = T;
+
+    fn to_progress(&self, range: Option<RangeInclusive<&Self::Value>>) -> Progress {
+        match self {
+            Progress::Indeterminant => Progress::Indeterminant,
+            Progress::Percent(value) => value.to_progress(range),
+        }
+    }
+}
