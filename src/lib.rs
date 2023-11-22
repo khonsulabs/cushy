@@ -37,7 +37,8 @@ pub use self::tick::{InputState, Tick};
 pub enum ConstraintLimit {
     /// The widget is expected to occupy a known size.
     Fill(UPx),
-    /// The widget is expected to resize itself to fit within the size provided.
+    /// The widget is expected to resize itself to fit its contents, trying to
+    /// stay within the size given.
     SizeToFit(UPx),
 }
 

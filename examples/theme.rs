@@ -1,4 +1,3 @@
-use gooey::animation::ZeroToOne;
 use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{
     ColorScheme, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair,
@@ -7,7 +6,6 @@ use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
 use gooey::widgets::input::InputValue;
 use gooey::widgets::slider::Slidable;
-use gooey::widgets::{Slider, Stack};
 use gooey::window::ThemeMode;
 use gooey::Run;
 use kludgine::Color;
@@ -100,13 +98,12 @@ fn color_editor(
 
     (
         color,
-        Stack::rows(
-            label
-                .and(hue.slider_between(0., 360.))
-                .and(hue_text.into_input())
-                .and(Slider::<ZeroToOne>::from_value(saturation))
-                .and(saturation_text.into_input()),
-        ),
+        label
+            .and(hue.slider_between(0., 360.))
+            .and(hue_text.into_input())
+            .and(saturation.slider())
+            .and(saturation_text.into_input())
+            .into_rows(),
     )
 }
 
@@ -179,83 +176,80 @@ fn theme(theme: Dynamic<Theme>, mode: ThemeMode) -> impl MakeWidget {
 fn surface_theme(theme: Dynamic<SurfaceTheme>) -> impl MakeWidget {
     let color = theme.map_each(|theme| theme.color);
     let on_color = theme.map_each(|theme| theme.on_color);
-    Stack::rows(
-        Stack::columns(
-            swatch(color.clone(), "Surface", on_color.clone())
-                .and(swatch(
-                    theme.map_each(|theme| theme.bright_color),
-                    "Bright Surface",
-                    on_color.clone(),
-                ))
-                .and(swatch(
-                    theme.map_each(|theme| theme.dim_color),
-                    "Dim Surface",
-                    on_color.clone(),
-                )),
-        )
+
+    swatch(color.clone(), "Surface", on_color.clone())
+        .and(swatch(
+            theme.map_each(|theme| theme.bright_color),
+            "Bright Surface",
+            on_color.clone(),
+        ))
+        .and(swatch(
+            theme.map_each(|theme| theme.dim_color),
+            "Dim Surface",
+            on_color.clone(),
+        ))
+        .into_columns()
         .contain()
         .expand()
         .and(
-            Stack::columns(
-                swatch(
-                    theme.map_each(|theme| theme.lowest_container),
-                    "Lowest Container",
-                    on_color.clone(),
-                )
-                .and(swatch(
-                    theme.map_each(|theme| theme.low_container),
-                    "Low Container",
-                    on_color.clone(),
-                ))
-                .and(swatch(
-                    theme.map_each(|theme| theme.container),
-                    "Container",
-                    on_color.clone(),
-                ))
-                .and(swatch(
-                    theme.map_each(|theme| theme.high_container),
-                    "High Container",
-                    on_color.clone(),
-                ))
-                .and(swatch(
-                    theme.map_each(|theme| theme.highest_container),
-                    "Highest Container",
-                    on_color.clone(),
-                )),
+            swatch(
+                theme.map_each(|theme| theme.lowest_container),
+                "Lowest Container",
+                on_color.clone(),
             )
+            .and(swatch(
+                theme.map_each(|theme| theme.low_container),
+                "Low Container",
+                on_color.clone(),
+            ))
+            .and(swatch(
+                theme.map_each(|theme| theme.container),
+                "Container",
+                on_color.clone(),
+            ))
+            .and(swatch(
+                theme.map_each(|theme| theme.high_container),
+                "High Container",
+                on_color.clone(),
+            ))
+            .and(swatch(
+                theme.map_each(|theme| theme.highest_container),
+                "Highest Container",
+                on_color.clone(),
+            ))
+            .into_columns()
             .contain()
             .expand(),
         )
         .and(
-            Stack::columns(
-                swatch(on_color.clone(), "On Surface", color.clone())
-                    .and(swatch(
-                        theme.map_each(|theme| theme.on_color_variant),
-                        "On Color Variant",
-                        color.clone(),
-                    ))
-                    .and(swatch(
-                        theme.map_each(|theme| theme.outline),
-                        "Outline",
-                        color.clone(),
-                    ))
-                    .and(swatch(
-                        theme.map_each(|theme| theme.outline_variant),
-                        "Outline Variant",
-                        color,
-                    ))
-                    .and(swatch(
-                        theme.map_each(|theme| theme.opaque_widget),
-                        "Opaque Widget",
-                        on_color,
-                    )),
-            )
-            .contain()
-            .expand(),
-        ),
-    )
-    .contain()
-    .expand()
+            swatch(on_color.clone(), "On Surface", color.clone())
+                .and(swatch(
+                    theme.map_each(|theme| theme.on_color_variant),
+                    "On Color Variant",
+                    color.clone(),
+                ))
+                .and(swatch(
+                    theme.map_each(|theme| theme.outline),
+                    "Outline",
+                    color.clone(),
+                ))
+                .and(swatch(
+                    theme.map_each(|theme| theme.outline_variant),
+                    "Outline Variant",
+                    color,
+                ))
+                .and(swatch(
+                    theme.map_each(|theme| theme.opaque_widget),
+                    "Opaque Widget",
+                    on_color,
+                ))
+                .into_columns()
+                .contain()
+                .expand(),
+        )
+        .into_rows()
+        .contain()
+        .expand()
 }
 
 fn color_theme(theme: Dynamic<ColorTheme>, label: &str) -> impl MakeWidget {
@@ -265,36 +259,36 @@ fn color_theme(theme: Dynamic<ColorTheme>, label: &str) -> impl MakeWidget {
     let on_color = theme.map_each(|theme| theme.on_color);
     let container = theme.map_each(|theme| theme.container);
     let on_container = theme.map_each(|theme| theme.on_container);
-    Stack::rows(
-        swatch(color.clone(), label, on_color.clone())
-            .and(swatch(
-                dim_color.clone(),
-                &format!("{label} Dim"),
-                on_color.clone(),
-            ))
-            .and(swatch(
-                bright_color.clone(),
-                &format!("{label} bright"),
-                on_color.clone(),
-            ))
-            .and(swatch(
-                on_color.clone(),
-                &format!("On {label}"),
-                color.clone(),
-            ))
-            .and(swatch(
-                container.clone(),
-                &format!("{label} Container"),
-                on_container.clone(),
-            ))
-            .and(swatch(
-                on_container,
-                &format!("On {label} Container"),
-                container,
-            )),
-    )
-    .contain()
-    .expand()
+
+    swatch(color.clone(), label, on_color.clone())
+        .and(swatch(
+            dim_color.clone(),
+            &format!("{label} Dim"),
+            on_color.clone(),
+        ))
+        .and(swatch(
+            bright_color.clone(),
+            &format!("{label} bright"),
+            on_color.clone(),
+        ))
+        .and(swatch(
+            on_color.clone(),
+            &format!("On {label}"),
+            color.clone(),
+        ))
+        .and(swatch(
+            container.clone(),
+            &format!("{label} Container"),
+            on_container.clone(),
+        ))
+        .and(swatch(
+            on_container,
+            &format!("On {label} Container"),
+            container,
+        ))
+        .into_rows()
+        .contain()
+        .expand()
 }
 
 fn swatch(background: Dynamic<Color>, label: &str, text: Dynamic<Color>) -> impl MakeWidget {

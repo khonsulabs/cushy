@@ -1,7 +1,6 @@
 use gooey::value::Dynamic;
 use gooey::widget::{MakeWidget, HANDLED, IGNORED};
 use gooey::widgets::input::InputValue;
-use gooey::widgets::Space;
 use gooey::Run;
 use kludgine::app::winit::event::ElementState;
 use kludgine::app::winit::keyboard::{Key, NamedKey};
@@ -15,7 +14,7 @@ fn main() -> gooey::Result {
         .clone()
         .vertical_scroll()
         .expand()
-        .and(Space::colored(Color::RED).expand_weighted(2))
+        .and(Color::RED.expand_weighted(2))
         .into_columns()
         .expand()
         .and(chat_message.clone().into_input().on_key(move |input| {

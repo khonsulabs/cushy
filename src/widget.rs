@@ -25,9 +25,11 @@ use crate::styles::{
 };
 use crate::tree::Tree;
 use crate::utils::IgnorePoison;
-use crate::value::{IntoValue, Value};
+use crate::value::{IntoDynamic, IntoValue, Value};
+use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::{
-    Align, Button, Container, Expand, Resize, Scroll, Stack, Style, Themed, ThemedMode,
+    Align, Button, Checkbox, Container, Expand, Resize, Scroll, Space, Stack, Style, Themed,
+    ThemedMode,
 };
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
@@ -743,9 +745,14 @@ pub trait MakeWidget: Sized {
         Resize::from_height(height, self)
     }
 
-    /// Returns this string as a clickable button.
+    /// Returns this widget as the contents of a clickable button.
     fn into_button(self) -> Button {
         Button::new(self)
+    }
+
+    /// Returns this widget as the label of a Checkbox.
+    fn into_checkbox(self, value: impl IntoDynamic<CheckboxState>) -> Checkbox {
+        value.into_checkbox(self)
     }
 
     /// Aligns `self` to the center vertically and horizontally.
@@ -872,6 +879,18 @@ where
 impl MakeWidget for WidgetInstance {
     fn make_widget(self) -> WidgetInstance {
         self
+    }
+}
+
+impl MakeWidget for Color {
+    fn make_widget(self) -> WidgetInstance {
+        Space::colored(self).make_widget()
+    }
+}
+
+impl MakeWidget for () {
+    fn make_widget(self) -> WidgetInstance {
+        Space::clear().make_widget()
     }
 }
 

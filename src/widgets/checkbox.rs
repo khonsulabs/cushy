@@ -95,6 +95,26 @@ impl From<bool> for CheckboxState {
     }
 }
 
+impl From<CheckboxState> for Option<bool> {
+    fn from(value: CheckboxState) -> Self {
+        match value {
+            CheckboxState::Indeterminant => None,
+            CheckboxState::Unchecked => Some(false),
+            CheckboxState::Checked => Some(true),
+        }
+    }
+}
+
+impl From<Option<bool>> for CheckboxState {
+    fn from(value: Option<bool>) -> Self {
+        match value {
+            Some(true) => CheckboxState::Checked,
+            Some(false) => CheckboxState::Unchecked,
+            None => CheckboxState::Indeterminant,
+        }
+    }
+}
+
 impl TryFrom<CheckboxState> for bool {
     type Error = CheckboxToBoolError;
 
@@ -119,6 +139,15 @@ impl Not for CheckboxState {
 }
 
 impl IntoDynamic<CheckboxState> for Dynamic<bool> {
+    fn into_dynamic(self) -> Dynamic<CheckboxState> {
+        self.linked(
+            |bool| CheckboxState::from(*bool),
+            |tri_state: &CheckboxState| bool::try_from(*tri_state).ok(),
+        )
+    }
+}
+
+impl IntoDynamic<CheckboxState> for Dynamic<Option<bool>> {
     fn into_dynamic(self) -> Dynamic<CheckboxState> {
         self.linked(
             |bool| CheckboxState::from(*bool),
@@ -222,3 +251,13 @@ impl WrapperWidget for CheckboxLabel {
         }
     }
 }
+
+/// A value that can be used as a checkbox.
+pub trait Checkable: IntoDynamic<CheckboxState> + Sized {
+    /// Returns a new checkbox using `self` as the value and `label`.
+    fn into_checkbox(self, label: impl MakeWidget) -> Checkbox {
+        Checkbox::new(self.into_dynamic(), label)
+    }
+}
+
+impl<T> Checkable for T where T: IntoDynamic<CheckboxState> {}

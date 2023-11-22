@@ -293,6 +293,12 @@ pub trait AnimationTarget: Sized + Send + Sync {
     fn over(self, duration: Duration) -> Animation<Self, Linear> {
         Animation::new(self, duration)
     }
+
+    /// Returns a pending animation that transitions to the target values after
+    /// no delay.
+    fn immediately(self) -> Animation<Self, Linear> {
+        self.over(Duration::ZERO)
+    }
 }
 
 /// The target of an [`Animate`] implementor.

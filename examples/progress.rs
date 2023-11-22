@@ -2,7 +2,6 @@ use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
 use gooey::widgets::progress::Progressable;
 use gooey::widgets::slider::Slidable;
-use gooey::widgets::Checkbox;
 use gooey::Run;
 use kludgine::figures::units::Lp;
 use kludgine::figures::Size;
@@ -17,7 +16,7 @@ fn main() -> gooey::Result {
         .clone()
         .slider()
         .and(progress.clone().progress_bar())
-        .and(Checkbox::new(indeterminant.clone(), "Indeterminant"))
+        .and("Indeterminant".into_checkbox(indeterminant))
         .into_rows()
         .fit_horizontally()
         .expand()

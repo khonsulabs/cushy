@@ -88,7 +88,7 @@ fn update_progress_bar(
                         start.transition_to(ZeroToOne::ZERO),
                         end.transition_to(ZeroToOne::ZERO),
                     )
-                        .over(Duration::ZERO)
+                        .immediately()
                         .and_then(
                             end.transition_to(ZeroToOne::new(0.66))
                                 .over(Duration::from_millis(500))
