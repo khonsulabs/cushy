@@ -3,7 +3,7 @@ use std::error::Error;
 use std::fmt::Display;
 use std::ops::Not;
 
-use kludgine::figures::units::Lp;
+use kludgine::figures::units::{Lp, Px};
 use kludgine::figures::{Point, Rect, ScreenScale, Size};
 use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 
@@ -52,7 +52,7 @@ impl Checkbox {
 
 impl MakeWidget for Checkbox {
     fn make_widget(self) -> WidgetInstance {
-        CheckboxLabel {
+        CheckboxOrnament {
             value: self.state.create_reader(),
         }
         .and(self.label)
@@ -169,11 +169,11 @@ impl Display for CheckboxToBoolError {
 impl Error for CheckboxToBoolError {}
 
 #[derive(Debug)]
-struct CheckboxLabel {
+struct CheckboxOrnament {
     value: DynamicReader<CheckboxState>,
 }
 
-impl Widget for CheckboxLabel {
+impl Widget for CheckboxOrnament {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let checkbox_size = context
             .gfx
@@ -182,7 +182,14 @@ impl Widget for CheckboxLabel {
             .width
             .min(context.gfx.region().size.height);
 
-        let checkbox_rect = Rect::from(Size::squared(checkbox_size));
+        let checkbox_rect = Rect::new(
+            Point::new(
+                Px::ZERO,
+                (context.gfx.region().size.height - checkbox_size) / 2,
+            ),
+            Size::squared(checkbox_size),
+        );
+
         let stroke_options = StrokeOptions::lp_wide(Lp::points(2)).into_px(context.gfx.scale());
         match self.value.get_tracking_refresh(context) {
             state @ (CheckboxState::Checked | CheckboxState::Indeterminant) => {
