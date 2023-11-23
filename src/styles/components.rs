@@ -94,7 +94,7 @@ define_components! {
         /// The [`Dimension`] to use as the size to render text.
         TextSize(Dimension, "text_size", Dimension::Lp(Lp::points(12)))
         /// The [`Dimension`] to use to space multiple lines of text.
-        LineHeight(Dimension,"line_height",Dimension::Lp(Lp::points(14)))
+        LineHeight(Dimension,"line_height",Dimension::Lp(Lp::points(16)))
         /// The [`Color`] of the surface for the user interface to draw upon.
         SurfaceColor(Color, "surface_color", .surface.color)
         /// The [`Color`] to use when rendering text.

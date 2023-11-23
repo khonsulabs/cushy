@@ -1,73 +1,153 @@
 use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{
-    ColorScheme, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme, ThemePair,
+    ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme,
+    ThemePair,
 };
-use gooey::value::{Dynamic, MapEach};
+use gooey::value::{Dynamic, MapEachCloned};
 use gooey::widget::MakeWidget;
+use gooey::widgets::checkbox::Checkable;
 use gooey::widgets::input::InputValue;
 use gooey::widgets::slider::Slidable;
+use gooey::widgets::Space;
 use gooey::window::ThemeMode;
 use gooey::Run;
+use kludgine::figures::units::Lp;
 use kludgine::Color;
+use palette::OklabHue;
+
+struct Scheme<Primary, Other = Primary> {
+    primary: Primary,
+    secondary: Other,
+    tertiary: Other,
+    error: Other,
+    neutral: Other,
+    neutral_variant: Other,
+}
+
+impl From<ColorScheme> for Scheme<ColorSource> {
+    fn from(scheme: ColorScheme) -> Self {
+        Self {
+            primary: scheme.primary,
+            secondary: scheme.secondary,
+            tertiary: scheme.tertiary,
+            error: scheme.error,
+            neutral: scheme.neutral,
+            neutral_variant: scheme.neutral_variant,
+        }
+    }
+}
+
+impl<T> Scheme<T> {
+    pub fn map<R>(&self, mut map: impl FnMut(T) -> R) -> Scheme<R>
+    where
+        T: Clone,
+    {
+        Scheme {
+            primary: map(self.primary.clone()),
+            secondary: map(self.secondary.clone()),
+            tertiary: map(self.tertiary.clone()),
+            error: map(self.error.clone()),
+            neutral: map(self.neutral.clone()),
+            neutral_variant: map(self.neutral_variant.clone()),
+        }
+    }
+}
+
+impl<Primary, Other> Scheme<Primary, Other> {
+    pub fn map_labeled<NewPrimary, NewOther>(
+        &self,
+        primary: impl FnOnce(Primary) -> NewPrimary,
+        mut map: impl FnMut(&str, Other) -> NewOther,
+    ) -> Scheme<NewPrimary, NewOther>
+    where
+        Primary: Clone,
+        Other: Clone,
+    {
+        Scheme {
+            primary: primary(self.primary.clone()),
+            secondary: map("Secondary", self.secondary.clone()),
+            tertiary: map("Tertiary", self.tertiary.clone()),
+            error: map("Error", self.error.clone()),
+            neutral: map("Netural", self.neutral.clone()),
+            neutral_variant: map("Neutral Variant", self.neutral_variant.clone()),
+        }
+    }
+}
 
 fn main() -> gooey::Result {
-    let scheme = ColorScheme::default();
-    let (primary, primary_editor) = color_editor(scheme.primary, "Primary");
-    let (secondary, secondary_editor) = color_editor(scheme.secondary, "Secondary");
-    let (tertiary, tertiary_editor) = color_editor(scheme.tertiary, "Tertiary");
-    let (error, error_editor) = color_editor(scheme.error, "Error");
-    let (neutral, neutral_editor) = color_editor(scheme.neutral, "Neutral");
-    let (neutral_variant, neutral_variant_editor) =
-        color_editor(scheme.neutral_variant, "Neutral Variant");
-    let (theme_mode, theme_switcher) = dark_mode_slider();
+    let (theme_mode, theme_switcher) = dark_mode_picker();
 
-    let default_theme = (
-        &primary,
-        &secondary,
-        &tertiary,
-        &error,
-        &neutral,
-        &neutral_variant,
+    let scheme = Scheme::from(ColorScheme::default());
+    let sources = scheme.map(Dynamic::new);
+    let editors = sources.map_labeled(
+        |primary| {
+            swatch_label("Primary", &primary)
+                .and(color_editor(&primary))
+                .into_rows()
+                .make_widget()
+        },
+        |label, source| {
+            let (enabled, editor) = optional_editor(label, &source);
+            let opt_color =
+                (&enabled, &source).map_each_cloned(|(enabled, source)| enabled.then_some(source));
+            (opt_color, editor)
+        },
+    );
+    let color_scheme = (
+        &sources.primary,
+        &editors.secondary.0,
+        &editors.tertiary.0,
+        &editors.error.0,
+        &editors.neutral.0,
+        &editors.neutral_variant.0,
     )
-        .map_each(
-            |(primary, secondary, tertiary, error, neutral, neutral_variant)| {
-                ThemePair::from(ColorScheme {
-                    primary: *primary,
-                    secondary: *secondary,
-                    tertiary: *tertiary,
-                    error: *error,
-                    neutral: *neutral,
-                    neutral_variant: *neutral_variant,
-                })
+        .map_each_cloned(
+            move |(primary, secondary, tertiary, error, neutral, neutral_variant)| {
+                let mut scheme = ColorSchemeBuilder::new(primary);
+                scheme.secondary = secondary;
+                scheme.tertiary = tertiary;
+                scheme.error = error;
+                scheme.neutral = neutral;
+                scheme.neutral_variant = neutral_variant;
+                scheme.build()
             },
         );
+    color_scheme.for_each_cloned(move |scheme| {
+        sources.primary.set(scheme.primary);
+        sources.secondary.set(scheme.secondary);
+        sources.tertiary.set(scheme.tertiary);
+        sources.error.set(scheme.error);
+        sources.neutral.set(scheme.neutral);
+        sources.neutral_variant.set(scheme.neutral_variant);
+    });
+    let theme = color_scheme.map_each_cloned(ThemePair::from);
 
     let editors = theme_switcher
-        .and(primary_editor)
-        .and(secondary_editor)
-        .and(tertiary_editor)
-        .and(error_editor)
-        .and(neutral_editor)
-        .and(neutral_variant_editor)
+        .and(editors.primary)
+        .and(editors.secondary.1)
+        .and(editors.tertiary.1)
+        .and(editors.error.1)
+        .and(editors.neutral.1)
+        .and(editors.neutral_variant.1)
         .into_rows()
         .vertical_scroll();
 
     editors
         .and(fixed_themes(
-            default_theme.map_each(|theme| theme.primary_fixed),
-            default_theme.map_each(|theme| theme.secondary_fixed),
-            default_theme.map_each(|theme| theme.tertiary_fixed),
+            theme.map_each(|theme| theme.primary_fixed),
+            theme.map_each(|theme| theme.secondary_fixed),
+            theme.map_each(|theme| theme.tertiary_fixed),
         ))
-        .and(theme(
-            default_theme.map_each(|theme| theme.dark),
+        .and(theme_preview(
+            theme.map_each(|theme| theme.dark),
             ThemeMode::Dark,
         ))
-        .and(theme(
-            default_theme.map_each(|theme| theme.light),
+        .and(theme_preview(
+            theme.map_each(|theme| theme.light),
             ThemeMode::Light,
         ))
         .into_columns()
-        .themed(default_theme)
+        .themed(theme)
         .pad()
         .expand()
         .into_window()
@@ -75,36 +155,68 @@ fn main() -> gooey::Result {
         .run()
 }
 
-fn dark_mode_slider() -> (Dynamic<ThemeMode>, impl MakeWidget) {
-    let theme_mode = Dynamic::default();
+fn dark_mode_picker() -> (Dynamic<ThemeMode>, impl MakeWidget) {
+    let dark = Dynamic::new(true);
+    let theme_mode = dark.map_each(|dark| {
+        if *dark {
+            ThemeMode::Dark
+        } else {
+            ThemeMode::Light
+        }
+    });
+
+    (theme_mode.clone(), dark.into_checkbox("Dark Mode"))
+}
+
+fn swatch_label(label: &str, color: &Dynamic<ColorSource>) -> impl MakeWidget {
+    Space::colored(color.map_each(|source| source.color(0.5)))
+        .width(Lp::mm(1))
+        .and(label)
+        .into_columns()
+}
+
+fn optional_editor(label: &str, color: &Dynamic<ColorSource>) -> (Dynamic<bool>, impl MakeWidget) {
+    let enabled = Dynamic::new(false);
+    let hide_editor = enabled.map_each(|enabled| !enabled);
 
     (
-        theme_mode.clone(),
-        "Theme Mode".and(theme_mode.slider()).into_rows(),
+        enabled.clone(),
+        enabled
+            .clone()
+            .into_checkbox(swatch_label(label, color))
+            .and(color_editor(color).collapse_vertically(hide_editor))
+            .into_rows(),
     )
 }
 
-fn color_editor(
-    initial_color: ColorSource,
-    label: &str,
-) -> (Dynamic<ColorSource>, impl MakeWidget) {
-    let hue = Dynamic::new(initial_color.hue.into_degrees());
+fn color_editor(color: &Dynamic<ColorSource>) -> impl MakeWidget {
+    let hue = color.map_each(|color| color.hue.into_positive_degrees());
+    hue.for_each_cloned({
+        let color = color.clone();
+        move |hue| {
+            let mut source = color.get();
+            source.hue = OklabHue::new(hue);
+            color.set(source);
+        }
+    });
+
     let hue_text = hue.linked_string();
-    let saturation = Dynamic::new(initial_color.saturation);
+    let saturation = color.map_each(|color| color.saturation);
+    saturation.for_each_cloned({
+        let color = color.clone();
+        move |saturation| {
+            let mut source = color.get();
+            source.saturation = saturation;
+            color.set(source);
+        }
+    });
     let saturation_text = saturation.linked_string();
 
-    let color =
-        (&hue, &saturation).map_each(|(hue, saturation)| ColorSource::new(*hue, *saturation));
-
-    (
-        color,
-        label
-            .and(hue.slider_between(0., 360.))
-            .and(hue_text.into_input())
-            .and(saturation.slider())
-            .and(saturation_text.into_input())
-            .into_rows(),
-    )
+    hue.slider_between(0., 359.99)
+        .and(hue_text.into_input())
+        .and(saturation.slider())
+        .and(saturation_text.into_input())
+        .into_rows()
 }
 
 fn fixed_themes(
@@ -146,7 +258,7 @@ fn fixed_theme(theme: Dynamic<FixedTheme>, label: &str) -> impl MakeWidget {
         .expand()
 }
 
-fn theme(theme: Dynamic<Theme>, mode: ThemeMode) -> impl MakeWidget {
+fn theme_preview(theme: Dynamic<Theme>, mode: ThemeMode) -> impl MakeWidget {
     match mode {
         ThemeMode::Light => "Light",
         ThemeMode::Dark => "Dark",

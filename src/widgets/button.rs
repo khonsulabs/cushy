@@ -243,7 +243,7 @@ impl Button {
                     .spawn();
             }
             (true, Some(style)) => {
-                style.update(new_style);
+                style.set(new_style);
                 self.color_animation.clear();
             }
             _ => {

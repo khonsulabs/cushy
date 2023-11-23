@@ -225,7 +225,7 @@ impl Widget for Scroll {
             let scroll_pct = scroll.y.into_float() / current_max_scroll.y.into_float();
             scroll.y = max_scroll_y * scroll_pct;
         }
-        self.scroll.update(scroll);
+        self.scroll.set(scroll);
         self.control_size = control_size;
         self.content_size = new_content_size;
 

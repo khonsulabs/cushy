@@ -137,7 +137,7 @@ where
 
 impl<T> IntoComponentValue for Value<T>
 where
-    T: Clone,
+    T: Clone + Send + 'static,
     Component: From<T>,
 {
     fn into_component_value(self) -> Value<Component> {
@@ -147,7 +147,7 @@ where
 
 impl<T> IntoComponentValue for Dynamic<T>
 where
-    T: Clone,
+    T: Clone + Send + 'static,
     Component: From<T>,
 {
     fn into_component_value(self) -> Value<Component> {
@@ -201,7 +201,7 @@ impl IntoIterator for Styles {
 // }
 
 /// A value of a style component.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Component {
     /// A color.
     Color(Color),
@@ -781,6 +781,12 @@ impl CustomComponent {
     }
 }
 
+impl PartialEq for CustomComponent {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 impl RequireInvalidation for CustomComponent {
     fn requires_invalidation(&self) -> bool {
         self.0.requires_invalidation()
@@ -1112,7 +1118,7 @@ impl IntoValue<Dimension> for Lp {
 }
 
 /// A set of light and dark [`Theme`]s.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ThemePair {
     /// The theme to use when the user interface is in light mode.
     pub light: Theme,
@@ -1984,6 +1990,16 @@ pub trait ProtoColor: Sized {
             .saturation()
             .unwrap_or_else(|| saturation_if_not_provided.into());
         ColorSource::new(self.hue(), saturation)
+    }
+}
+
+impl<'a> ProtoColor for &'a ColorSource {
+    fn hue(&self) -> OklabHue {
+        self.hue
+    }
+
+    fn saturation(&self) -> Option<ZeroToOne> {
+        Some(self.saturation)
     }
 }
 

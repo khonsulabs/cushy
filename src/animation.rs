@@ -215,11 +215,11 @@ where
     fn update(&self, percent: f32) {
         self.change
             .dynamic
-            .update(self.start.lerp(&self.change.new_value, percent));
+            .set(self.start.lerp(&self.change.new_value, percent));
     }
 
     fn finish(&self) {
-        self.change.dynamic.update(self.change.new_value.clone());
+        self.change.dynamic.set(self.change.new_value.clone());
     }
 }
 
@@ -458,7 +458,7 @@ pub struct RunningAnimation<T, Easing> {
 
 /// A handle to a spawned animation. When dropped, the associated animation will
 /// be stopped.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq, Eq)]
 #[must_use]
 pub struct AnimationHandle(Option<LotId>);
 
@@ -1233,6 +1233,16 @@ impl TryFrom<Component> for EasingFunction {
 impl RequireInvalidation for EasingFunction {
     fn requires_invalidation(&self) -> bool {
         false
+    }
+}
+
+impl PartialEq for EasingFunction {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Fn(l0), Self::Fn(r0)) => l0 == r0,
+            (Self::Custom(l0), Self::Custom(r0)) => Arc::ptr_eq(l0, r0),
+            _ => false,
+        }
     }
 }
 

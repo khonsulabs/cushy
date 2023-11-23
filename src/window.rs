@@ -172,7 +172,7 @@ impl Window<WidgetInstance> {
     /// of `false`.
     pub fn focused(mut self, focused: impl IntoDynamic<bool>) -> Self {
         let focused = focused.into_dynamic();
-        focused.update(false);
+        focused.set(false);
         self.focused = Some(focused);
         self
     }
@@ -187,7 +187,7 @@ impl Window<WidgetInstance> {
     /// `occluded` will be initialized with an initial state of `false`.
     pub fn occluded(mut self, occluded: impl IntoDynamic<bool>) -> Self {
         let occluded = occluded.into_dynamic();
-        occluded.update(false);
+        occluded.set(false);
         self.occluded = Some(occluded);
         self
     }
@@ -528,7 +528,7 @@ where
 
         let theme_mode = match settings.theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
-                dynamic.update(window.theme().into());
+                dynamic.set(window.theme().into());
                 Value::Dynamic(dynamic)
             }
             Some(Value::Constant(mode)) => Value::Constant(mode),
@@ -660,7 +660,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.focused.update(window.focused());
+        self.focused.set(window.focused());
     }
 
     fn occlusion_changed(
@@ -668,7 +668,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.occluded.update(window.ocluded());
+        self.occluded.set(window.ocluded());
     }
 
     fn render<'pass>(
@@ -1104,7 +1104,7 @@ where
         _kludgine: &mut Kludgine,
     ) {
         if let Value::Dynamic(theme_mode) = &self.theme_mode {
-            theme_mode.update(window.theme().into());
+            theme_mode.set(window.theme().into());
         }
     }
 

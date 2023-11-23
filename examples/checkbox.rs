@@ -11,7 +11,7 @@ fn main() -> gooey::Result {
         .clone()
         .into_checkbox(label)
         .and("Maybe".into_button().on_click(move |()| {
-            checkbox_state.update(CheckboxState::Indeterminant);
+            checkbox_state.set(CheckboxState::Indeterminant);
         }))
         .into_columns()
         .centered()

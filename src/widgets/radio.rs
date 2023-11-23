@@ -63,7 +63,7 @@ where
         .into_columns()
         .into_button()
         .on_click(move |()| {
-            self.state.update(self.value.clone());
+            self.state.set(self.value.clone());
         })
         .kind(self.kind)
         .make_widget()

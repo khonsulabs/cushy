@@ -46,12 +46,12 @@ fn u8_slider() -> impl MakeWidget {
 
 fn u8_range_slider() -> impl MakeWidget {
     let range = Dynamic::new(42..=127);
-    let start = range.map_each_unique(|range| *range.start());
-    let end = range.map_each_unique(|range| *range.end());
+    let start = range.map_each(|range| *range.start());
+    let end = range.map_each(|range| *range.end());
     (&start, &end).for_each({
         let range = range.clone();
         move |(start, end)| {
-            let _result = range.try_update(*start..=*end);
+            range.set(*start..=*end);
         }
     });
 

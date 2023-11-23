@@ -343,7 +343,7 @@ where
             start = value;
             self.focused_knob = Some(Knob::Start);
         }
-        self.value.update(T::from_parts(start, opt_end));
+        self.value.set(T::from_parts(start, opt_end));
     }
 
     fn step(&mut self, forwards: bool, factor: f32) {
@@ -391,7 +391,7 @@ where
                 (Knob::Start, Some(end)) => (new_value, Some(end)),
                 (Knob::End, Some(start)) => (start, Some(new_value)),
             };
-            self.value.update(T::from_parts(start, end));
+            self.value.set(T::from_parts(start, end));
         }
     }
 

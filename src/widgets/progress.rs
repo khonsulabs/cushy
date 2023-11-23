@@ -118,8 +118,8 @@ fn update_progress_bar(
         }
         Progress::Percent(value) => {
             let _stopped_animation = indeterminant_animation.take();
-            start.update(ZeroToOne::ZERO);
-            end.update(value);
+            start.set(ZeroToOne::ZERO);
+            end.set(value);
         }
     }
 }
@@ -127,7 +127,7 @@ fn update_progress_bar(
 /// A value that can be used in a progress indicator.
 pub trait Progressable<T>: IntoDynamic<T> + Sized
 where
-    T: ProgressValue,
+    T: ProgressValue + Send,
 {
     /// Returns a new progress bar that displays progress from `T::MIN` to
     /// `T::MAX`.
@@ -145,7 +145,7 @@ where
     fn progress_bar_to(self, max: impl IntoValue<T::Value>) -> ProgressBar
     where
         T: Send,
-        T::Value: Ranged + Send + Clone,
+        T::Value: PartialEq + Ranged + Send + Clone,
     {
         let max = max.into_value();
         match max {
@@ -181,7 +181,7 @@ where
     }
 }
 
-impl<U> Progressable<U> for Dynamic<U> where U: ProgressValue {}
+impl<U> Progressable<U> for Dynamic<U> where U: ProgressValue + Send {}
 
 /// A value that can be used in a progress indicator.
 pub trait ProgressValue: 'static {
