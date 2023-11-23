@@ -43,6 +43,7 @@ impl Label {
                         || ((*prepared_width < width || prepared.size.width <= width)
                             && prepared.line_height == prepared.size.height)) => {}
             _ => {
+                context.apply_current_font_settings();
                 let measured = self.text.map(|text| {
                     context
                         .gfx

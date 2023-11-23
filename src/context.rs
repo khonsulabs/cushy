@@ -17,8 +17,8 @@ use kludgine::{Color, Kludgine};
 use crate::context::sealed::WindowHandle;
 use crate::graphics::Graphics;
 use crate::styles::components::{
-    CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, TextSize,
-    WidgetBackground,
+    CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, LineHeight,
+    TextSize, WidgetBackground,
 };
 use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::utils::IgnorePoison;
@@ -618,6 +618,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         self.gfx
             .set_available_font_family(&self.widget.get(&FontFamily));
         self.gfx.set_font_size(self.widget.get(&TextSize));
+        self.gfx.set_line_height(self.widget.get(&LineHeight));
         self.gfx.set_font_style(self.widget.get(&FontStyle));
         self.gfx.set_font_weight(self.widget.get(&FontWeight));
     }

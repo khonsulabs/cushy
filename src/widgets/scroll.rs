@@ -261,7 +261,7 @@ impl Widget for Scroll {
             MouseScrollDelta::LineDelta(x, y) => Point::new(x, y) * self.line_height.into_float(),
             MouseScrollDelta::PixelDelta(px) => Point::new(px.x.cast(), px.y.cast()),
         };
-
+        context.invalidate_when_changed(&self.scroll);
         let mut scroll = self.scroll.lock();
         let old_scroll = *scroll;
         let new_scroll = Self::constrained_scroll(*scroll + amount.cast(), self.max_scroll.get());

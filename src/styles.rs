@@ -1099,6 +1099,18 @@ impl IntoValue<Edges<Dimension>> for Lp {
     }
 }
 
+impl IntoValue<Dimension> for Px {
+    fn into_value(self) -> Value<Dimension> {
+        Dimension::from(self).into_value()
+    }
+}
+
+impl IntoValue<Dimension> for Lp {
+    fn into_value(self) -> Value<Dimension> {
+        Dimension::from(self).into_value()
+    }
+}
+
 /// A set of light and dark [`Theme`]s.
 #[derive(Clone, Debug)]
 pub struct ThemePair {
