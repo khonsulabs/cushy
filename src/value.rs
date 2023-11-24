@@ -4,7 +4,9 @@ use std::cell::Cell;
 use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::ops::{Deref, DerefMut, Not};
+use std::panic::UnwindSafe;
 use std::str::FromStr;
+use std::sync::atomic::{self, AtomicBool};
 use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
@@ -495,6 +497,28 @@ impl<T> Dynamic<T> {
     {
         Radio::new(widget_value, self.clone(), label)
     }
+
+    /// Validates the contents of this dynamic using the `check` function,
+    /// returning a dynamic that contains the validation status.
+    #[must_use]
+    pub fn validate_with<E, Valid>(&self, mut check: Valid) -> Dynamic<Validation>
+    where
+        T: Send + 'static,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
+        E: Display,
+    {
+        let validation = Dynamic::new(Validation::None);
+        self.for_each({
+            let validation = validation.clone();
+            move |value| {
+                validation.set(match check(value) {
+                    Ok(()) => Validation::Valid,
+                    Err(err) => Validation::Invalid(err.to_string()),
+                });
+            }
+        });
+        validation
+    }
 }
 
 impl Dynamic<WidgetInstance> {
@@ -670,7 +694,7 @@ impl<T> DynamicData<T> {
         F: for<'a> FnMut() + Send + 'static,
     {
         let state = self.state().expect("deadlocked");
-        let mut callbacks = state.callbacks.lock().ignore_poison();
+        let mut callbacks = state.callbacks.callbacks.lock().ignore_poison();
         callbacks.push(Box::new(map));
     }
 
@@ -716,7 +740,7 @@ impl Display for DeadlockError {
 
 struct State<T> {
     wrapped: GenerationalValue<T>,
-    callbacks: Arc<Mutex<Vec<Box<dyn ValueCallback>>>>,
+    callbacks: Arc<ChangeCallbacksData>,
     windows: AHashSet<WindowHandle>,
     widgets: AHashSet<(WindowHandle, WidgetId)>,
     wakers: Vec<Waker>,
@@ -753,14 +777,36 @@ where
     }
 }
 
-struct ChangeCallbacks(Arc<Mutex<Vec<Box<dyn ValueCallback>>>>);
+#[derive(Default)]
+struct ChangeCallbacksData {
+    callbacks: Mutex<Vec<Box<dyn ValueCallback>>>,
+    currently_executing: AtomicBool,
+}
+
+struct ChangeCallbacks(Arc<ChangeCallbacksData>);
 
 impl Drop for ChangeCallbacks {
     fn drop(&mut self) {
-        if let Ok(mut callbacks) = self.0.lock() {
+        if self
+            .0
+            .currently_executing
+            .compare_exchange(
+                false,
+                true,
+                atomic::Ordering::Release,
+                atomic::Ordering::Acquire,
+            )
+            .is_ok()
+        {
+            let mut callbacks = self.0.callbacks.lock().ignore_poison();
             for callback in &mut *callbacks {
                 callback.changed();
             }
+            self.0
+                .currently_executing
+                .store(false, atomic::Ordering::Release);
+        } else {
+            tracing::warn!("Could not invoke dynamic callbacks because they are already running on this thread");
         }
     }
 }
@@ -1600,3 +1646,169 @@ macro_rules! impl_tuple_map_each_cloned {
 }
 
 impl_all_tuples!(impl_tuple_map_each_cloned);
+
+/// The status of validating data.
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+pub enum Validation {
+    /// No validation has been performed yet.
+    ///
+    /// This status represents that the data is still in its initial state, so
+    /// errors should be delayed until it is changed.
+    #[default]
+    None,
+    /// The data is valid.
+    Valid,
+    /// The data is invalid. The string contains a human-readable message.
+    Invalid(String),
+}
+
+impl Validation {
+    /// Returns the effective text to display along side the field.
+    ///
+    /// When there is a validation error, it is returned, otherwise the hint is
+    /// returned.
+    #[must_use]
+    pub fn message<'a>(&'a self, hint: &'a str) -> &'a str {
+        match self {
+            Validation::None | Validation::Valid => hint,
+            Validation::Invalid(err) => err,
+        }
+    }
+
+    /// Returns true if there is a validation error.
+    #[must_use]
+    pub const fn is_error(&self) -> bool {
+        matches!(self, Self::Invalid(_))
+    }
+}
+
+/// A grouping of validations that can be checked simultaneously.
+#[derive(Debug, Default, Clone)]
+pub struct Validations {
+    state: Dynamic<ValidationsState>,
+    invalid: Dynamic<usize>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Clone)]
+enum ValidationsState {
+    #[default]
+    Initial,
+    Resetting,
+    Checked,
+}
+
+impl Validations {
+    /// Validates `dynamic`'s contents using `check`, returning a dynamic
+    /// containing the validation status.
+    ///
+    /// The validation is linked with `self` such that checking `self`'s
+    /// validation status will include this validation.
+    #[must_use]
+    pub fn validate<T, E, Valid>(
+        &self,
+        dynamic: &Dynamic<T>,
+        mut check: Valid,
+    ) -> Dynamic<Validation>
+    where
+        T: Send + 'static,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
+        E: Display,
+    {
+        let validation = Dynamic::new(Validation::None);
+        self.invalid.map_mut(|invalid| *invalid += 1);
+
+        let error_message = dynamic.map_each(move |value| match check(value) {
+            Ok(()) => None,
+            Err(err) => Some(err.to_string()),
+        });
+
+        (&self.state, &error_message).for_each_cloned({
+            let validation = validation.clone();
+            let invalid_count = self.invalid.clone();
+            let state = self.state.clone();
+            let dynamic = dynamic.clone();
+            let mut initial_generation = dynamic.generation();
+            let mut invalid = true;
+
+            move |(current_state, message)| {
+                let new_status = if let Some(err) = message {
+                    if !invalid {
+                        invalid_count.map_mut(|invalid| *invalid += 1);
+                        invalid = true;
+                    }
+                    Validation::Invalid(err.to_string())
+                } else {
+                    if invalid {
+                        invalid_count.map_mut(|invalid| *invalid -= 1);
+                        invalid = false;
+                    }
+                    Validation::Valid
+                };
+                match current_state {
+                    ValidationsState::Resetting => {
+                        initial_generation = dynamic.generation();
+                        let state = state.clone();
+                        validation.set(Validation::None);
+                        Duration::ZERO
+                            .on_complete(move || {
+                                state.set(ValidationsState::Initial);
+                            })
+                            .launch();
+                    }
+                    ValidationsState::Initial if initial_generation == dynamic.generation() => {}
+                    _ => {
+                        validation.set(new_status);
+                    }
+                }
+            }
+        });
+
+        validation
+    }
+
+    /// Returns true if this set of validations are all valid.
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        self.invoke_callback((), &mut |()| true)
+    }
+
+    fn invoke_callback<T, R, F>(&self, t: T, handler: &mut F) -> R
+    where
+        F: FnMut(T) -> R + UnwindSafe + Send + 'static,
+        R: Default,
+    {
+        let mut state = self.state.lock();
+        if let ValidationsState::Initial = &*state {
+            *state = ValidationsState::Checked;
+        }
+        drop(state);
+        if self.invalid.get() == 0 {
+            handler(t)
+        } else {
+            R::default()
+        }
+    }
+
+    /// Returns a function that invokes `handler` only when all tracked
+    /// validations are valid.
+    ///
+    /// The returned function can be use in a
+    /// [`Callback`](crate::widget::Callback).
+    ///
+    /// When the contents are invalid, `R::default()` is returned.
+    pub fn when_valid<T, R, F>(
+        self,
+        mut handler: F,
+    ) -> impl FnMut(T) -> R + UnwindSafe + Send + 'static
+    where
+        F: FnMut(T) -> R + UnwindSafe + Send + 'static,
+        R: Default,
+    {
+        move |t: T| self.invoke_callback(t, &mut handler)
+    }
+
+    /// Resets the validation status for all related validations.
+    pub fn reset(&self) {
+        self.state.set(ValidationsState::Resetting);
+    }
+}

@@ -25,11 +25,11 @@ use crate::styles::{
 };
 use crate::tree::Tree;
 use crate::utils::IgnorePoison;
-use crate::value::{IntoDynamic, IntoValue, Value};
+use crate::value::{IntoDynamic, IntoValue, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::{
     Align, Button, Checkbox, Collapse, Container, Expand, Resize, Scroll, Space, Stack, Style,
-    Themed, ThemedMode,
+    Themed, ThemedMode, Validated,
 };
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
@@ -882,6 +882,11 @@ pub trait MakeWidget: Sized {
     fn collapse_vertically(self, collapse_when: impl IntoDynamic<bool>) -> Collapse {
         Collapse::vertical(collapse_when, self)
     }
+
+    /// Returns a widget that shows validation errors and/or hints.
+    fn validation(self, validation: impl IntoDynamic<Validation>) -> Validated {
+        Validated::new(validation, self)
+    }
 }
 
 /// A type that can create a [`WidgetInstance`] with a preallocated
@@ -918,12 +923,6 @@ impl MakeWidget for WidgetInstance {
 impl MakeWidget for Color {
     fn make_widget(self) -> WidgetInstance {
         Space::colored(self).make_widget()
-    }
-}
-
-impl MakeWidget for () {
-    fn make_widget(self) -> WidgetInstance {
-        Space::clear().make_widget()
     }
 }
 

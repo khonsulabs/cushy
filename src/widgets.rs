@@ -23,6 +23,7 @@ mod style;
 mod switcher;
 mod themed;
 mod tilemap;
+mod validated;
 
 pub use align::Align;
 pub use button::Button;
@@ -47,3 +48,4 @@ pub use style::Style;
 pub use switcher::Switcher;
 pub use themed::Themed;
 pub use tilemap::TileMap;
+pub use validated::Validated;

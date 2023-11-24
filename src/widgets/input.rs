@@ -575,6 +575,7 @@ where
                         }
                     });
 
+                    context.apply_current_font_settings();
                     let mut text = Text::new(text, color);
                     if let Some(width) = width {
                         text = text.wrap_at(width);
