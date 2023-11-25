@@ -54,6 +54,5 @@ fn main() -> gooey::Result {
         )
         .into_rows()
         .centered()
-        .expand()
         .run()
 }

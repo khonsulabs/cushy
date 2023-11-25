@@ -199,7 +199,11 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     /// Returns a reference to a single child widget if this widget is a widget
     /// that primarily wraps a single other widget to customize its behavior.
     #[must_use]
-    fn wraps(&mut self) -> Option<&WidgetInstance> {
+    #[allow(unused_variables)]
+    fn root_behavior(
+        &mut self,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<(RootBehavior, &WidgetInstance)> {
         None
     }
 }
@@ -211,6 +215,23 @@ where
     fn run(self) -> crate::Result {
         self.make_widget().run()
     }
+}
+
+/// A behavior that should be applied to a root widget.
+#[derive(Debug, Clone, Copy)]
+pub enum RootBehavior {
+    /// This widget does not care about root behaviors, and its child should be
+    /// allowed to specify a behavior.
+    PassThrough,
+    /// This widget will try to expand to fill the window.
+    Expand,
+    /// This widget will measure its contents to fit its child, but Gooey should
+    /// still stretch this widget to fill the window.
+    Align,
+    /// This widget adjusts its child layout with padding.
+    Pad(Edges<Dimension>),
+    /// This widget changes the size of its child.
+    Resize(Size<DimensionRange>),
 }
 
 /// The layout of a [wrapped](WrapperWidget) child widget.
@@ -253,6 +274,13 @@ impl From<Size<UPx>> for WrappedLayout {
 pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the child widget.
     fn child_mut(&mut self) -> &mut WidgetRef;
+
+    /// Returns the behavior this widget should apply when positioned at the
+    /// root of the window.
+    #[allow(unused_variables)]
+    fn root_behavior(&mut self, context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+        None
+    }
 
     /// Draws the background of the widget.
     ///
@@ -472,8 +500,11 @@ impl<T> Widget for T
 where
     T: WrapperWidget,
 {
-    fn wraps(&mut self) -> Option<&WidgetInstance> {
-        Some(self.child_mut().widget())
+    fn root_behavior(
+        &mut self,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<(RootBehavior, &WidgetInstance)> {
+        T::root_behavior(self, context).map(|behavior| (behavior, T::child_mut(self).widget()))
     }
 
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {

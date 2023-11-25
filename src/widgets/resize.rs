@@ -1,8 +1,8 @@
 use kludgine::figures::{Fraction, IntoSigned, ScreenScale, Size};
 
-use crate::context::{AsEventContext, LayoutContext};
+use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::DimensionRange;
-use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A widget that resizes its contained widget to an explicit size.
@@ -87,6 +87,10 @@ impl Resize {
 impl WrapperWidget for Resize {
     fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
+    }
+
+    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+        Some(RootBehavior::Resize(Size::new(self.width, self.height)))
     }
 
     fn layout_child(

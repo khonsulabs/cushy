@@ -19,6 +19,5 @@ fn main() -> gooey::Result {
         .and(option.new_radio(Choice::C, "C"))
         .into_rows()
         .centered()
-        .expand()
         .run()
 }

@@ -20,6 +20,5 @@ fn main() -> gooey::Result {
     .on_hit_test(|_location, _context| true)
     .contain()
     .centered()
-    .expand()
     .run()
 }

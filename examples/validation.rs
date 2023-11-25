@@ -35,9 +35,9 @@ fn main() -> gooey::Result {
             validations.reset();
         }))
         .into_rows()
+        .pad()
         .width(Lp::inches(6))
         .centered()
-        .expand()
         .run()
 }
 

@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use std::collections::hash_map;
 use std::fmt::Debug;
 use std::ops::{
-    Add, Bound, Deref, Div, Mul, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
+    Add, AddAssign, Bound, Deref, Div, Mul, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
     RangeToInclusive,
 };
 use std::panic::{RefUnwindSafe, UnwindSafe};
@@ -608,6 +608,15 @@ pub struct DimensionRange {
     pub end: Bound<Dimension>,
 }
 
+impl Default for DimensionRange {
+    fn default() -> Self {
+        Self {
+            start: Bound::Unbounded,
+            end: Bound::Unbounded,
+        }
+    }
+}
+
 impl DimensionRange {
     /// Returns this range's dimension if the range represents a single
     /// dimension.
@@ -1114,6 +1123,97 @@ impl IntoValue<Dimension> for Px {
 impl IntoValue<Dimension> for Lp {
     fn into_value(self) -> Value<Dimension> {
         Dimension::from(self).into_value()
+    }
+}
+
+impl<U> ScreenScale for Edges<U>
+where
+    U: ScreenScale<Px = Px, UPx = UPx, Lp = Lp>,
+{
+    type Lp = Edges<Lp>;
+    type Px = Edges<Px>;
+    type UPx = Edges<UPx>;
+
+    fn into_px(self, scale: Fraction) -> Self::Px {
+        Edges {
+            left: self.left.into_px(scale),
+            top: self.top.into_px(scale),
+            right: self.right.into_px(scale),
+            bottom: self.bottom.into_px(scale),
+        }
+    }
+
+    fn from_px(px: Self::Px, scale: Fraction) -> Self {
+        Self {
+            left: U::from_px(px.left, scale),
+            top: U::from_px(px.top, scale),
+            right: U::from_px(px.right, scale),
+            bottom: U::from_px(px.bottom, scale),
+        }
+    }
+
+    fn into_upx(self, scale: Fraction) -> Self::UPx {
+        Edges {
+            left: self.left.into_upx(scale),
+            top: self.top.into_upx(scale),
+            right: self.right.into_upx(scale),
+            bottom: self.bottom.into_upx(scale),
+        }
+    }
+
+    fn from_upx(px: Self::UPx, scale: Fraction) -> Self {
+        Self {
+            left: U::from_upx(px.left, scale),
+            top: U::from_upx(px.top, scale),
+            right: U::from_upx(px.right, scale),
+            bottom: U::from_upx(px.bottom, scale),
+        }
+    }
+
+    fn into_lp(self, scale: Fraction) -> Self::Lp {
+        Edges {
+            left: self.left.into_lp(scale),
+            top: self.top.into_lp(scale),
+            right: self.right.into_lp(scale),
+            bottom: self.bottom.into_lp(scale),
+        }
+    }
+
+    fn from_lp(lp: Self::Lp, scale: Fraction) -> Self {
+        Self {
+            left: U::from_lp(lp.left, scale),
+            top: U::from_lp(lp.top, scale),
+            right: U::from_lp(lp.right, scale),
+            bottom: U::from_lp(lp.bottom, scale),
+        }
+    }
+}
+
+impl<U, R> Add for Edges<U>
+where
+    U: Add<Output = R>,
+{
+    type Output = Edges<R>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Edges {
+            left: self.left + rhs.left,
+            top: self.top + rhs.top,
+            right: self.right + rhs.right,
+            bottom: self.bottom + rhs.bottom,
+        }
+    }
+}
+
+impl<U, R> AddAssign<Edges<R>> for Edges<U>
+where
+    U: AddAssign<R>,
+{
+    fn add_assign(&mut self, rhs: Edges<R>) {
+        self.left += rhs.left;
+        self.top += rhs.top;
+        self.right += rhs.right;
+        self.bottom += rhs.bottom;
     }
 }
 

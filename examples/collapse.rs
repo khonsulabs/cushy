@@ -21,6 +21,5 @@ fn main() -> gooey::Result {
         )
         .into_columns()
         .centered()
-        .expand()
         .run()
 }

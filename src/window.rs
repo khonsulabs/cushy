@@ -32,14 +32,13 @@ use crate::context::{
     WidgetContext,
 };
 use crate::graphics::Graphics;
-use crate::styles::{FontFamilyList, ThemePair};
+use crate::styles::{Edges, FontFamilyList, ThemePair};
 use crate::tree::Tree;
 use crate::utils::{IgnorePoison, ModifiersExt};
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
 use crate::widget::{
-    EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
+    EventHandling, ManagedWidget, RootBehavior, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
-use crate::widgets::{Expand, Resize};
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit, Run};
 
@@ -417,60 +416,102 @@ where
     fn constrain_window_resizing(
         &mut self,
         resizable: bool,
-        window: &kludgine::app::Window<'_, WindowCommand>,
+        window: &mut RunningWindow<'_>,
         graphics: &mut kludgine::Graphics<'_>,
-    ) -> bool {
+    ) -> RootMode {
         let mut root_or_child = self.root.widget.clone();
-        let mut is_expanded = false;
+        let mut root_mode = None;
+        let mut padding = Edges::<Px>::default();
+
         loop {
-            let mut widget = root_or_child.lock();
-            if let Some(resize) = widget.downcast_ref::<Resize>() {
-                let min_width = resize
-                    .width
-                    .minimum()
-                    .map_or(Px::ZERO, |width| width.into_px(graphics.scale()));
-                let max_width = resize
-                    .width
-                    .maximum()
-                    .map_or(Px::MAX, |width| width.into_px(graphics.scale()));
-                let min_height = resize
-                    .height
-                    .minimum()
-                    .map_or(Px::ZERO, |height| height.into_px(graphics.scale()));
-                let max_height = resize
-                    .height
-                    .maximum()
-                    .map_or(Px::MAX, |height| height.into_px(graphics.scale()));
-
-                let new_min_size = (min_width > 0 || min_height > 0)
-                    .then_some(Size::new(min_width, min_height).into_unsigned());
-
-                if new_min_size != self.min_inner_size && resizable {
-                    window.set_min_inner_size(new_min_size);
-                    self.min_inner_size = new_min_size;
-                }
-                let new_max_size = (max_width > 0 || max_height > 0)
-                    .then_some(Size::new(max_width, max_height).into_unsigned());
-
-                if new_max_size != self.max_inner_size && resizable {
-                    window.set_max_inner_size(new_max_size);
-                }
-                self.max_inner_size = new_max_size;
-            } else if widget.downcast_ref::<Expand>().is_some() {
-                is_expanded = true;
-            }
-
-            if let Some(wraps) = widget.as_widget().wraps().cloned() {
-                drop(widget);
-
-                root_or_child = wraps;
-            } else {
+            let Some(managed) = self.root.tree.widget(root_or_child.id()) else {
                 break;
+            };
+
+            let mut context = EventContext::new(
+                WidgetContext::new(
+                    managed,
+                    &self.redraw_status,
+                    &self.current_theme,
+                    window,
+                    self.theme_mode.get(),
+                    &mut self.cursor,
+                ),
+                graphics,
+            );
+            let mut widget = root_or_child.lock();
+            match widget.as_widget().root_behavior(&mut context) {
+                Some((behavior, child)) => {
+                    let child = child.clone();
+                    match behavior {
+                        RootBehavior::PassThrough => {}
+                        RootBehavior::Expand => {
+                            root_mode = root_mode.or(Some(RootMode::Expand));
+                        }
+                        RootBehavior::Align => {
+                            root_mode = root_mode.or(Some(RootMode::Align));
+                        }
+                        RootBehavior::Pad(edges) => {
+                            padding += edges.into_px(context.kludgine.scale());
+                        }
+                        RootBehavior::Resize(range) => {
+                            let padding = padding.size();
+                            let min_width = range
+                                .width
+                                .minimum()
+                                .map_or(Px::ZERO, |width| width.into_px(context.kludgine.scale()))
+                                .saturating_add(padding.width);
+                            let max_width = range
+                                .width
+                                .maximum()
+                                .map_or(Px::MAX, |width| width.into_px(context.kludgine.scale()))
+                                .saturating_add(padding.width);
+                            let min_height = range
+                                .height
+                                .minimum()
+                                .map_or(Px::ZERO, |height| height.into_px(context.kludgine.scale()))
+                                .saturating_add(padding.height);
+                            let max_height = range
+                                .height
+                                .maximum()
+                                .map_or(Px::MAX, |height| height.into_px(context.kludgine.scale()))
+                                .saturating_add(padding.height);
+
+                            let new_min_size = (min_width > 0 || min_height > 0)
+                                .then_some(Size::new(min_width, min_height).into_unsigned());
+
+                            if new_min_size != self.min_inner_size && resizable {
+                                context.set_min_inner_size(new_min_size);
+                                self.min_inner_size = new_min_size;
+                            }
+                            let new_max_size = (max_width > 0 || max_height > 0)
+                                .then_some(Size::new(max_width, max_height).into_unsigned());
+
+                            if new_max_size != self.max_inner_size && resizable {
+                                context.set_max_inner_size(new_max_size);
+                            }
+                            self.max_inner_size = new_max_size;
+
+                            break;
+                        }
+                    }
+                    drop(widget);
+
+                    root_or_child = child.clone();
+                }
+                None => break,
             }
         }
 
-        is_expanded
+        root_mode.unwrap_or(RootMode::Fit)
     }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum RootMode {
+    Fit,
+    Expand,
+    Align,
 }
 
 impl<T> kludgine::app::WindowBehavior<WindowCommand> for GooeyWindow<T>
@@ -592,10 +633,10 @@ where
         self.root.tree.new_frame(invalidations.iter().copied());
 
         let resizable = window.winit().is_resizable();
-        let is_expanded = self.constrain_window_resizing(resizable, &window, graphics);
+        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
+        let root_mode = self.constrain_window_resizing(resizable, &mut window, graphics);
 
         let graphics = self.contents.new_frame(graphics);
-        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
         let mut context = GraphicsContext {
             widget: WidgetContext::new(
                 self.root.clone(),
@@ -616,11 +657,17 @@ where
             layout_context.graphics.gfx.fill(background_color);
         }
 
-        let actual_size = layout_context.layout(if is_expanded {
-            window_size.map(ConstraintLimit::Fill)
+        let layout_size =
+            layout_context.layout(if matches!(root_mode, RootMode::Expand | RootMode::Align) {
+                window_size.map(ConstraintLimit::Fill)
+            } else {
+                window_size.map(ConstraintLimit::SizeToFit)
+            });
+        let actual_size = if root_mode == RootMode::Align {
+            window_size
         } else {
-            window_size.map(ConstraintLimit::SizeToFit)
-        });
+            layout_size
+        };
         let render_size = actual_size.min(window_size);
         if actual_size != window_size && !resizable {
             let mut new_size = actual_size;

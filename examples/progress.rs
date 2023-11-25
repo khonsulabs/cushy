@@ -26,6 +26,5 @@ fn main() -> gooey::Result {
         .pad()
         .size(Size::squared(Lp::inches(3)))
         .centered()
-        .expand()
         .run()
 }

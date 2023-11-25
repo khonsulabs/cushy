@@ -78,6 +78,5 @@ fn main() -> gooey::Result {
         .pad()
         .scroll()
         .centered()
-        .expand()
         .run()
 }

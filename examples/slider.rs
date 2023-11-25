@@ -20,8 +20,8 @@ fn main() -> gooey::Result {
         .expand_horizontally()
         .contain()
         .width(..Lp::points(800))
+        .pad()
         .centered()
-        .expand()
         .run()
 }
 

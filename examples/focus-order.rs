@@ -74,7 +74,6 @@ fn main() -> gooey::Result {
         .width(Lp::points(300)..Lp::points(600))
         .scroll()
         .centered()
-        .expand()
         .run()
 }
 

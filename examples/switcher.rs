@@ -18,7 +18,6 @@ fn main() -> gooey::Result {
         })
         .contain()
         .centered()
-        .expand()
         .run()
 }
 

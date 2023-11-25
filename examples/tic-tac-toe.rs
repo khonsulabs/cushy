@@ -22,7 +22,6 @@ fn main() -> gooey::Result {
     .width(Lp::inches(2)..Lp::inches(6))
     .height(Lp::inches(2)..Lp::inches(6))
     .centered()
-    .expand()
     .run()
 }
 

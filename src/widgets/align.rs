@@ -3,10 +3,10 @@ use std::fmt::Debug;
 use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoSigned, Point, Rect, ScreenScale, Size};
 
-use crate::context::{AsEventContext, LayoutContext};
+use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::{Edges, FlexibleDimension};
 use crate::value::{IntoValue, Value};
-use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A widget aligns its contents to its container's boundaries.
@@ -176,6 +176,10 @@ impl FrameInfo {
 impl WrapperWidget for Align {
     fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
+    }
+
+    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+        Some(RootBehavior::Align)
     }
 
     fn layout_child(

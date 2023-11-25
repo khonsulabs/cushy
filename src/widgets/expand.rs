@@ -1,7 +1,7 @@
 use kludgine::figures::{IntoSigned, Size};
 
-use crate::context::{AsEventContext, LayoutContext};
-use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::context::{AsEventContext, EventContext, LayoutContext};
+use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::widgets::Space;
 use crate::ConstraintLimit;
 
@@ -95,6 +95,10 @@ impl Expand {
 impl WrapperWidget for Expand {
     fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
+    }
+
+    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+        Some(RootBehavior::Expand)
     }
 
     fn layout_child(

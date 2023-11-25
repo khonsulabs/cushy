@@ -21,7 +21,6 @@ fn main() -> gooey::Result {
         .and("impl Widget".and(impl_widget()).into_rows())
         .into_columns()
         .centered()
-        .expand()
         .run()
 }
 

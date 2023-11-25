@@ -16,6 +16,5 @@ fn main() -> gooey::Result {
         .width(Px::new(100)..Px::new(800))
         .scroll()
         .centered()
-        .expand()
         .run()
 }
