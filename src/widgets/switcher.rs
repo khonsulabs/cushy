@@ -60,6 +60,7 @@ impl WrapperWidget for Switcher {
                 context.remove_child(&removed);
             }
         }
+        context.invalidate_when_changed(&self.source);
         available_space
     }
 }

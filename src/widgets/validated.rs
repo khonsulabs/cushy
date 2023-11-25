@@ -51,7 +51,6 @@ impl MakeWidget for Validated {
             Value::Dynamic(hint) => (&hint, &self.validation)
                 .map_each(move |(hint, validation)| validation.message(hint).to_string()),
         };
-        let collapse = message.map_each(String::is_empty);
 
         let error_color = Dynamic::new(Color::CLEAR_BLACK);
         let default_color = Dynamic::new(Color::CLEAR_BLACK);
@@ -75,7 +74,6 @@ impl MakeWidget for Validated {
                             // TODO these should be components
                             .with(&TextSize, Lp::points(9))
                             .with(&LineHeight, Lp::points(13))
-                            .collapse_vertically(collapse)
                             .align_left(),
                     )
                     .into_rows(),

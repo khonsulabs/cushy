@@ -20,7 +20,7 @@ use kludgine::figures::{
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{Color, DrawableExt};
-use unicode_segmentation::UnicodeSegmentation;
+use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 use zeroize::Zeroizing;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
@@ -37,6 +37,8 @@ const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
 pub struct Input<Storage> {
     /// The value of this widget.
     pub value: Dynamic<Storage>,
+    /// The placeholder text to display when no value is present.
+    pub placeholder: Value<String>,
     mask_symbol: Value<CowString>,
     mask: CowString,
     on_key: Option<Callback<KeyEvent, EventHandling>>,
@@ -53,9 +55,11 @@ struct CachedLayout {
     color: Color,
     generation: Generation,
     mask_generation: Option<Generation>,
+    placeholder_generation: Option<Generation>,
     mask_bytes: usize,
     width: Option<Px>,
     measured: MeasuredText<Px>,
+    placeholder: MeasuredText<Px>,
 }
 
 impl CachedLayout {
@@ -63,12 +67,14 @@ impl CachedLayout {
         &self,
         generation: Generation,
         mask_generation: Option<Generation>,
+        placeholder_generation: Option<Generation>,
         width: Option<Px>,
         color: Color,
         mask_bytes: usize,
     ) -> bool {
         self.generation == generation
             && self.mask_generation == mask_generation
+            && self.placeholder_generation == placeholder_generation
             && self.width == width
             && self.color == color
             && self.mask_bytes == mask_bytes
@@ -118,6 +124,7 @@ where
                 .then(|| CowString::from('\u{2022}'))
                 .unwrap_or_default()
                 .into_value(),
+            placeholder: Value::default(),
             cache: None,
             blink_state: BlinkState::default(),
             selection: SelectionState::default(),
@@ -126,6 +133,13 @@ where
             needs_to_select_all: true,
             line_navigation_x_target: None,
         }
+    }
+
+    /// Sets the `placeholder` text, which is displayed when the field has an
+    /// empty value.
+    pub fn placeholder(mut self, placeholder: impl IntoValue<String>) -> Self {
+        self.placeholder = placeholder.into_value();
+        self
     }
 
     /// Sets the symbol to use for masking sensitive content to `symbol`.
@@ -212,9 +226,14 @@ where
                 return;
             }
 
-            // TODO remove a full grapheme
-            let removed = value.as_string_mut().remove(cursor.offset - 1);
-            self.selection.cursor.offset -= removed.len_utf8();
+            if let Ok(Some(offset)) = GraphemeCursor::new(cursor.offset, value.as_str().len(), true)
+                .prev_boundary(value.as_str(), 0)
+            {
+                value
+                    .as_string_mut()
+                    .replace_range(offset..cursor.offset, "");
+                self.selection.cursor.offset -= cursor.offset - offset;
+            }
         }
     }
 
@@ -537,6 +556,7 @@ where
         let (mut cursor, mut selection) = self.selected_range();
         let generation = self.value.generation();
         let mask_generation = self.mask_symbol.generation();
+        let placeholder_generation = self.placeholder.generation();
         let mut mask_bytes = self
             .mask_symbol
             .map(|sym| sym.graphemes(true).next().map_or(0, str::len));
@@ -544,9 +564,16 @@ where
         context.invalidate_when_changed(&self.value);
         match &mut self.cache {
             Some(cache)
-                if cache.is_current(generation, mask_generation, width, color, mask_bytes) => {}
+                if cache.is_current(
+                    generation,
+                    mask_generation,
+                    placeholder_generation,
+                    width,
+                    color,
+                    mask_bytes,
+                ) => {}
             _ => {
-                let (bytes, measured) = self.value.map_ref(|storage| {
+                let (bytes, measured, placeholder, ) = self.value.map_ref(|storage| {
                     let mut text = storage.as_str();
                     let mut bytes = text.len();
 
@@ -580,16 +607,21 @@ where
                     if let Some(width) = width {
                         text = text.wrap_at(width);
                     }
-                    (bytes, context.gfx.measure_text(text))
+
+                    let placeholder_color = context.theme().surface.on_color_variant;
+                    let placeholder = self.placeholder.map(|placeholder| context.gfx.measure_text(Text::new(placeholder, placeholder_color)));
+                    (bytes, context.gfx.measure_text(text), placeholder)
                 });
                 self.cache = Some(CachedLayout {
                     bytes,
                     color,
                     generation,
                     mask_generation,
+                    placeholder_generation,
                     mask_bytes,
                     width,
                     measured,
+                    placeholder,
                 });
             }
         }
@@ -612,6 +644,7 @@ where
         let cache = self.cache.as_ref().expect("always initialized");
         CacheInfo {
             measured: &cache.measured,
+            placeholder: &cache.placeholder,
             bytes: cache.bytes,
             masked: mask_bytes > 0,
             cursor,
@@ -877,6 +910,7 @@ where
 
 struct CacheInfo<'a> {
     measured: &'a MeasuredText<Px>,
+    placeholder: &'a MeasuredText<Px>,
     bytes: usize,
     masked: bool,
     cursor: Cursor,
@@ -1076,9 +1110,14 @@ where
             context.stroke_outline::<Lp>(outline_color, StrokeOptions::default());
         }
 
+        let text = if cache.bytes > 0 {
+            cache.measured
+        } else {
+            cache.placeholder
+        };
         context
             .gfx
-            .draw_measured_text(cache.measured.translate_by(padding), TextOrigin::TopLeft);
+            .draw_measured_text(text.translate_by(padding), TextOrigin::TopLeft);
     }
 
     fn layout(
@@ -1092,7 +1131,12 @@ where
 
         let cache = self.layout_text(Some(width.into_signed()), &mut context.graphics);
 
-        cache.measured.size.into_unsigned() + Size::squared(padding * 2)
+        cache
+            .measured
+            .size
+            .max(cache.placeholder.size)
+            .into_unsigned()
+            + Size::squared(padding * 2)
     }
 
     fn keyboard_input(

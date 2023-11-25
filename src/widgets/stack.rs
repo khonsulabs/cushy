@@ -409,9 +409,13 @@ impl Layout {
     ) -> Size<UPx> {
         let (space_constraint, other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
-        let gutter_space = gutter.saturating_mul(UPx::new((self.children.len() - 1).cast::<u32>()));
+        let known_gutters = gutter.saturating_mul(UPx::new(
+            (self.children.len() - self.fit_to_content.len())
+                .saturating_sub(1)
+                .cast::<u32>(),
+        ));
         let allocated_space =
-            self.allocated_space.0 + self.allocated_space.1.into_upx(scale).ceil() + gutter_space;
+            self.allocated_space.0 + self.allocated_space.1.into_upx(scale).ceil() + known_gutters;
         let mut remaining = available_space.saturating_sub(allocated_space);
         // If our `other_constraint` is not known, we will need to give child
         // widgets an opportunity to lay themselves out in the full area. This
@@ -421,7 +425,7 @@ impl Layout {
 
         // Measure the children that fit their content
         self.other = UPx::ZERO;
-        for &id in &self.fit_to_content {
+        for (fit_index, &id) in self.fit_to_content.iter().enumerate() {
             let index = self.children.index_of_id(id).expect("child not found");
             let (measured, other) = self.orientation.split_size(measure(
                 index,
@@ -430,7 +434,16 @@ impl Layout {
                 !needs_final_layout,
             ));
             self.layouts[index].size = measured;
-            self.other = self.other.max(other);
+            if measured == 0 {
+                self.other = UPx::ZERO;
+            } else {
+                if fit_index < self.fit_to_content.len() - 1
+                    || self.fit_to_content.len() != self.children.len()
+                {
+                    remaining = remaining.saturating_sub(gutter);
+                }
+                self.other = self.other.max(other);
+            }
             remaining = remaining.saturating_sub(measured);
         }
 
@@ -495,7 +508,9 @@ impl Layout {
         let mut offset = UPx::ZERO;
         for index in 0..self.children.len() {
             self.layouts[index].offset = offset;
-            offset += self.layouts[index].size + gutter;
+            if self.layouts[index].size > 0 {
+                offset += self.layouts[index].size + gutter;
+            }
             if needs_final_layout {
                 self.orientation.split_size(measure(
                     index,

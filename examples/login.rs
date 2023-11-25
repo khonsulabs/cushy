@@ -32,6 +32,7 @@ fn main() -> gooey::Result {
             username
                 .clone()
                 .into_input()
+                .placeholder("Username")
                 .validation(username_valid)
                 .hint("* required"),
         )
@@ -43,6 +44,7 @@ fn main() -> gooey::Result {
             password
                 .clone()
                 .into_input()
+                .placeholder("Password")
                 .validation(password_valid)
                 .hint("* required, 8 characters min"),
         )

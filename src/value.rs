@@ -1,6 +1,5 @@
 //! Types for storing and interacting with values in Widgets.
 
-use std::cell::Cell;
 use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::ops::{Deref, DerefMut, Not};
@@ -13,7 +12,6 @@ use std::thread::ThreadId;
 use std::time::Duration;
 
 use ahash::AHashSet;
-use intentional::Assert;
 
 use crate::animation::{DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
 use crate::context::sealed::WindowHandle;
@@ -78,7 +76,7 @@ impl<T> Dynamic<T> {
         RIntoT: FnMut(&R) -> RIntoTResult + Send + 'static,
     {
         let initial_r = self
-            .map_ref(&mut t_into_r)
+            .map_ref(|v| t_into_r(v))
             .into()
             .expect("t_into_r must succeed with the current value");
         let r = Dynamic::new(initial_r);
@@ -122,8 +120,19 @@ impl<T> Dynamic<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     pub fn map_ref<R>(&self, map: impl FnOnce(&T) -> R) -> R {
+        self.map_generational(|gen| map(&gen.value))
+    }
+
+    /// Maps the contents with read-only access, providing access to the value's
+    /// [`Generation`].
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    pub fn map_generational<R>(&self, map: impl FnOnce(&GenerationalValue<T>) -> R) -> R {
         let state = self.state().expect("deadlocked");
-        map(&state.wrapped.value)
+        map(&state.wrapped)
     }
 
     /// Maps the contents with exclusive access. Before returning from this
@@ -186,6 +195,19 @@ impl<T> Dynamic<T> {
         });
     }
 
+    /// Attaches `for_each` to this value and its [`Generation`] so that it is
+    /// invoked each time the value's contents are updated.
+    pub fn for_each_generational<F>(&self, mut for_each: F)
+    where
+        T: Send + 'static,
+        F: for<'a> FnMut(&'a GenerationalValue<T>) + Send + 'static,
+    {
+        let this = self.clone();
+        self.0.for_each(move || {
+            this.map_generational(&mut for_each);
+        });
+    }
+
     /// Attaches `for_each` to this value so that it is invoked each time the
     /// value's contents are updated.
     pub fn for_each_cloned<F>(&self, mut for_each: F)
@@ -221,6 +243,18 @@ impl<T> Dynamic<T> {
     {
         let this = self.clone();
         self.0.map_each(move || this.map_ref(&mut map))
+    }
+
+    /// Creates a new dynamic value that contains the result of invoking `map`
+    /// each time this value is changed.
+    pub fn map_each_generational<R, F>(&self, mut map: F) -> Dynamic<R>
+    where
+        T: Send + 'static,
+        F: for<'a> FnMut(&'a GenerationalValue<T>) -> R + Send + 'static,
+        R: PartialEq + Send + 'static,
+    {
+        let this = self.clone();
+        self.0.map_each(move || this.map_generational(&mut map))
     }
 
     /// Creates a new dynamic value that contains the result of invoking `map`
@@ -386,9 +420,7 @@ impl<T> Dynamic<T> {
     where
         T: PartialEq,
     {
-        let cell = Cell::new(Some(new_value));
         match self.0.map_mut(|value, changed| {
-            let new_value = cell.take().assert("only one callback will be invoked");
             if *value == new_value {
                 *changed = false;
                 Err(ReplaceError::NoChange(new_value))
@@ -824,10 +856,58 @@ where
     }
 }
 
+/// A value stored in a [`Dynamic`] with its [`Generation`].
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct GenerationalValue<T> {
+pub struct GenerationalValue<T> {
+    /// The stored value.
     pub value: T,
-    pub generation: Generation,
+    generation: Generation,
+}
+
+impl<T> GenerationalValue<T> {
+    /// Returns the generation of this value.
+    ///
+    /// Each time a [`Dynamic`] is updated, the generation is also updated. This
+    /// value can be used to track whether a particular value has been observed.
+    pub const fn generation(&self) -> Generation {
+        self.generation
+    }
+
+    /// Returns a new instance containing the result of invoking `map` with
+    /// `self.value`.
+    ///
+    /// The returned instance will have the same generation as this instance.
+    pub fn map<U>(self, map: impl FnOnce(T) -> U) -> GenerationalValue<U> {
+        GenerationalValue {
+            value: map(self.value),
+            generation: self.generation,
+        }
+    }
+
+    /// Returns a new instance containing the result of invoking `map` with
+    /// `&self.value`.
+    ///
+    /// The returned instance will have the same generation as this instance.
+    pub fn map_ref<U>(&self, map: impl for<'a> FnOnce(&'a T) -> U) -> GenerationalValue<U> {
+        GenerationalValue {
+            value: map(&self.value),
+            generation: self.generation,
+        }
+    }
+}
+
+impl<T> Deref for GenerationalValue<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T> DerefMut for GenerationalValue<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
 }
 
 /// An exclusive reference to the contents of a [`Dynamic`].
@@ -1695,6 +1775,7 @@ enum ValidationsState {
     Initial,
     Resetting,
     Checked,
+    Disabled,
 }
 
 impl Validations {
@@ -1715,55 +1796,107 @@ impl Validations {
         E: Display,
     {
         let validation = Dynamic::new(Validation::None);
-        self.invalid.map_mut(|invalid| *invalid += 1);
-
-        let error_message = dynamic.map_each(move |value| match check(value) {
-            Ok(()) => None,
-            Err(err) => Some(err.to_string()),
-        });
+        let mut message_mapping = Self::map_to_message(move |value| check(value));
+        let error_message = dynamic.map_each_generational(move |value| message_mapping(value));
 
         (&self.state, &error_message).for_each_cloned({
+            let mut f = self.generate_validation(dynamic);
             let validation = validation.clone();
-            let invalid_count = self.invalid.clone();
-            let state = self.state.clone();
-            let dynamic = dynamic.clone();
-            let mut initial_generation = dynamic.generation();
-            let mut invalid = true;
 
             move |(current_state, message)| {
-                let new_status = if let Some(err) = message {
-                    if !invalid {
-                        invalid_count.map_mut(|invalid| *invalid += 1);
-                        invalid = true;
-                    }
-                    Validation::Invalid(err.to_string())
-                } else {
-                    if invalid {
-                        invalid_count.map_mut(|invalid| *invalid -= 1);
-                        invalid = false;
-                    }
-                    Validation::Valid
-                };
-                match current_state {
-                    ValidationsState::Resetting => {
-                        initial_generation = dynamic.generation();
-                        let state = state.clone();
-                        validation.set(Validation::None);
-                        Duration::ZERO
-                            .on_complete(move || {
-                                state.set(ValidationsState::Initial);
-                            })
-                            .launch();
-                    }
-                    ValidationsState::Initial if initial_generation == dynamic.generation() => {}
-                    _ => {
-                        validation.set(new_status);
-                    }
-                }
+                validation.set(f(current_state, message));
             }
         });
 
         validation
+    }
+
+    fn map_to_message<T, E, Valid>(
+        mut check: Valid,
+    ) -> impl for<'a> FnMut(&'a GenerationalValue<T>) -> GenerationalValue<Option<String>> + Send + 'static
+    where
+        T: Send + 'static,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
+        E: Display,
+    {
+        move |value| {
+            value.map_ref(|value| match check(value) {
+                Ok(()) => None,
+                Err(err) => Some(err.to_string()),
+            })
+        }
+    }
+
+    fn generate_validation<T>(
+        &self,
+        dynamic: &Dynamic<T>,
+    ) -> impl FnMut(ValidationsState, GenerationalValue<Option<String>>) -> Validation
+    where
+        T: Send + 'static,
+    {
+        self.invalid.map_mut(|invalid| *invalid += 1);
+
+        let invalid_count = self.invalid.clone();
+        let state = self.state.clone();
+        let dynamic = dynamic.clone();
+        let mut initial_generation = dynamic.generation();
+        let mut invalid = true;
+
+        move |current_state, generational| {
+            let new_invalid = match (&current_state, &generational.value) {
+                (ValidationsState::Disabled, _) | (_, None) => false,
+                (_, Some(_)) => true,
+            };
+            if invalid != new_invalid {
+                if new_invalid {
+                    invalid_count.map_mut(|invalid| *invalid += 1);
+                } else {
+                    invalid_count.map_mut(|invalid| *invalid -= 1);
+                }
+                invalid = new_invalid;
+            }
+            let new_status = if let Some(err) = generational.value {
+                Validation::Invalid(err.to_string())
+            } else {
+                Validation::Valid
+            };
+            match current_state {
+                ValidationsState::Resetting => {
+                    initial_generation = dynamic.generation();
+                    let state = state.clone();
+                    Duration::ZERO
+                        .on_complete(move || {
+                            state.set(ValidationsState::Initial);
+                        })
+                        .launch();
+                    Validation::None
+                }
+                ValidationsState::Initial if initial_generation == dynamic.generation() => {
+                    Validation::None
+                }
+                _ => new_status,
+            }
+        }
+    }
+
+    /// Returns a builder that can be used to create validations that only run
+    /// when `condition` is true.
+    pub fn when(&self, condition: impl IntoDynamic<bool>) -> WhenValidation<'_> {
+        WhenValidation {
+            validations: self,
+            condition: condition.into_dynamic(),
+            not: false,
+        }
+    }
+
+    /// Returns a builder that can be used to create validations that only run
+    /// when `condition` is false.
+    pub fn when_not(&self, condition: impl IntoDynamic<bool>) -> WhenValidation<'_> {
+        WhenValidation {
+            validations: self,
+            condition: condition.into_dynamic(),
+            not: true,
+        }
     }
 
     /// Returns true if this set of validations are all valid.
@@ -1810,5 +1943,83 @@ impl Validations {
     /// Resets the validation status for all related validations.
     pub fn reset(&self) {
         self.state.set(ValidationsState::Resetting);
+    }
+}
+
+/// A builder for validations that only run when a precondition is met.
+pub struct WhenValidation<'a> {
+    validations: &'a Validations,
+    condition: Dynamic<bool>,
+    not: bool,
+}
+
+impl WhenValidation<'_> {
+    /// Validates `dynamic`'s contents using `check`, returning a dynamic
+    /// containing the validation status.
+    ///
+    /// The validation is linked with `self` such that checking `self`'s
+    /// validation status will include this validation.
+    ///
+    /// Each change to `dynamic` is validated, but the result of the validation
+    /// will be ignored if the required prerequisite isn't met.
+    #[must_use]
+    pub fn validate<T, E, Valid>(
+        &self,
+        dynamic: &Dynamic<T>,
+        mut check: Valid,
+    ) -> Dynamic<Validation>
+    where
+        T: Send + 'static,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
+        E: Display,
+    {
+        let validation = Dynamic::new(Validation::None);
+        let mut map_to_message = Validations::map_to_message(move |value| check(value));
+        let error_message =
+            dynamic.map_each_generational(move |generational| map_to_message(generational));
+        let mut f = self.validations.generate_validation(dynamic);
+        let not = self.not;
+
+        (&self.condition, &self.validations.state, &error_message).map_each_cloned({
+            let validation = validation.clone();
+            move |(condition, state, message)| {
+                let enabled = if not { !condition } else { condition };
+                let state = if enabled {
+                    state
+                } else {
+                    ValidationsState::Disabled
+                };
+                let result = f(state, message);
+                if enabled {
+                    validation.set(result);
+                } else {
+                    validation.set(Validation::None);
+                }
+            }
+        });
+
+        validation
+    }
+
+    /// Returns a dynamic validation status that is created by transforming the
+    /// `Err` variant of `result` using [`Display`].
+    ///
+    /// The validation is linked with `self` such that checking `self`'s
+    /// validation status will include this validation.
+    #[must_use]
+    pub fn validate_result<E>(&self, result: impl IntoDynamic<Result<(), E>>) -> Dynamic<Validation>
+    where
+        E: Display + Send + 'static,
+    {
+        let result = result.into_dynamic();
+        let error_message = result.map_each(move |value| match value {
+            Ok(()) => None,
+            Err(err) => Some(err.to_string()),
+        });
+
+        self.validate(&error_message, |error_message| match error_message {
+            None => Ok(()),
+            Some(message) => Err(message.clone()),
+        })
     }
 }
