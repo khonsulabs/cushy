@@ -3,8 +3,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use kludgine::app::winit::event::KeyEvent;
+use intentional::Assert;
+use kludgine::app::winit::event::{ElementState, KeyEvent, MouseButton};
 use kludgine::app::winit::keyboard::Key;
+use kludgine::figures::units::Px;
+use kludgine::figures::Point;
 
 use crate::context::WidgetContext;
 use crate::utils::{IgnorePoison, UnwindsafeCondvar};
@@ -46,6 +49,40 @@ impl Tick {
             HANDLED
         } else {
             IGNORED
+        }
+    }
+
+    /// Sets the cursor position.
+    pub fn set_cursor_position(&self, pos: Option<Point<Px>>) {
+        let mut state = self.data.state();
+        match pos {
+            Some(pos) => {
+                if state.input.mouse.is_none() {
+                    state.input.mouse = Some(Mouse::default());
+                }
+
+                state
+                    .input
+                    .mouse
+                    .as_mut()
+                    .assert("always initialized")
+                    .position = pos;
+            }
+            None => {
+                state.input.mouse = None;
+            }
+        }
+    }
+
+    /// Processes a mouse button event.
+    pub fn mouse_button(&self, button: MouseButton, button_state: ElementState) {
+        let mut state = self.data.state();
+        if let Some(mouse) = &mut state.input.mouse {
+            if button_state.is_pressed() {
+                mouse.buttons.insert(button);
+            } else {
+                mouse.buttons.remove(&button);
+            }
         }
     }
 
@@ -111,6 +148,14 @@ impl Tick {
 pub struct InputState {
     /// A collection of all keys currently pressed.
     pub keys: HashSet<Key>,
+    /// The state of the mouse cursor and any buttons pressed.
+    pub mouse: Option<Mouse>,
+}
+
+#[derive(Debug, Default)]
+pub struct Mouse {
+    pub position: Point<Px>,
+    pub buttons: HashSet<MouseButton>,
 }
 
 #[derive(Debug)]

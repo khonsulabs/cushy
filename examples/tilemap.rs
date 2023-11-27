@@ -6,7 +6,8 @@ use gooey::kludgine::shapes::Shape;
 use gooey::kludgine::tilemap::{Object, ObjectLayer, TileKind, TileMapFocus, Tiles, TILE_SIZE};
 use gooey::kludgine::Color;
 use gooey::value::Dynamic;
-use gooey::widgets::TileMap;
+use gooey::widget::MakeWidget;
+use gooey::widgets::{Label, Stack, TileMap};
 use gooey::{Run, Tick};
 use kludgine::app::winit::keyboard::NamedKey;
 use kludgine::figures::FloatConversion;
@@ -40,12 +41,16 @@ fn main() -> gooey::Result {
 
     let layers = Dynamic::new((Tiles::new(8, 8, TILES), characters));
 
-    TileMap::dynamic(layers.clone())
+    let debug_message = Dynamic::new(String::new());
+
+    let tilemap = TileMap::dynamic(layers.clone())
         .focus_on(TileMapFocus::Object {
             layer: 1,
             id: myself,
         })
         .tick(Tick::times_per_second(60, move |elapsed, input| {
+            // get mouse cursor position and subsequently get the object under the cursor
+
             let mut direction = Point::new(0., 0.);
             if input.keys.contains(&Key::Named(NamedKey::ArrowDown)) {
                 direction.y += 1.0;
@@ -62,15 +67,25 @@ fn main() -> gooey::Result {
 
             let one_second_movement = direction * TILE_SIZE.into_float();
 
+            let cursor_pos = input.mouse.as_ref().map(|mouse| mouse.position);
+
             layers.map_mut(|layers| {
-                layers.1[myself].position += Point::new(
-                    // TODO fix this in figures
+                let pos = &mut layers.1[myself].position;
+                *pos += Point::new(
                     one_second_movement.x * elapsed.as_secs_f32(),
                     one_second_movement.y * elapsed.as_secs_f32(),
-                )
+                );
+
+                let rect = Rect::new(*pos - Size::squared(8.), Size::squared(16.));
+                layers.1[myself].color =
+                    match cursor_pos.map_or(false, |cursor_pos| rect.cast().contains(cursor_pos)) {
+                        true => Color::RED,
+                        false => Color::BLUE,
+                    };
             });
-        }))
-        .run()
+        }));
+
+    Stack::rows(tilemap.expand().and(Label::new(debug_message))).run()
 }
 
 #[derive(Debug)]

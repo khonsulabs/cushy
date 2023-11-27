@@ -1,6 +1,10 @@
 use std::fmt::Debug;
 
 use intentional::Cast;
+use kludgine::app::winit::event::ElementState;
+use kludgine::app::winit::window::CursorIcon;
+use kludgine::figures::units::Px;
+use kludgine::figures::Point;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
 use crate::kludgine::app::winit::event::{DeviceId, KeyEvent, MouseScrollDelta, TouchPhase};
@@ -117,6 +121,34 @@ where
         HANDLED
     }
 
+    fn hover(
+        &mut self,
+        local: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        if let Some(tick) = &self.tick {
+            let Some(size) = context.last_layout().map(|rect| rect.size) else {
+                return None;
+            };
+
+            let world =
+                tilemap::translate_coordinates(local, context.kludgine.scale(), self.zoom, size);
+            let offset = self
+                .layers
+                .map(|layers| self.focus.get().world_coordinate(layers));
+
+            tick.set_cursor_position(Some(world + offset));
+        }
+
+        None
+    }
+
+    fn unhover(&mut self, _context: &mut EventContext<'_, '_>) {
+        if let Some(tick) = &self.tick {
+            tick.set_cursor_position(None);
+        }
+    }
+
     fn keyboard_input(
         &mut self,
         _device_id: DeviceId,
@@ -129,5 +161,32 @@ where
         }
 
         IGNORED
+    }
+
+    fn mouse_down(
+        &mut self,
+        _location: Point<Px>,
+        _device_id: DeviceId,
+        button: kludgine::app::winit::event::MouseButton,
+        _context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        if let Some(tick) = &self.tick {
+            tick.mouse_button(button, ElementState::Pressed);
+            HANDLED
+        } else {
+            IGNORED
+        }
+    }
+
+    fn mouse_up(
+        &mut self,
+        _location: Option<Point<Px>>,
+        _device_id: DeviceId,
+        button: kludgine::app::winit::event::MouseButton,
+        _context: &mut EventContext<'_, '_>,
+    ) {
+        if let Some(tick) = &self.tick {
+            tick.mouse_button(button, ElementState::Released);
+        }
     }
 }
