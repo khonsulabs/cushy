@@ -22,11 +22,10 @@ fn main() -> gooey::Result {
     .width(Lp::inches(2)..Lp::inches(6))
     .height(Lp::inches(2)..Lp::inches(6))
     .centered()
-    .expand()
     .run()
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Eq, PartialEq)]
 enum AppState {
     #[default]
     Playing,
@@ -187,8 +186,8 @@ fn square(row: usize, column: usize, game: &Dynamic<GameState>) -> impl MakeWidg
                 return;
             };
 
-            if enabled.update(false) {
-                label.update(player.to_string());
+            if enabled.replace(false).is_some() {
+                label.set(player.to_string());
             }
         });
     });

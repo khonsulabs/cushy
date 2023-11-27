@@ -7,10 +7,13 @@ use gooey::kludgine::tilemap::{Object, ObjectLayer, TileKind, TileMapFocus, Tile
 use gooey::kludgine::Color;
 use gooey::value::Dynamic;
 use gooey::widget::MakeWidget;
-use gooey::widgets::{TileMap, Label, Stack};
+use gooey::widgets::{Label, Stack, TileMap};
 use gooey::{Run, Tick};
+use kludgine::app::winit::keyboard::NamedKey;
+use kludgine::figures::FloatConversion;
+use kludgine::DrawableExt;
 
-const PLAYER_SIZE: Px = Px(16);
+const PLAYER_SIZE: Px = Px::new(16);
 
 #[rustfmt::skip]
 const TILES: [TileKind; 64] = {
@@ -33,7 +36,7 @@ fn main() -> gooey::Result {
 
     let myself = characters.push(Player {
         color: Color::RED,
-        position: Point::new(TILE_SIZE.0 as f32, TILE_SIZE.0 as f32),
+        position: Point::new(TILE_SIZE.into_float(), TILE_SIZE.into_float()),
     });
 
     let layers = Dynamic::new((Tiles::new(8, 8, TILES), characters));
@@ -49,20 +52,20 @@ fn main() -> gooey::Result {
             // get mouse cursor position and subsequently get the object under the cursor
 
             let mut direction = Point::new(0., 0.);
-            if input.keys.contains(&Key::ArrowDown) {
+            if input.keys.contains(&Key::Named(NamedKey::ArrowDown)) {
                 direction.y += 1.0;
             }
-            if input.keys.contains(&Key::ArrowUp) {
+            if input.keys.contains(&Key::Named(NamedKey::ArrowUp)) {
                 direction.y -= 1.0;
             }
-            if input.keys.contains(&Key::ArrowRight) {
+            if input.keys.contains(&Key::Named(NamedKey::ArrowRight)) {
                 direction.x += 1.0;
             }
-            if input.keys.contains(&Key::ArrowLeft) {
+            if input.keys.contains(&Key::Named(NamedKey::ArrowLeft)) {
                 direction.x -= 1.0;
             }
 
-            let one_second_movement = direction * TILE_SIZE.0 as f32;
+            let one_second_movement = direction * TILE_SIZE.into_float();
 
             let cursor_pos = input.mouse.pos;
 
@@ -81,7 +84,13 @@ fn main() -> gooey::Result {
             });
         }));
 
-    Stack::rows(tilemap.debug_output(debug_message.clone()).expand().and(Label::new(debug_message))).run()
+    Stack::rows(
+        tilemap
+            .debug_output(debug_message.clone())
+            .expand()
+            .and(Label::new(debug_message)),
+    )
+    .run()
 }
 
 #[derive(Debug)]
@@ -98,16 +107,11 @@ impl Object for Player {
     fn render(&self, center: Point<Px>, zoom: f32, context: &mut Renderer<'_, '_>) {
         let zoomed_size = PLAYER_SIZE * zoom;
         context.draw_shape(
-            &Shape::filled_rect(
-                Rect::new(
-                    Point::new(-zoomed_size / 2, -zoomed_size / 2),
-                    Size::squared(zoomed_size),
-                ),
+            Shape::filled_rect(
+                Rect::new(Point::squared(-zoomed_size / 2), Size::squared(zoomed_size)),
                 self.color,
-            ),
-            center,
-            None,
-            None,
+            )
+            .translate_by(center),
         )
     }
 }

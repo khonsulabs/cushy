@@ -3,10 +3,10 @@ use std::fmt::Debug;
 use kludgine::figures::units::UPx;
 use kludgine::figures::{Fraction, IntoSigned, Point, Rect, ScreenScale, Size};
 
-use crate::context::{AsEventContext, LayoutContext};
+use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::{Edges, FlexibleDimension};
 use crate::value::{IntoValue, Value};
-use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A widget aligns its contents to its container's boundaries.
@@ -141,15 +141,15 @@ impl FrameInfo {
             // into ClippedAfter mode to make the widget attempt to size the
             // content to fit.
             (Some(one), None) | (None, Some(one)) => {
-                ConstraintLimit::ClippedAfter(available.max() - one)
+                ConstraintLimit::SizeToFit(available.max() - one)
             }
-            (None, None) => ConstraintLimit::ClippedAfter(available.max()),
+            (None, None) => ConstraintLimit::SizeToFit(available.max()),
         }
     }
 
     fn measure(&self, available: ConstraintLimit, content: UPx) -> (UPx, UPx, UPx) {
         match available {
-            ConstraintLimit::Known(size) => {
+            ConstraintLimit::Fill(size) => {
                 let remaining = size.saturating_sub(content);
                 let (a, b) = match (self.a, self.b) {
                     (Some(a), Some(b)) => (a, b),
@@ -164,7 +164,7 @@ impl FrameInfo {
 
                 (a, b, size - a - b)
             }
-            ConstraintLimit::ClippedAfter(_) => (
+            ConstraintLimit::SizeToFit(_) => (
                 self.a.unwrap_or_default(),
                 self.b.unwrap_or_default(),
                 content,
@@ -178,6 +178,10 @@ impl WrapperWidget for Align {
         &mut self.child
     }
 
+    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+        Some(RootBehavior::Align)
+    }
+
     fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
@@ -186,10 +190,7 @@ impl WrapperWidget for Align {
         let layout = self.measure(available_space, context);
 
         Rect::new(
-            Point::new(
-                layout.margin.left.into_signed(),
-                layout.margin.top.into_signed(),
-            ),
+            Point::new(layout.margin.left, layout.margin.top).into_signed(),
             layout.content.into_signed(),
         )
         .into()

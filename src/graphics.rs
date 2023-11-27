@@ -1,16 +1,19 @@
 use std::ops::{Deref, DerefMut};
 
+use ahash::{HashSet, HashSetExt};
+use kludgine::cosmic_text::FamilyOwned;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{
-    self, Angle, Fraction, IntoSigned, IntoUnsigned, IsZero, Point, Rect, ScreenScale, ScreenUnit,
-    Size,
+    self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
 };
 use kludgine::render::Renderer;
 use kludgine::shapes::Shape;
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{
-    cosmic_text, ClipGuard, Color, Kludgine, ShaderScalable, ShapeSource, TextureSource,
+    cosmic_text, ClipGuard, Color, Drawable, Kludgine, ShaderScalable, ShapeSource, TextureSource,
 };
+
+use crate::styles::FontFamilyList;
 
 /// A 2d graphics context
 pub struct Graphics<'clip, 'gfx, 'pass> {
@@ -46,16 +49,46 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         let clip_origin = self.renderer.clip_rect().origin.into_signed();
         -Point::new(
             if clip_origin.x <= self.region.origin.x {
-                Px(0)
+                Px::ZERO
             } else {
                 clip_origin.x - self.region.origin.x
             },
             if clip_origin.y <= self.region.origin.y {
-                Px(0)
+                Px::ZERO
             } else {
                 clip_origin.y - self.region.origin.y
             },
         )
+    }
+
+    pub(crate) fn inner_find_available_font_family(
+        db: &cosmic_text::fontdb::Database,
+        list: &FontFamilyList,
+    ) -> Option<FamilyOwned> {
+        let mut fonts = HashSet::new();
+        for (family, _) in db.faces().filter_map(|f| f.families.first()) {
+            fonts.insert(family.clone());
+        }
+
+        list.iter()
+            .find(|family| match family {
+                FamilyOwned::Name(name) => fonts.contains(name),
+                _ => true,
+            })
+            .cloned()
+    }
+
+    /// Returns the first font family in `list` that is currently in the font
+    /// system, or None if no font families match.
+    pub fn find_available_font_family(&mut self, list: &FontFamilyList) -> Option<FamilyOwned> {
+        Self::inner_find_available_font_family(self.font_system().db(), list)
+    }
+
+    /// Sets the font family to the first family in `list`.
+    pub fn set_available_font_family(&mut self, list: &FontFamilyList) {
+        if let Some(family) = self.find_available_font_family(list) {
+            self.set_font_family(family);
+        }
     }
 
     /// Returns the underlying renderer.
@@ -141,28 +174,18 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     pub fn fill(&mut self, color: Color) {
         if color.alpha() > 0 {
             let rect = Rect::from(self.region.size);
-            self.draw_shape(
-                &Shape::filled_rect(rect, color),
-                Point::default(),
-                None,
-                None,
-            );
+            self.draw_shape(&Shape::filled_rect(rect, color));
         }
     }
 
     /// Draws a shape at the origin, rotating and scaling as needed.
-    pub fn draw_shape<Unit>(
-        &mut self,
-        shape: &Shape<Unit, false>,
-        origin: Point<Unit>,
-        rotation_rads: Option<Angle>,
-        scale: Option<f32>,
-    ) where
-        Unit: IsZero + ShaderScalable + figures::ScreenUnit + Copy,
+    pub fn draw_shape<'a, Unit>(&mut self, shape: impl Into<Drawable<&'a Shape<Unit, false>, Unit>>)
+    where
+        Unit: Zero + ShaderScalable + figures::ScreenUnit + Copy,
     {
-        let translate = origin + Point::<Unit>::from_px(self.translation(), self.scale());
-        self.renderer
-            .draw_shape(shape, translate, rotation_rads, scale);
+        let mut shape = shape.into();
+        shape.translation += Point::<Unit>::from_px(self.translation(), self.scale());
+        self.renderer.draw_shape(shape);
     }
 
     /// Draws `texture` at `destination`, scaling as necessary.
@@ -177,20 +200,18 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
 
     /// Draws a shape that was created with texture coordinates, applying the
     /// provided texture.
-    pub fn draw_textured_shape<Unit>(
+    pub fn draw_textured_shape<'shape, Unit, Shape>(
         &mut self,
-        shape: &impl ShapeSource<Unit, true>,
+        shape: impl Into<Drawable<&'shape Shape, Unit>>,
         texture: &impl TextureSource,
-        origin: Point<Unit>,
-        rotation: Option<Angle>,
-        scale: Option<f32>,
     ) where
-        Unit: IsZero + ShaderScalable + figures::ScreenUnit + Copy,
+        Unit: Zero + ShaderScalable + figures::ScreenUnit + Copy,
         i32: From<<Unit as IntoSigned>::Signed>,
+        Shape: ShapeSource<Unit, true> + 'shape,
     {
-        let translate = origin + Point::<Unit>::from_px(self.translation(), self.scale());
-        self.renderer
-            .draw_textured_shape(shape, texture, translate, rotation, scale);
+        let mut shape = shape.into();
+        shape.translation += Point::<Unit>::from_px(self.translation(), self.scale());
+        self.renderer.draw_textured_shape(shape, texture);
     }
 
     /// Measures `text` using the current text settings.
@@ -204,17 +225,13 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     }
 
     /// Draws `text` using the current text settings.
-    pub fn draw_text<'a, Unit>(
-        &mut self,
-        text: impl Into<Text<'a, Unit>>,
-        translate: Point<Unit>,
-        rotation: Option<Angle>,
-        scale: Option<f32>,
-    ) where
+    pub fn draw_text<'a, Unit>(&mut self, text: impl Into<Drawable<Text<'a, Unit>, Unit>>)
+    where
         Unit: ScreenUnit,
     {
-        let translate = translate + Point::<Unit>::from_px(self.translation(), self.scale());
-        self.renderer.draw_text(text, translate, rotation, scale);
+        let mut text = text.into();
+        text.translation += Point::<Unit>::from_px(self.translation(), self.scale());
+        self.renderer.draw_text(text);
     }
 
     /// Prepares the text layout contained in `buffer` to be rendered.
@@ -224,20 +241,18 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     ///
     /// `origin` allows controlling how the text will be drawn relative to the
     /// coordinate provided in [`render()`](kludgine::PreparedGraphic::render).
-    pub fn draw_text_buffer<Unit>(
+    pub fn draw_text_buffer<'a, Unit>(
         &mut self,
-        buffer: &cosmic_text::Buffer,
+        buffer: impl Into<Drawable<&'a cosmic_text::Buffer, Unit>>,
         default_color: Color,
         origin: TextOrigin<Px>,
-        translate: Point<Unit>,
-        rotation: Option<Angle>,
-        scale: Option<f32>,
     ) where
         Unit: ScreenUnit,
     {
-        let translate = translate + Point::<Unit>::from_px(self.translation(), self.scale());
+        let mut buffer = buffer.into();
+        buffer.translation += Point::<Unit>::from_px(self.translation(), self.scale());
         self.renderer
-            .draw_text_buffer(buffer, default_color, origin, translate, rotation, scale);
+            .draw_text_buffer(buffer, default_color, origin);
     }
 
     /// Measures `buffer` and caches the results using `default_color` when
@@ -260,19 +275,16 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     ///
     /// `origin` allows controlling how the text will be drawn relative to the
     /// coordinate provided in [`render()`](kludgine::PreparedGraphic::render).
-    pub fn draw_measured_text<Unit>(
+    pub fn draw_measured_text<'a, Unit>(
         &mut self,
-        text: &MeasuredText<Unit>,
+        text: impl Into<Drawable<&'a MeasuredText<Unit>, Unit>>,
         origin: TextOrigin<Unit>,
-        translate: Point<Unit>,
-        rotation: Option<Angle>,
-        scale: Option<f32>,
     ) where
         Unit: ScreenUnit,
     {
-        let translate = translate + Point::<Unit>::from_px(self.translation(), self.scale());
-        self.renderer
-            .draw_measured_text(text, origin, translate, rotation, scale);
+        let mut text = text.into();
+        text.translation += Point::<Unit>::from_px(self.translation(), self.scale());
+        self.renderer.draw_measured_text(text, origin);
     }
 }
 

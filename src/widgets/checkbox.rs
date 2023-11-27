@@ -4,15 +4,13 @@ use std::fmt::Display;
 use std::ops::Not;
 
 use kludgine::figures::units::{Lp, Px};
-use kludgine::figures::{IntoUnsigned, Point, Rect, ScreenScale, Size};
+use kludgine::figures::{Point, Rect, ScreenScale, Size};
 use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 
 use crate::context::{GraphicsContext, LayoutContext};
-use crate::styles::components::{
-    IntrinsicPadding, LineHeight, OutlineColor, TextColor, WidgetAccentColor,
-};
+use crate::styles::components::{LineHeight, OutlineColor, TextColor, WidgetAccentColor};
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
-use crate::widget::{MakeWidget, WidgetInstance, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::widget::{MakeWidget, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
 
@@ -54,10 +52,11 @@ impl Checkbox {
 
 impl MakeWidget for Checkbox {
     fn make_widget(self) -> WidgetInstance {
-        CheckboxLabel {
+        CheckboxOrnament {
             value: self.state.create_reader(),
-            label: WidgetRef::new(self.label),
         }
+        .and(self.label)
+        .into_columns()
         .into_button()
         .on_click(move |()| {
             let mut value = self.state.lock();
@@ -95,6 +94,26 @@ impl From<bool> for CheckboxState {
     }
 }
 
+impl From<CheckboxState> for Option<bool> {
+    fn from(value: CheckboxState) -> Self {
+        match value {
+            CheckboxState::Indeterminant => None,
+            CheckboxState::Unchecked => Some(false),
+            CheckboxState::Checked => Some(true),
+        }
+    }
+}
+
+impl From<Option<bool>> for CheckboxState {
+    fn from(value: Option<bool>) -> Self {
+        match value {
+            Some(true) => CheckboxState::Checked,
+            Some(false) => CheckboxState::Unchecked,
+            None => CheckboxState::Indeterminant,
+        }
+    }
+}
+
 impl TryFrom<CheckboxState> for bool {
     type Error = CheckboxToBoolError;
 
@@ -127,6 +146,15 @@ impl IntoDynamic<CheckboxState> for Dynamic<bool> {
     }
 }
 
+impl IntoDynamic<CheckboxState> for Dynamic<Option<bool>> {
+    fn into_dynamic(self) -> Dynamic<CheckboxState> {
+        self.linked(
+            |bool| CheckboxState::from(*bool),
+            |tri_state: &CheckboxState| bool::try_from(*tri_state).ok(),
+        )
+    }
+}
+
 /// An [`CheckboxState::Indeterminant`] was encountered when converting to a
 /// `bool`.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -141,49 +169,34 @@ impl Display for CheckboxToBoolError {
 impl Error for CheckboxToBoolError {}
 
 #[derive(Debug)]
-struct CheckboxLabel {
+struct CheckboxOrnament {
     value: DynamicReader<CheckboxState>,
-    label: WidgetRef,
 }
 
-impl WrapperWidget for CheckboxLabel {
-    fn child_mut(&mut self) -> &mut WidgetRef {
-        &mut self.label
-    }
+impl Widget for CheckboxOrnament {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        let checkbox_size = context
+            .gfx
+            .region()
+            .size
+            .width
+            .min(context.gfx.region().size.height);
 
-    fn position_child(
-        &mut self,
-        size: Size<Px>,
-        _available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> WrappedLayout {
-        let checkbox_size = context.get(&LineHeight).into_px(context.gfx.scale()); // TODO create a component?
-        let padding = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
-        let label_inset = checkbox_size + padding;
-        let size_with_checkbox = Size::new(size.width + label_inset, size.height).into_unsigned();
-        WrappedLayout {
-            child: Rect::new(Point::new(label_inset, Px(0)), size),
-            size: size_with_checkbox,
-        }
-    }
-
-    fn redraw_background(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let checkbox_size = context.get(&LineHeight).into_px(context.gfx.scale());
-        let padding = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
         let checkbox_rect = Rect::new(
-            Point::new(padding, padding),
-            Size::new(checkbox_size, checkbox_size),
+            Point::new(
+                Px::ZERO,
+                (context.gfx.region().size.height - checkbox_size) / 2,
+            ),
+            Size::squared(checkbox_size),
         );
+
         let stroke_options = StrokeOptions::lp_wide(Lp::points(2)).into_px(context.gfx.scale());
         match self.value.get_tracking_refresh(context) {
             state @ (CheckboxState::Checked | CheckboxState::Indeterminant) => {
                 let color = context.get(&WidgetAccentColor);
-                context.gfx.draw_shape(
-                    &Shape::filled_rect(checkbox_rect, color),
-                    Point::default(),
-                    None,
-                    None,
-                );
+                context
+                    .gfx
+                    .draw_shape(&Shape::filled_rect(checkbox_rect, color));
                 let icon_area = checkbox_rect.inset(Lp::points(3).into_px(context.gfx.scale()));
                 let text_color = context.get(&TextColor);
                 let center = icon_area.origin + icon_area.size / 2;
@@ -199,10 +212,7 @@ impl WrapperWidget for CheckboxLabel {
                                 icon_area.origin.y,
                             ))
                             .build()
-                            .stroke(text_color, stroke_options),
-                        Point::default(),
-                        None,
-                        None,
+                            .stroke(stroke_options.colored(text_color)),
                     );
                 } else {
                     context.gfx.draw_shape(
@@ -212,22 +222,36 @@ impl WrapperWidget for CheckboxLabel {
                                 center.y,
                             ))
                             .build()
-                            .stroke(text_color, stroke_options),
-                        Point::default(),
-                        None,
-                        None,
+                            .stroke(stroke_options.colored(text_color)),
                     );
                 }
             }
             CheckboxState::Unchecked => {
                 let color = context.get(&OutlineColor);
-                context.gfx.draw_shape(
-                    &Shape::stroked_rect(checkbox_rect, color, stroke_options),
-                    Point::default(),
-                    None,
-                    None,
-                );
+                context.gfx.draw_shape(&Shape::stroked_rect(
+                    checkbox_rect,
+                    stroke_options.colored(color),
+                ));
             }
         }
     }
+
+    fn layout(
+        &mut self,
+        _available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> Size<kludgine::figures::units::UPx> {
+        let checkbox_size = context.get(&LineHeight).into_upx(context.gfx.scale()); // TODO create a component?
+        Size::squared(checkbox_size)
+    }
 }
+
+/// A value that can be used as a checkbox.
+pub trait Checkable: IntoDynamic<CheckboxState> + Sized {
+    /// Returns a new checkbox using `self` as the value and `label`.
+    fn into_checkbox(self, label: impl MakeWidget) -> Checkbox {
+        Checkbox::new(self.into_dynamic(), label)
+    }
+}
+
+impl<T> Checkable for T where T: IntoDynamic<CheckboxState> {}

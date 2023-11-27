@@ -3,6 +3,7 @@ use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
+use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{IntoSigned, Point, Rect, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
@@ -20,6 +21,7 @@ use crate::styles::{ColorExt, Styles};
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
+use crate::FitMeasuredSize;
 
 /// A clickable button.
 #[derive(Debug)]
@@ -241,7 +243,7 @@ impl Button {
                     .spawn();
             }
             (true, Some(style)) => {
-                style.update(new_style);
+                style.set(new_style);
                 self.color_animation.clear();
             }
             _ => {
@@ -336,7 +338,7 @@ impl Widget for Button {
         }
 
         let style = self.current_style(context);
-        context.gfx.fill(style.background);
+        context.fill(style.background);
 
         let two_lp_stroke = StrokeOptions::lp_wide(Lp::points(2));
         context.stroke_outline(style.outline, two_lp_stroke);
@@ -362,16 +364,10 @@ impl Widget for Button {
                 let inset = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
 
                 let focus_ring = Shape::stroked_rect(
-                    Rect::new(
-                        Point::new(inset, inset),
-                        context.gfx.region().size - inset * 2,
-                    ),
-                    color,
-                    two_lp_stroke,
+                    Rect::new(Point::squared(inset), context.gfx.region().size - inset * 2),
+                    two_lp_stroke.colored(color),
                 );
-                context
-                    .gfx
-                    .draw_shape(&focus_ring, Point::default(), None, None);
+                context.gfx.draw_shape(&focus_ring);
             } else if context.is_default() {
                 context.stroke_outline(context.get(&OutlineColor), two_lp_stroke);
             } else {
@@ -388,7 +384,7 @@ impl Widget for Button {
     }
 
     fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
-        context.get(&AutoFocusableControls).is_all()
+        context.enabled() && context.get(&AutoFocusableControls).is_all()
     }
 
     fn mouse_down(
@@ -454,22 +450,12 @@ impl Widget for Button {
         let padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
         let double_padding = padding * 2;
         let mounted = self.content.mounted(&mut context.as_event_context());
-        let available_space = Size::new(
-            available_space.width - double_padding,
-            available_space.height - double_padding,
-        );
+        let available_space = available_space.map(|space| space - double_padding);
         let size = context.for_other(&mounted).layout(available_space);
-        let size = Size::new(
-            available_space
-                .width
-                .fit_measured(size.width, context.gfx.scale()),
-            available_space
-                .height
-                .fit_measured(size.height, context.gfx.scale()),
-        );
+        let size = available_space.fit_measured(size, context.gfx.scale());
         context.set_child_layout(
             &mounted,
-            Rect::new(Point::new(padding, padding), size).into_signed(),
+            Rect::new(Point::squared(padding), size).into_signed(),
         );
         size + double_padding
     }
@@ -507,8 +493,18 @@ impl Widget for Button {
         self.update_colors(context, false);
     }
 
-    fn hover(&mut self, _location: Point<Px>, context: &mut EventContext<'_, '_>) {
+    fn hover(
+        &mut self,
+        _location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
         self.update_colors(context, false);
+
+        if context.enabled() {
+            Some(CursorIcon::Pointer)
+        } else {
+            Some(CursorIcon::NotAllowed)
+        }
     }
 
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {

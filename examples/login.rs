@@ -1,7 +1,8 @@
 use std::process::exit;
 
-use gooey::value::{Dynamic, MapEach, StringValue};
+use gooey::value::{Dynamic, Validations};
 use gooey::widget::MakeWidget;
+use gooey::widgets::input::{InputValue, MaskedString};
 use gooey::widgets::Expand;
 use gooey::Run;
 use kludgine::figures::units::Lp;
@@ -9,21 +10,45 @@ use kludgine::figures::units::Lp;
 fn main() -> gooey::Result {
     let username = Dynamic::default();
     let password = Dynamic::default();
+    let validations = Validations::default();
 
-    let valid =
-        (&username, &password).map_each(|(username, password)| validate(username, password));
+    let username_valid = validations.validate(&username, |u: &String| {
+        if u.is_empty() {
+            Err("usernames must contain at least one character")
+        } else {
+            Ok(())
+        }
+    });
+
+    let password_valid = validations.validate(&password, |u: &MaskedString| match u.len() {
+        0..=7 => Err("passwords must be at least 8 characters long"),
+        _ => Ok(()),
+    });
 
     // TODO this should be a grid layout to ensure proper visual alignment.
-    let username_row = "Username"
-        .and(username.clone().into_input().expand())
-        .into_columns();
-
-    let password_row = "Password"
+    let username_field = "Username"
+        .align_left()
         .and(
-            // TODO secure input
-            password.clone().into_input().expand(),
+            username
+                .clone()
+                .into_input()
+                .placeholder("Username")
+                .validation(username_valid)
+                .hint("* required"),
         )
-        .into_columns();
+        .into_rows();
+
+    let password_field = "Password"
+        .align_left()
+        .and(
+            password
+                .clone()
+                .into_input()
+                .placeholder("Password")
+                .validation(password_valid)
+                .hint("* required, 8 characters min"),
+        )
+        .into_rows();
 
     let buttons = "Cancel"
         .into_button()
@@ -36,28 +61,22 @@ fn main() -> gooey::Result {
         .and(
             "Log In"
                 .into_button()
-                .on_click(move |_| {
+                .on_click(validations.when_valid(move |()| {
                     println!("Welcome, {}", username.get());
                     exit(0);
-                })
-                .into_default()
-                .with_enabled(valid),
+                }))
+                .into_default(),
         )
         .into_columns();
 
-    username_row
-        .pad()
-        .and(password_row.pad())
-        .and(buttons.pad())
+    username_field
+        .and(password_field)
+        .and(buttons)
         .into_rows()
         .contain()
-        .width(Lp::points(300)..Lp::points(600))
+        .width(Lp::inches(3)..Lp::inches(6))
+        .pad()
         .scroll()
         .centered()
-        .expand()
         .run()
-}
-
-fn validate(username: &String, password: &String) -> bool {
-    !username.is_empty() && !password.is_empty()
 }

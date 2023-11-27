@@ -1,11 +1,13 @@
 //! All style components supported by the built-in widgets.
 
+use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
 use kludgine::figures::units::Lp;
+use kludgine::shapes::CornerRadii;
 use kludgine::Color;
 
 use crate::animation::easings::{EaseInOutQuadradic, EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::EasingFunction;
-use crate::styles::{Dimension, FocusableWidgets, VisualOrder};
+use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
 
 /// Defines a set of style components for Gooey.
 ///
@@ -18,6 +20,7 @@ use crate::styles::{Dimension, FocusableWidgets, VisualOrder};
 /// use gooey::styles::Dimension;
 /// use gooey::styles::components::{SurfaceColor, TextColor};
 /// use gooey::kludgine::Color;
+/// use gooey::kludgine::figures::Zero;
 ///
 /// define_components! {
 ///     GroupName {
@@ -91,7 +94,7 @@ define_components! {
         /// The [`Dimension`] to use as the size to render text.
         TextSize(Dimension, "text_size", Dimension::Lp(Lp::points(12)))
         /// The [`Dimension`] to use to space multiple lines of text.
-        LineHeight(Dimension,"line_height",Dimension::Lp(Lp::points(14)))
+        LineHeight(Dimension,"line_height",Dimension::Lp(Lp::points(16)))
         /// The [`Color`] of the surface for the user interface to draw upon.
         SurfaceColor(Color, "surface_color", .surface.color)
         /// The [`Color`] to use when rendering text.
@@ -103,7 +106,7 @@ define_components! {
         /// Intrinsic, uniform padding for a widget.
         ///
         /// This component is opt-in and does not automatically work for all widgets.
-        IntrinsicPadding(Dimension, "padding", Dimension::Lp(Lp::points(5)))
+        IntrinsicPadding(Dimension, "padding", Dimension::Lp(Lp::points(6)))
         /// The [`EasingFunction`] to apply to animations that have no inherent
         /// directionality.
         Easing(EasingFunction, "Easing", EasingFunction::from(EaseInOutQuadradic))
@@ -126,6 +129,8 @@ define_components! {
         WidgetBackground(Color, "widget_backgrond_color", Color::CLEAR_WHITE)
         /// A [`Color`] to be used to accent a widget.
         WidgetAccentColor(Color, "widget_accent_color", .primary.color)
+        /// A [`Color`] to be used to accent a disabled widget.
+        DisabledWidgetAccentColor(Color, "disabled_widget_accent_color", .primary.color_dim)
         /// A [`Color`] to be used as an outline color.
         OutlineColor(Color, "outline_color", .surface.outline)
         /// A [`Color`] to be used as an outline color.
@@ -133,5 +138,14 @@ define_components! {
         /// A [`Color`] to be used as a background color for widgets that render an
         /// opaque background.
         OpaqueWidgetColor(Color, "opaque_color", .surface.opaque_widget)
+        /// A set of radius descriptions for how much roundness to apply to the
+        /// shapes of widgets.
+        CornerRadius(CornerRadii<Dimension>, "corner_radius", CornerRadii::from(Dimension::Lp(Lp::points(10))))
+        /// The font family to render text using.
+        FontFamily(FontFamilyList, "font_family", FontFamilyList::from(FamilyOwned::SansSerif))
+        /// The font (boldness) weight to apply to text rendering.
+        FontWeight(Weight, "font_weight", Weight::NORMAL)
+        /// The font style to apply to text rendering.
+        FontStyle(Style, "font_style", Style::Normal)
     }
 }

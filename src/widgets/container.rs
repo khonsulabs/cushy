@@ -4,11 +4,11 @@ use kludgine::figures::units::Px;
 use kludgine::figures::{IntoUnsigned, Point, Rect, ScreenScale, Size};
 use kludgine::Color;
 
-use crate::context::{GraphicsContext, LayoutContext, WidgetContext};
+use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{IntrinsicPadding, SurfaceColor};
 use crate::styles::{Component, ContainerLevel, Dimension, Edges, RequireInvalidation, Styles};
 use crate::value::{IntoValue, Value};
-use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A visual container widget, optionally applying padding and a background
@@ -159,6 +159,16 @@ impl WrapperWidget for Container {
         &mut self.child
     }
 
+    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+        Some(
+            self.padding
+                .as_ref()
+                .map_or(RootBehavior::PassThrough, |padding| {
+                    RootBehavior::Pad(padding.get())
+                }),
+        )
+    }
+
     fn background_color(&mut self, context: &WidgetContext<'_, '_>) -> Option<kludgine::Color> {
         let background = match self.background.get() {
             ContainerBackground::Color(color) => EffectiveBackground::Color(color),
@@ -188,7 +198,7 @@ impl WrapperWidget for Container {
         })
     }
 
-    fn adjust_child_constraint(
+    fn adjust_child_constraints(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,

@@ -1,6 +1,5 @@
 //! Types that provide access to the Gooey runtime.
 use std::borrow::Cow;
-use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -9,18 +8,22 @@ use kempt::Set;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
+use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Rect, ScreenScale, Size};
+use kludgine::figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
+use crate::context::sealed::WindowHandle;
 use crate::graphics::Graphics;
-use crate::styles::components::{HighlightColor, LayoutOrder, WidgetBackground};
+use crate::styles::components::{
+    CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, LineHeight,
+    TextSize, WidgetBackground,
+};
 use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::utils::IgnorePoison;
-use crate::value::{Dynamic, IntoValue, Value};
+use crate::value::{IntoValue, Value};
 use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
-use crate::window::sealed::WindowCommand;
 use crate::window::{CursorState, RunningWindow, ThemeMode};
 use crate::ConstraintLimit;
 
@@ -39,6 +42,8 @@ pub struct EventContext<'context, 'window> {
 }
 
 impl<'context, 'window> EventContext<'context, 'window> {
+    const MAX_PENDING_CHANGE_CYCLES: u8 = 100;
+
     pub(crate) fn new(
         widget: WidgetContext<'context, 'window>,
         kludgine: &'context mut Kludgine,
@@ -159,10 +164,17 @@ impl<'context, 'window> EventContext<'context, 'window> {
             let mut context = self.for_other(&unhovered);
             unhovered.lock().as_widget().unhover(&mut context);
         }
-        for hover in changes.hovered {
+
+        let mut cursor = None;
+        for hover in changes.hovered.into_iter().rev() {
             let mut context = self.for_other(&hover);
-            hover.lock().as_widget().hover(location, &mut context);
+            let widget_cursor = hover.lock().as_widget().hover(location, &mut context);
+
+            if cursor.is_none() {
+                cursor = widget_cursor;
+            }
         }
+        self.winit().set_cursor_icon(cursor.unwrap_or_default());
     }
 
     pub(crate) fn clear_hover(&mut self) {
@@ -173,18 +185,13 @@ impl<'context, 'window> EventContext<'context, 'window> {
             let mut old_hover_context = self.for_other(&old_hover);
             old_hover.lock().as_widget().unhover(&mut old_hover_context);
         }
+
+        self.winit().set_cursor_icon(CursorIcon::Default);
     }
 
-    pub(crate) fn apply_pending_state(&mut self) {
-        const MAX_ITERS: u8 = 100;
-        // These two blocks apply active/focus in a loop to pick up the event
-        // where during the process of calling deactivate/blur or activate/focus
-        // the active/focus widget is changed again. This can lead to infinite
-        // loops, which is a programmer error. However, rather than block
-        // forever, we log a message that this is happening and break.
-
+    fn apply_pending_activation(&mut self) {
         let mut activation_changes = 0;
-        while activation_changes < MAX_ITERS {
+        while activation_changes < Self::MAX_PENDING_CHANGE_CYCLES {
             let active = self
                 .pending_state
                 .active
@@ -220,22 +227,20 @@ impl<'context, 'window> EventContext<'context, 'window> {
             }
         }
 
-        if activation_changes == MAX_ITERS {
+        if activation_changes == Self::MAX_PENDING_CHANGE_CYCLES {
             tracing::error!(
                 "activation change force stopped after {activation_changes} sequential changes"
             );
         }
+    }
 
+    fn apply_pending_focus(&mut self) {
         let mut focus_changes = 0;
-        while focus_changes < MAX_ITERS {
-            let focus = match self
+        while focus_changes < Self::MAX_PENDING_CHANGE_CYCLES {
+            let focus = self
                 .pending_state
                 .focus
-                .and_then(|w| self.current_node.tree.widget(w))
-            {
-                Some(focus) => self.for_other(&focus).enabled().then_some(focus),
-                None => None,
-            };
+                .and_then(|w| self.current_node.tree.widget(w));
             if self.current_node.tree.focused_widget() == focus.as_ref().map(|w| w.node_id) {
                 break;
             }
@@ -243,8 +248,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
             self.pending_state.focus = focus.and_then(|mut focus| loop {
                 let mut focus_context = self.for_other(&focus);
-                let accept_focus = focus_context.enabled()
-                    && focus.lock().as_widget().accept_focus(&mut focus_context);
+                let accept_focus = focus.lock().as_widget().accept_focus(&mut focus_context);
                 drop(focus_context);
 
                 if accept_focus {
@@ -259,9 +263,18 @@ impl<'context, 'window> EventContext<'context, 'window> {
             });
             let new = match self.current_node.tree.focus(self.pending_state.focus) {
                 Ok(old) => {
-                    if let Some(old) = old {
-                        let mut old_context = self.for_other(&old);
-                        old.lock().as_widget().blur(&mut old_context);
+                    if let Some(old_widget) = old {
+                        let mut old_context = self.for_other(&old_widget);
+                        let mut old = old_widget.lock();
+                        if old.as_widget().allow_blur(&mut old_context) {
+                            old.as_widget().blur(&mut old_context);
+                        } else {
+                            // This widget is rejecting the focus change.
+                            drop(old_context);
+                            let _result = self.current_node.tree.focus(Some(old_widget.id()));
+                            self.pending_state.focus = Some(old_widget.id());
+                            break;
+                        }
                     }
                     true
                 }
@@ -280,9 +293,21 @@ impl<'context, 'window> EventContext<'context, 'window> {
             }
         }
 
-        if focus_changes == MAX_ITERS {
+        if focus_changes == Self::MAX_PENDING_CHANGE_CYCLES {
             tracing::error!("focus change force stopped after {focus_changes} sequential changes");
         }
+    }
+
+    pub(crate) fn apply_pending_state(&mut self) {
+        // These two blocks apply active/focus in a loop to pick up the event
+        // where during the process of calling deactivate/blur or activate/focus
+        // the active/focus widget is changed again. This can lead to infinite
+        // loops, which is a programmer error. However, rather than block
+        // forever, we log a message that this is happening and break.
+
+        self.apply_pending_activation();
+
+        self.apply_pending_focus();
 
         // Check that our hover widget still exists. If not, we should try to find a new one.
         if let Some(hover) = self.current_node.tree.hovered_widget() {
@@ -382,8 +407,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
             }
 
             let mut child_context = self.for_other(&child);
-            let accept_focus = child_context.enabled()
-                && child.lock().as_widget().accept_focus(&mut child_context);
+            let accept_focus = child.lock().as_widget().accept_focus(&mut child_context);
             drop(child_context);
             if accept_focus {
                 return Some(child.id());
@@ -414,6 +438,20 @@ impl<'context, 'window> EventContext<'context, 'window> {
     }
 
     fn move_focus(&mut self, advance: bool) {
+        let node = self.current_node.clone();
+        let mut direction = self.get(&LayoutOrder);
+        if !advance {
+            direction = direction.rev();
+        }
+        if node
+            .lock()
+            .as_widget()
+            .advance_focus(direction, self)
+            .is_break()
+        {
+            return;
+        }
+
         if let Some(explicit_next_focus) = self.current_node.explicit_focus_target(advance) {
             self.for_other(&explicit_next_focus).focus();
         } else {
@@ -519,16 +557,48 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         }
     }
 
+    /// Fills the background of this widget with `color`, honoring the current
+    /// [`CornerRadius`] setting.
+    ///
+    /// If the alpha channel of `color` is 0, this function does nothing.
+    pub fn fill(&mut self, color: Color) {
+        if color.alpha() > 0 {
+            let visible_rect = Rect::from(self.gfx.region().size - Size::px(1, 1));
+
+            let radii = self.get(&CornerRadius);
+            let radii = radii.map(|r| r.into_px(self.gfx.scale()));
+
+            let focus_ring = if radii.is_zero() {
+                Shape::filled_rect(visible_rect, color)
+            } else {
+                Shape::filled_round_rect(visible_rect, radii, color)
+            };
+            self.gfx.draw_shape(&focus_ring);
+        }
+    }
+
     /// Strokes an outline around this widget's contents.
     pub fn stroke_outline<Unit>(&mut self, color: Color, options: StrokeOptions<Unit>)
     where
-        Unit: ScreenScale<Px = Px, Lp = Lp, UPx = UPx>,
+        Unit: ScreenScale<Px = Px, Lp = Lp, UPx = UPx> + Zero,
     {
-        let visible_rect = Rect::from(self.gfx.region().size - (Px(1), Px(1)));
-        let focus_ring =
-            Shape::stroked_rect(visible_rect, color, options.into_px(self.gfx.scale()));
-        self.gfx
-            .draw_shape(&focus_ring, Point::default(), None, None);
+        if color.alpha() > 0 {
+            let options = options.colored(color).into_px(self.gfx.scale());
+            let visible_rect = Rect::new(
+                Point::squared(options.line_width / 2),
+                self.gfx.region().size - Point::squared(options.line_width),
+            );
+
+            let radii = self.get(&CornerRadius);
+            let radii = radii.map(|r| r.into_px(self.gfx.scale()));
+
+            let focus_ring = if radii.is_zero() {
+                Shape::stroked_rect(visible_rect, options.into_px(self.gfx.scale()))
+            } else {
+                Shape::stroked_round_rect(visible_rect, radii, options)
+            };
+            self.gfx.draw_shape(&focus_ring);
+        }
     }
 
     /// Renders the default focus ring for this widget.
@@ -541,6 +611,26 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         let color = self.get(&HighlightColor);
         self.stroke_outline::<Lp>(color, StrokeOptions::lp_wide(Lp::points(2)));
     }
+
+    /// Applies the current style settings for font family, text size, font
+    /// style, and font weight.
+    pub fn apply_current_font_settings(&mut self) {
+        self.gfx
+            .set_available_font_family(&self.widget.get(&FontFamily));
+        self.gfx.set_font_size(self.widget.get(&TextSize));
+        self.gfx.set_line_height(self.widget.get(&LineHeight));
+        self.gfx.set_font_style(self.widget.get(&FontStyle));
+        self.gfx.set_font_weight(self.widget.get(&FontWeight));
+    }
+
+    // /// Applies the current style settings for font family, text size, font
+    // /// style, and font weight.
+    // pub fn apply_current_font_settings_to<'a>(&self, attrs: Attrs<'a>) -> Attrs<'a> {
+    //     attrs.set_available_font_family(&self.widget.get(&FontFamily));
+    //     attrs.set_font_size(self.widget.get(&TextSize));
+    //     attrs.set_font_style(self.widget.get(&FontStyle));
+    //     attrs.set_font_weight(self.widget.get(&FontWeight));
+    // }
 
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
     /// context's widget.
@@ -556,7 +646,9 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         );
 
         let background = self.get(&WidgetBackground);
-        self.gfx.fill(background);
+        self.fill(background);
+
+        self.apply_current_font_settings();
 
         self.current_node
             .tree
@@ -651,7 +743,8 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'cl
             .clone()
             .lock()
             .as_widget()
-            .layout(available_space, self);
+            .layout(available_space, self)
+            .map(Round::ceil);
         if self.persist_layout {
             self.graphics
                 .current_node
@@ -851,12 +944,12 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     }
 
     /// Ensures that this widget will be redrawn when `value` has been updated.
-    pub fn redraw_when_changed<T>(&self, value: &Dynamic<T>) {
+    pub fn redraw_when_changed(&self, value: &impl Trackable) {
         value.redraw_when_changed(self.handle());
     }
 
     /// Ensures that this widget will be redrawn when `value` has been updated.
-    pub fn invalidate_when_changed<T>(&self, value: &Dynamic<T>) {
+    pub fn invalidate_when_changed(&self, value: &impl Trackable) {
         value.invalidate_when_changed(self.handle(), self.current_node.id());
     }
 
@@ -892,6 +985,14 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         } else {
             false
         }
+    }
+
+    /// Returns true if the last focus event was an advancing motion, not a
+    /// returning motion.
+    ///
+    /// This value is meaningless outside of focus-related events.
+    pub fn focus_is_advancing(&mut self) -> bool {
+        self.pending_state.focus_is_advancing
     }
 
     /// Activates this widget, if it is not already active.
@@ -1069,43 +1170,6 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     }
 }
 
-#[derive(Clone)]
-pub(crate) struct WindowHandle {
-    kludgine: kludgine::app::WindowHandle<WindowCommand>,
-    redraw_status: InvalidationStatus,
-}
-
-impl Eq for WindowHandle {}
-
-impl PartialEq for WindowHandle {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(
-            &self.redraw_status.invalidated,
-            &other.redraw_status.invalidated,
-        )
-    }
-}
-
-impl Hash for WindowHandle {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.redraw_status.invalidated).hash(state);
-    }
-}
-
-impl WindowHandle {
-    pub fn redraw(&self) {
-        if self.redraw_status.should_send_refresh() {
-            let _result = self.kludgine.send(WindowCommand::Redraw);
-        }
-    }
-
-    pub fn invalidate(&self, widget: WidgetId) {
-        if self.redraw_status.invalidate(widget) {
-            self.redraw();
-        }
-    }
-}
-
 impl dyn AsEventContext<'_> {}
 
 impl Drop for EventContext<'_, '_> {
@@ -1272,6 +1336,62 @@ impl Default for WidgetCacheKey {
         Self {
             theme_mode: ThemeMode::default().inverse(),
             enabled: false,
+        }
+    }
+}
+
+/// A type that can be tracked to refresh or invalidate widgets.
+pub trait Trackable: sealed::Trackable {}
+
+impl<T> Trackable for T where T: sealed::Trackable {}
+
+pub(crate) mod sealed {
+    use std::hash::{Hash, Hasher};
+    use std::sync::Arc;
+
+    use crate::context::InvalidationStatus;
+    use crate::widget::WidgetId;
+    use crate::window::sealed::WindowCommand;
+
+    pub trait Trackable {
+        fn redraw_when_changed(&self, handle: WindowHandle);
+        fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId);
+    }
+
+    #[derive(Clone)]
+    pub struct WindowHandle {
+        pub(crate) kludgine: kludgine::app::WindowHandle<WindowCommand>,
+        pub(crate) redraw_status: InvalidationStatus,
+    }
+
+    impl Eq for WindowHandle {}
+
+    impl PartialEq for WindowHandle {
+        fn eq(&self, other: &Self) -> bool {
+            Arc::ptr_eq(
+                &self.redraw_status.invalidated,
+                &other.redraw_status.invalidated,
+            )
+        }
+    }
+
+    impl Hash for WindowHandle {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            Arc::as_ptr(&self.redraw_status.invalidated).hash(state);
+        }
+    }
+
+    impl WindowHandle {
+        pub fn redraw(&self) {
+            if self.redraw_status.should_send_refresh() {
+                let _result = self.kludgine.send(WindowCommand::Redraw);
+            }
+        }
+
+        pub fn invalidate(&self, widget: WidgetId) {
+            if self.redraw_status.invalidate(widget) {
+                self.redraw();
+            }
         }
     }
 }

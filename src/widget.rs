@@ -12,22 +12,24 @@ use alot::LotId;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
+use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use kludgine::Color;
 
-use crate::context::{
-    AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext, WindowHandle,
-};
+use crate::context::sealed::WindowHandle;
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::{
-    ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue, NamedComponent, Styles,
-    ThemePair, VisualOrder,
+    ComponentDefinition, ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue,
+    Styles, ThemePair, VisualOrder,
 };
 use crate::tree::Tree;
 use crate::utils::IgnorePoison;
-use crate::value::{IntoValue, Value};
+use crate::value::{IntoDynamic, IntoValue, Validation, Value};
+use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::{
-    Align, Button, Container, Expand, Resize, Scroll, Stack, Style, Themed, ThemedMode,
+    Align, Button, Checkbox, Collapse, Container, Expand, Resize, Scroll, Space, Stack, Style,
+    Themed, ThemedMode, Validated,
 };
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
@@ -42,16 +44,13 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
 
     /// Layout this widget and returns the ideal size based on its contents and
     /// the `available_space`.
+    #[allow(unused_variables)]
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Size<UPx>;
-
-    /// Return true if this widget should expand to fill the window when it is
-    /// the root widget.
-    fn expand_if_at_root(&self) -> Option<bool> {
-        Some(false)
+    ) -> Size<UPx> {
+        available_space.map(ConstraintLimit::min)
     }
 
     /// The widget has been mounted into a parent widget.
@@ -70,7 +69,13 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
 
     /// The widget is currently has a cursor hovering it at `location`.
     #[allow(unused_variables)]
-    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) {}
+    fn hover(
+        &mut self,
+        location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        None
+    }
 
     /// The widget is no longer being hovered.
     #[allow(unused_variables)]
@@ -87,6 +92,25 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     /// The widget has received focus for user input.
     #[allow(unused_variables)]
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// The widget should switch to the next focusable area within this widget,
+    /// honoring `direction` in a consistent manner. Returning `HANDLED` will
+    /// cause the search for the next focus widget stop.
+    #[allow(unused_variables)]
+    fn advance_focus(
+        &mut self,
+        direction: VisualOrder,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        IGNORED
+    }
+
+    /// The widget is about to lose focus. Returning true allows the focus to
+    /// switch away from this widget.
+    #[allow(unused_variables)]
+    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        true
+    }
 
     /// The widget is no longer focused for user input.
     #[allow(unused_variables)]
@@ -175,7 +199,11 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     /// Returns a reference to a single child widget if this widget is a widget
     /// that primarily wraps a single other widget to customize its behavior.
     #[must_use]
-    fn wraps(&mut self) -> Option<&WidgetInstance> {
+    #[allow(unused_variables)]
+    fn root_behavior(
+        &mut self,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<(RootBehavior, &WidgetInstance)> {
         None
     }
 }
@@ -187,6 +215,23 @@ where
     fn run(self) -> crate::Result {
         self.make_widget().run()
     }
+}
+
+/// A behavior that should be applied to a root widget.
+#[derive(Debug, Clone, Copy)]
+pub enum RootBehavior {
+    /// This widget does not care about root behaviors, and its child should be
+    /// allowed to specify a behavior.
+    PassThrough,
+    /// This widget will try to expand to fill the window.
+    Expand,
+    /// This widget will measure its contents to fit its child, but Gooey should
+    /// still stretch this widget to fill the window.
+    Align,
+    /// This widget adjusts its child layout with padding.
+    Pad(Edges<Dimension>),
+    /// This widget changes the size of its child.
+    Resize(Size<DimensionRange>),
 }
 
 /// The layout of a [wrapped](WrapperWidget) child widget.
@@ -230,6 +275,13 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the child widget.
     fn child_mut(&mut self) -> &mut WidgetRef;
 
+    /// Returns the behavior this widget should apply when positioned at the
+    /// root of the window.
+    #[allow(unused_variables)]
+    fn root_behavior(&mut self, context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+        None
+    }
+
     /// Draws the background of the widget.
     ///
     /// This is invoked before the wrapped widget is drawn.
@@ -250,7 +302,7 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> WrappedLayout {
-        let adjusted_space = self.adjust_child_constraint(available_space, context);
+        let adjusted_space = self.adjust_child_constraints(available_space, context);
         let child = self.child_mut().mounted(&mut context.as_event_context());
         let size = context
             .for_other(&child)
@@ -263,7 +315,7 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the adjusted contraints to use when laying out the child.
     #[allow(unused_variables)]
     #[must_use]
-    fn adjust_child_constraint(
+    fn adjust_child_constraints(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
@@ -316,7 +368,13 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
 
     /// The widget is currently has a cursor hovering it at `location`.
     #[allow(unused_variables)]
-    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) {}
+    fn hover(
+        &mut self,
+        location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        None
+    }
 
     /// The widget is no longer being hovered.
     #[allow(unused_variables)]
@@ -330,9 +388,28 @@ pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
         false
     }
 
+    /// The widget should switch to the next focusable area within this widget,
+    /// honoring `direction` in a consistent manner. Returning `HANDLED` will
+    /// cause the search for the next focus widget stop.
+    #[allow(unused_variables)]
+    fn advance_focus(
+        &mut self,
+        direction: VisualOrder,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        IGNORED
+    }
+
     /// The widget has received focus for user input.
     #[allow(unused_variables)]
     fn focus(&mut self, context: &mut EventContext<'_, '_>) {}
+
+    /// The widget is about to lose focus. Returning true allows the focus to
+    /// switch away from this widget.
+    #[allow(unused_variables)]
+    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        true
+    }
 
     /// The widget is no longer focused for user input.
     #[allow(unused_variables)]
@@ -423,14 +500,17 @@ impl<T> Widget for T
 where
     T: WrapperWidget,
 {
-    fn wraps(&mut self) -> Option<&WidgetInstance> {
-        Some(self.child_mut().widget())
+    fn root_behavior(
+        &mut self,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<(RootBehavior, &WidgetInstance)> {
+        T::root_behavior(self, context).map(|behavior| (behavior, T::child_mut(self).widget()))
     }
 
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let background_color = self.background_color(context);
         if let Some(color) = background_color {
-            context.gfx.fill(color);
+            context.fill(color);
         }
 
         self.redraw_background(context);
@@ -464,8 +544,12 @@ where
         T::hit_test(self, location, context)
     }
 
-    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) {
-        T::hover(self, location, context);
+    fn hover(
+        &mut self,
+        location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        T::hover(self, location, context)
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
@@ -545,6 +629,18 @@ where
     ) -> EventHandling {
         T::mouse_wheel(self, device_id, delta, phase, context)
     }
+
+    fn advance_focus(
+        &mut self,
+        direction: VisualOrder,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        T::advance_focus(self, direction, context)
+    }
+
+    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+        T::allow_blur(self, context)
+    }
 }
 
 /// A type that can create a [`WidgetInstance`].
@@ -568,10 +664,15 @@ pub trait MakeWidget: Sized {
     }
 
     /// Associates a style component with `self`.
-    fn with(self, name: &impl NamedComponent, component: impl IntoComponentValue) -> Style {
-        let mut styles = Styles::new();
-        styles.insert(name, component);
-        Style::new(styles, self)
+    fn with<C: ComponentDefinition>(
+        self,
+        name: &C,
+        component: impl IntoValue<C::ComponentType>,
+    ) -> Style
+    where
+        Value<C::ComponentType>: IntoComponentValue,
+    {
+        Style::new(Styles::new().with(name, component), self)
     }
 
     /// Sets the widget that should be focused next.
@@ -656,6 +757,15 @@ pub trait MakeWidget: Sized {
         Expand::horizontal(self)
     }
 
+    /// Resizes `self` to `size`.
+    #[must_use]
+    fn size<T>(self, size: Size<T>) -> Resize
+    where
+        T: Into<DimensionRange>,
+    {
+        Resize::to(size, self)
+    }
+
     /// Resizes `self` to `width`.
     ///
     /// `width` can be an any of:
@@ -682,9 +792,14 @@ pub trait MakeWidget: Sized {
         Resize::from_height(height, self)
     }
 
-    /// Returns this string as a clickable button.
+    /// Returns this widget as the contents of a clickable button.
     fn into_button(self) -> Button {
         Button::new(self)
+    }
+
+    /// Returns this widget as the label of a Checkbox.
+    fn into_checkbox(self, value: impl IntoDynamic<CheckboxState>) -> Checkbox {
+        value.into_checkbox(self)
     }
 
     /// Aligns `self` to the center vertically and horizontally.
@@ -759,7 +874,7 @@ pub trait MakeWidget: Sized {
 
     /// Returns a new widget that renders `color` behind `self`.
     fn background_color(self, color: impl IntoValue<Color>) -> Container {
-        self.contain().pad_by(Px(0)).background_color(color)
+        self.contain().pad_by(Px::ZERO).background_color(color)
     }
 
     /// Wraps `self` with the default padding.
@@ -780,6 +895,28 @@ pub trait MakeWidget: Sized {
     /// Applies `mode` to `self` and its children.
     fn themed_mode(self, mode: impl IntoValue<ThemeMode>) -> ThemedMode {
         ThemedMode::new(mode, self)
+    }
+
+    /// Returns a widget that collapses `self` horizontally based on the dynamic boolean value.
+    ///
+    /// This widget will be collapsed when the dynamic contains `true`, and
+    /// revealed when the dynamic contains `false`.
+    fn collapse_horizontally(self, collapse_when: impl IntoDynamic<bool>) -> Collapse {
+        Collapse::horizontal(collapse_when, self)
+    }
+
+    /// Returns a widget that collapses `self` vertically based on the dynamic
+    /// boolean value.
+    ///
+    /// This widget will be collapsed when the dynamic contains `true`, and
+    /// revealed when the dynamic contains `false`.
+    fn collapse_vertically(self, collapse_when: impl IntoDynamic<bool>) -> Collapse {
+        Collapse::vertical(collapse_when, self)
+    }
+
+    /// Returns a widget that shows validation errors and/or hints.
+    fn validation(self, validation: impl IntoDynamic<Validation>) -> Validated {
+        Validated::new(validation, self)
     }
 }
 
@@ -811,6 +948,12 @@ where
 impl MakeWidget for WidgetInstance {
     fn make_widget(self) -> WidgetInstance {
         self
+    }
+}
+
+impl MakeWidget for Color {
+    fn make_widget(self) -> WidgetInstance {
+        Space::colored(self).make_widget()
     }
 }
 

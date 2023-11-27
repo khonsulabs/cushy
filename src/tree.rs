@@ -6,7 +6,7 @@ use alot::{LotId, Lots};
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Rect, Size};
 
-use crate::context::WindowHandle;
+use crate::context::sealed::WindowHandle;
 use crate::styles::{Styles, ThemePair, VisualOrder};
 use crate::utils::IgnorePoison;
 use crate::value::Value;
@@ -132,8 +132,8 @@ impl Tree {
 
         let node = &mut data.nodes[parent];
         if let Some(cached_layout) = &node.last_layout_query {
-            if constraints.width.max() < cached_layout.constraints.width.max()
-                && constraints.height.max() < cached_layout.constraints.height.max()
+            if constraints.width.max() <= cached_layout.constraints.width.max()
+                && constraints.height.max() <= cached_layout.constraints.height.max()
             {
                 return Some(cached_layout.size);
             }
@@ -505,7 +505,7 @@ impl TreeData {
 
     fn invalidate(&mut self, id: LotId, include_hierarchy: bool) {
         let mut node = &mut self.nodes[id];
-        while node.layout.is_some() {
+        loop {
             node.layout = None;
             node.last_layout_query = None;
 

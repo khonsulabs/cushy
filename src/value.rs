@@ -1,23 +1,24 @@
 //! Types for storing and interacting with values in Widgets.
 
-use std::cell::Cell;
 use std::fmt::{Debug, Display};
 use std::future::Future;
-use std::ops::{Deref, DerefMut};
-use std::panic::AssertUnwindSafe;
+use std::ops::{Deref, DerefMut, Not};
+use std::panic::UnwindSafe;
 use std::str::FromStr;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError};
+use std::sync::atomic::{self, AtomicBool};
+use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
+use std::time::Duration;
 
 use ahash::AHashSet;
-use intentional::Assert;
 
-use crate::animation::{DynamicTransition, LinearInterpolate};
-use crate::context::{WidgetContext, WindowHandle};
-use crate::utils::{IgnorePoison, WithClone};
-use crate::widget::{WidgetId, WidgetInstance};
-use crate::widgets::{Input, Switcher};
+use crate::animation::{DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
+use crate::context::sealed::WindowHandle;
+use crate::context::{self, WidgetContext};
+use crate::utils::{IgnorePoison, UnwindsafeCondvar, WithClone};
+use crate::widget::{MakeWidget, WidgetId, WidgetInstance};
+use crate::widgets::{Radio, Switcher};
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -33,14 +34,14 @@ impl<T> Dynamic<T> {
                     value,
                     generation: Generation::default(),
                 },
-                callbacks: Vec::new(),
+                callbacks: Arc::default(),
                 windows: AHashSet::new(),
                 readers: 0,
                 wakers: Vec::new(),
                 widgets: AHashSet::new(),
             }),
             during_callback_state: Mutex::default(),
-            sync: AssertUnwindSafe(Condvar::new()),
+            sync: UnwindsafeCondvar::default(),
         }))
     }
 
@@ -75,14 +76,14 @@ impl<T> Dynamic<T> {
         RIntoT: FnMut(&R) -> RIntoTResult + Send + 'static,
     {
         let initial_r = self
-            .map_ref(&mut t_into_r)
+            .map_ref(|v| t_into_r(v))
             .into()
             .expect("t_into_r must succeed with the current value");
         let r = Dynamic::new(initial_r);
         r.with_clone(move |r| {
             self.for_each(move |t| {
                 if let Some(update) = t_into_r(t).into() {
-                    let _result = r.try_update(update);
+                    let _result = r.replace(update);
                 }
             });
         });
@@ -90,7 +91,7 @@ impl<T> Dynamic<T> {
         self.with_clone(|t| {
             r.with_for_each(move |r| {
                 if let Some(update) = r_into_t(r).into() {
-                    let _result = t.try_update(update);
+                    let _result = t.replace(update);
                 }
             })
         })
@@ -119,8 +120,19 @@ impl<T> Dynamic<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     pub fn map_ref<R>(&self, map: impl FnOnce(&T) -> R) -> R {
+        self.map_generational(|gen| map(&gen.value))
+    }
+
+    /// Maps the contents with read-only access, providing access to the value's
+    /// [`Generation`].
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    pub fn map_generational<R>(&self, map: impl FnOnce(&GenerationalValue<T>) -> R) -> R {
         let state = self.state().expect("deadlocked");
-        map(&state.wrapped.value)
+        map(&state.wrapped)
     }
 
     /// Maps the contents with exclusive access. Before returning from this
@@ -135,13 +147,26 @@ impl<T> Dynamic<T> {
         self.0.map_mut(|value, _| map(value)).expect("deadlocked")
     }
 
+    /// Updates the value to the result of invoking [`Not`] on the current
+    /// value. This function returns the new value.
+    #[allow(clippy::must_use_candidate)]
+    pub fn toggle(&self) -> T
+    where
+        T: Not<Output = T> + Clone,
+    {
+        self.map_mut(|value| {
+            *value = !value.clone();
+            value.clone()
+        })
+    }
+
     /// Returns a new dynamic that is updated using `U::from(T.clone())` each
     /// time `self` is updated.
     #[must_use]
     pub fn map_each_into<U>(&self) -> Dynamic<U>
     where
-        U: From<T> + Send + 'static,
-        T: Clone,
+        U: PartialEq + From<T> + Send + 'static,
+        T: Clone + Send + 'static,
     {
         self.map_each(|value| U::from(value.clone()))
     }
@@ -151,8 +176,8 @@ impl<T> Dynamic<T> {
     #[must_use]
     pub fn map_each_to<U>(&self) -> Dynamic<U>
     where
-        U: for<'a> From<&'a T> + Send + 'static,
-        T: Clone,
+        U: PartialEq + for<'a> From<&'a T> + Send + 'static,
+        T: Clone + Send + 'static,
     {
         self.map_each(|value| U::from(value))
     }
@@ -161,19 +186,50 @@ impl<T> Dynamic<T> {
     /// value's contents are updated.
     pub fn for_each<F>(&self, mut for_each: F)
     where
+        T: Send + 'static,
         F: for<'a> FnMut(&'a T) + Send + 'static,
     {
-        self.0.for_each(move |gen| for_each(&gen.value));
+        let this = self.clone();
+        self.0.for_each(move || {
+            this.map_ref(&mut for_each);
+        });
+    }
+
+    /// Attaches `for_each` to this value and its [`Generation`] so that it is
+    /// invoked each time the value's contents are updated.
+    pub fn for_each_generational<F>(&self, mut for_each: F)
+    where
+        T: Send + 'static,
+        F: for<'a> FnMut(&'a GenerationalValue<T>) + Send + 'static,
+    {
+        let this = self.clone();
+        self.0.for_each(move || {
+            this.map_generational(&mut for_each);
+        });
+    }
+
+    /// Attaches `for_each` to this value so that it is invoked each time the
+    /// value's contents are updated.
+    pub fn for_each_cloned<F>(&self, mut for_each: F)
+    where
+        T: Clone + Send + 'static,
+        F: FnMut(T) + Send + 'static,
+    {
+        let this = self.clone();
+        self.0.for_each(move || {
+            for_each(this.get());
+        });
     }
 
     /// Attaches `for_each` to this value so that it is invoked each time the
     /// value's contents are updated. This function returns `self`.
     #[must_use]
-    pub fn with_for_each<F>(self, mut for_each: F) -> Self
+    pub fn with_for_each<F>(self, for_each: F) -> Self
     where
+        T: Send + 'static,
         F: for<'a> FnMut(&'a T) + Send + 'static,
     {
-        self.0.for_each(move |gen| for_each(&gen.value));
+        self.for_each(for_each);
         self
     }
 
@@ -181,23 +237,36 @@ impl<T> Dynamic<T> {
     /// each time this value is changed.
     pub fn map_each<R, F>(&self, mut map: F) -> Dynamic<R>
     where
+        T: Send + 'static,
         F: for<'a> FnMut(&'a T) -> R + Send + 'static,
-        R: Send + 'static,
+        R: PartialEq + Send + 'static,
     {
-        self.0.map_each(move |gen| map(&gen.value))
+        let this = self.clone();
+        self.0.map_each(move || this.map_ref(&mut map))
     }
 
     /// Creates a new dynamic value that contains the result of invoking `map`
     /// each time this value is changed.
-    ///
-    /// This version of `map_each` uses [`Dynamic::try_update`] to prevent
-    /// deadlocks and debounce dependent values.
-    pub fn map_each_unique<R, F>(&self, mut map: F) -> Dynamic<R>
+    pub fn map_each_generational<R, F>(&self, mut map: F) -> Dynamic<R>
     where
-        F: for<'a> FnMut(&'a T) -> R + Send + 'static,
-        R: Send + PartialEq + 'static,
+        T: Send + 'static,
+        F: for<'a> FnMut(&'a GenerationalValue<T>) -> R + Send + 'static,
+        R: PartialEq + Send + 'static,
     {
-        self.0.map_each_unique(move |gen| map(&gen.value))
+        let this = self.clone();
+        self.0.map_each(move || this.map_generational(&mut map))
+    }
+
+    /// Creates a new dynamic value that contains the result of invoking `map`
+    /// each time this value is changed.
+    pub fn map_each_cloned<R, F>(&self, mut map: F) -> Dynamic<R>
+    where
+        T: Clone + Send + 'static,
+        F: FnMut(T) -> R + Send + 'static,
+        R: PartialEq + Send + 'static,
+    {
+        let this = self.clone();
+        self.0.map_each(move || map(this.get()))
     }
 
     /// A helper function that invokes `with_clone` with a clone of self. This
@@ -323,75 +392,58 @@ impl<T> Dynamic<T> {
     /// Before returning from this function, all observers will be notified that
     /// the contents have been updated.
     ///
-    /// # Panics
+    /// If the calling thread has exclusive access to the contents of this
+    /// dynamic, this call will return None and the value will not be updated.
+    /// If detecting this is important, use [`Self::try_replace()`].
+    pub fn replace(&self, new_value: T) -> Option<T>
+    where
+        T: PartialEq,
+    {
+        self.try_replace(new_value).ok()
+    }
+
+    /// Replaces the contents with `new_value` if `new_value` is different than
+    /// the currently stored value. If the value is updated, the previous
+    /// contents are returned.
     ///
-    /// This function panics if this value is already locked by the current
-    /// thread.
-    #[must_use]
-    pub fn replace(&self, new_value: T) -> T {
-        self.0
-            .map_mut(|value, _| std::mem::replace(value, new_value))
-            .expect("deadlocked")
+    ///
+    /// Before returning from this function, all observers will be notified that
+    /// the contents have been updated.
+    ///
+    /// # Errors
+    ///
+    /// - [`ReplaceError::NoChange`]: Returned when `new_value` is equal to the
+    /// currently stored value.
+    /// - [`ReplaceError::Deadlock`]: Returned when the current thread already
+    ///       has exclusive access to the contents of this dynamic.
+    pub fn try_replace(&self, new_value: T) -> Result<T, ReplaceError<T>>
+    where
+        T: PartialEq,
+    {
+        match self.0.map_mut(|value, changed| {
+            if *value == new_value {
+                *changed = false;
+                Err(ReplaceError::NoChange(new_value))
+            } else {
+                Ok(std::mem::replace(value, new_value))
+            }
+        }) {
+            Ok(old) => old,
+            Err(_) => Err(ReplaceError::Deadlock),
+        }
     }
 
     /// Stores `new_value` in this dynamic. Before returning from this function,
     /// all observers will be notified that the contents have been updated.
     ///
-    /// # Panics
-    ///
-    /// This function panics if this value is already locked by the current
-    /// thread.
-    pub fn set(&self, new_value: T) {
+    /// If the calling thread has exclusive access to the contents of this
+    /// dynamic, this call will return None and the value will not be updated.
+    /// If detecting this is important, use [`Self::try_replace()`].
+    pub fn set(&self, new_value: T)
+    where
+        T: PartialEq,
+    {
         let _old = self.replace(new_value);
-    }
-
-    /// Updates this dynamic with `new_value`, but only if `new_value` is not
-    /// equal to the currently stored value.
-    ///
-    /// Returns true if the value was updated.
-    ///
-    /// # Panics
-    ///
-    /// This function panics if this value is already locked by the current
-    /// thread.
-    pub fn update(&self, new_value: T) -> bool
-    where
-        T: PartialEq,
-    {
-        self.0
-            .map_mut(|value, changed| {
-                if *value == new_value {
-                    *changed = false;
-                    false
-                } else {
-                    *value = new_value;
-                    true
-                }
-            })
-            .expect("deadlocked")
-    }
-
-    /// Attempt to store `new_value` in `self`. If the value cannot be stored
-    /// due to a deadlock, it is returned as an error.
-    ///
-    /// Returns true if the value was updated.
-    pub fn try_update(&self, new_value: T) -> Result<bool, T>
-    where
-        T: PartialEq,
-    {
-        let cell = Cell::new(Some(new_value));
-        self.0
-            .map_mut(|value, changed| {
-                let new_value = cell.take().assert("only one callback will be invoked");
-                if *value == new_value {
-                    *changed = false;
-                    false
-                } else {
-                    *value = new_value;
-                    true
-                }
-            })
-            .map_err(|_| cell.take().assert("only one callback will be invoked"))
     }
 
     /// Returns a new reference-based reader for this dynamic value.
@@ -462,6 +514,43 @@ impl<T> Dynamic<T> {
             new_value,
         }
     }
+
+    /// Returns a new [`Radio`] that updates this dynamic to `widget_value` when
+    /// pressed. `label` is drawn next to the checkbox and is also clickable to
+    /// select the radio.
+    #[must_use]
+    pub fn new_radio(&self, widget_value: T, label: impl MakeWidget) -> Radio<T>
+    where
+        Self: Clone,
+        // Technically this trait bound isn't necessary, but it prevents trying
+        // to call into_radio on unsupported types. The MakeWidget/Widget
+        // implementations require these bounds (and more).
+        T: Clone + Eq,
+    {
+        Radio::new(widget_value, self.clone(), label)
+    }
+
+    /// Validates the contents of this dynamic using the `check` function,
+    /// returning a dynamic that contains the validation status.
+    #[must_use]
+    pub fn validate_with<E, Valid>(&self, mut check: Valid) -> Dynamic<Validation>
+    where
+        T: Send + 'static,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
+        E: Display,
+    {
+        let validation = Dynamic::new(Validation::None);
+        self.for_each({
+            let validation = validation.clone();
+            move |value| {
+                validation.set(match check(value) {
+                    Ok(()) => Validation::Valid,
+                    Err(err) => Validation::Invalid(err.to_string()),
+                });
+            }
+        });
+        validation
+    }
 }
 
 impl Dynamic<WidgetInstance> {
@@ -470,6 +559,16 @@ impl Dynamic<WidgetInstance> {
     #[must_use]
     pub fn switcher(self) -> Switcher {
         Switcher::new(self)
+    }
+}
+
+impl<T> context::sealed::Trackable for Dynamic<T> {
+    fn redraw_when_changed(&self, handle: WindowHandle) {
+        self.redraw_when_changed(handle);
+    }
+
+    fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
+        self.invalidate_when_changed(handle, id);
     }
 }
 
@@ -501,6 +600,18 @@ impl<T> Drop for Dynamic<T> {
 impl<T> From<Dynamic<T>> for DynamicReader<T> {
     fn from(value: Dynamic<T>) -> Self {
         value.create_reader()
+    }
+}
+
+impl From<&str> for Dynamic<String> {
+    fn from(value: &str) -> Self {
+        Dynamic::from(value.to_string())
+    }
+}
+
+impl From<String> for Dynamic<String> {
+    fn from(value: String) -> Self {
+        Dynamic::new(value)
     }
 }
 
@@ -541,10 +652,7 @@ struct LockState {
 struct DynamicData<T> {
     state: Mutex<State<T>>,
     during_callback_state: Mutex<Option<LockState>>,
-
-    // The AssertUnwindSafe is only needed on Mac. For some reason on
-    // Mac OS, Condvar isn't RefUnwindSafe.
-    sync: AssertUnwindSafe<Condvar>,
+    sync: UnwindsafeCondvar,
 }
 
 impl<T> DynamicData<T> {
@@ -597,17 +705,16 @@ impl<T> DynamicData<T> {
 
     pub fn map_mut<R>(&self, map: impl FnOnce(&mut T, &mut bool) -> R) -> Result<R, DeadlockError> {
         let mut state = self.state()?;
-        let old = {
+        let (old, callbacks) = {
             let state = &mut *state;
             let mut changed = true;
             let result = map(&mut state.wrapped.value, &mut changed);
-            if changed {
-                state.note_changed();
-            }
+            let callbacks = changed.then(|| state.note_changed());
 
-            result
+            (result, callbacks)
         };
         drop(state);
+        drop(callbacks);
 
         self.sync.notify_all();
 
@@ -616,47 +723,36 @@ impl<T> DynamicData<T> {
 
     pub fn for_each<F>(&self, map: F)
     where
-        F: for<'a> FnMut(&'a GenerationalValue<T>) + Send + 'static,
+        F: for<'a> FnMut() + Send + 'static,
     {
-        let mut state = self.state().expect("deadlocked");
-        state.callbacks.push(Box::new(map));
+        let state = self.state().expect("deadlocked");
+        let mut callbacks = state.callbacks.callbacks.lock().ignore_poison();
+        callbacks.push(Box::new(map));
     }
 
     pub fn map_each<R, F>(&self, mut map: F) -> Dynamic<R>
     where
-        F: for<'a> FnMut(&'a GenerationalValue<T>) -> R + Send + 'static,
-        R: Send + 'static,
-    {
-        let mut state = self.state().expect("deadlocked");
-        let initial_value = map(&state.wrapped);
-        let mapped_value = Dynamic::new(initial_value);
-        let returned = mapped_value.clone();
-        state
-            .callbacks
-            .push(Box::new(move |updated: &GenerationalValue<T>| {
-                mapped_value.set(map(updated));
-            }));
-
-        returned
-    }
-
-    pub fn map_each_unique<R, F>(&self, mut map: F) -> Dynamic<R>
-    where
-        F: for<'a> FnMut(&'a GenerationalValue<T>) -> R + Send + 'static,
+        F: for<'a> FnMut() -> R + Send + 'static,
         R: PartialEq + Send + 'static,
     {
-        let mut state = self.state().expect("deadlocked");
-        let initial_value = map(&state.wrapped);
+        let initial_value = map();
         let mapped_value = Dynamic::new(initial_value);
         let returned = mapped_value.clone();
-        state
-            .callbacks
-            .push(Box::new(move |updated: &GenerationalValue<T>| {
-                let _deadlock = mapped_value.try_update(map(updated));
-            }));
+
+        self.for_each(move || {
+            mapped_value.set(map());
+        });
 
         returned
     }
+}
+
+/// An error occurred while updating a value in a [`Dynamic`].
+pub enum ReplaceError<T> {
+    /// The value was already equal to the one set.
+    NoChange(T),
+    /// The current thread already has exclusive access to this dynamic.
+    Deadlock,
 }
 
 /// A deadlock occurred accessing a [`Dynamic`].
@@ -664,7 +760,7 @@ impl<T> DynamicData<T> {
 /// Currently Gooey is only able to detect deadlocks where a single thread tries
 /// to lock the same [`Dynamic`] multiple times.
 #[derive(Debug)]
-pub struct DeadlockError;
+struct DeadlockError;
 
 impl std::error::Error for DeadlockError {}
 
@@ -676,7 +772,7 @@ impl Display for DeadlockError {
 
 struct State<T> {
     wrapped: GenerationalValue<T>,
-    callbacks: Vec<Box<dyn ValueCallback<T>>>,
+    callbacks: Arc<ChangeCallbacksData>,
     windows: AHashSet<WindowHandle>,
     widgets: AHashSet<(WindowHandle, WidgetId)>,
     wakers: Vec<Waker>,
@@ -684,12 +780,9 @@ struct State<T> {
 }
 
 impl<T> State<T> {
-    fn note_changed(&mut self) {
+    fn note_changed(&mut self) -> ChangeCallbacks {
         self.wrapped.generation = self.wrapped.generation.next();
 
-        for callback in &mut self.callbacks {
-            callback.update(&self.wrapped);
-        }
         for (window, widget) in self.widgets.drain() {
             window.invalidate(widget);
         }
@@ -699,6 +792,8 @@ impl<T> State<T> {
         for waker in self.wakers.drain(..) {
             waker.wake();
         }
+
+        ChangeCallbacks(self.callbacks.clone())
     }
 }
 
@@ -714,23 +809,105 @@ where
     }
 }
 
-trait ValueCallback<T>: Send {
-    fn update(&mut self, value: &GenerationalValue<T>);
+#[derive(Default)]
+struct ChangeCallbacksData {
+    callbacks: Mutex<Vec<Box<dyn ValueCallback>>>,
+    currently_executing: AtomicBool,
 }
 
-impl<T, F> ValueCallback<T> for F
-where
-    F: for<'a> FnMut(&'a GenerationalValue<T>) + Send + 'static,
-{
-    fn update(&mut self, value: &GenerationalValue<T>) {
-        self(value);
+struct ChangeCallbacks(Arc<ChangeCallbacksData>);
+
+impl Drop for ChangeCallbacks {
+    fn drop(&mut self) {
+        if self
+            .0
+            .currently_executing
+            .compare_exchange(
+                false,
+                true,
+                atomic::Ordering::Release,
+                atomic::Ordering::Acquire,
+            )
+            .is_ok()
+        {
+            let mut callbacks = self.0.callbacks.lock().ignore_poison();
+            for callback in &mut *callbacks {
+                callback.changed();
+            }
+            self.0
+                .currently_executing
+                .store(false, atomic::Ordering::Release);
+        } else {
+            tracing::warn!("Could not invoke dynamic callbacks because they are already running on this thread");
+        }
     }
 }
 
+trait ValueCallback: Send {
+    fn changed(&mut self);
+}
+
+impl<F> ValueCallback for F
+where
+    F: for<'a> FnMut() + Send + 'static,
+{
+    fn changed(&mut self) {
+        self();
+    }
+}
+
+/// A value stored in a [`Dynamic`] with its [`Generation`].
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct GenerationalValue<T> {
+pub struct GenerationalValue<T> {
+    /// The stored value.
     pub value: T,
-    pub generation: Generation,
+    generation: Generation,
+}
+
+impl<T> GenerationalValue<T> {
+    /// Returns the generation of this value.
+    ///
+    /// Each time a [`Dynamic`] is updated, the generation is also updated. This
+    /// value can be used to track whether a particular value has been observed.
+    pub const fn generation(&self) -> Generation {
+        self.generation
+    }
+
+    /// Returns a new instance containing the result of invoking `map` with
+    /// `self.value`.
+    ///
+    /// The returned instance will have the same generation as this instance.
+    pub fn map<U>(self, map: impl FnOnce(T) -> U) -> GenerationalValue<U> {
+        GenerationalValue {
+            value: map(self.value),
+            generation: self.generation,
+        }
+    }
+
+    /// Returns a new instance containing the result of invoking `map` with
+    /// `&self.value`.
+    ///
+    /// The returned instance will have the same generation as this instance.
+    pub fn map_ref<U>(&self, map: impl for<'a> FnOnce(&'a T) -> U) -> GenerationalValue<U> {
+        GenerationalValue {
+            value: map(&self.value),
+            generation: self.generation,
+        }
+    }
+}
+
+impl<T> Deref for GenerationalValue<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<T> DerefMut for GenerationalValue<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
 }
 
 /// An exclusive reference to the contents of a [`Dynamic`].
@@ -761,7 +938,10 @@ impl<'a, T> DerefMut for DynamicGuard<'a, T> {
 impl<T> Drop for DynamicGuard<'_, T> {
     fn drop(&mut self) {
         if self.accessed_mut {
-            self.guard.note_changed();
+            let mut callbacks = Some(self.guard.note_changed());
+            Duration::ZERO
+                .on_complete(move || drop(callbacks.take()))
+                .launch();
         }
     }
 }
@@ -898,6 +1078,16 @@ impl<T> DynamicReader<T> {
     }
 }
 
+impl<T> context::sealed::Trackable for DynamicReader<T> {
+    fn redraw_when_changed(&self, handle: WindowHandle) {
+        self.source.redraw_when_changed(handle);
+    }
+
+    fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
+        self.source.invalidate_when_changed(handle, id);
+    }
+}
+
 impl<T> Clone for DynamicReader<T> {
     fn clone(&self) -> Self {
         self.source.state().expect("deadlocked").readers += 1;
@@ -1029,7 +1219,7 @@ impl<T> IntoDynamic<T> for Dynamic<T> {
 impl<T, F> IntoDynamic<T> for F
 where
     F: FnMut(&T) + Send + 'static,
-    T: Default,
+    T: Default + Send + 'static,
 {
     /// Returns [`Dynamic::default()`] with `self` installed as a for-each
     /// callback.
@@ -1125,8 +1315,9 @@ impl<T> Value<T> {
     #[must_use]
     pub fn map_each<R, F>(&self, mut map: F) -> Value<R>
     where
+        T: Send + 'static,
         F: for<'a> FnMut(&'a T) -> R + Send + 'static,
-        R: Send + 'static,
+        R: PartialEq + Send + 'static,
     {
         match self {
             Value::Constant(value) => Value::Constant(map(value)),
@@ -1180,6 +1371,16 @@ impl<T> Value<T> {
         }
     }
 }
+
+impl<T> IntoDynamic<T> for Value<T> {
+    fn into_dynamic(self) -> Dynamic<T> {
+        match self {
+            Value::Constant(value) => Dynamic::new(value),
+            Value::Dynamic(value) => value,
+        }
+    }
+}
+
 impl<T> Clone for Value<T>
 where
     T: Clone,
@@ -1356,7 +1557,7 @@ macro_rules! impl_tuple_map_each {
     ($($type:ident $field:tt $var:ident),+) => {
         impl<U, $($type),+> MapEach<($($type,)+), U> for ($(&Dynamic<$type>,)+)
         where
-            U: Send + 'static,
+            U: PartialEq + Send + 'static,
             $($type: Send + 'static),+
         {
             type Ref<'a> = ($(&'a $type,)+);
@@ -1385,12 +1586,440 @@ macro_rules! impl_tuple_map_each {
 
 impl_all_tuples!(impl_tuple_map_each);
 
-/// A type that can be converted into a [`Value<String>`].
-pub trait StringValue: IntoValue<String> + Sized {
-    /// Returns this string as a text input widget.
-    fn into_input(self) -> Input {
-        Input::new(self.into_value())
+/// A type that can have a `for_each` operation applied to it.
+pub trait ForEachCloned<T> {
+    /// Apply `for_each` to each value contained within `self`.
+    fn for_each_cloned<F>(&self, for_each: F)
+    where
+        F: for<'a> FnMut(T) + Send + 'static;
+}
+
+macro_rules! impl_tuple_for_each_cloned {
+    ($($type:ident $field:tt $var:ident),+) => {
+        impl<$($type,)+> ForEachCloned<($($type,)+)> for ($(&Dynamic<$type>,)+)
+        where
+            $($type: Clone + Send + 'static,)+
+        {
+
+            #[allow(unused_mut)]
+            fn for_each_cloned<F>(&self, mut for_each: F)
+            where
+                F: for<'a> FnMut(($($type,)+)) + Send + 'static,
+            {
+                impl_tuple_for_each_cloned!(self for_each [] [$($type $field $var),+]);
+            }
+        }
+    };
+    ($self:ident $for_each:ident [] [$type:ident $field:tt $var:ident]) => {
+        $self.$field.for_each(move |field: &$type| $for_each((field.clone(),)));
+    };
+    ($self:ident $for_each:ident [] [$($type:ident $field:tt $var:ident),+]) => {
+        let $for_each = Arc::new(Mutex::new($for_each));
+        $(let $var = $self.$field.clone();)*
+
+
+        impl_tuple_for_each_cloned!(invoke $self $for_each [] [$($type $field $var),+]);
+    };
+    (
+        invoke
+        // Identifiers used from the outer method
+        $self:ident $for_each:ident
+        // List of all tuple fields that have already been positioned as the focused call
+        [$($ltype:ident $lfield:tt $lvar:ident),*]
+        //
+        [$type:ident $field:tt $var:ident, $($rtype:ident $rfield:tt $rvar:ident),+]
+    ) => {
+        impl_tuple_for_each_cloned!(
+            invoke
+            $self $for_each
+            $type $field $var
+            [$($ltype $lfield $lvar,)* $type $field $var, $($rtype $rfield $rvar),+]
+            [$($ltype $lfield $lvar,)* $($rtype $rfield $rvar),+]
+        );
+        impl_tuple_for_each_cloned!(
+            invoke
+            $self $for_each
+            [$($ltype $lfield $lvar,)* $type $field $var]
+            [$($rtype $rfield $rvar),+]
+        );
+    };
+    (
+        invoke
+        // Identifiers used from the outer method
+        $self:ident $for_each:ident
+        // List of all tuple fields that have already been positioned as the focused call
+        [$($ltype:ident $lfield:tt $lvar:ident),+]
+        //
+        [$type:ident $field:tt $var:ident]
+    ) => {
+        impl_tuple_for_each_cloned!(
+            invoke
+            $self $for_each
+            $type $field $var
+            [$($ltype $lfield $lvar,)+ $type $field $var]
+            [$($ltype $lfield $lvar),+]
+        );
+    };
+    (
+        invoke
+        // Identifiers used from the outer method
+        $self:ident $for_each:ident
+        // Tuple field that for_each is being invoked on
+        $type:ident $field:tt $var:ident
+        // The list of all tuple fields in this invocation, in the correct order.
+        [$($atype:ident $afield:tt $avar:ident),+]
+        // The list of tuple fields excluding the one being invoked.
+        [$($rtype:ident $rfield:tt $rvar:ident),+]
+    ) => {
+        $var.for_each_cloned((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
+            move |$var: $type| {
+                $(let $rvar = $rvar.get();)+
+                if let Ok(mut for_each) =
+                    for_each.try_lock() {
+                (for_each)(($($avar,)+));
+                    }
+            }
+        }));
+    };
+}
+
+impl_all_tuples!(impl_tuple_for_each_cloned);
+
+/// A type that can create a `Dynamic<U>` from a `T` passed into a mapping
+/// function.
+pub trait MapEachCloned<T, U> {
+    /// Apply `map_each` to each value in `self`, storing the result in the
+    /// returned dynamic.
+    fn map_each_cloned<F>(&self, map_each: F) -> Dynamic<U>
+    where
+        F: for<'a> FnMut(T) -> U + Send + 'static;
+}
+
+macro_rules! impl_tuple_map_each_cloned {
+    ($($type:ident $field:tt $var:ident),+) => {
+        impl<U, $($type),+> MapEachCloned<($($type,)+), U> for ($(&Dynamic<$type>,)+)
+        where
+            U: PartialEq + Send + 'static,
+            $($type: Clone + Send + 'static),+
+        {
+
+            fn map_each_cloned<F>(&self, mut map_each: F) -> Dynamic<U>
+            where
+                F: for<'a> FnMut(($($type,)+)) -> U + Send + 'static,
+            {
+                let dynamic = {
+                    $(let $var = self.$field.get();)+
+
+                    Dynamic::new(map_each(($($var,)+)))
+                };
+                self.for_each_cloned({
+                    let dynamic = dynamic.clone();
+
+                    move |tuple| {
+                        dynamic.set(map_each(tuple));
+                    }
+                });
+                dynamic
+            }
+        }
+    };
+}
+
+impl_all_tuples!(impl_tuple_map_each_cloned);
+
+/// The status of validating data.
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+pub enum Validation {
+    /// No validation has been performed yet.
+    ///
+    /// This status represents that the data is still in its initial state, so
+    /// errors should be delayed until it is changed.
+    #[default]
+    None,
+    /// The data is valid.
+    Valid,
+    /// The data is invalid. The string contains a human-readable message.
+    Invalid(String),
+}
+
+impl Validation {
+    /// Returns the effective text to display along side the field.
+    ///
+    /// When there is a validation error, it is returned, otherwise the hint is
+    /// returned.
+    #[must_use]
+    pub fn message<'a>(&'a self, hint: &'a str) -> &'a str {
+        match self {
+            Validation::None | Validation::Valid => hint,
+            Validation::Invalid(err) => err,
+        }
+    }
+
+    /// Returns true if there is a validation error.
+    #[must_use]
+    pub const fn is_error(&self) -> bool {
+        matches!(self, Self::Invalid(_))
     }
 }
 
-impl<T> StringValue for T where T: IntoValue<String> {}
+/// A grouping of validations that can be checked simultaneously.
+#[derive(Debug, Default, Clone)]
+pub struct Validations {
+    state: Dynamic<ValidationsState>,
+    invalid: Dynamic<usize>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq, Clone)]
+enum ValidationsState {
+    #[default]
+    Initial,
+    Resetting,
+    Checked,
+    Disabled,
+}
+
+impl Validations {
+    /// Validates `dynamic`'s contents using `check`, returning a dynamic
+    /// containing the validation status.
+    ///
+    /// The validation is linked with `self` such that checking `self`'s
+    /// validation status will include this validation.
+    #[must_use]
+    pub fn validate<T, E, Valid>(
+        &self,
+        dynamic: &Dynamic<T>,
+        mut check: Valid,
+    ) -> Dynamic<Validation>
+    where
+        T: Send + 'static,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
+        E: Display,
+    {
+        let validation = Dynamic::new(Validation::None);
+        let mut message_mapping = Self::map_to_message(move |value| check(value));
+        let error_message = dynamic.map_each_generational(move |value| message_mapping(value));
+
+        (&self.state, &error_message).for_each_cloned({
+            let mut f = self.generate_validation(dynamic);
+            let validation = validation.clone();
+
+            move |(current_state, message)| {
+                validation.set(f(current_state, message));
+            }
+        });
+
+        validation
+    }
+
+    fn map_to_message<T, E, Valid>(
+        mut check: Valid,
+    ) -> impl for<'a> FnMut(&'a GenerationalValue<T>) -> GenerationalValue<Option<String>> + Send + 'static
+    where
+        T: Send + 'static,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
+        E: Display,
+    {
+        move |value| {
+            value.map_ref(|value| match check(value) {
+                Ok(()) => None,
+                Err(err) => Some(err.to_string()),
+            })
+        }
+    }
+
+    fn generate_validation<T>(
+        &self,
+        dynamic: &Dynamic<T>,
+    ) -> impl FnMut(ValidationsState, GenerationalValue<Option<String>>) -> Validation
+    where
+        T: Send + 'static,
+    {
+        self.invalid.map_mut(|invalid| *invalid += 1);
+
+        let invalid_count = self.invalid.clone();
+        let state = self.state.clone();
+        let dynamic = dynamic.clone();
+        let mut initial_generation = dynamic.generation();
+        let mut invalid = true;
+
+        move |current_state, generational| {
+            let new_invalid = match (&current_state, &generational.value) {
+                (ValidationsState::Disabled, _) | (_, None) => false,
+                (_, Some(_)) => true,
+            };
+            if invalid != new_invalid {
+                if new_invalid {
+                    invalid_count.map_mut(|invalid| *invalid += 1);
+                } else {
+                    invalid_count.map_mut(|invalid| *invalid -= 1);
+                }
+                invalid = new_invalid;
+            }
+            let new_status = if let Some(err) = generational.value {
+                Validation::Invalid(err.to_string())
+            } else {
+                Validation::Valid
+            };
+            match current_state {
+                ValidationsState::Resetting => {
+                    initial_generation = dynamic.generation();
+                    let state = state.clone();
+                    Duration::ZERO
+                        .on_complete(move || {
+                            state.set(ValidationsState::Initial);
+                        })
+                        .launch();
+                    Validation::None
+                }
+                ValidationsState::Initial if initial_generation == dynamic.generation() => {
+                    Validation::None
+                }
+                _ => new_status,
+            }
+        }
+    }
+
+    /// Returns a builder that can be used to create validations that only run
+    /// when `condition` is true.
+    pub fn when(&self, condition: impl IntoDynamic<bool>) -> WhenValidation<'_> {
+        WhenValidation {
+            validations: self,
+            condition: condition.into_dynamic(),
+            not: false,
+        }
+    }
+
+    /// Returns a builder that can be used to create validations that only run
+    /// when `condition` is false.
+    pub fn when_not(&self, condition: impl IntoDynamic<bool>) -> WhenValidation<'_> {
+        WhenValidation {
+            validations: self,
+            condition: condition.into_dynamic(),
+            not: true,
+        }
+    }
+
+    /// Returns true if this set of validations are all valid.
+    #[must_use]
+    pub fn is_valid(&self) -> bool {
+        self.invoke_callback((), &mut |()| true)
+    }
+
+    fn invoke_callback<T, R, F>(&self, t: T, handler: &mut F) -> R
+    where
+        F: FnMut(T) -> R + UnwindSafe + Send + 'static,
+        R: Default,
+    {
+        let mut state = self.state.lock();
+        if let ValidationsState::Initial = &*state {
+            *state = ValidationsState::Checked;
+        }
+        drop(state);
+        if self.invalid.get() == 0 {
+            handler(t)
+        } else {
+            R::default()
+        }
+    }
+
+    /// Returns a function that invokes `handler` only when all tracked
+    /// validations are valid.
+    ///
+    /// The returned function can be use in a
+    /// [`Callback`](crate::widget::Callback).
+    ///
+    /// When the contents are invalid, `R::default()` is returned.
+    pub fn when_valid<T, R, F>(
+        self,
+        mut handler: F,
+    ) -> impl FnMut(T) -> R + UnwindSafe + Send + 'static
+    where
+        F: FnMut(T) -> R + UnwindSafe + Send + 'static,
+        R: Default,
+    {
+        move |t: T| self.invoke_callback(t, &mut handler)
+    }
+
+    /// Resets the validation status for all related validations.
+    pub fn reset(&self) {
+        self.state.set(ValidationsState::Resetting);
+    }
+}
+
+/// A builder for validations that only run when a precondition is met.
+pub struct WhenValidation<'a> {
+    validations: &'a Validations,
+    condition: Dynamic<bool>,
+    not: bool,
+}
+
+impl WhenValidation<'_> {
+    /// Validates `dynamic`'s contents using `check`, returning a dynamic
+    /// containing the validation status.
+    ///
+    /// The validation is linked with `self` such that checking `self`'s
+    /// validation status will include this validation.
+    ///
+    /// Each change to `dynamic` is validated, but the result of the validation
+    /// will be ignored if the required prerequisite isn't met.
+    #[must_use]
+    pub fn validate<T, E, Valid>(
+        &self,
+        dynamic: &Dynamic<T>,
+        mut check: Valid,
+    ) -> Dynamic<Validation>
+    where
+        T: Send + 'static,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
+        E: Display,
+    {
+        let validation = Dynamic::new(Validation::None);
+        let mut map_to_message = Validations::map_to_message(move |value| check(value));
+        let error_message =
+            dynamic.map_each_generational(move |generational| map_to_message(generational));
+        let mut f = self.validations.generate_validation(dynamic);
+        let not = self.not;
+
+        (&self.condition, &self.validations.state, &error_message).map_each_cloned({
+            let validation = validation.clone();
+            move |(condition, state, message)| {
+                let enabled = if not { !condition } else { condition };
+                let state = if enabled {
+                    state
+                } else {
+                    ValidationsState::Disabled
+                };
+                let result = f(state, message);
+                if enabled {
+                    validation.set(result);
+                } else {
+                    validation.set(Validation::None);
+                }
+            }
+        });
+
+        validation
+    }
+
+    /// Returns a dynamic validation status that is created by transforming the
+    /// `Err` variant of `result` using [`Display`].
+    ///
+    /// The validation is linked with `self` such that checking `self`'s
+    /// validation status will include this validation.
+    #[must_use]
+    pub fn validate_result<E>(&self, result: impl IntoDynamic<Result<(), E>>) -> Dynamic<Validation>
+    where
+        E: Display + Send + 'static,
+    {
+        let result = result.into_dynamic();
+        let error_message = result.map_each(move |value| match value {
+            Ok(()) => None,
+            Err(err) => Some(err.to_string()),
+        });
+
+        self.validate(&error_message, |error_message| match error_message {
+            None => Ok(()),
+            Some(message) => Err(message.clone()),
+        })
+    }
+}

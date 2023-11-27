@@ -3,12 +3,13 @@ use std::time::Duration;
 use gooey::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn};
 use gooey::value::Dynamic;
 use gooey::widget::MakeWidget;
+use gooey::widgets::progress::Progressable;
 use gooey::{Run, WithClone};
+use kludgine::figures::units::Lp;
 
 fn main() -> gooey::Result {
     let animation = Dynamic::new(AnimationHandle::new());
     let value = Dynamic::new(50);
-    let label = value.map_each(|value| value.to_string());
 
     // Gooey's animation system supports using a `Duration` as a step in
     // animation to create a delay. This can also be used to call a function
@@ -20,7 +21,13 @@ fn main() -> gooey::Result {
     "To 0"
         .into_button()
         .on_click(animate_to(&animation, &value, 0))
-        .and(label)
+        .and(
+            value
+                .clone()
+                .progress_bar_to(100)
+                .width(Lp::inches(3))
+                .centered(),
+        )
         .and(
             "To 100"
                 .into_button()

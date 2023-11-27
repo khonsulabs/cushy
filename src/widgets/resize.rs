@@ -1,8 +1,8 @@
 use kludgine::figures::{Fraction, IntoSigned, ScreenScale, Size};
 
-use crate::context::{AsEventContext, LayoutContext};
+use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::DimensionRange;
-use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A widget that resizes its contained widget to an explicit size.
@@ -89,6 +89,10 @@ impl WrapperWidget for Resize {
         &mut self.child
     }
 
+    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+        Some(RootBehavior::Resize(Size::new(self.width, self.height)))
+    }
+
     fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
@@ -98,10 +102,7 @@ impl WrapperWidget for Resize {
         let size = if let (Some(width), Some(height)) =
             (self.width.exact_dimension(), self.height.exact_dimension())
         {
-            Size::new(
-                width.into_upx(context.gfx.scale()),
-                height.into_upx(context.gfx.scale()),
-            )
+            Size::new(width, height).map(|i| i.into_upx(context.gfx.scale()))
         } else {
             let available_space = Size::new(
                 override_constraint(available_space.width, self.width, context.gfx.scale()),
@@ -124,10 +125,10 @@ fn override_constraint(
     scale: Fraction,
 ) -> ConstraintLimit {
     match constraint {
-        ConstraintLimit::Known(size) => ConstraintLimit::Known(range.clamp(size, scale)),
-        ConstraintLimit::ClippedAfter(clipped_after) => match (range.minimum(), range.maximum()) {
-            (Some(min), Some(max)) if min == max => ConstraintLimit::Known(min.into_upx(scale)),
-            _ => ConstraintLimit::ClippedAfter(range.clamp(clipped_after, scale)),
+        ConstraintLimit::Fill(size) => ConstraintLimit::Fill(range.clamp(size, scale)),
+        ConstraintLimit::SizeToFit(clipped_after) => match (range.minimum(), range.maximum()) {
+            (Some(min), Some(max)) if min == max => ConstraintLimit::Fill(min.into_upx(scale)),
+            _ => ConstraintLimit::SizeToFit(range.clamp(clipped_after, scale)),
         },
     }
 }

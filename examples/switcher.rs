@@ -2,7 +2,7 @@ use gooey::value::{Dynamic, Switchable};
 use gooey::widget::{MakeWidget, WidgetInstance};
 use gooey::Run;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 enum ActiveContent {
     Intro,
     Success,
@@ -18,7 +18,6 @@ fn main() -> gooey::Result {
         })
         .contain()
         .centered()
-        .expand()
         .run()
 }
 

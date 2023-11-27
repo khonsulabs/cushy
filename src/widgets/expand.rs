@@ -1,7 +1,7 @@
 use kludgine::figures::{IntoSigned, Size};
 
-use crate::context::{AsEventContext, LayoutContext};
-use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::context::{AsEventContext, EventContext, LayoutContext};
+use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::widgets::Space;
 use crate::ConstraintLimit;
 
@@ -97,15 +97,16 @@ impl WrapperWidget for Expand {
         &mut self.child
     }
 
+    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+        Some(RootBehavior::Expand)
+    }
+
     fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> WrappedLayout {
-        let available_space = Size::new(
-            ConstraintLimit::Known(available_space.width.max()),
-            ConstraintLimit::Known(available_space.height.max()),
-        );
+        let available_space = available_space.map(|lim| ConstraintLimit::Fill(lim.max()));
         let child = self.child.mounted(&mut context.as_event_context());
         let size = context.for_other(&child).layout(available_space);
 

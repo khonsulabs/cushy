@@ -15,9 +15,10 @@ use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
     DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
-use kludgine::app::winit::keyboard::Key;
+use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window;
 use kludgine::app::WindowBehavior as _;
+use kludgine::cosmic_text::FamilyOwned;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size};
 use kludgine::render::Drawing;
@@ -31,14 +32,13 @@ use crate::context::{
     WidgetContext,
 };
 use crate::graphics::Graphics;
-use crate::styles::ThemePair;
+use crate::styles::{Edges, FontFamilyList, ThemePair};
 use crate::tree::Tree;
 use crate::utils::{IgnorePoison, ModifiersExt};
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
 use crate::widget::{
-    EventHandling, ManagedWidget, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
+    EventHandling, ManagedWidget, RootBehavior, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
-use crate::widgets::{Expand, Resize};
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit, Run};
 
@@ -104,7 +104,7 @@ impl<'window> DerefMut for RunningWindow<'window> {
 }
 
 /// The attributes of a Gooey window.
-pub type WindowAttributes = kludgine::app::WindowAttributes<WindowCommand>;
+pub type WindowAttributes = kludgine::app::WindowAttributes;
 
 /// A Gooey window that is not yet running.
 #[must_use]
@@ -117,6 +117,25 @@ where
     pub attributes: WindowAttributes,
     /// The colors to use to theme the user interface.
     pub theme: Value<ThemePair>,
+    /// When true, the system fonts will be loaded into the font database. This
+    /// is on by default.
+    pub load_system_fonts: bool,
+    /// The list of font families to try to find when a [`FamilyOwned::Serif`]
+    /// font is requested.
+    pub serif_font_family: FontFamilyList,
+    /// The list of font families to try to find when a
+    /// [`FamilyOwned::SansSerif`] font is requested.
+    pub sans_serif_font_family: FontFamilyList,
+    /// The list of font families to try to find when a [`FamilyOwned::Fantasy`]
+    /// font is requested.
+    pub fantasy_font_family: FontFamilyList,
+    /// The list of font families to try to find when a
+    /// [`FamilyOwned::Monospace`] font is requested.
+    pub monospace_font_family: FontFamilyList,
+    /// The list of font families to try to find when a [`FamilyOwned::Cursive`]
+    /// font is requested.
+    pub cursive_font_family: FontFamilyList,
+
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
     theme_mode: Option<Value<ThemeMode>>,
@@ -152,7 +171,7 @@ impl Window<WidgetInstance> {
     /// of `false`.
     pub fn focused(mut self, focused: impl IntoDynamic<bool>) -> Self {
         let focused = focused.into_dynamic();
-        focused.update(false);
+        focused.set(false);
         self.focused = Some(focused);
         self
     }
@@ -167,7 +186,7 @@ impl Window<WidgetInstance> {
     /// `occluded` will be initialized with an initial state of `false`.
     pub fn occluded(mut self, occluded: impl IntoDynamic<bool>) -> Self {
         let occluded = occluded.into_dynamic();
-        occluded.update(false);
+        occluded.set(false);
         self.occluded = Some(occluded);
         self
     }
@@ -225,10 +244,16 @@ where
                 ..WindowAttributes::default()
             },
             context,
+            load_system_fonts: true,
             theme: Value::default(),
             occluded: None,
             focused: None,
             theme_mode: None,
+            serif_font_family: FontFamilyList::default(),
+            sans_serif_font_family: FontFamilyList::default(),
+            fantasy_font_family: FontFamilyList::default(),
+            monospace_font_family: FontFamilyList::default(),
+            cursive_font_family: FontFamilyList::default(),
         }
     }
 }
@@ -248,6 +273,12 @@ where
                 focused: self.focused,
                 theme: Some(self.theme),
                 theme_mode: self.theme_mode,
+                load_system_fonts: self.load_system_fonts,
+                serif_font_family: self.serif_font_family,
+                sans_serif_font_family: self.sans_serif_font_family,
+                fantasy_font_family: self.fantasy_font_family,
+                monospace_font_family: self.monospace_font_family,
+                cursive_font_family: self.cursive_font_family,
             }),
         }))
     }
@@ -385,60 +416,102 @@ where
     fn constrain_window_resizing(
         &mut self,
         resizable: bool,
-        window: &kludgine::app::Window<'_, WindowCommand>,
+        window: &mut RunningWindow<'_>,
         graphics: &mut kludgine::Graphics<'_>,
-    ) -> bool {
+    ) -> RootMode {
         let mut root_or_child = self.root.widget.clone();
-        let mut is_expanded = false;
+        let mut root_mode = None;
+        let mut padding = Edges::<Px>::default();
+
         loop {
-            let mut widget = root_or_child.lock();
-            if let Some(resize) = widget.downcast_ref::<Resize>() {
-                let min_width = resize
-                    .width
-                    .minimum()
-                    .map_or(Px(0), |width| width.into_px(graphics.scale()));
-                let max_width = resize
-                    .width
-                    .maximum()
-                    .map_or(Px::MAX, |width| width.into_px(graphics.scale()));
-                let min_height = resize
-                    .height
-                    .minimum()
-                    .map_or(Px(0), |height| height.into_px(graphics.scale()));
-                let max_height = resize
-                    .height
-                    .maximum()
-                    .map_or(Px::MAX, |height| height.into_px(graphics.scale()));
-
-                let new_min_size = (min_width > 0 || min_height > 0)
-                    .then_some(Size::new(min_width, min_height).into_unsigned());
-
-                if new_min_size != self.min_inner_size && resizable {
-                    window.set_min_inner_size(new_min_size);
-                    self.min_inner_size = new_min_size;
-                }
-                let new_max_size = (max_width > 0 || max_height > 0)
-                    .then_some(Size::new(max_width, max_height).into_unsigned());
-
-                if new_max_size != self.max_inner_size && resizable {
-                    window.set_max_inner_size(new_max_size);
-                }
-                self.max_inner_size = new_max_size;
-            } else if widget.downcast_ref::<Expand>().is_some() {
-                is_expanded = true;
-            }
-
-            if let Some(wraps) = widget.as_widget().wraps().cloned() {
-                drop(widget);
-
-                root_or_child = wraps;
-            } else {
+            let Some(managed) = self.root.tree.widget(root_or_child.id()) else {
                 break;
+            };
+
+            let mut context = EventContext::new(
+                WidgetContext::new(
+                    managed,
+                    &self.redraw_status,
+                    &self.current_theme,
+                    window,
+                    self.theme_mode.get(),
+                    &mut self.cursor,
+                ),
+                graphics,
+            );
+            let mut widget = root_or_child.lock();
+            match widget.as_widget().root_behavior(&mut context) {
+                Some((behavior, child)) => {
+                    let child = child.clone();
+                    match behavior {
+                        RootBehavior::PassThrough => {}
+                        RootBehavior::Expand => {
+                            root_mode = root_mode.or(Some(RootMode::Expand));
+                        }
+                        RootBehavior::Align => {
+                            root_mode = root_mode.or(Some(RootMode::Align));
+                        }
+                        RootBehavior::Pad(edges) => {
+                            padding += edges.into_px(context.kludgine.scale());
+                        }
+                        RootBehavior::Resize(range) => {
+                            let padding = padding.size();
+                            let min_width = range
+                                .width
+                                .minimum()
+                                .map_or(Px::ZERO, |width| width.into_px(context.kludgine.scale()))
+                                .saturating_add(padding.width);
+                            let max_width = range
+                                .width
+                                .maximum()
+                                .map_or(Px::MAX, |width| width.into_px(context.kludgine.scale()))
+                                .saturating_add(padding.width);
+                            let min_height = range
+                                .height
+                                .minimum()
+                                .map_or(Px::ZERO, |height| height.into_px(context.kludgine.scale()))
+                                .saturating_add(padding.height);
+                            let max_height = range
+                                .height
+                                .maximum()
+                                .map_or(Px::MAX, |height| height.into_px(context.kludgine.scale()))
+                                .saturating_add(padding.height);
+
+                            let new_min_size = (min_width > 0 || min_height > 0)
+                                .then_some(Size::new(min_width, min_height).into_unsigned());
+
+                            if new_min_size != self.min_inner_size && resizable {
+                                context.set_min_inner_size(new_min_size);
+                                self.min_inner_size = new_min_size;
+                            }
+                            let new_max_size = (max_width > 0 || max_height > 0)
+                                .then_some(Size::new(max_width, max_height).into_unsigned());
+
+                            if new_max_size != self.max_inner_size && resizable {
+                                context.set_max_inner_size(new_max_size);
+                            }
+                            self.max_inner_size = new_max_size;
+
+                            break;
+                        }
+                    }
+                    drop(widget);
+
+                    root_or_child = child.clone();
+                }
+                None => break,
             }
         }
 
-        is_expanded
+        root_mode.unwrap_or(RootMode::Fit)
     }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum RootMode {
+    Fit,
+    Expand,
+    Align,
 }
 
 impl<T> kludgine::app::WindowBehavior<WindowCommand> for GooeyWindow<T>
@@ -449,41 +522,60 @@ where
 
     fn initialize(
         window: kludgine::app::Window<'_, WindowCommand>,
-        _graphics: &mut kludgine::Graphics<'_>,
+        graphics: &mut kludgine::Graphics<'_>,
         AssertUnwindSafe(context): Self::Context,
     ) -> Self {
-        let occluded = context
-            .settings
-            .borrow_mut()
-            .occluded
-            .take()
-            .unwrap_or_default();
-        let focused = context
-            .settings
-            .borrow_mut()
-            .focused
-            .take()
-            .unwrap_or_default();
-        let theme = context
-            .settings
-            .borrow_mut()
-            .theme
-            .take()
-            .expect("theme always present");
+        let mut settings = context.settings.borrow_mut();
+        let occluded = settings.occluded.take().unwrap_or_default();
+        let focused = settings.focused.take().unwrap_or_default();
+        let theme = settings.theme.take().expect("theme always present");
+
+        let fontdb = graphics.font_system().db_mut();
+        if let Some(FamilyOwned::Name(name)) =
+            Graphics::inner_find_available_font_family(fontdb, &settings.serif_font_family)
+        {
+            fontdb.set_serif_family(name);
+        }
+        if let Some(FamilyOwned::Name(name)) =
+            Graphics::inner_find_available_font_family(fontdb, &settings.sans_serif_font_family)
+        {
+            fontdb.set_sans_serif_family(name);
+        } else {
+            #[cfg(feature = "roboto-flex")]
+            {
+                fontdb.load_font_data(include_bytes!("../assets/RobotoFlex.ttf").to_vec());
+                fontdb.set_sans_serif_family("Roboto Flex");
+            }
+        }
+        if let Some(FamilyOwned::Name(name)) =
+            Graphics::inner_find_available_font_family(fontdb, &settings.fantasy_font_family)
+        {
+            fontdb.set_fantasy_family(name);
+        }
+        if let Some(FamilyOwned::Name(name)) =
+            Graphics::inner_find_available_font_family(fontdb, &settings.monospace_font_family)
+        {
+            fontdb.set_monospace_family(name);
+        }
+        if let Some(FamilyOwned::Name(name)) =
+            Graphics::inner_find_available_font_family(fontdb, &settings.cursive_font_family)
+        {
+            fontdb.set_cursive_family(name);
+        }
 
         let clipboard = Clipboard::new()
             .ok()
             .map(|clipboard| Arc::new(Mutex::new(clipboard)));
 
-        let theme_mode = match context.settings.borrow_mut().theme_mode.take() {
+        let theme_mode = match settings.theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
-                dynamic.update(window.theme().into());
+                dynamic.set(window.theme().into());
                 Value::Dynamic(dynamic)
             }
             Some(Value::Constant(mode)) => Value::Constant(mode),
             None => Value::dynamic(window.theme().into()),
         };
-        let transparent = context.settings.borrow().transparent;
+        let transparent = settings.transparent;
         let mut behavior = T::initialize(
             &mut RunningWindow::new(window, &clipboard, &focused, &occluded),
             context.user,
@@ -541,10 +633,10 @@ where
         self.root.tree.new_frame(invalidations.iter().copied());
 
         let resizable = window.winit().is_resizable();
-        let is_expanded = self.constrain_window_resizing(resizable, &window, graphics);
+        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
+        let root_mode = self.constrain_window_resizing(resizable, &mut window, graphics);
 
         let graphics = self.contents.new_frame(graphics);
-        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
         let mut context = GraphicsContext {
             widget: WidgetContext::new(
                 self.root.clone(),
@@ -565,17 +657,17 @@ where
             layout_context.graphics.gfx.fill(background_color);
         }
 
-        let actual_size = layout_context.layout(if is_expanded {
-            Size::new(
-                ConstraintLimit::Known(window_size.width),
-                ConstraintLimit::Known(window_size.height),
-            )
+        let layout_size =
+            layout_context.layout(if matches!(root_mode, RootMode::Expand | RootMode::Align) {
+                window_size.map(ConstraintLimit::Fill)
+            } else {
+                window_size.map(ConstraintLimit::SizeToFit)
+            });
+        let actual_size = if root_mode == RootMode::Align {
+            window_size
         } else {
-            Size::new(
-                ConstraintLimit::ClippedAfter(window_size.width),
-                ConstraintLimit::ClippedAfter(window_size.height),
-            )
-        });
+            layout_size
+        };
         let render_size = actual_size.min(window_size);
         if actual_size != window_size && !resizable {
             let mut new_size = actual_size;
@@ -615,7 +707,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.focused.update(window.focused());
+        self.focused.set(window.focused());
     }
 
     fn occlusion_changed(
@@ -623,7 +715,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.occluded.update(window.ocluded());
+        self.occluded.set(window.ocluded());
     }
 
     fn render<'pass>(
@@ -636,9 +728,7 @@ where
         !self.should_close
     }
 
-    fn initial_window_attributes(
-        context: &Self::Context,
-    ) -> kludgine::app::WindowAttributes<WindowCommand> {
+    fn initial_window_attributes(context: &Self::Context) -> kludgine::app::WindowAttributes {
         let mut attrs = context
             .settings
             .borrow_mut()
@@ -755,7 +845,7 @@ where
                         window.set_needs_redraw();
                     }
                 }
-                Key::Tab if !window.modifiers().possible_shortcut() => {
+                Key::Named(NamedKey::Tab) if !window.modifiers().possible_shortcut() => {
                     if input.state.is_pressed() {
                         let reverse = window.modifiers().state().shift_key();
 
@@ -776,6 +866,7 @@ where
                             ),
                             kludgine,
                         );
+
                         if reverse {
                             target.return_focus();
                         } else {
@@ -783,7 +874,7 @@ where
                         }
                     }
                 }
-                Key::Enter => {
+                Key::Named(NamedKey::Enter) => {
                     self.keyboard_activate_widget(
                         input.state.is_pressed(),
                         self.root.tree.default_widget(),
@@ -791,7 +882,7 @@ where
                         kludgine,
                     );
                 }
-                Key::Escape => {
+                Key::Named(NamedKey::Escape) => {
                     self.keyboard_activate_widget(
                         input.state.is_pressed(),
                         self.root.tree.escape_widget(),
@@ -1060,7 +1151,7 @@ where
         _kludgine: &mut Kludgine,
     ) {
         if let Value::Dynamic(theme_mode) = &self.theme_mode {
-            theme_mode.update(window.theme().into());
+            theme_mode.set(window.theme().into());
         }
     }
 
@@ -1099,7 +1190,7 @@ pub(crate) struct CursorState {
 pub(crate) mod sealed {
     use std::cell::RefCell;
 
-    use crate::styles::ThemePair;
+    use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
     use crate::window::{ThemeMode, WindowAttributes};
 
@@ -1115,6 +1206,12 @@ pub(crate) mod sealed {
         pub theme: Option<Value<ThemePair>>,
         pub theme_mode: Option<Value<ThemeMode>>,
         pub transparent: bool,
+        pub load_system_fonts: bool,
+        pub serif_font_family: FontFamilyList,
+        pub sans_serif_font_family: FontFamilyList,
+        pub fantasy_font_family: FontFamilyList,
+        pub monospace_font_family: FontFamilyList,
+        pub cursive_font_family: FontFamilyList,
     }
 
     #[derive(Clone)]

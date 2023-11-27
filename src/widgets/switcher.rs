@@ -49,7 +49,7 @@ impl WrapperWidget for Switcher {
     }
 
     // TODO this should be moved to an invalidated() event once we have it.
-    fn adjust_child_constraint(
+    fn adjust_child_constraints(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
@@ -60,6 +60,7 @@ impl WrapperWidget for Switcher {
                 context.remove_child(&removed);
             }
         }
+        context.invalidate_when_changed(&self.source);
         available_space
     }
 }

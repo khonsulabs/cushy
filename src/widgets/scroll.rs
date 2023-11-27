@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use intentional::Cast;
 use kludgine::app::winit::event::{DeviceId, MouseScrollDelta, TouchPhase};
+use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
     FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size,
@@ -107,8 +108,14 @@ impl Widget for Scroll {
         true
     }
 
-    fn hover(&mut self, _location: Point<Px>, context: &mut EventContext<'_, '_>) {
+    fn hover(
+        &mut self,
+        _location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
         self.show_scrollbars(context);
+
+        None
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
@@ -129,33 +136,23 @@ impl Widget for Scroll {
         let size = context.gfx.region().size;
 
         if self.horizontal_bar.amount_hidden > 0 {
-            context.gfx.draw_shape(
-                &Shape::filled_rect(
-                    Rect::new(
-                        Point::new(self.horizontal_bar.offset, size.height - self.bar_width),
-                        Size::new(self.horizontal_bar.size, self.bar_width),
-                    ),
-                    Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
+            context.gfx.draw_shape(&Shape::filled_rect(
+                Rect::new(
+                    Point::new(self.horizontal_bar.offset, size.height - self.bar_width),
+                    Size::new(self.horizontal_bar.size, self.bar_width),
                 ),
-                Point::default(),
-                None,
-                None,
-            );
+                Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
+            ));
         }
 
         if self.vertical_bar.amount_hidden > 0 {
-            context.gfx.draw_shape(
-                &Shape::filled_rect(
-                    Rect::new(
-                        Point::new(size.width - self.bar_width, self.vertical_bar.offset),
-                        Size::new(self.bar_width, self.vertical_bar.size),
-                    ),
-                    Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
+            context.gfx.draw_shape(&Shape::filled_rect(
+                Rect::new(
+                    Point::new(size.width - self.bar_width, self.vertical_bar.offset),
+                    Size::new(self.bar_width, self.vertical_bar.size),
                 ),
-                Point::default(),
-                None,
-                None,
-            );
+                Color::new_f32(1.0, 1.0, 1.0, *self.scrollbar_opacity.get()),
+            ));
         }
     }
 
@@ -175,12 +172,12 @@ impl Widget for Scroll {
             Size::new(available_space.width.max(), available_space.height.max()).into_signed();
         let max_extents = Size::new(
             if self.enabled.x {
-                ConstraintLimit::ClippedAfter((control_size.width).into_unsigned())
+                ConstraintLimit::SizeToFit((control_size.width).into_unsigned())
             } else {
                 available_space.width
             },
             if self.enabled.y {
-                ConstraintLimit::ClippedAfter((control_size.height).into_unsigned())
+                ConstraintLimit::SizeToFit((control_size.height).into_unsigned())
             } else {
                 available_space.height
             },
@@ -196,7 +193,7 @@ impl Widget for Scroll {
         let max_scroll_x = if self.enabled.x {
             -self.horizontal_bar.amount_hidden
         } else {
-            Px(0)
+            Px::ZERO
         };
 
         self.vertical_bar =
@@ -204,7 +201,7 @@ impl Widget for Scroll {
         let max_scroll_y = if self.enabled.y {
             -self.vertical_bar.amount_hidden
         } else {
-            Px(0)
+            Px::ZERO
         };
         let new_max_scroll = Point::new(max_scroll_x, max_scroll_y);
         if current_max_scroll != new_max_scroll {
@@ -228,7 +225,7 @@ impl Widget for Scroll {
             let scroll_pct = scroll.y.into_float() / current_max_scroll.y.into_float();
             scroll.y = max_scroll_y * scroll_pct;
         }
-        self.scroll.update(scroll);
+        self.scroll.set(scroll);
         self.control_size = control_size;
         self.content_size = new_content_size;
 
@@ -264,7 +261,7 @@ impl Widget for Scroll {
             MouseScrollDelta::LineDelta(x, y) => Point::new(x, y) * self.line_height.into_float(),
             MouseScrollDelta::PixelDelta(px) => Point::new(px.x.cast(), px.y.cast()),
         };
-
+        context.invalidate_when_changed(&self.scroll);
         let mut scroll = self.scroll.lock();
         let old_scroll = *scroll;
         let new_scroll = Self::constrained_scroll(*scroll + amount.cast(), self.max_scroll.get());
@@ -285,8 +282,8 @@ impl Widget for Scroll {
 fn constrain_child(constraint: ConstraintLimit, measured: Px) -> UPx {
     let measured = measured.into_unsigned();
     match constraint {
-        ConstraintLimit::Known(size) => size.min(measured),
-        ConstraintLimit::ClippedAfter(_) => measured,
+        ConstraintLimit::Fill(size) => size.min(measured),
+        ConstraintLimit::SizeToFit(_) => measured,
     }
 }
 

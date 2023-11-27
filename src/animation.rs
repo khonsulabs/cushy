@@ -41,10 +41,10 @@ pub mod easings;
 
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display};
-use std::ops::{ControlFlow, Deref, Div, Mul};
+use std::ops::{ControlFlow, Deref, Div, Mul, Sub};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::str::FromStr;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -52,16 +52,17 @@ use alot::{LotId, Lots};
 use derive_more::From;
 use intentional::Cast;
 use kempt::Set;
-use kludgine::figures::Ranged;
+use kludgine::figures::units::{Lp, Px, UPx};
+use kludgine::figures::{Ranged, UnscaledUnit};
 use kludgine::Color;
 
 use crate::animation::easings::Linear;
 use crate::styles::{Component, RequireInvalidation};
-use crate::utils::IgnorePoison;
+use crate::utils::{IgnorePoison, UnwindsafeCondvar};
 use crate::value::Dynamic;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
-static NEW_ANIMATIONS: Condvar = Condvar::new();
+static NEW_ANIMATIONS: UnwindsafeCondvar = UnwindsafeCondvar::new();
 
 fn thread_state() -> MutexGuard<'static, Animating> {
     static THREAD: OnceLock<()> = OnceLock::new();
@@ -170,6 +171,7 @@ pub trait Animate: Send + Sync {
 }
 
 /// A pending transition for a [`Dynamic`] to a new value.
+#[derive(Clone)]
 pub struct DynamicTransition<T> {
     /// The dynamic value to change.
     pub dynamic: Dynamic<T>,
@@ -213,11 +215,11 @@ where
     fn update(&self, percent: f32) {
         self.change
             .dynamic
-            .update(self.start.lerp(&self.change.new_value, percent));
+            .set(self.start.lerp(&self.change.new_value, percent));
     }
 
     fn finish(&self) {
-        self.change.dynamic.update(self.change.new_value.clone());
+        self.change.dynamic.set(self.change.new_value.clone());
     }
 }
 
@@ -225,6 +227,7 @@ where
 /// [`Duration`], using the `Easing` generic parameter to control how the value
 /// is interpolated.
 #[must_use = "animations are not performed until they are spawned"]
+#[derive(Clone)]
 pub struct Animation<Target, Easing = Linear>
 where
     Target: AnimationTarget,
@@ -290,6 +293,12 @@ pub trait AnimationTarget: Sized + Send + Sync {
     fn over(self, duration: Duration) -> Animation<Self, Linear> {
         Animation::new(self, duration)
     }
+
+    /// Returns a pending animation that transitions to the target values after
+    /// no delay.
+    fn immediately(self) -> Animation<Self, Linear> {
+        self.over(Duration::ZERO)
+    }
 }
 
 /// The target of an [`Animate`] implementor.
@@ -318,6 +327,22 @@ pub trait IntoAnimate: Sized + Send + Sync {
     /// sequence.
     fn and_then<Other: IntoAnimate>(self, other: Other) -> Chain<Self, Other> {
         Chain::new(self, other)
+    }
+
+    /// Returns an animation that repeats `self` indefinitely.
+    fn cycle(self) -> Cycle<Self>
+    where
+        Self: Clone,
+    {
+        Cycle::forever(self)
+    }
+
+    /// Returns an animation that repeats a number of times before completing.
+    fn repeat(self, times: usize) -> Cycle<Self>
+    where
+        Self: Clone,
+    {
+        Cycle::n_times(times, self)
     }
 
     /// Invokes `on_complete` after this animation finishes.
@@ -433,7 +458,7 @@ pub struct RunningAnimation<T, Easing> {
 
 /// A handle to a spawned animation. When dropped, the associated animation will
 /// be stopped.
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq, Eq)]
 #[must_use]
 pub struct AnimationHandle(Option<LotId>);
 
@@ -472,6 +497,7 @@ impl Drop for AnimationHandle {
 }
 
 /// An animation combinator that runs animation `A`, then animation `B`.
+#[derive(Clone)]
 pub struct Chain<A: IntoAnimate, B: IntoAnimate>(A, B);
 
 /// A [`Chain`] that is currently animating.
@@ -525,6 +551,90 @@ where
             },
             ChainState::AnimatingSecond(b) => b.animate(elapsed),
         }
+    }
+}
+
+/// An animation that repeats another animation.
+pub struct Cycle<A>
+where
+    A: IntoAnimate + Clone,
+{
+    cycles: Option<usize>,
+    animation: A,
+    running: Option<A::Animate>,
+}
+
+impl<A> Cycle<A>
+where
+    A: IntoAnimate + Clone,
+{
+    /// Returns a new animation that repeats `animation` an unlimited number of
+    /// times.
+    pub fn forever(animation: A) -> Self {
+        Self {
+            animation,
+            cycles: None,
+            running: None,
+        }
+    }
+
+    /// Returns a new animation that repeats `animation` a specific number of
+    /// times.
+    ///
+    /// Passing 1 as `cycles` is equivalent to executing the animation directly.
+    pub fn n_times(cycles: usize, animation: A) -> Self {
+        Self {
+            animation,
+            cycles: Some(cycles),
+            running: None,
+        }
+    }
+
+    fn keep_cycling(&mut self) -> bool {
+        match &mut self.cycles {
+            Some(0) => false,
+            Some(cycles) => {
+                *cycles -= 1;
+                true
+            }
+            None => true,
+        }
+    }
+}
+
+impl<A> IntoAnimate for Cycle<A>
+where
+    A: IntoAnimate + Clone,
+{
+    type Animate = Self;
+
+    fn into_animate(self) -> Self::Animate {
+        self
+    }
+}
+
+impl<A> Animate for Cycle<A>
+where
+    A: IntoAnimate + Clone,
+{
+    fn animate(&mut self, mut elapsed: Duration) -> ControlFlow<Duration> {
+        while !elapsed.is_zero() {
+            if let Some(running) = &mut self.running {
+                match running.animate(elapsed) {
+                    ControlFlow::Break(remaining) => elapsed = remaining,
+                    ControlFlow::Continue(()) => return ControlFlow::Continue(()),
+                }
+            }
+
+            if self.keep_cycling() {
+                self.running = Some(self.animation.clone().into_animate());
+            } else {
+                self.running = None;
+                return ControlFlow::Break(elapsed);
+            }
+        }
+
+        ControlFlow::Continue(())
     }
 }
 
@@ -733,6 +843,27 @@ impl PercentBetween for bool {
     }
 }
 
+macro_rules! impl_unscaled_lerp {
+    ($wrapper:ident) => {
+        impl LinearInterpolate for $wrapper {
+            fn lerp(&self, target: &Self, percent: f32) -> Self {
+                Self::from_unscaled(self.into_unscaled().lerp(&target.into_unscaled(), percent))
+            }
+        }
+
+        impl PercentBetween for $wrapper {
+            fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+                self.into_unscaled()
+                    .percent_between(&min.into_unscaled(), &max.into_unscaled())
+            }
+        }
+    };
+}
+
+impl_unscaled_lerp!(Px);
+impl_unscaled_lerp!(Lp);
+impl_unscaled_lerp!(UPx);
+
 #[test]
 fn integer_lerps() {
     #[track_caller]
@@ -815,7 +946,7 @@ pub trait PercentBetween {
 }
 
 macro_rules! impl_percent_between {
-    ($type:ident, $float:ident) => {
+    ($type:ident, $float:ident, $sub:ident) => {
         impl PercentBetween for $type {
             fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
                 assert!(min <= max, "percent_between requires min <= max");
@@ -824,27 +955,27 @@ macro_rules! impl_percent_between {
                     "self must satisfy min <= self <= max"
                 );
 
-                let range = *max - *min;
-                ZeroToOne::from((*self - *min) as $float / range as $float)
+                let range = max.$sub(*min);
+                ZeroToOne::from(self.$sub(*min) as $float / range as $float)
             }
         }
     };
 }
 
-impl_percent_between!(u8, f32);
-impl_percent_between!(u16, f32);
-impl_percent_between!(u32, f32);
-impl_percent_between!(u64, f32);
-impl_percent_between!(u128, f64);
-impl_percent_between!(usize, f64);
-impl_percent_between!(i8, f32);
-impl_percent_between!(i16, f32);
-impl_percent_between!(i32, f32);
-impl_percent_between!(i64, f32);
-impl_percent_between!(i128, f64);
-impl_percent_between!(isize, f64);
-impl_percent_between!(f32, f32);
-impl_percent_between!(f64, f64);
+impl_percent_between!(u8, f32, saturating_sub);
+impl_percent_between!(u16, f32, saturating_sub);
+impl_percent_between!(u32, f32, saturating_sub);
+impl_percent_between!(u64, f32, saturating_sub);
+impl_percent_between!(u128, f64, saturating_sub);
+impl_percent_between!(usize, f64, saturating_sub);
+impl_percent_between!(i8, f32, saturating_sub);
+impl_percent_between!(i16, f32, saturating_sub);
+impl_percent_between!(i32, f32, saturating_sub);
+impl_percent_between!(i64, f32, saturating_sub);
+impl_percent_between!(i128, f64, saturating_sub);
+impl_percent_between!(isize, f64, saturating_sub);
+impl_percent_between!(f32, f32, sub);
+impl_percent_between!(f64, f64, sub);
 
 impl PercentBetween for Color {
     fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
@@ -1102,6 +1233,16 @@ impl TryFrom<Component> for EasingFunction {
 impl RequireInvalidation for EasingFunction {
     fn requires_invalidation(&self) -> bool {
         false
+    }
+}
+
+impl PartialEq for EasingFunction {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Fn(l0), Self::Fn(r0)) => l0 == r0,
+            (Self::Custom(l0), Self::Custom(r0)) => Arc::ptr_eq(l0, r0),
+            _ => false,
+        }
     }
 }
 

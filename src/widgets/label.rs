@@ -1,12 +1,12 @@
 //! A read-only text widget.
 
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, ScreenScale, Size};
+use kludgine::figures::{Point, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
-use kludgine::Color;
+use kludgine::{Color, DrawableExt};
 
 use crate::context::{GraphicsContext, LayoutContext};
-use crate::styles::components::{IntrinsicPadding, TextColor};
+use crate::styles::components::TextColor;
 use crate::value::{Dynamic, Generation, IntoValue, Value};
 use crate::widget::{MakeWidget, Widget, WidgetInstance};
 use crate::ConstraintLimit;
@@ -40,9 +40,10 @@ impl Label {
                 if *prepared_generation == check_generation
                     && *prepared_color == color
                     && (*prepared_width == width
-                        || (*prepared_width < width
+                        || ((*prepared_width < width || prepared.size.width <= width)
                             && prepared.line_height == prepared.size.height)) => {}
             _ => {
+                context.apply_current_font_settings();
                 let measured = self.text.map(|text| {
                     context
                         .gfx
@@ -71,7 +72,7 @@ impl Widget for Label {
 
         context
             .gfx
-            .draw_measured_text(prepared_text, TextOrigin::Center, center, None, None);
+            .draw_measured_text(prepared_text.translate_by(center), TextOrigin::Center);
     }
 
     fn layout(
@@ -79,14 +80,11 @@ impl Widget for Label {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
         let color = context.get(&TextColor);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width);
 
-        let mut size = prepared.size.try_cast().unwrap_or_default();
-        size += padding * 2;
-        size
+        prepared.size.try_cast().unwrap_or_default()
     }
 }
 
