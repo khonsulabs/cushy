@@ -67,7 +67,7 @@ fn main() -> gooey::Result {
 
             let one_second_movement = direction * TILE_SIZE.into_float();
 
-            let cursor_pos = input.mouse.pos;
+            let cursor_pos = input.mouse.as_ref().map(|mouse| mouse.position);
 
             layers.map_mut(|layers| {
                 let pos = &mut layers.1[myself].position;
@@ -76,21 +76,16 @@ fn main() -> gooey::Result {
                     one_second_movement.y * elapsed.as_secs_f32(),
                 );
 
-                let rect = Rect::new(*pos, Size::new(16., 16.));
-                let color = match rect.cast().contains(cursor_pos) {
-                    true => Color::RED,
-                    false => Color::BLUE,
-                };
+                let rect = Rect::new(*pos - Size::squared(8.), Size::squared(16.));
+                layers.1[myself].color =
+                    match cursor_pos.map_or(false, |cursor_pos| rect.cast().contains(cursor_pos)) {
+                        true => Color::RED,
+                        false => Color::BLUE,
+                    };
             });
         }));
 
-    Stack::rows(
-        tilemap
-            .debug_output(debug_message.clone())
-            .expand()
-            .and(Label::new(debug_message)),
-    )
-    .run()
+    Stack::rows(tilemap.expand().and(Label::new(debug_message))).run()
 }
 
 #[derive(Debug)]

@@ -3,10 +3,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use kludgine::app::winit::event::KeyEvent;
+use intentional::Assert;
+use kludgine::app::winit::event::{ElementState, KeyEvent, MouseButton};
 use kludgine::app::winit::keyboard::Key;
-use kludgine::figures::Point;
 use kludgine::figures::units::Px;
+use kludgine::figures::Point;
 
 use crate::context::WidgetContext;
 use crate::utils::{IgnorePoison, UnwindsafeCondvar};
@@ -51,9 +52,38 @@ impl Tick {
         }
     }
 
-    pub fn set_cursor_position(&self, pos: Point<Px>) {
+    /// Sets the cursor position.
+    pub fn set_cursor_position(&self, pos: Option<Point<Px>>) {
         let mut state = self.data.state();
-        state.input.mouse.pos = pos;
+        match pos {
+            Some(pos) => {
+                if state.input.mouse.is_none() {
+                    state.input.mouse = Some(Mouse::default());
+                }
+
+                state
+                    .input
+                    .mouse
+                    .as_mut()
+                    .assert("always initialized")
+                    .position = pos;
+            }
+            None => {
+                state.input.mouse = None;
+            }
+        }
+    }
+
+    /// Processes a mouse button event.
+    pub fn mouse_button(&self, button: MouseButton, button_state: ElementState) {
+        let mut state = self.data.state();
+        if let Some(mouse) = &mut state.input.mouse {
+            if button_state.is_pressed() {
+                mouse.buttons.insert(button);
+            } else {
+                mouse.buttons.remove(&button);
+            }
+        }
     }
 
     /// Returns a new tick that invokes `tick`, aiming to repeat at the given
@@ -70,7 +100,6 @@ impl Tick {
                 keep_running: true,
                 frame: 0,
                 input: InputState::default(),
-                mouse: None,
             }),
             period: tick_every,
             sync: UnwindsafeCondvar::new(),
@@ -119,14 +148,15 @@ impl Tick {
 pub struct InputState {
     /// A collection of all keys currently pressed.
     pub keys: HashSet<Key>,
-    pub mouse: Mouse,
+    /// The state of the mouse cursor and any buttons pressed.
+    pub mouse: Option<Mouse>,
 }
 
 #[derive(Debug, Default)]
 pub struct Mouse {
-    pub pos: Point<Px>,
+    pub position: Point<Px>,
+    pub buttons: HashSet<MouseButton>,
 }
-
 
 #[derive(Debug)]
 struct TickData {
@@ -150,7 +180,6 @@ struct TickState {
     keep_running: bool,
     frame: usize,
     input: InputState,
-    mouse: Option<Mouse>,
 }
 
 fn tick_loop<F>(data: &TickData, mut tick: F)
