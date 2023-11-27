@@ -1,6 +1,8 @@
 use std::ops::Deref;
+use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Condvar, OnceLock, PoisonError};
 
+use intentional::Assert;
 use kludgine::app::winit::event::Modifiers;
 use kludgine::app::winit::keyboard::ModifiersState;
 
@@ -173,3 +175,29 @@ impl<T> IgnorePoison for Result<T, PoisonError<T>> {
         self.map_or_else(PoisonError::into_inner, |g| g)
     }
 }
+
+pub trait BgFunction: FnOnce() + Send + 'static {}
+
+pub fn run_in_bg<F>(f: F)
+where
+    F: BgFunction,
+{
+    static BG_THREAD: Lazy<SyncSender<Box<dyn BgFunction>>> = Lazy::new(|| {
+        let (sender, receiver) = mpsc::sync_channel::<Box<dyn BgFunction>>(16);
+        std::thread::Builder::new()
+            .name(String::from("background"))
+            .spawn(move || {
+                while let Ok(callback) = receiver.recv() {
+                    (callback)();
+                }
+            })
+            .assert("error spawning bg thread");
+        sender
+    });
+
+    BG_THREAD
+        .send(Box::new(f))
+        .assert("background thread not running");
+}
+
+impl<T> BgFunction for T where T: FnOnce() + Send + 'static {}

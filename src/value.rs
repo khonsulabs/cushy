@@ -9,14 +9,13 @@ use std::sync::atomic::{self, AtomicBool};
 use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
-use std::time::Duration;
 
 use ahash::AHashSet;
 
-use crate::animation::{DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
+use crate::animation::{DynamicTransition, LinearInterpolate};
 use crate::context::sealed::WindowHandle;
 use crate::context::{self, WidgetContext};
-use crate::utils::{IgnorePoison, UnwindsafeCondvar, WithClone};
+use crate::utils::{run_in_bg, IgnorePoison, UnwindsafeCondvar, WithClone};
 use crate::widget::{MakeWidget, WidgetId, WidgetInstance};
 use crate::widgets::{Radio, Switcher};
 
@@ -572,6 +571,12 @@ impl<T> context::sealed::Trackable for Dynamic<T> {
     }
 }
 
+impl<T> PartialEq for Dynamic<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 impl<T> Default for Dynamic<T>
 where
     T: Default,
@@ -939,9 +944,7 @@ impl<T> Drop for DynamicGuard<'_, T> {
     fn drop(&mut self) {
         if self.accessed_mut {
             let mut callbacks = Some(self.guard.note_changed());
-            Duration::ZERO
-                .on_complete(move || drop(callbacks.take()))
-                .launch();
+            run_in_bg(move || drop(callbacks.take()));
         }
     }
 }
@@ -1420,6 +1423,12 @@ impl<'a> IntoValue<String> for &'a str {
     }
 }
 
+impl IntoValue<String> for Dynamic<&'static str> {
+    fn into_value(self) -> Value<String> {
+        self.map_each(ToString::to_string).into_value()
+    }
+}
+
 impl<T> IntoValue<T> for Dynamic<T> {
     fn into_value(self) -> Value<T> {
         Value::Dynamic(self)
@@ -1760,6 +1769,18 @@ impl Validation {
     pub const fn is_error(&self) -> bool {
         matches!(self, Self::Invalid(_))
     }
+
+    /// Returns the result of merging both validations.
+    #[must_use]
+    pub fn and(&self, other: &Self) -> Self {
+        match (self, other) {
+            (Validation::Valid, Validation::Valid) => Validation::Valid,
+            (Validation::Invalid(error), _) | (_, Validation::Invalid(error)) => {
+                Validation::Invalid(error.clone())
+            }
+            (Validation::None, _) | (_, Validation::None) => Validation::None,
+        }
+    }
 }
 
 /// A grouping of validations that can be checked simultaneously.
@@ -1864,11 +1885,10 @@ impl Validations {
                 ValidationsState::Resetting => {
                     initial_generation = dynamic.generation();
                     let state = state.clone();
-                    Duration::ZERO
-                        .on_complete(move || {
-                            state.set(ValidationsState::Initial);
-                        })
-                        .launch();
+
+                    run_in_bg(move || {
+                        state.set(ValidationsState::Initial);
+                    });
                     Validation::None
                 }
                 ValidationsState::Initial if initial_generation == dynamic.generation() => {

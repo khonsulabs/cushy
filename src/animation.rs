@@ -58,7 +58,7 @@ use kludgine::Color;
 
 use crate::animation::easings::Linear;
 use crate::styles::{Component, RequireInvalidation};
-use crate::utils::{IgnorePoison, UnwindsafeCondvar};
+use crate::utils::{run_in_bg, IgnorePoison, UnwindsafeCondvar};
 use crate::value::Dynamic;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
@@ -488,6 +488,20 @@ impl AnimationHandle {
             thread_state().run_unattached(id);
         }
     }
+
+    /// Returns true if this animation is still running.
+    #[must_use]
+    pub fn is_running(&self) -> bool {
+        let Some(id) = self.0 else { return false };
+
+        thread_state().running.contains(&id)
+    }
+
+    /// Returns true if this animation is complete.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        !self.is_running()
+    }
 }
 
 impl Drop for AnimationHandle {
@@ -645,7 +659,7 @@ where
 /// will be invoked again.
 pub struct OnCompleteAnimation<A> {
     animation: A,
-    callback: Box<dyn FnMut() + Send + Sync + 'static>,
+    callback: Option<Box<dyn FnOnce() + Send + Sync + 'static>>,
     completed: bool,
 }
 
@@ -654,11 +668,11 @@ impl<A> OnCompleteAnimation<A> {
     /// `on_complete`.
     pub fn new<F>(animation: A, on_complete: F) -> Self
     where
-        F: FnMut() + Send + Sync + 'static,
+        F: FnOnce() + Send + Sync + 'static,
     {
         Self {
             animation,
-            callback: Box::new(on_complete),
+            callback: Some(Box::new(on_complete)),
             completed: false,
         }
     }
@@ -690,7 +704,9 @@ where
             match self.animation.animate(elapsed) {
                 ControlFlow::Break(remaining) => {
                     self.completed = true;
-                    (self.callback)();
+                    if let Some(callback) = self.callback.take() {
+                        run_in_bg(callback);
+                    }
                     ControlFlow::Break(remaining)
                 }
                 ControlFlow::Continue(()) => ControlFlow::Continue(()),

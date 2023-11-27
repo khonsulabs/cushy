@@ -1424,6 +1424,18 @@ macro_rules! impl_cow_string {
             }
         }
 
+        impl IntoValue<$type> for Dynamic<String> {
+            fn into_value(self) -> Value<$type> {
+                Value::Dynamic(self.map_each_to())
+            }
+        }
+
+        impl IntoValue<$type> for Dynamic<&'static str> {
+            fn into_value(self) -> Value<$type> {
+                Value::Dynamic(self.map_each(|s| <$type>::from(*s)))
+            }
+        }
+
         impl<'a> From<&'a String> for $type {
             fn from(s: &'a String) -> Self {
                 Self::new(s.as_str())
