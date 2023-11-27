@@ -9,10 +9,11 @@ use std::sync::atomic::{self, AtomicBool};
 use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
+use std::time::Duration;
 
 use ahash::AHashSet;
 
-use crate::animation::{DynamicTransition, LinearInterpolate};
+use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
 use crate::context::sealed::WindowHandle;
 use crate::context::{self, WidgetContext};
 use crate::utils::{run_in_bg, IgnorePoison, UnwindsafeCondvar, WithClone};
@@ -157,6 +158,33 @@ impl<T> Dynamic<T> {
             *value = !value.clone();
             value.clone()
         })
+    }
+
+    /// Returns a new dynamic that contains the updated contents of this dynamic
+    /// at most once every `period`.
+    #[must_use]
+    pub fn debounced_every(&self, period: Duration) -> Self
+    where
+        T: PartialEq + Clone + Send + Sync + 'static,
+    {
+        let debounced = Dynamic::new(self.get());
+        let mut debounce = Debounce::new(debounced.clone(), period);
+        self.for_each_cloned(move |value| debounce.update(value));
+        debounced
+    }
+
+    /// Returns a new dynamic that contains the updated contents of this dynamic
+    /// delayed by `period`. Each time this value is updated, the delay is
+    /// reset.
+    #[must_use]
+    pub fn debounced_with_delay(&self, period: Duration) -> Self
+    where
+        T: PartialEq + Clone + Send + Sync + 'static,
+    {
+        let debounced = Dynamic::new(self.get());
+        let mut debounce = Debounce::new(debounced.clone(), period).extending();
+        self.for_each_cloned(move |value| debounce.update(value));
+        debounced
     }
 
     /// Returns a new dynamic that is updated using `U::from(T.clone())` each
@@ -1858,7 +1886,6 @@ impl Validations {
         self.invalid.map_mut(|invalid| *invalid += 1);
 
         let invalid_count = self.invalid.clone();
-        let state = self.state.clone();
         let dynamic = dynamic.clone();
         let mut initial_generation = dynamic.generation();
         let mut invalid = true;
@@ -1884,11 +1911,6 @@ impl Validations {
             match current_state {
                 ValidationsState::Resetting => {
                     initial_generation = dynamic.generation();
-                    let state = state.clone();
-
-                    run_in_bg(move || {
-                        state.set(ValidationsState::Initial);
-                    });
                     Validation::None
                 }
                 ValidationsState::Initial if initial_generation == dynamic.generation() => {
@@ -1963,6 +1985,7 @@ impl Validations {
     /// Resets the validation status for all related validations.
     pub fn reset(&self) {
         self.state.set(ValidationsState::Resetting);
+        self.state.set(ValidationsState::Initial);
     }
 }
 
@@ -2041,5 +2064,57 @@ impl WhenValidation<'_> {
             None => Ok(()),
             Some(message) => Err(message.clone()),
         })
+    }
+}
+
+struct Debounce<T> {
+    destination: Dynamic<T>,
+    period: Duration,
+    delay: Option<AnimationHandle>,
+    buffer: Dynamic<T>,
+    extend: bool,
+}
+
+impl<T> Debounce<T>
+where
+    T: Clone + PartialEq + Send + Sync + 'static,
+{
+    pub fn new(destination: Dynamic<T>, period: Duration) -> Self {
+        Self {
+            buffer: Dynamic::new(destination.get()),
+            destination,
+            period,
+            delay: None,
+            extend: false,
+        }
+    }
+
+    pub fn extending(mut self) -> Self {
+        self.extend = true;
+        self
+    }
+
+    pub fn update(&mut self, value: T) {
+        if self.buffer.replace(value).is_some() {
+            let create_delay = if self.extend {
+                true
+            } else {
+                self.delay
+                    .as_ref()
+                    .map_or(true, AnimationHandle::is_complete)
+            };
+
+            if create_delay {
+                let destination = self.destination.clone();
+                let buffer = self.buffer.clone();
+                self.delay = Some(
+                    self.period
+                        .on_complete(move || {
+                            destination.set(buffer.get());
+                        })
+                        .spawn(),
+                );
+            }
+        }
     }
 }
