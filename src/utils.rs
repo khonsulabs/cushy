@@ -27,7 +27,7 @@ impl UnwindsafeCondvar {
     pub const fn new() -> Self {
         #[cfg(any(target_os = "ios", target_os = "macos"))]
         {
-            Self(AssertUnwindSafe(Condvar::new()))
+            Self(std::panic::AssertUnwindSafe(Condvar::new()))
         }
 
         #[cfg(not(any(target_os = "ios", target_os = "macos")))]
