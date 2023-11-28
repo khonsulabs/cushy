@@ -131,7 +131,6 @@ impl GameState {
 }
 
 fn game_end(winner: Option<Player>, app: &Dynamic<AppState>) -> impl MakeWidget {
-    // TODO we need typography styles
     let app = app.clone();
     let label = if let Some(winner) = winner {
         format!("{winner:?} wins!")
@@ -140,6 +139,7 @@ fn game_end(winner: Option<Player>, app: &Dynamic<AppState>) -> impl MakeWidget 
     };
 
     label
+        .h1()
         .and(
             "Play Again"
                 .into_button()

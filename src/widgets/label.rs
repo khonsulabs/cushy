@@ -98,4 +98,10 @@ macro_rules! impl_make_widget {
     };
 }
 
-impl_make_widget!(&'_ str, String, Value<String>, Dynamic<String>);
+impl_make_widget!(
+    &'_ str,
+    String,
+    Value<String>,
+    Dynamic<String>,
+    Dynamic<&'static str>
+);

@@ -92,9 +92,52 @@ macro_rules! define_components {
 define_components! {
     Global {
         /// The [`Dimension`] to use as the size to render text.
-        TextSize(Dimension, "text_size", Dimension::Lp(Lp::points(12)))
+        TextSize(Dimension, "text_size", @BaseTextSize)
         /// The [`Dimension`] to use to space multiple lines of text.
-        LineHeight(Dimension,"line_height",Dimension::Lp(Lp::points(16)))
+        LineHeight(Dimension,"line_height", @BaseLineHeight)
+
+        /// The base [`Dimension`] to use as the normal text size. Unless
+        /// overridden, all other sizes for built-in widgets will be based on
+        /// this dimension.
+        BaseTextSize(Dimension, "base_text_size", Dimension::Lp(Lp::points(12)))
+        /// The base [`Dimension`] to use to space multiple lines of text.
+        /// Unless overridden, all other sizes for built-in widgets will be
+        /// based on this dimension.
+        BaseLineHeight(Dimension,"base_line_height", Dimension::Lp(Lp::points(16)))
+        /// The largest text size on a series of 8 steps.
+        TextSize8(Dimension, "text_size_8", |context| context.get(&BaseTextSize) * 2.5)
+        /// The second-largest text size on a series of 8 steps.
+        TextSize7(Dimension, "text_size_7", |context| context.get(&BaseTextSize) * 2.25)
+        /// The third-largest text size on a series of 8 steps.
+        TextSize6(Dimension, "text_size_6", |context| context.get(&BaseTextSize) * 2.0)
+        /// The fourth-largest text size on a series of 8 steps.
+        TextSize5(Dimension, "text_size_5", |context| context.get(&BaseTextSize) * 1.5)
+        /// The fifth-largest text size on a series of 8 steps.
+        TextSize4(Dimension, "text_size_4", |context| context.get(&BaseTextSize) * 1.25)
+        /// The base text size on a series of 8 steps.
+        TextSize3(Dimension, "text_size_3", @BaseTextSize)
+        /// The second-smallest text size on a series of 8 steps.
+        TextSize2(Dimension, "text_size_2", |context| context.get(&BaseTextSize) * 0.75)
+        /// The smallest text size on a series of 8 steps.
+        TextSize1(Dimension, "text_size_1", |context| context.get(&BaseTextSize) * 0.5)
+
+        /// The largest line height on a series of 8 steps.
+        LineHeight8(Dimension, "line_height_8", |context| context.get(&BaseLineHeight) * 2.5)
+        /// The second-largest line height on a series of 8 steps.
+        LineHeight7(Dimension, "line_height_7", |context| context.get(&BaseLineHeight) * 2.25)
+        /// The third-largest line height on a series of 8 steps.
+        LineHeight6(Dimension, "line_height_6", |context| context.get(&BaseLineHeight) * 2.0)
+        /// The fourth-largest line height on a series of 8 steps.
+        LineHeight5(Dimension, "line_height_5", |context| context.get(&BaseLineHeight) * 1.5)
+        /// The fifth-largest line height on a series of 8 steps.
+        LineHeight4(Dimension, "line_height_4", |context| context.get(&BaseLineHeight) * 1.25)
+        /// The base line height on a series of 8 steps.
+        LineHeight3(Dimension, "line_height_4", @BaseLineHeight)
+        /// The second-smallest line height on a series of 8 steps.
+        LineHeight2(Dimension, "line_height_2", |context| context.get(&BaseLineHeight) * 0.75)
+        /// The smallest line height on a series of 8 steps.
+        LineHeight1(Dimension, "line_height_1", |context| context.get(&BaseLineHeight) * 0.675)
+
         /// The [`Color`] of the surface for the user interface to draw upon.
         SurfaceColor(Color, "surface_color", .surface.color)
         /// The [`Color`] to use when rendering text.
@@ -147,5 +190,50 @@ define_components! {
         FontWeight(Weight, "font_weight", Weight::NORMAL)
         /// The font style to apply to text rendering.
         FontStyle(Style, "font_style", Style::Normal)
+
+        /// The default [`Weight`] to apply to headings.
+        HeadingWeight(Weight, "heading_weight", Weight::BOLD)
+        /// The [`Weight`] to apply to h1 headings.
+        Heading1Weight(Weight, "heading_weight_1", @HeadingWeight)
+        /// The [`Weight`] to apply to h2 headings.
+        Heading2Weight(Weight, "heading_weight_2", @HeadingWeight)
+        /// The [`Weight`] to apply to h3 headings.
+        Heading3Weight(Weight, "heading_weight_3", @HeadingWeight)
+        /// The [`Weight`] to apply to h4 headings.
+        Heading4Weight(Weight, "heading_weight_4", @HeadingWeight)
+        /// The [`Weight`] to apply to h5 headings.
+        Heading5Weight(Weight, "heading_weight_5", @HeadingWeight)
+        /// The [`Weight`] to apply to h6 headings.
+        Heading6Weight(Weight, "heading_weight_6", @HeadingWeight)
+
+        /// The default [`Style`] to apply to headings.
+        HeadingStyle(Style, "heading_style", Style::Normal)
+        /// The [`Style`] to apply to h1 headings.
+        Heading1Style(Style, "heading_style_1", @HeadingStyle)
+        /// The [`Style`] to apply to h2 headings.
+        Heading2Style(Style, "heading_style_2", @HeadingStyle)
+        /// The [`Style`] to apply to h3 headings.
+        Heading3Style(Style, "heading_style_3", @HeadingStyle)
+        /// The [`Style`] to apply to h4 headings.
+        Heading4Style(Style, "heading_style_4", @HeadingStyle)
+        /// The [`Style`] to apply to h5 headings.
+        Heading5Style(Style, "heading_style_5", @HeadingStyle)
+        /// The [`Style`] to apply to h6 headings.
+        Heading6Style(Style, "heading_style_6", @HeadingStyle)
+
+        /// The default [`FontFamilyList`] to apply to headings.
+        HeadingFontFamily(FontFamilyList, "heading_font_family", FontFamilyList::from(FamilyOwned::SansSerif))
+        /// The [`FontFamilyList`] to apply to h1 headings.
+        Heading1FontFamily(FontFamilyList, "heading_font_family_1", @HeadingFontFamily)
+        /// The [`FontFamilyList`] to apply to h2 headings.
+        Heading2FontFamily(FontFamilyList, "heading_font_family_2", @HeadingFontFamily)
+        /// The [`FontFamilyList`] to apply to h3 headings.
+        Heading3FontFamily(FontFamilyList, "heading_font_family_3", @HeadingFontFamily)
+        /// The [`FontFamilyList`] to apply to h4 headings.
+        Heading4FontFamily(FontFamilyList, "heading_font_family_4", @HeadingFontFamily)
+        /// The [`FontFamilyList`] to apply to h5 headings.
+        Heading5FontFamily(FontFamilyList, "heading_font_family_5", @HeadingFontFamily)
+        /// The [`FontFamilyList`] to apply to h6 headings.
+        Heading6FontFamily(FontFamilyList, "heading_font_family_6", @HeadingFontFamily)
     }
 }

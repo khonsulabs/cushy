@@ -30,7 +30,7 @@ pub mod components;
 
 /// A collection of style components organized by their name.
 #[derive(Clone, Debug, Default)]
-pub struct Styles(Arc<AHashMap<ComponentName, Value<Component>>>);
+pub struct Styles(Arc<StyleData>);
 
 impl Styles {
     /// Returns an empty collection.
@@ -43,18 +43,32 @@ impl Styles {
     /// without reallocating.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
-        Self(Arc::new(AHashMap::with_capacity(capacity)))
+        Self(Arc::new(StyleData {
+            components: AHashMap::with_capacity(capacity),
+        }))
     }
 
     /// Inserts a [`Component`] with a given name.
     pub fn insert_named(&mut self, name: ComponentName, component: impl IntoComponentValue) {
-        Arc::make_mut(&mut self.0).insert(name, component.into_component_value());
+        Arc::make_mut(&mut self.0)
+            .components
+            .insert(name, component.into_component_value());
     }
 
     /// Inserts a [`Component`] using then name provided.
     pub fn insert(&mut self, name: &impl NamedComponent, component: impl IntoComponentValue) {
         let name = name.name().into_owned();
         self.insert_named(name, component);
+    }
+
+    /// Inserts a [`Component`] using then name provided, resolving the value
+    /// through `dynamic`.
+    pub fn insert_dynamic(
+        &mut self,
+        name: &impl NamedComponent,
+        dynamic: impl Into<DynamicComponent>,
+    ) {
+        self.insert(name, Component::Dynamic(dynamic.into()));
     }
 
     /// Adds a [`Component`] for the name provided and returns self.
@@ -71,14 +85,64 @@ impl Styles {
         self
     }
 
+    /// Adds a [`Component`] using then name provided, resolving the value
+    /// through `dynamic`. This function returns self.
+    #[must_use]
+    pub fn with_dynamic<C: ComponentDefinition>(
+        mut self,
+        name: &C,
+        dynamic: impl Into<DynamicComponent>,
+    ) -> Self {
+        self.insert_dynamic(name, dynamic);
+        self
+    }
+
     /// Returns the associated component for the given name, if found.
     #[must_use]
-    pub fn get_named<Named>(&self, component: &Named) -> Option<&Value<Component>>
+    pub fn get_with_fallback<Fallback>(
+        &self,
+        component: &impl NamedComponent,
+        fallback: &Fallback,
+        context: &WidgetContext<'_, '_>,
+    ) -> Fallback::ComponentType
     where
-        Named: NamedComponent + ?Sized,
+        Fallback: ComponentDefinition + ?Sized,
     {
-        let name = component.name();
-        self.0.get(&name)
+        self.0
+            .components
+            .get(&component.name())
+            .or_else(|| self.0.components.get(&fallback.name()))
+            .and_then(|component| Self::resolve_component(component, context))
+            .unwrap_or_else(|| fallback.default_value(context))
+    }
+
+    fn resolve_component<T>(
+        component: &Value<Component>,
+        context: &WidgetContext<'_, '_>,
+    ) -> Option<T>
+    where
+        T: ComponentType,
+    {
+        let mut resolved = component.get();
+        loop {
+            match T::try_from_component(resolved) {
+                Ok(value) => {
+                    if value.requires_invalidation() {
+                        component.invalidate_when_changed(context);
+                    } else {
+                        component.redraw_when_changed(context);
+                    }
+                    break Some(value);
+                }
+                Err(Component::Dynamic(dynamic)) => {
+                    let Some(new_component) = dynamic.resolve(context) else {
+                        break None;
+                    };
+                    resolved = new_component;
+                }
+                Err(_) => break None,
+            }
+        }
     }
 
     /// Returns the component associated with the given name, or if not found,
@@ -92,22 +156,10 @@ impl Styles {
     where
         Named: ComponentDefinition + ?Sized,
     {
-        let name = component.name();
         self.0
-            .get(&name)
-            .and_then(|component| {
-                match <Named::ComponentType>::try_from_component(component.get()) {
-                    Ok(value) => {
-                        if value.requires_invalidation() {
-                            component.invalidate_when_changed(context);
-                        } else {
-                            component.redraw_when_changed(context);
-                        }
-                        Some(value)
-                    }
-                    Err(_) => None,
-                }
-            })
+            .components
+            .get(&component.name())
+            .and_then(|component| Self::resolve_component(component, context))
             .unwrap_or_else(|| component.default_value(context))
     }
 
@@ -118,6 +170,11 @@ impl Styles {
             self.insert_named(name, value);
         }
     }
+}
+
+#[derive(Debug, Default, Clone)]
+struct StyleData {
+    components: AHashMap<ComponentName, Value<Component>>,
 }
 
 /// A value that can be converted into a `Value<Component>`.
@@ -173,6 +230,7 @@ impl IntoIterator for Styles {
     fn into_iter(self) -> Self::IntoIter {
         Arc::try_unwrap(self.0)
             .unwrap_or_else(|err| err.as_ref().clone())
+            .components
             .into_iter()
     }
 }
@@ -229,6 +287,9 @@ pub enum Component {
 
     /// A custom component type.
     Custom(CustomComponent),
+
+    /// This component should use the associated value in the named class.
+    Dynamic(DynamicComponent),
 }
 
 impl Component {
@@ -240,6 +301,23 @@ impl Component {
         T: RequireInvalidation + RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
     {
         Self::Custom(CustomComponent::new(component))
+    }
+
+    /// Returns a new [`DynamicComponent`] which allows resolving a component at
+    /// runtime.
+    #[must_use]
+    pub fn dynamic<T, Func>(resolve: Func) -> Self
+    where
+        Func: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<T>
+            + RefUnwindSafe
+            + Send
+            + Sync
+            + 'static,
+        T: ComponentType,
+    {
+        Self::Dynamic(DynamicComponent::new(move |context| {
+            resolve(context).map(T::into_component)
+        }))
     }
 }
 
@@ -854,7 +932,7 @@ impl From<&'static Lazy<ComponentName>> for ComponentName {
 }
 
 /// A type that represents a named style component.
-pub trait NamedComponent {
+pub trait NamedComponent: Sized {
     /// Returns the name of the style component.
     fn name(&self) -> Cow<'_, ComponentName>;
 }
@@ -2251,5 +2329,83 @@ impl TryFrom<Component> for FontFamilyList {
                 .ok_or_else(|| Component::Custom(custom)),
             other => Err(other),
         }
+    }
+}
+
+/// A [`Component`] that resolves its value at runtime.
+#[derive(Clone)]
+pub struct DynamicComponent(Arc<dyn DynamicComponentResolver>);
+
+impl Debug for DynamicComponent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("DynamicComponent").finish()
+    }
+}
+
+impl PartialEq for DynamicComponent {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+/// A type that resolves to a [`Component`] at runtime.
+pub trait DynamicComponentResolver: RefUnwindSafe + Send + Sync + 'static {
+    /// Returns the effective component, if one should be applied.
+    fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component>;
+}
+
+struct DynamicFunctionWrapper<F>(F);
+
+impl<T> DynamicComponentResolver for DynamicFunctionWrapper<T>
+where
+    T: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<Component>
+        + RefUnwindSafe
+        + Send
+        + Sync
+        + 'static,
+{
+    fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component> {
+        self.0(context)
+    }
+}
+
+impl<T> DynamicComponentResolver for T
+where
+    T: ComponentDefinition + Clone + RefUnwindSafe + Send + Sync + 'static,
+{
+    fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component> {
+        Some(context.get(self).into_component())
+    }
+}
+
+impl<T> From<T> for DynamicComponent
+where
+    T: DynamicComponentResolver,
+{
+    fn from(resolve: T) -> Self {
+        Self(Arc::new(resolve))
+    }
+}
+
+impl DynamicComponent {
+    /// Returns a new dynamic component that invokes `resolve` each time it is
+    /// used by widgets.
+    #[must_use]
+    pub fn new<Func>(resolve: Func) -> Self
+    where
+        Func: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<Component>
+            + RefUnwindSafe
+            + Send
+            + Sync
+            + 'static,
+    {
+        Self::from(DynamicFunctionWrapper(resolve))
+    }
+
+    /// Invokes the resolver function, optionally returning a resolved
+    /// component.
+    #[must_use]
+    pub fn resolve(&self, context: &WidgetContext<'_, '_>) -> Option<Component> {
+        self.0.resolve_component(context)
     }
 }
