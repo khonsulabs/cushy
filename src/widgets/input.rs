@@ -1014,7 +1014,7 @@ where
 
         let cache = self.layout_text(Some(size.width.into_signed()), context);
 
-        if context.focused() {
+        if context.focused() && context.window().focused().get_tracking_refresh(context) {
             context.draw_focus_ring();
             context.set_ime_allowed(true);
             context.set_ime_purpose(if cache.masked {
