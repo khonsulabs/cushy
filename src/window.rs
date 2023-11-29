@@ -628,9 +628,9 @@ where
 
         self.redraw_status.refresh_received();
         graphics.reset_text_attributes();
-        // TODO re-check why we can't add drain without a range to kempt. Or even intoiter.
-        let invalidations = std::mem::take(&mut *self.redraw_status.invalidations());
-        self.root.tree.new_frame(invalidations.iter().copied());
+        self.root
+            .tree
+            .new_frame(self.redraw_status.invalidations().drain());
 
         let resizable = window.winit().is_resizable();
         let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
