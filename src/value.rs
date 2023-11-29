@@ -18,7 +18,7 @@ use crate::context::sealed::WindowHandle;
 use crate::context::{self, WidgetContext};
 use crate::utils::{run_in_bg, IgnorePoison, UnwindsafeCondvar, WithClone};
 use crate::widget::{MakeWidget, WidgetId, WidgetInstance};
-use crate::widgets::{Radio, Switcher};
+use crate::widgets::{Radio, Space, Switcher};
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -586,6 +586,23 @@ impl Dynamic<WidgetInstance> {
     #[must_use]
     pub fn switcher(self) -> Switcher {
         Switcher::new(self)
+    }
+}
+
+impl MakeWidget for Dynamic<WidgetInstance> {
+    fn make_widget(self) -> WidgetInstance {
+        self.switcher().make_widget()
+    }
+}
+
+impl MakeWidget for Dynamic<Option<WidgetInstance>> {
+    fn make_widget(self) -> WidgetInstance {
+        self.map_each(|widget| {
+            widget
+                .as_ref()
+                .map_or_else(|| Space::clear().make_widget(), Clone::clone)
+        })
+        .make_widget()
     }
 }
 
