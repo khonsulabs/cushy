@@ -48,6 +48,7 @@ pub struct Input<Storage> {
     needs_to_select_all: bool,
     mouse_buttons_down: usize,
     line_navigation_x_target: Option<Px>,
+    window_focused: bool,
 }
 
 struct CachedLayout {
@@ -132,6 +133,7 @@ where
             mouse_buttons_down: 0,
             needs_to_select_all: true,
             line_navigation_x_target: None,
+            window_focused: false,
         }
     }
 
@@ -1006,16 +1008,31 @@ where
         }
 
         self.blink_state.update(context.elapsed());
+        let window_focused = context.window().focused().get_tracking_refresh(context);
+        if window_focused != self.window_focused {
+            if window_focused {
+                self.blink_state.force_on();
+            }
+            self.window_focused = window_focused;
+        }
+
         let cursor_state = self.blink_state;
         let size = context.gfx.size();
         let padding = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
         let padding = Point::<Px>::new(padding, padding);
-        let highlight = context.get(&HighlightColor);
 
         let cache = self.layout_text(Some(size.width.into_signed()), context);
 
-        if context.focused() && context.window().focused().get_tracking_refresh(context) {
+        let highlight = if context.focused() && window_focused {
             context.draw_focus_ring();
+            context.get(&HighlightColor)
+        } else {
+            let outline_color = context.get(&OutlineColor);
+            context.stroke_outline::<Lp>(outline_color, StrokeOptions::default());
+            outline_color
+        };
+
+        if context.focused() {
             context.set_ime_allowed(true);
             context.set_ime_purpose(if cache.masked {
                 ImePurpose::Password
@@ -1082,11 +1099,10 @@ where
                         .translate_by(padding),
                     );
                 }
-            } else {
+            } else if window_focused {
                 let (location, _) =
                     Self::point_from_cursor(cache.measured, cache.cursor, cache.bytes);
-                let window_focused = context.window().focused().get();
-                if window_focused && cursor_state.visible {
+                if cursor_state.visible {
                     let cursor_width = Lp::points(2).into_px(context.gfx.scale());
                     context.gfx.draw_shape(
                         Shape::filled_rect(
@@ -1099,15 +1115,10 @@ where
                         .translate_by(padding),
                     );
                 }
-                if window_focused {
-                    context.redraw_in(cursor_state.remaining_until_blink);
-                } else {
-                    context.redraw_when_changed(context.window().focused());
-                }
+                context.redraw_in(cursor_state.remaining_until_blink);
+            } else {
+                context.redraw_when_changed(context.window().focused());
             }
-        } else {
-            let outline_color = context.get(&OutlineColor);
-            context.stroke_outline::<Lp>(outline_color, StrokeOptions::default());
         }
 
         let text = if cache.bytes > 0 {
