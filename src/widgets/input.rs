@@ -1023,7 +1023,7 @@ where
 
         let cache = self.layout_text(Some(size.width.into_signed()), context);
 
-        let highlight = if context.focused() && window_focused {
+        let highlight = if context.focused(false) && window_focused {
             context.draw_focus_ring();
             context.get(&HighlightColor)
         } else {
@@ -1032,7 +1032,7 @@ where
             outline_color
         };
 
-        if context.focused() {
+        if context.focused(false) {
             context.set_ime_allowed(true);
             context.set_ime_purpose(if cache.masked {
                 ImePurpose::Password

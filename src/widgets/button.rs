@@ -343,7 +343,7 @@ impl Widget for Button {
         let two_lp_stroke = StrokeOptions::lp_wide(Lp::points(2));
         context.stroke_outline(style.outline, two_lp_stroke);
 
-        if context.focused() {
+        if context.focused(true) {
             if current_style == ButtonKind::Transparent {
                 let two_lp_stroke = two_lp_stroke.into_px(context.gfx.scale());
                 let focus_color = context.get(&HighlightColor);

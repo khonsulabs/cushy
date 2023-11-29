@@ -20,7 +20,7 @@ fn main() -> gooey::Result {
                 .on_accept_focus(|context| context.enabled())
                 .on_redraw(|context| {
                     context.fill(context.theme().secondary.color);
-                    if context.focused() {
+                    if context.focused(true) {
                         context.draw_focus_ring();
                     }
                 })

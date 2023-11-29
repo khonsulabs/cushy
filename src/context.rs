@@ -979,7 +979,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     /// Widget events relating to focus changes are deferred until after the all
     /// contexts for the currently firing event are dropped.
     pub fn blur(&mut self) -> bool {
-        if self.focused() {
+        if self.focused(true) {
             self.clear_focus();
             true
         } else {
@@ -1052,8 +1052,9 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
 
     /// Returns true if this widget is currently focused for user input.
     #[must_use]
-    pub fn focused(&self) -> bool {
+    pub fn focused(&self, check_window: bool) -> bool {
         self.pending_state.focus == Some(self.current_node.id())
+            && (!check_window || self.window.focused().get_tracking_refresh(self))
     }
 
     /// Returns true if this widget is the target to activate when the user

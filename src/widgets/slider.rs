@@ -219,7 +219,7 @@ where
 
         // Draw the knob
         if spec.knob_size > 0 {
-            let focus = context.focused().then_some(self.focused_knob).flatten();
+            let focus = context.focused(true).then_some(self.focused_knob).flatten();
             Self::draw_knobs(
                 self.flip_pt_if_vertical(Point::new(end + spec.half_knob, spec.half_knob) + inset),
                 spec.end.map(|_| {
