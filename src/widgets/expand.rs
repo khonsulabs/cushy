@@ -15,7 +15,7 @@ pub struct Expand {
     child: WidgetRef,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum ExpandKind {
     Weighted(u8),
     Horizontal,
@@ -84,10 +84,11 @@ impl Expand {
     }
 
     #[must_use]
-    pub(crate) fn weight(&self) -> Option<u8> {
-        match self.kind {
-            ExpandKind::Weighted(weight) => Some(weight),
-            ExpandKind::Horizontal | ExpandKind::Vertical => None,
+    pub(crate) fn weight(&self, vertical: bool) -> Option<u8> {
+        match (self.kind, vertical) {
+            (ExpandKind::Weighted(weight), _) => Some(weight),
+            (ExpandKind::Horizontal, false) | (ExpandKind::Vertical, true) => Some(1),
+            (ExpandKind::Horizontal | ExpandKind::Vertical, _) => None,
         }
     }
 }
@@ -123,10 +124,10 @@ impl WrapperWidget for Expand {
                 available_space
                     .width
                     .fit_measured(size.width, context.gfx.scale()),
-                size.height,
+                size.height.min(available_space.height.max()),
             ),
             ExpandKind::Vertical => (
-                size.width,
+                size.width.min(available_space.width.max()),
                 available_space
                     .height
                     .fit_measured(size.height, context.gfx.scale()),

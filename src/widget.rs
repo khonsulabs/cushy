@@ -34,7 +34,7 @@ use crate::styles::{
 };
 use crate::tree::Tree;
 use crate::utils::IgnorePoison;
-use crate::value::{IntoDynamic, IntoValue, Validation, Value};
+use crate::value::{Dynamic, IntoDynamic, IntoValue, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::{
     Align, Button, Checkbox, Collapse, Container, Expand, Resize, Scroll, Space, Stack, Style,
@@ -880,7 +880,7 @@ pub trait MakeWidget: Sized {
     /// Expands `self` to grow to fill its parent vertically.
     #[must_use]
     fn expand_vertically(self) -> Expand {
-        Expand::horizontal(self)
+        Expand::vertical(self)
     }
 
     /// Resizes `self` to `size`.
@@ -1634,6 +1634,20 @@ impl Children {
         self.ordered.truncate(length);
     }
 
+    /// Returns `self` as a vertical [`Stack`] of rows.
+    #[must_use]
+    pub fn into_rows(self) -> Stack {
+        Stack::rows(self)
+    }
+
+    /// Returns `self` as a horizontal [`Stack`] of columns.
+    #[must_use]
+    pub fn into_columns(self) -> Stack {
+        Stack::columns(self)
+    }
+}
+
+impl Dynamic<Children> {
     /// Returns `self` as a vertical [`Stack`] of rows.
     #[must_use]
     pub fn into_rows(self) -> Stack {

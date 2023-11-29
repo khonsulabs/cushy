@@ -22,8 +22,7 @@ use crate::ConstraintLimit;
 /// [direction](StackDirection).
 #[derive(Debug)]
 pub struct Stack {
-    /// The direction to display the children using.
-    pub direction: Value<StackDirection>,
+    direction: StackDirection,
     /// The children widgets that belong to this array.
     pub children: Value<Children>,
     layout: Layout,
@@ -34,18 +33,11 @@ pub struct Stack {
 
 impl Stack {
     /// Returns a new widget with the given direction and widgets.
-    pub fn new(
-        direction: impl IntoValue<StackDirection>,
-        widgets: impl IntoValue<Children>,
-    ) -> Self {
-        let direction = direction.into_value();
-
-        let initial_direction = direction.get();
-
+    pub fn new(direction: StackDirection, widgets: impl IntoValue<Children>) -> Self {
         Self {
             direction,
             children: widgets.into_value(),
-            layout: Layout::new(initial_direction),
+            layout: Layout::new(direction),
             layout_generation: None,
             synced_children: Vec::new(),
         }
@@ -63,6 +55,7 @@ impl Stack {
 
     fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
         let current_generation = self.children.generation();
+        self.children.invalidate_when_changed(context);
         if current_generation.map_or_else(
             || self.children.map(Children::len) != self.layout.children.len(),
             |gen| Some(gen) != self.layout_generation,
@@ -89,10 +82,12 @@ impl Stack {
                         } else {
                             // This is a brand new child.
                             let guard = widget.lock();
-                            let (mut widget, dimension) = if let Some((weight, expand)) = guard
-                                .downcast_ref::<Expand>()
-                                .and_then(|expand| expand.weight().map(|weight| (weight, expand)))
-                            {
+                            let (mut widget, dimension) = if let Some((weight, expand)) =
+                                guard.downcast_ref::<Expand>().and_then(|expand| {
+                                    expand
+                                        .weight(self.direction.orientation == StackOrientation::Row)
+                                        .map(|weight| (weight, expand))
+                                }) {
                                 (
                                     expand.child().clone(),
                                     StackDimension::Fractional { weight },
@@ -429,8 +424,10 @@ impl Layout {
             let index = self.children.index_of_id(id).expect("child not found");
             let (measured, other) = self.orientation.split_size(measure(
                 index,
-                self.orientation
-                    .make_size(ConstraintLimit::SizeToFit(remaining), other_constraint),
+                self.orientation.make_size(
+                    ConstraintLimit::SizeToFit(available_space),
+                    other_constraint,
+                ),
                 !needs_final_layout,
             ));
             self.layouts[index].size = measured;
