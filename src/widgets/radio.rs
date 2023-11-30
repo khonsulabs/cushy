@@ -1,4 +1,4 @@
-//! A tri-state, labelable checkbox widget.
+//! A labeled widget with a circular indicator representing a value.
 use std::fmt::Debug;
 use std::panic::UnwindSafe;
 
@@ -14,12 +14,11 @@ use crate::widget::{MakeWidget, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
 
-/// A labeled-widget that supports three states: Checked, Unchecked, and
-/// Indeterminant
+/// A labeled widget with a circular indicator representing a value.
 pub struct Radio<T> {
     /// The value this button represents.
     pub value: T,
-    /// The state (value) of the checkbox.
+    /// The state (value) of the radio.
     pub state: Dynamic<T>,
     /// The button kind to use as the basis for this radio. Radios default to
     /// [`ButtonKind::Transparent`].
@@ -29,7 +28,8 @@ pub struct Radio<T> {
 
 impl<T> Radio<T> {
     /// Returns a new radio that sets `state` to `value` when pressed. `label`
-    /// is drawn next to the checkbox and is also clickable to select the radio.
+    /// is drawn next to the radio indicator and is also clickable to select the
+    /// radio.
     pub fn new(value: T, state: impl IntoDynamic<T>, label: impl MakeWidget) -> Self {
         Self {
             value,

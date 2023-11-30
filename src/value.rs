@@ -1,7 +1,9 @@
 //! Types for storing and interacting with values in Widgets.
 
+use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::future::Future;
+use std::hash::{BuildHasher, Hash};
 use std::ops::{Deref, DerefMut, Not};
 use std::panic::UnwindSafe;
 use std::str::FromStr;
@@ -12,13 +14,14 @@ use std::thread::ThreadId;
 use std::time::Duration;
 
 use ahash::AHashSet;
+use kempt::{Map, Sort};
 
 use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
 use crate::context::sealed::WindowHandle;
 use crate::context::{self, WidgetContext};
 use crate::utils::{run_in_bg, IgnorePoison, UnwindsafeCondvar, WithClone};
-use crate::widget::{MakeWidget, WidgetId, WidgetInstance};
-use crate::widgets::{Radio, Space, Switcher};
+use crate::widget::{Children, MakeWidget, WidgetId, WidgetInstance};
+use crate::widgets::{Radio, Select, Space, Switcher};
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
@@ -550,11 +553,26 @@ impl<T> Dynamic<T> {
     where
         Self: Clone,
         // Technically this trait bound isn't necessary, but it prevents trying
-        // to call into_radio on unsupported types. The MakeWidget/Widget
+        // to call new_radio on unsupported types. The MakeWidget/Widget
         // implementations require these bounds (and more).
         T: Clone + Eq,
     {
         Radio::new(widget_value, self.clone(), label)
+    }
+
+    /// Returns a new [`Select`] that updates this dynamic to `widget_value`
+    /// when pressed. `label` is drawn next to the checkbox and is also
+    /// clickable to select the widget.
+    #[must_use]
+    pub fn new_select(&self, widget_value: T, label: impl MakeWidget) -> Select<T>
+    where
+        Self: Clone,
+        // Technically this trait bound isn't necessary, but it prevents trying
+        // to call new_select on unsupported types. The MakeWidget/Widget
+        // implementations require these bounds (and more).
+        T: Clone + Eq,
+    {
+        Select::new(widget_value, self.clone(), label)
     }
 
     /// Validates the contents of this dynamic using the `check` function,
@@ -1286,6 +1304,56 @@ pub trait Switchable<T>: IntoDynamic<T> + Sized {
         T: Send + 'static,
     {
         Switcher::mapping(self, map)
+    }
+
+    /// Returns a new [`Switcher`] whose contents switches between the values
+    /// contained in `map` using the value in `self` as the key.
+    fn switch_between<Collection>(self, map: Collection) -> Switcher
+    where
+        Collection: GetWidget<T> + Send + 'static,
+        T: Send + 'static,
+    {
+        Switcher::mapping(self, move |key, _| {
+            map.get(key)
+                .map_or_else(|| Space::clear().make_widget(), Clone::clone)
+        })
+    }
+}
+
+/// A collection of widgets that can be queried by `Key`.
+pub trait GetWidget<Key> {
+    /// Returns the widget associated with `key`, if found.
+    fn get<'a>(&'a self, key: &Key) -> Option<&'a WidgetInstance>;
+}
+
+impl<Key, State> GetWidget<Key> for HashMap<Key, WidgetInstance, State>
+where
+    Key: Hash + Eq,
+    State: BuildHasher,
+{
+    fn get<'a>(&'a self, key: &Key) -> Option<&'a WidgetInstance> {
+        HashMap::get(self, key)
+    }
+}
+
+impl<Key> GetWidget<Key> for Map<Key, WidgetInstance>
+where
+    Key: Sort,
+{
+    fn get<'a>(&'a self, key: &Key) -> Option<&'a WidgetInstance> {
+        Map::get(self, key)
+    }
+}
+
+impl GetWidget<usize> for Children {
+    fn get<'a>(&'a self, key: &usize) -> Option<&'a WidgetInstance> {
+        (**self).get(*key)
+    }
+}
+
+impl GetWidget<usize> for Vec<WidgetInstance> {
+    fn get<'a>(&'a self, key: &usize) -> Option<&'a WidgetInstance> {
+        (**self).get(*key)
     }
 }
 

@@ -431,9 +431,7 @@ impl Layout {
                 !needs_final_layout,
             ));
             self.layouts[index].size = measured;
-            if measured == 0 {
-                self.other = UPx::ZERO;
-            } else {
+            if measured > 0 {
                 if fit_index < self.fit_to_content.len() - 1
                     || self.fit_to_content.len() != self.children.len()
                 {
