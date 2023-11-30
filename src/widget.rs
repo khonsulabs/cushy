@@ -1077,9 +1077,9 @@ impl MakeWidget for WidgetInstance {
     }
 }
 
-impl MakeWidget for Color {
-    fn make_widget(self) -> WidgetInstance {
-        Space::colored(self).make_widget()
+impl MakeWidgetWithId for Color {
+    fn make_with_id(self, id: WidgetTag) -> WidgetInstance {
+        Space::colored(self).make_with_id(id)
     }
 }
 

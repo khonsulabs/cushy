@@ -7,7 +7,7 @@ use kludgine::Color;
 use crate::styles::components::OutlineColor;
 use crate::styles::{Component, DynamicComponent};
 use crate::value::{Dynamic, IntoDynamic, IntoValue, MapEach, Value};
-use crate::widget::{MakeWidget, WidgetInstance};
+use crate::widget::{MakeWidget, MakeWidgetWithId, WidgetInstance};
 use crate::widgets::button::{ButtonBackground, ButtonHoverBackground, ButtonKind};
 
 /// A selectable, labeled widget representing a value.
@@ -45,11 +45,11 @@ impl<T> Select<T> {
     }
 }
 
-impl<T> MakeWidget for Select<T>
+impl<T> MakeWidgetWithId for Select<T>
 where
     T: Clone + Debug + Eq + RefUnwindSafe + UnwindSafe + Send + Sync + 'static,
 {
-    fn make_widget(self) -> WidgetInstance {
+    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         let selected = self.state.map_each({
             let value = self.value.clone();
             move |state| state == &value
@@ -79,7 +79,7 @@ where
             .kind(kind)
             .with_dynamic(&ButtonBackground, selected_color.clone())
             .with_dynamic(&ButtonHoverBackground, selected_color)
-            .make_widget()
+            .make_with_id(id)
     }
 }
 

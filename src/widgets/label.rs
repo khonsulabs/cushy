@@ -8,7 +8,7 @@ use kludgine::{Color, DrawableExt};
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::TextColor;
 use crate::value::{Dynamic, Generation, IntoValue, Value};
-use crate::widget::{MakeWidget, Widget, WidgetInstance};
+use crate::widget::{Widget, WidgetInstance};
 use crate::ConstraintLimit;
 
 /// A read-only text widget.
@@ -90,9 +90,9 @@ impl Widget for Label {
 
 macro_rules! impl_make_widget {
     ($($type:ty),*) => {
-        $(impl MakeWidget for $type {
-            fn make_widget(self) -> WidgetInstance {
-                Label::new(self).make_widget()
+        $(impl crate::widget::MakeWidgetWithId for $type {
+            fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
+                Label::new(self).make_with_id(id)
             }
         })*
     };

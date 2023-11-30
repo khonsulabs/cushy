@@ -10,7 +10,7 @@ use crate::animation::{
     AnimationHandle, AnimationTarget, IntoAnimate, PercentBetween, Spawn, ZeroToOne,
 };
 use crate::value::{Dynamic, IntoDynamic, IntoValue, MapEach, Value};
-use crate::widget::{MakeWidget, WidgetInstance};
+use crate::widget::{MakeWidget, MakeWidgetWithId, WidgetInstance};
 use crate::widgets::slider::Slidable;
 use crate::widgets::Data;
 
@@ -47,8 +47,8 @@ pub enum Progress<T = ZeroToOne> {
     Percent(T),
 }
 
-impl MakeWidget for ProgressBar {
-    fn make_widget(self) -> WidgetInstance {
+impl MakeWidgetWithId for ProgressBar {
+    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         let start = Dynamic::new(ZeroToOne::ZERO);
         let end = Dynamic::new(ZeroToOne::ZERO);
         let value = (&start, &end).map_each(|(start, end)| *start..=*end);
@@ -61,7 +61,7 @@ impl MakeWidget for ProgressBar {
             &end,
         );
 
-        let slider = value.slider().knobless().non_interactive();
+        let slider = value.slider().knobless().non_interactive().make_with_id(id);
         match self.progress {
             Value::Dynamic(progress) => {
                 progress.for_each(move |progress| {

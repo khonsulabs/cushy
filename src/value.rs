@@ -20,7 +20,7 @@ use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearIn
 use crate::context::sealed::WindowHandle;
 use crate::context::{self, WidgetContext};
 use crate::utils::{run_in_bg, IgnorePoison, UnwindsafeCondvar, WithClone};
-use crate::widget::{Children, MakeWidget, WidgetId, WidgetInstance};
+use crate::widget::{Children, MakeWidget, MakeWidgetWithId, WidgetId, WidgetInstance};
 use crate::widgets::{Radio, Select, Space, Switcher};
 
 /// An instance of a value that provides APIs to observe and react to its
@@ -607,20 +607,20 @@ impl Dynamic<WidgetInstance> {
     }
 }
 
-impl MakeWidget for Dynamic<WidgetInstance> {
-    fn make_widget(self) -> WidgetInstance {
-        self.switcher().make_widget()
+impl MakeWidgetWithId for Dynamic<WidgetInstance> {
+    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
+        self.switcher().make_with_id(id)
     }
 }
 
-impl MakeWidget for Dynamic<Option<WidgetInstance>> {
-    fn make_widget(self) -> WidgetInstance {
+impl MakeWidgetWithId for Dynamic<Option<WidgetInstance>> {
+    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         self.map_each(|widget| {
             widget
                 .as_ref()
                 .map_or_else(|| Space::clear().make_widget(), Clone::clone)
         })
-        .make_widget()
+        .make_with_id(id)
     }
 }
 

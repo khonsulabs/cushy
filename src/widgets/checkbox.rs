@@ -10,7 +10,7 @@ use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{LineHeight, OutlineColor, TextColor, WidgetAccentColor};
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
-use crate::widget::{MakeWidget, Widget, WidgetInstance};
+use crate::widget::{MakeWidget, MakeWidgetWithId, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
 
@@ -50,8 +50,8 @@ impl Checkbox {
     }
 }
 
-impl MakeWidget for Checkbox {
-    fn make_widget(self) -> WidgetInstance {
+impl MakeWidgetWithId for Checkbox {
+    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         CheckboxOrnament {
             value: self.state.create_reader(),
         }
@@ -63,7 +63,7 @@ impl MakeWidget for Checkbox {
             *value = !*value;
         })
         .kind(self.kind)
-        .make_widget()
+        .make_with_id(id)
     }
 }
 

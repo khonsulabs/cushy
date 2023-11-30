@@ -10,7 +10,7 @@ use kludgine::DrawableExt;
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{LineHeight, OutlineColor, WidgetAccentColor};
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
-use crate::widget::{MakeWidget, Widget, WidgetInstance};
+use crate::widget::{MakeWidget, MakeWidgetWithId, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
 
@@ -50,11 +50,11 @@ impl<T> Radio<T> {
     }
 }
 
-impl<T> MakeWidget for Radio<T>
+impl<T> MakeWidgetWithId for Radio<T>
 where
     T: Clone + Debug + Eq + UnwindSafe + Send + 'static,
 {
-    fn make_widget(self) -> WidgetInstance {
+    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         RadioOrnament {
             value: self.value.clone(),
             state: self.state.create_reader(),
@@ -66,7 +66,7 @@ where
             self.state.set(self.value.clone());
         })
         .kind(self.kind)
-        .make_widget()
+        .make_with_id(id)
     }
 }
 

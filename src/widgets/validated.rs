@@ -5,7 +5,7 @@ use kludgine::Color;
 
 use crate::styles::components::{LineHeight, OutlineColor, TextColor, TextSize};
 use crate::value::{Dynamic, IntoDynamic, IntoValue, MapEach, Validation, Value};
-use crate::widget::{MakeWidget, WidgetInstance, WidgetRef, WrapperWidget};
+use crate::widget::{MakeWidget, MakeWidgetWithId, WidgetInstance, WidgetRef, WrapperWidget};
 
 /// A widget that displays validation information around another widget.
 ///
@@ -42,8 +42,8 @@ impl Validated {
     }
 }
 
-impl MakeWidget for Validated {
-    fn make_widget(self) -> WidgetInstance {
+impl MakeWidgetWithId for Validated {
+    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         let message = match self.hint {
             Value::Constant(hint) => self
                 .validation
@@ -81,7 +81,7 @@ impl MakeWidget for Validated {
             error_color,
             default_color,
         }
-        .make_widget()
+        .make_with_id(id)
     }
 }
 
