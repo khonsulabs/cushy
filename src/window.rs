@@ -664,7 +664,7 @@ where
                 window_size.map(ConstraintLimit::SizeToFit)
             });
         let actual_size = if root_mode == RootMode::Align {
-            window_size
+            window_size.max(layout_size)
         } else {
             layout_size
         };
@@ -680,6 +680,10 @@ where
             let _ = layout_context
                 .winit()
                 .request_inner_size(PhysicalSize::from(new_size));
+        } else if render_size != actual_size && resizable {
+            let _ = layout_context
+                .winit()
+                .request_inner_size(PhysicalSize::from(actual_size));
         }
         self.root.set_layout(Rect::from(render_size.into_signed()));
 

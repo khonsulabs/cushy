@@ -150,6 +150,7 @@ impl FrameInfo {
     fn measure(&self, available: ConstraintLimit, content: UPx) -> (UPx, UPx, UPx) {
         match available {
             ConstraintLimit::Fill(size) => {
+                let size = size.max(content);
                 let remaining = size.saturating_sub(content);
                 let (a, b) = match (self.a, self.b) {
                     (Some(a), Some(b)) => (a, b),
