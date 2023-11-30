@@ -420,22 +420,28 @@ impl Layout {
 
         // Measure the children that fit their content
         self.other = UPx::ZERO;
-        for (fit_index, &id) in self.fit_to_content.iter().enumerate() {
+        let mut requires_gutter = false;
+        for &id in &self.fit_to_content {
             let index = self.children.index_of_id(id).expect("child not found");
+
             let (measured, other) = self.orientation.split_size(measure(
                 index,
                 self.orientation.make_size(
-                    ConstraintLimit::SizeToFit(available_space),
+                    ConstraintLimit::SizeToFit(remaining.saturating_sub(if requires_gutter {
+                        gutter
+                    } else {
+                        UPx::ZERO
+                    })),
                     other_constraint,
                 ),
                 !needs_final_layout,
             ));
             self.layouts[index].size = measured;
             if measured > 0 {
-                if fit_index < self.fit_to_content.len() - 1
-                    || self.fit_to_content.len() != self.children.len()
-                {
+                if requires_gutter {
                     remaining = remaining.saturating_sub(gutter);
+                } else {
+                    requires_gutter = true;
                 }
                 self.other = self.other.max(other);
             }
@@ -458,8 +464,14 @@ impl Layout {
 
         // Measure the weighted children within the remaining space
         if self.total_weights > 0 {
-            let space_per_weight = (remaining / self.total_weights).floor();
-            remaining -= space_per_weight * self.total_weights;
+            let mut needed_gutters = u32::try_from(self.fractional.len()).unwrap_or(u32::MAX);
+            if !requires_gutter {
+                needed_gutters -= 1;
+            }
+            let gutters = gutter * needed_gutters;
+            let space_per_weight =
+                ((remaining.saturating_sub(gutters)) / self.total_weights).floor();
+            remaining = remaining.saturating_sub(space_per_weight * self.total_weights + gutters);
             for (fractional_index, &(id, weight)) in self.fractional.iter().enumerate() {
                 let index = self.children.index_of_id(id).expect("child not found");
                 let mut size = space_per_weight * u32::from(weight);
@@ -499,26 +511,43 @@ impl Layout {
             ConstraintLimit::SizeToFit(clip_limit) => self.other.min(clip_limit),
         };
 
-        // Finally, compute the offsets of all of the widgets.
+        let measured = self.update_offsets(needs_final_layout, gutter, scale, measure);
+
+        self.orientation.make_size(measured, self.other)
+    }
+
+    fn update_offsets(
+        &mut self,
+        needs_final_layout: bool,
+        gutter: UPx,
+        scale: Fraction,
+        mut measure: impl FnMut(usize, Size<ConstraintLimit>, bool) -> Size<UPx>,
+    ) -> UPx {
         let mut offset = UPx::ZERO;
         for index in 0..self.children.len() {
-            self.layouts[index].offset = offset;
-            if self.layouts[index].size > 0 {
-                offset += self.layouts[index].size + gutter;
+            let visible = self.layouts[index].size > 0;
+
+            if visible && offset > 0 {
+                offset += gutter;
             }
-            if needs_final_layout {
-                self.orientation.split_size(measure(
-                    index,
-                    self.orientation.make_size(
-                        ConstraintLimit::Fill(self.layouts[index].size.into_upx(scale)),
-                        ConstraintLimit::Fill(self.other),
-                    ),
-                    true,
-                ));
+
+            self.layouts[index].offset = offset;
+
+            if visible {
+                offset += self.layouts[index].size;
+                if needs_final_layout {
+                    measure(
+                        index,
+                        self.orientation.make_size(
+                            ConstraintLimit::Fill(self.layouts[index].size.into_upx(scale)),
+                            ConstraintLimit::Fill(self.other),
+                        ),
+                        true,
+                    );
+                }
             }
         }
-
-        self.orientation.make_size(offset, self.other)
+        offset
     }
 }
 

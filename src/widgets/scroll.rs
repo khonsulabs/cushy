@@ -172,12 +172,12 @@ impl Widget for Scroll {
             Size::new(available_space.width.max(), available_space.height.max()).into_signed();
         let max_extents = Size::new(
             if self.enabled.x {
-                ConstraintLimit::SizeToFit((control_size.width).into_unsigned())
+                ConstraintLimit::SizeToFit(UPx::MAX)
             } else {
                 available_space.width
             },
             if self.enabled.y {
-                ConstraintLimit::SizeToFit((control_size.height).into_unsigned())
+                ConstraintLimit::SizeToFit(UPx::MAX)
             } else {
                 available_space.height
             },
