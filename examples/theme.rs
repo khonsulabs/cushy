@@ -112,14 +112,16 @@ fn main() -> gooey::Result {
                 scheme.build()
             },
         );
-    color_scheme.for_each_cloned(move |scheme| {
-        sources.primary.set(scheme.primary);
-        sources.secondary.set(scheme.secondary);
-        sources.tertiary.set(scheme.tertiary);
-        sources.error.set(scheme.error);
-        sources.neutral.set(scheme.neutral);
-        sources.neutral_variant.set(scheme.neutral_variant);
-    });
+    color_scheme
+        .for_each_cloned(move |scheme| {
+            sources.primary.set(scheme.primary);
+            sources.secondary.set(scheme.secondary);
+            sources.tertiary.set(scheme.tertiary);
+            sources.error.set(scheme.error);
+            sources.neutral.set(scheme.neutral);
+            sources.neutral_variant.set(scheme.neutral_variant);
+        })
+        .persist();
     let theme = color_scheme.map_each_cloned(ThemePair::from);
 
     let editors = theme_switcher
@@ -198,18 +200,21 @@ fn color_editor(color: &Dynamic<ColorSource>) -> impl MakeWidget {
             source.hue = OklabHue::new(hue);
             color.set(source);
         }
-    });
+    })
+    .persist();
 
     let hue_text = hue.linked_string();
     let saturation = color.map_each(|color| color.saturation);
-    saturation.for_each_cloned({
-        let color = color.clone();
-        move |saturation| {
-            let mut source = color.get();
-            source.saturation = saturation;
-            color.set(source);
-        }
-    });
+    saturation
+        .for_each_cloned({
+            let color = color.clone();
+            move |saturation| {
+                let mut source = color.get();
+                source.saturation = saturation;
+                color.set(source);
+            }
+        })
+        .persist();
     let saturation_text = saturation.linked_string();
 
     hue.slider_between(0., 359.99)

@@ -14,6 +14,8 @@ use std::thread::ThreadId;
 use std::time::Duration;
 
 use ahash::AHashSet;
+use alot::{LotId, Lots};
+use intentional::Assert;
 use kempt::{Map, Sort};
 
 use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
@@ -41,6 +43,7 @@ impl<T> Dynamic<T> {
                 readers: 0,
                 wakers: Vec::new(),
                 widgets: AHashSet::new(),
+                source_callback: None,
             }),
             during_callback_state: Mutex::default(),
             sync: UnwindsafeCondvar::default(),
@@ -87,7 +90,8 @@ impl<T> Dynamic<T> {
                 if let Some(update) = t_into_r(t).into() {
                     let _result = r.replace(update);
                 }
-            });
+            })
+            .persist();
         });
 
         self.with_clone(|t| {
@@ -162,6 +166,12 @@ impl<T> Dynamic<T> {
         })
     }
 
+    fn set_source(&self, source: CallbackHandle) {
+        self.state()
+            .assert("called during initialization")
+            .source_callback = Some(source);
+    }
+
     /// Returns a new dynamic that contains the updated contents of this dynamic
     /// at most once every `period`.
     #[must_use]
@@ -171,7 +181,8 @@ impl<T> Dynamic<T> {
     {
         let debounced = Dynamic::new(self.get());
         let mut debounce = Debounce::new(debounced.clone(), period);
-        self.for_each_cloned(move |value| debounce.update(value));
+        let callback = self.for_each_cloned(move |value| debounce.update(value));
+        debounced.set_source(callback);
         debounced
     }
 
@@ -185,7 +196,8 @@ impl<T> Dynamic<T> {
     {
         let debounced = Dynamic::new(self.get());
         let mut debounce = Debounce::new(debounced.clone(), period).extending();
-        self.for_each_cloned(move |value| debounce.update(value));
+        let callback = self.for_each_cloned(move |value| debounce.update(value));
+        debounced.set_source(callback);
         debounced
     }
 
@@ -213,7 +225,7 @@ impl<T> Dynamic<T> {
 
     /// Attaches `for_each` to this value so that it is invoked each time the
     /// value's contents are updated.
-    pub fn for_each<F>(&self, mut for_each: F)
+    pub fn for_each<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
         F: for<'a> FnMut(&'a T) + Send + 'static,
@@ -221,12 +233,12 @@ impl<T> Dynamic<T> {
         let this = self.clone();
         self.0.for_each(move || {
             this.map_ref(&mut for_each);
-        });
+        })
     }
 
     /// Attaches `for_each` to this value and its [`Generation`] so that it is
     /// invoked each time the value's contents are updated.
-    pub fn for_each_generational<F>(&self, mut for_each: F)
+    pub fn for_each_generational<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
         F: for<'a> FnMut(&'a GenerationalValue<T>) + Send + 'static,
@@ -234,12 +246,12 @@ impl<T> Dynamic<T> {
         let this = self.clone();
         self.0.for_each(move || {
             this.map_generational(&mut for_each);
-        });
+        })
     }
 
     /// Attaches `for_each` to this value so that it is invoked each time the
     /// value's contents are updated.
-    pub fn for_each_cloned<F>(&self, mut for_each: F)
+    pub fn for_each_cloned<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(T) + Send + 'static,
@@ -247,7 +259,7 @@ impl<T> Dynamic<T> {
         let this = self.clone();
         self.0.for_each(move || {
             for_each(this.get());
-        });
+        })
     }
 
     /// Attaches `for_each` to this value so that it is invoked each time the
@@ -258,7 +270,7 @@ impl<T> Dynamic<T> {
         T: Send + 'static,
         F: for<'a> FnMut(&'a T) + Send + 'static,
     {
-        self.for_each(for_each);
+        self.for_each(for_each).persist();
         self
     }
 
@@ -584,7 +596,7 @@ impl<T> Dynamic<T> {
         E: Display,
     {
         let validation = Dynamic::new(Validation::None);
-        self.for_each({
+        let callback = self.for_each({
             let validation = validation.clone();
             move |value| {
                 validation.set(match check(value) {
@@ -593,6 +605,7 @@ impl<T> Dynamic<T> {
                 });
             }
         });
+        validation.set_source(callback);
         validation
     }
 }
@@ -806,13 +819,16 @@ impl<T> DynamicData<T> {
         Ok(old)
     }
 
-    pub fn for_each<F>(&self, map: F)
+    pub fn for_each<F>(&self, map: F) -> CallbackHandle
     where
         F: for<'a> FnMut() + Send + 'static,
     {
         let state = self.state().expect("deadlocked");
         let mut callbacks = state.callbacks.callbacks.lock().ignore_poison();
-        callbacks.push(Box::new(map));
+        CallbackHandle {
+            id: Some(callbacks.push(Box::new(map))),
+            callbacks: state.callbacks.clone(),
+        }
     }
 
     pub fn map_each<R, F>(&self, mut map: F) -> Dynamic<R>
@@ -824,9 +840,11 @@ impl<T> DynamicData<T> {
         let mapped_value = Dynamic::new(initial_value);
         let returned = mapped_value.clone();
 
-        self.for_each(move || {
+        let callback = self.for_each(move || {
             mapped_value.set(map());
         });
+
+        returned.set_source(callback);
 
         returned
     }
@@ -855,8 +873,46 @@ impl Display for DeadlockError {
     }
 }
 
+/// A handle to a callback installed on a [`Dynamic`]. When dropped, the
+/// callback will be uninstalled.
+///
+/// To prevent the callback from ever being uninstalled, use
+/// [`Self::persist()`].
+#[must_use]
+pub struct CallbackHandle {
+    id: Option<LotId>,
+    callbacks: Arc<ChangeCallbacksData>,
+}
+
+impl Debug for CallbackHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CallbackHandle")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl CallbackHandle {
+    /// Persists the callback so that it will always be invoked until the
+    /// dynamic is freed.
+    pub fn persist(mut self) {
+        let _id = self.id.take();
+        drop(self);
+    }
+}
+
+impl Drop for CallbackHandle {
+    fn drop(&mut self) {
+        if let Some(id) = self.id {
+            let mut callbacks = self.callbacks.callbacks.lock().ignore_poison();
+            callbacks.remove(id);
+        }
+    }
+}
+
 struct State<T> {
     wrapped: GenerationalValue<T>,
+    source_callback: Option<CallbackHandle>,
     callbacks: Arc<ChangeCallbacksData>,
     windows: AHashSet<WindowHandle>,
     widgets: AHashSet<(WindowHandle, WidgetId)>,
@@ -896,7 +952,7 @@ where
 
 #[derive(Default)]
 struct ChangeCallbacksData {
-    callbacks: Mutex<Vec<Box<dyn ValueCallback>>>,
+    callbacks: Mutex<Lots<Box<dyn ValueCallback>>>,
     currently_executing: AtomicBool,
 }
 
@@ -1617,7 +1673,7 @@ macro_rules! impl_tuple_for_each {
         }
     };
     ($self:ident $for_each:ident [] [$type:ident $field:tt $var:ident]) => {
-        $self.$field.for_each(move |field: &$type| $for_each((field,)));
+        $self.$field.for_each(move |field: &$type| $for_each((field,))).persist();
     };
     ($self:ident $for_each:ident [] [$($type:ident $field:tt $var:ident),+]) => {
         let $for_each = Arc::new(Mutex::new($for_each));
@@ -1684,7 +1740,7 @@ macro_rules! impl_tuple_for_each {
                     for_each.lock().ignore_poison();
                 (for_each)(($(&$avar,)+));
             }
-        }));
+        })).persist();
     };
 }
 
@@ -1761,7 +1817,7 @@ macro_rules! impl_tuple_for_each_cloned {
         }
     };
     ($self:ident $for_each:ident [] [$type:ident $field:tt $var:ident]) => {
-        $self.$field.for_each(move |field: &$type| $for_each((field.clone(),)));
+        $self.$field.for_each(move |field: &$type| $for_each((field.clone(),))).persist();
     };
     ($self:ident $for_each:ident [] [$($type:ident $field:tt $var:ident),+]) => {
         let $for_each = Arc::new(Mutex::new($for_each));
@@ -1829,7 +1885,7 @@ macro_rules! impl_tuple_for_each_cloned {
                 (for_each)(($($avar,)+));
                     }
             }
-        }));
+        })).persist();
     };
 }
 
@@ -2203,6 +2259,7 @@ struct Debounce<T> {
     delay: Option<AnimationHandle>,
     buffer: Dynamic<T>,
     extend: bool,
+    _callback: Option<CallbackHandle>,
 }
 
 impl<T> Debounce<T>
@@ -2216,6 +2273,7 @@ where
             period,
             delay: None,
             extend: false,
+            _callback: None,
         }
     }
 

@@ -7,11 +7,13 @@ use gooey::Run;
 fn main() -> gooey::Result {
     let tasks = Dynamic::default();
     let children = Dynamic::default();
-    tasks.for_each(children.with_clone(|children| {
-        move |tasks: &Vec<Task>| {
-            update_task_widgets(tasks, &mut children.lock());
-        }
-    }));
+    tasks
+        .for_each(children.with_clone(|children| {
+            move |tasks: &Vec<Task>| {
+                update_task_widgets(tasks, &mut children.lock());
+            }
+        }))
+        .persist();
 
     let task_text = Dynamic::default();
     let valid = task_text.map_each(|text: &String| !text.is_empty());

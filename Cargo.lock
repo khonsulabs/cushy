@@ -48,8 +48,7 @@ checksum = "0942ffc6dcaadf03badf6e6a2d0228460359d5e34b57ccdc720b7382dfbd5ec5"
 [[package]]
 name = "alot"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f1063fbee2ac6d371ffcb55cb443f4d5b469f1b8eace60042878242bb534169"
+source = "git+https://github.com/khonsulabs/alot#8868932a271587bdabcd2aeb18aa960fa1b5c79e"
 
 [[package]]
 name = "android-activity"

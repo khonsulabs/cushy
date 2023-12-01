@@ -189,7 +189,8 @@ fn square(row: usize, column: usize, game: &Dynamic<GameState>) -> impl MakeWidg
             if enabled.replace(false).is_some() {
                 label.set(player.to_string());
             }
-        });
+        })
+        .persist();
     });
 
     label

@@ -64,10 +64,10 @@ impl MakeWidgetWithId for ProgressBar {
         let slider = value.slider().knobless().non_interactive().make_with_id(id);
         match self.progress {
             Value::Dynamic(progress) => {
-                progress.for_each(move |progress| {
+                let callback = progress.for_each(move |progress| {
                     update_progress_bar(*progress, &mut indeterminant_animation, &start, &end);
                 });
-                Data::new_wrapping(progress, slider).make_widget()
+                Data::new_wrapping((callback, progress), slider).make_widget()
             }
             Value::Constant(_) => Data::new_wrapping(indeterminant_animation, slider).make_widget(),
         }
