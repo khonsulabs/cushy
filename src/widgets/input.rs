@@ -1099,7 +1099,7 @@ where
                         .translate_by(padding),
                     );
                 }
-            } else if window_focused {
+            } else if window_focused && context.enabled() {
                 let (location, _) =
                     Self::point_from_cursor(cache.measured, cache.cursor, cache.bytes);
                 if cursor_state.visible {

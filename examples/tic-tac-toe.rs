@@ -17,7 +17,7 @@ fn main() -> gooey::Result {
             AppState::Winner(winner) => game_end(*winner, &app).make_widget(),
         }
     }))
-    .switcher()
+    .into_switcher()
     .contain()
     .width(Lp::inches(2)..Lp::inches(6))
     .height(Lp::inches(2)..Lp::inches(6))

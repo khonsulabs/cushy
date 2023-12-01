@@ -800,6 +800,15 @@ impl<const N: usize> GridWidgets<N> {
     }
 }
 
+impl<T, const N: usize> From<Vec<T>> for GridWidgets<N>
+where
+    T: Into<GridSection<N>>,
+{
+    fn from(value: Vec<T>) -> Self {
+        Self(value.into_iter().map(T::into).collect())
+    }
+}
+
 impl<T, const N: usize> From<T> for GridWidgets<N>
 where
     T: Into<GridSection<N>>,
@@ -848,6 +857,18 @@ where
 {
     fn from(value: T) -> Self {
         Self([value.make_widget()])
+    }
+}
+
+impl<const N: usize, T> From<[T; N]> for GridSection<N>
+where
+    T: MakeWidget,
+{
+    fn from(values: [T; N]) -> Self {
+        let mut widgets = values.into_iter();
+        Self(array::from_fn(|_| {
+            widgets.next().assert("length checked").make_widget()
+        }))
     }
 }
 

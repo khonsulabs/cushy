@@ -19,6 +19,7 @@ use crate::styles::FontFamilyList;
 pub struct Graphics<'clip, 'gfx, 'pass> {
     renderer: RenderContext<'clip, 'gfx, 'pass>,
     region: Rect<Px>,
+    current_font_family: &'clip mut Option<FontFamilyList>,
 }
 
 enum RenderContext<'clip, 'gfx, 'pass> {
@@ -29,10 +30,14 @@ enum RenderContext<'clip, 'gfx, 'pass> {
 impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     /// Returns a new graphics context for the given [`Renderer`].
     #[must_use]
-    pub fn new(renderer: Renderer<'gfx, 'pass>) -> Self {
+    pub fn new(
+        renderer: Renderer<'gfx, 'pass>,
+        current_font_family: &'clip mut Option<FontFamilyList>,
+    ) -> Self {
         Self {
             region: renderer.clip_rect().into_signed(),
             renderer: RenderContext::Renderer(renderer),
+            current_font_family,
         }
     }
 
@@ -86,8 +91,11 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
 
     /// Sets the font family to the first family in `list`.
     pub fn set_available_font_family(&mut self, list: &FontFamilyList) {
-        if let Some(family) = self.find_available_font_family(list) {
-            self.set_font_family(family);
+        if self.current_font_family.as_ref() != Some(list) {
+            *self.current_font_family = Some(list.clone());
+            if let Some(family) = self.find_available_font_family(list) {
+                self.set_font_family(family);
+            }
         }
     }
 
@@ -123,6 +131,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         Graphics {
             renderer: RenderContext::Clipped(self.renderer.clipped_to(new_clip)),
             region,
+            current_font_family: &mut *self.current_font_family,
         }
     }
 

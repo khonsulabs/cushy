@@ -623,15 +623,6 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         self.gfx.set_font_weight(self.widget.get(&FontWeight));
     }
 
-    // /// Applies the current style settings for font family, text size, font
-    // /// style, and font weight.
-    // pub fn apply_current_font_settings_to<'a>(&self, attrs: Attrs<'a>) -> Attrs<'a> {
-    //     attrs.set_available_font_family(&self.widget.get(&FontFamily));
-    //     attrs.set_font_size(self.widget.get(&TextSize));
-    //     attrs.set_font_style(self.widget.get(&FontStyle));
-    //     attrs.set_font_weight(self.widget.get(&FontWeight));
-    // }
-
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
     /// context's widget.
     ///
@@ -1268,6 +1259,14 @@ pub trait ManageWidget {
 
     /// Resolve `self` into a [`ManagedWidget`].
     fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed;
+}
+
+impl ManageWidget for WidgetId {
+    type Managed = Option<ManagedWidget>;
+
+    fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed {
+        context.current_node.tree.widget(*self)
+    }
 }
 
 impl ManageWidget for WidgetInstance {

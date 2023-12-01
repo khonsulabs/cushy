@@ -637,6 +637,7 @@ where
         let root_mode = self.constrain_window_resizing(resizable, &mut window, graphics);
 
         let graphics = self.contents.new_frame(graphics);
+        let mut current_font_family = None;
         let mut context = GraphicsContext {
             widget: WidgetContext::new(
                 self.root.clone(),
@@ -646,7 +647,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
             ),
-            gfx: Exclusive::Owned(Graphics::new(graphics)),
+            gfx: Exclusive::Owned(Graphics::new(graphics, &mut current_font_family)),
         };
         self.theme_mode.redraw_when_changed(&context);
         let mut layout_context = LayoutContext::new(&mut context);

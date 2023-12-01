@@ -1,7 +1,7 @@
 //! Types for storing and interacting with values in Widgets.
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Display};
+use std::fmt::{self, Debug, Display};
 use std::future::Future;
 use std::hash::{BuildHasher, Hash};
 use std::ops::{Deref, DerefMut, Not};
@@ -25,7 +25,6 @@ use crate::widgets::{Radio, Select, Space, Switcher};
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
-#[derive(Debug)]
 pub struct Dynamic<T>(Arc<DynamicData<T>>);
 
 impl<T> Dynamic<T> {
@@ -598,18 +597,34 @@ impl<T> Dynamic<T> {
     }
 }
 
+impl<T> Debug for Dynamic<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0.state() {
+            Ok(state) => f
+                .debug_struct("Dynamic")
+                .field("value", &state.wrapped.value)
+                .field("generation", &state.wrapped.generation)
+                .finish(),
+            Err(_) => f.debug_tuple("Dynamic").field(&"<unable to lock>").finish(),
+        }
+    }
+}
+
 impl Dynamic<WidgetInstance> {
     /// Returns a new [`Switcher`] widget whose contents is the value of this
     /// dynamic.
     #[must_use]
-    pub fn switcher(self) -> Switcher {
+    pub fn into_switcher(self) -> Switcher {
         Switcher::new(self)
     }
 }
 
 impl MakeWidgetWithId for Dynamic<WidgetInstance> {
     fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
-        self.switcher().make_with_id(id)
+        self.into_switcher().make_with_id(id)
     }
 }
 
@@ -633,6 +648,8 @@ impl<T> context::sealed::Trackable for Dynamic<T> {
         self.invalidate_when_changed(handle, id);
     }
 }
+
+impl<T> Eq for Dynamic<T> {}
 
 impl<T> PartialEq for Dynamic<T> {
     fn eq(&self, other: &Self) -> bool {
@@ -833,7 +850,7 @@ struct DeadlockError;
 impl std::error::Error for DeadlockError {}
 
 impl Display for DeadlockError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("a deadlock was detected")
     }
 }
@@ -869,7 +886,7 @@ impl<T> Debug for State<T>
 where
     T: Debug,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("State")
             .field("wrapped", &self.wrapped)
             .field("readers", &self.readers)
@@ -986,6 +1003,17 @@ impl<T> DerefMut for GenerationalValue<T> {
 pub struct DynamicGuard<'a, T> {
     guard: DynamicMutexGuard<'a, T>,
     accessed_mut: bool,
+}
+
+impl<T> DynamicGuard<'_, T> {
+    /// Returns the generation of the value at the time of locking the dynamic.
+    ///
+    /// Even if this guard accesses the data through [`DerefMut`], this value
+    /// will remain unchanged while the guard is held.
+    #[must_use]
+    pub fn generation(&self) -> Generation {
+        self.guard.wrapped.generation
+    }
 }
 
 impl<'a, T> Deref for DynamicGuard<'a, T> {
@@ -1896,6 +1924,19 @@ impl Validation {
     }
 }
 
+impl<T, E> IntoDynamic<Validation> for Dynamic<Result<T, E>>
+where
+    T: Send + 'static,
+    E: Display + Send + 'static,
+{
+    fn into_dynamic(self) -> Dynamic<Validation> {
+        self.map_each(|result| match result {
+            Ok(_) => Validation::Valid,
+            Err(err) => Validation::Invalid(err.to_string()),
+        })
+    }
+}
+
 /// A grouping of validations that can be checked simultaneously.
 #[derive(Debug, Default, Clone)]
 pub struct Validations {
@@ -2135,13 +2176,17 @@ impl WhenValidation<'_> {
     /// The validation is linked with `self` such that checking `self`'s
     /// validation status will include this validation.
     #[must_use]
-    pub fn validate_result<E>(&self, result: impl IntoDynamic<Result<(), E>>) -> Dynamic<Validation>
+    pub fn validate_result<T, E>(
+        &self,
+        result: impl IntoDynamic<Result<T, E>>,
+    ) -> Dynamic<Validation>
     where
+        T: Send + 'static,
         E: Display + Send + 'static,
     {
         let result = result.into_dynamic();
         let error_message = result.map_each(move |value| match value {
-            Ok(()) => None,
+            Ok(_) => None,
             Err(err) => Some(err.to_string()),
         });
 
