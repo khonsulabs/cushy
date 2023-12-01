@@ -1567,7 +1567,7 @@ impl WidgetGuard<'_> {
 }
 
 /// A list of [`Widget`]s.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Eq, PartialEq)]
 #[must_use]
 pub struct Children {
     ordered: Vec<WidgetInstance>,

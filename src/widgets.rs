@@ -9,6 +9,7 @@ pub mod container;
 mod custom;
 mod data;
 mod expand;
+pub mod grid;
 pub mod input;
 pub mod label;
 mod mode_switch;

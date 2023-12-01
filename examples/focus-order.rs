@@ -2,6 +2,7 @@ use std::process::exit;
 
 use gooey::value::{Dynamic, MapEach};
 use gooey::widget::{MakeWidget, MakeWidgetWithId, WidgetTag};
+use gooey::widgets::grid::{Grid, GridDimension, GridWidgets};
 use gooey::widgets::input::{InputValue, MaskedString};
 use gooey::widgets::Expand;
 use gooey::Run;
@@ -21,26 +22,15 @@ fn main() -> gooey::Result {
     let (cancel_tag, cancel_id) = WidgetTag::new();
     let (username_tag, username_id) = WidgetTag::new();
 
-    // TODO this should be a grid layout to ensure proper visual alignment.
-    let username_row = "Username"
-        .and(
-            username
-                .clone()
-                .into_input()
-                .make_with_id(username_tag)
-                .expand(),
-        )
-        .into_columns();
+    let username_row = (
+        "Username",
+        username.clone().into_input().make_with_id(username_tag),
+    );
 
-    let password_row = "Password"
-        .and(
-            password
-                .clone()
-                .into_input()
-                .with_next_focus(login_id)
-                .expand(),
-        )
-        .into_columns();
+    let password_row = (
+        "Password",
+        password.clone().into_input().with_next_focus(login_id),
+    );
 
     let buttons = "Cancel"
         .into_button()
@@ -66,8 +56,11 @@ fn main() -> gooey::Result {
         )
         .into_columns();
 
-    username_row
-        .and(password_row)
+    Grid::from_rows(GridWidgets::from(username_row).and(password_row))
+        .dimensions([
+            GridDimension::FitContent,
+            GridDimension::Fractional { weight: 1 },
+        ])
         .and(buttons)
         .into_rows()
         .contain()
