@@ -901,6 +901,14 @@ impl CallbackHandle {
     }
 }
 
+impl Eq for CallbackHandle {}
+
+impl PartialEq for CallbackHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && Arc::ptr_eq(&self.callbacks, &other.callbacks)
+    }
+}
+
 impl Drop for CallbackHandle {
     fn drop(&mut self) {
         if let Some(id) = self.id {
