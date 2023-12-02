@@ -8,7 +8,7 @@ use std::ops::{Deref, DerefMut, Not};
 use std::panic::UnwindSafe;
 use std::str::FromStr;
 use std::sync::atomic::{self, AtomicBool};
-use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
+use std::sync::{Arc, Mutex, MutexGuard, TryLockError, Weak};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
 use std::time::Duration;
@@ -48,6 +48,15 @@ impl<T> Dynamic<T> {
             during_callback_state: Mutex::default(),
             sync: UnwindsafeCondvar::default(),
         }))
+    }
+
+    /// Returns a weak reference to this dynamic.
+    ///
+    /// This is powered by [`Arc`]/[`Weak`] and follows the same semantics for
+    /// reference counting.
+    #[must_use]
+    pub fn downgrade(&self) -> WeakDynamic<T> {
+        WeakDynamic::from(self)
     }
 
     /// Returns a new dynamic that has its contents linked with `self` by the
@@ -1101,6 +1110,59 @@ impl<T> Drop for DynamicGuard<'_, T> {
             let mut callbacks = Some(self.guard.note_changed());
             run_in_bg(move || drop(callbacks.take()));
         }
+    }
+}
+
+/// A weak reference to a [`Dynamic`].
+///
+/// This is powered by [`Arc`]/[`Weak`] and follows the same semantics for
+/// reference counting.
+pub struct WeakDynamic<T>(Weak<DynamicData<T>>);
+
+impl<T> WeakDynamic<T> {
+    /// Returns the [`Dynamic`] this weak reference points to, unless no
+    /// remaining [`Dynamic`] instances exist for the underlying value.
+    #[must_use]
+    pub fn upgrade(&self) -> Option<Dynamic<T>> {
+        self.0.upgrade().map(Dynamic)
+    }
+}
+
+impl<'a, T> From<&'a Dynamic<T>> for WeakDynamic<T> {
+    fn from(value: &'a Dynamic<T>) -> Self {
+        Self(Arc::downgrade(&value.0))
+    }
+}
+
+impl<T> From<Dynamic<T>> for WeakDynamic<T> {
+    fn from(value: Dynamic<T>) -> Self {
+        Self::from(&value)
+    }
+}
+
+impl<T> Clone for WeakDynamic<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T> Eq for WeakDynamic<T> {}
+
+impl<T> PartialEq for WeakDynamic<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Weak::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl<T> PartialEq<Dynamic<T>> for WeakDynamic<T> {
+    fn eq(&self, other: &Dynamic<T>) -> bool {
+        Weak::as_ptr(&self.0) == Arc::as_ptr(&other.0)
+    }
+}
+
+impl<T> PartialEq<WeakDynamic<T>> for Dynamic<T> {
+    fn eq(&self, other: &WeakDynamic<T>) -> bool {
+        Arc::as_ptr(&self.0) == Weak::as_ptr(&other.0)
     }
 }
 
