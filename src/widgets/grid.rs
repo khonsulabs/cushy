@@ -192,6 +192,13 @@ impl<const COLUMNS: usize> Widget for Grid<COLUMNS> {
 
         content_size
     }
+
+    fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Grid")
+            .field("dimensions", &self.columns)
+            .field("entries", &self.rows)
+            .finish()
+    }
 }
 
 /// The orientation (Row/Column) of an [`Grid`] or

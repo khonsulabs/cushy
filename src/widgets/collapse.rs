@@ -104,6 +104,13 @@ impl WrapperWidget for Collapse {
         }
         .into()
     }
+
+    fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Collapse")
+            .field("collapse", &self.collapse)
+            .field("child", &self.child)
+            .finish()
+    }
 }
 
 #[derive(Debug)]

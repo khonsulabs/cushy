@@ -169,4 +169,11 @@ impl Widget for Stack {
 
         content_size
     }
+
+    fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Stack")
+            .field("orientation", &self.layout.orientation)
+            .field("children", &self.children)
+            .finish()
+    }
 }

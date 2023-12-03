@@ -11,6 +11,7 @@ use crate::widget::{MakeWidget, MakeWidgetWithId, WidgetInstance};
 use crate::widgets::button::{ButtonBackground, ButtonHoverBackground, ButtonKind};
 
 /// A selectable, labeled widget representing a value.
+#[derive(Debug)]
 pub struct Select<T> {
     /// The value this button represents.
     pub value: T,

@@ -3,7 +3,7 @@
 use std::any::Any;
 use std::borrow::Cow;
 use std::collections::hash_map;
-use std::fmt::Debug;
+use std::fmt::{Debug, Write};
 use std::ops::{
     Add, AddAssign, Bound, Deref, Div, Mul, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
     RangeToInclusive,
@@ -29,7 +29,7 @@ use crate::value::{Dynamic, IntoValue, Value};
 pub mod components;
 
 /// A collection of style components organized by their name.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Default)]
 pub struct Styles(Arc<StyleData>);
 
 impl Styles {
@@ -172,7 +172,21 @@ impl Styles {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+impl Debug for Styles {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut map = f.debug_struct("Styles");
+        let mut component_name = String::new();
+        for (name, component) in &self.0.components {
+            component_name.clear();
+            write!(&mut component_name, "{name:?}")?;
+
+            map.field(&component_name, component);
+        }
+        map.finish()
+    }
+}
+
+#[derive(Default, Clone)]
 struct StyleData {
     components: AHashMap<ComponentName, Value<Component>>,
 }
@@ -519,7 +533,7 @@ impl TryFrom<Component> for CornerRadii<Dimension> {
 }
 
 /// A 1-dimensional measurement that may be automatically calculated.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub enum FlexibleDimension {
     /// Automatically calculate this dimension.
     Auto,
@@ -530,6 +544,15 @@ pub enum FlexibleDimension {
 impl FlexibleDimension {
     /// A dimension of 0 pixels.
     pub const ZERO: Self = Self::Dimension(Dimension::ZERO);
+}
+
+impl Debug for FlexibleDimension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Auto => f.write_str("Auto"),
+            Self::Dimension(arg0) => Debug::fmt(arg0, f),
+        }
+    }
 }
 
 impl Default for FlexibleDimension {
@@ -557,12 +580,21 @@ impl From<Lp> for FlexibleDimension {
 }
 
 /// A 1-dimensional measurement.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum Dimension {
     /// Physical Pixels
     Px(Px),
     /// Logical Pixels
     Lp(Lp),
+}
+
+impl Debug for Dimension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Px(arg0) => Debug::fmt(arg0, f),
+            Self::Lp(arg0) => Debug::fmt(arg0, f),
+        }
+    }
 }
 
 impl Default for Dimension {
@@ -907,7 +939,7 @@ where
 }
 
 /// A fully-qualified style component name.
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ComponentName {
     /// The group name.
     pub group: Name,
@@ -922,6 +954,12 @@ impl ComponentName {
             group: group.into(),
             name: name.into(),
         }
+    }
+}
+
+impl Debug for ComponentName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}.{:?}", &self.group, &self.name)
     }
 }
 

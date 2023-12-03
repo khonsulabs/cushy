@@ -624,14 +624,7 @@ where
     T: Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0.state() {
-            Ok(state) => f
-                .debug_struct("Dynamic")
-                .field("value", &state.wrapped.value)
-                .field("generation", &state.wrapped.generation)
-                .finish(),
-            Err(_) => f.debug_tuple("Dynamic").field(&"<unable to lock>").finish(),
-        }
+        Debug::fmt(&DebugDynamicData(&self.0), f)
     }
 }
 
@@ -722,10 +715,18 @@ impl From<String> for Dynamic<String> {
     }
 }
 
-#[derive(Debug)]
 struct DynamicMutexGuard<'a, T> {
     dynamic: &'a DynamicData<T>,
     guard: MutexGuard<'a, State<T>>,
+}
+
+impl<T> Debug for DynamicMutexGuard<'_, T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.guard.debug("DynamicMutexGuard", f)
+    }
 }
 
 impl<'a, T> Drop for DynamicMutexGuard<'a, T> {
@@ -755,7 +756,6 @@ struct LockState {
     locked_thread: ThreadId,
 }
 
-#[derive(Debug)]
 struct DynamicData<T> {
     state: Mutex<State<T>>,
     during_callback_state: Mutex<Option<LockState>>,
@@ -859,6 +859,20 @@ impl<T> DynamicData<T> {
     }
 }
 
+struct DebugDynamicData<'a, T>(&'a Arc<DynamicData<T>>);
+
+impl<T> Debug for DebugDynamicData<'_, T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0.state() {
+            Ok(state) => state.debug("Dynamic", f),
+            Err(_) => f.debug_tuple("Dynamic").field(&"<unable to lock>").finish(),
+        }
+    }
+}
+
 /// An error occurred while updating a value in a [`Dynamic`].
 pub enum ReplaceError<T> {
     /// The value was already equal to the one set.
@@ -952,6 +966,16 @@ impl<T> State<T> {
         }
 
         ChangeCallbacks(self.callbacks.clone())
+    }
+
+    fn debug(&self, name: &str, f: &mut fmt::Formatter<'_>) -> fmt::Result
+    where
+        T: Debug,
+    {
+        f.debug_struct(name)
+            .field("value", &self.wrapped.value)
+            .field("generation", &self.wrapped.generation.0)
+            .finish()
     }
 }
 
@@ -1167,7 +1191,6 @@ impl<T> PartialEq<WeakDynamic<T>> for Dynamic<T> {
 }
 
 /// A reader that tracks the last generation accessed through this reader.
-#[derive(Debug)]
 pub struct DynamicReader<T> {
     source: Arc<DynamicData<T>>,
     read_generation: Generation,
@@ -1305,6 +1328,18 @@ impl<T> context::sealed::Trackable for DynamicReader<T> {
 
     fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
         self.source.invalidate_when_changed(handle, id);
+    }
+}
+
+impl<T> Debug for DynamicReader<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DynamicReader")
+            .field("source", &DebugDynamicData(&self.source))
+            .field("read_generation", &self.read_generation.0)
+            .finish()
     }
 }
 
@@ -1514,7 +1549,6 @@ impl GetWidget<usize> for Vec<WidgetInstance> {
 impl<T, W> Switchable<T> for W where W: IntoDynamic<T> {}
 
 /// A value that may be either constant or dynamic.
-#[derive(Debug)]
 pub enum Value<T> {
     /// A value that will not ever change externally.
     Constant(T),
@@ -1647,6 +1681,18 @@ impl<T> IntoDynamic<T> for Value<T> {
         match self {
             Value::Constant(value) => Dynamic::new(value),
             Value::Dynamic(value) => value,
+        }
+    }
+}
+
+impl<T> Debug for Value<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Constant(arg0) => Debug::fmt(arg0, f),
+            Self::Dynamic(arg0) => Debug::fmt(arg0, f),
         }
     }
 }

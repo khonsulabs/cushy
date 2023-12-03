@@ -277,6 +277,13 @@ impl Widget for Scroll {
             HANDLED
         }
     }
+
+    fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Scroll")
+            .field("enabled", &self.enabled)
+            .field("contents", &self.contents)
+            .finish()
+    }
 }
 
 fn constrain_child(constraint: ConstraintLimit, measured: Px) -> UPx {

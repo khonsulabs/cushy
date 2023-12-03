@@ -224,6 +224,14 @@ impl WrapperWidget for Container {
             size: padded.into_unsigned(),
         }
     }
+
+    fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Container")
+            .field("background", &self.background)
+            .field("padding", &self.padding)
+            .field("child", &self.child)
+            .finish()
+    }
 }
 
 /// The selected background configuration of a [`Container`].

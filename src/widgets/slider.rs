@@ -728,6 +728,14 @@ where
         // using a mouse wheel as an input is annoying.
         HANDLED
     }
+
+    fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Slider")
+            .field("value", &self.value)
+            .field("min", &self.minimum)
+            .field("max", &self.maximum)
+            .finish()
+    }
 }
 
 struct TrackSpec {

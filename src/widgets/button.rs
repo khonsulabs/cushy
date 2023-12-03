@@ -329,6 +329,13 @@ impl VisualState {
 }
 
 impl Widget for Button {
+    fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_struct("Button")
+            .field("content", &self.content)
+            .field("kind", &self.kind)
+            .finish()
+    }
+
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         #![allow(clippy::similar_names)]
 

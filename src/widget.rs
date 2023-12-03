@@ -2,7 +2,7 @@
 
 use std::any::Any;
 use std::clone::Clone;
-use std::fmt::Debug;
+use std::fmt::{self, Debug};
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::panic::UnwindSafe;
 use std::sync::atomic::{self, AtomicU64};
@@ -50,6 +50,15 @@ use crate::{ConstraintLimit, Run};
 pub trait Widget: Send + UnwindSafe + Debug + 'static {
     /// Redraw the contents of this widget.
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
+
+    /// Writes a summary of this widget into `fmt`.
+    ///
+    /// The default implementation calls [`Debug::fmt`]. This function allows
+    /// widget authors to print only publicly relevant information that will
+    /// appear when debug formatting a [`WidgetInstance`].
+    fn summarize(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
 
     /// Layout this widget and returns the ideal size based on its contents and
     /// the `available_space`.
@@ -283,6 +292,15 @@ impl From<Size<UPx>> for WrappedLayout {
 pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
     /// Returns the child widget.
     fn child_mut(&mut self) -> &mut WidgetRef;
+
+    /// Writes a summary of this widget into `fmt`.
+    ///
+    /// The default implementation calls [`Debug::fmt`]. This function allows
+    /// widget authors to print only publicly relevant information that will
+    /// appear when debug formatting a [`WidgetInstance`].
+    fn summarize(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(self, f)
+    }
 
     /// Returns the behavior this widget should apply when positioned at the
     /// root of the window.
@@ -649,6 +667,10 @@ where
 
     fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
         T::allow_blur(self, context)
+    }
+
+    fn summarize(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        T::summarize(self, fmt)
     }
 }
 
@@ -1119,9 +1141,18 @@ where
 }
 
 /// An instance of a [`Widget`].
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct WidgetInstance {
     data: Arc<WidgetInstanceData>,
+}
+
+impl Debug for WidgetInstance {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.data.widget.try_lock() {
+            Ok(widget) => widget.summarize(f),
+            Err(_) => f.debug_struct("WidgetInstance").finish_non_exhaustive(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -1372,9 +1403,7 @@ pub struct ManagedWidget {
 
 impl Debug for ManagedWidget {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ManagedWidget")
-            .field("widget", &self.widget)
-            .finish_non_exhaustive()
+        Debug::fmt(&self.widget, f)
     }
 }
 
@@ -1567,7 +1596,7 @@ impl WidgetGuard<'_> {
 }
 
 /// A list of [`Widget`]s.
-#[derive(Debug, Default, Eq, PartialEq)]
+#[derive(Default, Eq, PartialEq)]
 #[must_use]
 pub struct Children {
     ordered: Vec<WidgetInstance>,
@@ -1647,6 +1676,12 @@ impl Children {
     }
 }
 
+impl Debug for Children {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(&self.ordered, f)
+    }
+}
+
 impl Dynamic<Children> {
     /// Returns `self` as a vertical [`Stack`] of rows.
     #[must_use]
@@ -1687,7 +1722,7 @@ impl DerefMut for Children {
 }
 
 /// A child widget
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum WidgetRef {
     /// An unmounted child widget
     Unmounted(WidgetInstance),
@@ -1728,6 +1763,15 @@ impl AsRef<WidgetId> for WidgetRef {
         match self {
             WidgetRef::Unmounted(widget) => widget.as_ref(),
             WidgetRef::Mounted(widget) => widget.as_ref(),
+        }
+    }
+}
+
+impl Debug for WidgetRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unmounted(arg0) => Debug::fmt(arg0, f),
+            Self::Mounted(arg0) => Debug::fmt(arg0, f),
         }
     }
 }

@@ -86,6 +86,10 @@ impl Widget for Label {
 
         prepared.size.try_cast().unwrap_or_default()
     }
+
+    fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_tuple("Label").field(&self.text).finish()
+    }
 }
 
 macro_rules! impl_make_widget {

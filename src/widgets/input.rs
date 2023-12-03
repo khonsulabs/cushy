@@ -935,6 +935,8 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Input")
             .field("text", &self.value)
+            .field("mask_symbol", &self.mask_symbol)
+            .field("placeholder", &self.placeholder)
             .finish_non_exhaustive()
     }
 }

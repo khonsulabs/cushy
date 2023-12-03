@@ -14,7 +14,8 @@ use crate::widgets::Space;
 /// `Slider` in a `Data` widget to store the animation handle.
 #[derive(Debug)]
 pub struct Data<T> {
-    _data: T,
+    #[allow(dead_code)] // This affects formatting in Debug to rename it.
+    data: T,
     child: WidgetRef,
 }
 
@@ -27,7 +28,7 @@ impl<T> Data<T> {
     /// Returns a new instance that wraps `widget` and stores `value`.
     pub fn new_wrapping(value: T, widget: impl MakeWidget) -> Self {
         Self {
-            _data: value,
+            data: value,
             child: WidgetRef::new(widget),
         }
     }

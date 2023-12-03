@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt::Debug;
 use std::ops::Deref;
 
 use interner::global::{GlobalString, StringPool};
@@ -12,13 +13,19 @@ static NAMES: StringPool<ahash::RandomState> =
 /// string exists. By ensuring all instances of each unique string are the same
 /// exact underlying instance, optimizations can be made that avoid string
 /// comparisons.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Name(GlobalString<ahash::RandomState>);
 
 impl Name {
     /// Returns a name for the given string.
     pub fn new<'a>(name: impl Into<Cow<'a, str>>) -> Self {
         Self(NAMES.get(name))
+    }
+}
+
+impl Debug for Name {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.0, f)
     }
 }
 
