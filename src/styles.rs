@@ -66,9 +66,13 @@ impl Styles {
     pub fn insert_dynamic(
         &mut self,
         name: &impl NamedComponent,
-        dynamic: impl Into<DynamicComponent>,
+        dynamic: impl IntoDynamicComponentValue,
     ) {
-        self.insert(name, Component::Dynamic(dynamic.into()));
+        let component = match dynamic.into_dynamic_component() {
+            Value::Constant(dynamic) => Value::Constant(Component::Dynamic(dynamic)),
+            Value::Dynamic(dynamic) => Value::Dynamic(dynamic.map_each_cloned(Component::Dynamic)),
+        };
+        self.insert(name, component);
     }
 
     /// Adds a [`Component`] for the name provided and returns self.
@@ -91,7 +95,7 @@ impl Styles {
     pub fn with_dynamic<C: ComponentDefinition>(
         mut self,
         name: &C,
-        dynamic: impl Into<DynamicComponent>,
+        dynamic: impl IntoDynamicComponentValue,
     ) -> Self {
         self.insert_dynamic(name, dynamic);
         self
@@ -145,6 +149,23 @@ impl Styles {
         }
     }
 
+    /// Returns the component associated with the given name, if a value is
+    /// specified.
+    #[must_use]
+    pub fn try_get<Named>(
+        &self,
+        component: &Named,
+        context: &WidgetContext<'_, '_>,
+    ) -> Option<Named::ComponentType>
+    where
+        Named: ComponentDefinition + ?Sized,
+    {
+        self.0
+            .components
+            .get(&component.name())
+            .and_then(|component| Self::resolve_component(component, context))
+    }
+
     /// Returns the component associated with the given name, or if not found,
     /// returns the default value provided by the definition.
     #[must_use]
@@ -156,10 +177,7 @@ impl Styles {
     where
         Named: ComponentDefinition + ?Sized,
     {
-        self.0
-            .components
-            .get(&component.name())
-            .and_then(|component| Self::resolve_component(component, context))
+        self.try_get(component, context)
             .unwrap_or_else(|| component.default_value(context))
     }
 
@@ -183,6 +201,29 @@ impl Debug for Styles {
             map.field(&component_name, component);
         }
         map.finish()
+    }
+}
+
+impl FromIterator<(ComponentName, Component)> for Styles {
+    fn from_iter<T: IntoIterator<Item = (ComponentName, Component)>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+        let mut styles = Self::with_capacity(iter.size_hint().0);
+        for (name, component) in iter {
+            styles.insert_named(name, component);
+        }
+        styles
+    }
+}
+
+impl IntoIterator for Styles {
+    type IntoIter = hash_map::IntoIter<ComponentName, Value<Component>>;
+    type Item = (ComponentName, Value<Component>);
+
+    fn into_iter(self) -> Self::IntoIter {
+        Arc::try_unwrap(self.0)
+            .unwrap_or_else(|err| err.as_ref().clone())
+            .components
+            .into_iter()
     }
 }
 
@@ -226,51 +267,35 @@ where
     }
 }
 
-impl FromIterator<(ComponentName, Component)> for Styles {
-    fn from_iter<T: IntoIterator<Item = (ComponentName, Component)>>(iter: T) -> Self {
-        let iter = iter.into_iter();
-        let mut styles = Self::with_capacity(iter.size_hint().0);
-        for (name, component) in iter {
-            styles.insert_named(name, component);
-        }
-        styles
+/// A type that can convert into a [`Value`] containing a [`DynamicComponent`].
+pub trait IntoDynamicComponentValue {
+    /// Returns this type converted into a dynamic component value.
+    fn into_dynamic_component(self) -> Value<DynamicComponent>;
+}
+
+impl IntoDynamicComponentValue for DynamicComponent {
+    fn into_dynamic_component(self) -> Value<DynamicComponent> {
+        Value::Constant(self)
     }
 }
 
-impl IntoIterator for Styles {
-    type IntoIter = hash_map::IntoIter<ComponentName, Value<Component>>;
-    type Item = (ComponentName, Value<Component>);
-
-    fn into_iter(self) -> Self::IntoIter {
-        Arc::try_unwrap(self.0)
-            .unwrap_or_else(|err| err.as_ref().clone())
-            .components
-            .into_iter()
+impl<T> IntoDynamicComponentValue for T
+where
+    T: ComponentDefinition + Clone + RefUnwindSafe + Send + Sync + 'static,
+{
+    fn into_dynamic_component(self) -> Value<DynamicComponent> {
+        Value::Constant(DynamicComponent::from(self))
     }
 }
 
-// /// An iterator over the owned contents of a [`Styles`] instance.
-// pub struct StylesIntoIter {
-//     main: hash_map::IntoIter<ComponentName, Value<Component>>,
-// }
-
-// impl Iterator for StylesIntoIter {
-//     type Item = (ComponentName, Value<Component>);
-
-//     fn next(&mut self) -> Option<Self::Item> {
-//         loop {
-//             if let Some((group, names)) = &mut self.names {
-//                 if let Some((name, component)) = names.next() {
-//                     return Some((ComponentName::new(group.clone(), name), component));
-//                 }
-//                 self.names = None;
-//             }
-
-//             let (group, names) = self.main.next()?;
-//             self.names = Some((group, names.into_iter()));
-//         }
-//     }
-// }
+impl<T> IntoDynamicComponentValue for Dynamic<T>
+where
+    T: ComponentDefinition + Clone + RefUnwindSafe + Send + Sync + 'static,
+{
+    fn into_dynamic_component(self) -> Value<DynamicComponent> {
+        Value::Dynamic(self.map_each_into())
+    }
+}
 
 /// A value of a style component.
 #[derive(Debug, Clone, PartialEq)]
@@ -1016,21 +1041,6 @@ where
 
     fn try_from_component(component: Component) -> Result<Self, Component> {
         Self::try_from(component)
-    }
-}
-
-/// A type that represents a named component with a default value.
-pub trait ComponentDefaultvalue: NamedComponent {
-    /// Returns the default value for this component.
-    fn default_component_value(&self, context: &WidgetContext<'_, '_>) -> Component;
-}
-
-impl<T> ComponentDefaultvalue for T
-where
-    T: ComponentDefinition,
-{
-    fn default_component_value(&self, context: &WidgetContext<'_, '_>) -> Component {
-        self.default_value(context).into_component()
     }
 }
 

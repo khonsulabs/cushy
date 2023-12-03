@@ -1111,6 +1111,19 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         self.effective_styles.get(query, self)
     }
 
+    /// Queries the widget hierarchy for a single style component.
+    ///
+    /// This function traverses up the widget hierarchy looking for the
+    /// component being requested. If a matching component is found, it will be
+    /// returned.
+    #[must_use]
+    pub fn try_get<Component: ComponentDefinition>(
+        &self,
+        query: &Component,
+    ) -> Option<Component::ComponentType> {
+        self.effective_styles.try_get(query, self)
+    }
+
     pub(crate) fn handle(&self) -> WindowHandle {
         WindowHandle {
             kludgine: self.window.handle(),

@@ -8,7 +8,7 @@ use crate::styles::components::{
     LineHeight8, TextSize, TextSize1, TextSize2, TextSize3, TextSize4, TextSize5, TextSize6,
     TextSize7, TextSize8,
 };
-use crate::styles::{ComponentDefinition, DynamicComponent, IntoComponentValue, Styles};
+use crate::styles::{ComponentDefinition, IntoComponentValue, IntoDynamicComponentValue, Styles};
 use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 
@@ -58,7 +58,7 @@ impl Style {
     pub fn with_dynamic<C: ComponentDefinition>(
         mut self,
         name: &C,
-        dynamic: impl Into<DynamicComponent>,
+        dynamic: impl IntoDynamicComponentValue,
     ) -> Style
     where
         Value<C::ComponentType>: IntoComponentValue,

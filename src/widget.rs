@@ -30,8 +30,8 @@ use crate::styles::components::{
     TextSize7, TextSize8,
 };
 use crate::styles::{
-    ComponentDefinition, ContainerLevel, Dimension, DimensionRange, DynamicComponent, Edges,
-    IntoComponentValue, Styles, ThemePair, VisualOrder,
+    ComponentDefinition, ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue,
+    IntoDynamicComponentValue, Styles, ThemePair, VisualOrder,
 };
 use crate::tree::Tree;
 use crate::utils::IgnorePoison;
@@ -712,7 +712,7 @@ pub trait MakeWidget: Sized {
     fn with_dynamic<C: ComponentDefinition>(
         self,
         name: &C,
-        dynamic: impl Into<DynamicComponent>,
+        dynamic: impl IntoDynamicComponentValue,
     ) -> Style
     where
         Value<C::ComponentType>: IntoComponentValue,

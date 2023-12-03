@@ -32,6 +32,7 @@ pub struct Button {
     pub on_click: Option<Callback<()>>,
     /// The kind of button to draw.
     pub kind: Value<ButtonKind>,
+    focusable: bool,
     buttons_pressed: usize,
     cached_state: CacheState,
     active_colors: Option<Dynamic<ButtonColors>>,
@@ -140,6 +141,7 @@ impl Button {
             active_colors: None,
             kind: Value::Constant(ButtonKind::default()),
             color_animation: AnimationHandle::default(),
+            focusable: true,
         }
     }
 
@@ -159,6 +161,13 @@ impl Button {
         F: FnMut(()) + Send + UnwindSafe + 'static,
     {
         self.on_click = Some(Callback::new(callback));
+        self
+    }
+
+    /// Prevents focus being given to this button.
+    #[must_use]
+    pub fn prevent_focus(mut self) -> Self {
+        self.focusable = false;
         self
     }
 
@@ -190,7 +199,9 @@ impl Button {
     ) -> ButtonColors {
         match visual_state {
             VisualState::Normal => ButtonColors {
-                background: Color::CLEAR_BLACK,
+                background: context
+                    .try_get(&ButtonBackground)
+                    .unwrap_or(Color::CLEAR_BLACK),
                 foreground: context.get(&TextColor),
                 outline: context.get(&ButtonOutline),
             },
@@ -205,7 +216,9 @@ impl Button {
                 outline: context.get(&ButtonActiveOutline),
             },
             VisualState::Disabled => ButtonColors {
-                background: Color::CLEAR_BLACK,
+                background: context
+                    .try_get(&ButtonDisabledBackground)
+                    .unwrap_or(Color::CLEAR_BLACK),
                 foreground: context.theme().surface.on_color_variant,
                 outline: context.get(&ButtonDisabledOutline),
             },
@@ -391,7 +404,7 @@ impl Widget for Button {
     }
 
     fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
-        context.enabled() && context.get(&AutoFocusableControls).is_all()
+        self.focusable && context.enabled() && context.get(&AutoFocusableControls).is_all()
     }
 
     fn mouse_down(
@@ -437,7 +450,7 @@ impl Widget for Button {
         if self.buttons_pressed == 0 {
             context.deactivate();
 
-            if let Some(location) = location {
+            if let (true, Some(location)) = (self.focusable, location) {
                 if Rect::from(context.last_layout().expect("must have been rendered").size)
                     .contains(location)
                 {

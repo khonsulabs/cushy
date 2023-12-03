@@ -5,6 +5,7 @@ use std::ffi::OsStr;
 use std::ops::{Deref, DerefMut, Not};
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 use std::path::Path;
+use std::process::Command;
 use std::string::ToString;
 use std::sync::{MutexGuard, OnceLock};
 
@@ -18,7 +19,7 @@ use kludgine::app::winit::event::{
 use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window;
 use kludgine::app::WindowBehavior as _;
-use kludgine::cosmic_text::FamilyOwned;
+use kludgine::cosmic_text::{Family, FamilyOwned};
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size};
 use kludgine::render::Drawing;
@@ -534,34 +535,53 @@ where
         let theme = settings.theme.take().expect("theme always present");
 
         let fontdb = graphics.font_system().db_mut();
+
         if let Some(FamilyOwned::Name(name)) =
             Graphics::inner_find_available_font_family(fontdb, &settings.serif_font_family)
+                .or_else(|| default_family(Family::Serif))
         {
             fontdb.set_serif_family(name);
         }
+
+        let bundled_font_name;
+        #[cfg(feature = "roboto-flex")]
+        {
+            fontdb.load_font_data(include_bytes!("../assets/RobotoFlex.ttf").to_vec());
+            bundled_font_name = Some(String::from("Roboto Flex"));
+        }
+        #[cfg(not(feature = "roboto-flex"))]
+        {
+            bundled_font_name = None;
+        }
+
         if let Some(FamilyOwned::Name(name)) =
             Graphics::inner_find_available_font_family(fontdb, &settings.sans_serif_font_family)
+                .or_else(|| {
+                    if let Some(name) = bundled_font_name {
+                        Some(FamilyOwned::Name(name))
+                    } else {
+                        default_family(Family::SansSerif)
+                    }
+                })
         {
             fontdb.set_sans_serif_family(name);
-        } else {
-            #[cfg(feature = "roboto-flex")]
-            {
-                fontdb.load_font_data(include_bytes!("../assets/RobotoFlex.ttf").to_vec());
-                fontdb.set_sans_serif_family("Roboto Flex");
-            }
         }
+
         if let Some(FamilyOwned::Name(name)) =
             Graphics::inner_find_available_font_family(fontdb, &settings.fantasy_font_family)
+                .or_else(|| default_family(Family::Fantasy))
         {
             fontdb.set_fantasy_family(name);
         }
         if let Some(FamilyOwned::Name(name)) =
             Graphics::inner_find_available_font_family(fontdb, &settings.monospace_font_family)
+                .or_else(|| default_family(Family::Monospace))
         {
             fontdb.set_monospace_family(name);
         }
         if let Some(FamilyOwned::Name(name)) =
             Graphics::inner_find_available_font_family(fontdb, &settings.cursive_font_family)
+                .or_else(|| default_family(Family::Cursive))
         {
             fontdb.set_cursive_family(name);
         }
@@ -1291,4 +1311,35 @@ impl PercentBetween for ThemeMode {
 impl Ranged for ThemeMode {
     const MAX: Self = Self::Dark;
     const MIN: Self = Self::Light;
+}
+
+#[cfg(any(target_os = "macos", target_os = "ios", target_os = "windows"))]
+fn default_family(query: Family<'_>) -> Option<FamilyOwned> {
+    // fontdb uses system APIs to determine these defaults.
+    None
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "windows")))]
+fn default_family(query: Family<'_>) -> Option<FamilyOwned> {
+    // fontdb does not yet support configuring itself automatically. We will try
+    // to use `fc-match` to query font config. Once this is supported, we can
+    // remove this functionality.
+    // <https://github.com/RazrFalcon/fontdb/issues/24>
+    let query = match query {
+        Family::Serif => "serif",
+        Family::SansSerif => "sans",
+        Family::Cursive => "cursive",
+        Family::Fantasy => "fantasy",
+        Family::Monospace => "monospace",
+        Family::Name(_) => return None,
+    };
+
+    Command::new("fc-match")
+        .arg("-f")
+        .arg("%{family}")
+        .arg(query)
+        .output()
+        .ok()
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map(FamilyOwned::Name)
 }
