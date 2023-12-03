@@ -1,13 +1,13 @@
 use gooey::value::Dynamic;
 use gooey::widget::{MakeWidget, WidgetInstance};
 use gooey::window::ThemeMode;
-use gooey::Run;
+use gooey::{Gooey, Run};
 
 fn main() -> gooey::Result {
     let theme_mode = Dynamic::default();
     set_of_containers(3, theme_mode.clone())
         .centered()
-        .into_window()
+        .into_window(Gooey::default())
         .themed_mode(theme_mode)
         .run()
 }

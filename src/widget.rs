@@ -17,6 +17,7 @@ use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use kludgine::Color;
 
+use crate::app::Gooey;
 use crate::context::sealed::WindowHandle;
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{
@@ -680,8 +681,8 @@ pub trait MakeWidget: Sized {
     fn make_widget(self) -> WidgetInstance;
 
     /// Returns a new window containing `self` as the root widget.
-    fn into_window(self) -> Window<WidgetInstance> {
-        Window::new(self.make_widget())
+    fn into_window(self, gooey: Gooey) -> Window<WidgetInstance> {
+        Window::new(self.make_widget(), gooey.clone())
     }
 
     /// Associates `styles` with this widget.
@@ -1289,7 +1290,7 @@ impl WidgetInstance {
 
     /// Runs this widget instance as an application.
     pub fn run(self) -> crate::Result {
-        Window::<WidgetInstance>::new(self).run()
+        Window::<WidgetInstance>::new(self, Gooey::default()).run()
     }
 
     /// Returns the id of the widget that should receive focus after this

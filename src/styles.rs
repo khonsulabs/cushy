@@ -2039,7 +2039,7 @@ impl RequireInvalidation for ContainerLevel {
 }
 
 /// A builder of [`ColorScheme`]s.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ColorSchemeBuilder {
     /// The primary color of the scheme.
     pub primary: ColorSource,
@@ -2134,7 +2134,17 @@ impl ColorSchemeBuilder {
     /// 33% of the primary saturation will be picked.
     #[must_use]
     pub fn tertiary(mut self, tertiary: impl ProtoColor) -> Self {
-        self.secondary = Some(tertiary.into_source(self.primary.saturation / 3.));
+        self.tertiary = Some(tertiary.into_source(self.primary.saturation / 3.));
+        self
+    }
+
+    /// Sets the error color and returns self.
+    ///
+    /// If `error` doesn't specify a saturation, the primary color's saturation
+    /// will be used.
+    #[must_use]
+    pub fn error(mut self, error: impl ProtoColor) -> Self {
+        self.error = Some(error.into_source(self.primary.saturation));
         self
     }
 

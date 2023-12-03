@@ -14,6 +14,7 @@ mod graphics;
 mod names;
 #[macro_use]
 pub mod styles;
+mod app;
 mod tick;
 mod tree;
 pub mod value;
@@ -22,6 +23,7 @@ pub mod widgets;
 pub mod window;
 use std::ops::Sub;
 
+pub use app::Gooey;
 pub use kludgine;
 use kludgine::app::winit::error::EventLoopError;
 use kludgine::figures::units::UPx;

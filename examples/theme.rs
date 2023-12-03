@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use gooey::styles::components::{TextColor, WidgetBackground};
 use gooey::styles::{
     ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme,
@@ -10,7 +12,7 @@ use gooey::widgets::input::InputValue;
 use gooey::widgets::slider::Slidable;
 use gooey::widgets::Space;
 use gooey::window::ThemeMode;
-use gooey::Run;
+use gooey::{Gooey, Run};
 use kludgine::figures::units::Lp;
 use kludgine::Color;
 use palette::OklabHue;
@@ -75,6 +77,8 @@ impl<Primary, Other> Scheme<Primary, Other> {
 }
 
 fn main() -> gooey::Result {
+    let gooey = Gooey::default();
+
     let (theme_mode, theme_switcher) = dark_mode_picker();
 
     let scheme = Scheme::from(ColorScheme::default());
@@ -93,7 +97,7 @@ fn main() -> gooey::Result {
             (opt_color, editor)
         },
     );
-    let color_scheme = (
+    let color_scheme_builder = (
         &sources.primary,
         &editors.secondary.0,
         &editors.tertiary.0,
@@ -109,9 +113,10 @@ fn main() -> gooey::Result {
                 scheme.error = error;
                 scheme.neutral = neutral;
                 scheme.neutral_variant = neutral_variant;
-                scheme.build()
+                scheme
             },
         );
+    let color_scheme = color_scheme_builder.map_each_cloned(|builder| builder.build());
     color_scheme
         .for_each_cloned(move |scheme| {
             sources.primary.set(scheme.primary);
@@ -131,6 +136,21 @@ fn main() -> gooey::Result {
         .and(editors.error.1)
         .and(editors.neutral.1)
         .and(editors.neutral_variant.1)
+        .and("Copy to Clipboard".into_button().on_click({
+            let gooey = gooey.clone();
+            move |()| {
+                if let Some(mut clipboard) = gooey.clipboard_guard() {
+                    let builder = color_scheme_builder.get();
+                    let mut source = String::default();
+                    builder.format_rust_into(&mut source);
+
+                    if let Err(err) = clipboard.set_text(&source) {
+                        tracing::error!("Error setting clipboard text: {err}");
+                        println!("{source}");
+                    }
+                }
+            }
+        }))
         .into_rows()
         .vertical_scroll();
 
@@ -152,7 +172,7 @@ fn main() -> gooey::Result {
         .themed(theme)
         .pad()
         .expand()
-        .into_window()
+        .into_window(gooey)
         .themed_mode(theme_mode)
         .run()
 }
@@ -415,4 +435,55 @@ fn swatch(background: Dynamic<Color>, label: &str, text: Dynamic<Color>) -> impl
         .fit_horizontally()
         .fit_vertically()
         .expand()
+}
+
+trait FormatRust {
+    fn format_rust_into(&self, out: &mut String);
+}
+
+impl FormatRust for ColorSource {
+    fn format_rust_into(&self, out: &mut String) {
+        write!(
+            out,
+            "ColorSource::new({:.1}, {:.1})",
+            self.hue.into_degrees(),
+            self.saturation
+        )
+        .expect("writing to string")
+    }
+}
+
+impl FormatRust for ColorSchemeBuilder {
+    fn format_rust_into(&self, source: &mut String) {
+        if self.secondary.is_none()
+            && self.tertiary.is_none()
+            && self.error.is_none()
+            && self.neutral.is_none()
+            && self.neutral_variant.is_none()
+        {
+            source.push_str("ColorScheme::from_primary(");
+            self.primary.format_rust_into(source);
+            source.push(')');
+        } else {
+            source.push_str("ColorSchemeBuilder::new(");
+            self.primary.format_rust_into(source);
+            source.push_str(").");
+            for (label, color) in [
+                self.secondary.map(|secondary| ("secondary", secondary)),
+                self.tertiary.map(|color| ("tertiary", color)),
+                self.error.map(|color| ("error", color)),
+                self.neutral.map(|color| ("neutral", color)),
+                self.neutral_variant.map(|color| ("neutral_variant", color)),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                source.push_str(label);
+                source.push('(');
+                color.format_rust_into(source);
+                source.push_str(").");
+            }
+            source.push_str("build()");
+        }
+    }
 }

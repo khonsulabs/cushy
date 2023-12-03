@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut, Not};
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 use std::path::Path;
 use std::string::ToString;
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{MutexGuard, OnceLock};
 
 use ahash::AHashMap;
 use alot::LotId;
@@ -27,6 +27,7 @@ use kludgine::Kludgine;
 use tracing::Level;
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
+use crate::app::Gooey;
 use crate::context::{
     AsEventContext, EventContext, Exclusive, GraphicsContext, InvalidationStatus, LayoutContext,
     WidgetContext,
@@ -34,7 +35,7 @@ use crate::context::{
 use crate::graphics::Graphics;
 use crate::styles::{Edges, FontFamilyList, ThemePair};
 use crate::tree::Tree;
-use crate::utils::{IgnorePoison, ModifiersExt};
+use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
 use crate::widget::{
     EventHandling, ManagedWidget, RootBehavior, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
@@ -45,7 +46,7 @@ use crate::{initialize_tracing, ConstraintLimit, Run};
 /// A currently running Gooey window.
 pub struct RunningWindow<'window> {
     window: kludgine::app::Window<'window, WindowCommand>,
-    clipboard: Option<Arc<Mutex<Clipboard>>>,
+    gooey: Gooey,
     focused: Dynamic<bool>,
     occluded: Dynamic<bool>,
 }
@@ -53,13 +54,13 @@ pub struct RunningWindow<'window> {
 impl<'window> RunningWindow<'window> {
     pub(crate) fn new(
         window: kludgine::app::Window<'window, WindowCommand>,
-        clipboard: &Option<Arc<Mutex<Clipboard>>>,
+        gooey: &Gooey,
         focused: &Dynamic<bool>,
         occluded: &Dynamic<bool>,
     ) -> Self {
         Self {
             window,
-            clipboard: clipboard.clone(),
+            gooey: gooey.clone(),
             focused: focused.clone(),
             occluded: occluded.clone(),
         }
@@ -82,10 +83,8 @@ impl<'window> RunningWindow<'window> {
     /// Returns a locked mutex guard to the OS's clipboard, if one was able to be
     /// initialized when the window opened.
     #[must_use]
-    pub fn clipboard_guard(&mut self) -> Option<MutexGuard<'_, Clipboard>> {
-        self.clipboard
-            .as_ref()
-            .map(|mutex| mutex.lock().ignore_poison())
+    pub fn clipboard_guard(&self) -> Option<MutexGuard<'_, Clipboard>> {
+        self.gooey.clipboard_guard()
     }
 }
 
@@ -113,6 +112,7 @@ where
     Behavior: WindowBehavior,
 {
     context: Behavior::Context,
+    gooey: Gooey,
     /// The attributes of this window.
     pub attributes: WindowAttributes,
     /// The colors to use to theme the user interface.
@@ -148,7 +148,7 @@ where
 {
     fn default() -> Self {
         let context = Behavior::Context::default();
-        Self::new(context)
+        Self::new(context, Gooey::default())
     }
 }
 
@@ -158,7 +158,7 @@ impl Window<WidgetInstance> {
     where
         W: Widget,
     {
-        Self::new(WidgetInstance::new(widget))
+        Self::new(WidgetInstance::new(widget), Gooey::default())
     }
 
     /// Sets `focused` to be the dynamic updated when this window's focus status
@@ -222,7 +222,7 @@ where
 {
     /// Returns a new instance using `context` to initialize the window upon
     /// opening.
-    pub fn new(context: Behavior::Context) -> Self {
+    pub fn new(context: Behavior::Context, gooey: Gooey) -> Self {
         static EXECUTABLE_NAME: OnceLock<String> = OnceLock::new();
 
         let title = EXECUTABLE_NAME
@@ -243,6 +243,7 @@ where
                 title,
                 ..WindowAttributes::default()
             },
+            gooey,
             context,
             load_system_fonts: true,
             theme: Value::default(),
@@ -267,6 +268,7 @@ where
         GooeyWindow::<Behavior>::run_with(AssertUnwindSafe(sealed::Context {
             user: self.context,
             settings: RefCell::new(sealed::WindowSettings {
+                gooey: self.gooey,
                 transparent: self.attributes.transparent,
                 attributes: Some(self.attributes),
                 occluded: self.occluded,
@@ -313,7 +315,7 @@ pub trait WindowBehavior: Sized + 'static {
 
     /// Runs this behavior as an application, initialized with `context`.
     fn run_with(context: Self::Context) -> crate::Result {
-        Window::<Self>::new(context).run()
+        Window::<Self>::new(context, Gooey::default()).run()
     }
 }
 
@@ -335,7 +337,7 @@ struct GooeyWindow<T> {
     current_theme: ThemePair,
     theme_mode: Value<ThemeMode>,
     transparent: bool,
-    clipboard: Option<Arc<Mutex<Clipboard>>>,
+    gooey: Gooey,
 }
 
 impl<T> GooeyWindow<T>
@@ -526,6 +528,7 @@ where
         AssertUnwindSafe(context): Self::Context,
     ) -> Self {
         let mut settings = context.settings.borrow_mut();
+        let gooey = settings.gooey.clone();
         let occluded = settings.occluded.take().unwrap_or_default();
         let focused = settings.focused.take().unwrap_or_default();
         let theme = settings.theme.take().expect("theme always present");
@@ -563,10 +566,6 @@ where
             fontdb.set_cursive_family(name);
         }
 
-        let clipboard = Clipboard::new()
-            .ok()
-            .map(|clipboard| Arc::new(Mutex::new(clipboard)));
-
         let theme_mode = match settings.theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
                 dynamic.set(window.theme().into());
@@ -577,7 +576,7 @@ where
         };
         let transparent = settings.transparent;
         let mut behavior = T::initialize(
-            &mut RunningWindow::new(window, &clipboard, &focused, &occluded),
+            &mut RunningWindow::new(window, &gooey, &focused, &occluded),
             context.user,
         );
         let root = Tree::default().push_boxed(behavior.make_root(), None);
@@ -608,7 +607,7 @@ where
             theme,
             theme_mode,
             transparent,
-            clipboard,
+            gooey,
         }
     }
 
@@ -633,7 +632,7 @@ where
             .new_frame(self.redraw_status.invalidations().drain());
 
         let resizable = window.winit().is_resizable();
-        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
         let root_mode = self.constrain_window_resizing(resizable, &mut window, graphics);
 
         let graphics = self.contents.new_frame(graphics);
@@ -754,7 +753,7 @@ where
         Self::request_close(
             &mut self.should_close,
             &mut self.behavior,
-            &mut RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded),
+            &mut RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded),
         )
     }
 
@@ -818,7 +817,7 @@ where
         let Some(target) = self.root.tree.widget_from_node(target) else {
             return;
         };
-        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
         let mut target = EventContext::new(
             WidgetContext::new(
                 target,
@@ -928,7 +927,7 @@ where
                     .expect("missing widget")
             });
 
-        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
         let mut widget = EventContext::new(
             WidgetContext::new(
                 widget,
@@ -964,7 +963,7 @@ where
                     .widget(self.root.id())
                     .expect("missing widget")
             });
-        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
         let mut target = EventContext::new(
             WidgetContext::new(
                 widget,
@@ -991,7 +990,7 @@ where
         let location = Point::<Px>::from(position);
         self.cursor.location = Some(location);
 
-        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
 
         EventContext::new(
             WidgetContext::new(
@@ -1038,8 +1037,7 @@ where
         _device_id: DeviceId,
     ) {
         if self.cursor.widget.take().is_some() {
-            let mut window =
-                RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
+            let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
             let mut context = EventContext::new(
                 WidgetContext::new(
                     self.root.clone(),
@@ -1063,7 +1061,7 @@ where
         state: ElementState,
         button: MouseButton,
     ) {
-        let mut window = RunningWindow::new(window, &self.clipboard, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
         match state {
             ElementState::Pressed => {
                 EventContext::new(
@@ -1198,6 +1196,7 @@ pub(crate) mod sealed {
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
     use crate::window::{ThemeMode, WindowAttributes};
+    use crate::Gooey;
 
     pub struct Context<C> {
         pub user: C,
@@ -1205,6 +1204,7 @@ pub(crate) mod sealed {
     }
 
     pub struct WindowSettings {
+        pub gooey: Gooey,
         pub attributes: Option<WindowAttributes>,
         pub occluded: Option<Dynamic<bool>>,
         pub focused: Option<Dynamic<bool>>,
