@@ -5,6 +5,7 @@ use std::clone::Clone;
 use std::fmt::{self, Debug};
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::panic::UnwindSafe;
+use std::slice;
 use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -38,8 +39,8 @@ use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, IntoDynamic, IntoValue, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::{
-    Align, Button, Checkbox, Collapse, Container, Expand, Resize, Scroll, Space, Stack, Style,
-    Themed, ThemedMode, Validated,
+    Align, Button, Checkbox, Collapse, Container, Expand, Layers, Resize, Scroll, Space, Stack,
+    Style, Themed, ThemedMode, Validated,
 };
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
@@ -222,7 +223,7 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
     fn root_behavior(
         &mut self,
         context: &mut EventContext<'_, '_>,
-    ) -> Option<(RootBehavior, &WidgetInstance)> {
+    ) -> Option<(RootBehavior, WidgetInstance)> {
         None
     }
 }
@@ -531,8 +532,9 @@ where
     fn root_behavior(
         &mut self,
         context: &mut EventContext<'_, '_>,
-    ) -> Option<(RootBehavior, &WidgetInstance)> {
-        T::root_behavior(self, context).map(|behavior| (behavior, T::child_mut(self).widget()))
+    ) -> Option<(RootBehavior, WidgetInstance)> {
+        T::root_behavior(self, context)
+            .map(|behavior| (behavior, T::child_mut(self).widget().clone()))
     }
 
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
@@ -1675,6 +1677,13 @@ impl Children {
     pub fn into_columns(self) -> Stack {
         Stack::columns(self)
     }
+
+    /// Returns `self` as [`Layers`], with the widgets being stacked in the Z
+    /// direction.
+    #[must_use]
+    pub fn into_layers(self) -> Layers {
+        Layers::new(self)
+    }
 }
 
 impl Debug for Children {
@@ -1694,6 +1703,13 @@ impl Dynamic<Children> {
     #[must_use]
     pub fn into_columns(self) -> Stack {
         Stack::columns(self)
+    }
+
+    /// Returns `self` as [`Layers`], with the widgets being stacked in the Z
+    /// direction.
+    #[must_use]
+    pub fn into_layers(self) -> Layers {
+        Layers::new(self)
     }
 }
 
@@ -1719,6 +1735,15 @@ impl Deref for Children {
 impl DerefMut for Children {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.ordered
+    }
+}
+
+impl<'a> IntoIterator for &'a Children {
+    type IntoIter = slice::Iter<'a, WidgetInstance>;
+    type Item = &'a WidgetInstance;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.ordered.iter()
     }
 }
 

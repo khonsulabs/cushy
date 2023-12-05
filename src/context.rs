@@ -23,7 +23,9 @@ use crate::styles::components::{
 use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::utils::IgnorePoison;
 use crate::value::{IntoValue, Value};
-use crate::widget::{EventHandling, ManagedWidget, WidgetId, WidgetInstance, WidgetRef};
+use crate::widget::{
+    EventHandling, ManagedWidget, RootBehavior, WidgetId, WidgetInstance, WidgetRef,
+};
 use crate::window::{CursorState, RunningWindow, ThemeMode};
 use crate::ConstraintLimit;
 
@@ -460,6 +462,17 @@ impl<'context, 'window> EventContext<'context, 'window> {
         // It is important to set focus-is_advancing after `focus()` because it
         // sets it to `true` explicitly.
         self.pending_state.focus_is_advancing = advance;
+    }
+
+    /// Invokes
+    /// [`Widget::root_behavior()`](crate::widget::Widget::root_behavior) on
+    /// this context's widget and returns the result.
+    pub fn root_behavior(&mut self) -> Option<(RootBehavior, WidgetInstance)> {
+        self.current_node
+            .clone()
+            .lock()
+            .as_widget()
+            .root_behavior(self)
     }
 }
 
