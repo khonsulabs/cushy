@@ -10,6 +10,7 @@ use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use alot::LotId;
+use intentional::Assert;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
@@ -1367,6 +1368,14 @@ impl<T, R> Debug for Callback<T, R> {
     }
 }
 
+impl<T, R> Eq for Callback<T, R> {}
+
+impl<T, R> PartialEq for Callback<T, R> {
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+}
+
 impl<T, R> Callback<T, R> {
     /// Returns a new instance that calls `function` each time the callback is
     /// invoked.
@@ -1393,6 +1402,56 @@ where
 {
     fn invoke(&mut self, value: T) -> R {
         self(value)
+    }
+}
+
+/// A function that can be invoked once with a parameter (`T`) and returns `R`.
+///
+/// This type is used by widgets to signal an event that can happen only onceq.
+pub struct OnceCallback<T = (), R = ()>(Box<dyn OnceCallbackFunction<T, R>>);
+
+impl<T, R> Debug for OnceCallback<T, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("OnceCallback")
+            .field(&(self as *const Self))
+            .finish()
+    }
+}
+
+impl<T, R> Eq for OnceCallback<T, R> {}
+
+impl<T, R> PartialEq for OnceCallback<T, R> {
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+}
+
+impl<T, R> OnceCallback<T, R> {
+    /// Returns a new instance that calls `function` when the callback is
+    /// invoked.
+    pub fn new<F>(function: F) -> Self
+    where
+        F: FnOnce(T) -> R + Send + UnwindSafe + 'static,
+    {
+        Self(Box::new(Some(function)))
+    }
+
+    /// Invokes the wrapped function and returns the produced value.
+    pub fn invoke(mut self, value: T) -> R {
+        self.0.invoke(value)
+    }
+}
+
+trait OnceCallbackFunction<T, R>: Send + UnwindSafe {
+    fn invoke(&mut self, value: T) -> R;
+}
+
+impl<T, R, F> OnceCallbackFunction<T, R> for Option<F>
+where
+    F: FnOnce(T) -> R + Send + UnwindSafe,
+{
+    fn invoke(&mut self, value: T) -> R {
+        (self.take().assert("invoked once"))(value)
     }
 }
 
@@ -1763,10 +1822,15 @@ impl WidgetRef {
     }
 
     /// Returns this child, mounting it in the process if necessary.
-    pub fn mounted(&mut self, context: &mut EventContext<'_, '_>) -> ManagedWidget {
+    pub fn mount_if_needed(&mut self, context: &mut EventContext<'_, '_>) {
         if let WidgetRef::Unmounted(instance) = self {
             *self = WidgetRef::Mounted(context.push_child(instance.clone()));
         }
+    }
+
+    /// Returns this child, mounting it in the process if necessary.
+    pub fn mounted(&mut self, context: &mut EventContext<'_, '_>) -> ManagedWidget {
+        self.mount_if_needed(context);
 
         let Self::Mounted(widget) = self else {
             unreachable!("just initialized")
@@ -1798,6 +1862,18 @@ impl Debug for WidgetRef {
         match self {
             Self::Unmounted(arg0) => Debug::fmt(arg0, f),
             Self::Mounted(arg0) => Debug::fmt(arg0, f),
+        }
+    }
+}
+
+impl Eq for WidgetRef {}
+
+impl PartialEq for WidgetRef {
+    fn eq(&self, other: &Self) -> bool {
+        if let (WidgetRef::Mounted(this), WidgetRef::Mounted(other)) = (self, other) {
+            this == other
+        } else {
+            self.widget() == other.widget()
         }
     }
 }

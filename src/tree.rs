@@ -343,6 +343,24 @@ impl Tree {
         data.nodes.get(id).expect("missing widget").parent
     }
 
+    pub(crate) fn is_child(&self, mut id: LotId, possible_parent: &WidgetInstance) -> bool {
+        let data = self.data.lock().ignore_poison();
+        while let Some(node) = data.nodes.get(id) {
+            if &node.widget == possible_parent {
+                return true;
+            }
+
+            match node.parent {
+                Some(parent) => {
+                    id = parent;
+                }
+                None => break,
+            }
+        }
+
+        false
+    }
+
     pub(crate) fn attach_styles(&self, id: LotId, styles: Value<Styles>) {
         let mut data = self.data.lock().ignore_poison();
         data.attach_styles(id, styles);

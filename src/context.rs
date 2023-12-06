@@ -937,6 +937,14 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         })
     }
 
+    /// Returns true if `possible_parent` is in this widget's parent list.
+    #[must_use]
+    pub fn is_child_of(&self, possible_parent: &WidgetInstance) -> bool {
+        self.current_node
+            .tree
+            .is_child(self.current_node.node_id, possible_parent)
+    }
+
     /// Returns true if this widget is enabled.
     #[must_use]
     pub const fn enabled(&self) -> bool {

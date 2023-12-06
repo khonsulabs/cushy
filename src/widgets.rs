@@ -12,7 +12,7 @@ mod expand;
 pub mod grid;
 pub mod input;
 pub mod label;
-mod layers;
+pub mod layers;
 mod mode_switch;
 pub mod progress;
 mod radio;
