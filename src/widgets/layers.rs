@@ -9,7 +9,7 @@ use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
-use crate::value::{Dynamic, Generation, IntoValue, Value};
+use crate::value::{Dynamic, DynamicGuard, Generation, IntoValue, Value};
 use crate::widget::{
     Children, MakeWidget, ManagedWidget, OnceCallback, Widget, WidgetId, WidgetRef,
 };
@@ -194,8 +194,7 @@ impl OverlayLayer {
 
 impl Widget for OverlayLayer {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let mut guard = self.state.lock();
-        let state = &mut *guard;
+        let state = self.state.lock();
 
         for child in &state.overlays {
             let WidgetRef::Mounted(mounted) = &child.widget else {
@@ -211,8 +210,8 @@ impl Widget for OverlayLayer {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let mut guard = self.state.lock();
-        let state = &mut *guard;
+        let mut state = self.state.lock();
+        state.prevent_notifications();
 
         let available_space = available_space.map(ConstraintLimit::max);
 
@@ -237,7 +236,7 @@ impl Widget for OverlayLayer {
             context.set_child_layout(&widget, layout);
         }
 
-        drop(guard);
+        drop(state);
 
         // Now that we're done mutating state, we can register for invalidation
         // tracking.
@@ -249,15 +248,120 @@ impl Widget for OverlayLayer {
         // when shown.
         Size::ZERO
     }
+
+    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
+        let state = self.state.lock();
+        if let Some(index) = state.test_point(location, false, context) {
+            index > 0
+        } else {
+            !(state.overlays.is_empty() || state.point_is_in_root_relative(location, context))
+        }
+    }
+
+    fn hover(
+        &mut self,
+        location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<kludgine::app::winit::window::CursorIcon> {
+        let mut state = self.state.lock();
+
+        let hovering = state.test_point(location, true, context);
+        if let Some(hovering) = hovering {
+            let should_remove = state.hovering > Some(hovering);
+            state.hovering = Some(hovering);
+            if should_remove {
+                remove_children_after(state, hovering);
+            }
+        } else {
+            state.hovering = None;
+        }
+
+        None
+    }
+
+    fn unhover(&mut self, _context: &mut EventContext<'_, '_>) {
+        let mut state = self.state.lock();
+        state.hovering = None;
+
+        let mut remove_starting_at = None;
+        for (index, overlay) in state.overlays.iter().enumerate() {
+            if overlay.requires_hover {
+                remove_starting_at = Some(index);
+                break;
+            }
+        }
+
+        if let Some(remove_starting_at) = remove_starting_at {
+            remove_children_after(state, remove_starting_at);
+        }
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Default)]
 struct OverlayState {
     overlays: OrderedLots<OverlayLayout>,
     new_overlays: usize,
+    hovering: Option<usize>,
+}
+
+fn remove_children_after(mut state: DynamicGuard<'_, OverlayState>, remove_starting_at: usize) {
+    let mut removed = Vec::with_capacity(state.overlays.len() - remove_starting_at);
+    while remove_starting_at < state.overlays.len() && !state.overlays.is_empty() {
+        removed.push(state.overlays.pop());
+        state.new_overlays = state.new_overlays.saturating_sub(1);
+    }
+    drop(state);
+    // We delay dropping the removed widgets, as they may contain a
+    // reference to this OverlayLayer.
+    drop(removed);
 }
 
 impl OverlayState {
+    fn test_point(
+        &self,
+        location: Point<Px>,
+        check_original_relative: bool,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<usize> {
+        for (index, overlay) in self.overlays.iter().enumerate() {
+            if overlay.requires_hover
+                && !overlay
+                    .layout
+                    .map_or(false, |check| !check.contains(location))
+            {
+                return Some(index + 1);
+            }
+        }
+
+        if check_original_relative
+            && !self.overlays.is_empty()
+            && self.point_is_in_root_relative(location, context)
+        {
+            Some(0)
+        } else {
+            None
+        }
+    }
+
+    fn point_is_in_root_relative(
+        &self,
+        location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> bool {
+        if let Some(relative_to) = self
+            .overlays
+            .get_by_index(0)
+            .and_then(|overlay| overlay.relative_to)
+            .and_then(|relative_to| context.widget.for_other(&relative_to))
+            .and_then(|c| c.widget().last_layout())
+        {
+            if !relative_to.contains(location) {
+                return true;
+            }
+        }
+        false
+    }
+
     fn process_new_overlays(&mut self, context: &mut EventContext<'_, '_>) {
         while self.new_overlays > 0 {
             let new_index = self.overlays.len() - self.new_overlays;

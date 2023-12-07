@@ -170,7 +170,13 @@ impl<'context, 'window> EventContext<'context, 'window> {
         let mut cursor = None;
         for hover in changes.hovered.into_iter().rev() {
             let mut context = self.for_other(&hover);
-            let widget_cursor = hover.lock().as_widget().hover(location, &mut context);
+            let Some(last_layout) = context.last_layout() else {
+                continue;
+            };
+            let widget_cursor = hover
+                .lock()
+                .as_widget()
+                .hover(location - last_layout.origin, &mut context);
 
             if cursor.is_none() {
                 cursor = widget_cursor;
@@ -330,7 +336,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 let relative = location - widget_layout.origin;
 
                 if widget_context.hit_test(relative) {
-                    widget_context.hover(relative);
+                    widget_context.hover(location);
                     drop(widget_context);
                     self.cursor.widget = Some(widget.id());
                     break;

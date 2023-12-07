@@ -536,6 +536,7 @@ impl<T> Dynamic<T> {
         DynamicGuard {
             guard: self.0.state().expect("deadlocked"),
             accessed_mut: false,
+            prevent_notifications: false,
         }
     }
 
@@ -1100,6 +1101,7 @@ impl<T> DerefMut for GenerationalValue<T> {
 pub struct DynamicGuard<'a, T> {
     guard: DynamicMutexGuard<'a, T>,
     accessed_mut: bool,
+    prevent_notifications: bool,
 }
 
 impl<T> DynamicGuard<'_, T> {
@@ -1110,6 +1112,12 @@ impl<T> DynamicGuard<'_, T> {
     #[must_use]
     pub fn generation(&self) -> Generation {
         self.guard.wrapped.generation
+    }
+
+    /// Prevent any access through [`DerefMut`] from triggering change
+    /// notifications.
+    pub fn prevent_notifications(&mut self) {
+        self.prevent_notifications = true;
     }
 }
 
@@ -1130,7 +1138,7 @@ impl<'a, T> DerefMut for DynamicGuard<'a, T> {
 
 impl<T> Drop for DynamicGuard<'_, T> {
     fn drop(&mut self) {
-        if self.accessed_mut {
+        if self.accessed_mut && !self.prevent_notifications {
             let mut callbacks = Some(self.guard.note_changed());
             run_in_bg(move || drop(callbacks.take()));
         }
