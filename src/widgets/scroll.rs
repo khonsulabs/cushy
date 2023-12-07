@@ -264,7 +264,8 @@ impl Widget for Scroll {
         context.invalidate_when_changed(&self.scroll);
         let mut scroll = self.scroll.lock();
         let old_scroll = *scroll;
-        let new_scroll = Self::constrained_scroll(*scroll + amount.cast(), self.max_scroll.get());
+        let new_scroll =
+            Self::constrained_scroll(*scroll + amount.cast::<Px>(), self.max_scroll.get());
         if old_scroll == new_scroll {
             IGNORED
         } else {

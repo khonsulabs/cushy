@@ -71,10 +71,7 @@ fn main() -> gooey::Result {
 
             layers.map_mut(|layers| {
                 let pos = &mut layers.1[myself].position;
-                *pos += Point::new(
-                    one_second_movement.x * elapsed.as_secs_f32(),
-                    one_second_movement.y * elapsed.as_secs_f32(),
-                );
+                *pos += one_second_movement.x * elapsed.as_secs_f32();
 
                 let rect = Rect::new(*pos - Size::squared(8.), Size::squared(16.));
                 layers.1[myself].color =

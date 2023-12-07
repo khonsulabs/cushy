@@ -49,7 +49,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use alot::{LotId, Lots};
-use derive_more::From;
 use intentional::Cast;
 use kempt::Set;
 use kludgine::figures::units::{Lp, Px, UPx};
@@ -918,8 +917,8 @@ impl LinearInterpolate for Color {
 ///
 /// This wrapper can be used to add [`LinearInterpolate`] to types that normally
 /// don't support interpolation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, From)]
-pub struct BinaryLerp<T>(T);
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+pub struct BinaryLerp<T>(pub T);
 
 impl<T> LinearInterpolate for BinaryLerp<T>
 where
@@ -934,12 +933,18 @@ where
     }
 }
 
+impl<T> From<T> for BinaryLerp<T> {
+    fn from(value: T) -> Self {
+        Self(value)
+    }
+}
+
 /// A wrapper that implements [`LinearInterpolate`] such that the target value
 /// is immediately returned as long as percent is > 0.
 ///
 /// This wrapper can be used to add [`LinearInterpolate`] to types that normally
 /// don't support interpolation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, From)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct ImmediateLerp<T>(T);
 
 impl<T> LinearInterpolate for ImmediateLerp<T>
@@ -952,6 +957,12 @@ where
         } else {
             self.clone()
         }
+    }
+}
+
+impl<T> From<T> for ImmediateLerp<T> {
+    fn from(value: T) -> Self {
+        Self(value)
     }
 }
 
