@@ -1756,6 +1756,12 @@ impl<T> IntoValue<T> for Dynamic<T> {
     }
 }
 
+impl<T> IntoValue<T> for &'_ Dynamic<T> {
+    fn into_value(self) -> Value<T> {
+        Value::Dynamic(self.clone())
+    }
+}
+
 impl<T> IntoValue<T> for Value<T> {
     fn into_value(self) -> Value<T> {
         self

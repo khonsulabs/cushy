@@ -21,7 +21,7 @@ use kludgine::app::winit::window;
 use kludgine::app::WindowBehavior as _;
 use kludgine::cosmic_text::{Family, FamilyOwned};
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size};
+use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size, Zero};
 use kludgine::render::Drawing;
 use kludgine::wgpu::CompositeAlphaMode;
 use kludgine::Kludgine;

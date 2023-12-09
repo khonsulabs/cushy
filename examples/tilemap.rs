@@ -7,7 +7,9 @@ use gooey::kludgine::figures::units::Px;
 use gooey::kludgine::figures::{Point, Rect, Size};
 use gooey::kludgine::render::Renderer;
 use gooey::kludgine::shapes::Shape;
-use gooey::kludgine::tilemap::{Object, ObjectLayer, TileKind, TileMapFocus, Tiles, TILE_SIZE};
+use gooey::kludgine::tilemap::{
+    DebugGrid, Object, ObjectLayer, TileArray, TileKind, TileMapFocus, TILE_SIZE,
+};
 use gooey::kludgine::Color;
 use gooey::value::Dynamic;
 use gooey::widgets::TileMap;
@@ -35,12 +37,12 @@ fn main() -> gooey::Result {
     let sprite = include_aseprite_sprite!("assets/grass").unwrap();
 
     let layers = Dynamic::new((
-        Tiles::new(
-            8,
+        TileArray::new(
             8,
             array::from_fn::<_, 64, _>(|_| TileKind::Sprite(sprite.clone())),
         ),
         characters,
+        DebugGrid,
     ));
 
     let tilemap = TileMap::dynamic(layers.clone())

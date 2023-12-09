@@ -38,7 +38,7 @@ unicode-segmentation = "1.10.1"
 # [patch."https://github.com/khonsulabs/figures"]
 # figures = { path = "../figures" }
 
-[patch.crates-io]
+# [patch.crates-io]
 # alot = { git = "https://github.com/khonsulabs/alot" }
 # kempt = { path = "../objectmap" }
 

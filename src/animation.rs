@@ -52,7 +52,7 @@ use alot::{LotId, Lots};
 use intentional::Cast;
 use kempt::Set;
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Ranged, UnscaledUnit};
+use kludgine::figures::{Ranged, UnscaledUnit, Zero};
 use kludgine::Color;
 
 use crate::animation::easings::Linear;
@@ -1074,8 +1074,6 @@ pub struct ZeroToOne(f32);
 impl ZeroToOne {
     /// The maximum value this type can contain.
     pub const ONE: Self = Self(1.);
-    /// The minimum type this type can contain.
-    pub const ZERO: Self = Self(0.);
 
     /// Returns a new instance after clamping `value` between +0.0 and 1.0.
     ///
@@ -1105,6 +1103,14 @@ impl ZeroToOne {
     #[must_use]
     pub fn one_minus(self) -> Self {
         Self(1. - self.0)
+    }
+}
+
+impl Zero for ZeroToOne {
+    const ZERO: Self = Self(0.);
+
+    fn is_zero(&self) -> bool {
+        *self == 0.
     }
 }
 

@@ -19,7 +19,7 @@ use crate::ConstraintLimit;
 /// A callback-based custom widget.
 ///
 /// This type can be used to create inline widgets without defining a new type
-/// and implementing [`Widget`]/[`WrapperWidget`] for it.
+/// and implementing [`Widget`](crate::widget::Widget)/[`WrapperWidget`] for it.
 #[must_use]
 pub struct Custom {
     child: WidgetRef,

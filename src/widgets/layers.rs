@@ -168,8 +168,7 @@ impl Widget for Layers {
 
 /// A widget that displays other widgets relative to widgets in another layer.
 ///
-/// This widget is for use inside of a [`Layers`](crate::widgets::Layers)
-/// widget.
+/// This widget is for use inside of a [`Layers`] widget.
 #[derive(Debug, Clone, Default)]
 pub struct OverlayLayer {
     state: Dynamic<OverlayState>,

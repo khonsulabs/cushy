@@ -3,7 +3,7 @@
 use std::ops::RangeInclusive;
 use std::time::Duration;
 
-use kludgine::figures::Ranged;
+use kludgine::figures::{Ranged, Zero};
 
 use crate::animation::easings::{EaseInOutQuadradic, EaseOutQuadradic};
 use crate::animation::{
