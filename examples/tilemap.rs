@@ -1,3 +1,7 @@
+use std::array;
+use std::cmp::Ordering;
+use std::time::Duration;
+
 use gooey::kludgine::app::winit::keyboard::Key;
 use gooey::kludgine::figures::units::Px;
 use gooey::kludgine::figures::{Point, Rect, Size};
@@ -6,42 +10,38 @@ use gooey::kludgine::shapes::Shape;
 use gooey::kludgine::tilemap::{Object, ObjectLayer, TileKind, TileMapFocus, Tiles, TILE_SIZE};
 use gooey::kludgine::Color;
 use gooey::value::Dynamic;
-use gooey::widget::MakeWidget;
-use gooey::widgets::{Label, Stack, TileMap};
+use gooey::widgets::TileMap;
 use gooey::{Run, Tick};
 use kludgine::app::winit::keyboard::NamedKey;
 use kludgine::figures::FloatConversion;
-use kludgine::DrawableExt;
+use kludgine::sprite::{Sprite, SpriteSource};
+use kludgine::{include_aseprite_sprite, DrawableExt};
 
 const PLAYER_SIZE: Px = Px::new(16);
-
-#[rustfmt::skip]
-const TILES: [TileKind; 64] = {
-    const O: TileKind = TileKind::Color(Color::PURPLE);
-    const X: TileKind = TileKind::Color(Color::WHITE);
-    [
-        X, X, X, X, X, X, X, X,
-        X, O, O, O, O, O, O, X,
-        X, O, X, O, O, X, O, X,
-        X, O, O, O, O, O, O, X,
-        X, O, X, O, O, X, O, X,
-        X, O, O, X, X, O, O, X,
-        X, O, O, O, O, O, O, X,
-        X, X, X, X, X, X, X, X,
-    ]
-};
 
 fn main() -> gooey::Result {
     let mut characters = ObjectLayer::new();
 
+    let mut sprite = include_aseprite_sprite!("assets/stickguy").unwrap();
+    sprite.set_current_tag(Some("Idle")).unwrap();
+
     let myself = characters.push(Player {
-        color: Color::RED,
+        sprite,
+        current_frame: None,
+        hovered: false,
         position: Point::new(TILE_SIZE.into_float(), TILE_SIZE.into_float()),
     });
 
-    let layers = Dynamic::new((Tiles::new(8, 8, TILES), characters));
+    let sprite = include_aseprite_sprite!("assets/grass").unwrap();
 
-    let debug_message = Dynamic::new(String::new());
+    let layers = Dynamic::new((
+        Tiles::new(
+            8,
+            8,
+            array::from_fn::<_, 64, _>(|_| TileKind::Sprite(sprite.clone())),
+        ),
+        characters,
+    ));
 
     let tilemap = TileMap::dynamic(layers.clone())
         .focus_on(TileMapFocus::Object {
@@ -70,24 +70,37 @@ fn main() -> gooey::Result {
             let cursor_pos = input.mouse.as_ref().map(|mouse| mouse.position);
 
             layers.map_mut(|layers| {
-                let pos = &mut layers.1[myself].position;
-                *pos += one_second_movement.x * elapsed.as_secs_f32();
+                let player = &mut layers.1[myself];
 
-                let rect = Rect::new(*pos - Size::squared(8.), Size::squared(16.));
-                layers.1[myself].color =
-                    match cursor_pos.map_or(false, |cursor_pos| rect.cast().contains(cursor_pos)) {
-                        true => Color::RED,
-                        false => Color::BLUE,
-                    };
+                let animation_tag = match direction.x.total_cmp(&0.) {
+                    Ordering::Less => "WalkLeft",
+                    Ordering::Equal => "Idle",
+                    Ordering::Greater => "WalkRight",
+                };
+                player
+                    .sprite
+                    .set_current_tag(Some(animation_tag))
+                    .expect("valid tag");
+
+                player.current_frame =
+                    Some(player.sprite.get_frame(Some(elapsed)).expect("valid tag"));
+
+                player.position += one_second_movement * elapsed.as_secs_f32();
+
+                let rect = Rect::new(player.position - Size::squared(8.), Size::squared(16.));
+                layers.1[myself].hovered =
+                    cursor_pos.map_or(false, |cursor_pos| rect.cast().contains(cursor_pos));
             });
         }));
 
-    Stack::rows(tilemap.expand().and(Label::new(debug_message))).run()
+    tilemap.run()
 }
 
 #[derive(Debug)]
 struct Player {
-    color: Color,
+    sprite: Sprite,
+    current_frame: Option<SpriteSource>,
+    hovered: bool,
     position: Point<f32>,
 }
 
@@ -96,14 +109,30 @@ impl Object for Player {
         self.position.cast()
     }
 
-    fn render(&self, center: Point<Px>, zoom: f32, context: &mut Renderer<'_, '_>) {
+    fn render(
+        &self,
+        center: Point<Px>,
+        zoom: f32,
+        context: &mut Renderer<'_, '_>,
+    ) -> Option<Duration> {
         let zoomed_size = PLAYER_SIZE * zoom;
-        context.draw_shape(
-            Shape::filled_rect(
-                Rect::new(Point::squared(-zoomed_size / 2), Size::squared(zoomed_size)),
-                self.color,
-            )
-            .translate_by(center),
-        )
+        if self.hovered {
+            context.draw_shape(
+                Shape::filled_rect(
+                    Rect::new(Point::squared(-zoomed_size / 2), Size::squared(zoomed_size)),
+                    Color::new(255, 255, 255, 80),
+                )
+                .translate_by(center),
+            );
+        }
+
+        if let Some(frame) = &self.current_frame {
+            context.draw_texture(
+                frame,
+                Rect::new(center - zoomed_size / 2, Size::squared(zoomed_size)),
+            );
+        }
+
+        self.sprite.remaining_frame_duration().ok().flatten()
     }
 }

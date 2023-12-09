@@ -70,14 +70,37 @@ where
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let focus = self.focus.get();
         // TODO this needs to be updated to support being placed in side of a scroll view.
-        self.layers.map(|layers| {
-            tilemap::draw(layers, focus, self.zoom, context.gfx.inner_graphics());
-        });
+        let redraw_after = match &mut self.layers {
+            Value::Constant(layers) => tilemap::draw(
+                layers,
+                focus,
+                self.zoom,
+                context.elapsed(),
+                context.gfx.inner_graphics(),
+            ),
+            Value::Dynamic(layers) => {
+                let mut layers = layers.lock();
+                layers.prevent_notifications();
+                tilemap::draw(
+                    &mut *layers,
+                    focus,
+                    self.zoom,
+                    context.elapsed(),
+                    context.gfx.inner_graphics(),
+                )
+            }
+        };
+
         context.draw_focus_ring();
 
         if let Some(tick) = &self.tick {
+            // When we are driven by a tick, we ignore all other sources of
+            // refreshes.
             tick.rendered(context);
         } else {
+            if let Some(redraw_after) = redraw_after {
+                context.redraw_in(redraw_after);
+            }
             self.focus.redraw_when_changed(context);
             self.layers.redraw_when_changed(context);
         }
@@ -168,10 +191,11 @@ where
         _location: Point<Px>,
         _device_id: DeviceId,
         button: kludgine::app::winit::event::MouseButton,
-        _context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         if let Some(tick) = &self.tick {
             tick.mouse_button(button, ElementState::Pressed);
+            context.focus();
             HANDLED
         } else {
             IGNORED

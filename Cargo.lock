@@ -623,7 +623,7 @@ dependencies = [
 [[package]]
 name = "figures"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/figures#1809e94c19e56aaf9df36d7553ffa9e65523369d"
+source = "git+https://github.com/khonsulabs/figures#312f390a33025c902e94124cfab10c3dafdfb5f1"
 dependencies = [
  "bytemuck",
  "euclid",
@@ -968,9 +968,9 @@ dependencies = [
 
 [[package]]
 name = "intentional"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "509e910bdc87b3c71b1085ae9659c11ea74f9667f1e15b54a6fe68a307600560"
+checksum = "bbc48117ac1523428c576e39831e93043112e2d2be0223bb0c0593af944e4e38"
 
 [[package]]
 name = "interner"
@@ -1031,6 +1031,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "justjson"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7e253b574775d0ebd7975c471fc18f72f0775a4d42b563b5fbc3c4068aa1075"
+
+[[package]]
 name = "kempt"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1056,7 +1062,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/kludgine#abb5625c3557c3c3b22e088fe1523b1544e7ddb7"
+source = "git+https://github.com/khonsulabs/kludgine#924198daa5fc9fe758efd7c56084f8a05ef783d1"
 dependencies = [
  "ahash",
  "alot",
@@ -1067,6 +1073,7 @@ dependencies = [
  "figures",
  "image",
  "intentional",
+ "justjson",
  "lyon_tessellation",
  "pollster",
  "smallvec",
@@ -1935,9 +1942,9 @@ checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "rustix"
-version = "0.38.26"
+version = "0.38.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9470c4bf8246c8daf25f9598dca807fb6510347b1e1cfa55749113850c79d88a"
+checksum = "bfeae074e687625746172d639330f1de242a178bf3189b51e35a7a21573513ac"
 dependencies = [
  "bitflags 2.4.1",
  "errno",
@@ -3127,18 +3134,18 @@ checksum = "dd15f8e0dbb966fd9245e7498c7e9e5055d9e5c8b676b95bd67091cd11a1e697"
 
 [[package]]
 name = "zerocopy"
-version = "0.7.29"
+version = "0.7.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d075cf85bbb114e933343e087b92f2146bac0d55b534cbb8188becf0039948e"
+checksum = "306dca4455518f1f31635ec308b6b3e4eb1b11758cefafc782827d0aa7acb5c7"
 dependencies = [
  "zerocopy-derive",
 ]
 
 [[package]]
 name = "zerocopy-derive"
-version = "0.7.29"
+version = "0.7.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86cd5ca076997b97ef09d3ad65efe811fa68c9e874cb636ccb211223a813b0c2"
+checksum = "be912bf68235a88fbefd1b73415cb218405958d1655b2ece9035a19920bdf6ba"
 dependencies = [
  "proc-macro2",
  "quote",
