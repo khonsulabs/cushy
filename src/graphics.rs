@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use ahash::{HashSet, HashSetExt};
+use ahash::AHashSet;
 use kludgine::cosmic_text::FamilyOwned;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{
@@ -19,7 +19,7 @@ use crate::styles::FontFamilyList;
 pub struct Graphics<'clip, 'gfx, 'pass> {
     renderer: RenderContext<'clip, 'gfx, 'pass>,
     region: Rect<Px>,
-    current_font_family: &'clip mut Option<FontFamilyList>,
+    font_state: &'clip mut FontState,
 }
 
 enum RenderContext<'clip, 'gfx, 'pass> {
@@ -30,14 +30,11 @@ enum RenderContext<'clip, 'gfx, 'pass> {
 impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     /// Returns a new graphics context for the given [`Renderer`].
     #[must_use]
-    pub fn new(
-        renderer: Renderer<'gfx, 'pass>,
-        current_font_family: &'clip mut Option<FontFamilyList>,
-    ) -> Self {
+    pub fn new(renderer: Renderer<'gfx, 'pass>, font_state: &'clip mut FontState) -> Self {
         Self {
             region: renderer.clip_rect().into_signed(),
             renderer: RenderContext::Renderer(renderer),
-            current_font_family,
+            font_state,
         }
     }
 
@@ -66,33 +63,16 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         )
     }
 
-    pub(crate) fn inner_find_available_font_family(
-        db: &cosmic_text::fontdb::Database,
-        list: &FontFamilyList,
-    ) -> Option<FamilyOwned> {
-        let mut fonts = HashSet::new();
-        for (family, _) in db.faces().filter_map(|f| f.families.first()) {
-            fonts.insert(family.clone());
-        }
-
-        list.iter()
-            .find(|family| match family {
-                FamilyOwned::Name(name) => fonts.contains(name),
-                _ => true,
-            })
-            .cloned()
-    }
-
     /// Returns the first font family in `list` that is currently in the font
     /// system, or None if no font families match.
     pub fn find_available_font_family(&mut self, list: &FontFamilyList) -> Option<FamilyOwned> {
-        Self::inner_find_available_font_family(self.font_system().db(), list)
+        self.font_state.find_available_font_family(list)
     }
 
     /// Sets the font family to the first family in `list`.
     pub fn set_available_font_family(&mut self, list: &FontFamilyList) {
-        if self.current_font_family.as_ref() != Some(list) {
-            *self.current_font_family = Some(list.clone());
+        if self.font_state.current_font_family.as_ref() != Some(list) {
+            self.font_state.current_font_family = Some(list.clone());
             if let Some(family) = self.find_available_font_family(list) {
                 self.set_font_family(family);
             }
@@ -131,7 +111,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         Graphics {
             renderer: RenderContext::Clipped(self.renderer.clipped_to(new_clip)),
             region,
-            current_font_family: &mut *self.current_font_family,
+            font_state: &mut *self.font_state,
         }
     }
 
@@ -328,5 +308,37 @@ impl<'gfx, 'pass> DerefMut for RenderContext<'_, 'gfx, 'pass> {
             RenderContext::Renderer(renderer) => renderer,
             RenderContext::Clipped(clipped) => &mut *clipped,
         }
+    }
+}
+
+pub struct FontState {
+    fonts: AHashSet<String>,
+    current_font_family: Option<FontFamilyList>,
+}
+
+impl FontState {
+    pub fn new(db: &cosmic_text::fontdb::Database) -> Self {
+        let faces = db.faces();
+        let mut fonts = AHashSet::with_capacity(faces.size_hint().0);
+        for (family, _) in faces.filter_map(|f| f.families.first()) {
+            fonts.insert(family.clone());
+        }
+        Self {
+            fonts,
+            current_font_family: None,
+        }
+    }
+
+    pub fn next_frame(&mut self) {
+        self.current_font_family = None;
+    }
+
+    pub fn find_available_font_family(&self, list: &FontFamilyList) -> Option<FamilyOwned> {
+        list.iter()
+            .find(|family| match family {
+                FamilyOwned::Name(name) => self.fonts.contains(name),
+                _ => true,
+            })
+            .cloned()
     }
 }

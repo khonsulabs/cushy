@@ -1,8 +1,8 @@
-use std::collections::HashSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
+use ahash::AHashSet;
 use intentional::Assert;
 use kludgine::app::winit::event::{ElementState, KeyEvent, MouseButton};
 use kludgine::app::winit::keyboard::Key;
@@ -20,7 +20,7 @@ use crate::widget::{EventHandling, HANDLED, IGNORED};
 #[must_use]
 pub struct Tick {
     data: Arc<TickData>,
-    handled_keys: HashSet<Key>,
+    handled_keys: AHashSet<Key>,
 }
 
 impl Tick {
@@ -114,7 +114,7 @@ impl Tick {
 
         Self {
             data,
-            handled_keys: HashSet::new(),
+            handled_keys: AHashSet::new(),
         }
     }
 
@@ -147,7 +147,7 @@ impl Tick {
 #[derive(Default, Debug)]
 pub struct InputState {
     /// A collection of all keys currently pressed.
-    pub keys: HashSet<Key>,
+    pub keys: AHashSet<Key>,
     /// The state of the mouse cursor and any buttons pressed.
     pub mouse: Option<Mouse>,
 }
@@ -155,7 +155,7 @@ pub struct InputState {
 #[derive(Debug, Default)]
 pub struct Mouse {
     pub position: Point<Px>,
-    pub buttons: HashSet<MouseButton>,
+    pub buttons: AHashSet<MouseButton>,
 }
 
 #[derive(Debug)]

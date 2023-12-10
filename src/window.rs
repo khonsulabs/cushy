@@ -33,7 +33,7 @@ use crate::context::{
     AsEventContext, EventContext, Exclusive, GraphicsContext, InvalidationStatus, LayoutContext,
     WidgetContext,
 };
-use crate::graphics::Graphics;
+use crate::graphics::{FontState, Graphics};
 use crate::styles::{Edges, FontFamilyList, ThemePair};
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
@@ -136,6 +136,9 @@ where
     /// The list of font families to try to find when a [`FamilyOwned::Cursive`]
     /// font is requested.
     pub cursive_font_family: FontFamilyList,
+    /// A list of data buffers that contain font data to ensure are loaded
+    /// during drawing operations.
+    pub font_data_to_load: Vec<Vec<u8>>,
 
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
@@ -215,6 +218,15 @@ impl Window<WidgetInstance> {
         self.theme = theme.into_value();
         self
     }
+
+    /// Adds `font_data` to the list of fonts to load for availability when
+    /// rendering.
+    ///
+    /// All font families contained in `font_data` will be loaded.
+    pub fn loading_font(mut self, font_data: Vec<u8>) -> Self {
+        self.font_data_to_load.push(font_data);
+        self
+    }
 }
 
 impl<Behavior> Window<Behavior>
@@ -256,6 +268,10 @@ where
             fantasy_font_family: FontFamilyList::default(),
             monospace_font_family: FontFamilyList::default(),
             cursive_font_family: FontFamilyList::default(),
+            font_data_to_load: vec![
+                #[cfg(feature = "roboto-flex")]
+                include_bytes!("../assets/RobotoFlex.ttf").to_vec(),
+            ],
         }
     }
 }
@@ -276,7 +292,7 @@ where
                 focused: self.focused,
                 theme: Some(self.theme),
                 theme_mode: self.theme_mode,
-                load_system_fonts: self.load_system_fonts,
+                font_data_to_load: self.font_data_to_load,
                 serif_font_family: self.serif_font_family,
                 sans_serif_font_family: self.sans_serif_font_family,
                 fantasy_font_family: self.fantasy_font_family,
@@ -338,6 +354,7 @@ struct GooeyWindow<T> {
     current_theme: ThemePair,
     theme_mode: Value<ThemeMode>,
     transparent: bool,
+    fonts: FontState,
     gooey: Gooey,
 }
 
@@ -535,10 +552,15 @@ where
         let theme = settings.theme.take().expect("theme always present");
 
         let fontdb = graphics.font_system().db_mut();
+        for font_to_load in settings.font_data_to_load.drain(..) {
+            fontdb.load_font_data(font_to_load);
+        }
 
-        if let Some(FamilyOwned::Name(name)) =
-            Graphics::inner_find_available_font_family(fontdb, &settings.serif_font_family)
-                .or_else(|| default_family(Family::Serif))
+        let fonts = FontState::new(fontdb);
+
+        if let Some(FamilyOwned::Name(name)) = fonts
+            .find_available_font_family(&settings.serif_font_family)
+            .or_else(|| default_family(Family::Serif))
         {
             fontdb.set_serif_family(name);
         }
@@ -546,7 +568,6 @@ where
         let bundled_font_name;
         #[cfg(feature = "roboto-flex")]
         {
-            fontdb.load_font_data(include_bytes!("../assets/RobotoFlex.ttf").to_vec());
             bundled_font_name = Some(String::from("Roboto Flex"));
         }
         #[cfg(not(feature = "roboto-flex"))]
@@ -554,34 +575,34 @@ where
             bundled_font_name = None;
         }
 
-        if let Some(FamilyOwned::Name(name)) =
-            Graphics::inner_find_available_font_family(fontdb, &settings.sans_serif_font_family)
-                .or_else(|| {
-                    if let Some(name) = bundled_font_name {
-                        Some(FamilyOwned::Name(name))
-                    } else {
-                        default_family(Family::SansSerif)
-                    }
-                })
+        if let Some(FamilyOwned::Name(name)) = fonts
+            .find_available_font_family(&settings.sans_serif_font_family)
+            .or_else(|| {
+                if let Some(name) = bundled_font_name {
+                    Some(FamilyOwned::Name(name))
+                } else {
+                    default_family(Family::SansSerif)
+                }
+            })
         {
             fontdb.set_sans_serif_family(name);
         }
 
-        if let Some(FamilyOwned::Name(name)) =
-            Graphics::inner_find_available_font_family(fontdb, &settings.fantasy_font_family)
-                .or_else(|| default_family(Family::Fantasy))
+        if let Some(FamilyOwned::Name(name)) = fonts
+            .find_available_font_family(&settings.fantasy_font_family)
+            .or_else(|| default_family(Family::Fantasy))
         {
             fontdb.set_fantasy_family(name);
         }
-        if let Some(FamilyOwned::Name(name)) =
-            Graphics::inner_find_available_font_family(fontdb, &settings.monospace_font_family)
-                .or_else(|| default_family(Family::Monospace))
+        if let Some(FamilyOwned::Name(name)) = fonts
+            .find_available_font_family(&settings.monospace_font_family)
+            .or_else(|| default_family(Family::Monospace))
         {
             fontdb.set_monospace_family(name);
         }
-        if let Some(FamilyOwned::Name(name)) =
-            Graphics::inner_find_available_font_family(fontdb, &settings.cursive_font_family)
-                .or_else(|| default_family(Family::Cursive))
+        if let Some(FamilyOwned::Name(name)) = fonts
+            .find_available_font_family(&settings.cursive_font_family)
+            .or_else(|| default_family(Family::Cursive))
         {
             fontdb.set_cursive_family(name);
         }
@@ -627,6 +648,7 @@ where
             theme,
             theme_mode,
             transparent,
+            fonts,
             gooey,
         }
     }
@@ -655,8 +677,8 @@ where
         let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
         let root_mode = self.constrain_window_resizing(resizable, &mut window, graphics);
 
+        self.fonts.next_frame();
         let graphics = self.contents.new_frame(graphics);
-        let mut current_font_family = None;
         let mut context = GraphicsContext {
             widget: WidgetContext::new(
                 self.root.clone(),
@@ -666,7 +688,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
             ),
-            gfx: Exclusive::Owned(Graphics::new(graphics, &mut current_font_family)),
+            gfx: Exclusive::Owned(Graphics::new(graphics, &mut self.fonts)),
         };
         self.theme_mode.redraw_when_changed(&context);
         let mut layout_context = LayoutContext::new(&mut context);
@@ -1231,12 +1253,12 @@ pub(crate) mod sealed {
         pub theme: Option<Value<ThemePair>>,
         pub theme_mode: Option<Value<ThemeMode>>,
         pub transparent: bool,
-        pub load_system_fonts: bool,
         pub serif_font_family: FontFamilyList,
         pub sans_serif_font_family: FontFamilyList,
         pub fantasy_font_family: FontFamilyList,
         pub monospace_font_family: FontFamilyList,
         pub cursive_font_family: FontFamilyList,
+        pub font_data_to_load: Vec<Vec<u8>>,
     }
 
     #[derive(Clone)]
