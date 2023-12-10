@@ -238,7 +238,8 @@ impl Orientation {
     }
 }
 
-/// The strategy to use when laying a widget out inside of an [`Stack`].
+/// The strategy to use when laying a widget out inside of an [`Grid`] or
+/// [`Stack`](crate::widgets::Stack).
 #[derive(Default, Debug, Clone, Copy)]
 pub enum GridDimension {
     /// Attempt to lay out the widget based on its contents.
