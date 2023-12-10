@@ -52,7 +52,7 @@ use alot::{LotId, Lots};
 use intentional::Cast;
 use kempt::Set;
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Ranged, UnscaledUnit, Zero};
+use kludgine::figures::{Angle, Ranged, UnscaledUnit, Zero};
 use kludgine::Color;
 
 use crate::animation::easings::Linear;
@@ -870,6 +870,14 @@ impl LinearInterpolate for f64 {
     fn lerp(&self, target: &Self, percent: f32) -> Self {
         let delta = *target - *self;
         *self + delta * f64::from(percent)
+    }
+}
+
+impl LinearInterpolate for Angle {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        let this = self.into_degrees::<f32>();
+        let delta = target.into_degrees::<f32>() - this;
+        Self::degrees_f(this + delta * percent)
     }
 }
 

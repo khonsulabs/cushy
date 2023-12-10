@@ -4,10 +4,9 @@ use std::ops::RangeInclusive;
 use std::time::Duration;
 
 use kludgine::figures::units::Px;
-use kludgine::figures::{FloatConversion, Point, Ranged, ScreenScale, Zero};
-use kludgine::shapes::{Path, PathEvent, StrokeOptions};
+use kludgine::figures::{Angle, Point, Ranged, ScreenScale, Size, Zero};
+use kludgine::shapes::{Path, StrokeOptions};
 use kludgine::Color;
-use lyon_geom::Arc;
 
 use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::{
@@ -70,7 +69,7 @@ impl MakeWidgetWithId for ProgressBar {
         let mut indeterminant_animation = None;
 
         let (slider, degree_offset) = if self.spinner {
-            let degree_offset = Dynamic::new(0.);
+            let degree_offset = Dynamic::new(Angle::degrees(270));
             (
                 Spinner {
                     start: start.clone(),
@@ -124,7 +123,7 @@ fn update_progress_bar(
     indeterminant_animation: &mut Option<IndeterminantAnimations>,
     start: &Dynamic<ZeroToOne>,
     end: &Dynamic<ZeroToOne>,
-    degree_offset: Option<&Dynamic<f32>>,
+    degree_offset: Option<&Dynamic<Angle>>,
 ) {
     match progress {
         Progress::Indeterminant => {
@@ -164,11 +163,11 @@ fn update_progress_bar(
                         .spawn(),
                     _degree_offset: degree_offset.map(|degree_offset| {
                         degree_offset
-                            .transition_to(0.)
+                            .transition_to(Angle::MIN)
                             .immediately()
                             .and_then(
                                 degree_offset
-                                    .transition_to(359.9)
+                                    .transition_to(Angle::MAX)
                                     .over(Duration::from_secs_f32(1.66)),
                             )
                             .cycle()
@@ -180,7 +179,7 @@ fn update_progress_bar(
         Progress::Percent(value) => {
             let _stopped_animation = indeterminant_animation.take();
             if let Some(degree_offset) = degree_offset {
-                degree_offset.set(0.);
+                degree_offset.set(Angle::degrees(270));
             }
             start.set(ZeroToOne::ZERO);
             end.set(value);
@@ -303,52 +302,28 @@ where
 pub struct Spinner {
     start: Dynamic<ZeroToOne>,
     end: Dynamic<ZeroToOne>,
-    degree_offset: Dynamic<f32>,
+    degree_offset: Dynamic<Angle>,
 }
 
 impl Spinner {
     fn draw_arc(
         track_size: Px,
-        radius: f32,
-        degree_offset: f32,
+        radius: Px,
+        degree_offset: Angle,
         start: ZeroToOne,
         sweep: ZeroToOne,
         color: Color,
         context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>,
     ) {
-        let mut events = Vec::<PathEvent<Px>>::new();
-        Arc {
-            center: lyon_geom::point(
-                radius + track_size.into_float() / 2.,
-                radius + track_size.into_float() / 2.,
-            ),
-            radii: lyon_geom::vector(radius, radius),
-            start_angle: lyon_geom::Angle::degrees(*start * 360. - 90. + degree_offset),
-            sweep_angle: lyon_geom::Angle::degrees(*sweep * 360.),
-            x_rotation: lyon_geom::Angle::zero(),
-        }
-        .for_each_cubic_bezier(&mut |segment| {
-            if events.is_empty() {
-                events.push(PathEvent::Begin {
-                    at: Point::new(segment.from.x, segment.from.y).cast(),
-                    texture: Point::ZERO,
-                });
-            }
-            events.push(PathEvent::Cubic {
-                ctrl1: Point::new(segment.ctrl1.x, segment.ctrl1.y).cast(),
-                ctrl2: Point::new(segment.ctrl2.x, segment.ctrl2.y).cast(),
-                to: Point::new(segment.to.x, segment.to.y).cast(),
-                texture: Point::ZERO,
-            });
-        });
-        let full = sweep == ZeroToOne::ONE;
-        if !events.is_empty() {
-            events.push(PathEvent::End { close: full });
+        if sweep > 0. {
             context.gfx.draw_shape(
-                &events
-                    .into_iter()
-                    .collect::<Path<Px, false>>()
-                    .stroke(StrokeOptions::px_wide(track_size).colored(color)),
+                &Path::arc(
+                    Point::squared(radius + track_size / 2),
+                    Size::squared(radius),
+                    Angle::degrees_f(*start * 360.) + degree_offset,
+                    Angle::degrees_f(*sweep * 360.),
+                )
+                .stroke(StrokeOptions::px_wide(track_size).colored(color)),
             );
         }
     }
@@ -360,8 +335,8 @@ impl Widget for Spinner {
         let start = self.start.get_tracking_refresh(context);
         let end = self.end.get_tracking_refresh(context);
         let size = context.gfx.region().size;
-        let render_size = size.width.min(size.height).into_float();
-        let radius = render_size / 2. - track_size.into_float();
+        let render_size = size.width.min(size.height);
+        let radius = render_size / 2 - track_size;
         let degree_offset = self.degree_offset.get();
 
         if start > ZeroToOne::ZERO {
