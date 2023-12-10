@@ -308,6 +308,30 @@ pub trait AnimateTarget: Send + Sync {
     fn finish(&self);
 }
 
+macro_rules! impl_tuple_animate {
+    ($($type:ident $field:tt $var:ident),+) => {
+        impl<$($type),+> AnimationTarget for ($($type,)+) where $($type: AnimationTarget),+ {
+            type Running = ($(<$type>::Running,)+);
+
+            fn begin(self) -> Self::Running {
+                ($(self.$field.begin(),)+)
+            }
+        }
+
+        impl<$($type),+> AnimateTarget for ($($type,)+) where $($type: AnimateTarget),+ {
+            fn update(&self, percent: f32) {
+                $(self.$field.update(percent);)+
+            }
+
+            fn finish(&self) {
+                $(self.$field.finish();)+
+            }
+        }
+    }
+}
+
+impl_all_tuples!(impl_tuple_animate);
+
 /// A type that can convert into `Box<dyn Animate>`.
 pub trait BoxAnimate {
     /// Returns the boxed animation.
@@ -353,29 +377,40 @@ pub trait IntoAnimate: Sized + Send + Sync {
     }
 }
 
-macro_rules! impl_tuple_animate {
+macro_rules! impl_tuple_into_animate {
     ($($type:ident $field:tt $var:ident),+) => {
-        impl<$($type),+> AnimationTarget for ($($type,)+) where $($type: AnimationTarget),+ {
-            type Running = ($(<$type>::Running,)+);
+        impl<$($type),+> IntoAnimate for ($($type,)+) where $($type: IntoAnimate),+ {
+            type Animate = ($(<$type>::Animate,)+);
 
-            fn begin(self) -> Self::Running {
-                ($(self.$field.begin(),)+)
+            fn into_animate(self) -> Self::Animate {
+                ($(self.$field.into_animate(),)+)
             }
         }
-
-        impl<$($type),+> AnimateTarget for ($($type,)+) where $($type: AnimateTarget),+ {
-            fn update(&self, percent: f32) {
-                $(self.$field.update(percent);)+
-            }
-
-            fn finish(&self) {
-                $(self.$field.finish();)+
+        impl<$($type),+> Animate for ($($type,)+) where $($type: Animate),+ {
+            fn animate(&mut self, elapsed: Duration) -> ControlFlow<Duration> {
+                let mut min_remaining = Duration::MAX;
+                let mut completely_done = true;
+                $(
+                    match self.$field.animate(elapsed) {
+                        ControlFlow::Break(remaining) => {
+                            min_remaining = min_remaining.min(remaining);
+                        }
+                        ControlFlow::Continue(()) => {
+                            completely_done = false;
+                        }
+                    }
+                )+
+                if completely_done {
+                    ControlFlow::Break(min_remaining)
+                } else {
+                    ControlFlow::Continue(())
+                }
             }
         }
     }
 }
 
-impl_all_tuples!(impl_tuple_animate);
+impl_all_tuples!(impl_tuple_into_animate);
 
 impl<T> BoxAnimate for T
 where

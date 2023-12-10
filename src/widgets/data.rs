@@ -19,7 +19,10 @@ pub struct Data<T> {
     child: WidgetRef,
 }
 
-impl<T> Data<T> {
+impl<T> Data<T>
+where
+    T: Debug,
+{
     /// Returns an empty widget with the contained value.
     pub fn new(value: T) -> Self {
         Self::new_wrapping(value, Space::clear())
@@ -34,7 +37,10 @@ impl<T> Data<T> {
     }
 }
 
-impl<T> From<T> for Data<T> {
+impl<T> From<T> for Data<T>
+where
+    T: Debug,
+{
     fn from(value: T) -> Self {
         Self::new(value)
     }

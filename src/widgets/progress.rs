@@ -3,21 +3,26 @@
 use std::ops::RangeInclusive;
 use std::time::Duration;
 
-use kludgine::figures::{Ranged, Zero};
+use kludgine::figures::units::Px;
+use kludgine::figures::{FloatConversion, Point, Ranged, ScreenScale, Zero};
+use kludgine::shapes::{Path, PathEvent, StrokeOptions};
+use kludgine::Color;
+use lyon_geom::Arc;
 
-use crate::animation::easings::{EaseInOutQuadradic, EaseOutQuadradic};
+use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::{
     AnimationHandle, AnimationTarget, IntoAnimate, PercentBetween, Spawn, ZeroToOne,
 };
 use crate::value::{Dynamic, IntoDynamic, IntoValue, MapEach, Value};
-use crate::widget::{MakeWidget, MakeWidgetWithId, WidgetInstance};
-use crate::widgets::slider::Slidable;
+use crate::widget::{MakeWidget, MakeWidgetWithId, Widget, WidgetInstance};
+use crate::widgets::slider::{InactiveTrackColor, Slidable, TrackColor, TrackSize};
 use crate::widgets::Data;
 
 /// A bar-shaped progress indicator.
 #[derive(Debug)]
 pub struct ProgressBar {
     progress: Value<Progress>,
+    spinner: bool,
 }
 
 impl ProgressBar {
@@ -26,6 +31,7 @@ impl ProgressBar {
     pub const fn indeterminant() -> Self {
         Self {
             progress: Value::Constant(Progress::Indeterminant),
+            spinner: false,
         }
     }
 
@@ -34,7 +40,15 @@ impl ProgressBar {
     pub fn new(progress: impl IntoDynamic<Progress>) -> Self {
         Self {
             progress: Value::Dynamic(progress.into_dynamic()),
+            spinner: false,
         }
+    }
+
+    /// Returns a new progress bar that displays `progress`.
+    #[must_use]
+    pub fn spinner(mut self) -> Self {
+        self.spinner = true;
+        self
     }
 }
 
@@ -54,18 +68,43 @@ impl MakeWidgetWithId for ProgressBar {
         let value = (&start, &end).map_each(|(start, end)| *start..=*end);
 
         let mut indeterminant_animation = None;
+
+        let (slider, degree_offset) = if self.spinner {
+            let degree_offset = Dynamic::new(0.);
+            (
+                Spinner {
+                    start: start.clone(),
+                    end: end.clone(),
+                    degree_offset: degree_offset.clone(),
+                }
+                .make_with_id(id),
+                Some(degree_offset),
+            )
+        } else {
+            (
+                value.slider().knobless().non_interactive().make_with_id(id),
+                None,
+            )
+        };
+
         update_progress_bar(
             self.progress.get(),
             &mut indeterminant_animation,
             &start,
             &end,
+            degree_offset.as_ref(),
         );
 
-        let slider = value.slider().knobless().non_interactive().make_with_id(id);
         match self.progress {
             Value::Dynamic(progress) => {
                 let callback = progress.for_each(move |progress| {
-                    update_progress_bar(*progress, &mut indeterminant_animation, &start, &end);
+                    update_progress_bar(
+                        *progress,
+                        &mut indeterminant_animation,
+                        &start,
+                        &end,
+                        degree_offset.as_ref(),
+                    );
                 });
                 Data::new_wrapping((callback, progress), slider).make_widget()
             }
@@ -74,50 +113,75 @@ impl MakeWidgetWithId for ProgressBar {
     }
 }
 
+#[derive(Debug)]
+struct IndeterminantAnimations {
+    _primary: AnimationHandle,
+    _degree_offset: Option<AnimationHandle>,
+}
+
 fn update_progress_bar(
     progress: Progress,
-    indeterminant_animation: &mut Option<AnimationHandle>,
+    indeterminant_animation: &mut Option<IndeterminantAnimations>,
     start: &Dynamic<ZeroToOne>,
     end: &Dynamic<ZeroToOne>,
+    degree_offset: Option<&Dynamic<f32>>,
 ) {
     match progress {
         Progress::Indeterminant => {
             if indeterminant_animation.is_none() {
-                *indeterminant_animation = Some(
-                    (
-                        start.transition_to(ZeroToOne::ZERO),
-                        end.transition_to(ZeroToOne::ZERO),
+                *indeterminant_animation = Some(IndeterminantAnimations {
+                    _primary: (
+                        start
+                            .transition_to(ZeroToOne::ZERO)
+                            .immediately()
+                            .and_then(Duration::from_millis(250))
+                            .and_then(
+                                start
+                                    .transition_to(ZeroToOne::new(0.33))
+                                    .over(Duration::from_millis(500))
+                                    .with_easing(EaseInQuadradic),
+                            )
+                            .and_then(
+                                start
+                                    .transition_to(ZeroToOne::new(1.0))
+                                    .over(Duration::from_millis(500))
+                                    .with_easing(EaseOutQuadradic),
+                            ),
+                        end.transition_to(ZeroToOne::ZERO)
+                            .immediately()
+                            .and_then(
+                                end.transition_to(ZeroToOne::new(0.75))
+                                    .over(Duration::from_millis(500))
+                                    .with_easing(EaseInQuadradic),
+                            )
+                            .and_then(
+                                end.transition_to(ZeroToOne::ONE)
+                                    .over(Duration::from_millis(250))
+                                    .with_easing(EaseOutQuadradic),
+                            ),
                     )
-                        .immediately()
-                        .and_then(
-                            end.transition_to(ZeroToOne::new(0.75))
-                                .over(Duration::from_millis(500))
-                                .with_easing(EaseOutQuadradic),
-                        )
-                        .and_then(
-                            start
-                                .transition_to(ZeroToOne::new(0.25))
-                                .over(Duration::from_millis(500))
-                                .with_easing(EaseOutQuadradic),
-                        )
-                        .and_then(
-                            end.transition_to(ZeroToOne::ONE)
-                                .over(Duration::from_millis(250))
-                                .with_easing(EaseOutQuadradic),
-                        )
-                        .and_then(
-                            start
-                                .transition_to(ZeroToOne::ONE)
-                                .over(Duration::from_millis(250))
-                                .with_easing(EaseInOutQuadradic),
-                        )
                         .cycle()
                         .spawn(),
-                );
+                    _degree_offset: degree_offset.map(|degree_offset| {
+                        degree_offset
+                            .transition_to(0.)
+                            .immediately()
+                            .and_then(
+                                degree_offset
+                                    .transition_to(359.9)
+                                    .over(Duration::from_secs_f32(1.66)),
+                            )
+                            .cycle()
+                            .spawn()
+                    }),
+                });
             }
         }
         Progress::Percent(value) => {
             let _stopped_animation = indeterminant_animation.take();
+            if let Some(degree_offset) = degree_offset {
+                degree_offset.set(0.);
+            }
             start.set(ZeroToOne::ZERO);
             end.set(value);
         }
@@ -231,5 +295,120 @@ where
             Progress::Indeterminant => Progress::Indeterminant,
             Progress::Percent(value) => value.to_progress(range),
         }
+    }
+}
+
+/// A circular progress widget.
+#[derive(Debug)]
+pub struct Spinner {
+    start: Dynamic<ZeroToOne>,
+    end: Dynamic<ZeroToOne>,
+    degree_offset: Dynamic<f32>,
+}
+
+impl Spinner {
+    fn draw_arc(
+        track_size: Px,
+        radius: f32,
+        degree_offset: f32,
+        start: ZeroToOne,
+        sweep: ZeroToOne,
+        color: Color,
+        context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>,
+    ) {
+        let mut events = Vec::<PathEvent<Px>>::new();
+        Arc {
+            center: lyon_geom::point(
+                radius + track_size.into_float() / 2.,
+                radius + track_size.into_float() / 2.,
+            ),
+            radii: lyon_geom::vector(radius, radius),
+            start_angle: lyon_geom::Angle::degrees(*start * 360. - 90. + degree_offset),
+            sweep_angle: lyon_geom::Angle::degrees(*sweep * 360.),
+            x_rotation: lyon_geom::Angle::zero(),
+        }
+        .for_each_cubic_bezier(&mut |segment| {
+            if events.is_empty() {
+                events.push(PathEvent::Begin {
+                    at: Point::new(segment.from.x, segment.from.y).cast(),
+                    texture: Point::ZERO,
+                });
+            }
+            events.push(PathEvent::Cubic {
+                ctrl1: Point::new(segment.ctrl1.x, segment.ctrl1.y).cast(),
+                ctrl2: Point::new(segment.ctrl2.x, segment.ctrl2.y).cast(),
+                to: Point::new(segment.to.x, segment.to.y).cast(),
+                texture: Point::ZERO,
+            });
+        });
+        let full = sweep == ZeroToOne::ONE;
+        if !events.is_empty() {
+            events.push(PathEvent::End { close: full });
+            context.gfx.draw_shape(
+                &events
+                    .into_iter()
+                    .collect::<Path<Px, false>>()
+                    .stroke(StrokeOptions::px_wide(track_size).colored(color)),
+            );
+        }
+    }
+}
+
+impl Widget for Spinner {
+    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+        let track_size = context.get(&TrackSize).into_px(context.gfx.scale());
+        let start = self.start.get_tracking_refresh(context);
+        let end = self.end.get_tracking_refresh(context);
+        let size = context.gfx.region().size;
+        let render_size = size.width.min(size.height).into_float();
+        let radius = render_size / 2. - track_size.into_float();
+        let degree_offset = self.degree_offset.get();
+
+        if start > ZeroToOne::ZERO {
+            Self::draw_arc(
+                track_size,
+                radius,
+                degree_offset,
+                ZeroToOne::ZERO,
+                start,
+                context.get(&InactiveTrackColor),
+                context,
+            );
+        }
+
+        if start != end {
+            Self::draw_arc(
+                track_size,
+                radius,
+                degree_offset,
+                start,
+                ZeroToOne::new(*end - *start),
+                context.get(&TrackColor),
+                context,
+            );
+        }
+
+        if end < ZeroToOne::ONE {
+            Self::draw_arc(
+                track_size,
+                radius,
+                degree_offset,
+                end,
+                end.one_minus(),
+                context.get(&InactiveTrackColor),
+                context,
+            );
+        }
+    }
+
+    fn layout(
+        &mut self,
+        available_space: kludgine::figures::Size<crate::ConstraintLimit>,
+        context: &mut crate::context::LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> kludgine::figures::Size<kludgine::figures::units::UPx> {
+        let track_size = context.get(&TrackSize).into_px(context.gfx.scale());
+        let minimum_size = track_size * 4;
+
+        available_space.map(|constraint| constraint.fit_measured(minimum_size, context.gfx.scale()))
     }
 }

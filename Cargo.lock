@@ -810,6 +810,7 @@ dependencies = [
  "interner",
  "kempt",
  "kludgine",
+ "lyon_geom",
  "palette",
  "pollster",
  "rand",

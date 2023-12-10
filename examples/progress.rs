@@ -15,7 +15,14 @@ fn main() -> gooey::Result {
     value
         .clone()
         .slider()
-        .and(progress.clone().progress_bar())
+        .and(
+            progress
+                .clone()
+                .progress_bar()
+                .expand()
+                .and(progress.clone().progress_bar().spinner())
+                .into_columns(),
+        )
         .and("Indeterminant".into_checkbox(indeterminant))
         .into_rows()
         .fit_horizontally()

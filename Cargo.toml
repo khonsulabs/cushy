@@ -29,6 +29,7 @@ gooey-macros = { version = "0.1.0", path = "gooey-macros" }
 arboard = "3.2.1"
 zeroize = "1.6.1"
 unicode-segmentation = "1.10.1"
+lyon_geom = "1.0.4"
 
 
 # [patch."https://github.com/khonsulabs/kludgine"]
