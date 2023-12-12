@@ -1172,6 +1172,22 @@ impl<T> Edges<T> {
     }
 }
 
+impl<Unit> Zero for Edges<Unit>
+where
+    Unit: Zero,
+{
+    const ZERO: Self = Self {
+        left: Unit::ZERO,
+        top: Unit::ZERO,
+        right: Unit::ZERO,
+        bottom: Unit::ZERO,
+    };
+
+    fn is_zero(&self) -> bool {
+        self.left.is_zero() && self.top.is_zero() && self.right.is_zero() && self.bottom.is_zero()
+    }
+}
+
 impl Edges<Dimension> {
     /// Returns a new instance with `dimension` for every edge.
     #[must_use]

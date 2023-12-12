@@ -623,7 +623,7 @@ dependencies = [
 [[package]]
 name = "figures"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/figures#5b84202e60b52cc2c57c0e49031fe1a0ff87b9ec"
+source = "git+https://github.com/khonsulabs/figures#aaee0e99cf5c3ad5a7e907819eceeef9b897fe13"
 dependencies = [
  "bytemuck",
  "euclid",
@@ -1062,7 +1062,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/kludgine#32b7e160966c58d129657f0762ecb79a4ce482a3"
+source = "git+https://github.com/khonsulabs/kludgine#52f58c39b0ab4e1e280d27f7228e8ccd9a377f50"
 dependencies = [
  "ahash",
  "alot",
@@ -2135,9 +2135,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.39"
+version = "2.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23e78b90f2fcf45d3e842032ce32e3f2d1545ba6636271dcbf24fa306d87be7a"
+checksum = "13fa70a4ee923979ffb522cacce59d34421ebdea5625e1073c4326ef9d2dd42e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3011,9 +3011,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.5.26"
+version = "0.5.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b67b5f0a4e7a27a64c651977932b9dc5667ca7fc31ac44b03ed37a0cf42fdfff"
+checksum = "6c830786f7720c2fd27a1a0e27a709dbd3c4d009b56d098fc742d4f4eab91fe2"
 dependencies = [
  "memchr",
 ]

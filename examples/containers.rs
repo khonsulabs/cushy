@@ -1,7 +1,10 @@
 use gooey::value::Dynamic;
 use gooey::widget::{MakeWidget, WidgetInstance};
+use gooey::widgets::container::ContainerShadow;
 use gooey::window::ThemeMode;
 use gooey::{Gooey, Run};
+use kludgine::figures::units::Lp;
+use kludgine::figures::Point;
 
 fn main() -> gooey::Result {
     let theme_mode = Dynamic::default();
@@ -30,17 +33,31 @@ fn set_of_containers(repeat: usize, theme_mode: Dynamic<ThemeMode>) -> WidgetIns
                     "Mid"
                         .and(
                             "High"
-                                .and("Highest".and(inner).into_rows().contain())
+                                .and(
+                                    "Highest"
+                                        .and(inner)
+                                        .into_rows()
+                                        .contain()
+                                        .shadow(drop_shadow()),
+                                )
                                 .into_rows()
-                                .contain(),
+                                .contain()
+                                .shadow(drop_shadow()),
                         )
                         .into_rows()
-                        .contain(),
+                        .contain()
+                        .shadow(drop_shadow()),
                 )
                 .into_rows()
-                .contain(),
+                .contain()
+                .shadow(drop_shadow()),
         )
         .into_rows()
         .contain()
+        .shadow(drop_shadow())
         .make_widget()
+}
+
+fn drop_shadow() -> ContainerShadow<Lp> {
+    ContainerShadow::new(Point::new(Lp::ZERO, Lp::mm(1))).spread(Lp::mm_f(1.))
 }

@@ -774,6 +774,14 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'cl
     }
 }
 
+impl<'context, 'window, 'clip, 'gfx, 'pass> AsEventContext<'window>
+    for LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>
+{
+    fn as_event_context(&mut self) -> EventContext<'_, 'window> {
+        self.graphics.as_event_context()
+    }
+}
+
 impl<'context, 'window, 'clip, 'gfx, 'pass> Deref
     for LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>
 {

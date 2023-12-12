@@ -1822,14 +1822,17 @@ impl WidgetRef {
     }
 
     /// Returns this child, mounting it in the process if necessary.
-    pub fn mount_if_needed(&mut self, context: &mut EventContext<'_, '_>) {
+    pub fn mount_if_needed<'window>(&mut self, context: &mut impl AsEventContext<'window>) {
         if let WidgetRef::Unmounted(instance) = self {
             *self = WidgetRef::Mounted(context.push_child(instance.clone()));
         }
     }
 
     /// Returns this child, mounting it in the process if necessary.
-    pub fn mounted(&mut self, context: &mut EventContext<'_, '_>) -> ManagedWidget {
+    pub fn mounted<'window>(
+        &mut self,
+        context: &mut impl AsEventContext<'window>,
+    ) -> ManagedWidget {
         self.mount_if_needed(context);
 
         let Self::Mounted(widget) = self else {
