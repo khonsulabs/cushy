@@ -266,7 +266,21 @@ impl Widget for Container {
             .into_signed(),
         );
 
-        child_size + padding_amount + child_shadow_offset_amount + shadow_spread * 2
+        let corner_radii = context.get(&CornerRadius).into_upx(context.gfx.scale());
+        let max_corner = corner_radii
+            .top_left
+            .max(corner_radii.top_right)
+            .max(corner_radii.bottom_left)
+            .max(corner_radii.bottom_right);
+        let max_blur = (child_size
+            .width
+            .min(child_size.height)
+            .saturating_sub(shadow.spread.into_unsigned())
+            / 2)
+        .saturating_sub(max_corner);
+        let blur_overage = shadow.blur_radius.into_unsigned().saturating_sub(max_blur);
+
+        child_size + padding_amount + child_shadow_offset_amount + shadow_spread * 2 + blur_overage
     }
 
     fn root_behavior(
@@ -315,14 +329,19 @@ fn render_shadow(
     let shadow_color =
         shadow_color.with_alpha_f32(shadow_color.alpha_f32() * background.alpha_f32());
 
-    let gradient_size = (shadow.spread + shadow.blur_radius)
-        .min(child_area.size.width)
-        .min(child_area.size.height);
+    let max_corner = corner_radii
+        .top_left
+        .max(corner_radii.top_right)
+        .max(corner_radii.bottom_left)
+        .max(corner_radii.bottom_right);
+
+    let max_blur =
+        (child_area.size.width.min(child_area.size.height) - shadow.spread) / 2 - max_corner;
+    let blur = shadow.blur_radius.min(max_blur);
+    let gradient_size = shadow.spread + blur;
+
     if gradient_size > 0 {
-        let mut solid_area = Rect::new(
-            Point::squared(gradient_size),
-            child_area.size - shadow.blur_radius * 2,
-        );
+        let mut solid_area = Rect::new(Point::squared(gradient_size), child_area.size - blur * 2);
         solid_area.origin += shadow.offset.max(Point::ZERO);
 
         let transparent = shadow_color.with_alpha(0);
@@ -370,18 +389,6 @@ fn render_shadow(
                 .filled(),
             );
         }
-
-        // Top Right
-        shadow_arc(
-            Point::new(solid_right_at_top, solid_top_at_right),
-            corner_radii.top_right,
-            gradient_size,
-            shadow_color,
-            transparent,
-            Angle::degrees(270),
-            context,
-        );
-
         // Right
         context.gfx.draw_shape(
             &PathBuilder::new((Point::new(solid_right, solid_top_at_right), shadow_color))
@@ -412,17 +419,6 @@ fn render_shadow(
             .filled(),
         );
 
-        // Bottom Right
-        shadow_arc(
-            Point::new(solid_right_at_bottom, solid_bottom_at_right),
-            corner_radii.bottom_right,
-            gradient_size,
-            shadow_color,
-            transparent,
-            Angle::degrees(0),
-            context,
-        );
-
         // Bottom
         context.gfx.draw_shape(
             &PathBuilder::new((
@@ -448,17 +444,6 @@ fn render_shadow(
             ))
             .close()
             .filled(),
-        );
-
-        // Bottom Left
-        shadow_arc(
-            Point::new(solid_left_at_bottom, solid_bottom_at_left),
-            corner_radii.bottom_left,
-            gradient_size,
-            shadow_color,
-            transparent,
-            Angle::degrees(90),
-            context,
         );
 
         // Left
@@ -489,6 +474,39 @@ fn render_shadow(
                 .line_to((Point::new(solid_left, solid_bottom_at_left), shadow_color))
                 .close()
                 .filled(),
+        );
+
+        // Top Right
+        shadow_arc(
+            Point::new(solid_right_at_top, solid_top_at_right),
+            corner_radii.top_right,
+            gradient_size,
+            shadow_color,
+            transparent,
+            Angle::degrees(270),
+            context,
+        );
+
+        // Bottom Right
+        shadow_arc(
+            Point::new(solid_right_at_bottom, solid_bottom_at_right),
+            corner_radii.bottom_right,
+            gradient_size,
+            shadow_color,
+            transparent,
+            Angle::degrees(0),
+            context,
+        );
+
+        // Bottom Left
+        shadow_arc(
+            Point::new(solid_left_at_bottom, solid_bottom_at_left),
+            corner_radii.bottom_left,
+            gradient_size,
+            shadow_color,
+            transparent,
+            Angle::degrees(90),
+            context,
         );
 
         // Top Left

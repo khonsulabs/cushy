@@ -63,6 +63,7 @@ fn main() -> gooey::Result {
         .and(
             "Preview"
                 .h3()
+                .align_left()
                 .and(
                     Space::clear()
                         .size(Size::squared(Lp::inches(2)))
@@ -73,7 +74,8 @@ fn main() -> gooey::Result {
                 .into_rows(),
         )
         .into_columns()
+        .expand()
         .contain()
-        .centered()
+        .pad()
         .run()
 }
