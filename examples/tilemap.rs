@@ -132,6 +132,7 @@ impl Object for Player {
             context.draw_texture(
                 frame,
                 Rect::new(center - zoomed_size / 2, Size::squared(zoomed_size)),
+                1.,
             );
         }
 

@@ -13,6 +13,7 @@ use kludgine::{
     cosmic_text, ClipGuard, Color, Drawable, Kludgine, ShaderScalable, ShapeSource, TextureSource,
 };
 
+use crate::animation::ZeroToOne;
 use crate::styles::FontFamilyList;
 
 /// A 2d graphics context
@@ -20,6 +21,7 @@ pub struct Graphics<'clip, 'gfx, 'pass> {
     renderer: RenderContext<'clip, 'gfx, 'pass>,
     region: Rect<Px>,
     font_state: &'clip mut FontState,
+    pub(crate) opacity: ZeroToOne,
 }
 
 enum RenderContext<'clip, 'gfx, 'pass> {
@@ -35,6 +37,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
             region: renderer.clip_rect().into_signed(),
             renderer: RenderContext::Renderer(renderer),
             font_state,
+            opacity: ZeroToOne::ONE,
         }
     }
 
@@ -112,6 +115,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
             renderer: RenderContext::Clipped(self.renderer.clipped_to(new_clip)),
             region,
             font_state: &mut *self.font_state,
+            opacity: self.opacity,
         }
     }
 
@@ -173,6 +177,11 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         Unit: Zero + ShaderScalable + figures::ScreenUnit + Copy,
     {
         let mut shape = shape.into();
+        shape.opacity = Some(
+            shape
+                .opacity
+                .map_or(*self.opacity, |opacity| opacity * *self.opacity),
+        );
         shape.translation += Point::<Unit>::from_px(self.translation(), self.scale());
         self.renderer.draw_shape(shape);
     }
@@ -184,7 +193,8 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         i32: From<<Unit as IntoSigned>::Signed>,
     {
         let translate = Point::<Unit>::from_px(self.translation(), self.scale());
-        self.renderer.draw_texture(texture, destination + translate);
+        self.renderer
+            .draw_texture(texture, destination + translate, *self.opacity);
     }
 
     /// Draws a shape that was created with texture coordinates, applying the
@@ -199,6 +209,11 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         Shape: ShapeSource<Unit, true> + 'shape,
     {
         let mut shape = shape.into();
+        shape.opacity = Some(
+            shape
+                .opacity
+                .map_or(*self.opacity, |opacity| opacity * *self.opacity),
+        );
         shape.translation += Point::<Unit>::from_px(self.translation(), self.scale());
         self.renderer.draw_textured_shape(shape, texture);
     }
@@ -219,6 +234,10 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         Unit: ScreenUnit,
     {
         let mut text = text.into();
+        text.opacity = Some(
+            text.opacity
+                .map_or(*self.opacity, |opacity| opacity * *self.opacity),
+        );
         text.translation += Point::<Unit>::from_px(self.translation(), self.scale());
         self.renderer.draw_text(text);
     }
@@ -239,6 +258,11 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         Unit: ScreenUnit,
     {
         let mut buffer = buffer.into();
+        buffer.opacity = Some(
+            buffer
+                .opacity
+                .map_or(*self.opacity, |opacity| opacity * *self.opacity),
+        );
         buffer.translation += Point::<Unit>::from_px(self.translation(), self.scale());
         self.renderer
             .draw_text_buffer(buffer, default_color, origin);
@@ -272,6 +296,10 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         Unit: ScreenUnit,
     {
         let mut text = text.into();
+        text.opacity = Some(
+            text.opacity
+                .map_or(*self.opacity, |opacity| opacity * *self.opacity),
+        );
         text.translation += Point::<Unit>::from_px(self.translation(), self.scale());
         self.renderer.draw_measured_text(text, origin);
     }

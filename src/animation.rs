@@ -41,7 +41,7 @@ pub mod easings;
 
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display};
-use std::ops::{ControlFlow, Deref, Div, Mul, Sub};
+use std::ops::{ControlFlow, Deref, Div, DivAssign, Mul, MulAssign, Sub};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
@@ -1250,11 +1250,23 @@ impl Mul for ZeroToOne {
     }
 }
 
+impl MulAssign for ZeroToOne {
+    fn mul_assign(&mut self, rhs: Self) {
+        self.0 *= rhs.0;
+    }
+}
+
 impl Div for ZeroToOne {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
         self / rhs.0
+    }
+}
+
+impl DivAssign for ZeroToOne {
+    fn div_assign(&mut self, rhs: Self) {
+        self.0 /= rhs.0;
     }
 }
 
@@ -1269,6 +1281,29 @@ impl Div<f32> for ZeroToOne {
 impl Ranged for ZeroToOne {
     const MAX: Self = Self::ONE;
     const MIN: Self = Self::ZERO;
+}
+
+impl RequireInvalidation for ZeroToOne {
+    fn requires_invalidation(&self) -> bool {
+        false
+    }
+}
+
+impl TryFrom<Component> for ZeroToOne {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::Percent(value) => Ok(value),
+            other => Err(other),
+        }
+    }
+}
+
+impl From<ZeroToOne> for Component {
+    fn from(value: ZeroToOne) -> Self {
+        Component::Percent(value)
+    }
 }
 
 /// An easing function for customizing animations.

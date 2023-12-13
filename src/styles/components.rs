@@ -6,7 +6,7 @@ use kludgine::shapes::CornerRadii;
 use kludgine::Color;
 
 use crate::animation::easings::{EaseInOutQuadradic, EaseInQuadradic, EaseOutQuadradic};
-use crate::animation::EasingFunction;
+use crate::animation::{EasingFunction, ZeroToOne};
 use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
 
 /// Defines a set of style components for Gooey.
@@ -235,5 +235,8 @@ define_components! {
         Heading5FontFamily(FontFamilyList, "heading_font_family_5", @HeadingFontFamily)
         /// The [`FontFamilyList`] to apply to h6 headings.
         Heading6FontFamily(FontFamilyList, "heading_font_family_6", @HeadingFontFamily)
+
+        /// The opaqueness of drawing calls
+        Opacity(ZeroToOne, "opacity", ZeroToOne::ONE)
     }
 }

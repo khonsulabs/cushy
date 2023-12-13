@@ -1,6 +1,7 @@
 //! Widgets that stack in the Z-direction.
 
 use std::fmt;
+use std::time::Duration;
 
 use alot::{LotId, OrderedLots};
 use gooey::widget::{RootBehavior, WidgetInstance};
@@ -8,6 +9,8 @@ use intentional::Assert;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 
+use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
+use crate::animation::{AnimationTarget, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::value::{Dynamic, DynamicGuard, Generation, IntoValue, Value};
 use crate::widget::{
@@ -47,7 +50,7 @@ impl Layers {
                     if self
                         .mounted
                         .get(index)
-                        .map_or(true, |child| child != widget)
+                        .map_or(true, |child| &child.widget != widget)
                     {
                         // These entries do not match. See if we can find the
                         // new id somewhere else, if so we can swap the entries.
@@ -56,7 +59,7 @@ impl Layers {
                             .iter()
                             .enumerate()
                             .skip(index + 1)
-                            .find(|(_, child)| *child == widget)
+                            .find(|(_, child)| &child.widget == widget)
                         {
                             self.mounted.swap(index, swap_index);
                         } else {
@@ -81,8 +84,8 @@ impl Widget for Layers {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         self.synchronize_children(&mut context.as_event_context());
 
-        for child in &self.mounted {
-            context.for_other(child).redraw();
+        for mounted in &self.mounted {
+            context.for_other(mounted).redraw();
         }
     }
 
@@ -186,6 +189,7 @@ impl OverlayLayer {
                 requires_hover: false,
                 on_dismiss: None,
                 layout: None,
+                opacity: Dynamic::default(),
             },
         }
     }
@@ -200,7 +204,8 @@ impl Widget for OverlayLayer {
                 continue;
             };
 
-            context.for_other(mounted).redraw();
+            let opacity = child.opacity.get_tracking_refresh(context);
+            context.for_other(mounted).with_opacity(opacity).redraw();
         }
     }
 
@@ -611,6 +616,7 @@ impl OverlayBuilder<'_> {
     /// Shows this overlay, returning a handle that to the displayed overlay.
     #[must_use]
     pub fn show(self) -> OverlayHandle {
+        self.fade_in();
         self.overlay.state.map_mut(|state| {
             state.new_overlays += 1;
             OverlayHandle {
@@ -620,11 +626,21 @@ impl OverlayBuilder<'_> {
             }
         })
     }
+
+    fn fade_in(&self) {
+        self.layout
+            .opacity
+            .transition_to(ZeroToOne::ONE)
+            .over(Duration::from_millis(250))
+            .with_easing(EaseOutQuadradic)
+            .launch();
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
 struct OverlayLayout {
     widget: WidgetRef,
+    opacity: Dynamic<ZeroToOne>,
     relative_to: Option<WidgetId>,
     direction: Direction,
     requires_hover: bool,

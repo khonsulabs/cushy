@@ -14,11 +14,12 @@ use kludgine::figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size,
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
+use crate::animation::ZeroToOne;
 use crate::context::sealed::WindowHandle;
 use crate::graphics::Graphics;
 use crate::styles::components::{
     CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, LineHeight,
-    TextSize, WidgetBackground,
+    Opacity, TextSize, WidgetBackground,
 };
 use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::utils::IgnorePoison;
@@ -555,17 +556,29 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
         Widget: ManageWidget,
         Widget::Managed: MapManagedWidget<GraphicsContext<'child, 'window, 'child, 'gfx, 'pass>>,
     {
+        let opacity = self.get(&Opacity);
         widget.manage(self).map(|widget| {
             let widget = self.widget.for_other(&widget);
             let layout = widget.last_layout().map_or_else(
                 || Rect::from(self.gfx.clip_rect().size).into_signed(),
                 |rect| rect - self.gfx.region().origin,
             );
+            let mut gfx = self.gfx.clipped_to(layout);
+            gfx.opacity *= opacity;
             GraphicsContext {
                 widget,
-                gfx: Exclusive::Owned(self.gfx.clipped_to(layout)),
+                gfx: Exclusive::Owned(gfx),
             }
         })
+    }
+
+    /// Updates `self` to have `opacity`.
+    ///
+    /// This setting will be mixed with the current opacity value.
+    #[must_use]
+    pub fn with_opacity(mut self, opacity: impl Into<ZeroToOne>) -> Self {
+        self.gfx.opacity *= opacity.into();
+        self
     }
 
     /// Returns a new graphics context that renders to the `clip` rectangle.

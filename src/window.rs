@@ -769,7 +769,7 @@ where
         _window: kludgine::app::Window<'_, WindowCommand>,
         graphics: &mut kludgine::RenderingGraphics<'_, 'pass>,
     ) -> bool {
-        self.contents.render(graphics);
+        self.contents.render(1., graphics);
 
         !self.should_close
     }
