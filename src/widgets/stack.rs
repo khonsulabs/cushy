@@ -5,6 +5,7 @@ use kludgine::figures::{IntoSigned, Rect, ScreenScale, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::IntrinsicPadding;
+use crate::styles::FlexibleDimension;
 use crate::value::{Generation, IntoValue, Value};
 use crate::widget::{Children, ManagedWidget, Widget, WidgetRef};
 use crate::widgets::grid::{GridDimension, GridLayout, Orientation};
@@ -18,6 +19,8 @@ pub struct Stack {
     orientation: Orientation,
     /// The children widgets that belong to this array.
     pub children: Value<Children>,
+    /// The amount of space to place between each widget.
+    pub gutter: Value<FlexibleDimension>,
     layout: GridLayout,
     layout_generation: Option<Generation>,
     // TODO Refactor synced_children into its own type.
@@ -30,6 +33,7 @@ impl Stack {
         Self {
             orientation,
             children: widgets.into_value(),
+            gutter: Value::Constant(FlexibleDimension::Auto),
             layout: GridLayout::new(orientation),
             layout_generation: None,
             synced_children: Vec::new(),
@@ -44,6 +48,13 @@ impl Stack {
     /// Returns a new instance that displays `widgets` in a series of rows.
     pub fn rows(widgets: impl IntoValue<Children>) -> Self {
         Self::new(Orientation::Row, widgets)
+    }
+
+    /// Sets the space between each child to `gutter` and returns self.
+    #[must_use]
+    pub fn gutter(mut self, gutter: impl IntoValue<FlexibleDimension>) -> Self {
+        self.gutter = gutter.into_value();
+        self
     }
 
     fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
@@ -136,9 +147,16 @@ impl Widget for Stack {
     ) -> Size<UPx> {
         self.synchronize_children(&mut context.as_event_context());
 
+        self.gutter.invalidate_when_changed(context);
+        let gutter = match self.gutter.get() {
+            FlexibleDimension::Auto => context.get(&IntrinsicPadding),
+            FlexibleDimension::Dimension(dimension) => dimension,
+        }
+        .into_upx(context.gfx.scale());
+
         let content_size = self.layout.update(
             available_space,
-            context.get(&IntrinsicPadding).into_upx(context.gfx.scale()),
+            gutter,
             context.gfx.scale(),
             |child_index, _element, constraints, persist| {
                 let mut context = context.for_other(&self.synced_children[child_index]);

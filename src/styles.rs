@@ -1268,6 +1268,24 @@ impl IntoValue<Dimension> for Lp {
     }
 }
 
+impl IntoValue<FlexibleDimension> for Px {
+    fn into_value(self) -> Value<FlexibleDimension> {
+        Dimension::from(self).into_value()
+    }
+}
+
+impl IntoValue<FlexibleDimension> for Lp {
+    fn into_value(self) -> Value<FlexibleDimension> {
+        Dimension::from(self).into_value()
+    }
+}
+
+impl IntoValue<FlexibleDimension> for Dimension {
+    fn into_value(self) -> Value<FlexibleDimension> {
+        FlexibleDimension::from(self).into_value()
+    }
+}
+
 impl<U> ScreenScale for Edges<U>
 where
     U: ScreenScale<Px = Px, UPx = UPx, Lp = Lp>,
