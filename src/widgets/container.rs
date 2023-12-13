@@ -225,7 +225,7 @@ impl Widget for Container {
 
             // check if the shadow would be obscured before we try to draw it.
             if child_area.origin != Point::ZERO || child_size != context.gfx.region().size {
-                render_shadow(&child_area, &corner_radii, &shadow, background, context);
+                render_shadow(&child_area, corner_radii, &shadow, background, context);
             }
 
             context.gfx.draw_shape(&Shape::filled_round_rect(
@@ -246,8 +246,33 @@ impl Widget for Container {
     ) -> Size<UPx> {
         let child = self.child.mounted(context);
 
-        let padding = self.padding(context).into_upx(context.gfx.scale());
+        let corner_radii = context.get(&CornerRadius).into_upx(context.gfx.scale());
+
+        let max_space = available_space.map(ConstraintLimit::max);
+        let min_dimension = max_space.width.min(max_space.height);
+        let max_corner_radii = min_dimension / 2;
+
+        let corner_radii = corner_radii.map(|r| r.min(max_corner_radii));
+
+        let mut padding = self.padding(context).into_upx(context.gfx.scale());
+        padding.left = padding
+            .left
+            .max(corner_radii.top_left / std::f32::consts::PI)
+            .max(corner_radii.bottom_left / std::f32::consts::PI);
+        padding.right = padding
+            .right
+            .max(corner_radii.top_right / std::f32::consts::PI)
+            .max(corner_radii.bottom_right / std::f32::consts::PI);
+        padding.top = padding
+            .top
+            .max(corner_radii.top_right / std::f32::consts::PI)
+            .max(corner_radii.top_left / std::f32::consts::PI);
+        padding.bottom = padding
+            .bottom
+            .max(corner_radii.bottom_right / std::f32::consts::PI)
+            .max(corner_radii.bottom_left / std::f32::consts::PI);
         let padding_amount = padding.size();
+
         let shadow = self.effective_shadow(context).into_px(context.gfx.scale());
         let shadow_spread = shadow.spread.into_unsigned();
 
@@ -266,21 +291,7 @@ impl Widget for Container {
             .into_signed(),
         );
 
-        let corner_radii = context.get(&CornerRadius).into_upx(context.gfx.scale());
-        let max_corner = corner_radii
-            .top_left
-            .max(corner_radii.top_right)
-            .max(corner_radii.bottom_left)
-            .max(corner_radii.bottom_right);
-        let max_blur = (child_size
-            .width
-            .min(child_size.height)
-            .saturating_sub(shadow.spread.into_unsigned())
-            / 2)
-        .saturating_sub(max_corner);
-        let blur_overage = shadow.blur_radius.into_unsigned().saturating_sub(max_blur);
-
-        child_size + padding_amount + child_shadow_offset_amount + shadow_spread * 2 + blur_overage
+        child_size + padding_amount + child_shadow_offset_amount + shadow_spread * 2
     }
 
     fn root_behavior(
@@ -320,7 +331,7 @@ impl Widget for Container {
 #[allow(clippy::too_many_lines)]
 fn render_shadow(
     child_area: &Rect<Px>,
-    corner_radii: &CornerRadii<Px>,
+    mut corner_radii: CornerRadii<Px>,
     shadow: &ContainerShadow<Px>,
     background: Color,
     context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
@@ -329,15 +340,19 @@ fn render_shadow(
     let shadow_color =
         shadow_color.with_alpha_f32(shadow_color.alpha_f32() * background.alpha_f32());
 
+    let min_dimension = child_area.size.width.min(child_area.size.height);
+    let max_corner_radii = min_dimension / 2;
+
+    corner_radii = corner_radii.map(|r| r.min(max_corner_radii));
+
     let max_corner = corner_radii
         .top_left
         .max(corner_radii.top_right)
         .max(corner_radii.bottom_left)
         .max(corner_radii.bottom_right);
 
-    let max_blur =
-        (child_area.size.width.min(child_area.size.height) - shadow.spread) / 2 - max_corner;
-    let blur = shadow.blur_radius.min(max_blur);
+    let max_blur = min_dimension / 2 - max_corner;
+    let blur = shadow.blur_radius.min(max_blur).max(Px::ZERO);
     let gradient_size = shadow.spread + blur;
 
     if gradient_size > 0 {
@@ -544,7 +559,7 @@ fn render_shadow(
     } else {
         context.gfx.draw_shape(&Shape::filled_round_rect(
             Rect::new(shadow.offset.max(Point::ZERO), child_area.size),
-            *corner_radii,
+            corner_radii,
             shadow_color,
         ));
     }

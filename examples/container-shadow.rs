@@ -4,7 +4,6 @@ use gooey::value::{Dynamic, MapEachCloned};
 use gooey::widget::MakeWidget;
 use gooey::widgets::container::ContainerShadow;
 use gooey::widgets::slider::Slidable;
-use gooey::widgets::Space;
 use gooey::Run;
 use kludgine::figures::units::Lp;
 use kludgine::figures::{Point, Size};
@@ -63,15 +62,18 @@ fn main() -> gooey::Result {
         .and(
             "Preview"
                 .h3()
-                .align_left()
                 .and(
-                    Space::clear()
+                    "Hello, World!"
                         .size(Size::squared(Lp::inches(2)))
                         .contain()
                         .shadow(shadow)
-                        .with(&CornerRadius, corners),
+                        .with(&CornerRadius, corners)
+                        .centered()
+                        .contain()
+                        .expand(),
                 )
-                .into_rows(),
+                .into_rows()
+                .expand(),
         )
         .into_columns()
         .expand()

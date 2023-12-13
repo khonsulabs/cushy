@@ -190,11 +190,13 @@ impl WrapperWidget for Align {
     ) -> WrappedLayout {
         let layout = self.measure(available_space, context);
 
-        Rect::new(
-            Point::new(layout.margin.left, layout.margin.top).into_signed(),
-            layout.content.into_signed(),
-        )
-        .into()
+        WrappedLayout {
+            child: Rect::new(
+                Point::new(layout.margin.left, layout.margin.top).into_signed(),
+                layout.content.into_signed(),
+            ),
+            size: layout.content + layout.margin.size(),
+        }
     }
 }
 

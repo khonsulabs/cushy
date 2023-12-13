@@ -260,17 +260,8 @@ pub enum RootBehavior {
 pub struct WrappedLayout {
     /// The region the child widget occupies within its parent.
     pub child: Rect<Px>,
-    /// The size the wrapper widget should report as.q
+    /// The size the wrapper widget should report as.
     pub size: Size<UPx>,
-}
-
-impl From<Rect<Px>> for WrappedLayout {
-    fn from(child: Rect<Px>) -> Self {
-        WrappedLayout {
-            child,
-            size: child.size.into_unsigned(),
-        }
-    }
 }
 
 impl From<Size<Px>> for WrappedLayout {

@@ -250,11 +250,7 @@ impl Widget for OverlayLayer {
 
     fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
         let state = self.state.lock();
-        if let Some(index) = state.test_point(location, false, context) {
-            index > 0
-        } else {
-            !(state.overlays.is_empty() || state.point_is_in_root_relative(location, context))
-        }
+        state.test_point(location, false, context).is_some()
     }
 
     fn hover(

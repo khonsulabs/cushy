@@ -1,8 +1,11 @@
 use std::panic::UnwindSafe;
 
 use gooey::widget::{MakeWidget, MakeWidgetWithId, WidgetTag};
+use gooey::widgets::container::ContainerShadow;
 use gooey::widgets::layers::{OverlayBuilder, OverlayLayer};
 use gooey::Run;
+use kludgine::figures::units::Lp;
+use kludgine::figures::Point;
 use kludgine::Color;
 use rand::{thread_rng, Rng};
 
@@ -31,12 +34,18 @@ fn test_widget(overlay: &OverlayLayer, is_root: bool) -> impl MakeWidget {
         .contain();
 
     if !is_root {
-        buttons = buttons.background_color(Color::new(
-            thread_rng().gen(),
-            thread_rng().gen(),
-            thread_rng().gen(),
-            255,
-        ))
+        buttons = buttons
+            .background_color(Color::new(
+                thread_rng().gen(),
+                thread_rng().gen(),
+                thread_rng().gen(),
+                255,
+            ))
+            .shadow(
+                ContainerShadow::new(Point::new(Lp::ZERO, Lp::mm(2)))
+                    .blur_radius(Lp::mm(1))
+                    .spread(Lp::mm(1)),
+            );
     }
 
     buttons.pad().make_with_id(my_tag)

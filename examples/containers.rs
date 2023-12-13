@@ -59,5 +59,5 @@ fn set_of_containers(repeat: usize, theme_mode: Dynamic<ThemeMode>) -> WidgetIns
 }
 
 fn drop_shadow() -> ContainerShadow<Lp> {
-    ContainerShadow::new(Point::new(Lp::ZERO, Lp::mm(1))).spread(Lp::mm_f(1.))
+    ContainerShadow::new(Point::new(Lp::ZERO, Lp::mm(1))).spread(Lp::mm(1))
 }
