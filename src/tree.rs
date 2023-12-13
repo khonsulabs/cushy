@@ -607,7 +607,11 @@ impl Node {
     fn child_styles(&self) -> Styles {
         let mut effective_styles = self.effective_styles.clone();
         if let Some(associated) = &self.associated_styles {
-            effective_styles.inherit_from(associated.get());
+            let mut merged = associated.get();
+            merged.inherit_from(effective_styles);
+            effective_styles = merged;
+        } else {
+            effective_styles = effective_styles.into_inherited();
         }
         effective_styles
     }

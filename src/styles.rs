@@ -89,7 +89,7 @@ impl Styles {
             name.name().into_owned(),
             StoredComponent {
                 inherited: false,
-                inheritable: false,
+                inheritable: true,
                 component: component.into_value().into_component_value(),
             },
         );
@@ -195,12 +195,29 @@ impl Styles {
             .unwrap_or_else(|err| err.as_ref().clone())
             .components
         {
-            if value.inherited || !value.inheritable {
+            if !value.inheritable || self.0.components.contains_key(&name) {
                 continue;
             }
 
             value.inherited = true;
             self.insert_named(name, value);
+        }
+    }
+
+    /// Returns this collection of styles without any local style definitions.
+    #[must_use]
+    pub fn into_inherited(self) -> Self {
+        if self.0.components.values().any(|stored| !stored.inheritable) {
+            Self(Arc::new(StyleData {
+                components: Arc::try_unwrap(self.0)
+                    .unwrap_or_else(|err| err.as_ref().clone())
+                    .components
+                    .into_iter()
+                    .filter(|(_, stored)| stored.inheritable)
+                    .collect(),
+            }))
+        } else {
+            self
         }
     }
 }
