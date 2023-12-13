@@ -49,10 +49,10 @@ impl Styles {
     }
 
     /// Inserts a [`Component`] with a given name.
-    pub fn insert_named(&mut self, name: ComponentName, component: impl IntoComponentValue) {
+    pub fn insert_named(&mut self, name: ComponentName, component: impl IntoStoredComponent) {
         Arc::make_mut(&mut self.0)
             .components
-            .insert(name, component.into_component_value());
+            .insert(name, component.into_stored_component());
     }
 
     /// Inserts a [`Component`] using then name provided.
@@ -85,7 +85,14 @@ impl Styles {
     where
         Value<C::ComponentType>: IntoComponentValue,
     {
-        self.insert(name, component.into_value());
+        self.insert_named(
+            name.name().into_owned(),
+            StoredComponent {
+                inherited: false,
+                inheritable: false,
+                component: component.into_value().into_component_value(),
+            },
+        );
         self
     }
 
@@ -116,7 +123,7 @@ impl Styles {
             .components
             .get(&component.name())
             .or_else(|| self.0.components.get(&fallback.name()))
-            .and_then(|component| Self::resolve_component(component, context))
+            .and_then(|stored| Self::resolve_component(&stored.component, context))
             .unwrap_or_else(|| fallback.default_value(context))
     }
 
@@ -163,7 +170,7 @@ impl Styles {
         self.0
             .components
             .get(&component.name())
-            .and_then(|component| Self::resolve_component(component, context))
+            .and_then(|stored| Self::resolve_component(&stored.component, context))
     }
 
     /// Returns the component associated with the given name, or if not found,
@@ -183,8 +190,16 @@ impl Styles {
 
     /// Inserts all components from `other`, overwriting any existing entries
     /// with the same [`ComponentName`].
-    pub fn append(&mut self, other: Styles) {
-        for (name, value) in other {
+    pub fn inherit_from(&mut self, other: Styles) {
+        for (name, mut value) in Arc::try_unwrap(other.0)
+            .unwrap_or_else(|err| err.as_ref().clone())
+            .components
+        {
+            if value.inherited || !value.inheritable {
+                continue;
+            }
+
+            value.inherited = true;
             self.insert_named(name, value);
         }
     }
@@ -194,11 +209,11 @@ impl Debug for Styles {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut map = f.debug_struct("Styles");
         let mut component_name = String::new();
-        for (name, component) in &self.0.components {
+        for (name, stored) in &self.0.components {
             component_name.clear();
             write!(&mut component_name, "{name:?}")?;
 
-            map.field(&component_name, component);
+            map.field(&component_name, &stored.component);
         }
         map.finish()
     }
@@ -216,26 +231,87 @@ impl FromIterator<(ComponentName, Component)> for Styles {
 }
 
 impl IntoIterator for Styles {
-    type IntoIter = hash_map::IntoIter<ComponentName, Value<Component>>;
+    type IntoIter = StylesIntoIter;
     type Item = (ComponentName, Value<Component>);
 
     fn into_iter(self) -> Self::IntoIter {
-        Arc::try_unwrap(self.0)
-            .unwrap_or_else(|err| err.as_ref().clone())
-            .components
-            .into_iter()
+        StylesIntoIter {
+            into_iter: Arc::try_unwrap(self.0)
+                .unwrap_or_else(|err| err.as_ref().clone())
+                .components
+                .into_iter(),
+        }
+    }
+}
+
+/// An iterator that returns the contents of a [`Styles`] collection.
+pub struct StylesIntoIter {
+    into_iter: hash_map::IntoIter<ComponentName, StoredComponent>,
+}
+
+impl Iterator for StylesIntoIter {
+    type Item = (ComponentName, Value<Component>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.into_iter
+            .next()
+            .map(|(name, stored)| (name, stored.component))
     }
 }
 
 #[derive(Default, Clone)]
 struct StyleData {
-    components: AHashMap<ComponentName, Value<Component>>,
+    components: AHashMap<ComponentName, StoredComponent>,
+}
+
+/// A [`Component`] that is stored within a [`Styles`] collection.
+#[derive(Clone)]
+pub struct StoredComponent {
+    inherited: bool,
+    inheritable: bool,
+    component: Value<Component>,
+}
+
+impl StoredComponent {
+    /// Returns a new component that will not be inherited to children widgets.
+    pub fn local(component: impl IntoComponentValue) -> Self {
+        Self {
+            inherited: false,
+            inheritable: false,
+            component: component.into_component_value(),
+        }
+    }
 }
 
 /// A value that can be converted into a `Value<Component>`.
 pub trait IntoComponentValue {
     /// Returns `self` stored in a component value.
     fn into_component_value(self) -> Value<Component>;
+}
+
+/// A type that can be converted into a [`StoredComponent`].
+pub trait IntoStoredComponent {
+    /// Returns this value as a stored component.
+    fn into_stored_component(self) -> StoredComponent;
+}
+
+impl<T> IntoStoredComponent for T
+where
+    T: IntoComponentValue,
+{
+    fn into_stored_component(self) -> StoredComponent {
+        StoredComponent {
+            inherited: false,
+            inheritable: true,
+            component: self.into_component_value(),
+        }
+    }
+}
+
+impl IntoStoredComponent for StoredComponent {
+    fn into_stored_component(self) -> StoredComponent {
+        self
+    }
 }
 
 impl<T> IntoComponentValue for T

@@ -8,7 +8,9 @@ use crate::styles::components::{
     LineHeight8, TextSize, TextSize1, TextSize2, TextSize3, TextSize4, TextSize5, TextSize6,
     TextSize7, TextSize8,
 };
-use crate::styles::{ComponentDefinition, IntoComponentValue, IntoDynamicComponentValue, Styles};
+use crate::styles::{
+    ComponentDefinition, IntoComponentValue, IntoDynamicComponentValue, StoredComponent, Styles,
+};
 use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 
@@ -48,6 +50,25 @@ impl Style {
     {
         self.map_styles_mut(|styles| {
             styles.insert(name, component.into_value());
+        });
+        self
+    }
+
+    /// Associates a style component with `self`.
+    #[must_use]
+    pub fn with_local<C: ComponentDefinition>(
+        mut self,
+        name: &C,
+        component: impl IntoValue<C::ComponentType>,
+    ) -> Style
+    where
+        Value<C::ComponentType>: IntoComponentValue,
+    {
+        self.map_styles_mut(|styles| {
+            styles.insert_named(
+                name.name().into_owned(),
+                StoredComponent::local(component.into_value()),
+            );
         });
         self
     }

@@ -607,7 +607,7 @@ impl Node {
     fn child_styles(&self) -> Styles {
         let mut effective_styles = self.effective_styles.clone();
         if let Some(associated) = &self.associated_styles {
-            effective_styles.append(associated.get());
+            effective_styles.inherit_from(associated.get());
         }
         effective_styles
     }
