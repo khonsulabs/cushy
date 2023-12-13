@@ -63,6 +63,22 @@ pub trait Widget: Send + UnwindSafe + Debug + 'static {
         Debug::fmt(self, f)
     }
 
+    /// Returns true if this widget handles all built-in style components that
+    /// apply.
+    ///
+    /// These components are:
+    ///
+    /// - [`Opacity`](crate::styles::components::Opacity)
+    /// - [`WidgetBackground`](crate::styles::components::WidgetBackground)
+    /// - [`FontFamily`]
+    /// - [`TextSize`]
+    /// - [`LineHeight`]
+    /// - [`FontStyle`]
+    /// - [`FontWeight`]
+    fn full_control_redraw(&self) -> bool {
+        false
+    }
+
     /// Layout this widget and returns the ideal size based on its contents and
     /// the `available_space`.
     #[allow(unused_variables)]

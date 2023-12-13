@@ -575,10 +575,8 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     /// Updates `self` to have `opacity`.
     ///
     /// This setting will be mixed with the current opacity value.
-    #[must_use]
-    pub fn with_opacity(mut self, opacity: impl Into<ZeroToOne>) -> Self {
+    pub fn apply_opacity(&mut self, opacity: impl Into<ZeroToOne>) {
         self.gfx.opacity *= opacity.into();
-        self
     }
 
     /// Returns a new graphics context that renders to the `clip` rectangle.
@@ -668,15 +666,20 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
             "redraw called without set_widget_layout"
         );
 
-        let background = self.get(&WidgetBackground);
-        self.fill(background);
-
-        self.apply_current_font_settings();
-
         self.current_node
             .tree
             .note_widget_rendered(self.current_node.node_id);
-        self.current_node.clone().lock().as_widget().redraw(self);
+        let widget = self.current_node.clone();
+        let mut widget = widget.lock();
+        if !widget.as_widget().full_control_redraw() {
+            let background = self.get(&WidgetBackground);
+            self.fill(background);
+
+            self.apply_current_font_settings();
+            self.apply_opacity(self.get(&Opacity));
+        }
+
+        widget.as_widget().redraw(self);
     }
 }
 

@@ -8,7 +8,7 @@ use kludgine::shapes::{CornerRadii, PathBuilder, Shape};
 use kludgine::Color;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
-use crate::styles::components::{CornerRadius, IntrinsicPadding, SurfaceColor};
+use crate::styles::components::{CornerRadius, IntrinsicPadding, Opacity, SurfaceColor};
 use crate::styles::{Component, ContainerLevel, Dimension, Edges, RequireInvalidation, Styles};
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{MakeWidget, RootBehavior, Widget, WidgetInstance, WidgetRef};
@@ -211,9 +211,16 @@ impl Widget for Container {
             .finish()
     }
 
+    fn full_control_redraw(&self) -> bool {
+        true
+    }
+
     #[allow(clippy::too_many_lines)]
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+        let opacity = context.get(&Opacity);
+
         let background = self.effective_background_color(context);
+        let background = background.with_alpha_f32(background.alpha_f32() * *opacity);
         if background.alpha() > 0 {
             let shadow = self.effective_shadow(context).into_px(context.gfx.scale());
 

@@ -9,7 +9,7 @@ use intentional::Assert;
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 
-use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
+use crate::animation::easings::EaseOutQuadradic;
 use crate::animation::{AnimationTarget, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::value::{Dynamic, DynamicGuard, Generation, IntoValue, Value};
@@ -205,7 +205,9 @@ impl Widget for OverlayLayer {
             };
 
             let opacity = child.opacity.get_tracking_refresh(context);
-            context.for_other(mounted).with_opacity(opacity).redraw();
+            let mut context = context.for_other(mounted);
+            context.apply_opacity(opacity);
+            context.redraw();
         }
     }
 
