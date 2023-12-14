@@ -1,21 +1,24 @@
 //! Widgets that stack in the Z-direction.
 
-use std::fmt;
+use std::fmt::{self, Debug};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use alot::{LotId, OrderedLots};
 use gooey::widget::{RootBehavior, WidgetInstance};
 use intentional::Assert;
-use kludgine::figures::units::{Px, UPx};
+use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 
 use crate::animation::easings::EaseOutQuadradic;
-use crate::animation::{AnimationTarget, Spawn, ZeroToOne};
+use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
+use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, DynamicGuard, Generation, IntoValue, Value};
 use crate::widget::{
-    Children, MakeWidget, ManagedWidget, OnceCallback, Widget, WidgetId, WidgetRef,
+    Callback, Children, MakeWidget, ManagedWidget, Widget, WidgetId, WidgetRef, WrapperWidget,
 };
+use crate::widgets::container::ContainerShadow;
 use crate::ConstraintLimit;
 
 /// A Z-direction stack of widgets.
@@ -191,6 +194,20 @@ impl OverlayLayer {
                 layout: None,
                 opacity: Dynamic::default(),
             },
+        }
+    }
+
+    /// Returns a new wudget that shows a `tooltip` when `content` is hovered.
+    pub fn new_tooltip(&self, tooltip: impl MakeWidget, content: impl MakeWidget) -> Tooltipped {
+        Tooltipped {
+            child: WidgetRef::new(content),
+            data: TooltipData {
+                target_layer: self.clone(),
+                tooltip: tooltip.make_widget(),
+                direction: Direction::Down,
+                shown_tooltip: Dynamic::default(),
+            },
+            show_animation: None,
         }
     }
 }
@@ -562,6 +579,7 @@ impl OverlayState {
 }
 
 /// A builder for overlaying a widget on an [`OverlayLayer`].
+#[derive(Debug, Clone)]
 pub struct OverlayBuilder<'a> {
     overlay: &'a OverlayLayer,
     layout: OverlayLayout,
@@ -578,40 +596,40 @@ impl OverlayBuilder<'_> {
 
     /// Show this overlay to the left of the specified widget.
     #[must_use]
-    pub fn left_of(mut self, id: WidgetId) -> Self {
-        self.layout.relative_to = Some(id);
-        self.layout.direction = Direction::Left;
-        self
+    pub fn left_of(self, id: WidgetId) -> Self {
+        self.near(id, Direction::Left)
     }
 
     /// Show this overlay to the right of the specified widget.
     #[must_use]
-    pub fn right_of(mut self, id: WidgetId) -> Self {
-        self.layout.relative_to = Some(id);
-        self.layout.direction = Direction::Right;
-        self
+    pub fn right_of(self, id: WidgetId) -> Self {
+        self.near(id, Direction::Right)
     }
 
     /// Show this overlay to show below the specified widget.
     #[must_use]
-    pub fn below(mut self, id: WidgetId) -> Self {
-        self.layout.relative_to = Some(id);
-        self.layout.direction = Direction::Down;
-        self
+    pub fn below(self, id: WidgetId) -> Self {
+        self.near(id, Direction::Down)
     }
 
     /// Show this overlay to show above the specified widget.
     #[must_use]
-    pub fn above(mut self, id: WidgetId) -> Self {
+    pub fn above(self, id: WidgetId) -> Self {
+        self.near(id, Direction::Up)
+    }
+
+    /// Shows this overlay near `id` off to the `direction` side.
+    #[must_use]
+    pub fn near(mut self, id: WidgetId, direction: Direction) -> Self {
         self.layout.relative_to = Some(id);
-        self.layout.direction = Direction::Up;
+        self.layout.direction = direction;
         self
     }
 
     /// Sets `callback` to be invoked once this overlay is dismissed.
     #[must_use]
-    pub fn on_dismiss(mut self, callback: OnceCallback) -> Self {
-        self.layout.on_dismiss = Some(callback);
+    pub fn on_dismiss(mut self, callback: Callback) -> Self {
+        self.layout.on_dismiss = Some(Arc::new(Mutex::new(callback)));
         self
     }
 
@@ -639,7 +657,7 @@ impl OverlayBuilder<'_> {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 struct OverlayLayout {
     widget: WidgetRef,
     opacity: Dynamic<ZeroToOne>,
@@ -647,14 +665,33 @@ struct OverlayLayout {
     direction: Direction,
     requires_hover: bool,
     layout: Option<Rect<Px>>,
-    on_dismiss: Option<OnceCallback>,
+    on_dismiss: Option<Arc<Mutex<Callback>>>,
 }
 
 impl Drop for OverlayLayout {
     fn drop(&mut self) {
-        if let Some(on_dismiss) = self.on_dismiss.take() {
+        if let Some(on_dismiss) = &self.on_dismiss {
+            let mut on_dismiss = on_dismiss.lock().ignore_poison();
             on_dismiss.invoke(());
         }
+    }
+}
+
+impl Eq for OverlayLayout {}
+
+impl PartialEq for OverlayLayout {
+    fn eq(&self, other: &Self) -> bool {
+        self.widget == other.widget
+            && self.opacity == other.opacity
+            && self.relative_to == other.relative_to
+            && self.direction == other.direction
+            && self.requires_hover == other.requires_hover
+            && self.layout == other.layout
+            && match (&self.on_dismiss, &other.on_dismiss) {
+                (Some(this), Some(other)) => Arc::ptr_eq(this, other),
+                (None, None) => true,
+                _ => false,
+            }
     }
 }
 
@@ -685,6 +722,7 @@ impl Direction {
 }
 
 /// A handle to an overlay that was shown in an [`OverlayLayer`].
+#[derive(PartialEq, Eq)]
 pub struct OverlayHandle {
     state: Dynamic<OverlayState>,
     id: LotId,
@@ -717,5 +755,76 @@ impl Drop for OverlayHandle {
                 let _removed = state.overlays.pop();
             }
         }
+    }
+}
+
+impl Debug for OverlayHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OverlayHandle")
+            .field("id", &self.id)
+            .field("dismiss_on_drop", &self.dismiss_on_drop)
+            .finish_non_exhaustive()
+    }
+}
+
+/// A widget that shows a tooltip when hovered.
+#[derive(Debug)]
+pub struct Tooltipped {
+    child: WidgetRef,
+    show_animation: Option<AnimationHandle>,
+    data: TooltipData,
+}
+
+#[derive(Debug, Clone)]
+struct TooltipData {
+    target_layer: OverlayLayer,
+    tooltip: WidgetInstance,
+    direction: Direction,
+    shown_tooltip: Dynamic<Option<OverlayHandle>>,
+}
+
+impl WrapperWidget for Tooltipped {
+    fn child_mut(&mut self) -> &mut WidgetRef {
+        &mut self.child
+    }
+
+    fn hover(
+        &mut self,
+        _location: Point<Px>,
+        context: &mut EventContext<'_, '_>,
+    ) -> Option<kludgine::app::winit::window::CursorIcon> {
+        let background_color = context.theme().surface.highest_container;
+
+        let data = self.data.clone();
+        let my_id = self.child.widget().id();
+
+        self.show_animation = Some(
+            Duration::from_millis(500)
+                .on_complete(move || {
+                    let mut shown_tooltip = data.shown_tooltip.lock();
+                    if shown_tooltip.is_none() {
+                        *shown_tooltip = Some(
+                            data.target_layer
+                                .build_overlay(
+                                    data.tooltip
+                                        .clone()
+                                        .contain()
+                                        .background_color(background_color)
+                                        .shadow(ContainerShadow::drop(Lp::mm(1), Lp::mm(2))),
+                                )
+                                .hide_on_unhover()
+                                .near(my_id, data.direction)
+                                .show(),
+                        );
+                    }
+                })
+                .spawn(),
+        );
+        None
+    }
+
+    fn unhover(&mut self, _context: &mut EventContext<'_, '_>) {
+        self.show_animation = None;
+        self.data.shown_tooltip.set(None);
     }
 }

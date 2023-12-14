@@ -1,5 +1,7 @@
 //! A visual container widget.
 
+use std::ops::Div;
+
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
     Abs, Angle, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero,
@@ -717,6 +719,18 @@ impl<Unit> ContainerShadow<Unit> {
             blur_radius: Unit::default(),
             spread: Unit::default(),
         }
+    }
+
+    /// Returns a drop shadow placed `distance` below with a combined
+    /// blur/spread radius of `blur`.
+    pub fn drop(distance: Unit, blur: Unit) -> Self
+    where
+        Unit: Zero + Div<i32, Output = Unit> + Default + Copy,
+    {
+        let half_blur = blur / 2;
+        Self::new(Point::new(Unit::ZERO, distance))
+            .blur_radius(half_blur)
+            .spread(half_blur)
     }
 
     /// Sets the shadow color and returns self.

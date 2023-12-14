@@ -39,6 +39,7 @@ use crate::tree::Tree;
 use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, IntoDynamic, IntoValue, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
+use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::{
     Align, Button, Checkbox, Collapse, Container, Expand, Layers, Resize, Scroll, Space, Stack,
     Style, Themed, ThemedMode, Validated,
@@ -1076,6 +1077,11 @@ pub trait MakeWidget: Sized {
     /// Returns a widget that shows validation errors and/or hints.
     fn validation(self, validation: impl IntoDynamic<Validation>) -> Validated {
         Validated::new(validation, self)
+    }
+
+    /// Returns a widget that shows `tip` on `layer` when `self` is hovered.
+    fn tooltip(self, layer: &OverlayLayer, tip: impl MakeWidget) -> Tooltipped {
+        layer.new_tooltip(tip, self)
     }
 }
 
