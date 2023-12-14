@@ -690,6 +690,12 @@ where
             ),
             gfx: Exclusive::Owned(Graphics::new(graphics, &mut self.fonts)),
         };
+        if self.initial_frame {
+            self.root
+                .lock()
+                .as_widget()
+                .mounted(&mut context.as_event_context());
+        }
         self.theme_mode.redraw_when_changed(&context);
         let mut layout_context = LayoutContext::new(&mut context);
         let window_size = layout_context.gfx.size();

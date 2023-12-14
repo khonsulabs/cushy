@@ -168,11 +168,6 @@ impl Container {
         .map(|dim| dim.into_px(context.gfx.scale()))
     }
 
-    fn effective_shadow(&self, context: &WidgetContext<'_, '_>) -> ContainerShadow {
-        self.shadow.invalidate_when_changed(context);
-        self.shadow.get()
-    }
-
     fn effective_background_color(&mut self, context: &WidgetContext<'_, '_>) -> kludgine::Color {
         let background = match self.background.get() {
             ContainerBackground::Color(color) => EffectiveBackground::Color(color),
@@ -224,7 +219,10 @@ impl Widget for Container {
         let background = self.effective_background_color(context);
         let background = background.with_alpha_f32(background.alpha_f32() * *opacity);
         if background.alpha() > 0 {
-            let shadow = self.effective_shadow(context).into_px(context.gfx.scale());
+            let shadow = self
+                .shadow
+                .get_tracking_invalidate(context)
+                .into_px(context.gfx.scale());
 
             let child_shadow_offset = shadow.offset.min(Point::ZERO).abs();
             let child_size = context.gfx.region().size - shadow.spread * 2 - shadow.offset.abs();
@@ -282,7 +280,10 @@ impl Widget for Container {
             .max(corner_radii.bottom_left / std::f32::consts::PI);
         let padding_amount = padding.size();
 
-        let shadow = self.effective_shadow(context).into_px(context.gfx.scale());
+        let shadow = self
+            .shadow
+            .get_tracking_invalidate(context)
+            .into_px(context.gfx.scale());
         let shadow_spread = shadow.spread.into_unsigned();
 
         let child_shadow_offset_amount = shadow.offset.abs().into_unsigned();
@@ -315,7 +316,8 @@ impl Widget for Container {
             .map(|padding| padding.get().into_px(context.kludgine.scale()))
             .unwrap_or_default();
         let shadow = self
-            .effective_shadow(context)
+            .shadow
+            .get_tracking_invalidate(context)
             .into_px(context.kludgine.scale());
 
         if shadow.offset.x >= 0 {

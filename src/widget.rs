@@ -42,7 +42,7 @@ use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::{
     Align, Button, Checkbox, Collapse, Container, Expand, Layers, Resize, Scroll, Space, Stack,
-    Style, Themed, ThemedMode, Validated,
+    Style, Themed, ThemedMode, Validated, Wrap,
 };
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
 use crate::{ConstraintLimit, Run};
@@ -1763,6 +1763,13 @@ impl Children {
         Layers::new(self)
     }
 
+    /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
+    /// into additional rows as needed.
+    #[must_use]
+    pub fn wrap(self) -> Wrap {
+        Wrap::new(self)
+    }
+
     /// Synchronizes this list of children with another collection.
     ///
     /// This function updates `collection` by calling `change_fn` for each
@@ -1828,6 +1835,13 @@ impl Dynamic<Children> {
     #[must_use]
     pub fn into_layers(self) -> Layers {
         Layers::new(self)
+    }
+
+    /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
+    /// into additional rows as needed.
+    #[must_use]
+    pub fn wrap(self) -> Wrap {
+        Wrap::new(self)
     }
 }
 

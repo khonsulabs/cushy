@@ -149,16 +149,14 @@ impl Widget for Image {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        self.scaling.invalidate_when_changed(context);
-
-        match self.scaling.get() {
+        match self.scaling.get_tracking_invalidate(context) {
             ImageScaling::Aspect { .. } | ImageScaling::Stretch => {
                 available_space.map(ConstraintLimit::min)
             }
-            ImageScaling::Scale(factor) => {
-                self.contents.invalidate_when_changed(context);
-                self.contents.map(AnyTexture::size).map(|px| px * factor)
-            }
+            ImageScaling::Scale(factor) => self
+                .contents
+                .map_tracking_invalidate(context, AnyTexture::size)
+                .map(|px| px * factor),
         }
     }
 }

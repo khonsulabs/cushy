@@ -1647,13 +1647,24 @@ impl<T> Value<T> {
 
     /// Returns a clone of the currently stored value.
     ///
-    /// If `self` is a dynamic, `context` will be invalidated when the value is
+    /// If `self` is a dynamic, `context` will be refreshed when the value is
     /// updated.
     pub fn get_tracked(&self, context: &WidgetContext<'_, '_>) -> T
     where
         T: Clone,
     {
         self.map_tracking_redraw(context, Clone::clone)
+    }
+
+    /// Returns a clone of the currently stored value.
+    ///
+    /// If `self` is a dynamic, `context` will be invalidated when the value is
+    /// updated.
+    pub fn get_tracking_invalidate(&self, context: &WidgetContext<'_, '_>) -> T
+    where
+        T: Clone,
+    {
+        self.map_tracking_invalidate(context, Clone::clone)
     }
 
     /// Returns the current generation of the data stored, if the contained
