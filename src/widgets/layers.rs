@@ -14,9 +14,10 @@ use crate::animation::easings::EaseOutQuadradic;
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::utils::IgnorePoison;
-use crate::value::{Dynamic, DynamicGuard, Generation, IntoValue, Value};
+use crate::value::{Dynamic, DynamicGuard, IntoValue, Value};
 use crate::widget::{
-    Callback, Children, MakeWidget, ManagedWidget, Widget, WidgetId, WidgetRef, WrapperWidget,
+    Callback, Children, MakeWidget, ManagedWidget, MountedChildren, Widget, WidgetId, WidgetRef,
+    WrapperWidget,
 };
 use crate::widgets::container::ContainerShadow;
 use crate::ConstraintLimit;
@@ -26,8 +27,7 @@ use crate::ConstraintLimit;
 pub struct Layers {
     /// The children that are laid out as layers with index 0 being the lowest (bottom).
     pub children: Value<Children>,
-    mounted: Vec<ManagedWidget>,
-    mounted_generation: Option<Generation>,
+    mounted: MountedChildren,
 }
 
 impl Layers {
@@ -35,51 +35,13 @@ impl Layers {
     pub fn new(children: impl IntoValue<Children>) -> Self {
         Self {
             children: children.into_value(),
-            mounted: Vec::new(),
-            mounted_generation: None,
+            mounted: MountedChildren::default(),
         }
     }
 
     fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
-        let current_generation = self.children.generation();
         self.children.invalidate_when_changed(context);
-        if current_generation.map_or_else(
-            || self.children.map(Children::len) != self.mounted.len(),
-            |gen| Some(gen) != self.mounted_generation,
-        ) {
-            self.mounted_generation = self.children.generation();
-            self.children.map(|children| {
-                for (index, widget) in children.iter().enumerate() {
-                    if self
-                        .mounted
-                        .get(index)
-                        .map_or(true, |child| &child.widget != widget)
-                    {
-                        // These entries do not match. See if we can find the
-                        // new id somewhere else, if so we can swap the entries.
-                        if let Some((swap_index, _)) = self
-                            .mounted
-                            .iter()
-                            .enumerate()
-                            .skip(index + 1)
-                            .find(|(_, child)| &child.widget == widget)
-                        {
-                            self.mounted.swap(index, swap_index);
-                        } else {
-                            // This is a brand new child.
-                            self.mounted
-                                .insert(index, context.push_child(widget.clone()));
-                        }
-                    }
-                }
-
-                // Any children remaining at the end of this process are ones
-                // that have been removed.
-                for removed in self.mounted.drain(children.len()..) {
-                    context.remove_child(&removed);
-                }
-            });
-        }
+        self.mounted.synchronize_with(&self.children, context);
     }
 }
 
@@ -87,7 +49,7 @@ impl Widget for Layers {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         self.synchronize_children(&mut context.as_event_context());
 
-        for mounted in &self.mounted {
+        for mounted in self.mounted.children() {
             context.for_other(mounted).redraw();
         }
     }
@@ -112,7 +74,7 @@ impl Widget for Layers {
 
         let mut size = Size::ZERO;
 
-        for child in &self.mounted {
+        for child in self.mounted.children() {
             size = size.max(
                 context
                     .for_other(child)
@@ -132,7 +94,7 @@ impl Widget for Layers {
                 .fit_measured(size.height, context.gfx.scale()),
         );
         let layout = Rect::from(size.into_signed());
-        for child in &self.mounted {
+        for child in self.mounted.children() {
             context
                 .for_other(child)
                 .layout(size.map(ConstraintLimit::Fill));
@@ -147,10 +109,9 @@ impl Widget for Layers {
     }
 
     fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
-        for child in self.mounted.drain(..) {
+        for child in self.mounted.drain() {
             context.remove_child(&child);
         }
-        self.mounted_generation = None;
     }
 
     fn root_behavior(
@@ -159,7 +120,7 @@ impl Widget for Layers {
     ) -> Option<(RootBehavior, WidgetInstance)> {
         self.synchronize_children(context);
 
-        for child in &self.mounted {
+        for child in self.mounted.children() {
             let Some((child_behavior, next_in_chain)) = context.for_other(child).root_behavior()
             else {
                 continue;

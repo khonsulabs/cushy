@@ -5,9 +5,9 @@ use std::clone::Clone;
 use std::fmt::{self, Debug};
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::panic::UnwindSafe;
-use std::slice;
 use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::{slice, vec};
 
 use alot::LotId;
 use intentional::Assert;
@@ -37,7 +37,7 @@ use crate::styles::{
 };
 use crate::tree::Tree;
 use crate::utils::IgnorePoison;
-use crate::value::{Dynamic, IntoDynamic, IntoValue, Validation, Value};
+use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::{
@@ -1506,6 +1506,12 @@ impl ManagedWidget {
         self.widget.id()
     }
 
+    /// Returns the underlying widget instance
+    #[must_use]
+    pub const fn instance(&self) -> &WidgetInstance {
+        &self.widget
+    }
+
     /// Returns the next widget to focus after this widget.
     ///
     /// This function returns the value set in
@@ -1756,6 +1762,46 @@ impl Children {
     pub fn into_layers(self) -> Layers {
         Layers::new(self)
     }
+
+    /// Synchronizes this list of children with another collection.
+    ///
+    /// This function updates `collection` by calling `change_fn` for each
+    /// operation that needs to be performed to synchronize. The algorithm first
+    /// mounts/inserts all new children before sending a final change to
+    /// `change_fn`: [`ChildrenSyncChange::Truncate`].
+    pub fn synchronize_with<Collection>(
+        &self,
+        collection: &mut Collection,
+        get_index: impl Fn(&Collection, usize) -> Option<&WidgetInstance>,
+        mut change_fn: impl FnMut(&mut Collection, ChildrenSyncChange),
+    ) {
+        for (index, widget) in self.iter().enumerate() {
+            if get_index(collection, index).map_or(true, |child| child != widget) {
+                // These entries do not match. See if we can find the
+                // new id somewhere else, if so we can swap the entries.
+                if let Some(Some(swap_index)) = (index + 1..usize::MAX).find_map(|index| {
+                    if let Some(child) = get_index(collection, index) {
+                        if widget == child {
+                            Some(Some(index))
+                        } else {
+                            None
+                        }
+                    } else {
+                        Some(None)
+                    }
+                }) {
+                    change_fn(collection, ChildrenSyncChange::Swap(index, swap_index));
+                } else {
+                    change_fn(
+                        collection,
+                        ChildrenSyncChange::Insert(index, widget.clone()),
+                    );
+                }
+            }
+        }
+
+        change_fn(collection, ChildrenSyncChange::Truncate(self.len()));
+    }
 }
 
 impl Debug for Children {
@@ -1816,6 +1862,118 @@ impl<'a> IntoIterator for &'a Children {
 
     fn into_iter(self) -> Self::IntoIter {
         self.ordered.iter()
+    }
+}
+
+/// A change to perform during [`Children::synchronize_with`].
+pub enum ChildrenSyncChange {
+    /// Insert a new widget at the given index.
+    Insert(usize, WidgetInstance),
+    /// Swap the widgets at the given indices.
+    Swap(usize, usize),
+    /// Truncate the collection to the length given.
+    Truncate(usize),
+}
+
+/// A collection of mounted children.
+///
+/// This collection is a helper aimed at making it easier to build widgets that
+/// contain multiple children widgets. It is used in conjunction with a
+/// `Value<Children>`.
+#[derive(Debug)]
+pub struct MountedChildren<T = ManagedWidget> {
+    generation: Option<Generation>,
+    children: Vec<T>,
+}
+
+impl<T> MountedChildren<T>
+where
+    T: MountableChild,
+{
+    /// Mounts and unmounts all children needed to be in sync with `children`.
+    pub fn synchronize_with(
+        &mut self,
+        children: &Value<Children>,
+        context: &mut EventContext<'_, '_>,
+    ) {
+        let current_generation = children.generation();
+        if current_generation.map_or_else(
+            || children.map(Children::len) != self.children.len(),
+            |gen| Some(gen) != self.generation,
+        ) {
+            self.generation = current_generation;
+            children.map(|children| {
+                children.synchronize_with(
+                    self,
+                    |this, index| {
+                        this.children
+                            .get(index)
+                            .map(|mounted| mounted.widget().instance())
+                    },
+                    |this, change| match change {
+                        ChildrenSyncChange::Insert(index, widget) => {
+                            this.children
+                                .insert(index, T::mount(context.push_child(widget), this, index));
+                        }
+                        ChildrenSyncChange::Swap(a, b) => {
+                            this.children.swap(a, b);
+                        }
+                        ChildrenSyncChange::Truncate(length) => {
+                            for removed in this.children.drain(length..) {
+                                context.remove_child(&removed.unmount());
+                            }
+                        }
+                    },
+                );
+            });
+        }
+    }
+
+    /// Returns an iterator that contains every widget in this collection.
+    ///
+    /// When the iterator is dropped, this collection will be empty.
+    pub fn drain(&mut self) -> vec::Drain<'_, T> {
+        self.generation = None;
+        self.children.drain(..)
+    }
+
+    /// Returns a reference to the children.
+    #[must_use]
+    pub fn children(&self) -> &[T] {
+        &self.children
+    }
+}
+
+impl<T> Default for MountedChildren<T> {
+    fn default() -> Self {
+        Self {
+            generation: None,
+            children: Vec::default(),
+        }
+    }
+}
+
+/// A child in a [`MountedChildren`] collection.
+pub trait MountableChild: Sized {
+    /// Returns the mounted representation of `widget`.
+    fn mount(widget: ManagedWidget, into: &MountedChildren<Self>, index: usize) -> Self;
+    /// Returns the widget and performs any other cleanup for this widget being unmounted.q
+    fn unmount(self) -> ManagedWidget;
+    /// Returns a reference to the widget.
+    fn widget(&self) -> &ManagedWidget;
+}
+
+impl MountableChild for ManagedWidget {
+    fn mount(widget: ManagedWidget, _into: &MountedChildren<Self>, _index: usize) -> Self {
+        widget
+    }
+
+    fn widget(&self) -> &ManagedWidget {
+        self
+    }
+
+    fn unmount(self) -> ManagedWidget {
+        self
     }
 }
 

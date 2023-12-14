@@ -7,7 +7,7 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::FlexibleDimension;
 use crate::value::{Generation, IntoValue, Value};
-use crate::widget::{Children, ManagedWidget, Widget, WidgetRef};
+use crate::widget::{Children, ChildrenSyncChange, ManagedWidget, Widget, WidgetRef};
 use crate::widgets::grid::{GridDimension, GridLayout, Orientation};
 use crate::widgets::{Expand, Resize};
 use crate::ConstraintLimit;
@@ -66,24 +66,11 @@ impl Stack {
         ) {
             self.layout_generation = self.children.generation();
             self.children.map(|children| {
-                for (index, widget) in children.iter().enumerate() {
-                    if self
-                        .synced_children
-                        .get(index)
-                        .map_or(true, |child| child != widget)
-                    {
-                        // These entries do not match. See if we can find the
-                        // new id somewhere else, if so we can swap the entries.
-                        if let Some((swap_index, _)) = self
-                            .synced_children
-                            .iter()
-                            .enumerate()
-                            .skip(index + 1)
-                            .find(|(_, child)| *child == widget)
-                        {
-                            self.synced_children.swap(index, swap_index);
-                            self.layout.swap(index, swap_index);
-                        } else {
+                children.synchronize_with(
+                    &mut self.synced_children,
+                    |this, index| this.get(index).map(ManagedWidget::instance),
+                    |this, change| match change {
+                        ChildrenSyncChange::Insert(index, widget) => {
                             // This is a brand new child.
                             let guard = widget.lock();
                             let (mut widget, dimension) = if let Some((weight, expand)) =
@@ -112,20 +99,23 @@ impl Stack {
                                 )
                             };
                             drop(guard);
-                            self.synced_children.insert(index, widget.mounted(context));
+                            this.insert(index, widget.mounted(context));
 
                             self.layout
                                 .insert(index, dimension, context.kludgine.scale());
                         }
-                    }
-                }
-
-                // Any children remaining at the end of this process are ones
-                // that have been removed.
-                for removed in self.synced_children.drain(children.len()..) {
-                    context.remove_child(&removed);
-                }
-                self.layout.truncate(children.len());
+                        ChildrenSyncChange::Swap(a, b) => {
+                            this.swap(a, b);
+                            self.layout.swap(a, b);
+                        }
+                        ChildrenSyncChange::Truncate(length) => {
+                            for removed in this.drain(length..) {
+                                context.remove_child(&removed);
+                            }
+                            self.layout.truncate(length);
+                        }
+                    },
+                );
             });
         }
     }
