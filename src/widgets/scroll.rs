@@ -1,5 +1,5 @@
 //! A container that scrolls its contents on a virtual surface.
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use intentional::Cast;
 use kludgine::app::winit::event::{DeviceId, MouseScrollDelta, TouchPhase};
@@ -40,6 +40,7 @@ pub struct Scroll {
 #[derive(Debug)]
 struct OpacityAnimationState {
     will_hide: bool,
+    started_at: Instant,
     handle: AnimationHandle,
 }
 
@@ -56,6 +57,7 @@ impl Scroll {
             scrollbar_opacity: Dynamic::default(),
             scrollbar_opacity_animation: OpacityAnimationState {
                 handle: AnimationHandle::new(),
+                started_at: Instant::now(),
                 will_hide: true,
             },
             horizontal_bar: ScrollbarInfo::default(),
@@ -101,11 +103,16 @@ impl Scroll {
         let should_hide = self.drag.mouse_buttons_down == 0;
         if should_hide != self.scrollbar_opacity_animation.will_hide
             || self.scrollbar_opacity_animation.handle.is_complete()
+            // Prevent respawning the same animation multiple times if we get a
+            // lot of events.
+            || self.scrollbar_opacity_animation.started_at.elapsed() > Duration::from_millis(500)
         {
+            let current_opacity = self.scrollbar_opacity.get();
+            let transition_time = *current_opacity.one_minus() / 4.;
             let animation = self
                 .scrollbar_opacity
                 .transition_to(ZeroToOne::ONE)
-                .over(Duration::from_millis(300))
+                .over(Duration::from_secs_f32(transition_time))
                 .with_easing(context.get(&EasingIn));
 
             self.scrollbar_opacity_animation.will_hide = should_hide;
@@ -198,8 +205,6 @@ impl Widget for Scroll {
 
         let (mut scroll, current_max_scroll) = self.constrain_scroll();
 
-        let control_size =
-            Size::new(available_space.width.max(), available_space.height.max()).into_signed();
         let max_extents = Size::new(
             if self.enabled.x {
                 ConstraintLimit::SizeToFit(UPx::MAX)
@@ -217,6 +222,20 @@ impl Widget for Scroll {
             .for_other(&managed)
             .layout(max_extents)
             .into_signed();
+
+        let layout_size = Size::new(
+            if self.enabled.x {
+                constrain_child(available_space.width, new_content_size.width)
+            } else {
+                new_content_size.width.into_unsigned()
+            },
+            if self.enabled.y {
+                constrain_child(available_space.height, new_content_size.height)
+            } else {
+                new_content_size.height.into_unsigned()
+            },
+        );
+        let control_size = layout_size.into_signed();
 
         self.horizontal_bar =
             scrollbar_region(scroll.x, new_content_size.width, control_size.width);
@@ -273,18 +292,7 @@ impl Widget for Scroll {
         );
         context.set_child_layout(&managed, region);
 
-        Size::new(
-            if self.enabled.x {
-                constrain_child(available_space.width, self.content_size.width)
-            } else {
-                self.content_size.width.into_unsigned()
-            },
-            if self.enabled.y {
-                constrain_child(available_space.height, self.content_size.height)
-            } else {
-                self.content_size.height.into_unsigned()
-            },
-        )
+        layout_size
     }
 
     fn mouse_wheel(
@@ -323,10 +331,10 @@ impl Widget for Scroll {
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         let relative_x = (self.control_size.width - location.x).max(Px::ZERO);
-        let in_vertical_area = self.enabled.x && relative_x <= self.bar_width;
+        let in_vertical_area = self.enabled.y && relative_x <= self.bar_width;
 
         let relative_y = (self.control_size.height - location.y).max(Px::ZERO);
-        let in_horizontal_area = self.enabled.y && relative_y <= self.bar_width;
+        let in_horizontal_area = self.enabled.x && relative_y <= self.bar_width;
 
         if matches!(
             (in_horizontal_area, in_vertical_area),
