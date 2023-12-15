@@ -15,7 +15,7 @@ use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window::{CursorIcon, ImePurpose};
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
-    FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size,
+    Abs, FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size,
 };
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
@@ -840,12 +840,15 @@ where
                     .line_height
                     .saturating_mul(Px::new(i32::try_from(current_line).unwrap_or(i32::MAX)));
             }
-            let rect = glyph.rect();
+            let mut rect = glyph.rect();
+            if !glyph.visible() {
+                rect.size.height = cache.measured.line_height;
+            }
             let relative = location - Point::new(rect.origin.x, current_line_y);
             if relative.x >= 0
                 && relative.y >= 0
-                && relative.x < rect.size.width
-                && relative.y < cache.measured.line_height
+                && relative.x <= rect.size.width
+                && relative.y <= cache.measured.line_height
             {
                 return if relative.x > rect.size.width / 2 {
                     if glyph.info.start + 1 < cache.bytes {
@@ -869,10 +872,15 @@ where
 
             // Make relative be relative to the center of the glyph for a nearest search.
             let relative = relative + rect.size / 2;
+
+            let line_height = cache.measured.line_height.get();
             let xy = relative
                 .x
                 .get()
-                .saturating_mul(current_line_y.get().saturating_pow(2))
+                .saturating_mul(
+                    ((relative.y.get() + line_height - 1) / line_height * line_height)
+                        .saturating_pow(2),
+                )
                 .saturating_abs();
             let cursor = Cursor {
                 offset: if relative.x < 0 || relative.y < 0 {
@@ -898,7 +906,8 @@ where
             // so that it's easier to inspect and detect when there's
             // whitespace. For now, this is just a hack that helps get *some*
             // selection at the end of the input for trailing whitespace.
-            if relative.x < 0 && index < cache.measured.glyphs.len() {
+            if relative.x.abs() < cache.measured.line_height && index < cache.measured.glyphs.len()
+            {
                 return closest;
             }
         }
