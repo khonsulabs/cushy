@@ -5,6 +5,7 @@ pub mod button;
 mod canvas;
 pub mod checkbox;
 mod collapse;
+pub mod color;
 pub mod container;
 mod custom;
 mod data;

@@ -8,6 +8,7 @@ use gooey::styles::{
 use gooey::value::{Dynamic, MapEachCloned};
 use gooey::widget::MakeWidget;
 use gooey::widgets::checkbox::Checkable;
+use gooey::widgets::color::ColorSourcePicker;
 use gooey::widgets::input::InputValue;
 use gooey::widgets::slider::Slidable;
 use gooey::widgets::Space;
@@ -16,65 +17,6 @@ use gooey::{Gooey, Run};
 use kludgine::figures::units::Lp;
 use kludgine::Color;
 use palette::OklabHue;
-
-struct Scheme<Primary, Other = Primary> {
-    primary: Primary,
-    secondary: Other,
-    tertiary: Other,
-    error: Other,
-    neutral: Other,
-    neutral_variant: Other,
-}
-
-impl From<ColorScheme> for Scheme<ColorSource> {
-    fn from(scheme: ColorScheme) -> Self {
-        Self {
-            primary: scheme.primary,
-            secondary: scheme.secondary,
-            tertiary: scheme.tertiary,
-            error: scheme.error,
-            neutral: scheme.neutral,
-            neutral_variant: scheme.neutral_variant,
-        }
-    }
-}
-
-impl<T> Scheme<T> {
-    pub fn map<R>(&self, mut map: impl FnMut(T) -> R) -> Scheme<R>
-    where
-        T: Clone,
-    {
-        Scheme {
-            primary: map(self.primary.clone()),
-            secondary: map(self.secondary.clone()),
-            tertiary: map(self.tertiary.clone()),
-            error: map(self.error.clone()),
-            neutral: map(self.neutral.clone()),
-            neutral_variant: map(self.neutral_variant.clone()),
-        }
-    }
-}
-
-impl<Primary, Other> Scheme<Primary, Other> {
-    pub fn map_labeled<NewPrimary, NewOther>(
-        &self,
-        primary: impl FnOnce(Primary) -> NewPrimary,
-        mut map: impl FnMut(&str, Other) -> NewOther,
-    ) -> Scheme<NewPrimary, NewOther>
-    where
-        Primary: Clone,
-        Other: Clone,
-    {
-        Scheme {
-            primary: primary(self.primary.clone()),
-            secondary: map("Secondary", self.secondary.clone()),
-            tertiary: map("Tertiary", self.tertiary.clone()),
-            error: map("Error", self.error.clone()),
-            neutral: map("Netural", self.neutral.clone()),
-            neutral_variant: map("Neutral Variant", self.neutral_variant.clone()),
-        }
-    }
-}
 
 fn main() -> gooey::Result {
     let gooey = Gooey::default();
@@ -152,6 +94,7 @@ fn main() -> gooey::Result {
             }
         }))
         .into_rows()
+        .pad()
         .vertical_scroll();
 
     editors
@@ -175,6 +118,65 @@ fn main() -> gooey::Result {
         .into_window(gooey)
         .themed_mode(theme_mode)
         .run()
+}
+
+struct Scheme<Primary, Other = Primary> {
+    primary: Primary,
+    secondary: Other,
+    tertiary: Other,
+    error: Other,
+    neutral: Other,
+    neutral_variant: Other,
+}
+
+impl From<ColorScheme> for Scheme<ColorSource> {
+    fn from(scheme: ColorScheme) -> Self {
+        Self {
+            primary: scheme.primary,
+            secondary: scheme.secondary,
+            tertiary: scheme.tertiary,
+            error: scheme.error,
+            neutral: scheme.neutral,
+            neutral_variant: scheme.neutral_variant,
+        }
+    }
+}
+
+impl<T> Scheme<T> {
+    pub fn map<R>(&self, mut map: impl FnMut(T) -> R) -> Scheme<R>
+    where
+        T: Clone,
+    {
+        Scheme {
+            primary: map(self.primary.clone()),
+            secondary: map(self.secondary.clone()),
+            tertiary: map(self.tertiary.clone()),
+            error: map(self.error.clone()),
+            neutral: map(self.neutral.clone()),
+            neutral_variant: map(self.neutral_variant.clone()),
+        }
+    }
+}
+
+impl<Primary, Other> Scheme<Primary, Other> {
+    pub fn map_labeled<NewPrimary, NewOther>(
+        &self,
+        primary: impl FnOnce(Primary) -> NewPrimary,
+        mut map: impl FnMut(&str, Other) -> NewOther,
+    ) -> Scheme<NewPrimary, NewOther>
+    where
+        Primary: Clone,
+        Other: Clone,
+    {
+        Scheme {
+            primary: primary(self.primary.clone()),
+            secondary: map("Secondary", self.secondary.clone()),
+            tertiary: map("Tertiary", self.tertiary.clone()),
+            error: map("Error", self.error.clone()),
+            neutral: map("Netural", self.neutral.clone()),
+            neutral_variant: map("Neutral Variant", self.neutral_variant.clone()),
+        }
+    }
 }
 
 fn dark_mode_picker() -> (Dynamic<ThemeMode>, impl MakeWidget) {
@@ -237,7 +239,10 @@ fn color_editor(color: &Dynamic<ColorSource>) -> impl MakeWidget {
         .persist();
     let saturation_text = saturation.linked_string();
 
-    hue.slider_between(0., 359.99)
+    ColorSourcePicker::new(color.clone())
+        .height(Lp::points(100))
+        .fit_horizontally()
+        .and(hue.slider_between(0., 360.))
         .and(hue_text.into_input())
         .and(saturation.slider())
         .and(saturation_text.into_input())
@@ -279,6 +284,7 @@ fn fixed_theme(theme: Dynamic<FixedTheme>, label: &str) -> impl MakeWidget {
             color,
         ))
         .into_columns()
+        .expand()
         .contain()
         .expand()
 }
