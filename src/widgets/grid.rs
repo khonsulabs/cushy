@@ -456,14 +456,11 @@ impl GridLayout {
 
         // Measure the weighted children within the remaining space
         if self.total_weights > 0 {
-            let mut needed_gutters = u32::try_from(self.fractional.len()).unwrap_or(u32::MAX);
-            if !requires_gutter {
-                needed_gutters -= 1;
+            if requires_gutter {
+                remaining -= gutter;
             }
-            let gutters = gutter * needed_gutters;
-            let space_per_weight =
-                ((remaining.saturating_sub(gutters)) / self.total_weights).floor();
-            remaining = remaining.saturating_sub(space_per_weight * self.total_weights + gutters);
+            let space_per_weight = (remaining / self.total_weights).floor();
+            remaining = remaining.saturating_sub(space_per_weight * self.total_weights);
             for (fractional_index, &(id, weight)) in self.fractional.iter().enumerate() {
                 let index = self.children.index_of_id(id).expect("child not found");
                 let mut size = space_per_weight * u32::from(weight);
