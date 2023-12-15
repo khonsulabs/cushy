@@ -13,7 +13,7 @@ fn main() -> gooey::Result {
     count_label
         .into_button()
         // Set the `on_click` callback to a closure that increments the counter.
-        .on_click(count.with_clone(|count| move |_| count.set(count.get() + 1)))
+        .on_click(move |_| count.set(count.get() + 1))
         // Run the application
         .run()
 }

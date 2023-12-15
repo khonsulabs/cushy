@@ -51,6 +51,26 @@ use crate::{ConstraintLimit, Run};
 ///
 /// This type can go by many names in other UI frameworks: View, Component,
 /// Control.
+///
+/// # How layout and rendering works
+///
+/// TODO write layout + rendering docs
+///
+/// # Hit Testing
+///
+/// TODO write hit testing docs
+///
+/// # Mouse Button Events
+///
+/// TODO write mouse button docs
+///
+/// # User Input Focus
+///
+/// TODO write focus docs
+///
+/// # Styling
+///
+/// TODO write styling docs
 pub trait Widget: Send + UnwindSafe + Debug + 'static {
     /// Redraw the contents of this widget.
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);

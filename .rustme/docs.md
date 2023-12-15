@@ -8,15 +8,17 @@ programming language. It is powered by:
 - [`Kludgine`][kludgine], a 2d graphics library powered by:
   - [`winit`][winit] for windowing/input
   - [`wgpu`][wgpu] for graphics
-  - [`cosmic_text`][cosmic_text]
-- [`palette`][palette]
-- [`arboard`][arboard]
+  - [`cosmic_text`][cosmic_text] for text layout + rasterization
+- [`palette`][palette] for OKLab-based HSL color calculations
+- [`arboard`][arboard] for clipboard support
+- [`figures`][figures] for integer-based 2d math
 
 ## Getting Started with Gooey
 
 The [`Widget`][widget] trait is the building block of Gooey: Every user
-interface element implements `Widget`. A full list of built-in widgets can be
-found in the [`gooey::widgets`][widgets] module.
+interface element implements `Widget`. The `Widget` trait
+[documentation][widget] has an overview of how Gooey works. A list of built-in
+widgets can be found in the [`gooey::widgets`][widgets] module.
 
 Gooey uses a reactive data model. To see [an example][button-example] of how
 reactive data models work, consider this example that displays a button that
@@ -37,14 +39,22 @@ framework. It is considered experimental and unspported at this time, and the
 primary focus for [@ecton][ecton] is to use this for his own projects. Feature
 requests and bug fixes will be prioritized based on @ecton's own needs.
 
-[widget]: $widget$
+If you would like to contribute, bug fixes are always appreciated. Before
+working on a new feature, please [open an issue][issues] proposing the feature
+and problem it aims to solve. Doing so will help prevent friction in merging
+pull requests, as it ensures changes fit the vision the maintainers have for
+Gooey.
+
+[widget]: crate::widget::Widget
 [kludgine]: https://github.com/khonsulabs/kludgine
+[figures]: https://github.com/khonsulabs/figures
 [wgpu]: https://github.com/gfx-rs/wgpu
 [winit]: https://github.com/rust-windowing/winit
-[widgets]: $widgets$
-[button-example]: https://github.com/khonsulabs/gooey/tree/$ref-name$/examples/basic-button.rs
-[examples]: https://github.com/khonsulabs/gooey/tree/$ref-name$/examples/
+[widgets]: mod@crate::widgets
+[button-example]: https://github.com/khonsulabs/gooey/tree/main/examples/basic-button.rs
+[examples]: https://github.com/khonsulabs/gooey/tree/main/examples/
 [cosmic_text]: https://github.com/pop-os/cosmic-text
 [palette]: https://github.com/Ogeon/palette
 [arboard]: https://github.com/1Password/arboard
 [ecton]: https://github.com/khonsulabs/ecton
+[issues]: https://github.com/khonsulabs/gooey/issues
