@@ -29,11 +29,18 @@ pub struct Scroll {
     enabled: Point<bool>,
     max_scroll: Dynamic<Point<Px>>,
     scrollbar_opacity: Dynamic<ZeroToOne>,
-    scrollbar_opacity_animation: AnimationHandle,
+    scrollbar_opacity_animation: OpacityAnimationState,
     horizontal_bar: ScrollbarInfo,
     vertical_bar: ScrollbarInfo,
     bar_width: Px,
     line_height: Px,
+    drag: DragInfo,
+}
+
+#[derive(Debug)]
+struct OpacityAnimationState {
+    will_hide: bool,
+    handle: AnimationHandle,
 }
 
 impl Scroll {
@@ -47,11 +54,15 @@ impl Scroll {
             scroll: Dynamic::new(Point::default()),
             max_scroll: Dynamic::new(Point::default()),
             scrollbar_opacity: Dynamic::default(),
-            scrollbar_opacity_animation: AnimationHandle::new(),
+            scrollbar_opacity_animation: OpacityAnimationState {
+                handle: AnimationHandle::new(),
+                will_hide: true,
+            },
             horizontal_bar: ScrollbarInfo::default(),
             vertical_bar: ScrollbarInfo::default(),
             bar_width: Px::default(),
             line_height: Px::default(),
+            drag: DragInfo::default(),
         }
     }
 
@@ -87,19 +98,43 @@ impl Scroll {
     }
 
     fn show_scrollbars(&mut self, context: &mut EventContext<'_, '_>) {
-        self.scrollbar_opacity_animation = self
-            .scrollbar_opacity
-            .transition_to(ZeroToOne::ONE)
-            .over(Duration::from_millis(300))
-            .with_easing(context.get(&EasingIn))
-            .and_then(Duration::from_secs(1))
-            .and_then(
-                self.scrollbar_opacity
-                    .transition_to(ZeroToOne::ZERO)
-                    .over(Duration::from_millis(300))
-                    .with_easing(context.get(&EasingOut)),
-            )
-            .spawn();
+        let should_hide = self.drag.mouse_buttons_down == 0;
+        if should_hide != self.scrollbar_opacity_animation.will_hide
+            || self.scrollbar_opacity_animation.handle.is_complete()
+        {
+            let animation = self
+                .scrollbar_opacity
+                .transition_to(ZeroToOne::ONE)
+                .over(Duration::from_millis(300))
+                .with_easing(context.get(&EasingIn));
+
+            self.scrollbar_opacity_animation.will_hide = should_hide;
+            self.scrollbar_opacity_animation.handle = if should_hide {
+                animation
+                    .and_then(Duration::from_secs(1))
+                    .and_then(
+                        self.scrollbar_opacity
+                            .transition_to(ZeroToOne::ZERO)
+                            .over(Duration::from_millis(300))
+                            .with_easing(context.get(&EasingOut)),
+                    )
+                    .spawn()
+            } else {
+                animation.spawn()
+            };
+        }
+    }
+
+    fn hide_scrollbars(&mut self, context: &mut EventContext<'_, '_>) {
+        if self.drag.mouse_buttons_down == 0 && !self.scrollbar_opacity_animation.will_hide {
+            self.scrollbar_opacity_animation.will_hide = true;
+            self.scrollbar_opacity_animation.handle = self
+                .scrollbar_opacity
+                .transition_to(ZeroToOne::ZERO)
+                .over(Duration::from_millis(300))
+                .with_easing(context.get(&EasingOut))
+                .spawn();
+        }
     }
 }
 
@@ -119,12 +154,7 @@ impl Widget for Scroll {
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
-        self.scrollbar_opacity_animation = self
-            .scrollbar_opacity
-            .transition_to(ZeroToOne::ZERO)
-            .over(Duration::from_millis(300))
-            .with_easing(context.get(&EasingOut))
-            .spawn();
+        self.hide_scrollbars(context);
     }
 
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
@@ -225,7 +255,14 @@ impl Widget for Scroll {
             let scroll_pct = scroll.y.into_float() / current_max_scroll.y.into_float();
             scroll.y = max_scroll_y * scroll_pct;
         }
-        self.scroll.set(scroll);
+        // Set the current scroll, but prevent immediately triggering
+        // invalidate.
+        {
+            let mut current_scroll = self.scroll.lock();
+            current_scroll.prevent_notifications();
+            *current_scroll = scroll;
+        }
+        context.invalidate_when_changed(&self.scroll);
         self.control_size = control_size;
         self.content_size = new_content_size;
 
@@ -261,7 +298,6 @@ impl Widget for Scroll {
             MouseScrollDelta::LineDelta(x, y) => Point::new(x, y) * self.line_height.into_float(),
             MouseScrollDelta::PixelDelta(px) => Point::new(px.x.cast(), px.y.cast()),
         };
-        context.invalidate_when_changed(&self.scroll);
         let mut scroll = self.scroll.lock();
         let old_scroll = *scroll;
         let new_scroll =
@@ -279,11 +315,170 @@ impl Widget for Scroll {
         }
     }
 
+    fn mouse_down(
+        &mut self,
+        location: Point<Px>,
+        _device_id: DeviceId,
+        _button: kludgine::app::winit::event::MouseButton,
+        context: &mut EventContext<'_, '_>,
+    ) -> EventHandling {
+        let relative_x = (self.control_size.width - location.x).max(Px::ZERO);
+        let in_vertical_area = self.enabled.x && relative_x <= self.bar_width;
+
+        let relative_y = (self.control_size.height - location.y).max(Px::ZERO);
+        let in_horizontal_area = self.enabled.y && relative_y <= self.bar_width;
+
+        if matches!(
+            (in_horizontal_area, in_vertical_area),
+            (true, true) | (false, false)
+        ) {
+            return IGNORED;
+        }
+
+        self.drag.start = location;
+        self.drag.start_scroll = self.scroll.get();
+        self.drag.horizontal = in_horizontal_area;
+        self.drag.in_bar = if in_horizontal_area {
+            let relative = location.x - self.horizontal_bar.offset;
+            relative >= 0 && relative < self.horizontal_bar.size
+        } else {
+            let relative = location.y - self.vertical_bar.offset;
+            relative >= 0 && relative < self.vertical_bar.size
+        };
+
+        // If we clicked in the open area, we need to jump to the new location
+        // immediately.
+        if !self.drag.in_bar {
+            self.drag.update(
+                location,
+                &self.scroll,
+                &self.horizontal_bar,
+                &self.vertical_bar,
+                self.max_scroll.get(),
+                self.control_size,
+            );
+        }
+
+        self.drag.mouse_buttons_down += 1;
+        self.show_scrollbars(context);
+
+        HANDLED
+    }
+
+    fn mouse_drag(
+        &mut self,
+        location: Point<Px>,
+        _device_id: DeviceId,
+        _button: kludgine::app::winit::event::MouseButton,
+        _context: &mut EventContext<'_, '_>,
+    ) {
+        self.drag.update(
+            location,
+            &self.scroll,
+            &self.horizontal_bar,
+            &self.vertical_bar,
+            self.max_scroll.get(),
+            self.control_size,
+        );
+    }
+
+    fn mouse_up(
+        &mut self,
+        location: Option<Point<Px>>,
+        _device_id: DeviceId,
+        _button: kludgine::app::winit::event::MouseButton,
+        context: &mut EventContext<'_, '_>,
+    ) {
+        self.drag.mouse_buttons_down -= 1;
+
+        if self.drag.mouse_buttons_down == 0 {
+            if location.map_or(false, |location| {
+                Rect::from(self.control_size).contains(location)
+            }) {
+                self.scrollbar_opacity_animation.handle.clear();
+                self.show_scrollbars(context);
+            } else {
+                self.hide_scrollbars(context);
+            }
+        }
+    }
+
     fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.debug_struct("Scroll")
             .field("enabled", &self.enabled)
             .field("contents", &self.contents)
             .finish()
+    }
+}
+
+#[derive(Default, Debug)]
+struct DragInfo {
+    mouse_buttons_down: usize,
+    start: Point<Px>,
+    start_scroll: Point<Px>,
+    horizontal: bool,
+    in_bar: bool,
+}
+
+impl DragInfo {
+    fn update(
+        &self,
+        location: Point<Px>,
+        dynamic_scroll: &Dynamic<Point<Px>>,
+        horizontal_bar: &ScrollbarInfo,
+        vertical_bar: &ScrollbarInfo,
+        max_scroll: Point<Px>,
+        control_size: Size<Px>,
+    ) {
+        let mut scroll = dynamic_scroll.get();
+        if self.horizontal {
+            scroll.x = self.update_bar(
+                location.x,
+                self.start.x,
+                max_scroll.x,
+                self.start_scroll.x,
+                horizontal_bar,
+                control_size.width,
+            );
+        } else {
+            scroll.y = self.update_bar(
+                location.y,
+                self.start.y,
+                max_scroll.y,
+                self.start_scroll.y,
+                vertical_bar,
+                control_size.height,
+            );
+        }
+        dynamic_scroll.set(scroll);
+    }
+
+    fn update_bar(
+        &self,
+        location: Px,
+        start: Px,
+        max_scroll: Px,
+        start_scroll: Px,
+        bar: &ScrollbarInfo,
+        control_size: Px,
+    ) -> Px {
+        if self.in_bar {
+            let dy = location - start;
+            if dy == 0 {
+                start_scroll
+            } else {
+                (start_scroll
+                    - Px::from(
+                        dy.into_float() / (control_size - bar.size).into_float()
+                            * bar.amount_hidden.into_float(),
+                    ))
+                .clamp(max_scroll, Px::ZERO)
+            }
+        } else {
+            max_scroll
+                * ((location - bar.size / 2).max(Px::ZERO).into_float()
+                    / (control_size - bar.size).into_float())
+        }
     }
 }
 
