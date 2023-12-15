@@ -308,8 +308,6 @@ impl Widget for Container {
         &mut self,
         context: &mut EventContext<'_, '_>,
     ) -> Option<(RootBehavior, WidgetInstance)> {
-        // TODO adjust for shadow, but we need to potentially merge multiple
-        // dimensions into one.
         let mut padding = self
             .padding
             .as_ref()

@@ -332,8 +332,8 @@ impl OverlayState {
             .overlays
             .get_by_index(0)
             .and_then(|overlay| overlay.relative_to)
-            .and_then(|relative_to| context.widget.for_other(&relative_to))
-            .and_then(|c| c.widget().last_layout())
+            .and_then(|relative_to| relative_to.find_in(context))
+            .and_then(|w| w.last_layout())
         {
             if !relative_to.contains(location) {
                 return true;
@@ -381,13 +381,8 @@ impl OverlayState {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
         relative_to: WidgetId,
     ) -> Option<Rect<Px>> {
-        // TODO resolving a widgetid should probably be easier
         let direction = self.overlays[index].direction;
-        let relative_to = context
-            .widget
-            .for_other(&relative_to)
-            .map(|c| c.widget().clone())?
-            .last_layout()?;
+        let relative_to = relative_to.find_in(context)?.last_layout()?;
         let relative_to_unsigned = relative_to.into_unsigned();
 
         let constraints = match direction {
@@ -485,8 +480,8 @@ impl OverlayState {
         if checking_index != 0 {
             if let Some(relative_to) = self.overlays[0]
                 .relative_to
-                .and_then(|relative_to| context.widget.for_other(&relative_to))
-                .and_then(|c| c.widget().last_layout())
+                .and_then(|relative_to| relative_to.find_in(context))
+                .and_then(|w| w.last_layout())
             {
                 if relative_to.intersects(layout) {
                     return true;

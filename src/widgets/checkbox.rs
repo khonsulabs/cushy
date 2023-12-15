@@ -9,6 +9,7 @@ use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{LineHeight, OutlineColor, TextColor, WidgetAccentColor};
+use crate::styles::Dimension;
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithId, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
@@ -241,7 +242,7 @@ impl Widget for CheckboxOrnament {
         _available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<kludgine::figures::units::UPx> {
-        let checkbox_size = context.get(&LineHeight).into_upx(context.gfx.scale()); // TODO create a component?
+        let checkbox_size = context.get(&CheckboxSize).into_upx(context.gfx.scale());
         Size::squared(checkbox_size)
     }
 }
@@ -255,3 +256,10 @@ pub trait Checkable: IntoDynamic<CheckboxState> + Sized {
 }
 
 impl<T> Checkable for T where T: IntoDynamic<CheckboxState> {}
+
+define_components! {
+    Checkbox {
+        /// The size to render a [`Checkbox`] indicator.
+        CheckboxSize(Dimension, "size", @LineHeight)
+    }
+}

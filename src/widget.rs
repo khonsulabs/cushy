@@ -2078,6 +2078,12 @@ impl WidgetId {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         Self(COUNTER.fetch_add(1, atomic::Ordering::Acquire))
     }
+
+    /// Finds this widget mounted in this window, if present.
+    #[must_use]
+    pub fn find_in(self, context: &WidgetContext<'_, '_>) -> Option<ManagedWidget> {
+        context.widget().tree.widget(self)
+    }
 }
 
 /// A [`WidgetId`] that has not been assigned to a [`WidgetInstance`].

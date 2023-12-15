@@ -16,7 +16,7 @@ pub mod label;
 pub mod layers;
 mod mode_switch;
 pub mod progress;
-mod radio;
+pub mod radio;
 mod resize;
 pub mod scroll;
 pub mod select;
@@ -27,7 +27,7 @@ mod style;
 mod switcher;
 mod themed;
 mod tilemap;
-mod validated;
+pub mod validated;
 pub mod wrap;
 
 pub use align::Align;

@@ -145,7 +145,15 @@ define_components! {
         /// The [`Color`] to use when rendering text in a more subdued tone.
         TextColorVariant(Color, "text_color_variant", .surface.on_color_variant)
         /// A [`Color`] to be used as a highlight color.
-        HighlightColor(Color,"highlight_color",.primary.color.with_alpha(128))
+        HighlightColor(Color,"highlight_color", .primary.color.with_alpha(128))
+        /// The primary color from the current theme.
+        PrimaryColor(Color, "primary_color", .primary.color)
+        /// The secondary color from the current theme.
+        SecondaryColor(Color, "secondary_color", .secondary.color)
+        /// The tertiary color from the current theme.
+        TertiaryColor(Color, "tertiary_color", .tertiary.color)
+        /// The error color from the current theme.
+        ErrorColor(Color, "error_color", .error.color)
         /// Intrinsic, uniform padding for a widget.
         ///
         /// This component is opt-in and does not automatically work for all widgets.

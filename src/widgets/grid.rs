@@ -659,11 +659,9 @@ mod tests {
         let mut offset = UPx::ZERO;
         for ((index, &child), &expected) in flex.iter().enumerate().zip(expected) {
             assert_eq!(
+                child.size, expected,
+                "child {index} measured to {}, expected {expected}",
                 child.size,
-                expected,
-                "child {index} measured to {}, expected {}",
-                child.size,
-                expected // TODO Display for UPx
             );
             assert_eq!(child.offset, offset);
             offset += child.size;

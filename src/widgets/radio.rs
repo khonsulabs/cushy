@@ -9,6 +9,7 @@ use kludgine::DrawableExt;
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{LineHeight, OutlineColor, WidgetAccentColor};
+use crate::styles::Dimension;
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithId, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
@@ -121,7 +122,14 @@ where
         _available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<kludgine::figures::units::UPx> {
-        let radio_size = context.get(&LineHeight).into_upx(context.gfx.scale()); // TODO create a component? Same as checkbox
+        let radio_size = context.get(&RadioSize).into_upx(context.gfx.scale());
         Size::squared(radio_size)
+    }
+}
+
+define_components! {
+    Radio {
+        /// The size to render a [`Radio`] indicator.
+        RadioSize(Dimension, "size", @LineHeight)
     }
 }

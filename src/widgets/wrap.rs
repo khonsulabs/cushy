@@ -228,8 +228,6 @@ pub enum VerticalAlign {
     Middle,
 
     /// Align towards the bottom.
-    // TODO the default should be `Baseline`, but that requires a refactor for
-    // layout() to return something other than a Size.
     #[default]
     Bottom,
 }

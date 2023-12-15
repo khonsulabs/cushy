@@ -661,9 +661,7 @@ where
         if let Some(theme) = &mut self.theme {
             if theme.has_updated() {
                 self.current_theme = theme.get();
-                // TODO invalidate everything, but right now we don't have much
-                // cached. Maybe widgets should be told the theme has changed in
-                // case some things like images have been cached.
+                self.root.invalidate();
             }
         }
 

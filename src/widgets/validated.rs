@@ -1,9 +1,13 @@
+//! A widget that displays the result of validation.
+
 use std::fmt::Debug;
 
-use kludgine::figures::units::Lp;
 use kludgine::Color;
 
-use crate::styles::components::{LineHeight, OutlineColor, TextColor, TextSize};
+use crate::styles::components::{
+    ErrorColor, LineHeight, LineHeight2, OutlineColor, TextColor, TextSize, TextSize2,
+};
+use crate::styles::Dimension;
 use crate::value::{Dynamic, IntoDynamic, IntoValue, MapEach, Validation, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithId, WidgetInstance, WidgetRef, WrapperWidget};
 
@@ -71,9 +75,8 @@ impl MakeWidgetWithId for Validated {
                     .and(
                         message
                             .with(&TextColor, color)
-                            // TODO these should be components
-                            .with(&TextSize, Lp::points(9))
-                            .with(&LineHeight, Lp::points(13))
+                            .with_dynamic(&TextSize, ValidatedTextSize)
+                            .with_dynamic(&LineHeight, ValidatedLineHeight)
                             .align_left(),
                     )
                     .into_rows(),
@@ -101,8 +104,20 @@ impl WrapperWidget for ValidatedWidget {
         &mut self,
         context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>,
     ) {
-        // TODO move these to components.
-        self.error_color.set(context.theme().error.color);
-        self.default_color.set(context.theme().surface.outline);
+        self.error_color.set(context.get(&InvalidTextColor));
+        self.default_color.set(context.get(&HintTextColor));
+    }
+}
+
+define_components! {
+    Validated {
+        /// The color of the hint text.
+        HintTextColor(Color, "hint_color", @OutlineColor)
+        /// The color of invalid text.
+        InvalidTextColor(Color, "invalid_color", @ErrorColor)
+        /// The text size for the validation message in a [`Validated`] widget.
+        ValidatedTextSize(Dimension, "text_size", @TextSize2)
+        /// The line hgiht for the validation message in a [`Validated`] widget.
+        ValidatedLineHeight(Dimension, "line_height", @LineHeight2)
     }
 }
