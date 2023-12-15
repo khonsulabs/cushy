@@ -272,9 +272,8 @@ where
             context.gfx.draw_shape(
                 Shape::stroked_circle(
                     spec.half_knob,
-                    focus_color,
                     Origin::Center,
-                    StrokeOptions::px_wide(focus_ring_width),
+                    StrokeOptions::px_wide(focus_ring_width).colored(focus_color),
                 )
                 .translate_by(knob_center),
             );

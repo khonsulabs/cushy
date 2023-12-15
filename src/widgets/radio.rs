@@ -98,7 +98,6 @@ where
         context.gfx.draw_shape(
             Shape::stroked_circle(
                 radius - stroke_options.line_width / 2,
-                color,
                 kludgine::Origin::Center,
                 stroke_options.colored(color),
             )
