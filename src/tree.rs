@@ -10,7 +10,7 @@ use crate::context::sealed::WindowHandle;
 use crate::styles::{Styles, ThemePair, VisualOrder};
 use crate::utils::IgnorePoison;
 use crate::value::Value;
-use crate::widget::{ManagedWidget, WidgetId, WidgetInstance};
+use crate::widget::{MountedWidget, WidgetId, WidgetInstance};
 use crate::window::ThemeMode;
 use crate::ConstraintLimit;
 
@@ -23,8 +23,8 @@ impl Tree {
     pub fn push_boxed(
         &self,
         widget: WidgetInstance,
-        parent: Option<&ManagedWidget>,
-    ) -> ManagedWidget {
+        parent: Option<&MountedWidget>,
+    ) -> MountedWidget {
         let mut data = self.data.lock().ignore_poison();
         let id = widget.id();
         let (effective_styles, parent_id) = if let Some(parent) = parent {
@@ -60,14 +60,14 @@ impl Tree {
         if let Some(next_focus) = widget.next_focus() {
             data.previous_focuses.insert(next_focus, id);
         }
-        ManagedWidget {
+        MountedWidget {
             node_id,
             widget,
             tree: self.clone(),
         }
     }
 
-    pub fn remove_child(&self, child: &ManagedWidget, parent: &ManagedWidget) {
+    pub fn remove_child(&self, child: &MountedWidget, parent: &MountedWidget) {
         let mut data = self.data.lock().ignore_poison();
         data.remove_child(child.node_id, parent.node_id);
 
@@ -163,11 +163,11 @@ impl Tree {
         &self,
         parent: LotId,
         order: VisualOrder,
-    ) -> Vec<ManagedWidget> {
+    ) -> Vec<MountedWidget> {
         let data = self.data.lock().ignore_poison();
         let node = &data.nodes[parent];
         let mut unordered = node.children.clone();
-        let mut ordered = Vec::<ManagedWidget>::with_capacity(unordered.len());
+        let mut ordered = Vec::<MountedWidget>::with_capacity(unordered.len());
         loop {
             // Identify the next "row" of widgets by finding the top of a widget that is the closest to the origin of
             let mut min_vertical = order.vertical.max_px();
@@ -225,13 +225,13 @@ impl Tree {
         data.nodes[id].effective_styles.clone()
     }
 
-    pub(crate) fn hover(&self, new_hover: Option<&ManagedWidget>) -> HoverResults {
+    pub(crate) fn hover(&self, new_hover: Option<&MountedWidget>) -> HoverResults {
         let mut data = self.data.lock().ignore_poison();
         let hovered = new_hover
             .map(|new_hover| data.widget_hierarchy(new_hover.node_id, self))
             .unwrap_or_default();
         let unhovered =
-            match data.update_tracked_widget(new_hover.map(ManagedWidget::id), self, |data| {
+            match data.update_tracked_widget(new_hover.map(MountedWidget::id), self, |data| {
                 &mut data.hover
             }) {
                 Ok(Some(old_hover)) => {
@@ -250,12 +250,12 @@ impl Tree {
         HoverResults { unhovered, hovered }
     }
 
-    pub fn focus(&self, new_focus: Option<WidgetId>) -> Result<Option<ManagedWidget>, ()> {
+    pub fn focus(&self, new_focus: Option<WidgetId>) -> Result<Option<MountedWidget>, ()> {
         let mut data = self.data.lock().ignore_poison();
         data.update_tracked_widget(new_focus, self, |data| &mut data.focus)
     }
 
-    pub fn previous_focus(&self, focus: WidgetId) -> Option<ManagedWidget> {
+    pub fn previous_focus(&self, focus: WidgetId) -> Option<MountedWidget> {
         let data = self.data.lock().ignore_poison();
         let previous = *data.previous_focuses.get(&focus)?;
         data.widget_from_id(previous, self)
@@ -263,20 +263,20 @@ impl Tree {
 
     pub fn activate(
         &self,
-        new_active: Option<&ManagedWidget>,
-    ) -> Result<Option<ManagedWidget>, ()> {
+        new_active: Option<&MountedWidget>,
+    ) -> Result<Option<MountedWidget>, ()> {
         let mut data = self.data.lock().ignore_poison();
-        data.update_tracked_widget(new_active.map(ManagedWidget::id), self, |data| {
+        data.update_tracked_widget(new_active.map(MountedWidget::id), self, |data| {
             &mut data.active
         })
     }
 
-    pub fn widget(&self, id: WidgetId) -> Option<ManagedWidget> {
+    pub fn widget(&self, id: WidgetId) -> Option<MountedWidget> {
         let data = self.data.lock().ignore_poison();
         data.widget_from_id(id, self)
     }
 
-    pub(crate) fn widget_from_node(&self, id: LotId) -> Option<ManagedWidget> {
+    pub(crate) fn widget_from_node(&self, id: LotId) -> Option<MountedWidget> {
         let data = self.data.lock().ignore_poison();
         data.widget_from_node(id, self)
     }
@@ -333,7 +333,7 @@ impl Tree {
         self.data.lock().ignore_poison().focus
     }
 
-    pub(crate) fn widgets_under_point(&self, point: Point<Px>) -> Vec<ManagedWidget> {
+    pub(crate) fn widgets_under_point(&self, point: Point<Px>) -> Vec<MountedWidget> {
         let data = self.data.lock().ignore_poison();
         data.render_info.widgets_under_point(point, &data, self)
     }
@@ -398,8 +398,8 @@ impl Tree {
 }
 
 pub(crate) struct HoverResults {
-    pub unhovered: Vec<ManagedWidget>,
-    pub hovered: Vec<ManagedWidget>,
+    pub unhovered: Vec<MountedWidget>,
+    pub hovered: Vec<MountedWidget>,
 }
 
 #[derive(Default)]
@@ -416,17 +416,17 @@ struct TreeData {
 }
 
 impl TreeData {
-    fn widget_from_id(&self, id: WidgetId, tree: &Tree) -> Option<ManagedWidget> {
+    fn widget_from_id(&self, id: WidgetId, tree: &Tree) -> Option<MountedWidget> {
         let node_id = *self.nodes_by_id.get(&id)?;
-        Some(ManagedWidget {
+        Some(MountedWidget {
             node_id,
             widget: self.nodes[node_id].widget.clone(),
             tree: tree.clone(),
         })
     }
 
-    fn widget_from_node(&self, node_id: LotId, tree: &Tree) -> Option<ManagedWidget> {
-        Some(ManagedWidget {
+    fn widget_from_node(&self, node_id: LotId, tree: &Tree) -> Option<MountedWidget> {
+        Some(MountedWidget {
             node_id,
             widget: self.nodes.get(node_id)?.widget.clone(),
             tree: tree.clone(),
@@ -489,7 +489,7 @@ impl TreeData {
         }
     }
 
-    pub(crate) fn widget_hierarchy(&self, mut widget: LotId, tree: &Tree) -> Vec<ManagedWidget> {
+    pub(crate) fn widget_hierarchy(&self, mut widget: LotId, tree: &Tree) -> Vec<MountedWidget> {
         let mut hierarchy = Vec::new();
         while let Some(managed) = self.widget_from_node(widget, tree) {
             hierarchy.push(managed);
@@ -509,7 +509,7 @@ impl TreeData {
         new_widget: Option<WidgetId>,
         tree: &Tree,
         property: impl FnOnce(&mut Self) -> &mut Option<LotId>,
-    ) -> Result<Option<ManagedWidget>, ()> {
+    ) -> Result<Option<MountedWidget>, ()> {
         let new_widget = new_widget.and_then(|w| self.widget_from_id(w, tree));
         match (
             mem::replace(property(self), new_widget.as_ref().map(|w| w.node_id)),
@@ -555,7 +555,7 @@ impl RenderInfo {
         point: Point<Px>,
         tree_data: &TreeData,
         tree: &Tree,
-    ) -> Vec<ManagedWidget> {
+    ) -> Vec<MountedWidget> {
         // We pessimistically allocate a vector as if all widgets match, up to a
         // reasonable limit. This should ensure minimal allocations in all but
         // extreme circumstances where widgets are nested with a significant

@@ -16,7 +16,7 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, DynamicGuard, IntoValue, Value};
 use crate::widget::{
-    Callback, Children, MakeWidget, ManagedWidget, MountedChildren, Widget, WidgetId, WidgetRef,
+    Callback, Children, MakeWidget, MountedChildren, MountedWidget, Widget, WidgetId, WidgetRef,
     WrapperWidget,
 };
 use crate::widgets::container::ContainerShadow;
@@ -182,7 +182,7 @@ impl Widget for OverlayLayer {
                 continue;
             };
 
-            let opacity = child.opacity.get_tracking_refresh(context);
+            let opacity = child.opacity.get_tracking_redraw(context);
             let mut context = context.for_other(mounted);
             context.apply_opacity(opacity);
             context.redraw();
@@ -376,7 +376,7 @@ impl OverlayState {
     fn layout_overlay_relative(
         &mut self,
         index: usize,
-        widget: &ManagedWidget,
+        widget: &MountedWidget,
         available_space: Size<UPx>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
         relative_to: WidgetId,
@@ -495,7 +495,7 @@ impl OverlayState {
     fn layout_overlay(
         &mut self,
         index: usize,
-        widget: &ManagedWidget,
+        widget: &MountedWidget,
         available_space: Size<UPx>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Option<Rect<Px>> {

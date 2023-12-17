@@ -1,7 +1,7 @@
 use std::process::exit;
 
 use gooey::value::{Dynamic, MapEach};
-use gooey::widget::{MakeWidget, MakeWidgetWithId, WidgetTag};
+use gooey::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
 use gooey::widgets::grid::{Grid, GridDimension, GridWidgets};
 use gooey::widgets::input::{InputValue, MaskedString};
 use gooey::widgets::Expand;
@@ -24,7 +24,7 @@ fn main() -> gooey::Result {
 
     let username_row = (
         "Username",
-        username.clone().into_input().make_with_id(username_tag),
+        username.clone().into_input().make_with_tag(username_tag),
     );
 
     let password_row = (
@@ -38,7 +38,7 @@ fn main() -> gooey::Result {
             eprintln!("Login cancelled");
             exit(0)
         })
-        .make_with_id(cancel_tag)
+        .make_with_tag(cancel_tag)
         .into_escape()
         .with_next_focus(username_id)
         .and(Expand::empty())
@@ -49,7 +49,7 @@ fn main() -> gooey::Result {
                     println!("Welcome, {}", username.get());
                     exit(0);
                 })
-                .make_with_id(login_tag)
+                .make_with_tag(login_tag)
                 .with_enabled(valid)
                 .into_default()
                 .with_next_focus(cancel_id),

@@ -7,7 +7,7 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::FlexibleDimension;
 use crate::value::{Generation, IntoValue, Value};
-use crate::widget::{Children, ChildrenSyncChange, ManagedWidget, Widget, WidgetRef};
+use crate::widget::{Children, ChildrenSyncChange, MountedWidget, Widget, WidgetRef};
 use crate::widgets::grid::{GridDimension, GridLayout, Orientation};
 use crate::widgets::{Expand, Resize};
 use crate::ConstraintLimit;
@@ -24,7 +24,7 @@ pub struct Stack {
     layout: GridLayout,
     layout_generation: Option<Generation>,
     // TODO Refactor synced_children into its own type.
-    synced_children: Vec<ManagedWidget>,
+    synced_children: Vec<MountedWidget>,
 }
 
 impl Stack {
@@ -68,7 +68,7 @@ impl Stack {
             self.children.map(|children| {
                 children.synchronize_with(
                     &mut self.synced_children,
-                    |this, index| this.get(index).map(ManagedWidget::instance),
+                    |this, index| this.get(index).map(MountedWidget::instance),
                     |this, change| match change {
                         ChildrenSyncChange::Insert(index, widget) => {
                             // This is a brand new child.

@@ -9,7 +9,7 @@ use crate::styles::components::{
 };
 use crate::styles::Dimension;
 use crate::value::{Dynamic, IntoDynamic, IntoValue, MapEach, Validation, Value};
-use crate::widget::{MakeWidget, MakeWidgetWithId, WidgetInstance, WidgetRef, WrapperWidget};
+use crate::widget::{MakeWidget, MakeWidgetWithTag, WidgetInstance, WidgetRef, WrapperWidget};
 
 /// A widget that displays validation information around another widget.
 ///
@@ -46,8 +46,8 @@ impl Validated {
     }
 }
 
-impl MakeWidgetWithId for Validated {
-    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
+impl MakeWidgetWithTag for Validated {
+    fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         let message = match self.hint {
             Value::Constant(hint) => self
                 .validation
@@ -84,7 +84,7 @@ impl MakeWidgetWithId for Validated {
             error_color,
             default_color,
         }
-        .make_with_id(id)
+        .make_with_tag(id)
     }
 }
 

@@ -73,7 +73,7 @@ impl Widget for ColorSourcePicker {
         let loupe_size = Lp::mm(3).into_px(context.gfx.scale());
         let size = context.gfx.region().size;
 
-        let value = self.value.get_tracking_refresh(context);
+        let value = self.value.get_tracking_redraw(context);
         let value_pos = self.visible_rect.origin
             + Point::new(
                 if self.hue_is_360 {
@@ -84,7 +84,7 @@ impl Widget for ColorSourcePicker {
                 self.visible_rect.size.height * *value.saturation.one_minus(),
             );
 
-        let lightness = self.lightness.get_tracked(context);
+        let lightness = self.lightness.get_tracking_redraw(context);
         let value_color = value.color(lightness);
 
         let outline_color = if context.focused(true) {

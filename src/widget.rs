@@ -52,25 +52,214 @@ use crate::{ConstraintLimit, Run};
 /// This type can go by many names in other UI frameworks: View, Component,
 /// Control.
 ///
+/// # Widgets are hierarchical
+///
+/// Gooey's widgets are organized in a hierarchical structure: widgets can
+/// contain other widgets. A window in Gooey contains a single root widget,
+/// which may contain one or more additional widgets.
+///
+/// # How Widgets are created
+///
+/// Gooey offers several approaches to creating widgets. The primary trait that
+/// is used to instantiate a widget is [`MakeWidget`]. This trait is
+/// automatically implemented for all types that implement [`Widget`].
+///
+/// [`MakeWidget::make_widget`] is responsible for returning a
+/// [`WidgetInstance`]. This is a wrapper for a type that implements [`Widget`]
+/// that can be used without knowing the original type of the [`Widget`].
+///
+/// While all [`MakeWidget`] is automatically implemented for all [`Widget`]
+/// types, it can also be implemented by types that do not implement [`Widget`].
+/// This is a useful strategy when designing reusable widgets that are able to
+/// be completely represented by composing existing widgets. The
+/// [`ProgressBar`](crate::widgets::ProgressBar) type uses this strategy, as it
+/// uses either a [`Spinner`](crate::widgets::progress::Spinner) or a
+/// [`Slider`](crate::widgets::Slider) to show its progress.
+///
+/// One last convenience trait is provided to help create widgets that contain
+/// exactly one child: [`WrapperWidget`]. [`WrapperWidget`] exposes most of the
+/// same functions, but provides purpose-built functions for tweaking child's
+/// layout and rendering behavior to minimize the amount of redundant code
+/// between these types of widgets.
+///
+/// # Identifying Widgets
+///
+/// Once a widget has been instantiated as a [`WidgetInstance`], it will be
+/// assigned a unique [`WidgetId`]. Sometimes, it may be helpful to pre-create a
+/// [`WidgetId`] before the widget has been created. For these situations,
+/// [`WidgetTag`] allows creating a tag that can be passed to
+/// [`MakeWidgetWithTag::make_with_tag`] to set the returned
+/// [`WidgetInstance`]'s id.
+///
+/// # How to "talk" to another widget
+///
+/// Once a widget has been wrapped inside of a [`WidgetInstance`], it is no
+/// longer possible to invoke [`Widget`]/s functions directly. Instead, a
+/// context must be created for that widget. In each of the [`Widget`]
+/// functions, a context is provided that represents the current widget. Each
+/// context type has a `for_other()` function that accepts any widget type: a
+/// [`WidgetId`], a [`WidgetInstance`], a [`MountedWidget`], or a [`WidgetRef`].
+/// The returned context will represent the associate widget, allowing access to
+/// the exposed APIs through the context.
+///
+/// While [`WidgetInstance::lock`] can be used to gain access to the underlying
+/// [`Widget`] type, this behavior should only be reserved for limited
+/// situations. It should be preferred to pass data between widgets using
+/// [`Dynamic`]s or style components if possible. This ensures that your code
+/// can work with as many other widgets as possible, instead of restricting
+/// features to a specific set of types.
+///
 /// # How layout and rendering works
 ///
-/// TODO write layout + rendering docs
+/// When a window is rendered, the root widget has its
+/// [`layout()`](Self::layout) function called with both constraints specifying
+/// [`ConstraintLimit::SizeToFit`] with the window's inner size. The root widget
+/// measures its content to try to fit within the specified constraints, and
+/// returns its calculated size. If a widget has children, it can invoke
+/// [`LayoutContext::layout()`] on a context for each of its children to
+/// determine their required sizes.
 ///
-/// # Hit Testing
+/// Next, the window sets the root's layout. When a widget contains another
+/// widget, it must call [`LayoutContext::set_child_layout`] for the child to be
+/// able to be rendered. This tells Gooey the location to draw the widget. While
+/// it is possible to provide any rectangle, Gooey clips all widgets and their
+/// children so that they cannot draw outside of their assigned bounds.
 ///
-/// TODO write hit testing docs
+/// Once the layout has been determined, the window will invoke the root
+/// widget's [`redraw()`](Self::redraw) function. If a widget contains one or
+/// more children, it needs to invoke [`GraphicsContext::redraw()`] on a context
+/// for each of its children during its own render function. This allows full
+/// control over the order of drawing calls, allowing widgets to draw behind,
+/// in-between, or in front of their children.
+///
+/// The last responsibility the window has each frame is size adjustment. The
+/// window will potentially adjust its size automatically based on the root
+/// widget's [`root_behavior()`](Self::root_behavior).
+///
+/// # Controlling Invalidation and Redrawing
+///
+/// Gooey only redraws window contents when requested by the operating system or
+/// a tracked [`Dynamic`] is updated. Similarly, Gooey caches the known layout
+/// sizes and locations for widgets unless they are *invalidated*. Invalidation
+/// is done automatically when the window size changes or a tracked [`Dynamic`]
+/// is updated.
+///
+/// These systems require Gooey to track which [`Dynamic`] values a widget
+/// depends on for redrawing and invalidation. During a widget's redraw and
+/// layout functions, it needs to ensure that all depended upon [`Dynamic`]s are
+/// tracked using one of the various
+/// `*_tracking_redraw()`/`*_tracking_invalidate()` functions. For example,
+/// [`Dynamic::get_tracking_redraw()`] and
+/// [`Dynamic::get_tracking_invalidate()`].
+///
+/// # Hover State: Hit Testing
+///
+/// Before any cursor-related events are sent to a widget, the cursor's position
+/// is tested with [`Widget::hit_test`]. When a widget returns true for a
+/// position, it is eligible to receive events such as mouse buttons.
+///
+/// When a widget returns false, it will not receive any cursor related events
+/// with one exception: hover events. Hover events will fire for widgets whose
+/// children are currently being hovered, regardless of whether
+/// [`Widget::hit_test`] returned true.
+///
+/// The provided [`Widget::hit_test`] implementation returns false.
+///
+/// As the cursor moves across the window, the window will look at the render
+/// information to see what widgets are positioned under the cursor and the
+/// order in which they were drawn. Beginning at the topmost widget,
+/// [`Widget::hit_test`] is called on each widget.
+///
+/// The currently hovered widget state is tracked for events that target widgets
+/// beneath the current cursor.
 ///
 /// # Mouse Button Events
 ///
-/// TODO write mouse button docs
+/// When a window receives an event for a mouse button being pressed, it calls
+/// the hovered widget's [`mouse_down()`](Self::mouse_down) function. If the
+/// function returns [`HANDLED`]/[`ControlFlow::Break`], the widget becomes the
+/// *tracking* widget for that mouse button.
+///
+/// If the widget returns [`IGNORED`]/[`ControlFlow::Continue`], the window will
+/// call the parent's `mouse_down()` function. This repeats until the root
+/// widget is reached or a widget returns `HANDLED`.
+///
+/// Once a tracking widget is found, any cursor-related movements will cause
+/// [`Widget::mouse_drag()`] to be called. Upon the mouse button being released,
+/// the tracking widget's [`mouse_up()`](Self::mouse_up) function will be
+/// called.
 ///
 /// # User Input Focus
 ///
-/// TODO write focus docs
+/// A window can have a widget be *focused* for user input. For example, a text
+/// [`Input`](crate::widgets::Input) only responds to keyboard input once user
+/// input focus has been directed at the widget. This state is generally
+/// represented by drawing the theme's highlight color around the border of the
+/// widget. [`GraphicsContext::draw_focus_ring`] can be used to draw the
+/// standard focus ring for rectangular-shaped widgets.
+///
+/// The most direct way to give a widget focus is to call
+/// [`WidgetContext::focus`]. However, not all widgets can accept focus. If a
+/// widget returns true from its [`accept_focus()`](Self::accept_focus)
+/// function, focus will be given to it and its [`focus()`](Self::focus)
+/// function will be invoked.
+///
+/// If a widget returns false from its `accept_focus()` function, the window
+/// will perform these steps:
+///
+/// 1. If the widget has any children, sort its children visually and attempt to
+///    focus each one until a widget accepts focus. If any of these children
+///    have children, those children should also be checked.
+/// 2. The widget asks its parent to find the next focus after itself. The
+///    parent finds the current widget in that list and attempts to focus each
+///    widget after the current widget in the visual order.
+/// 3. This repeats until the root widget is reached, at which point focus is
+///    attempted using this algorithm until either a focused widget is found or
+///    the original widget is reached again. If no widget can be found in a full
+///    cycle of the widget tree, focus will be cleared.
+///
+/// When a window first opens, it call [`focus()`][WidgetContext::focus] on the
+/// root widget's context.
+///
+/// ## Losing Focus
+///
+/// A Widget can deny the ability for focus to be taken away from it by
+/// returning `false` from [`Widget::allow_blur()`]. In general, widgets should
+/// not do this. However, some user interfaces are designed to always keep focus
+/// on a single widget, and this feature enables that functionality.
+///
+/// When a widget currently has focused and loses it, its [`blur()`](Self::blur)
+/// function will be invoked.
 ///
 /// # Styling
 ///
-/// TODO write styling docs
+/// Gooey allows widgets to receive styling information through the widget
+/// hierarchy using [`Styles`]. Gooey calculates the effectives styles for each
+/// widget by inheriting all inheritable styles from its parent.
+///
+/// The [`Style`] widget allows assigining [`Styles`] to all of its children
+/// widget. It works by calling [`WidgetContext::attach_styles`], and Gooey
+/// takes care of the rest.
+///
+/// Styling in Gooey aims to be simple, easy-to-understand, and extensible.
+///
+/// # Color Themes
+///
+/// Gooey aims to make it easy for developers to customize the appearance of its
+/// applications. The way color themes work in Gooey begins with the
+/// [`ColorScheme`](crate::styles::ColorScheme). A color scheme is a set of
+/// [`ColorSource`](crate::styles::ColorSource) that are used to generate a
+/// variety of shades of colors for various roles color plays in a user
+/// interface. In a way, coloring Gooey apps is a bit like paint-by-number,
+/// where the number is the name of the color role.
+///
+/// A `ColorScheme` can be used to create a [`ThemePair`], which is theme
+/// definition that a theme for light and dark mode.
+///
+/// In [the repository][repo], the `theme` example is a good way to explore how
+/// the color system works in Gooey.
+///
+/// [repo]: https://github.com/khonsulabs/gooey
 pub trait Widget: Send + UnwindSafe + Debug + 'static {
     /// Redraw the contents of this widget.
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
@@ -1107,26 +1296,26 @@ pub trait MakeWidget: Sized {
 
 /// A type that can create a [`WidgetInstance`] with a preallocated
 /// [`WidgetId`].
-pub trait MakeWidgetWithId: Sized {
-    /// Returns a new [`WidgetInstance`] whose [`WidgetId`] is `id`.
-    fn make_with_id(self, id: WidgetTag) -> WidgetInstance;
+pub trait MakeWidgetWithTag: Sized {
+    /// Returns a new [`WidgetInstance`] whose [`WidgetId`] comes from `tag`.
+    fn make_with_tag(self, tag: WidgetTag) -> WidgetInstance;
 }
 
-impl<T> MakeWidgetWithId for T
+impl<T> MakeWidgetWithTag for T
 where
     T: Widget,
 {
-    fn make_with_id(self, id: WidgetTag) -> WidgetInstance {
+    fn make_with_tag(self, id: WidgetTag) -> WidgetInstance {
         WidgetInstance::with_id(self, id)
     }
 }
 
 impl<T> MakeWidget for T
 where
-    T: MakeWidgetWithId,
+    T: MakeWidgetWithTag,
 {
     fn make_widget(self) -> WidgetInstance {
-        self.make_with_id(WidgetTag::unique())
+        self.make_with_tag(WidgetTag::unique())
     }
 }
 
@@ -1136,9 +1325,9 @@ impl MakeWidget for WidgetInstance {
     }
 }
 
-impl MakeWidgetWithId for Color {
-    fn make_with_id(self, id: WidgetTag) -> WidgetInstance {
-        Space::colored(self).make_with_id(id)
+impl MakeWidgetWithTag for Color {
+    fn make_with_tag(self, id: WidgetTag) -> WidgetInstance {
+        Space::colored(self).make_with_tag(id)
     }
 }
 
@@ -1490,19 +1679,19 @@ where
 
 /// A [`Widget`] that has been attached to a widget hierarchy.
 #[derive(Clone)]
-pub struct ManagedWidget {
+pub struct MountedWidget {
     pub(crate) node_id: LotId,
     pub(crate) widget: WidgetInstance,
     pub(crate) tree: Tree,
 }
 
-impl Debug for ManagedWidget {
+impl Debug for MountedWidget {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Debug::fmt(&self.widget, f)
     }
 }
 
-impl ManagedWidget {
+impl MountedWidget {
     /// Locks the widget for exclusive access. Locking widgets should only be
     /// done for brief moments of time when you are certain no deadlocks can
     /// occur due to other widget locks being held.
@@ -1537,7 +1726,7 @@ impl ManagedWidget {
     /// This function returns the value set in
     /// [`MakeWidget::with_next_focus()`].
     #[must_use]
-    pub fn next_focus(&self) -> Option<ManagedWidget> {
+    pub fn next_focus(&self) -> Option<MountedWidget> {
         self.widget
             .next_focus()
             .and_then(|next_focus| self.tree.widget(next_focus))
@@ -1548,14 +1737,14 @@ impl ManagedWidget {
     /// There is no direct way to set this value. This relationship is created
     /// automatically using [`MakeWidget::with_next_focus()`].
     #[must_use]
-    pub fn previous_focus(&self) -> Option<ManagedWidget> {
+    pub fn previous_focus(&self) -> Option<MountedWidget> {
         self.tree.previous_focus(self.id())
     }
 
     /// Returns the next or previous focus target, if one was set using
     /// [`MakeWidget::with_next_focus()`].
     #[must_use]
-    pub fn explicit_focus_target(&self, advance: bool) -> Option<ManagedWidget> {
+    pub fn explicit_focus_target(&self, advance: bool) -> Option<MountedWidget> {
         if advance {
             self.next_focus()
         } else {
@@ -1605,7 +1794,7 @@ impl ManagedWidget {
 
     /// Returns the parent of this widget.
     #[must_use]
-    pub fn parent(&self) -> Option<ManagedWidget> {
+    pub fn parent(&self) -> Option<MountedWidget> {
         self.tree
             .parent(self.node_id)
             .and_then(|id| self.tree.widget_from_node(id))
@@ -1643,24 +1832,24 @@ impl ManagedWidget {
         self.tree.persist_layout(self.node_id, constraints, size);
     }
 
-    pub(crate) fn visually_ordered_children(&self, order: VisualOrder) -> Vec<ManagedWidget> {
+    pub(crate) fn visually_ordered_children(&self, order: VisualOrder) -> Vec<MountedWidget> {
         self.tree.visually_ordered_children(self.node_id, order)
     }
 }
 
-impl AsRef<WidgetId> for ManagedWidget {
+impl AsRef<WidgetId> for MountedWidget {
     fn as_ref(&self) -> &WidgetId {
         self.widget.as_ref()
     }
 }
 
-impl PartialEq for ManagedWidget {
+impl PartialEq for MountedWidget {
     fn eq(&self, other: &Self) -> bool {
         self.widget == other.widget
     }
 }
 
-impl PartialEq<WidgetInstance> for ManagedWidget {
+impl PartialEq<WidgetInstance> for MountedWidget {
     fn eq(&self, other: &WidgetInstance) -> bool {
         &self.widget == other
     }
@@ -1915,7 +2104,7 @@ pub enum ChildrenSyncChange {
 /// contain multiple children widgets. It is used in conjunction with a
 /// `Value<Children>`.
 #[derive(Debug)]
-pub struct MountedChildren<T = ManagedWidget> {
+pub struct MountedChildren<T = MountedWidget> {
     generation: Option<Generation>,
     children: Vec<T>,
 }
@@ -1990,23 +2179,23 @@ impl<T> Default for MountedChildren<T> {
 /// A child in a [`MountedChildren`] collection.
 pub trait MountableChild: Sized {
     /// Returns the mounted representation of `widget`.
-    fn mount(widget: ManagedWidget, into: &MountedChildren<Self>, index: usize) -> Self;
+    fn mount(widget: MountedWidget, into: &MountedChildren<Self>, index: usize) -> Self;
     /// Returns the widget and performs any other cleanup for this widget being unmounted.q
-    fn unmount(self) -> ManagedWidget;
+    fn unmount(self) -> MountedWidget;
     /// Returns a reference to the widget.
-    fn widget(&self) -> &ManagedWidget;
+    fn widget(&self) -> &MountedWidget;
 }
 
-impl MountableChild for ManagedWidget {
-    fn mount(widget: ManagedWidget, _into: &MountedChildren<Self>, _index: usize) -> Self {
+impl MountableChild for MountedWidget {
+    fn mount(widget: MountedWidget, _into: &MountedChildren<Self>, _index: usize) -> Self {
         widget
     }
 
-    fn widget(&self) -> &ManagedWidget {
+    fn widget(&self) -> &MountedWidget {
         self
     }
 
-    fn unmount(self) -> ManagedWidget {
+    fn unmount(self) -> MountedWidget {
         self
     }
 }
@@ -2017,7 +2206,7 @@ pub enum WidgetRef {
     /// An unmounted child widget
     Unmounted(WidgetInstance),
     /// A mounted child widget
-    Mounted(ManagedWidget),
+    Mounted(MountedWidget),
 }
 
 impl WidgetRef {
@@ -2037,7 +2226,7 @@ impl WidgetRef {
     pub fn mounted<'window>(
         &mut self,
         context: &mut impl AsEventContext<'window>,
-    ) -> ManagedWidget {
+    ) -> MountedWidget {
         self.mount_if_needed(context);
 
         let Self::Mounted(widget) = self else {
@@ -2101,14 +2290,14 @@ impl WidgetId {
 
     /// Finds this widget mounted in this window, if present.
     #[must_use]
-    pub fn find_in(self, context: &WidgetContext<'_, '_>) -> Option<ManagedWidget> {
+    pub fn find_in(self, context: &WidgetContext<'_, '_>) -> Option<MountedWidget> {
         context.widget().tree.widget(self)
     }
 }
 
 /// A [`WidgetId`] that has not been assigned to a [`WidgetInstance`].
 ///
-/// This type is passed to [`MakeWidgetWithId::make_with_id()`] to create a
+/// This type is passed to [`MakeWidgetWithTag::make_with_tag()`] to create a
 /// [`WidgetInstance`] with a preallocated id.
 ///
 /// This type cannot be cloned or copied to ensure only a single widget can be

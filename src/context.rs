@@ -25,7 +25,7 @@ use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::utils::IgnorePoison;
 use crate::value::{IntoValue, Value};
 use crate::widget::{
-    EventHandling, ManagedWidget, RootBehavior, WidgetId, WidgetInstance, WidgetRef,
+    EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance, WidgetRef,
 };
 use crate::window::{CursorState, RunningWindow, ThemeMode};
 use crate::ConstraintLimit;
@@ -350,7 +350,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
         }
     }
 
-    fn next_focus_after(&mut self, mut focus: ManagedWidget, advance: bool) -> Option<WidgetId> {
+    fn next_focus_after(&mut self, mut focus: MountedWidget, advance: bool) -> Option<WidgetId> {
         // First, look within the current focus for any focusable children.
         let stop_at = focus.id();
         if let Some(focus) = self.next_focus_within(&focus, None, stop_at, advance) {
@@ -375,7 +375,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
     fn next_focus_sibling(
         &mut self,
-        focus: &ManagedWidget,
+        focus: &MountedWidget,
         stop_at: WidgetId,
         advance: bool,
     ) -> Option<WidgetId> {
@@ -387,7 +387,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
     /// that returns true from `accept_focus`.
     fn next_focus_within(
         &mut self,
-        focus: &ManagedWidget,
+        focus: &MountedWidget,
         start_at: Option<WidgetId>,
         stop_at: WidgetId,
         advance: bool,
@@ -782,7 +782,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'cl
     /// Sets the layout for `child` to `layout`.
     ///
     /// `layout` is relative to the current widget's controls.
-    pub fn set_child_layout(&mut self, child: &ManagedWidget, layout: Rect<Px>) {
+    pub fn set_child_layout(&mut self, child: &MountedWidget, layout: Rect<Px>) {
         // TODO verify that `child` belongs to the current node.
         if self.persist_layout {
             child.set_layout(layout);
@@ -824,7 +824,7 @@ pub trait AsEventContext<'window> {
     /// Pushes a new child widget into the widget hierarchy beneathq the
     /// context's widget.
     #[must_use]
-    fn push_child(&mut self, child: WidgetInstance) -> ManagedWidget {
+    fn push_child(&mut self, child: WidgetInstance) -> MountedWidget {
         let mut context = self.as_event_context();
         let pushed_widget = context
             .current_node
@@ -838,7 +838,7 @@ pub trait AsEventContext<'window> {
     }
 
     /// Removes a widget from the hierarchy.
-    fn remove_child(&mut self, child: &ManagedWidget) {
+    fn remove_child(&mut self, child: &MountedWidget) {
         let mut context = self.as_event_context();
         child
             .lock()
@@ -868,7 +868,7 @@ impl<'window> AsEventContext<'window> for GraphicsContext<'_, 'window, '_, '_, '
 /// This type provides access to the widget hierarchy from the perspective of a
 /// specific widget.
 pub struct WidgetContext<'context, 'window> {
-    current_node: ManagedWidget,
+    current_node: MountedWidget,
     redraw_status: &'context InvalidationStatus,
     window: &'context mut RunningWindow<'window>,
     theme: Cow<'context, ThemePair>,
@@ -880,7 +880,7 @@ pub struct WidgetContext<'context, 'window> {
 
 impl<'context, 'window> WidgetContext<'context, 'window> {
     pub(crate) fn new(
-        current_node: ManagedWidget,
+        current_node: MountedWidget,
         redraw_status: &'context InvalidationStatus,
         theme: &'context ThemePair,
         window: &'context mut RunningWindow<'window>,
@@ -942,12 +942,12 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         widget.manage(self).map(|current_node| {
             let (effective_styles, theme, theme_mode) = current_node.overidden_theme();
             let theme = if let Some(theme) = theme {
-                Cow::Owned(theme.get_tracked(self))
+                Cow::Owned(theme.get_tracking_redraw(self))
             } else {
                 Cow::Borrowed(self.theme.as_ref())
             };
             let theme_mode = if let Some(mode) = theme_mode {
-                mode.get_tracked(self)
+                mode.get_tracking_redraw(self)
             } else {
                 self.cache.theme_mode
             };
@@ -981,7 +981,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         self.cache.enabled
     }
 
-    pub(crate) fn parent(&self) -> Option<ManagedWidget> {
+    pub(crate) fn parent(&self) -> Option<MountedWidget> {
         self.current_node.parent()
     }
 
@@ -1096,7 +1096,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     #[must_use]
     pub fn focused(&self, check_window: bool) -> bool {
         self.pending_state.focus == Some(self.current_node.id())
-            && (!check_window || self.window.focused().get_tracking_refresh(self))
+            && (!check_window || self.window.focused().get_tracking_redraw(self))
     }
 
     /// Returns true if this widget is the target to activate when the user
@@ -1123,7 +1123,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
 
     /// Returns the widget this context is for.
     #[must_use]
-    pub const fn widget(&self) -> &ManagedWidget {
+    pub const fn widget(&self) -> &MountedWidget {
         &self.current_node
     }
 
@@ -1315,18 +1315,18 @@ impl InvalidationStatus {
     }
 }
 
-/// A type chat can convert to a [`ManagedWidget`] through a [`WidgetContext`].
+/// A type chat can convert to a [`MountedWidget`] through a [`WidgetContext`].
 pub trait ManageWidget {
-    /// The managed type, which can be `Option<ManagedWidget>` or
-    /// `ManagedWidget`.
-    type Managed: MapManagedWidget<ManagedWidget>;
+    /// The managed type, which can be `Option<MountedWidget>` or
+    /// `MountedWidget`.
+    type Managed: MapManagedWidget<MountedWidget>;
 
-    /// Resolve `self` into a [`ManagedWidget`].
+    /// Resolve `self` into a [`MountedWidget`].
     fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed;
 }
 
 impl ManageWidget for WidgetId {
-    type Managed = Option<ManagedWidget>;
+    type Managed = Option<MountedWidget>;
 
     fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed {
         context.current_node.tree.widget(*self)
@@ -1334,7 +1334,7 @@ impl ManageWidget for WidgetId {
 }
 
 impl ManageWidget for WidgetInstance {
-    type Managed = Option<ManagedWidget>;
+    type Managed = Option<MountedWidget>;
 
     fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed {
         context.current_node.tree.widget(self.id())
@@ -1342,7 +1342,7 @@ impl ManageWidget for WidgetInstance {
 }
 
 impl ManageWidget for WidgetRef {
-    type Managed = Option<ManagedWidget>;
+    type Managed = Option<MountedWidget>;
 
     fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed {
         match self {
@@ -1352,7 +1352,7 @@ impl ManageWidget for WidgetRef {
     }
 }
 
-impl ManageWidget for ManagedWidget {
+impl ManageWidget for MountedWidget {
     type Managed = Self;
 
     fn manage(&self, _context: &WidgetContext<'_, '_>) -> Self::Managed {
@@ -1360,27 +1360,27 @@ impl ManageWidget for ManagedWidget {
     }
 }
 
-/// A type that can produce another type when provided a [`ManagedWidget`].
+/// A type that can produce another type when provided a [`MountedWidget`].
 pub trait MapManagedWidget<T> {
     /// The result of the mapping operation.
     type Result;
 
-    /// Call `map` with a [`ManagedWidget`].
-    fn map(self, map: impl FnOnce(ManagedWidget) -> T) -> Self::Result;
+    /// Call `map` with a [`MountedWidget`].
+    fn map(self, map: impl FnOnce(MountedWidget) -> T) -> Self::Result;
 }
 
-impl<T> MapManagedWidget<T> for Option<ManagedWidget> {
+impl<T> MapManagedWidget<T> for Option<MountedWidget> {
     type Result = Option<T>;
 
-    fn map(self, map: impl FnOnce(ManagedWidget) -> T) -> Self::Result {
+    fn map(self, map: impl FnOnce(MountedWidget) -> T) -> Self::Result {
         self.map(map)
     }
 }
 
-impl<T> MapManagedWidget<T> for ManagedWidget {
+impl<T> MapManagedWidget<T> for MountedWidget {
     type Result = T;
 
-    fn map(self, map: impl FnOnce(ManagedWidget) -> T) -> Self::Result {
+    fn map(self, map: impl FnOnce(MountedWidget) -> T) -> Self::Result {
         map(self)
     }
 }

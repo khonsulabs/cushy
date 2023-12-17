@@ -1019,7 +1019,7 @@ where
         }
 
         self.blink_state.update(context.elapsed());
-        let window_focused = context.window().focused().get_tracking_refresh(context);
+        let window_focused = context.window().focused().get_tracking_redraw(context);
         if window_focused != self.window_focused {
             if window_focused {
                 self.blink_state.force_on();

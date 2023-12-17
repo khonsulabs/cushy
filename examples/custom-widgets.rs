@@ -2,7 +2,7 @@
 //! traits or using the [`Custom`] widget with callbacks.
 
 use gooey::value::Dynamic;
-use gooey::widget::{MakeWidget, MakeWidgetWithId, Widget, WidgetInstance, WidgetTag, HANDLED};
+use gooey::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag, HANDLED};
 use gooey::widgets::Custom;
 use gooey::Run;
 use kludgine::figures::units::{Lp, UPx};
@@ -29,7 +29,7 @@ fn main() -> gooey::Result {
 ///
 /// This approach was added to make it easy to create one-off widgets in a
 /// hierarchy to handle events or other purpose-built functions.
-fn callback_widget() -> impl MakeWidgetWithId {
+fn callback_widget() -> impl MakeWidgetWithTag {
     // This implementation and the impl `Widget` implementation both use the
     // same Dynamic value setup.
     let toggle = Toggle::default();
@@ -44,7 +44,7 @@ fn callback_widget() -> impl MakeWidgetWithId {
         .height(Lp::inches(1))
 }
 
-/// A second approach is to implement [`MakeWidgetWithId`] for a type. This
+/// A second approach is to implement [`MakeWidgetWithTag`] for a type. This
 /// allows any type to be used when composing your UI that know how to create a
 /// widget.
 ///
@@ -52,7 +52,7 @@ fn callback_widget() -> impl MakeWidgetWithId {
 /// widgets) in a reusable fashion.
 ///
 /// [`MakeWidget`] is implemented automatically for all types that implement
-/// [`MakeWidgetWithId`]. The difference between the traits is purely whether
+/// [`MakeWidgetWithTag`]. The difference between the traits is purely whether
 /// allowing a caller instantiating your custom widget to provide an id for the
 /// widget. These IDs are used when configuring custom tab orders, so if your
 /// widget or any of its children aren't focusable, implementing [`MakeWidget`]
@@ -60,10 +60,10 @@ fn callback_widget() -> impl MakeWidgetWithId {
 #[derive(Default)]
 struct ToggleMakeWidget(Toggle);
 
-impl MakeWidgetWithId for ToggleMakeWidget {
-    fn make_with_id(self, id: WidgetTag) -> WidgetInstance {
+impl MakeWidgetWithTag for ToggleMakeWidget {
+    fn make_with_tag(self, id: WidgetTag) -> WidgetInstance {
         // In a real code base, the contents of callback_widget() would go here
-        callback_widget().make_with_id(id)
+        callback_widget().make_with_tag(id)
     }
 }
 
@@ -71,7 +71,7 @@ impl MakeWidgetWithId for ToggleMakeWidget {
 ///
 /// This is the lowest-level way to implement a Widget, but it also provides the
 /// most power and flexibility.
-fn impl_widget() -> impl MakeWidgetWithId {
+fn impl_widget() -> impl MakeWidgetWithTag {
     Toggle::default()
 }
 
@@ -91,7 +91,7 @@ impl Default for Toggle {
 
 impl Widget for Toggle {
     fn redraw(&mut self, context: &mut gooey::context::GraphicsContext<'_, '_, '_, '_, '_>) {
-        context.fill(self.color.get_tracking_refresh(context));
+        context.fill(self.color.get_tracking_redraw(context));
     }
 
     fn layout(

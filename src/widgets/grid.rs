@@ -16,7 +16,7 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::Dimension;
 use crate::value::{Generation, IntoValue, Value};
-use crate::widget::{MakeWidget, ManagedWidget, Widget, WidgetInstance};
+use crate::widget::{MakeWidget, MountedWidget, Widget, WidgetInstance};
 use crate::ConstraintLimit;
 
 /// A 2D grid of widgets.
@@ -24,7 +24,7 @@ use crate::ConstraintLimit;
 pub struct Grid<const ELEMENTS: usize> {
     columns: Value<[GridDimension; ELEMENTS]>,
     rows: Value<GridWidgets<ELEMENTS>>,
-    live_rows: Vec<[ManagedWidget; ELEMENTS]>,
+    live_rows: Vec<[MountedWidget; ELEMENTS]>,
     layout: GridLayout,
     layout_generation: Option<Generation>,
     spec_generation: Option<Generation>,

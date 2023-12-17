@@ -11,7 +11,7 @@ use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{LineHeight, OutlineColor, TextColor, WidgetAccentColor};
 use crate::styles::Dimension;
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
-use crate::widget::{MakeWidget, MakeWidgetWithId, Widget, WidgetInstance};
+use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
 
@@ -51,8 +51,8 @@ impl Checkbox {
     }
 }
 
-impl MakeWidgetWithId for Checkbox {
-    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
+impl MakeWidgetWithTag for Checkbox {
+    fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         CheckboxOrnament {
             value: self.state.create_reader(),
         }
@@ -64,7 +64,7 @@ impl MakeWidgetWithId for Checkbox {
             *value = !*value;
         })
         .kind(self.kind)
-        .make_with_id(id)
+        .make_with_tag(id)
     }
 }
 
@@ -192,7 +192,7 @@ impl Widget for CheckboxOrnament {
         );
 
         let stroke_options = StrokeOptions::lp_wide(Lp::points(2)).into_px(context.gfx.scale());
-        match self.value.get_tracking_refresh(context) {
+        match self.value.get_tracking_redraw(context) {
             state @ (CheckboxState::Checked | CheckboxState::Indeterminant) => {
                 let color = context.get(&WidgetAccentColor);
                 context

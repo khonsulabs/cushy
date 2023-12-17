@@ -125,24 +125,6 @@ pub trait Run: Sized {
     fn run(self) -> crate::Result;
 }
 
-/// Creates a [`Children`](crate::widget::Children) instance with the given list
-/// of widgets.
-#[macro_export]
-#[deprecated = "use MakeWidget.and()/Children.and() to chain widgets without a macro"]
-macro_rules! children {
-    () => {
-        $crate::widget::Children::new()
-    };
-    ($($widget:expr),+) => {{
-        let mut widgets = $crate::widget::Children::with_capacity($crate::count!($($widget),+ ;));
-        $(widgets.push($widget);)+
-        widgets
-    }};
-    ($($widget:expr),+ ,) => {{
-        $crate::children!($($widget),+)
-    }};
-}
-
 /// Counts the number of expressions passed to it.
 ///
 /// This is used inside of Gooey macros to preallocate collections.

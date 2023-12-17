@@ -22,7 +22,7 @@ use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearIn
 use crate::context::sealed::WindowHandle;
 use crate::context::{self, WidgetContext};
 use crate::utils::{run_in_bg, IgnorePoison, UnwindsafeCondvar, WithClone};
-use crate::widget::{Children, MakeWidget, MakeWidgetWithId, WidgetId, WidgetInstance};
+use crate::widget::{Children, MakeWidget, MakeWidgetWithTag, WidgetId, WidgetInstance};
 use crate::widgets::{Radio, Select, Space, Switcher};
 
 /// An instance of a value that provides APIs to observe and react to its
@@ -377,7 +377,7 @@ impl<T> Dynamic<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     #[must_use]
-    pub fn get_tracking_refresh(&self, context: &WidgetContext<'_, '_>) -> T
+    pub fn get_tracking_redraw(&self, context: &WidgetContext<'_, '_>) -> T
     where
         T: Clone,
     {
@@ -638,20 +638,20 @@ impl Dynamic<WidgetInstance> {
     }
 }
 
-impl MakeWidgetWithId for Dynamic<WidgetInstance> {
-    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
-        self.into_switcher().make_with_id(id)
+impl MakeWidgetWithTag for Dynamic<WidgetInstance> {
+    fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
+        self.into_switcher().make_with_tag(id)
     }
 }
 
-impl MakeWidgetWithId for Dynamic<Option<WidgetInstance>> {
-    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
+impl MakeWidgetWithTag for Dynamic<Option<WidgetInstance>> {
+    fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         self.map_each(|widget| {
             widget
                 .as_ref()
                 .map_or_else(|| Space::clear().make_widget(), Clone::clone)
         })
-        .make_with_id(id)
+        .make_with_tag(id)
     }
 }
 
@@ -1260,7 +1260,7 @@ impl<T> DynamicReader<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     #[must_use]
-    pub fn get_tracking_refresh(&mut self, context: &WidgetContext<'_, '_>) -> T
+    pub fn get_tracking_redraw(&mut self, context: &WidgetContext<'_, '_>) -> T
     where
         T: Clone,
     {
@@ -1649,7 +1649,7 @@ impl<T> Value<T> {
     ///
     /// If `self` is a dynamic, `context` will be refreshed when the value is
     /// updated.
-    pub fn get_tracked(&self, context: &WidgetContext<'_, '_>) -> T
+    pub fn get_tracking_redraw(&self, context: &WidgetContext<'_, '_>) -> T
     where
         T: Clone,
     {

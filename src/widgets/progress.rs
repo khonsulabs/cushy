@@ -13,7 +13,7 @@ use crate::animation::{
     AnimationHandle, AnimationTarget, IntoAnimate, PercentBetween, Spawn, ZeroToOne,
 };
 use crate::value::{Dynamic, IntoDynamic, IntoValue, MapEach, Value};
-use crate::widget::{MakeWidget, MakeWidgetWithId, Widget, WidgetInstance};
+use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::slider::{InactiveTrackColor, Slidable, TrackColor, TrackSize};
 use crate::widgets::Data;
 
@@ -60,8 +60,8 @@ pub enum Progress<T = ZeroToOne> {
     Percent(T),
 }
 
-impl MakeWidgetWithId for ProgressBar {
-    fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
+impl MakeWidgetWithTag for ProgressBar {
+    fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         let start = Dynamic::new(ZeroToOne::ZERO);
         let end = Dynamic::new(ZeroToOne::ZERO);
         let value = (&start, &end).map_each(|(start, end)| *start..=*end);
@@ -76,12 +76,16 @@ impl MakeWidgetWithId for ProgressBar {
                     end: end.clone(),
                     degree_offset: degree_offset.clone(),
                 }
-                .make_with_id(id),
+                .make_with_tag(id),
                 Some(degree_offset),
             )
         } else {
             (
-                value.slider().knobless().non_interactive().make_with_id(id),
+                value
+                    .slider()
+                    .knobless()
+                    .non_interactive()
+                    .make_with_tag(id),
                 None,
             )
         };
@@ -332,8 +336,8 @@ impl Spinner {
 impl Widget for Spinner {
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
         let track_size = context.get(&TrackSize).into_px(context.gfx.scale());
-        let start = self.start.get_tracking_refresh(context);
-        let end = self.end.get_tracking_refresh(context);
+        let start = self.start.get_tracking_redraw(context);
+        let end = self.end.get_tracking_redraw(context);
         let size = context.gfx.region().size;
         let render_size = size.width.min(size.height);
         let radius = render_size / 2 - track_size;

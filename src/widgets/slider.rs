@@ -443,9 +443,9 @@ where
         let half_knob = knob_size / 2;
 
         let (mut start_value, mut end_value) =
-            T::into_parts(self.value.get_tracking_refresh(context));
-        let min = self.minimum.get_tracked(context);
-        let mut max = self.maximum.get_tracked(context);
+            T::into_parts(self.value.get_tracking_redraw(context));
+        let min = self.minimum.get_tracking_redraw(context);
+        let mut max = self.maximum.get_tracking_redraw(context);
 
         if max < min {
             self.maximum.map_mut(|max| *max = min.clone());

@@ -39,7 +39,7 @@ use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
 use crate::widget::{
-    EventHandling, ManagedWidget, RootBehavior, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
+    EventHandling, MountedWidget, RootBehavior, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit, Run};
@@ -338,7 +338,7 @@ pub trait WindowBehavior: Sized + 'static {
 
 struct GooeyWindow<T> {
     behavior: T,
-    root: ManagedWidget,
+    root: MountedWidget,
     contents: Drawing,
     should_close: bool,
     cursor: CursorState,
@@ -1221,7 +1221,7 @@ where
 fn recursively_handle_event(
     context: &mut EventContext<'_, '_>,
     mut each_widget: impl FnMut(&mut EventContext<'_, '_>) -> EventHandling,
-) -> Option<ManagedWidget> {
+) -> Option<MountedWidget> {
     match each_widget(context) {
         HANDLED => Some(context.widget().clone()),
         IGNORED => context.parent().and_then(|parent| {

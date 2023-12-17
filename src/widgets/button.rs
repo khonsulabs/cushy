@@ -226,7 +226,7 @@ impl Button {
     }
 
     fn determine_stateful_colors(&mut self, context: &mut WidgetContext<'_, '_>) -> ButtonColors {
-        let kind = self.kind.get_tracked(context);
+        let kind = self.kind.get_tracking_redraw(context);
         let visual_state = Self::visual_style(context);
 
         self.cached_state = CacheState {
@@ -352,7 +352,7 @@ impl Widget for Button {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         #![allow(clippy::similar_names)]
 
-        let current_style = self.kind.get_tracked(context);
+        let current_style = self.kind.get_tracking_redraw(context);
         if self.cached_state.key != context.cache_key() || self.cached_state.kind != current_style {
             self.update_colors(context, false);
         }

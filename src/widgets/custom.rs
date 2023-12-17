@@ -544,7 +544,9 @@ impl WrapperWidget for Custom {
     }
 
     fn background_color(&mut self, context: &WidgetContext<'_, '_>) -> Option<Color> {
-        self.background.as_ref().map(|bg| bg.get_tracked(context))
+        self.background
+            .as_ref()
+            .map(|bg| bg.get_tracking_redraw(context))
     }
 
     fn mounted(&mut self, context: &mut EventContext<'_, '_>) {

@@ -1,6 +1,6 @@
 use std::panic::UnwindSafe;
 
-use gooey::widget::{MakeWidget, MakeWidgetWithId, WidgetTag};
+use gooey::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
 use gooey::widgets::container::ContainerShadow;
 use gooey::widgets::layers::{OverlayBuilder, OverlayLayer};
 use gooey::Run;
@@ -48,7 +48,7 @@ fn test_widget(overlay: &OverlayLayer, is_root: bool) -> impl MakeWidget {
             );
     }
 
-    buttons.pad().make_with_id(my_tag)
+    buttons.pad().make_with_tag(my_tag)
 }
 
 fn show_overlay_button(

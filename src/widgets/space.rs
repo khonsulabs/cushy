@@ -39,7 +39,7 @@ impl Space {
 
 impl Widget for Space {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        let color = self.color.get_tracked(context);
+        let color = self.color.get_tracking_redraw(context);
         context.fill(color);
     }
 

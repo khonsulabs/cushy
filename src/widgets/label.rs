@@ -94,9 +94,9 @@ impl Widget for Label {
 
 macro_rules! impl_make_widget {
     ($($type:ty),*) => {
-        $(impl crate::widget::MakeWidgetWithId for $type {
-            fn make_with_id(self, id: crate::widget::WidgetTag) -> WidgetInstance {
-                Label::new(self).make_with_id(id)
+        $(impl crate::widget::MakeWidgetWithTag for $type {
+            fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
+                Label::new(self).make_with_tag(id)
             }
         })*
     };
