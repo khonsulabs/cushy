@@ -2,7 +2,7 @@
 
 [package]
 name = "gooey"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "A wgpu-powered graphical user interface (GUI) library with a reactive data model"
 repository = "https://github.com/khonsulabs/gooey"
