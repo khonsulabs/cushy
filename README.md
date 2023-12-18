@@ -60,14 +60,14 @@ and problem it aims to solve. Doing so will help prevent friction in merging
 pull requests, as it ensures changes fit the vision the maintainers have for
 Gooey.
 
-[widget]: crate::widget::Widget
+[widget]: https://gooey.rs/main/gooey/widget/trait.Widget.html
+[widgets]: https://gooey.rs/main/gooey/widgets/index.html
+[button-example]: https://github.com/khonsulabs/gooey/tree/main/examples/basic-button.rs
+[examples]: https://github.com/khonsulabs/gooey/tree/main/examples/
 [kludgine]: https://github.com/khonsulabs/kludgine
 [figures]: https://github.com/khonsulabs/figures
 [wgpu]: https://github.com/gfx-rs/wgpu
 [winit]: https://github.com/rust-windowing/winit
-[widgets]: mod@crate::widgets
-[button-example]: https://github.com/khonsulabs/gooey/tree/main/examples/basic-button.rs
-[examples]: https://github.com/khonsulabs/gooey/tree/main/examples/
 [cosmic_text]: https://github.com/pop-os/cosmic-text
 [palette]: https://github.com/Ogeon/palette
 [arboard]: https://github.com/1Password/arboard
