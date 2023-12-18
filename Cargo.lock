@@ -175,7 +175,7 @@ dependencies = [
  "proc-macro-utils",
  "proc-macro2",
  "quote",
- "quote-use",
+ "quote-use 0.7.2",
  "syn",
 ]
 
@@ -899,7 +899,7 @@ dependencies = [
  "prettyplease",
  "proc-macro2",
  "quote",
- "quote-use",
+ "quote-use 0.8.0",
  "syn",
 ]
 
@@ -1876,8 +1876,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7b5abe3fe82fdeeb93f44d66a7b444dedf2e4827defb0a8e69c437b2de2ef94"
 dependencies = [
  "quote",
- "quote-use-macros",
+ "quote-use-macros 0.7.2",
  "syn",
+]
+
+[[package]]
+name = "quote-use"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b393938dcaab992375d7b3df7887fa98cc91c2f3590598251e7c609e2b788139"
+dependencies = [
+ "quote",
+ "quote-use-macros 0.8.0",
 ]
 
 [[package]]
@@ -1887,6 +1897,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97ea44c7e20f16017a76a245bb42188517e13d16dcb1aa18044bc406cdc3f4af"
 dependencies = [
  "derive-where",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "quote-use-macros"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71d8772387900c205780e2c240cfe4dd01355ab4f96a503d99bdf34ad73180ef"
+dependencies = [
+ "derive-where",
+ "proc-macro-utils",
  "proc-macro2",
  "quote",
  "syn",
