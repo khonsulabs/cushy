@@ -10,6 +10,7 @@ license = "MIT OR Apache-2.0"
 keywords = ["gui", "ui", "widgets", "reactive"]
 categories = ["gui"]
 readme = "./README.md"
+rust-version = "1.70.0"
 
 [features]
 default = ["tracing-output", "roboto-flex"]
@@ -17,9 +18,7 @@ tracing-output = ["dep:tracing-subscriber"]
 roboto-flex = []
 
 [dependencies]
-kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
-    "app",
-] }
+kludgine = { version = "0.6.0", features = ["app"] }
 alot = "0.3"
 interner = "0.2.1"
 kempt = "0.2.1"

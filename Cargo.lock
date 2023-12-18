@@ -90,7 +90,8 @@ dependencies = [
 [[package]]
 name = "appit"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/appit#125e9f7c463d59e500089155d5433583302bb72a"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c843008d81c05e90e716349b2fa73017583f40965bf1651a34fa5fa7159eeef7"
 dependencies = [
  "winit",
 ]
@@ -131,9 +132,9 @@ checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "as-raw-xcb-connection"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d5f312b0a56c5cdf967c0aeb67f6289603354951683bc97ddc595ab974ba9aa"
+checksum = "175571dd1d178ced59193a6fc02dde1b972eb0bc56c892cde9beeceac5bf0f6b"
 
 [[package]]
 name = "ash"
@@ -679,8 +680,9 @@ dependencies = [
 
 [[package]]
 name = "figures"
-version = "0.1.0"
-source = "git+https://github.com/khonsulabs/figures#aaee0e99cf5c3ad5a7e907819eceeef9b897fe13"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63172cefd2b4018ab01e207ce8b951e757575412d58a9370619d19ea16ddc948"
 dependencies = [
  "bytemuck",
  "euclid",
@@ -1145,8 +1147,9 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "kludgine"
-version = "0.1.0"
-source = "git+https://github.com/khonsulabs/kludgine#7e9ed8130440d67d3f3371b581de9a584859ed8b"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfd1a6ff36bce8a2d59d574a8e4a9a086bda0cd6d4eeb2b024305a4213a4317b"
 dependencies = [
  "ahash",
  "alot",
