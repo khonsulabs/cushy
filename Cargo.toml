@@ -4,6 +4,12 @@
 name = "gooey"
 version = "0.1.0"
 edition = "2021"
+description = "A wgpu-powered graphical user interface (GUI) library with a reactive data model"
+repository = "https://github.com/khonsulabs/gooey"
+license = "MIT OR Apache-2.0"
+keywords = ["gui", "ui", "widgets", "reactive"]
+categories = ["gui"]
+readme = "./README.md"
 
 [features]
 default = ["tracing-output", "roboto-flex"]
@@ -48,6 +54,7 @@ opt-level = 2
 [dev-dependencies]
 pollster = "0.3.0"
 rand = "0.8.5"
+image = { version = "0.24.7", features = ["png"] }
 
 [profile.release]
 debug = true

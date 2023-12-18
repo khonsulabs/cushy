@@ -1,6 +1,6 @@
 # Gooey
 
-![Gooey is considered experimental and unsupported](https://img.shields.io/badge/status-prototype-blueviolet)
+![Gooey is considered alpha and unsupported](https://img.shields.io/badge/status-alpha-blueviolet)
 [![crate version](https://img.shields.io/crates/v/gooey.svg)](https://crates.io/crates/gooey)
 [![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)](https://gooey.rs/main/gooey/)
 
@@ -50,7 +50,7 @@ creating an example.
 ## Project Status
 
 This project is early in development, but is quickly becoming a decent
-framework. It is considered experimental and unspported at this time, and the
+framework. It is considered alpha and unsupported at this time, and the
 primary focus for [@ecton][ecton] is to use this for his own projects. Feature
 requests and bug fixes will be prioritized based on @ecton's own needs.
 
