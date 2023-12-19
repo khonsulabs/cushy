@@ -1,7 +1,7 @@
 //! A widget that combines a collection of [`Children`] widgets into one.
 
 use kludgine::figures::units::UPx;
-use kludgine::figures::{IntoSigned, Rect, ScreenScale, Size};
+use kludgine::figures::{IntoSigned, Rect, Round, ScreenScale, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::IntrinsicPadding;
@@ -142,7 +142,8 @@ impl Widget for Stack {
             FlexibleDimension::Auto => context.get(&IntrinsicPadding),
             FlexibleDimension::Dimension(dimension) => dimension,
         }
-        .into_upx(context.gfx.scale());
+        .into_upx(context.gfx.scale())
+        .round();
 
         let content_size = self.layout.update(
             available_space,

@@ -3,7 +3,7 @@
 
 use intentional::Cast;
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero};
+use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero};
 
 use crate::context::{AsEventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::{IntrinsicPadding, LayoutOrder};
@@ -64,6 +64,36 @@ impl Wrap {
         self.vertical_align = align.into_value();
         self
     }
+
+    fn horizontal_alignment(
+        align: WrapAlign,
+        order: HorizontalOrder,
+        remaining: Px,
+        row_children_len: usize,
+    ) -> (Px, Px) {
+        match (align, order) {
+            (WrapAlign::Start, HorizontalOrder::LeftToRight)
+            | (WrapAlign::End, HorizontalOrder::RightToLeft) => (Px::ZERO, Px::ZERO),
+            (WrapAlign::End, HorizontalOrder::LeftToRight)
+            | (WrapAlign::Start, HorizontalOrder::RightToLeft) => (remaining, Px::ZERO),
+            (WrapAlign::Center, _) => (remaining / 2, Px::ZERO),
+            (WrapAlign::SpaceBetween, _) => {
+                if row_children_len > 1 {
+                    (Px::ZERO, remaining / (row_children_len - 1).cast::<i32>())
+                } else {
+                    (Px::ZERO, Px::ZERO)
+                }
+            }
+            (WrapAlign::SpaceEvenly, _) => {
+                let spacing = remaining / row_children_len.cast::<i32>();
+                (spacing / 2, spacing)
+            }
+            (WrapAlign::SpaceAround, _) => {
+                let spacing = remaining / (row_children_len + 1).cast::<i32>();
+                (spacing, spacing)
+            }
+        }
+    }
 }
 
 impl Widget for Wrap {
@@ -73,6 +103,7 @@ impl Widget for Wrap {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
@@ -96,7 +127,8 @@ impl Widget for Wrap {
                 FlexibleDimension::Auto => context.get(&IntrinsicPadding),
                 FlexibleDimension::Dimension(dimension) => dimension,
             })
-            .into_px(context.gfx.scale());
+            .into_px(context.gfx.scale())
+            .round();
         self.mounted
             .synchronize_with(&self.children, &mut context.as_event_context());
 
@@ -144,28 +176,7 @@ impl Widget for Wrap {
             // Calculate the horizontal alignment.
             let remaining = (width - x).max(Px::ZERO);
             let (x, space_between) = if remaining > 0 {
-                match (align, order) {
-                    (WrapAlign::Start, HorizontalOrder::LeftToRight)
-                    | (WrapAlign::End, HorizontalOrder::RightToLeft) => (Px::ZERO, Px::ZERO),
-                    (WrapAlign::End, HorizontalOrder::LeftToRight)
-                    | (WrapAlign::Start, HorizontalOrder::RightToLeft) => (remaining, Px::ZERO),
-                    (WrapAlign::Center, _) => (remaining / 2, Px::ZERO),
-                    (WrapAlign::SpaceBetween, _) => {
-                        if row_children.len() > 1 {
-                            (Px::ZERO, remaining / (row_children.len() - 1).cast::<i32>())
-                        } else {
-                            (Px::ZERO, Px::ZERO)
-                        }
-                    }
-                    (WrapAlign::SpaceEvenly, _) => {
-                        let spacing = remaining / row_children.len().cast::<i32>();
-                        (spacing / 2, spacing)
-                    }
-                    (WrapAlign::SpaceAround, _) => {
-                        let spacing = remaining / (row_children.len() + 1).cast::<i32>();
-                        (spacing, spacing)
-                    }
-                }
+                Self::horizontal_alignment(align, order, remaining, row_children.len())
             } else {
                 (Px::ZERO, Px::ZERO)
             };

@@ -5,7 +5,7 @@ use std::time::Duration;
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Rect, ScreenScale, Size};
+use kludgine::figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
 
@@ -467,7 +467,10 @@ impl Widget for Button {
         available_space: Size<crate::ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
+        let padding = context
+            .get(&IntrinsicPadding)
+            .into_upx(context.gfx.scale())
+            .round();
         let double_padding = padding * 2;
         let mounted = self.content.mounted(&mut context.as_event_context());
         let available_space = available_space.map(|space| space - double_padding);
