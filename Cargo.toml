@@ -38,8 +38,8 @@ unicode-segmentation = "1.10.1"
 
 # [patch."https://github.com/khonsulabs/kludgine"]
 # kludgine = { path = "../kludgine" }
-# [patch."https://github.com/khonsulabs/appit"]
-# appit = { path = "../appit" }
+# [patch.crates-io]
+# appit = { version = "0.1.0", path = "../appit" }
 # [patch."https://github.com/khonsulabs/figures"]
 # figures = { path = "../figures" }
 
