@@ -457,7 +457,7 @@ impl GridLayout {
         // Measure the weighted children within the remaining space
         if self.total_weights > 0 {
             if requires_gutter {
-                remaining -= gutter;
+                remaining = remaining.saturating_sub(gutter);
             }
             let space_per_weight = (remaining / self.total_weights).floor();
             remaining = remaining.saturating_sub(space_per_weight * self.total_weights);
