@@ -49,6 +49,7 @@ pub struct RunningWindow<'window> {
     gooey: Gooey,
     focused: Dynamic<bool>,
     occluded: Dynamic<bool>,
+    inner_size: Dynamic<Size<UPx>>,
 }
 
 impl<'window> RunningWindow<'window> {
@@ -57,12 +58,14 @@ impl<'window> RunningWindow<'window> {
         gooey: &Gooey,
         focused: &Dynamic<bool>,
         occluded: &Dynamic<bool>,
+        inner_size: &Dynamic<Size<UPx>>,
     ) -> Self {
         Self {
             window,
             gooey: gooey.clone(),
             focused: focused.clone(),
             occluded: occluded.clone(),
+            inner_size: inner_size.clone(),
         }
     }
 
@@ -78,6 +81,13 @@ impl<'window> RunningWindow<'window> {
     #[must_use]
     pub fn occluded(&self) -> &Dynamic<bool> {
         &self.occluded
+    }
+
+    /// Returns a dynamic that is updated whenever this window's inner size
+    /// changes.
+    #[must_use]
+    pub const fn inner_size(&self) -> &Dynamic<Size<UPx>> {
+        &self.inner_size
     }
 
     /// Returns a locked mutex guard to the OS's clipboard, if one was able to be
@@ -139,6 +149,7 @@ where
     /// during drawing operations.
     pub font_data_to_load: Vec<Vec<u8>>,
 
+    inner_size: Option<Dynamic<Size<UPx>>>,
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
     theme_mode: Option<Value<ThemeMode>>,
@@ -191,6 +202,17 @@ impl Window<WidgetInstance> {
         let occluded = occluded.into_dynamic();
         occluded.set(false);
         self.occluded = Some(occluded);
+        self
+    }
+
+    /// Sets `inner_size` to be the dynamic updated when this window's inner size
+    /// is changed.
+    ///
+    /// When the window is resized, the dynamic will contain its new size.
+    /// `true`.
+    pub fn inner_size(mut self, inner_size: impl IntoDynamic<Size<UPx>>) -> Self {
+        let inner_size = inner_size.into_dynamic();
+        self.inner_size = Some(inner_size);
         self
     }
 
@@ -262,6 +284,7 @@ where
             occluded: None,
             focused: None,
             theme_mode: None,
+            inner_size: None,
             serif_font_family: FontFamilyList::default(),
             sans_serif_font_family: FontFamilyList::default(),
             fantasy_font_family: FontFamilyList::default(),
@@ -289,6 +312,7 @@ where
                 attributes: Some(self.attributes),
                 occluded: self.occluded,
                 focused: self.focused,
+                inner_size: self.inner_size,
                 theme: Some(self.theme),
                 theme_mode: self.theme_mode,
                 font_data_to_load: self.font_data_to_load,
@@ -346,6 +370,7 @@ struct GooeyWindow<T> {
     initial_frame: bool,
     occluded: Dynamic<bool>,
     focused: Dynamic<bool>,
+    inner_size: Dynamic<Size<UPx>>,
     keyboard_activated: Option<WidgetId>,
     min_inner_size: Option<Size<UPx>>,
     max_inner_size: Option<Size<UPx>>,
@@ -548,6 +573,7 @@ where
         let gooey = settings.gooey.clone();
         let occluded = settings.occluded.take().unwrap_or_default();
         let focused = settings.focused.take().unwrap_or_default();
+        let inner_size = settings.inner_size.take().unwrap_or_default();
         let theme = settings.theme.take().expect("theme always present");
 
         let fontdb = graphics.font_system().db_mut();
@@ -616,7 +642,7 @@ where
         };
         let transparent = settings.transparent;
         let mut behavior = T::initialize(
-            &mut RunningWindow::new(window, &gooey, &focused, &occluded),
+            &mut RunningWindow::new(window, &gooey, &focused, &occluded, &inner_size),
             context.user,
         );
         let root = Tree::default().push_boxed(behavior.make_root(), None);
@@ -640,6 +666,7 @@ where
             initial_frame: true,
             occluded,
             focused,
+            inner_size,
             keyboard_activated: None,
             min_inner_size: None,
             max_inner_size: None,
@@ -671,7 +698,7 @@ where
             .new_frame(self.redraw_status.invalidations().drain());
 
         let resizable = window.winit().is_resizable();
-        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded, &self.inner_size);
         let root_mode = self.constrain_window_resizing(resizable, &mut window, graphics);
 
         self.fonts.next_frame();
@@ -798,7 +825,7 @@ where
         Self::request_close(
             &mut self.should_close,
             &mut self.behavior,
-            &mut RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded),
+            &mut RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded, &self.inner_size),
         )
     }
 
@@ -834,9 +861,10 @@ where
 
     fn resized(
         &mut self,
-        _window: kludgine::app::Window<'_, WindowCommand>,
+        window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
+        self.inner_size.set(window.inner_size());
         self.root.invalidate();
     }
 
@@ -862,7 +890,7 @@ where
         let Some(target) = self.root.tree.widget_from_node(target) else {
             return;
         };
-        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded, &self.inner_size);
         let mut target = EventContext::new(
             WidgetContext::new(
                 target,
@@ -972,7 +1000,7 @@ where
                     .expect("missing widget")
             });
 
-        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded, &self.inner_size);
         let mut widget = EventContext::new(
             WidgetContext::new(
                 widget,
@@ -1008,7 +1036,7 @@ where
                     .widget(self.root.id())
                     .expect("missing widget")
             });
-        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded, &self.inner_size);
         let mut target = EventContext::new(
             WidgetContext::new(
                 widget,
@@ -1035,7 +1063,7 @@ where
         let location = Point::<Px>::from(position);
         self.cursor.location = Some(location);
 
-        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded, &self.inner_size);
 
         EventContext::new(
             WidgetContext::new(
@@ -1082,7 +1110,7 @@ where
         _device_id: DeviceId,
     ) {
         if self.cursor.widget.take().is_some() {
-            let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
+            let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded, &self.inner_size);
             let mut context = EventContext::new(
                 WidgetContext::new(
                     self.root.clone(),
@@ -1106,7 +1134,7 @@ where
         state: ElementState,
         button: MouseButton,
     ) {
-        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded);
+        let mut window = RunningWindow::new(window, &self.gooey, &self.focused, &self.occluded, &self.inner_size);
         match state {
             ElementState::Pressed => {
                 EventContext::new(
@@ -1238,6 +1266,9 @@ pub(crate) struct CursorState {
 pub(crate) mod sealed {
     use std::cell::RefCell;
 
+    use kludgine::figures::Size;
+    use kludgine::figures::units::UPx;
+
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
     use crate::window::{ThemeMode, WindowAttributes};
@@ -1253,6 +1284,7 @@ pub(crate) mod sealed {
         pub attributes: Option<WindowAttributes>,
         pub occluded: Option<Dynamic<bool>>,
         pub focused: Option<Dynamic<bool>>,
+        pub inner_size: Option<Dynamic<Size<UPx>>>,
         pub theme: Option<Value<ThemePair>>,
         pub theme_mode: Option<Value<ThemeMode>>,
         pub transparent: bool,
