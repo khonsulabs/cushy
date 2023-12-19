@@ -1147,9 +1147,9 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "kludgine"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfd1a6ff36bce8a2d59d574a8e4a9a086bda0cd6d4eeb2b024305a4213a4317b"
+checksum = "0ceffa62a08f8cf3e8fb71f2a49df69100f7817a005014db52339d958a79ced5"
 dependencies = [
  "ahash",
  "alot",
@@ -1364,9 +1364,9 @@ dependencies = [
 
 [[package]]
 name = "memmap2"
-version = "0.9.2"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39a69c7c189ae418f83003da62820aca28d15a07725ce51fb924999335d622ff"
+checksum = "45fd3a57831bf88bc63f8cebc0cf956116276e97fef3966103e96416209f7c92"
 dependencies = [
  "libc",
 ]
@@ -2218,7 +2218,7 @@ dependencies = [
  "cursor-icon",
  "libc",
  "log",
- "memmap2 0.9.2",
+ "memmap2 0.9.3",
  "rustix",
  "thiserror",
  "wayland-backend",
@@ -3136,7 +3136,7 @@ dependencies = [
  "js-sys",
  "libc",
  "log",
- "memmap2 0.9.2",
+ "memmap2 0.9.3",
  "ndk",
  "ndk-sys",
  "objc2",
