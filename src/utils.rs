@@ -6,13 +6,13 @@ use intentional::Assert;
 use kludgine::app::winit::event::Modifiers;
 use kludgine::app::winit::keyboard::ModifiersState;
 
-/// This [`Condvar`] is a wrapper that on Mac OS/iOS asserts unwind safety. On
+/// This [`Condvar`] is a wrapper that on Mac OS/iOS/Windows asserts unwind safety. On
 /// all other platforms, this is a transparent wrapper around `Condvar`. See
 /// <https://github.com/rust-lang/rust/issues/118009> for more information.
 #[derive(Debug, Default)]
 pub struct UnwindsafeCondvar(
-    #[cfg(any(target_os = "ios", target_os = "macos"))] std::panic::AssertUnwindSafe<Condvar>,
-    #[cfg(not(any(target_os = "ios", target_os = "macos")))] Condvar,
+    #[cfg(any(target_os = "ios", target_os = "macos", target_os = "windows"))] std::panic::AssertUnwindSafe<Condvar>,
+    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "windows")))] Condvar,
 );
 
 impl Deref for UnwindsafeCondvar {
@@ -25,12 +25,12 @@ impl Deref for UnwindsafeCondvar {
 
 impl UnwindsafeCondvar {
     pub const fn new() -> Self {
-        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        #[cfg(any(target_os = "ios", target_os = "macos", target_os = "windows"))]
         {
             Self(std::panic::AssertUnwindSafe(Condvar::new()))
         }
 
-        #[cfg(not(any(target_os = "ios", target_os = "macos")))]
+        #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "windows")))]
         {
             Self(Condvar::new())
         }

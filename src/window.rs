@@ -5,7 +5,6 @@ use std::ffi::OsStr;
 use std::ops::{Deref, DerefMut, Not};
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 use std::path::Path;
-use std::process::Command;
 use std::string::ToString;
 use std::sync::{MutexGuard, OnceLock};
 
@@ -1340,7 +1339,7 @@ impl Ranged for ThemeMode {
 }
 
 #[cfg(any(target_os = "macos", target_os = "ios", target_os = "windows"))]
-fn default_family(query: Family<'_>) -> Option<FamilyOwned> {
+fn default_family(_query: Family<'_>) -> Option<FamilyOwned> {
     // fontdb uses system APIs to determine these defaults.
     None
 }
@@ -1360,7 +1359,7 @@ fn default_family(query: Family<'_>) -> Option<FamilyOwned> {
         Family::Name(_) => return None,
     };
 
-    Command::new("fc-match")
+    std::process::Command::new("fc-match")
         .arg("-f")
         .arg("%{family}")
         .arg(query)

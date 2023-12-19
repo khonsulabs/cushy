@@ -89,9 +89,9 @@ dependencies = [
 
 [[package]]
 name = "appit"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c843008d81c05e90e716349b2fa73017583f40965bf1651a34fa5fa7159eeef7"
+checksum = "e3441f2d5169d7cce48f58cc16a802b6bb6e9e3edf80712ac56c681a09b92ae0"
 dependencies = [
  "winit",
 ]
@@ -869,7 +869,7 @@ dependencies = [
 
 [[package]]
 name = "gooey"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "ahash",
  "alot",
@@ -3165,9 +3165,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.5.28"
+version = "0.5.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c830786f7720c2fd27a1a0e27a709dbd3c4d009b56d098fc742d4f4eab91fe2"
+checksum = "9b5c3db89721d50d0e2a673f5043fc4722f76dcc352d7b1ab8b8288bed4ed2c5"
 dependencies = [
  "memchr",
 ]
