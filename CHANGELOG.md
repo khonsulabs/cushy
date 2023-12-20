@@ -12,6 +12,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Many bounds required `UnwindSafe` due to a misunderstanding on how to handle
   this trait in `appit`. All requirements for `UnwindSafe` have been removed.
 
+### Changed
+
+- [#92][92]: When a Window is resizable and the root widget's `layout()`
+  function returns a size larger than the window's inner size, the window will
+  no longer be resized to fit. The content will be forced to render in the given
+  space, which may result in clipping.
+
+  Using a `Resize` widget in the root hierarchy allows setting minimum width and
+  heights for the content.
+
+[92]: https://github.com/khonsulabs/gooey/issues/92
+
 ## v0.1.3 (2023-12-19)
 
 ### Added

@@ -765,10 +765,6 @@ where
             let _ = layout_context
                 .winit()
                 .request_inner_size(PhysicalSize::from(new_size));
-        } else if render_size != actual_size && resizable {
-            let _ = layout_context
-                .winit()
-                .request_inner_size(PhysicalSize::from(actual_size));
         }
         self.root.set_layout(Rect::from(render_size.into_signed()));
 
