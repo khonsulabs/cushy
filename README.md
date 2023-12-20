@@ -62,8 +62,8 @@ Gooey.
 
 [widget]: https://docs.rs/gooey/*/gooey/widget/trait.Widget.html
 [widgets]: https://docs.rs/gooey/*/gooey/widgets/index.html
-[button-example]: https://github.com/khonsulabs/gooey/tree/v0.1.2/examples/basic-button.rs
-[examples]: https://github.com/khonsulabs/gooey/tree/v0.1.2/examples/
+[button-example]: https://github.com/khonsulabs/gooey/tree/v0.1.3/examples/basic-button.rs
+[examples]: https://github.com/khonsulabs/gooey/tree/v0.1.3/examples/
 [kludgine]: https://github.com/khonsulabs/kludgine
 [figures]: https://github.com/khonsulabs/figures
 [wgpu]: https://github.com/gfx-rs/wgpu
