@@ -490,7 +490,6 @@ impl Widget for Button {
         _is_synthetic: bool,
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
-        // TODO should this be handled at the window level?
         if input.text.as_deref() == Some(" ") && !context.modifiers().possible_shortcut() {
             let changed = match input.state {
                 ElementState::Pressed => {

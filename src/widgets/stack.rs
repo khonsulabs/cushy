@@ -23,7 +23,6 @@ pub struct Stack {
     pub gutter: Value<FlexibleDimension>,
     layout: GridLayout,
     layout_generation: Option<Generation>,
-    // TODO Refactor synced_children into its own type.
     synced_children: Vec<MountedWidget>,
 }
 
