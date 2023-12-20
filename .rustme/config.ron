@@ -34,7 +34,7 @@ Configuration(
             // "msrv": "1.70",
             "ref-name": (
                 default: "main",
-                release: "v0.1.2",
+                release: "v0.1.3",
             ),
             "docs": (
                 default: "https://gooey.rs/main/gooey/",
