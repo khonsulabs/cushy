@@ -1,6 +1,5 @@
 //! A labeled widget with a circular indicator representing a value.
 use std::fmt::Debug;
-use std::panic::UnwindSafe;
 
 use kludgine::figures::units::Lp;
 use kludgine::figures::{Point, ScreenScale, Size};
@@ -53,7 +52,7 @@ impl<T> Radio<T> {
 
 impl<T> MakeWidgetWithTag for Radio<T>
 where
-    T: Clone + Debug + Eq + UnwindSafe + Send + 'static,
+    T: Clone + Debug + Eq + Send + 'static,
 {
     fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         RadioOrnament {
@@ -79,7 +78,7 @@ struct RadioOrnament<T> {
 
 impl<T> Widget for RadioOrnament<T>
 where
-    T: Debug + Eq + UnwindSafe + Send + 'static,
+    T: Debug + Eq + Send + 'static,
 {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
         let radio_size = context

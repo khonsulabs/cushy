@@ -1,41 +1,10 @@
 use std::ops::Deref;
 use std::sync::mpsc::{self, SyncSender};
-use std::sync::{Condvar, OnceLock, PoisonError};
+use std::sync::{OnceLock, PoisonError};
 
 use intentional::Assert;
 use kludgine::app::winit::event::Modifiers;
 use kludgine::app::winit::keyboard::ModifiersState;
-
-/// This [`Condvar`] is a wrapper that on Mac OS/iOS/Windows asserts unwind safety. On
-/// all other platforms, this is a transparent wrapper around `Condvar`. See
-/// <https://github.com/rust-lang/rust/issues/118009> for more information.
-#[derive(Debug, Default)]
-pub struct UnwindsafeCondvar(
-    #[cfg(any(target_os = "ios", target_os = "macos", target_os = "windows"))] std::panic::AssertUnwindSafe<Condvar>,
-    #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "windows")))] Condvar,
-);
-
-impl Deref for UnwindsafeCondvar {
-    type Target = Condvar;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl UnwindsafeCondvar {
-    pub const fn new() -> Self {
-        #[cfg(any(target_os = "ios", target_os = "macos", target_os = "windows"))]
-        {
-            Self(std::panic::AssertUnwindSafe(Condvar::new()))
-        }
-
-        #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "windows")))]
-        {
-            Self(Condvar::new())
-        }
-    }
-}
 
 /// Invokes the provided macro with a pattern that can be matched using this
 /// `macro_rules!` expression: `$($type:ident $field:tt $var:ident),+`, where `$type` is an

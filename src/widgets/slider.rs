@@ -2,7 +2,6 @@
 use std::fmt::Debug;
 use std::mem;
 use std::ops::RangeInclusive;
-use std::panic::UnwindSafe;
 
 use intentional::{Assert, Cast as _};
 use kludgine::app::winit::event::{DeviceId, MouseButton, MouseScrollDelta, TouchPhase};
@@ -786,16 +785,9 @@ define_components! {
 }
 
 /// A value that can be used in a [`Slider`] widget.
-pub trait SliderValue: Clone + PartialEq + UnwindSafe + Send + Debug + 'static {
+pub trait SliderValue: Clone + PartialEq + Send + Debug + 'static {
     /// The component value for the slider.
-    type Value: Clone
-        + Debug
-        + PartialOrd
-        + LinearInterpolate
-        + PercentBetween
-        + UnwindSafe
-        + Send
-        + 'static;
+    type Value: Clone + Debug + PartialOrd + LinearInterpolate + PercentBetween + Send + 'static;
     /// When true, this type is expected to represent two values: start and an
     /// end.
     const RANGED: bool;
@@ -808,14 +800,7 @@ pub trait SliderValue: Clone + PartialEq + UnwindSafe + Send + Debug + 'static {
 
 impl<T> SliderValue for T
 where
-    T: Clone
-        + Debug
-        + PartialOrd
-        + LinearInterpolate
-        + PercentBetween
-        + UnwindSafe
-        + Send
-        + 'static,
+    T: Clone + Debug + PartialOrd + LinearInterpolate + PercentBetween + Send + 'static,
 {
     type Value = T;
 
@@ -832,14 +817,7 @@ where
 
 impl<T> SliderValue for RangeInclusive<T>
 where
-    T: Clone
-        + Debug
-        + PartialOrd
-        + LinearInterpolate
-        + PercentBetween
-        + UnwindSafe
-        + Send
-        + 'static,
+    T: Clone + Debug + PartialOrd + LinearInterpolate + PercentBetween + Send + 'static,
 {
     type Value = T;
 
@@ -857,14 +835,7 @@ where
 
 impl<T> SliderValue for (T, T)
 where
-    T: Clone
-        + Debug
-        + PartialOrd
-        + LinearInterpolate
-        + PercentBetween
-        + UnwindSafe
-        + Send
-        + 'static,
+    T: Clone + Debug + PartialOrd + LinearInterpolate + PercentBetween + Send + 'static,
 {
     type Value = T;
 

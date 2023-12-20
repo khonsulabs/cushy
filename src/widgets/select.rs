@@ -1,6 +1,5 @@
 //! A selectable, labeled widget representing a value.
 use std::fmt::Debug;
-use std::panic::{RefUnwindSafe, UnwindSafe};
 
 use kludgine::Color;
 
@@ -48,7 +47,7 @@ impl<T> Select<T> {
 
 impl<T> MakeWidgetWithTag for Select<T>
 where
-    T: Clone + Debug + Eq + RefUnwindSafe + UnwindSafe + Send + Sync + 'static,
+    T: Clone + Debug + Eq + Send + Sync + 'static,
 {
     fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         let selected = self.state.map_each({

@@ -5,9 +5,8 @@ use std::fmt::{self, Debug, Display};
 use std::future::Future;
 use std::hash::{BuildHasher, Hash};
 use std::ops::{Deref, DerefMut, Not};
-use std::panic::UnwindSafe;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex, MutexGuard, TryLockError, Weak};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError, Weak};
 use std::task::{Poll, Waker};
 use std::thread::{self, ThreadId};
 use std::time::{Duration, Instant};
@@ -20,7 +19,7 @@ use kempt::{Map, Sort};
 use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
 use crate::context::sealed::WindowHandle;
 use crate::context::{self, WidgetContext};
-use crate::utils::{run_in_bg, IgnorePoison, UnwindsafeCondvar, WithClone};
+use crate::utils::{run_in_bg, IgnorePoison, WithClone};
 use crate::widget::{Children, MakeWidget, MakeWidgetWithTag, WidgetId, WidgetInstance};
 use crate::widgets::{Radio, Select, Space, Switcher};
 
@@ -45,7 +44,7 @@ impl<T> Dynamic<T> {
                 source_callback: None,
             }),
             during_callback_state: Mutex::default(),
-            sync: UnwindsafeCondvar::default(),
+            sync: Condvar::default(),
         }))
     }
 
@@ -759,7 +758,7 @@ struct LockState {
 struct DynamicData<T> {
     state: Mutex<State<T>>,
     during_callback_state: Mutex<Option<LockState>>,
-    sync: UnwindsafeCondvar,
+    sync: Condvar,
 }
 
 impl<T> DynamicData<T> {
@@ -998,7 +997,7 @@ where
 struct ChangeCallbacksData {
     callbacks: Mutex<CallbacksList>,
     currently_executing: Mutex<Option<ThreadId>>,
-    sync: UnwindsafeCondvar,
+    sync: Condvar,
 }
 
 struct CallbacksList {
@@ -2319,7 +2318,7 @@ impl Validations {
 
     fn invoke_callback<T, R, F>(&self, t: T, handler: &mut F) -> R
     where
-        F: FnMut(T) -> R + UnwindSafe + Send + 'static,
+        F: FnMut(T) -> R + Send + 'static,
         R: Default,
     {
         let mut state = self.state.lock();
@@ -2341,12 +2340,9 @@ impl Validations {
     /// [`Callback`](crate::widget::Callback).
     ///
     /// When the contents are invalid, `R::default()` is returned.
-    pub fn when_valid<T, R, F>(
-        self,
-        mut handler: F,
-    ) -> impl FnMut(T) -> R + UnwindSafe + Send + 'static
+    pub fn when_valid<T, R, F>(self, mut handler: F) -> impl FnMut(T) -> R + Send + 'static
     where
-        F: FnMut(T) -> R + UnwindSafe + Send + 'static,
+        F: FnMut(T) -> R + Send + 'static,
         R: Default,
     {
         move |t: T| self.invoke_callback(t, &mut handler)

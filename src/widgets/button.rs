@@ -1,5 +1,4 @@
 //! A clickable, labeled button
-use std::panic::UnwindSafe;
 use std::time::Duration;
 
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
@@ -158,7 +157,7 @@ impl Button {
     #[must_use]
     pub fn on_click<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(()) + Send + UnwindSafe + 'static,
+        F: FnMut(()) + Send + 'static,
     {
         self.on_click = Some(Callback::new(callback));
         self

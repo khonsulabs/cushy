@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use ahash::AHashSet;
@@ -10,7 +10,7 @@ use kludgine::figures::units::Px;
 use kludgine::figures::Point;
 
 use crate::context::WidgetContext;
-use crate::utils::{IgnorePoison, UnwindsafeCondvar};
+use crate::utils::IgnorePoison;
 use crate::value::Dynamic;
 use crate::widget::{EventHandling, HANDLED, IGNORED};
 
@@ -102,7 +102,7 @@ impl Tick {
                 input: InputState::default(),
             }),
             period: tick_every,
-            sync: UnwindsafeCondvar::new(),
+            sync: Condvar::new(),
             rendered_frame: AtomicUsize::new(0),
             tick_number: Dynamic::default(),
         });
@@ -162,7 +162,7 @@ pub struct Mouse {
 struct TickData {
     state: Mutex<TickState>,
     period: Duration,
-    sync: UnwindsafeCondvar,
+    sync: Condvar,
     rendered_frame: AtomicUsize,
     tick_number: Dynamic<u64>,
 }

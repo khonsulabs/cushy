@@ -3,7 +3,6 @@
 use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::ops::{Deref, DerefMut, Not};
-use std::panic::{AssertUnwindSafe, UnwindSafe};
 use std::path::Path;
 use std::string::ToString;
 use std::sync::{MutexGuard, OnceLock};
@@ -309,7 +308,7 @@ where
 {
     fn run(self) -> crate::Result {
         initialize_tracing();
-        GooeyWindow::<Behavior>::run_with(AssertUnwindSafe(sealed::Context {
+        GooeyWindow::<Behavior>::run_with(sealed::Context {
             user: self.context,
             settings: RefCell::new(sealed::WindowSettings {
                 gooey: self.gooey,
@@ -327,14 +326,14 @@ where
                 monospace_font_family: self.monospace_font_family,
                 cursive_font_family: self.cursive_font_family,
             }),
-        }))
+        })
     }
 }
 
 /// The behavior of a Gooey window.
 pub trait WindowBehavior: Sized + 'static {
     /// The type that is provided when initializing this window.
-    type Context: UnwindSafe + Send + 'static;
+    type Context: Send + 'static;
 
     /// Return a new instance of this behavior using `context`.
     fn initialize(window: &mut RunningWindow<'_>, context: Self::Context) -> Self;
@@ -568,12 +567,12 @@ impl<T> kludgine::app::WindowBehavior<WindowCommand> for GooeyWindow<T>
 where
     T: WindowBehavior,
 {
-    type Context = AssertUnwindSafe<sealed::Context<T::Context>>;
+    type Context = sealed::Context<T::Context>;
 
     fn initialize(
         window: kludgine::app::Window<'_, WindowCommand>,
         graphics: &mut kludgine::Graphics<'_>,
-        AssertUnwindSafe(context): Self::Context,
+        context: Self::Context,
     ) -> Self {
         let mut settings = context.settings.borrow_mut();
         let gooey = settings.gooey.clone();

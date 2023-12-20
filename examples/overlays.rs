@@ -1,5 +1,3 @@
-use std::panic::UnwindSafe;
-
 use gooey::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
 use gooey::widgets::container::ContainerShadow;
 use gooey::widgets::layers::{OverlayBuilder, OverlayLayer};
@@ -54,10 +52,7 @@ fn test_widget(overlay: &OverlayLayer, is_root: bool) -> impl MakeWidget {
 fn show_overlay_button(
     label: &str,
     overlay: &OverlayLayer,
-    direction_func: impl for<'a> Fn(OverlayBuilder<'a>) -> OverlayBuilder<'a>
-        + Send
-        + UnwindSafe
-        + 'static,
+    direction_func: impl for<'a> Fn(OverlayBuilder<'a>) -> OverlayBuilder<'a> + Send + 'static,
 ) -> impl MakeWidget {
     let overlay = overlay.clone();
     label.into_button().on_click(move |()| {

@@ -5,7 +5,6 @@ use std::cmp::Ordering;
 use std::fmt::{self, Debug, Display, Formatter, Write};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
-use std::panic::UnwindSafe;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -163,7 +162,7 @@ where
     /// is returned, this widget will ignore the event.
     pub fn on_key<F>(mut self, on_key: F) -> Self
     where
-        F: FnMut(KeyEvent) -> EventHandling + Send + UnwindSafe + 'static,
+        F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
     {
         self.on_key = Some(Callback::new(on_key));
         self
@@ -1280,7 +1279,7 @@ impl BlinkState {
 /// - `Cow<'static, str>`
 /// - [`CowString`]
 /// - [`MaskedString`]
-pub trait InputStorage: UnwindSafe + Send + 'static {
+pub trait InputStorage: Send + 'static {
     /// If true, the input field should display a mask instead of the actual
     /// string by default.
     const MASKED: bool;

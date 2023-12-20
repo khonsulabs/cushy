@@ -4,7 +4,6 @@ use std::any::Any;
 use std::clone::Clone;
 use std::fmt::{self, Debug};
 use std::ops::{ControlFlow, Deref, DerefMut};
-use std::panic::UnwindSafe;
 use std::sync::atomic::{self, AtomicU64};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{slice, vec};
@@ -260,7 +259,7 @@ use crate::{ConstraintLimit, Run};
 /// the color system works in Gooey.
 ///
 /// [repo]: https://github.com/khonsulabs/gooey
-pub trait Widget: Send + UnwindSafe + Debug + 'static {
+pub trait Widget: Send + Debug + 'static {
     /// Redraw the contents of this widget.
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
 
@@ -509,7 +508,7 @@ impl From<Size<UPx>> for WrappedLayout {
 }
 
 /// A [`Widget`] that contains a single child.
-pub trait WrapperWidget: Debug + Send + UnwindSafe + 'static {
+pub trait WrapperWidget: Debug + Send + 'static {
     /// Returns the child widget.
     fn child_mut(&mut self) -> &mut WidgetRef;
 
@@ -1603,7 +1602,7 @@ impl<T, R> Callback<T, R> {
     /// invoked.
     pub fn new<F>(function: F) -> Self
     where
-        F: FnMut(T) -> R + Send + UnwindSafe + 'static,
+        F: FnMut(T) -> R + Send + 'static,
     {
         Self(Box::new(function))
     }
@@ -1614,13 +1613,13 @@ impl<T, R> Callback<T, R> {
     }
 }
 
-trait CallbackFunction<T, R>: Send + UnwindSafe {
+trait CallbackFunction<T, R>: Send {
     fn invoke(&mut self, value: T) -> R;
 }
 
 impl<T, R, F> CallbackFunction<T, R> for F
 where
-    F: FnMut(T) -> R + Send + UnwindSafe,
+    F: FnMut(T) -> R + Send,
 {
     fn invoke(&mut self, value: T) -> R {
         self(value)
@@ -1653,7 +1652,7 @@ impl<T, R> OnceCallback<T, R> {
     /// invoked.
     pub fn new<F>(function: F) -> Self
     where
-        F: FnOnce(T) -> R + Send + UnwindSafe + 'static,
+        F: FnOnce(T) -> R + Send + 'static,
     {
         Self(Box::new(Some(function)))
     }
@@ -1664,13 +1663,13 @@ impl<T, R> OnceCallback<T, R> {
     }
 }
 
-trait OnceCallbackFunction<T, R>: Send + UnwindSafe {
+trait OnceCallbackFunction<T, R>: Send {
     fn invoke(&mut self, value: T) -> R;
 }
 
 impl<T, R, F> OnceCallbackFunction<T, R> for Option<F>
 where
-    F: FnOnce(T) -> R + Send + UnwindSafe,
+    F: FnOnce(T) -> R + Send,
 {
     fn invoke(&mut self, value: T) -> R {
         (self.take().assert("invoked once"))(value)

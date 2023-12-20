@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::panic::UnwindSafe;
 
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
@@ -121,7 +120,6 @@ impl Custom {
     pub fn on_redraw<Redraw>(mut self, redraw: Redraw) -> Self
     where
         Redraw: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
                 &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
@@ -144,7 +142,6 @@ impl Custom {
     pub fn on_redraw_after_child<Redraw>(mut self, redraw: Redraw) -> Self
     where
         Redraw: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
                 &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
@@ -159,10 +156,8 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::mounted`].
     pub fn on_mounted<Mounted>(mut self, mounted: Mounted) -> Self
     where
-        Mounted: Send
-            + UnwindSafe
-            + 'static
-            + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Mounted:
+            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
     {
         self.mounted = Some(Box::new(mounted));
         self
@@ -174,10 +169,8 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::unmounted`].
     pub fn on_unmounted<Mounted>(mut self, mounted: Mounted) -> Self
     where
-        Mounted: Send
-            + UnwindSafe
-            + 'static
-            + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Mounted:
+            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
     {
         self.unmounted = Some(Box::new(mounted));
         self
@@ -188,10 +181,8 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::unhover`].
     pub fn on_unhover<Unhover>(mut self, unhovered: Unhover) -> Self
     where
-        Unhover: Send
-            + UnwindSafe
-            + 'static
-            + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Unhover:
+            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
     {
         self.unhover = Some(Box::new(unhovered));
         self
@@ -202,10 +193,8 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::focus`].
     pub fn on_focus<Focused>(mut self, focus: Focused) -> Self
     where
-        Focused: Send
-            + UnwindSafe
-            + 'static
-            + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Focused:
+            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
     {
         self.focus = Some(Box::new(focus));
         self
@@ -216,10 +205,7 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::blur`].
     pub fn on_blur<Blur>(mut self, blur: Blur) -> Self
     where
-        Blur: Send
-            + UnwindSafe
-            + 'static
-            + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Blur: Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
     {
         self.blur = Some(Box::new(blur));
         self
@@ -230,10 +216,8 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::activate`].
     pub fn on_activate<Activated>(mut self, activated: Activated) -> Self
     where
-        Activated: Send
-            + UnwindSafe
-            + 'static
-            + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Activated:
+            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
     {
         self.activate = Some(Box::new(activated));
         self
@@ -244,10 +228,8 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::deactivate`].
     pub fn on_deactivate<Deactivated>(mut self, deactivated: Deactivated) -> Self
     where
-        Deactivated: Send
-            + UnwindSafe
-            + 'static
-            + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Deactivated:
+            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
     {
         self.deactivate = Some(Box::new(deactivated));
         self
@@ -260,7 +242,6 @@ impl Custom {
     pub fn on_accept_focus<AcceptFocus>(mut self, accept: AcceptFocus) -> Self
     where
         AcceptFocus: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>) -> bool,
     {
@@ -276,7 +257,6 @@ impl Custom {
     pub fn on_allow_blur<AllowBlur>(mut self, allow_blur: AllowBlur) -> Self
     where
         AllowBlur: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>) -> bool,
     {
@@ -293,7 +273,6 @@ impl Custom {
     pub fn on_advance_focus<AdvanceFocus>(mut self, advance_focus: AdvanceFocus) -> Self
     where
         AdvanceFocus: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(
                 VisualOrder,
@@ -315,7 +294,6 @@ impl Custom {
     ) -> Self
     where
         AdjustChildConstraints: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
                 Size<ConstraintLimit>,
@@ -332,7 +310,6 @@ impl Custom {
     pub fn on_position_child<PositionChild>(mut self, position_child: PositionChild) -> Self
     where
         PositionChild: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
                 Size<Px>,
@@ -351,7 +328,6 @@ impl Custom {
     pub fn on_hit_test<HitTest>(mut self, hit_test: HitTest) -> Self
     where
         HitTest: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(Point<Px>, &mut EventContext<'context, 'window>) -> bool,
     {
@@ -365,7 +341,6 @@ impl Custom {
     pub fn on_hover<Hover>(mut self, hover: Hover) -> Self
     where
         Hover: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(
                 Point<Px>,
@@ -388,7 +363,6 @@ impl Custom {
     pub fn on_mouse_down<MouseDown>(mut self, mouse_down: MouseDown) -> Self
     where
         MouseDown: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(
                 Point<Px>,
@@ -408,7 +382,6 @@ impl Custom {
     pub fn on_mouse_drag<MouseDrag>(mut self, mouse_drag: MouseDrag) -> Self
     where
         MouseDrag: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(
                 Point<Px>,
@@ -427,7 +400,6 @@ impl Custom {
     pub fn on_mouse_up<MouseUp>(mut self, mouse_up: MouseUp) -> Self
     where
         MouseUp: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(
                 Option<Point<Px>>,
@@ -446,7 +418,6 @@ impl Custom {
     pub fn on_ime<OnIme>(mut self, ime: OnIme) -> Self
     where
         OnIme: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(Ime, &mut EventContext<'context, 'window>) -> EventHandling,
     {
@@ -460,7 +431,6 @@ impl Custom {
     pub fn on_keyboard_input<KeyboardInput>(mut self, keyboard_input: KeyboardInput) -> Self
     where
         KeyboardInput: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(
                 DeviceId,
@@ -479,7 +449,6 @@ impl Custom {
     pub fn mouse_wheel<MouseWheel>(mut self, mouse_wheel: MouseWheel) -> Self
     where
         MouseWheel: Send
-            + UnwindSafe
             + 'static
             + for<'context, 'window> FnMut(
                 DeviceId,
@@ -711,14 +680,13 @@ impl WrapperWidget for Custom {
     }
 }
 
-trait RedrawFunc: Send + UnwindSafe {
+trait RedrawFunc: Send {
     fn invoke(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
 }
 
 impl<Func> RedrawFunc for Func
 where
     Func: Send
-        + UnwindSafe
         + 'static
         + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
             &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
@@ -729,7 +697,7 @@ where
     }
 }
 
-trait AdjustChildConstraintsFunc: Send + UnwindSafe {
+trait AdjustChildConstraintsFunc: Send {
     fn invoke(
         &mut self,
         available_space: Size<ConstraintLimit>,
@@ -740,7 +708,6 @@ trait AdjustChildConstraintsFunc: Send + UnwindSafe {
 impl<Func> AdjustChildConstraintsFunc for Func
 where
     Func: Send
-        + UnwindSafe
         + 'static
         + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
             Size<ConstraintLimit>,
@@ -756,7 +723,7 @@ where
     }
 }
 
-trait PositionChildFunc: Send + UnwindSafe {
+trait PositionChildFunc: Send {
     fn invoke(
         &mut self,
         size: Size<Px>,
@@ -768,7 +735,6 @@ trait PositionChildFunc: Send + UnwindSafe {
 impl<Func> PositionChildFunc for Func
 where
     Func: Send
-        + UnwindSafe
         + 'static
         + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
             Size<Px>,
@@ -786,39 +752,34 @@ where
     }
 }
 
-trait EventFunc<R = ()>: Send + UnwindSafe {
+trait EventFunc<R = ()>: Send {
     fn invoke(&mut self, context: &mut EventContext<'_, '_>) -> R;
 }
 
 impl<R, Func> EventFunc<R> for Func
 where
-    Func: Send
-        + UnwindSafe
-        + 'static
-        + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>) -> R,
+    Func: Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>) -> R,
 {
     fn invoke(&mut self, context: &mut EventContext<'_, '_>) -> R {
         self(context)
     }
 }
 
-trait OneParamEventFunc<P, R = ()>: Send + UnwindSafe {
+trait OneParamEventFunc<P, R = ()>: Send {
     fn invoke(&mut self, param: P, context: &mut EventContext<'_, '_>) -> R;
 }
 
 impl<P, R, Func> OneParamEventFunc<P, R> for Func
 where
-    Func: Send
-        + UnwindSafe
-        + 'static
-        + for<'context, 'window> FnMut(P, &mut EventContext<'context, 'window>) -> R,
+    Func:
+        Send + 'static + for<'context, 'window> FnMut(P, &mut EventContext<'context, 'window>) -> R,
 {
     fn invoke(&mut self, location: P, context: &mut EventContext<'_, '_>) -> R {
         self(location, context)
     }
 }
 
-trait ThreeParamEventFunc<P1, P2, P3, R = ()>: Send + UnwindSafe {
+trait ThreeParamEventFunc<P1, P2, P3, R = ()>: Send {
     fn invoke(
         &mut self,
         location: P1,
@@ -833,7 +794,6 @@ type MouseUpFunc = dyn ThreeParamEventFunc<Option<Point<Px>>, DeviceId, MouseBut
 impl<P1, P2, P3, R, Func> ThreeParamEventFunc<P1, P2, P3, R> for Func
 where
     Func: Send
-        + UnwindSafe
         + 'static
         + for<'context, 'window> FnMut(P1, P2, P3, &mut EventContext<'context, 'window>) -> R,
 {

@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::panic::UnwindSafe;
 
 use kludgine::figures::units::UPx;
 use kludgine::figures::Size;
@@ -24,7 +23,6 @@ impl Canvas {
         F: for<'clip, 'gfx, 'pass, 'context, 'window> FnMut(
                 &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
             ) + Send
-            + UnwindSafe
             + 'static,
     {
         Self {
@@ -65,7 +63,7 @@ impl Debug for Canvas {
     }
 }
 
-trait RenderFunction: Send + UnwindSafe + 'static {
+trait RenderFunction: Send + 'static {
     fn render(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
 }
 
@@ -74,7 +72,6 @@ where
     F: for<'clip, 'gfx, 'pass, 'context, 'window> FnMut(
             &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
         ) + Send
-        + UnwindSafe
         + 'static,
 {
     fn render(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {

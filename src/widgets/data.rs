@@ -1,5 +1,4 @@
 use std::fmt::Debug;
-use std::panic::UnwindSafe;
 
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 use crate::widgets::Space;
@@ -48,7 +47,7 @@ where
 
 impl<T> WrapperWidget for Data<T>
 where
-    T: Debug + Send + UnwindSafe + 'static,
+    T: Debug + Send + 'static,
 {
     fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child

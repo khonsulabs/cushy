@@ -8,7 +8,6 @@ use std::ops::{
     Add, AddAssign, Bound, Deref, Div, Mul, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
     RangeToInclusive,
 };
-use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::sync::Arc;
 
 use ahash::AHashMap;
@@ -374,7 +373,7 @@ impl IntoDynamicComponentValue for DynamicComponent {
 
 impl<T> IntoDynamicComponentValue for T
 where
-    T: ComponentDefinition + Clone + RefUnwindSafe + Send + Sync + 'static,
+    T: ComponentDefinition + Clone + Send + Sync + 'static,
 {
     fn into_dynamic_component(self) -> Value<DynamicComponent> {
         Value::Constant(DynamicComponent::from(self))
@@ -383,7 +382,7 @@ where
 
 impl<T> IntoDynamicComponentValue for Dynamic<T>
 where
-    T: ComponentDefinition + Clone + RefUnwindSafe + Send + Sync + 'static,
+    T: ComponentDefinition + Clone + Send + Sync + 'static,
 {
     fn into_dynamic_component(self) -> Value<DynamicComponent> {
         Value::Dynamic(self.map_each_into())
@@ -430,7 +429,7 @@ impl Component {
     /// Custom components allow storing nearly any type in the style system.
     pub fn custom<T>(component: T) -> Self
     where
-        T: RequireInvalidation + RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
+        T: RequireInvalidation + Debug + Send + Sync + 'static,
     {
         Self::Custom(CustomComponent::new(component))
     }
@@ -441,7 +440,6 @@ impl Component {
     pub fn dynamic<T, Func>(resolve: Func) -> Self
     where
         Func: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<T>
-            + RefUnwindSafe
             + Send
             + Sync
             + 'static,
@@ -617,7 +615,7 @@ impl RequireInvalidation for Lp {
 impl<Unit> From<CornerRadii<Unit>> for Component
 where
     Dimension: From<Unit>,
-    Unit: Debug + UnwindSafe + RefUnwindSafe + Send + Sync + 'static,
+    Unit: Debug + Send + Sync + 'static,
 {
     fn from(radii: CornerRadii<Unit>) -> Self {
         let radii = CornerRadii {
@@ -1002,7 +1000,7 @@ impl CustomComponent {
     /// Wraps an arbitrary value so that it can be used as a [`Component`].
     pub fn new<T>(value: T) -> Self
     where
-        T: RequireInvalidation + RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
+        T: RequireInvalidation + Debug + Send + Sync + 'static,
     {
         Self(Arc::new(value))
     }
@@ -1043,13 +1041,13 @@ impl ComponentType for CustomComponent {
     }
 }
 
-trait AnyComponent: RequireInvalidation + Send + Sync + RefUnwindSafe + UnwindSafe + Debug {
+trait AnyComponent: RequireInvalidation + Send + Sync + Debug {
     fn as_any(&self) -> &dyn Any;
 }
 
 impl<T> AnyComponent for T
 where
-    T: RequireInvalidation + RefUnwindSafe + UnwindSafe + Debug + Send + Sync + 'static,
+    T: RequireInvalidation + Debug + Send + Sync + 'static,
 {
     fn as_any(&self) -> &dyn Any {
         self
@@ -2534,7 +2532,7 @@ impl PartialEq for DynamicComponent {
 }
 
 /// A type that resolves to a [`Component`] at runtime.
-pub trait DynamicComponentResolver: RefUnwindSafe + Send + Sync + 'static {
+pub trait DynamicComponentResolver: Send + Sync + 'static {
     /// Returns the effective component, if one should be applied.
     fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component>;
 }
@@ -2544,7 +2542,6 @@ struct DynamicFunctionWrapper<F>(F);
 impl<T> DynamicComponentResolver for DynamicFunctionWrapper<T>
 where
     T: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<Component>
-        + RefUnwindSafe
         + Send
         + Sync
         + 'static,
@@ -2556,7 +2553,7 @@ where
 
 impl<T> DynamicComponentResolver for T
 where
-    T: ComponentDefinition + Clone + RefUnwindSafe + Send + Sync + 'static,
+    T: ComponentDefinition + Clone + Send + Sync + 'static,
 {
     fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component> {
         Some(context.get(self).into_component())
@@ -2579,7 +2576,6 @@ impl DynamicComponent {
     pub fn new<Func>(resolve: Func) -> Self
     where
         Func: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<Component>
-            + RefUnwindSafe
             + Send
             + Sync
             + 'static,

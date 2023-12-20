@@ -42,9 +42,8 @@ pub mod easings;
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display};
 use std::ops::{ControlFlow, Deref, Div, DivAssign, Mul, MulAssign, Sub};
-use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -57,11 +56,11 @@ use kludgine::Color;
 
 use crate::animation::easings::Linear;
 use crate::styles::{Component, RequireInvalidation};
-use crate::utils::{run_in_bg, IgnorePoison, UnwindsafeCondvar};
+use crate::utils::{run_in_bg, IgnorePoison};
 use crate::value::Dynamic;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
-static NEW_ANIMATIONS: UnwindsafeCondvar = UnwindsafeCondvar::new();
+static NEW_ANIMATIONS: Condvar = Condvar::new();
 
 fn thread_state() -> MutexGuard<'static, Animating> {
     static THREAD: OnceLock<()> = OnceLock::new();
@@ -1358,7 +1357,7 @@ impl PartialEq for EasingFunction {
 }
 
 /// Performs easing for value interpolation.
-pub trait Easing: Debug + Send + Sync + RefUnwindSafe + UnwindSafe + 'static {
+pub trait Easing: Debug + Send + Sync + 'static {
     /// Eases a value ranging between zero and one. The resulting value does not
     /// need to be bounded between zero and one.
     fn ease(&self, progress: ZeroToOne) -> f32;
