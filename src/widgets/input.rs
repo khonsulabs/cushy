@@ -15,7 +15,7 @@ use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window::{CursorIcon, ImePurpose};
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
-    Abs, FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size,
+    Abs, FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size,
 };
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
@@ -340,7 +340,8 @@ where
             Self::point_from_cursor(&cache.measured, self.selection.cursor, cache.bytes);
         position.y += context
             .get(&IntrinsicPadding)
-            .into_px(context.kludgine.scale());
+            .into_px(context.kludgine.scale())
+            .round();
         match affinity {
             Affinity::Before => position.x = Px::ZERO,
             Affinity::After => {
@@ -361,7 +362,8 @@ where
         position += Point::squared(
             context
                 .get(&IntrinsicPadding)
-                .into_px(context.kludgine.scale()),
+                .into_px(context.kludgine.scale())
+                .round(),
         );
         if let Some(target_x) = self.line_navigation_x_target {
             position.x = target_x;
@@ -819,7 +821,8 @@ where
 
         let padding = context
             .get(&IntrinsicPadding)
-            .into_px(context.kludgine.scale());
+            .into_px(context.kludgine.scale())
+            .round();
         let mut location = location - padding;
         if location.y < 0 {
             location.y = Px::ZERO;
@@ -1029,8 +1032,11 @@ where
 
         let cursor_state = self.blink_state;
         let size = context.gfx.size();
-        let padding = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
-        let padding = Point::<Px>::new(padding, padding);
+        let padding = context
+            .get(&IntrinsicPadding)
+            .into_px(context.gfx.scale())
+            .round();
+        let padding = Point::squared(padding);
 
         let cache = self.layout_text(Some(size.width.into_signed()), context);
 
@@ -1147,7 +1153,10 @@ where
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
+        let padding = context
+            .get(&IntrinsicPadding)
+            .into_upx(context.gfx.scale())
+            .round();
 
         let width = available_space.width.max().saturating_sub(padding * 2);
 

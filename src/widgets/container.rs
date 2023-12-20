@@ -4,7 +4,7 @@ use std::ops::Div;
 
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{
-    Abs, Angle, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero,
+    Abs, Angle, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero,
 };
 use kludgine::shapes::{CornerRadii, PathBuilder, Shape};
 use kludgine::Color;
@@ -165,7 +165,7 @@ impl Container {
             Some(padding) => padding.get(),
             None => Edges::from(context.get(&IntrinsicPadding)),
         }
-        .map(|dim| dim.into_px(context.gfx.scale()))
+        .map(|dim| dim.into_px(context.gfx.scale()).round())
     }
 
     fn effective_background_color(&mut self, context: &WidgetContext<'_, '_>) -> kludgine::Color {

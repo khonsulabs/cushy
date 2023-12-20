@@ -52,9 +52,10 @@ impl ProgressBar {
 }
 
 /// A measurement of progress for an indicator widget like [`ProgressBar`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub enum Progress<T = ZeroToOne> {
     /// The task has an indeterminant length.
+    #[default]
     Indeterminant,
     /// The task is a specified amount complete.
     Percent(T),

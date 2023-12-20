@@ -369,4 +369,17 @@ impl FontState {
             })
             .cloned()
     }
+
+    pub fn apply_font_family_list(
+        &self,
+        family: &FontFamilyList,
+        fallback: impl FnOnce() -> Option<FamilyOwned>,
+        apply: impl FnOnce(String),
+    ) {
+        if let Some(FamilyOwned::Name(name)) =
+            self.find_available_font_family(family).or_else(fallback)
+        {
+            apply(name);
+        }
+    }
 }

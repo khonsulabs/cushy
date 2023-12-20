@@ -18,7 +18,7 @@ tracing-output = ["dep:tracing-subscriber"]
 roboto-flex = []
 
 [dependencies]
-kludgine = { version = "0.6.0", features = ["app"] }
+kludgine = { version = "0.6.1", features = ["app"] }
 alot = "0.3"
 interner = "0.2.1"
 kempt = "0.2.1"
@@ -36,14 +36,10 @@ zeroize = "1.6.1"
 unicode-segmentation = "1.10.1"
 
 
-# [patch."https://github.com/khonsulabs/kludgine"]
+# [patch.crates-io]
 # kludgine = { path = "../kludgine" }
-# [patch.crates-io]
-# appit = { version = "0.1.0", path = "../appit" }
-# [patch."https://github.com/khonsulabs/figures"]
+# appit = { path = "../appit" }
 # figures = { path = "../figures" }
-
-# [patch.crates-io]
 # alot = { git = "https://github.com/khonsulabs/alot" }
 # kempt = { path = "../objectmap" }
 
@@ -56,4 +52,6 @@ rand = "0.8.5"
 image = { version = "0.24.7", features = ["png"] }
 
 [profile.release]
-debug = true
+# debug = true
+# opt-level = "s"
+# strip = "debuginfo"

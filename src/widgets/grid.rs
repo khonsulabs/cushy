@@ -155,7 +155,10 @@ impl<const COLUMNS: usize> Widget for Grid<COLUMNS> {
 
         let content_size = self.layout.update(
             available_space,
-            context.get(&IntrinsicPadding).into_upx(context.gfx.scale()),
+            context
+                .get(&IntrinsicPadding)
+                .into_upx(context.gfx.scale())
+                .round(),
             context.gfx.scale(),
             |row, column, constraints, persist| {
                 let mut context = context.for_other(&self.live_rows[column][row]);
@@ -457,7 +460,7 @@ impl GridLayout {
         // Measure the weighted children within the remaining space
         if self.total_weights > 0 {
             if requires_gutter {
-                remaining -= gutter;
+                remaining = remaining.saturating_sub(gutter);
             }
             let space_per_weight = (remaining / self.total_weights).floor();
             remaining = remaining.saturating_sub(space_per_weight * self.total_weights);
