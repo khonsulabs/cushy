@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Validations::validate_result` attaches a `Dynamic<Result<T,E>>` to the
   validations. This was already available on `when` conditioned validations.
+- `Dynamic::[try_]compare_swap` allows swapping the contents of a dynamic after
+  verifying the current contents.
 
 ## v0.1.3 (2023-12-19)
 

@@ -494,6 +494,59 @@ impl<T> Dynamic<T> {
         let _old = self.replace(new_value);
     }
 
+    /// Replaces the current value with `new_value` if the current value is
+    /// equal to `expected_current`.
+    ///
+    /// Returns `Ok` with the overwritten value upon success.
+    ///
+    /// # Errors
+    ///
+    /// - [`TryCompareSwapError::Deadlock`]: This operation would result in a
+    ///       thread deadlock.
+    /// - [`TryCompareSwapError::CurrentValueMismatch`]: The current value did
+    ///       not match `expected_current`. The `T` returned is a clone of the
+    ///       currently stored value.
+    pub fn try_compare_swap(
+        &self,
+        expected_current: &T,
+        new_value: T,
+    ) -> Result<T, TryCompareSwapError<T>>
+    where
+        T: Clone + PartialEq,
+    {
+        match self.0.map_mut(|value, changed| {
+            if value == expected_current {
+                Ok(std::mem::replace(value, new_value))
+            } else {
+                *changed = false;
+                Err(TryCompareSwapError::CurrentValueMismatch(value.clone()))
+            }
+        }) {
+            Ok(old) => old,
+            Err(_) => Err(TryCompareSwapError::Deadlock),
+        }
+    }
+
+    /// Replaces the current value with `new_value` if the current value is
+    /// equal to `expected_current`.
+    ///
+    /// Returns `Ok` with the overwritten value upon success.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` with the currently stored value when `expected_current`
+    /// does not match the currently stored value.
+    pub fn compare_swap(&self, expected_current: &T, new_value: T) -> Result<T, T>
+    where
+        T: Clone + PartialEq,
+    {
+        match self.try_compare_swap(expected_current, new_value) {
+            Ok(old) => Ok(old),
+            Err(TryCompareSwapError::Deadlock) => unreachable!("deadlocked"),
+            Err(TryCompareSwapError::CurrentValueMismatch(value)) => Err(value),
+        }
+    }
+
     /// Returns a new reference-based reader for this dynamic value.
     ///
     /// # Panics
@@ -616,6 +669,17 @@ impl<T> Dynamic<T> {
         validation.set_source(callback);
         validation
     }
+}
+
+/// An error returned from [`Dynamic::try_compare_swap`].
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum TryCompareSwapError<T> {
+    /// The dynamic is already locked for exclusive access by the current
+    /// thread. This operation would result in a deadlock.
+    Deadlock,
+    /// The current value did not match the expected value. This variant's value
+    /// is the value at the time of comparison.
+    CurrentValueMismatch(T),
 }
 
 impl<T> Debug for Dynamic<T>
@@ -2361,11 +2425,9 @@ impl Validations {
         F: FnMut(T) -> R + Send + 'static,
         R: Default,
     {
-        let mut state = self.state.lock();
-        if let ValidationsState::Initial = &*state {
-            *state = ValidationsState::Checked;
-        }
-        drop(state);
+        let _result = self
+            .state
+            .compare_swap(&ValidationsState::Initial, ValidationsState::Checked);
         if self.invalid.get() == 0 {
             handler(t)
         } else {
@@ -2551,4 +2613,13 @@ fn map_cycle_is_finite() {
     // Thus, we expect setting the value to 1 to result in `a` containing 2.
     a.set(1);
     assert_eq!(a.get(), 2);
+}
+
+#[test]
+fn compare_swap() {
+    let dynamic = Dynamic::new(1);
+    assert_eq!(dynamic.compare_swap(&1, 2), Ok(1));
+    assert_eq!(dynamic.compare_swap(&1, 0), Err(2));
+    assert_eq!(dynamic.compare_swap(&2, 0), Ok(2));
+    assert_eq!(dynamic.get(), 0);
 }
