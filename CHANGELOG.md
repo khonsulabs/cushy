@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   This dynamic is also accessible through `RunningWindow::inner_size`, which is
   accessible through contexts passed into various `Widget` functions.
 - `Progress` now implements `Default` by returning `Progress::Indeterminant`.
+- `WeakDynamic<T>` now implements `Debug` when `T` is `Debug`.
 
 ### Fixed
 

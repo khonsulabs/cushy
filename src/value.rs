@@ -1205,6 +1205,20 @@ impl<T> WeakDynamic<T> {
         self.0.upgrade().map(Dynamic)
     }
 }
+impl<T> Debug for WeakDynamic<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(strong) = self.upgrade() {
+            Debug::fmt(&strong, f)
+        } else {
+            f.debug_tuple("WeakDynamic")
+                .field(&"<pending drop>")
+                .finish()
+        }
+    }
+}
 
 impl<'a, T> From<&'a Dynamic<T>> for WeakDynamic<T> {
     fn from(value: &'a Dynamic<T>) -> Self {
