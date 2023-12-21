@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [92]: https://github.com/khonsulabs/gooey/issues/92
 
+### Added
+
+- `Validations::validate_result` attaches a `Dynamic<Result<T,E>>` to the
+  validations. This was already available on `when` conditioned validations.
+
 ## v0.1.3 (2023-12-19)
 
 ### Added

@@ -2243,6 +2243,32 @@ impl Validations {
         validation
     }
 
+    /// Returns a dynamic validation status that is created by transforming the
+    /// `Err` variant of `result` using [`Display`].
+    ///
+    /// The validation is linked with `self` such that checking `self`'s
+    /// validation status will include this validation.
+    #[must_use]
+    pub fn validate_result<T, E>(
+        &self,
+        result: impl IntoDynamic<Result<T, E>>,
+    ) -> Dynamic<Validation>
+    where
+        T: Send + 'static,
+        E: Display + Send + 'static,
+    {
+        let result = result.into_dynamic();
+        let error_message = result.map_each(move |value| match value {
+            Ok(_) => None,
+            Err(err) => Some(err.to_string()),
+        });
+
+        self.validate(&error_message, |error_message| match error_message {
+            None => Ok(()),
+            Some(message) => Err(message.clone()),
+        })
+    }
+
     fn map_to_message<T, E, Valid>(
         mut check: Valid,
     ) -> impl for<'a> FnMut(&'a GenerationalValue<T>) -> GenerationalValue<Option<String>> + Send + 'static
