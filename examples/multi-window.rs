@@ -3,11 +3,15 @@ use gooey::widget::MakeWidget;
 use gooey::{Application, Open, PendingApp, Run};
 
 fn main() -> gooey::Result {
+    // To open multiple applications, we need a handle to the application. This
+    // starts with the `PendingApp` type.
     let app = PendingApp::default();
 
     let open_windows = Dynamic::new(0_usize);
     let counter = Dynamic::new(0_usize);
 
+    // We're going to open two windows as part of the app startup process.
+    // First, the "main" window that displays some stats about the open windows.
     (&open_windows, &counter)
         .map_each(|(open, counter)| {
             format!(
@@ -17,11 +21,19 @@ fn main() -> gooey::Result {
         .and(open_window_button(&app, &open_windows, &counter))
         .into_rows()
         .centered()
+        // The other examples call run() on the widget/window. Since we're
+        // opening two windows at the app's startup,
         .open(&app)?;
 
+    // And now let's open our first "clone" window -- the window that clicking
+    // the open button on any of the windows will create.
+    open_another_window(&app, &open_windows, &counter);
+
+    // Run the application
     app.run()
 }
 
+/// Returns a button that invokes `open_another_window` when clicked.
 fn open_window_button(
     app: &impl Application,
     open_windows: &Dynamic<usize>,
@@ -35,6 +47,7 @@ fn open_window_button(
     })
 }
 
+/// Opens another window that contains a button that opens another window.
 fn open_another_window(
     app: &impl Application,
     open_windows: &Dynamic<usize>,
