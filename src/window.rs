@@ -26,7 +26,7 @@ use kludgine::Kludgine;
 use tracing::Level;
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
-use crate::app::Gooey;
+use crate::app::{Application, Gooey, Open, PendingApp, Run};
 use crate::context::{
     AsEventContext, EventContext, Exclusive, GraphicsContext, InvalidationStatus, LayoutContext,
     WidgetContext,
@@ -37,10 +37,11 @@ use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, DynamicReader, Generation, IntoDynamic, IntoValue, Value};
 use crate::widget::{
-    EventHandling, MountedWidget, RootBehavior, Widget, WidgetId, WidgetInstance, HANDLED, IGNORED,
+    EventHandling, MountedWidget, OnceCallback, RootBehavior, Widget, WidgetId, WidgetInstance,
+    HANDLED, IGNORED,
 };
 use crate::window::sealed::WindowCommand;
-use crate::{initialize_tracing, ConstraintLimit, Run};
+use crate::{initialize_tracing, ConstraintLimit};
 
 /// A currently running Gooey window.
 pub struct RunningWindow<'window> {
@@ -125,7 +126,6 @@ where
     Behavior: WindowBehavior,
 {
     context: Behavior::Context,
-    gooey: Gooey,
     /// The attributes of this window.
     pub attributes: WindowAttributes,
     /// The colors to use to theme the user interface.
@@ -152,6 +152,7 @@ where
     /// during drawing operations.
     pub font_data_to_load: Vec<Vec<u8>>,
 
+    on_closed: Option<OnceCallback>,
     inner_size: Option<Dynamic<Size<UPx>>>,
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
@@ -164,8 +165,7 @@ where
     Behavior::Context: Default,
 {
     fn default() -> Self {
-        let context = Behavior::Context::default();
-        Self::new(context, Gooey::default())
+        Self::new(Behavior::Context::default())
     }
 }
 
@@ -175,7 +175,7 @@ impl Window<WidgetInstance> {
     where
         W: Widget,
     {
-        Self::new(WidgetInstance::new(widget), Gooey::default())
+        Self::new(WidgetInstance::new(widget))
     }
 
     /// Sets `focused` to be the dynamic updated when this window's focus status
@@ -252,6 +252,15 @@ impl Window<WidgetInstance> {
         self.font_data_to_load.push(font_data);
         self
     }
+
+    /// Invokes `on_close` when this window is closed.
+    pub fn on_close<Function>(mut self, on_close: Function) -> Self
+    where
+        Function: FnOnce() + Send + 'static,
+    {
+        self.on_closed = Some(OnceCallback::new(|()| on_close()));
+        self
+    }
 }
 
 impl<Behavior> Window<Behavior>
@@ -260,7 +269,7 @@ where
 {
     /// Returns a new instance using `context` to initialize the window upon
     /// opening.
-    pub fn new(context: Behavior::Context, gooey: Gooey) -> Self {
+    pub fn new(context: Behavior::Context) -> Self {
         static EXECUTABLE_NAME: OnceLock<String> = OnceLock::new();
 
         let title = EXECUTABLE_NAME
@@ -281,7 +290,7 @@ where
                 title,
                 ..WindowAttributes::default()
             },
-            gooey,
+            on_closed: None,
             context,
             load_system_fonts: true,
             theme: Value::default(),
@@ -308,25 +317,51 @@ where
 {
     fn run(self) -> crate::Result {
         initialize_tracing();
-        GooeyWindow::<Behavior>::run_with(sealed::Context {
-            user: self.context,
-            settings: RefCell::new(sealed::WindowSettings {
-                gooey: self.gooey,
-                transparent: self.attributes.transparent,
-                attributes: Some(self.attributes),
-                occluded: self.occluded,
-                focused: self.focused,
-                inner_size: self.inner_size,
-                theme: Some(self.theme),
-                theme_mode: self.theme_mode,
-                font_data_to_load: self.font_data_to_load,
-                serif_font_family: self.serif_font_family,
-                sans_serif_font_family: self.sans_serif_font_family,
-                fantasy_font_family: self.fantasy_font_family,
-                monospace_font_family: self.monospace_font_family,
-                cursive_font_family: self.cursive_font_family,
-            }),
-        })
+        let app = PendingApp::default();
+        self.open(&app)?;
+        app.run()
+    }
+}
+
+impl<Behavior> Open for Window<Behavior>
+where
+    Behavior: WindowBehavior,
+{
+    fn open<App>(self, app: &App) -> crate::Result
+    where
+        App: Application,
+    {
+        let gooey = app.gooey().clone();
+        let _handle = GooeyWindow::<Behavior>::open_with(
+            app,
+            sealed::Context {
+                user: self.context,
+                settings: RefCell::new(sealed::WindowSettings {
+                    gooey,
+                    on_closed: self.on_closed,
+                    transparent: self.attributes.transparent,
+                    attributes: Some(self.attributes),
+                    occluded: self.occluded,
+                    focused: self.focused,
+                    inner_size: self.inner_size,
+                    theme: Some(self.theme),
+                    theme_mode: self.theme_mode,
+                    font_data_to_load: self.font_data_to_load,
+                    serif_font_family: self.serif_font_family,
+                    sans_serif_font_family: self.sans_serif_font_family,
+                    fantasy_font_family: self.fantasy_font_family,
+                    monospace_font_family: self.monospace_font_family,
+                    cursive_font_family: self.cursive_font_family,
+                }),
+            },
+        )?;
+
+        Ok(())
+    }
+
+    fn run_in(self, app: PendingApp) -> crate::Result {
+        self.open(&app)?;
+        app.run()
     }
 }
 
@@ -359,7 +394,7 @@ pub trait WindowBehavior: Sized + 'static {
 
     /// Runs this behavior as an application, initialized with `context`.
     fn run_with(context: Self::Context) -> crate::Result {
-        Window::<Self>::new(context, Gooey::default()).run()
+        Window::<Self>::new(context).run()
     }
 }
 
@@ -385,6 +420,7 @@ struct GooeyWindow<T> {
     transparent: bool,
     fonts: FontState,
     gooey: Gooey,
+    on_closed: Option<OnceCallback>,
 }
 
 impl<T> GooeyWindow<T>
@@ -580,6 +616,7 @@ where
         let focused = settings.focused.take().unwrap_or_default();
         let theme = settings.theme.take().expect("theme always present");
         let inner_size = settings.inner_size.take().unwrap_or_default();
+        let on_closed = settings.on_closed.take();
 
         inner_size.set(window.inner_size());
 
@@ -676,6 +713,7 @@ where
             transparent,
             fonts,
             gooey,
+            on_closed,
         }
     }
 
@@ -1298,6 +1336,14 @@ where
     }
 }
 
+impl<Behavior> Drop for GooeyWindow<Behavior> {
+    fn drop(&mut self) {
+        if let Some(on_closed) = self.on_closed.take() {
+            on_closed.invoke(());
+        }
+    }
+}
+
 fn recursively_handle_event(
     context: &mut EventContext<'_, '_>,
     mut each_widget: impl FnMut(&mut EventContext<'_, '_>) -> EventHandling,
@@ -1322,10 +1368,11 @@ pub(crate) mod sealed {
     use kludgine::figures::units::UPx;
     use kludgine::figures::Size;
 
+    use crate::app::Gooey;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
+    use crate::widget::OnceCallback;
     use crate::window::{ThemeMode, WindowAttributes};
-    use crate::Gooey;
 
     pub struct Context<C> {
         pub user: C,
@@ -1347,6 +1394,7 @@ pub(crate) mod sealed {
         pub monospace_font_family: FontFamilyList,
         pub cursive_font_family: FontFamilyList,
         pub font_data_to_load: Vec<Vec<u8>>,
+        pub on_closed: Option<OnceCallback>,
     }
 
     #[derive(Clone)]

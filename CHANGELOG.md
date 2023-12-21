@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Many bounds required `UnwindSafe` due to a misunderstanding on how to handle
   this trait in `appit`. All requirements for `UnwindSafe` have been removed.
+- `Gooey` no longer implements default. To gain access to a `Gooey` instance,
+  create a `PendingApp` or get a reference to the running `App`.
+- `Window::new` no longer accepts a `Gooey` parameter. The window now adopts the
+  `Gooey` from the application it is opened within.
+- `MakeWidget::into_window()` no longer takes any parameters.
 
 ### Changed
 
@@ -30,6 +35,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validations. This was already available on `when` conditioned validations.
 - `Dynamic::[try_]compare_swap` allows swapping the contents of a dynamic after
   verifying the current contents.
+- [#91][91]: Multi-window support has been implemented. `PendingApp` allows
+  opening one or more windows before starting the program. `App` is a handle to
+  the running application that can be used to open additional windows at
+  runtime.
+
+  `Open` is a new trait that allows various types to open as a window given a
+  reference to an application. This trait is implemented for all types that
+  implemented `Run`, which means any type that was previously able to be run as
+  a standalone executable can now be opened as a window within a multi-window
+  application.
+
+  The `multi-window` example demonstates using this feature to open multiple
+  windows before starting Gooey as well as dynamically opening windows at
+  runtime.
+- `Window::on_close` sets a callback to be invoked when the window has closed.
+
+[91]: https://github.com/khonsulabs/gooey/issues/91
 
 ## v0.1.3 (2023-12-19)
 

@@ -46,6 +46,11 @@ unicode-segmentation = "1.10.1"
 # alot = { git = "https://github.com/khonsulabs/alot" }
 # kempt = { path = "../objectmap" }
 
+# [patch."https://github.com/khonsulabs/kludgine"]
+# kludgine = { path = "../kludgine" }
+# [patch."https://github.com/khonsulabs/appit"]
+# appit = { path = "../appit" }
+
 [profile.dev.package."*"]
 opt-level = 2
 

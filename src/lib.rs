@@ -23,7 +23,7 @@ pub mod widgets;
 pub mod window;
 use std::ops::Sub;
 
-pub use app::Gooey;
+pub use app::{App, Application, Gooey, Open, PendingApp, Run};
 pub use kludgine;
 use kludgine::app::winit::error::EventLoopError;
 use kludgine::figures::units::UPx;
@@ -116,14 +116,6 @@ impl Sub<UPx> for ConstraintLimit {
 /// A result alias that defaults to the result type commonly used throughout
 /// this crate.
 pub type Result<T = (), E = EventLoopError> = std::result::Result<T, E>;
-
-/// A type that can be run as an application.
-pub trait Run: Sized {
-    /// Runs the provided type, returning `Ok(())` upon successful execution and
-    /// program exit. Note that this function may not ever return on some
-    /// platforms.
-    fn run(self) -> crate::Result;
-}
 
 /// Counts the number of expressions passed to it.
 ///

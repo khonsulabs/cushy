@@ -18,7 +18,7 @@ use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use kludgine::Color;
 
-use crate::app::Gooey;
+use crate::app::{Application, Open, PendingApp, Run};
 use crate::context::sealed::WindowHandle;
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{
@@ -44,7 +44,7 @@ use crate::widgets::{
     Style, Themed, ThemedMode, Validated, Wrap,
 };
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
-use crate::{ConstraintLimit, Run};
+use crate::ConstraintLimit;
 
 /// A type that makes up a graphical user interface.
 ///
@@ -459,7 +459,24 @@ where
     T: MakeWidget,
 {
     fn run(self) -> crate::Result {
-        self.make_widget().run()
+        Window::<WidgetInstance>::new(self.make_widget()).run()
+    }
+}
+
+impl<T> Open for T
+where
+    T: MakeWidget,
+{
+    fn open<App>(self, app: &App) -> crate::Result
+    where
+        App: Application,
+    {
+        Window::<WidgetInstance>::new(self.make_widget()).open(app)
+    }
+
+    fn run_in(self, app: PendingApp) -> crate::Result {
+        Window::<WidgetInstance>::new(self.make_widget()).open(&app)?;
+        app.run()
     }
 }
 
@@ -900,8 +917,8 @@ pub trait MakeWidget: Sized {
     fn make_widget(self) -> WidgetInstance;
 
     /// Returns a new window containing `self` as the root widget.
-    fn into_window(self, gooey: Gooey) -> Window<WidgetInstance> {
-        Window::new(self.make_widget(), gooey.clone())
+    fn into_window(self) -> Window<WidgetInstance> {
+        Window::new(self.make_widget())
     }
 
     /// Associates `styles` with this widget.
@@ -1510,11 +1527,6 @@ impl WidgetInstance {
     #[must_use]
     pub fn lock(&self) -> WidgetGuard<'_> {
         WidgetGuard(self.data.widget.lock().ignore_poison())
-    }
-
-    /// Runs this widget instance as an application.
-    pub fn run(self) -> crate::Result {
-        Window::<WidgetInstance>::new(self, Gooey::default()).run()
     }
 
     /// Returns the id of the widget that should receive focus after this

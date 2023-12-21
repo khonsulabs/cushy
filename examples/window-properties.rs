@@ -8,7 +8,8 @@ fn main() -> gooey::Result {
     let occluded = Dynamic::new(false);
     let inner_size = Dynamic::new(Size::default());
 
-    let widgets = focused.map_each(|v| format!("focused: {:?}", v))
+    let widgets = focused
+        .map_each(|v| format!("focused: {:?}", v))
         .and(occluded.map_each(|v| format!("occluded: {:?}", v)))
         .and(inner_size.map_each(|v| format!("inner_size: {:?}", v)))
         .into_rows()

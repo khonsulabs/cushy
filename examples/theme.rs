@@ -13,13 +13,13 @@ use gooey::widgets::input::InputValue;
 use gooey::widgets::slider::Slidable;
 use gooey::widgets::Space;
 use gooey::window::ThemeMode;
-use gooey::{Gooey, Run};
+use gooey::{Open, PendingApp};
 use kludgine::figures::units::Lp;
 use kludgine::Color;
 use palette::OklabHue;
 
 fn main() -> gooey::Result {
-    let gooey = Gooey::default();
+    let app = PendingApp::default();
 
     let (theme_mode, theme_switcher) = dark_mode_picker();
 
@@ -79,7 +79,7 @@ fn main() -> gooey::Result {
         .and(editors.neutral.1)
         .and(editors.neutral_variant.1)
         .and("Copy to Clipboard".into_button().on_click({
-            let gooey = gooey.clone();
+            let gooey = app.gooey().clone();
             move |()| {
                 if let Some(mut clipboard) = gooey.clipboard_guard() {
                     let builder = color_scheme_builder.get();
@@ -115,9 +115,9 @@ fn main() -> gooey::Result {
         .themed(theme)
         .pad()
         .expand()
-        .into_window(gooey)
+        .into_window()
         .themed_mode(theme_mode)
-        .run()
+        .run_in(app)
 }
 
 struct Scheme<Primary, Other = Primary> {
