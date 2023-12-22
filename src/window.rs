@@ -400,6 +400,7 @@ pub trait WindowBehavior: Sized + 'static {
 
 struct GooeyWindow<T> {
     behavior: T,
+    tree: Tree,
     root: MountedWidget,
     contents: Drawing,
     should_close: bool,
@@ -445,11 +446,11 @@ where
         kludgine: &mut Kludgine,
     ) {
         if is_pressed {
-            if let Some(default) = widget.and_then(|id| self.root.tree.widget_from_node(id)) {
+            if let Some(default) = widget.and_then(|id| self.tree.widget_from_node(id)) {
                 if let Some(previously_active) = self
                     .keyboard_activated
                     .take()
-                    .and_then(|id| self.root.tree.widget(id))
+                    .and_then(|id| self.tree.widget(id))
                 {
                     EventContext::new(
                         WidgetContext::new(
@@ -481,7 +482,7 @@ where
         } else if let Some(keyboard_activated) = self
             .keyboard_activated
             .take()
-            .and_then(|id| self.root.tree.widget(id))
+            .and_then(|id| self.tree.widget(id))
         {
             EventContext::new(
                 WidgetContext::new(
@@ -509,7 +510,7 @@ where
         let mut padding = Edges::<Px>::default();
 
         loop {
-            let Some(managed) = self.root.tree.widget(root_or_child.id()) else {
+            let Some(managed) = self.tree.widget(root_or_child.id()) else {
                 break;
             };
 
@@ -681,7 +682,8 @@ where
             &mut RunningWindow::new(window, &gooey, &focused, &occluded, &inner_size),
             context.user,
         );
-        let root = Tree::default().push_boxed(behavior.make_root(), None);
+        let tree = Tree::default();
+        let root = tree.push_boxed(behavior.make_root(), None);
 
         let (current_theme, theme) = match theme {
             Value::Constant(theme) => (theme, None),
@@ -691,6 +693,7 @@ where
         Self {
             behavior,
             root,
+            tree,
             contents: Drawing::default(),
             should_close: false,
             cursor: CursorState {
@@ -731,8 +734,7 @@ where
 
         self.redraw_status.refresh_received();
         graphics.reset_text_attributes();
-        self.root
-            .tree
+        self.tree
             .new_frame(self.redraw_status.invalidations().drain());
 
         let resizable = window.winit().is_resizable();
@@ -941,8 +943,8 @@ where
         input: KeyEvent,
         is_synthetic: bool,
     ) {
-        let target = self.root.tree.focused_widget().unwrap_or(self.root.node_id);
-        let Some(target) = self.root.tree.widget_from_node(target) else {
+        let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
+        let Some(target) = self.tree.widget_from_node(target) else {
             return;
         };
         let mut window = RunningWindow::new(
@@ -987,12 +989,8 @@ where
                     if input.state.is_pressed() {
                         let reverse = window.modifiers().state().shift_key();
 
-                        let target = self.root.tree.focused_widget().unwrap_or(self.root.node_id);
-                        let target = self
-                            .root
-                            .tree
-                            .widget_from_node(target)
-                            .expect("missing widget");
+                        let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
+                        let target = self.tree.widget_from_node(target).expect("missing widget");
                         let mut target = EventContext::new(
                             WidgetContext::new(
                                 target,
@@ -1015,7 +1013,7 @@ where
                 Key::Named(NamedKey::Enter) => {
                     self.keyboard_activate_widget(
                         input.state.is_pressed(),
-                        self.root.tree.default_widget(),
+                        self.tree.default_widget(),
                         &mut window,
                         kludgine,
                     );
@@ -1023,7 +1021,7 @@ where
                 Key::Named(NamedKey::Escape) => {
                     self.keyboard_activate_widget(
                         input.state.is_pressed(),
-                        self.root.tree.escape_widget(),
+                        self.tree.escape_widget(),
                         &mut window,
                         kludgine,
                     );
@@ -1050,16 +1048,10 @@ where
         phase: TouchPhase,
     ) {
         let widget = self
-            .root
             .tree
             .hovered_widget()
-            .and_then(|hovered| self.root.tree.widget_from_node(hovered))
-            .unwrap_or_else(|| {
-                self.root
-                    .tree
-                    .widget(self.root.id())
-                    .expect("missing widget")
-            });
+            .and_then(|hovered| self.tree.widget_from_node(hovered))
+            .unwrap_or_else(|| self.tree.widget(self.root.id()).expect("missing widget"));
 
         let mut window = RunningWindow::new(
             window,
@@ -1093,16 +1085,10 @@ where
         ime: Ime,
     ) {
         let widget = self
-            .root
             .tree
             .focused_widget()
-            .and_then(|hovered| self.root.tree.widget_from_node(hovered))
-            .unwrap_or_else(|| {
-                self.root
-                    .tree
-                    .widget(self.root.id())
-                    .expect("missing widget")
-            });
+            .and_then(|hovered| self.tree.widget_from_node(hovered))
+            .unwrap_or_else(|| self.tree.widget(self.root.id()).expect("missing widget"));
         let mut window = RunningWindow::new(
             window,
             &self.gooey,
@@ -1160,7 +1146,7 @@ where
         if let Some(state) = self.mouse_buttons.get(&device_id) {
             // Mouse Drag
             for (button, handler) in state {
-                let Some(handler) = self.root.tree.widget(*handler) else {
+                let Some(handler) = self.tree.widget(*handler) else {
                     continue;
                 };
                 let mut context = EventContext::new(
@@ -1244,7 +1230,7 @@ where
                 if let (ElementState::Pressed, Some(location), Some(hovered)) = (
                     state,
                     self.cursor.location,
-                    self.cursor.widget.and_then(|id| self.root.tree.widget(id)),
+                    self.cursor.widget.and_then(|id| self.tree.widget(id)),
                 ) {
                     if let Some(handler) = recursively_handle_event(
                         &mut EventContext::new(
@@ -1283,7 +1269,7 @@ where
                 if device_buttons.is_empty() {
                     self.mouse_buttons.remove(&device_id);
                 }
-                let Some(handler) = self.root.tree.widget(handler) else {
+                let Some(handler) = self.tree.widget(handler) else {
                     return;
                 };
                 let cursor_location = self.cursor.location;

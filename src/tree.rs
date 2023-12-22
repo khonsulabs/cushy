@@ -1,5 +1,5 @@
 use std::mem;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 
 use ahash::AHashMap;
 use alot::{LotId, Lots};
@@ -63,7 +63,7 @@ impl Tree {
         MountedWidget {
             node_id,
             widget,
-            tree: self.clone(),
+            tree: WeakTree(Arc::downgrade(&self.data)),
         }
     }
 
@@ -421,7 +421,7 @@ impl TreeData {
         Some(MountedWidget {
             node_id,
             widget: self.nodes[node_id].widget.clone(),
-            tree: tree.clone(),
+            tree: WeakTree(Arc::downgrade(&tree.data)),
         })
     }
 
@@ -429,7 +429,7 @@ impl TreeData {
         Some(MountedWidget {
             node_id,
             widget: self.nodes.get(node_id)?.widget.clone(),
-            tree: tree.clone(),
+            tree: WeakTree(Arc::downgrade(&tree.data)),
         })
     }
 
@@ -620,4 +620,13 @@ impl Node {
 struct CachedLayoutQuery {
     constraints: Size<ConstraintLimit>,
     size: Size<UPx>,
+}
+
+#[derive(Clone, Debug)]
+pub struct WeakTree(Weak<Mutex<TreeData>>);
+
+impl WeakTree {
+    pub fn upgrade(&self) -> Option<Tree> {
+        self.0.upgrade().map(|data| Tree { data })
+    }
 }

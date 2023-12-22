@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [92]: https://github.com/khonsulabs/gooey/issues/92
 
+### Fixed
+
+- A memory leak has been fixed that prevented the underlying widget tree of each
+  window from being dropped. This was caused by a reference counting cycle, and
+  has been fixed by switching `MountedWidget` to use a weak reference internally
+  and having the window hold the strong reference to the tree.
+
 ### Added
 
 - `Validations::validate_result` attaches a `Dynamic<Result<T,E>>` to the

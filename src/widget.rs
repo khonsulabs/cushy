@@ -34,7 +34,7 @@ use crate::styles::{
     ComponentDefinition, ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue,
     IntoDynamicComponentValue, Styles, ThemePair, VisualOrder,
 };
-use crate::tree::Tree;
+use crate::tree::{Tree, WeakTree};
 use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
@@ -1693,7 +1693,7 @@ where
 pub struct MountedWidget {
     pub(crate) node_id: LotId,
     pub(crate) widget: WidgetInstance,
-    pub(crate) tree: Tree,
+    pub(crate) tree: WeakTree,
 }
 
 impl Debug for MountedWidget {
@@ -1703,6 +1703,10 @@ impl Debug for MountedWidget {
 }
 
 impl MountedWidget {
+    pub(crate) fn tree(&self) -> Tree {
+        self.tree.upgrade().expect("tree missing")
+    }
+
     /// Locks the widget for exclusive access. Locking widgets should only be
     /// done for brief moments of time when you are certain no deadlocks can
     /// occur due to other widget locks being held.
@@ -1713,11 +1717,14 @@ impl MountedWidget {
 
     /// Invalidates this widget.
     pub fn invalidate(&self) {
-        self.tree.invalidate(self.node_id, false);
+        let Some(tree) = self.tree.upgrade() else {
+            return;
+        };
+        tree.invalidate(self.node_id, false);
     }
 
     pub(crate) fn set_layout(&self, rect: Rect<Px>) {
-        self.tree.set_layout(self.node_id, rect);
+        self.tree().set_layout(self.node_id, rect);
     }
 
     /// Returns the unique id of this widget instance.
@@ -1740,7 +1747,7 @@ impl MountedWidget {
     pub fn next_focus(&self) -> Option<MountedWidget> {
         self.widget
             .next_focus()
-            .and_then(|next_focus| self.tree.widget(next_focus))
+            .and_then(|next_focus| self.tree.upgrade()?.widget(next_focus))
     }
 
     /// Returns the widget to focus before this widget.
@@ -1749,7 +1756,7 @@ impl MountedWidget {
     /// automatically using [`MakeWidget::with_next_focus()`].
     #[must_use]
     pub fn previous_focus(&self) -> Option<MountedWidget> {
-        self.tree.previous_focus(self.id())
+        self.tree.upgrade()?.previous_focus(self.id())
     }
 
     /// Returns the next or previous focus target, if one was set using
@@ -1766,85 +1773,89 @@ impl MountedWidget {
     /// Returns the region that the widget was last rendered at.
     #[must_use]
     pub fn last_layout(&self) -> Option<Rect<Px>> {
-        self.tree.layout(self.node_id)
+        self.tree.upgrade()?.layout(self.node_id)
     }
 
     /// Returns the effective styles for the current tree.
     #[must_use]
     pub fn effective_styles(&self) -> Styles {
-        self.tree.effective_styles(self.node_id)
+        self.tree().effective_styles(self.node_id)
     }
 
     /// Returns true if this widget is the currently active widget.
     #[must_use]
     pub fn active(&self) -> bool {
-        self.tree.active_widget() == Some(self.node_id)
+        self.tree().active_widget() == Some(self.node_id)
     }
 
     pub(crate) fn enabled(&self, handle: &WindowHandle) -> bool {
-        self.tree.is_enabled(self.node_id, handle)
+        self.tree().is_enabled(self.node_id, handle)
     }
 
     /// Returns true if this widget is currently the hovered widget.
     #[must_use]
     pub fn hovered(&self) -> bool {
-        self.tree.is_hovered(self.node_id)
+        self.tree().is_hovered(self.node_id)
     }
 
     /// Returns true if this widget that is directly beneath the cursor.
     #[must_use]
     pub fn primary_hover(&self) -> bool {
-        self.tree.hovered_widget() == Some(self.node_id)
+        self.tree().hovered_widget() == Some(self.node_id)
     }
 
     /// Returns true if this widget is the currently focused widget.
     #[must_use]
     pub fn focused(&self) -> bool {
-        self.tree.focused_widget() == Some(self.node_id)
+        self.tree().focused_widget() == Some(self.node_id)
     }
 
     /// Returns the parent of this widget.
     #[must_use]
     pub fn parent(&self) -> Option<MountedWidget> {
-        self.tree
-            .parent(self.node_id)
-            .and_then(|id| self.tree.widget_from_node(id))
+        let tree = self.tree.upgrade()?;
+
+        tree.parent(self.node_id)
+            .and_then(|id| tree.widget_from_node(id))
     }
 
     /// Returns true if this node has a parent.
     #[must_use]
     pub fn has_parent(&self) -> bool {
-        self.tree.parent(self.node_id).is_some()
+        let Some(tree) = self.tree.upgrade() else {
+            return false;
+        };
+        tree.parent(self.node_id).is_some()
     }
 
     pub(crate) fn attach_styles(&self, styles: Value<Styles>) {
-        self.tree.attach_styles(self.node_id, styles);
+        self.tree().attach_styles(self.node_id, styles);
     }
 
     pub(crate) fn attach_theme(&self, theme: Value<ThemePair>) {
-        self.tree.attach_theme(self.node_id, theme);
+        self.tree().attach_theme(self.node_id, theme);
     }
 
     pub(crate) fn attach_theme_mode(&self, theme: Value<ThemeMode>) {
-        self.tree.attach_theme_mode(self.node_id, theme);
+        self.tree().attach_theme_mode(self.node_id, theme);
     }
 
     pub(crate) fn overidden_theme(
         &self,
     ) -> (Styles, Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {
-        self.tree.overriden_theme(self.node_id)
+        self.tree().overriden_theme(self.node_id)
     }
 
     pub(crate) fn begin_layout(&self, constraints: Size<ConstraintLimit>) -> Option<Size<UPx>> {
-        self.tree.begin_layout(self.node_id, constraints)
+        self.tree().begin_layout(self.node_id, constraints)
     }
 
     pub(crate) fn persist_layout(&self, constraints: Size<ConstraintLimit>, size: Size<UPx>) {
-        self.tree.persist_layout(self.node_id, constraints, size);
+        self.tree().persist_layout(self.node_id, constraints, size);
     }
 
     pub(crate) fn visually_ordered_children(&self, order: VisualOrder) -> Vec<MountedWidget> {
-        self.tree.visually_ordered_children(self.node_id, order)
+        self.tree().visually_ordered_children(self.node_id, order)
     }
 }
 
@@ -2302,7 +2313,7 @@ impl WidgetId {
     /// Finds this widget mounted in this window, if present.
     #[must_use]
     pub fn find_in(self, context: &WidgetContext<'_, '_>) -> Option<MountedWidget> {
-        context.widget().tree.widget(self)
+        context.tree.widget(self)
     }
 }
 

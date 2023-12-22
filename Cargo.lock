@@ -106,7 +106,7 @@ dependencies = [
 [[package]]
 name = "appit"
 version = "0.1.1"
-source = "git+https://github.com/khonsulabs/appit#8ca300682c83d1bd6c698bc13ba7011b4be0ca8c"
+source = "git+https://github.com/khonsulabs/appit#1ff4b7b2a6f93e2c719787c76e585e6c2ecf290c"
 dependencies = [
  "winit",
 ]
@@ -1179,7 +1179,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.6.1"
-source = "git+https://github.com/khonsulabs/kludgine#8327335a103ad4ba09093aa201c007d43b4a48d9"
+source = "git+https://github.com/khonsulabs/kludgine#e76fcc5c7a2ac96edcd51ee635d228cc9295d7ce"
 dependencies = [
  "ahash",
  "alot",
