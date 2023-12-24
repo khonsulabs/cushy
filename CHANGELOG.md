@@ -27,14 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Using a `Resize` widget in the root hierarchy allows setting minimum width and
   heights for the content.
 
-[92]: https://github.com/khonsulabs/gooey/issues/92
-
 ### Fixed
 
 - A memory leak has been fixed that prevented the underlying widget tree of each
   window from being dropped. This was caused by a reference counting cycle, and
   has been fixed by switching `MountedWidget` to use a weak reference internally
   and having the window hold the strong reference to the tree.
+- [#113][113]: `Input` now constraints its internal selection to the value's
+  length automatically. This fixes an issue where the backspace key no longer
+  would work after clearing the text field by setting the `Dynamic`.
 
 ### Added
 
@@ -59,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Window::on_close` sets a callback to be invoked when the window has closed.
 
 [91]: https://github.com/khonsulabs/gooey/issues/91
+[92]: https://github.com/khonsulabs/gooey/issues/92
+[113]: https://github.com/khonsulabs/gooey/issues/113
 
 ## v0.1.3 (2023-12-19)
 

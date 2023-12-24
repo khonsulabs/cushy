@@ -50,35 +50,23 @@ pub struct Input<Storage> {
     window_focused: bool,
 }
 
-struct CachedLayout {
-    bytes: usize,
-    color: Color,
+#[derive(Eq, PartialEq, Clone, Copy)]
+struct CacheKey {
     generation: Generation,
     mask_generation: Option<Generation>,
     placeholder_generation: Option<Generation>,
-    mask_bytes: usize,
     width: Option<Px>,
-    measured: MeasuredText<Px>,
-    placeholder: MeasuredText<Px>,
+    color: Color,
+    mask_bytes: usize,
+    cursor: Cursor,
+    selection: Option<Cursor>,
 }
 
-impl CachedLayout {
-    pub fn is_current(
-        &self,
-        generation: Generation,
-        mask_generation: Option<Generation>,
-        placeholder_generation: Option<Generation>,
-        width: Option<Px>,
-        color: Color,
-        mask_bytes: usize,
-    ) -> bool {
-        self.generation == generation
-            && self.mask_generation == mask_generation
-            && self.placeholder_generation == placeholder_generation
-            && self.width == width
-            && self.color == color
-            && self.mask_bytes == mask_bytes
-    }
+struct CachedLayout {
+    bytes: usize,
+    measured: MeasuredText<Px>,
+    placeholder: MeasuredText<Px>,
+    key: CacheKey,
 }
 
 /// The current selection of an [`Input`].
@@ -223,7 +211,8 @@ where
         } else if cursor.offset > 0 {
             let mut value = self.value.lock();
             let length = value.as_str().len();
-            if length == 0 || cursor.offset == 0 || cursor.offset > length {
+
+            if length == 0 || cursor.offset == 0 {
                 return;
             }
 
@@ -379,7 +368,16 @@ where
         self.selection.cursor = self.cursor_from_point(position, context);
     }
 
+    fn constrain_selection(&mut self) {
+        let length = self.value.map_ref(|s| s.as_str().len());
+        self.selection.cursor.offset = self.selection.cursor.offset.min(length);
+        if let Some(start) = &mut self.selection.start {
+            start.offset = start.offset.min(length);
+        }
+    }
+
     fn selected_range(&mut self) -> (Cursor, Option<Cursor>) {
+        self.constrain_selection();
         match self.selection.start {
             Some(start) => match start.offset.cmp(&self.selection.cursor.offset) {
                 Ordering::Less => (start, Some(self.selection.cursor)),
@@ -556,25 +554,25 @@ where
         width: Option<Px>,
         context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
     ) -> CacheInfo<'_> {
-        let (mut cursor, mut selection) = self.selected_range();
-        let generation = self.value.generation();
-        let mask_generation = self.mask_symbol.generation();
-        let placeholder_generation = self.placeholder.generation();
-        let mut mask_bytes = self
-            .mask_symbol
-            .map(|sym| sym.graphemes(true).next().map_or(0, str::len));
-        let color = context.get(&TextColor);
         context.invalidate_when_changed(&self.value);
+
+        let mut key = {
+            let (cursor, selection) = self.selected_range();
+            CacheKey {
+                generation: self.value.generation(),
+                mask_generation: self.mask_symbol.generation(),
+                placeholder_generation: self.placeholder.generation(),
+                width,
+                color: context.get(&TextColor),
+                mask_bytes: self
+                    .mask_symbol
+                    .map(|sym| sym.graphemes(true).next().map_or(0, str::len)),
+                cursor,
+                selection,
+            }
+        };
         match &mut self.cache {
-            Some(cache)
-                if cache.is_current(
-                    generation,
-                    mask_generation,
-                    placeholder_generation,
-                    width,
-                    color,
-                    mask_bytes,
-                ) => {}
+            Some(cache) if cache.key == key => {}
             _ => {
                 let (bytes, measured, placeholder, ) = self.value.map_ref(|storage| {
                     let mut text = storage.as_str();
@@ -591,9 +589,9 @@ where
                             // Technically something more optimal than asking the
                             // layout system to lay out a repeated string should be
                             // doable, but it seems like a lot of code.
-                            mask_bytes = first_grapheme.len();
+                            key.mask_bytes = first_grapheme.len();
                             let char_count = text.graphemes(true).count();
-                            bytes = mask_bytes * char_count;
+                            bytes = key.mask_bytes * char_count;
                             self.mask.truncate(bytes);
 
                             while self.mask.len() < bytes {
@@ -601,12 +599,12 @@ where
                             }
                             text = &self.mask;
                         } else {
-                            mask_bytes = 0;
+                            key.mask_bytes = 0;
                         }
                     });
 
                     context.apply_current_font_settings();
-                    let mut text = Text::new(text, color);
+                    let mut text = Text::new(text, key.color);
                     if let Some(width) = width {
                         text = text.wrap_at(width);
                     }
@@ -617,29 +615,25 @@ where
                 });
                 self.cache = Some(CachedLayout {
                     bytes,
-                    color,
-                    generation,
-                    mask_generation,
-                    placeholder_generation,
-                    mask_bytes,
-                    width,
                     measured,
                     placeholder,
+                    key,
                 });
             }
         }
 
         // Adjust the selection cursors to accommodate the difference in unicode
         // widths of characters in the source string and the mask_char.
-        if mask_bytes > 0 {
+        if key.mask_bytes > 0 {
             self.value.map_ref(|value| {
                 let value = value.as_str();
-                assert!(cursor.offset <= value.len());
-                cursor.offset = value[..cursor.offset].graphemes(true).count() * mask_bytes;
-                if let Some(selection) = &mut selection {
+                assert!(key.cursor.offset <= value.len());
+                key.cursor.offset =
+                    value[..key.cursor.offset].graphemes(true).count() * key.mask_bytes;
+                if let Some(selection) = &mut key.selection {
                     assert!(selection.offset <= value.len());
                     selection.offset =
-                        value[..selection.offset].graphemes(true).count() * mask_bytes;
+                        value[..selection.offset].graphemes(true).count() * key.mask_bytes;
                 }
             });
         }
@@ -649,9 +643,9 @@ where
             measured: &cache.measured,
             placeholder: &cache.placeholder,
             bytes: cache.bytes,
-            masked: mask_bytes > 0,
-            cursor,
-            selection,
+            masked: key.mask_bytes > 0,
+            cursor: key.cursor,
+            selection: key.selection,
         }
     }
 
