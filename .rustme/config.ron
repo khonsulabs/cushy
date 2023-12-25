@@ -37,16 +37,16 @@ Configuration(
                 release: "v0.1.3",
             ),
             "docs": (
-                default: "https://gooey.rs/main/gooey/",
+                default: "https://gooey.rs/main/docs/gooey/",
                 release: "https://docs.rs/gooey",
             ),
             "widget": (
-                default: "https://gooey.rs/main/gooey/widget/trait.Widget.html",
+                default: "https://gooey.rs/main/docs/gooey/widget/trait.Widget.html",
                 release: "https://docs.rs/gooey/*/gooey/widget/trait.Widget.html",
                 for_docs: "crate::widget::Widget",
             ),
             "widgets": (
-                default: "https://gooey.rs/main/gooey/widgets/index.html",
+                default: "https://gooey.rs/main/docs/gooey/widgets/index.html",
                 release: "https://docs.rs/gooey/*/gooey/widgets/index.html",
                 for_docs: "mod@crate::widgets",
             ),

@@ -60,8 +60,8 @@ and problem it aims to solve. Doing so will help prevent friction in merging
 pull requests, as it ensures changes fit the vision the maintainers have for
 Gooey.
 
-[widget]: https://gooey.rs/main/gooey/widget/trait.Widget.html
-[widgets]: https://gooey.rs/main/gooey/widgets/index.html
+[widget]: https://gooey.rs/main/docs/gooey/widget/trait.Widget.html
+[widgets]: https://gooey.rs/main/docs/gooey/widgets/index.html
 [button-example]: https://github.com/khonsulabs/gooey/tree/main/examples/basic-button.rs
 [examples]: https://github.com/khonsulabs/gooey/tree/main/examples/
 [kludgine]: https://github.com/khonsulabs/kludgine
