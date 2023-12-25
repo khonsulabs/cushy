@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   window from being dropped. This was caused by a reference counting cycle, and
   has been fixed by switching `MountedWidget` to use a weak reference internally
   and having the window hold the strong reference to the tree.
+- [#112][112]: Click-selection is handled correctly across graphemes now.
+  Previously, code that was handling selecting between "ff" where cosmic_text
+  had merged the two ASCII characters into a single glpyh was not honoring
+  graphemes, allowing dragging selections inbetween multi-character glyphs.
 - [#113][113]: `Input` now constraints its internal selection to the value's
   length automatically. This fixes an issue where the backspace key no longer
   would work after clearing the text field by setting the `Dynamic`.
@@ -61,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [91]: https://github.com/khonsulabs/gooey/issues/91
 [92]: https://github.com/khonsulabs/gooey/issues/92
+[112]: https://github.com/khonsulabs/gooey/issues/112
 [113]: https://github.com/khonsulabs/gooey/issues/113
 
 ## v0.1.3 (2023-12-19)

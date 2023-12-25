@@ -324,8 +324,7 @@ where
             return;
         };
 
-        let (mut position, _) =
-            Self::point_from_cursor(&cache.measured, self.selection.cursor, cache.bytes);
+        let (mut position, _) = self.point_from_cursor(cache, self.selection.cursor, cache.bytes);
         position.y += context
             .get(&IntrinsicPadding)
             .into_px(context.kludgine.scale())
@@ -345,8 +344,7 @@ where
             return;
         };
 
-        let (mut position, _) =
-            Self::point_from_cursor(&cache.measured, self.selection.cursor, cache.bytes);
+        let (mut position, _) = self.point_from_cursor(&cache, self.selection.cursor, cache.bytes);
         position += Point::squared(
             context
                 .get(&IntrinsicPadding)
@@ -553,7 +551,7 @@ where
         &mut self,
         width: Option<Px>,
         context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
-    ) -> CacheInfo<'_> {
+    ) {
         context.invalidate_when_changed(&self.value);
 
         let mut key = {
@@ -621,41 +619,51 @@ where
                 });
             }
         }
+    }
+
+    fn cache_info(&self) -> CacheInfo<'_> {
+        let cache = self
+            .cache
+            .as_ref()
+            .expect("always called after layout_text");
 
         // Adjust the selection cursors to accommodate the difference in unicode
         // widths of characters in the source string and the mask_char.
-        if key.mask_bytes > 0 {
+
+        let masked = cache.key.mask_bytes > 0;
+        let mut cursor = cache.key.cursor;
+        let mut selection = cache.key.selection;
+        if masked {
             self.value.map_ref(|value| {
                 let value = value.as_str();
-                assert!(key.cursor.offset <= value.len());
-                key.cursor.offset =
-                    value[..key.cursor.offset].graphemes(true).count() * key.mask_bytes;
-                if let Some(selection) = &mut key.selection {
+                assert!(cache.key.cursor.offset <= value.len());
+                cursor.offset =
+                    value[..cache.key.cursor.offset].graphemes(true).count() * cache.key.mask_bytes;
+                if let Some(selection) = &mut selection {
                     assert!(selection.offset <= value.len());
                     selection.offset =
-                        value[..selection.offset].graphemes(true).count() * key.mask_bytes;
+                        value[..selection.offset].graphemes(true).count() * cache.key.mask_bytes;
                 }
             });
         }
 
-        let cache = self.cache.as_ref().expect("always initialized");
         CacheInfo {
-            measured: &cache.measured,
-            placeholder: &cache.placeholder,
-            bytes: cache.bytes,
-            masked: key.mask_bytes > 0,
-            cursor: key.cursor,
-            selection: key.selection,
+            cache,
+            masked,
+            cursor,
+            selection,
         }
     }
 
     #[allow(clippy::too_many_lines)] // it's text layout, c'mon
     fn point_from_cursor(
-        measured: &MeasuredText<Px>,
+        &self,
+        cache: &CachedLayout,
         cursor: Cursor,
         total_bytes: usize,
     ) -> (Point<Px>, Px) {
-        if measured.glyphs.is_empty() || (cursor.offset == 0 && cursor.affinity == Affinity::Before)
+        if cache.measured.glyphs.is_empty()
+            || (cursor.offset == 0 && cursor.affinity == Affinity::Before)
         {
             return (Point::default(), Px::ZERO);
         }
@@ -669,7 +677,7 @@ where
         let mut bottom_right_line = 0;
         let mut bottom_right_rect = Rect::default();
         let mut unrendered_offset = 0;
-        for (index, glyph) in measured.glyphs.iter().enumerate() {
+        for (index, glyph) in cache.measured.glyphs.iter().enumerate() {
             unrendered_offset = unrendered_offset.max(glyph.info.end);
             let rect = glyph.rect();
             if bottom_right_rect.size.width == 0
@@ -692,17 +700,30 @@ where
                     if glyph.info.start < cursor.offset {
                         let clustered_bytes = glyph.info.end - glyph.info.start;
                         if clustered_bytes > 1 {
-                            let cursor_offset = cursor.offset - glyph.info.start;
+                            let clustered_graphemes = if cache.key.mask_bytes > 0 {
+                                self.mask[glyph.info.start..glyph.info.end]
+                                    .graphemes(true)
+                                    .count()
+                            } else {
+                                self.value.map_ref(|value| {
+                                    value.as_str()[glyph.info.start..glyph.info.end]
+                                        .graphemes(true)
+                                        .count()
+                                })
+                            };
+                            if clustered_graphemes > 1 {
+                                let cursor_offset = cursor.offset - glyph.info.start;
 
-                            grapheme_offset = rect.size.width * cursor_offset.cast::<f32>()
-                                / clustered_bytes.cast::<f32>();
+                                grapheme_offset = rect.size.width * cursor_offset.cast::<f32>()
+                                    / clustered_graphemes.cast::<f32>();
+                            }
                         }
                     }
 
                     return (
                         Point::new(
                             rect.origin.x + grapheme_offset,
-                            measured.line_height.saturating_mul(Px::new(
+                            cache.measured.line_height.saturating_mul(Px::new(
                                 i32::try_from(glyph.info.line).unwrap_or(i32::MAX),
                             )),
                         ),
@@ -720,8 +741,8 @@ where
         }
 
         if closest_after_index == usize::MAX {
-            let bottom_right = &measured.glyphs[bottom_right_index];
-            let bottom_y = measured.line_height.saturating_mul(Px::new(
+            let bottom_right = &cache.measured.glyphs[bottom_right_index];
+            let bottom_y = cache.measured.line_height.saturating_mul(Px::new(
                 i32::try_from(bottom_right.info.line).unwrap_or(i32::MAX),
             ));
             // No glyph could be found that started/contained the cursors offset.
@@ -746,11 +767,12 @@ where
             // The cursor should be placed after the bottom_right glyph
             (bottom_right_cursor, Px::ZERO)
         } else {
-            let before = &measured.glyphs[closest_before_index];
-            let after = &measured.glyphs[closest_after_index];
+            let before = &cache.measured.glyphs[closest_before_index];
+            let after = &cache.measured.glyphs[closest_after_index];
             let before_rect = before.rect();
             let after_rect = after.rect();
-            let before_y = measured
+            let before_y = cache
+                .measured
                 .line_height
                 .saturating_mul(Px::new(i32::try_from(before.info.line).unwrap_or(i32::MAX)));
 
@@ -775,7 +797,7 @@ where
                         (origin, before_y)
                     }
                     Affinity::After => (
-                        Point::new(Px::ZERO, before_y + measured.line_height),
+                        Point::new(Px::ZERO, before_y + cache.measured.line_height),
                         Px::ZERO,
                     ),
                 }
@@ -916,9 +938,7 @@ where
 }
 
 struct CacheInfo<'a> {
-    measured: &'a MeasuredText<Px>,
-    placeholder: &'a MeasuredText<Px>,
-    bytes: usize,
+    cache: &'a CachedLayout,
     masked: bool,
     cursor: Cursor,
     selection: Option<Cursor>,
@@ -1031,7 +1051,8 @@ where
             .round();
         let padding = Point::squared(padding);
 
-        let cache = self.layout_text(Some(size.width.into_signed()), context);
+        self.layout_text(Some(size.width.into_signed()), context);
+        let info = self.cache_info();
 
         let highlight = if context.focused(false) && window_focused {
             context.draw_focus_ring();
@@ -1044,30 +1065,33 @@ where
 
         if context.focused(false) {
             context.set_ime_allowed(true);
-            context.set_ime_purpose(if cache.masked {
+            context.set_ime_purpose(if info.masked {
                 ImePurpose::Password
             } else {
                 ImePurpose::Normal
             });
 
-            if let Some(selection) = cache.selection {
-                let (start, end) = if selection < cache.cursor {
-                    (selection, cache.cursor)
+            if let Some(selection) = info.selection {
+                let (start, end) = if selection < info.cursor {
+                    (selection, info.cursor)
                 } else {
-                    (cache.cursor, selection)
+                    (info.cursor, selection)
                 };
 
                 let (start_position, _) =
-                    Self::point_from_cursor(cache.measured, start, cache.bytes);
+                    self.point_from_cursor(info.cache, start, info.cache.bytes);
                 let (end_position, end_width) =
-                    Self::point_from_cursor(cache.measured, end, cache.bytes);
+                    self.point_from_cursor(info.cache, end, info.cache.bytes);
 
                 if start_position.y == end_position.y {
                     // Single line selection
                     let width = end_position.x - start_position.x;
                     context.gfx.draw_shape(
                         Shape::filled_rect(
-                            Rect::new(start_position, Size::new(width, cache.measured.line_height)),
+                            Rect::new(
+                                start_position,
+                                Size::new(width, info.cache.measured.line_height),
+                            ),
                             highlight,
                         )
                         .translate_by(padding),
@@ -1077,13 +1101,16 @@ where
                     let width = size.width.into_signed() - start_position.x;
                     context.gfx.draw_shape(
                         Shape::filled_rect(
-                            Rect::new(start_position, Size::new(width, cache.measured.line_height)),
+                            Rect::new(
+                                start_position,
+                                Size::new(width, info.cache.measured.line_height),
+                            ),
                             highlight,
                         )
                         .translate_by(padding),
                     );
                     // Fill region between
-                    let bottom_of_first_line = start_position.y + cache.measured.line_height;
+                    let bottom_of_first_line = start_position.y + info.cache.measured.line_height;
                     let distance_between = end_position.y - bottom_of_first_line;
                     if distance_between > 0 {
                         context.gfx.draw_shape(
@@ -1102,7 +1129,10 @@ where
                         Shape::filled_rect(
                             Rect::new(
                                 Point::new(Px::ZERO, end_position.y),
-                                Size::new(end_position.x + end_width, cache.measured.line_height),
+                                Size::new(
+                                    end_position.x + end_width,
+                                    info.cache.measured.line_height,
+                                ),
                             ),
                             highlight,
                         )
@@ -1111,14 +1141,14 @@ where
                 }
             } else if window_focused && context.enabled() {
                 let (location, _) =
-                    Self::point_from_cursor(cache.measured, cache.cursor, cache.bytes);
+                    self.point_from_cursor(info.cache, info.cursor, info.cache.bytes);
                 if cursor_state.visible {
                     let cursor_width = Lp::points(2).into_px(context.gfx.scale());
                     context.gfx.draw_shape(
                         Shape::filled_rect(
                             Rect::new(
                                 Point::new(location.x - cursor_width / 2, location.y),
-                                Size::new(cursor_width, cache.measured.line_height),
+                                Size::new(cursor_width, info.cache.measured.line_height),
                             ),
                             highlight,
                         )
@@ -1131,10 +1161,10 @@ where
             }
         }
 
-        let text = if cache.bytes > 0 {
-            cache.measured
+        let text = if info.cache.bytes > 0 {
+            &info.cache.measured
         } else {
-            cache.placeholder
+            &info.cache.placeholder
         };
         context
             .gfx
@@ -1153,12 +1183,13 @@ where
 
         let width = available_space.width.max().saturating_sub(padding * 2);
 
-        let cache = self.layout_text(Some(width.into_signed()), &mut context.graphics);
+        self.layout_text(Some(width.into_signed()), &mut context.graphics);
+        let info = self.cache_info();
 
-        cache
+        info.cache
             .measured
             .size
-            .max(cache.placeholder.size)
+            .max(info.cache.placeholder.size)
             .into_unsigned()
             + Size::squared(padding * 2)
     }
