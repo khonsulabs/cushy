@@ -3,7 +3,7 @@
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Round, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
-use kludgine::{Color, DrawableExt};
+use kludgine::{CanRenderTo, Color, DrawableExt};
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::TextColor;
@@ -37,7 +37,8 @@ impl Label {
         let check_generation = self.text.generation();
         match &self.prepared_text {
             Some((prepared, prepared_generation, prepared_width, prepared_color))
-                if *prepared_generation == check_generation
+                if prepared.can_render_to(&context.gfx)
+                    && *prepared_generation == check_generation
                     && *prepared_color == color
                     && (*prepared_width == width
                         || ((*prepared_width < width || prepared.size.width <= width)

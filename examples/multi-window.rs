@@ -1,11 +1,16 @@
+use gooey::kludgine::include_texture;
 use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
+use gooey::widgets::Image;
 use gooey::{Application, Open, PendingApp, Run};
+use kludgine::LazyTexture;
 
 fn main() -> gooey::Result {
     // To open multiple applications, we need a handle to the application. This
     // starts with the `PendingApp` type.
     let app = PendingApp::default();
+    // Gooey ensures it's easy to share resources between windows.
+    let texture = include_texture!("assets/ferris-happy.png").expect("valid image");
 
     let open_windows = Dynamic::new(0_usize);
     let counter = Dynamic::new(0_usize);
@@ -18,7 +23,8 @@ fn main() -> gooey::Result {
                 "There are {open} other window(s) open. {counter} total windows have been opened"
             )
         })
-        .and(open_window_button(&app, &open_windows, &counter))
+        .and(Image::new(texture.clone()))
+        .and(open_window_button(&app, &open_windows, &counter, &texture))
         .into_rows()
         .centered()
         // The other examples call run() on the widget/window. Since we're
@@ -27,7 +33,7 @@ fn main() -> gooey::Result {
 
     // And now let's open our first "clone" window -- the window that clicking
     // the open button on any of the windows will create.
-    open_another_window(&app, &open_windows, &counter);
+    open_another_window(&app, &open_windows, &counter, &texture);
 
     // Run the application
     app.run()
@@ -38,12 +44,14 @@ fn open_window_button(
     app: &impl Application,
     open_windows: &Dynamic<usize>,
     counter: &Dynamic<usize>,
+    texture: &LazyTexture,
 ) -> impl MakeWidget {
     let app = app.as_app();
     let open_windows = open_windows.clone();
     let counter = counter.clone();
+    let texture = texture.clone();
     "Open Another Window".into_button().on_click(move |()| {
-        open_another_window(&app, &open_windows, &counter);
+        open_another_window(&app, &open_windows, &counter, &texture);
     })
 }
 
@@ -52,6 +60,7 @@ fn open_another_window(
     app: &impl Application,
     open_windows: &Dynamic<usize>,
     counter: &Dynamic<usize>,
+    texture: &LazyTexture,
 ) {
     let my_number = counter.map_mut(|count| {
         *count += 1;
@@ -60,7 +69,8 @@ fn open_another_window(
     let open_windows = open_windows.clone();
     open_windows.map_mut(|open_windows| *open_windows += 1);
     format!("This is window {my_number}")
-        .and(open_window_button(app, &open_windows, counter))
+        .and(open_window_button(app, &open_windows, counter, texture))
+        .and(Image::new(texture.clone()))
         .into_rows()
         .centered()
         .into_window()

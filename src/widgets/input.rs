@@ -18,7 +18,7 @@ use kludgine::figures::{
 };
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
-use kludgine::{Color, DrawableExt};
+use kludgine::{CanRenderTo, Color, DrawableExt};
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 use zeroize::Zeroizing;
 
@@ -344,7 +344,7 @@ where
             return;
         };
 
-        let (mut position, _) = self.point_from_cursor(&cache, self.selection.cursor, cache.bytes);
+        let (mut position, _) = self.point_from_cursor(cache, self.selection.cursor, cache.bytes);
         position += Point::squared(
             context
                 .get(&IntrinsicPadding)
@@ -570,7 +570,10 @@ where
             }
         };
         match &mut self.cache {
-            Some(cache) if cache.key == key => {}
+            Some(cache)
+                if cache.measured.can_render_to(&context.gfx)
+                    && cache.placeholder.can_render_to(&context.gfx)
+                    && cache.key == key => {}
             _ => {
                 let (bytes, measured, placeholder, ) = self.value.map_ref(|storage| {
                     let mut text = storage.as_str();

@@ -2,7 +2,7 @@
 
 use kludgine::figures::units::UPx;
 use kludgine::figures::{FloatConversion, IntoSigned, Point, Rect, Size, Zero};
-use kludgine::{AnyTexture, CollectedTexture, SharedTexture, Texture, TextureRegion};
+use kludgine::{AnyTexture, CollectedTexture, LazyTexture, SharedTexture, Texture, TextureRegion};
 
 use crate::animation::ZeroToOne;
 use crate::context::LayoutContext;
@@ -190,6 +190,12 @@ impl Default for ImageScaling {
 }
 
 impl IntoValue<AnyTexture> for Texture {
+    fn into_value(self) -> Value<AnyTexture> {
+        Value::Constant(AnyTexture::from(self))
+    }
+}
+
+impl IntoValue<AnyTexture> for LazyTexture {
     fn into_value(self) -> Value<AnyTexture> {
         Value::Constant(AnyTexture::from(self))
     }
