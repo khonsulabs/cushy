@@ -1,7 +1,7 @@
 //! A read-only text widget.
 
 use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, Size};
+use kludgine::figures::{Point, Round, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{Color, DrawableExt};
 
@@ -70,9 +70,10 @@ impl Widget for Label {
 
         let prepared_text = self.prepared_text(context, text_color, size.width);
 
-        context
-            .gfx
-            .draw_measured_text(prepared_text.translate_by(center), TextOrigin::Center);
+        context.gfx.draw_measured_text(
+            prepared_text.translate_by(center.round()),
+            TextOrigin::Center,
+        );
     }
 
     fn layout(
