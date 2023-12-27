@@ -327,12 +327,12 @@ impl<Behavior> Open for Window<Behavior>
 where
     Behavior: WindowBehavior,
 {
-    fn open<App>(self, app: &App) -> crate::Result
+    fn open<App>(self, app: &App) -> crate::Result<Option<WindowHandle>>
     where
         App: Application,
     {
         let gooey = app.gooey().clone();
-        let _handle = GooeyWindow::<Behavior>::open_with(
+        let handle = GooeyWindow::<Behavior>::open_with(
             app,
             sealed::Context {
                 user: self.context,
@@ -356,7 +356,7 @@ where
             },
         )?;
 
-        Ok(())
+        Ok(handle.map(WindowHandle::from))
     }
 
     fn run_in(self, app: PendingApp) -> crate::Result {
@@ -1318,6 +1318,18 @@ where
             WindowCommand::Redraw => {
                 window.set_needs_redraw();
             }
+            WindowCommand::RequestClose => {
+                let mut window = RunningWindow::new(
+                    window,
+                    &self.gooey,
+                    &self.focused,
+                    &self.occluded,
+                    &self.inner_size,
+                );
+                if self.behavior.close_requested(&mut window) {
+                    window.close();
+                }
+            }
         }
     }
 }
@@ -1386,7 +1398,7 @@ pub(crate) mod sealed {
     #[derive(Clone)]
     pub enum WindowCommand {
         Redraw,
-        // RequestClose,
+        RequestClose,
     }
 }
 
@@ -1486,4 +1498,23 @@ fn default_family(query: Family<'_>) -> Option<FamilyOwned> {
         .ok()
         .and_then(|output| String::from_utf8(output.stdout).ok())
         .map(FamilyOwned::Name)
+}
+
+/// A handle to an open Gooey window.
+pub struct WindowHandle(kludgine::app::WindowHandle<sealed::WindowCommand>);
+
+impl WindowHandle {
+    /// Request that the window closes.
+    ///
+    /// A window may disallow itself from being closed by customizing
+    /// [`WindowBehavior::close_requested`].
+    pub fn request_close(&self) {
+        let _result = self.0.send(sealed::WindowCommand::RequestClose);
+    }
+}
+
+impl From<kludgine::app::WindowHandle<sealed::WindowCommand>> for WindowHandle {
+    fn from(handle: kludgine::app::WindowHandle<sealed::WindowCommand>) -> Self {
+        WindowHandle(handle)
+    }
 }

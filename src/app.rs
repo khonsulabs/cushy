@@ -5,6 +5,7 @@ use kludgine::app::{AppEvent, AsApplication};
 
 use crate::utils::IgnorePoison;
 use crate::window::sealed::WindowCommand;
+use crate::window::WindowHandle;
 
 /// A Gooey application that has not started running yet.
 pub struct PendingApp {
@@ -116,7 +117,7 @@ pub trait Run: Sized {
 /// A type that can be opened as a window in an application.
 pub trait Open: Sized {
     /// Opens the provided type as a window inside of `app`.
-    fn open<App>(self, app: &App) -> crate::Result
+    fn open<App>(self, app: &App) -> crate::Result<Option<WindowHandle>>
     where
         App: Application;
 

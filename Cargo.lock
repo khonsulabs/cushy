@@ -1178,7 +1178,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.6.1"
-source = "git+https://github.com/khonsulabs/kludgine#4da9c9aef372ea6ae22fc18095a098d7189984c2"
+source = "git+https://github.com/khonsulabs/kludgine#daf7a2df751c2e77ac226d3ddf5a408b85172cc9"
 dependencies = [
  "ahash",
  "alot",
@@ -3232,9 +3232,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.5.30"
+version = "0.5.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b5c3db89721d50d0e2a673f5043fc4722f76dcc352d7b1ab8b8288bed4ed2c5"
+checksum = "97a4882e6b134d6c28953a387571f1acdd3496830d5e36c5e3a1075580ea641c"
 dependencies = [
  "memchr",
 ]
