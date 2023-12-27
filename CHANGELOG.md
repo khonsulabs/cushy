@@ -69,6 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RunningWindow::request_close()` requests that the window should close. This
   ensures `WindowBehavior::close_requested` is invoked before the window is
   closed.
+- `PendingWindow` is a new type that can return a `WindowHandle` for a window
+  that hasn't opened yet. This can be used to allow a widget on a window to
+  close the window.
 
 [91]: https://github.com/khonsulabs/gooey/issues/91
 [92]: https://github.com/khonsulabs/gooey/issues/92

@@ -6,7 +6,7 @@ use std::hash::Hash;
 use std::ops::{Deref, DerefMut, Not};
 use std::path::Path;
 use std::string::ToString;
-use std::sync::{MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use ahash::AHashMap;
 use alot::LotId;
@@ -38,8 +38,8 @@ use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, DynamicReader, Generation, IntoDynamic, IntoValue, Value};
 use crate::widget::{
-    EventHandling, MountedWidget, OnceCallback, RootBehavior, Widget, WidgetId, WidgetInstance,
-    HANDLED, IGNORED,
+    EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, Widget, WidgetId,
+    WidgetInstance, HANDLED, IGNORED,
 };
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit};
@@ -144,6 +144,7 @@ where
     Behavior: WindowBehavior,
 {
     context: Behavior::Context,
+    pending: PendingWindow,
     /// The attributes of this window.
     pub attributes: WindowAttributes,
     /// The colors to use to theme the user interface.
@@ -288,6 +289,10 @@ where
     /// Returns a new instance using `context` to initialize the window upon
     /// opening.
     pub fn new(context: Behavior::Context) -> Self {
+        Self::new_with_pending(context, PendingWindow::default())
+    }
+
+    fn new_with_pending(context: Behavior::Context, pending: PendingWindow) -> Self {
         static EXECUTABLE_NAME: OnceLock<String> = OnceLock::new();
 
         let title = EXECUTABLE_NAME
@@ -304,6 +309,7 @@ where
             })
             .clone();
         Self {
+            pending,
             attributes: WindowAttributes {
                 title,
                 ..WindowAttributes::default()
@@ -350,14 +356,14 @@ where
         App: Application,
     {
         let gooey = app.gooey().clone();
-        let redraw_status = InvalidationStatus::default();
+
         let handle = GooeyWindow::<Behavior>::open_with(
             app,
             sealed::Context {
                 user: self.context,
                 settings: RefCell::new(sealed::WindowSettings {
                     gooey,
-                    redraw_status: redraw_status.clone(),
+                    redraw_status: self.pending.0.redraw_status.clone(),
                     on_closed: self.on_closed,
                     transparent: self.attributes.transparent,
                     attributes: Some(self.attributes),
@@ -376,7 +382,7 @@ where
             },
         )?;
 
-        Ok(handle.map(|handle| WindowHandle::new(handle, redraw_status)))
+        Ok(handle.map(|handle| self.pending.opened(handle)))
     }
 
     fn run_in(self, app: PendingApp) -> crate::Result {
@@ -1534,7 +1540,7 @@ fn default_family(query: Family<'_>) -> Option<FamilyOwned> {
 /// A handle to an open Gooey window.
 #[derive(Clone)]
 pub struct WindowHandle {
-    pub(crate) kludgine: kludgine::app::WindowHandle<WindowCommand>,
+    inner: InnerWindowHandle,
     pub(crate) redraw_status: InvalidationStatus,
 }
 
@@ -1544,8 +1550,15 @@ impl WindowHandle {
         redraw_status: InvalidationStatus,
     ) -> Self {
         Self {
-            kludgine,
+            inner: InnerWindowHandle::Known(kludgine),
             redraw_status,
+        }
+    }
+
+    fn pending() -> Self {
+        Self {
+            inner: InnerWindowHandle::Pending(Arc::default()),
+            redraw_status: InvalidationStatus::default(),
         }
     }
 
@@ -1554,13 +1567,13 @@ impl WindowHandle {
     /// A window may disallow itself from being closed by customizing
     /// [`WindowBehavior::close_requested`].
     pub fn request_close(&self) {
-        let _result = self.kludgine.send(sealed::WindowCommand::RequestClose);
+        self.inner.send(sealed::WindowCommand::RequestClose);
     }
 
     /// Requests that the window redraws.
     pub fn redraw(&self) {
         if self.redraw_status.should_send_refresh() {
-            let _result = self.kludgine.send(WindowCommand::Redraw);
+            self.inner.send(WindowCommand::Redraw);
         }
     }
 
@@ -1584,4 +1597,97 @@ impl Hash for WindowHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.redraw_status.hash(state);
     }
+}
+
+#[derive(Clone)]
+enum InnerWindowHandle {
+    Pending(Arc<PendingWindowHandle>),
+    Known(kludgine::app::WindowHandle<WindowCommand>),
+}
+
+impl InnerWindowHandle {
+    fn send(&self, message: WindowCommand) {
+        match self {
+            InnerWindowHandle::Pending(pending) => {
+                if let Some(handle) = pending.handle.get() {
+                    let _result = handle.send(message);
+                } else {
+                    pending
+                        .commands
+                        .lock()
+                        .expect("lock poisoned")
+                        .push(message);
+                }
+            }
+            InnerWindowHandle::Known(handle) => {
+                let _result = handle.send(message);
+            }
+        };
+    }
+}
+
+/// A [`Window`] that doesn't have its root widget yet.
+///
+/// [`PendingWindow::handle()`] returns a handle that allows code to interact
+/// with a window before it has had its contents initialized. This is useful,
+/// for example, for a button's `on_click` to be able to close the window that
+/// contains it.
+pub struct PendingWindow(WindowHandle);
+
+impl Default for PendingWindow {
+    fn default() -> Self {
+        Self(WindowHandle::pending())
+    }
+}
+
+impl PendingWindow {
+    /// Returns a [`Window`] using `context` to initialize its contents.
+    pub fn with<Behavior>(self, context: Behavior::Context) -> Window<Behavior>
+    where
+        Behavior: WindowBehavior,
+    {
+        Window::new_with_pending(context, self)
+    }
+
+    /// Returns a [`Window`] containing `root`.
+    pub fn with_root(self, root: impl MakeWidget) -> Window<WidgetInstance> {
+        Window::new_with_pending(root.make_widget(), self)
+    }
+
+    /// Returns a [`Window`] using the default context to initialize its
+    /// contents.
+    pub fn using<Behavior>(self) -> Window<Behavior>
+    where
+        Behavior: WindowBehavior,
+        Behavior::Context: Default,
+    {
+        self.with(<Behavior::Context>::default())
+    }
+
+    /// Returns a handle for this window.
+    #[must_use]
+    pub fn handle(&self) -> WindowHandle {
+        self.0.clone()
+    }
+
+    fn opened(self, handle: kludgine::app::WindowHandle<WindowCommand>) -> WindowHandle {
+        let InnerWindowHandle::Pending(pending) = &self.0.inner else {
+            unreachable!("always pending")
+        };
+
+        let initialized = pending.handle.set(handle.clone());
+        assert!(initialized.is_ok());
+
+        for command in pending.commands.lock().expect("poisoned").drain(..) {
+            let _result = handle.send(command);
+        }
+
+        WindowHandle::new(handle, self.0.redraw_status.clone())
+    }
+}
+
+#[derive(Default)]
+struct PendingWindowHandle {
+    handle: OnceLock<kludgine::app::WindowHandle<WindowCommand>>,
+    commands: Mutex<Vec<WindowCommand>>,
 }

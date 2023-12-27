@@ -2,6 +2,7 @@ use gooey::kludgine::include_texture;
 use gooey::value::{Dynamic, MapEach};
 use gooey::widget::MakeWidget;
 use gooey::widgets::Image;
+use gooey::window::PendingWindow;
 use gooey::{Application, Open, PendingApp, Run};
 use kludgine::LazyTexture;
 
@@ -66,14 +67,26 @@ fn open_another_window(
         *count += 1;
         *count
     });
+
     let open_windows = open_windows.clone();
     open_windows.map_mut(|open_windows| *open_windows += 1);
-    format!("This is window {my_number}")
-        .and(open_window_button(app, &open_windows, counter, texture))
-        .and(Image::new(texture.clone()))
-        .into_rows()
-        .centered()
-        .into_window()
+
+    let window = PendingWindow::default();
+    let handle = window.handle();
+
+    window
+        .with_root(
+            format!("This is window {my_number}")
+                .and(open_window_button(app, &open_windows, counter, texture))
+                .and(Image::new(texture.clone()))
+                .and(
+                    "Close"
+                        .into_button()
+                        .on_click(move |()| handle.request_close()),
+                )
+                .into_rows()
+                .centered(),
+        )
         .on_close(move || open_windows.map_mut(|open_windows| *open_windows -= 1))
         .open(app)
         .expect("error opening another window");
