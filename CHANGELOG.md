@@ -62,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   windows before starting Gooey as well as dynamically opening windows at
   runtime.
 - `Window::on_close` sets a callback to be invoked when the window has closed.
+- `WindowHandle` is a handle to a Gooey window. It enables requesting that the
+  window closes, refreshing the window, or invalidating a widget contained in
+  the window.
+- `RunningWindow::handle()` returns a `WindowHandle` for the current window.
+- `RunningWindow::request_close()` requests that the window should close. This
+  ensures `WindowBehavior::close_requested` is invoked before the window is
+  closed.
 
 [91]: https://github.com/khonsulabs/gooey/issues/91
 [92]: https://github.com/khonsulabs/gooey/issues/92
