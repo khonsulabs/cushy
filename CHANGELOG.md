@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [#113][113]: `Input` now constraints its internal selection to the value's
   length automatically. This fixes an issue where the backspace key no longer
   would work after clearing the text field by setting the `Dynamic`.
+- Validation callbacks are now associated with the `Dynamic<Validation>` being
+  created rather than being persisted indefinitely on the source dynamic.
 
 ### Added
 
@@ -81,6 +83,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `DefaultActiveBackgroundColor`
   - `DefaultDisabledForegroundColor`
   - `DefaultDisabledBackgroundColor`
+- `CallbackHandle` can now be added with other `CallbackHandle`s to merge
+  multiple handles into a single handle.
+- `Dynamic::set_source` allows attaching a `CallbackHandle` to a `Dynamic`,
+  ensuring the callback stays alive as long as the dynamic has an instance
+  alive.
 
 [91]: https://github.com/khonsulabs/gooey/issues/91
 [92]: https://github.com/khonsulabs/gooey/issues/92

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt::{self, Debug, Display};
 use std::future::Future;
 use std::hash::{BuildHasher, Hash};
-use std::ops::{Deref, DerefMut, Not};
+use std::ops::{Add, AddAssign, Deref, DerefMut, Not};
 use std::str::FromStr;
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, TryLockError, Weak};
 use std::task::{Poll, Waker};
@@ -41,7 +41,7 @@ impl<T> Dynamic<T> {
                 readers: 0,
                 wakers: Vec::new(),
                 widgets: AHashSet::new(),
-                source_callback: None,
+                source_callback: CallbackHandle::default(),
             }),
             during_callback_state: Mutex::default(),
             sync: Condvar::default(),
@@ -173,10 +173,14 @@ impl<T> Dynamic<T> {
         })
     }
 
-    fn set_source(&self, source: CallbackHandle) {
-        self.state()
-            .assert("called during initialization")
-            .source_callback = Some(source);
+    /// Sets the current `source` for this dynamic with `source`.
+    ///
+    /// A dynamic can have multiple source callbacks.
+    ///
+    /// This ensures that `source` stays active as long as any clones of `self`
+    /// are alive.
+    pub fn set_source(&self, source: CallbackHandle) {
+        self.state().assert("deadlocked").source_callback += source;
     }
 
     /// Returns a new dynamic that contains the updated contents of this dynamic
@@ -897,10 +901,10 @@ impl<T> DynamicData<T> {
     {
         let state = self.state().expect("deadlocked");
         let mut data = state.callbacks.callbacks.lock().ignore_poison();
-        CallbackHandle {
+        CallbackHandle(CallbackHandleInner::Single(CallbackHandleData {
             id: Some(data.callbacks.push(Box::new(map))),
             callbacks: state.callbacks.clone(),
-        }
+        }))
     }
 
     pub fn map_each<R, F>(&self, mut map: F) -> Dynamic<R>
@@ -965,25 +969,60 @@ impl Display for DeadlockError {
 /// To prevent the callback from ever being uninstalled, use
 /// [`Self::persist()`].
 #[must_use]
-pub struct CallbackHandle {
+pub struct CallbackHandle(CallbackHandleInner);
+
+impl Default for CallbackHandle {
+    fn default() -> Self {
+        Self(CallbackHandleInner::None)
+    }
+}
+
+enum CallbackHandleInner {
+    None,
+    Single(CallbackHandleData),
+    Multi(Vec<CallbackHandleData>),
+}
+
+struct CallbackHandleData {
     id: Option<LotId>,
     callbacks: Arc<ChangeCallbacksData>,
 }
 
 impl Debug for CallbackHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CallbackHandle")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
+        let mut tuple = f.debug_tuple("CallbackHandle");
+        match &self.0 {
+            CallbackHandleInner::None => {}
+            CallbackHandleInner::Single(handle) => {
+                tuple.field(&handle.id);
+            }
+            CallbackHandleInner::Multi(handles) => {
+                for handle in handles {
+                    tuple.field(&handle.id);
+                }
+            }
+        }
+
+        tuple.finish()
     }
 }
 
 impl CallbackHandle {
     /// Persists the callback so that it will always be invoked until the
     /// dynamic is freed.
-    pub fn persist(mut self) {
-        let _id = self.id.take();
-        drop(self);
+    pub fn persist(self) {
+        match self.0 {
+            CallbackHandleInner::None => {}
+            CallbackHandleInner::Single(mut handle) => {
+                let _id = handle.id.take();
+                drop(handle);
+            }
+            CallbackHandleInner::Multi(handles) => {
+                for handle in handles {
+                    handle.persist();
+                }
+            }
+        }
     }
 }
 
@@ -991,11 +1030,25 @@ impl Eq for CallbackHandle {}
 
 impl PartialEq for CallbackHandle {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && Arc::ptr_eq(&self.callbacks, &other.callbacks)
+        match (&self.0, &other.0) {
+            (CallbackHandleInner::None, CallbackHandleInner::None) => true,
+            (CallbackHandleInner::Single(this), CallbackHandleInner::Single(other)) => {
+                this == other
+            }
+            (CallbackHandleInner::Multi(this), CallbackHandleInner::Multi(other)) => this == other,
+            _ => false,
+        }
     }
 }
 
-impl Drop for CallbackHandle {
+impl CallbackHandleData {
+    fn persist(mut self) {
+        let _id = self.id.take();
+        drop(self);
+    }
+}
+
+impl Drop for CallbackHandleData {
     fn drop(&mut self) {
         if let Some(id) = self.id {
             let mut data = self.callbacks.callbacks.lock().ignore_poison();
@@ -1003,10 +1056,63 @@ impl Drop for CallbackHandle {
         }
     }
 }
+impl PartialEq for CallbackHandleData {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && Arc::ptr_eq(&self.callbacks, &other.callbacks)
+    }
+}
+
+impl Add for CallbackHandle {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl AddAssign for CallbackHandle {
+    fn add_assign(&mut self, rhs: Self) {
+        match (&mut self.0, rhs.0) {
+            (_, CallbackHandleInner::None) => {}
+            (CallbackHandleInner::None, other) => {
+                self.0 = other;
+            }
+            (CallbackHandleInner::Single(_), CallbackHandleInner::Single(other)) => {
+                let CallbackHandleInner::Single(single) =
+                    std::mem::replace(&mut self.0, CallbackHandleInner::Multi(vec![other]))
+                else {
+                    unreachable!("just matched")
+                };
+                let CallbackHandleInner::Multi(multi) = &mut self.0 else {
+                    unreachable!("just replaced")
+                };
+                multi.push(single);
+            }
+            (CallbackHandleInner::Single(_), CallbackHandleInner::Multi(multi)) => {
+                let CallbackHandleInner::Single(single) =
+                    std::mem::replace(&mut self.0, CallbackHandleInner::Multi(multi))
+                else {
+                    unreachable!("just matched")
+                };
+                let CallbackHandleInner::Multi(multi) = &mut self.0 else {
+                    unreachable!("just replaced")
+                };
+                multi.push(single);
+            }
+            (CallbackHandleInner::Multi(this), CallbackHandleInner::Single(single)) => {
+                this.push(single);
+            }
+            (CallbackHandleInner::Multi(this), CallbackHandleInner::Multi(mut other)) => {
+                this.append(&mut other);
+            }
+        }
+    }
+}
 
 struct State<T> {
     wrapped: GenerationalValue<T>,
-    source_callback: Option<CallbackHandle>,
+    source_callback: CallbackHandle,
     callbacks: Arc<ChangeCallbacksData>,
     windows: AHashSet<WindowHandle>,
     widgets: AHashSet<(WindowHandle, WidgetId)>,
@@ -1915,7 +2021,7 @@ pub trait ForEach<T> {
     type Ref<'a>;
 
     /// Apply `for_each` to each value contained within `self`.
-    fn for_each<F>(&self, for_each: F)
+    fn for_each<F>(&self, for_each: F) -> CallbackHandle
     where
         F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static;
 }
@@ -1929,28 +2035,30 @@ macro_rules! impl_tuple_for_each {
             type Ref<'a> = ($(&'a $type,)+);
 
             #[allow(unused_mut)]
-            fn for_each<F>(&self, mut for_each: F)
+            fn for_each<F>(&self, mut for_each: F) -> CallbackHandle
             where
                 F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static,
             {
-                impl_tuple_for_each!(self for_each [] [$($type $field $var),+]);
+                let mut handles = CallbackHandle::default();
+                impl_tuple_for_each!(self for_each handles [] [$($type $field $var),+]);
+                handles
             }
         }
     };
-    ($self:ident $for_each:ident [] [$type:ident $field:tt $var:ident]) => {
-        $self.$field.for_each(move |field: &$type| $for_each((field,))).persist();
+    ($self:ident $for_each:ident $handles:ident [] [$type:ident $field:tt $var:ident]) => {
+        $handles += $self.$field.for_each(move |field: &$type| $for_each((field,)));
     };
-    ($self:ident $for_each:ident [] [$($type:ident $field:tt $var:ident),+]) => {
+    ($self:ident $for_each:ident $handles:ident [] [$($type:ident $field:tt $var:ident),+]) => {
         let $for_each = Arc::new(Mutex::new($for_each));
         $(let $var = $self.$field.clone();)*
 
 
-        impl_tuple_for_each!(invoke $self $for_each [] [$($type $field $var),+]);
+        impl_tuple_for_each!(invoke $self $for_each $handles [] [$($type $field $var),+]);
     };
     (
         invoke
         // Identifiers used from the outer method
-        $self:ident $for_each:ident
+        $self:ident $for_each:ident $handles:ident
         // List of all tuple fields that have already been positioned as the focused call
         [$($ltype:ident $lfield:tt $lvar:ident),*]
         //
@@ -1958,14 +2066,14 @@ macro_rules! impl_tuple_for_each {
     ) => {
         impl_tuple_for_each!(
             invoke
-            $self $for_each
+            $self $for_each $handles
             $type $field $var
             [$($ltype $lfield $lvar,)* $type $field $var, $($rtype $rfield $rvar),+]
             [$($ltype $lfield $lvar,)* $($rtype $rfield $rvar),+]
         );
         impl_tuple_for_each!(
             invoke
-            $self $for_each
+            $self $for_each $handles
             [$($ltype $lfield $lvar,)* $type $field $var]
             [$($rtype $rfield $rvar),+]
         );
@@ -1973,7 +2081,7 @@ macro_rules! impl_tuple_for_each {
     (
         invoke
         // Identifiers used from the outer method
-        $self:ident $for_each:ident
+        $self:ident $for_each:ident $handles:ident
         // List of all tuple fields that have already been positioned as the focused call
         [$($ltype:ident $lfield:tt $lvar:ident),+]
         //
@@ -1981,7 +2089,7 @@ macro_rules! impl_tuple_for_each {
     ) => {
         impl_tuple_for_each!(
             invoke
-            $self $for_each
+            $self $for_each $handles
             $type $field $var
             [$($ltype $lfield $lvar,)+ $type $field $var]
             [$($ltype $lfield $lvar),+]
@@ -1990,7 +2098,7 @@ macro_rules! impl_tuple_for_each {
     (
         invoke
         // Identifiers used from the outer method
-        $self:ident $for_each:ident
+        $self:ident $for_each:ident $handles:ident
         // Tuple field that for_each is being invoked on
         $type:ident $field:tt $var:ident
         // The list of all tuple fields in this invocation, in the correct order.
@@ -1998,14 +2106,14 @@ macro_rules! impl_tuple_for_each {
         // The list of tuple fields excluding the one being invoked.
         [$($rtype:ident $rfield:tt $rvar:ident),+]
     ) => {
-        $var.for_each((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
+        $handles += $var.for_each((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
             move |$var: &$type| {
                 $(let $rvar = $rvar.lock();)+
                 let mut for_each =
                     for_each.lock().ignore_poison();
                 (for_each)(($(&$avar,)+));
             }
-        })).persist();
+        }));
     };
 }
 
@@ -2042,13 +2150,13 @@ macro_rules! impl_tuple_map_each {
 
                     Dynamic::new(map_each(($(&$var,)+)))
                 };
-                self.for_each({
+                dynamic.set_source(self.for_each({
                     let dynamic = dynamic.clone();
 
                     move |tuple| {
                         dynamic.set(map_each(tuple));
                     }
-                });
+                }));
                 dynamic
             }
         }
@@ -2060,7 +2168,7 @@ impl_all_tuples!(impl_tuple_map_each);
 /// A type that can have a `for_each` operation applied to it.
 pub trait ForEachCloned<T> {
     /// Apply `for_each` to each value contained within `self`.
-    fn for_each_cloned<F>(&self, for_each: F)
+    fn for_each_cloned<F>(&self, for_each: F) -> CallbackHandle
     where
         F: for<'a> FnMut(T) + Send + 'static;
 }
@@ -2073,28 +2181,30 @@ macro_rules! impl_tuple_for_each_cloned {
         {
 
             #[allow(unused_mut)]
-            fn for_each_cloned<F>(&self, mut for_each: F)
+            fn for_each_cloned<F>(&self, mut for_each: F) -> CallbackHandle
             where
                 F: for<'a> FnMut(($($type,)+)) + Send + 'static,
             {
-                impl_tuple_for_each_cloned!(self for_each [] [$($type $field $var),+]);
+                let mut handles = CallbackHandle::default();
+                impl_tuple_for_each_cloned!(self for_each handles [] [$($type $field $var),+]);
+                handles
             }
         }
     };
-    ($self:ident $for_each:ident [] [$type:ident $field:tt $var:ident]) => {
-        $self.$field.for_each(move |field: &$type| $for_each((field.clone(),))).persist();
+    ($self:ident $for_each:ident $handles:ident [] [$type:ident $field:tt $var:ident]) => {
+        $handles += $self.$field.for_each(move |field: &$type| $for_each((field.clone(),)));
     };
-    ($self:ident $for_each:ident [] [$($type:ident $field:tt $var:ident),+]) => {
+    ($self:ident $for_each:ident $handles:ident [] [$($type:ident $field:tt $var:ident),+]) => {
         let $for_each = Arc::new(Mutex::new($for_each));
         $(let $var = $self.$field.clone();)*
 
 
-        impl_tuple_for_each_cloned!(invoke $self $for_each [] [$($type $field $var),+]);
+        impl_tuple_for_each_cloned!(invoke $self $for_each $handles [] [$($type $field $var),+]);
     };
     (
         invoke
         // Identifiers used from the outer method
-        $self:ident $for_each:ident
+        $self:ident $for_each:ident $handles:ident
         // List of all tuple fields that have already been positioned as the focused call
         [$($ltype:ident $lfield:tt $lvar:ident),*]
         //
@@ -2102,14 +2212,14 @@ macro_rules! impl_tuple_for_each_cloned {
     ) => {
         impl_tuple_for_each_cloned!(
             invoke
-            $self $for_each
+            $self $for_each $handles
             $type $field $var
             [$($ltype $lfield $lvar,)* $type $field $var, $($rtype $rfield $rvar),+]
             [$($ltype $lfield $lvar,)* $($rtype $rfield $rvar),+]
         );
         impl_tuple_for_each_cloned!(
             invoke
-            $self $for_each
+            $self $for_each $handles
             [$($ltype $lfield $lvar,)* $type $field $var]
             [$($rtype $rfield $rvar),+]
         );
@@ -2117,7 +2227,7 @@ macro_rules! impl_tuple_for_each_cloned {
     (
         invoke
         // Identifiers used from the outer method
-        $self:ident $for_each:ident
+        $self:ident $for_each:ident $handles:ident
         // List of all tuple fields that have already been positioned as the focused call
         [$($ltype:ident $lfield:tt $lvar:ident),+]
         //
@@ -2125,7 +2235,7 @@ macro_rules! impl_tuple_for_each_cloned {
     ) => {
         impl_tuple_for_each_cloned!(
             invoke
-            $self $for_each
+            $self $for_each $handles
             $type $field $var
             [$($ltype $lfield $lvar,)+ $type $field $var]
             [$($ltype $lfield $lvar),+]
@@ -2134,7 +2244,7 @@ macro_rules! impl_tuple_for_each_cloned {
     (
         invoke
         // Identifiers used from the outer method
-        $self:ident $for_each:ident
+        $self:ident $for_each:ident $handles:ident
         // Tuple field that for_each is being invoked on
         $type:ident $field:tt $var:ident
         // The list of all tuple fields in this invocation, in the correct order.
@@ -2142,7 +2252,7 @@ macro_rules! impl_tuple_for_each_cloned {
         // The list of tuple fields excluding the one being invoked.
         [$($rtype:ident $rfield:tt $rvar:ident),+]
     ) => {
-        $var.for_each_cloned((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
+        $handles += $var.for_each_cloned((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
             move |$var: $type| {
                 $(let $rvar = $rvar.get();)+
                 if let Ok(mut for_each) =
@@ -2150,7 +2260,7 @@ macro_rules! impl_tuple_for_each_cloned {
                 (for_each)(($($avar,)+));
                     }
             }
-        })).persist();
+        }));
     };
 }
 
@@ -2183,13 +2293,13 @@ macro_rules! impl_tuple_map_each_cloned {
 
                     Dynamic::new(map_each(($($var,)+)))
                 };
-                self.for_each_cloned({
+                dynamic.set_source(self.for_each_cloned({
                     let dynamic = dynamic.clone();
 
                     move |tuple| {
                         dynamic.set(map_each(tuple));
                     }
-                });
+                }));
                 dynamic
             }
         }
@@ -2295,14 +2405,14 @@ impl Validations {
         let mut message_mapping = Self::map_to_message(move |value| check(value));
         let error_message = dynamic.map_each_generational(move |value| message_mapping(value));
 
-        (&self.state, &error_message).for_each_cloned({
+        validation.set_source((&self.state, &error_message).for_each_cloned({
             let mut f = self.generate_validation(dynamic);
             let validation = validation.clone();
 
             move |(current_state, message)| {
                 validation.set(f(current_state, message));
             }
-        });
+        }));
 
         validation
     }
