@@ -872,9 +872,9 @@ where
                 && relative.y <= cache.measured.line_height
             {
                 return if relative.x > rect.size.width / 2 {
-                    if glyph.info.start + 1 < cache.bytes {
+                    if glyph.info.end < cache.bytes {
                         Cursor {
-                            offset: glyph.info.start + 1,
+                            offset: glyph.info.end,
                             affinity: Affinity::Before,
                         }
                     } else {
