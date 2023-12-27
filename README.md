@@ -5,7 +5,12 @@
 [![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)](https://gooey.rs/main/docs/gooey/)
 
 Gooey is an experimental Graphical User Interface (GUI) crate for the Rust
-programming language. It is powered by:
+programming language. It features a reactive data model and aims to enable
+easily creating responsive, efficient user interfaces. To enable easy
+cross-platform development, Gooey uses its own collection of consistently-styled
+[`Widget`s][widget].
+
+Gooey is powered by:
 
 - [`Kludgine`][kludgine], a 2d graphics library powered by:
   - [`winit`][winit] for windowing/input

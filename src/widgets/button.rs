@@ -13,8 +13,10 @@ use crate::context::{
     AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetCacheKey, WidgetContext,
 };
 use crate::styles::components::{
-    AutoFocusableControls, Easing, HighlightColor, IntrinsicPadding, OpaqueWidgetColor,
-    OutlineColor, SurfaceColor, TextColor,
+    AutoFocusableControls, DefaultActiveBackgroundColor, DefaultActiveForegroundColor,
+    DefaultBackgroundColor, DefaultDisabledBackgroundColor, DefaultDisabledForegroundColor,
+    DefaultForegroundColor, DefaultHoveredBackgroundColor, DefaultHoveredForegroundColor, Easing,
+    HighlightColor, IntrinsicPadding, OpaqueWidgetColor, OutlineColor, SurfaceColor, TextColor,
 };
 use crate::styles::{ColorExt, Styles};
 use crate::utils::ModifiersExt;
@@ -69,46 +71,46 @@ impl ButtonKind {
         match self {
             ButtonKind::Solid => match visual_state {
                 VisualState::Normal => ButtonColors {
-                    background: context.theme().primary.color,
-                    foreground: context.theme().primary.on_color,
+                    background: context.get(&DefaultBackgroundColor),
+                    foreground: context.get(&DefaultForegroundColor),
                     outline: context.get(&ButtonOutline),
                 },
                 VisualState::Hovered => ButtonColors {
-                    background: context.theme().primary.color_bright,
-                    foreground: context.theme().primary.on_color,
+                    background: context.get(&DefaultHoveredBackgroundColor),
+                    foreground: context.get(&DefaultHoveredForegroundColor),
                     outline: context.get(&ButtonHoverOutline),
                 },
                 VisualState::Active => ButtonColors {
-                    background: context.theme().primary.color_dim,
-                    foreground: context.theme().primary.on_color,
+                    background: context.get(&DefaultActiveBackgroundColor),
+                    foreground: context.get(&DefaultActiveForegroundColor),
                     outline: context.get(&ButtonActiveOutline),
                 },
                 VisualState::Disabled => ButtonColors {
-                    background: context.theme().primary.color_dim,
-                    foreground: context.theme().primary.on_color,
+                    background: context.get(&DefaultDisabledBackgroundColor),
+                    foreground: context.get(&DefaultDisabledForegroundColor),
                     outline: context.get(&ButtonDisabledOutline),
                 },
             },
             ButtonKind::Outline | ButtonKind::Transparent => match visual_state {
                 VisualState::Normal => ButtonColors {
                     background: context.get(&ButtonOutline),
-                    foreground: context.theme().primary.color,
-                    outline: context.theme().primary.color,
+                    foreground: context.get(&DefaultBackgroundColor),
+                    outline: context.get(&DefaultBackgroundColor),
                 },
                 VisualState::Hovered => ButtonColors {
                     background: context.get(&ButtonHoverOutline),
-                    foreground: context.theme().primary.color,
-                    outline: context.theme().primary.color_bright,
+                    foreground: context.get(&DefaultHoveredBackgroundColor),
+                    outline: context.get(&DefaultHoveredBackgroundColor),
                 },
                 VisualState::Active => ButtonColors {
                     background: context.get(&ButtonActiveOutline),
-                    foreground: context.theme().primary.color,
-                    outline: context.theme().surface.color,
+                    foreground: context.get(&DefaultActiveBackgroundColor),
+                    outline: context.get(&DefaultActiveBackgroundColor),
                 },
                 VisualState::Disabled => ButtonColors {
                     background: context.get(&ButtonDisabledOutline),
-                    foreground: context.theme().primary.on_color,
-                    outline: context.theme().primary.color_dim,
+                    foreground: context.get(&DefaultDisabledBackgroundColor),
+                    outline: context.get(&DefaultDisabledBackgroundColor),
                 },
             },
         }

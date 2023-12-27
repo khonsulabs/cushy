@@ -154,6 +154,32 @@ define_components! {
         TertiaryColor(Color, "tertiary_color", .tertiary.color)
         /// The error color from the current theme.
         ErrorColor(Color, "error_color", .error.color)
+        /// The foreground color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default).
+        DefaultForegroundColor(Color, "default_foreground_color", .primary.on_color)
+        /// The background color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default).
+        DefaultBackgroundColor(Color, "default_background_color", .primary.color)
+        /// The foreground color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is hovered by
+        /// the cursor.
+        DefaultHoveredForegroundColor(Color, "default_hovered_foreground_color", @DefaultForegroundColor)
+        /// The background color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is hovered by
+        /// the cursor.
+        DefaultHoveredBackgroundColor(Color, "default_hovered_background_color", .primary.color_bright)
+        /// The foreground color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is activated.
+        DefaultActiveForegroundColor(Color, "default_active_foreground_color", .primary.on_color)
+        /// The background color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is activated.
+        DefaultActiveBackgroundColor(Color, "default_active_background_color", .primary.color_dim)
+        /// The foreground color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is disabled.
+        DefaultDisabledForegroundColor(Color, "default_disabled_foreground_color", .primary.on_color)
+        /// The background color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is disabled.
+        DefaultDisabledBackgroundColor(Color, "default_disabled_background_color", .primary.color_dim)
         /// Intrinsic, uniform padding for a widget.
         ///
         /// This component is opt-in and does not automatically work for all widgets.

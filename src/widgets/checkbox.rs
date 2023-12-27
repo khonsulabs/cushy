@@ -3,8 +3,8 @@ use std::error::Error;
 use std::fmt::Display;
 use std::ops::Not;
 
-use kludgine::figures::units::{Lp, Px};
-use kludgine::figures::{Point, Rect, ScreenScale, Size};
+use kludgine::figures::units::Lp;
+use kludgine::figures::{Point, Rect, Round, ScreenScale, Size};
 use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 
 use crate::context::{GraphicsContext, LayoutContext};
@@ -183,15 +183,19 @@ impl Widget for CheckboxOrnament {
             .width
             .min(context.gfx.region().size.height);
 
+        let stroke_options =
+            StrokeOptions::px_wide(Lp::points(2).into_px(context.gfx.scale()).round());
+
+        let half_line = stroke_options.line_width / 2;
+
         let checkbox_rect = Rect::new(
             Point::new(
-                Px::ZERO,
-                (context.gfx.region().size.height - checkbox_size) / 2,
+                half_line,
+                (context.gfx.region().size.height - checkbox_size) / 2 + half_line,
             ),
-            Size::squared(checkbox_size),
+            Size::squared(checkbox_size - stroke_options.line_width),
         );
 
-        let stroke_options = StrokeOptions::lp_wide(Lp::points(2)).into_px(context.gfx.scale());
         match self.value.get_tracking_redraw(context) {
             state @ (CheckboxState::Checked | CheckboxState::Indeterminant) => {
                 let color = context.get(&WidgetAccentColor);
