@@ -6,12 +6,11 @@ use alot::{LotId, Lots};
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{Point, Rect, Size};
 
-use crate::context::sealed::WindowHandle;
 use crate::styles::{Styles, ThemePair, VisualOrder};
 use crate::utils::IgnorePoison;
 use crate::value::Value;
 use crate::widget::{MountedWidget, WidgetId, WidgetInstance};
-use crate::window::ThemeMode;
+use crate::window::{ThemeMode, WindowHandle};
 use crate::ConstraintLimit;
 
 #[derive(Clone, Default)]

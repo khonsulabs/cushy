@@ -15,7 +15,6 @@ use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine};
 
 use crate::animation::ZeroToOne;
-use crate::context::sealed::WindowHandle;
 use crate::graphics::Graphics;
 use crate::styles::components::{
     CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, LineHeight,
@@ -850,7 +849,6 @@ impl<'window> AsEventContext<'window> for GraphicsContext<'_, 'window, '_, '_, '
 pub struct WidgetContext<'context, 'window> {
     current_node: MountedWidget,
     pub(crate) tree: Tree,
-    redraw_status: &'context InvalidationStatus,
     window: &'context mut RunningWindow<'window>,
     theme: Cow<'context, ThemePair>,
     cursor: &'context mut CursorState,
@@ -862,16 +860,12 @@ pub struct WidgetContext<'context, 'window> {
 impl<'context, 'window> WidgetContext<'context, 'window> {
     pub(crate) fn new(
         current_node: MountedWidget,
-        redraw_status: &'context InvalidationStatus,
         theme: &'context ThemePair,
         window: &'context mut RunningWindow<'window>,
         theme_mode: ThemeMode,
         cursor: &'context mut CursorState,
     ) -> Self {
-        let enabled = current_node.enabled(&WindowHandle {
-            kludgine: window.handle(),
-            redraw_status: redraw_status.clone(),
-        });
+        let enabled = current_node.enabled(&window.handle());
         let tree = current_node.tree();
         Self {
             pending_state: PendingState::Owned(PendingWidgetState {
@@ -891,7 +885,6 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             },
             cursor,
             current_node,
-            redraw_status,
             theme: Cow::Borrowed(theme),
             window,
         }
@@ -902,7 +895,6 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         WidgetContext {
             tree: self.tree.clone(),
             current_node: self.current_node.clone(),
-            redraw_status: self.redraw_status,
             window: &mut *self.window,
             theme: Cow::Borrowed(self.theme.as_ref()),
             pending_state: self.pending_state.borrowed(),
@@ -941,7 +933,6 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
                 },
                 current_node,
                 tree: self.tree.clone(),
-                redraw_status: self.redraw_status,
                 window: &mut *self.window,
                 theme,
                 pending_state: self.pending_state.borrowed(),
@@ -1157,13 +1148,6 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
         self.effective_styles.try_get(query, self)
     }
 
-    pub(crate) fn handle(&self) -> WindowHandle {
-        WindowHandle {
-            kludgine: self.window.handle(),
-            redraw_status: self.redraw_status.clone(),
-        }
-    }
-
     /// Returns the window containing this widget.
     #[must_use]
     pub fn window(&self) -> &RunningWindow<'window> {
@@ -1297,6 +1281,19 @@ impl InvalidationStatus {
     }
 }
 
+impl Eq for InvalidationStatus {}
+
+impl PartialEq for InvalidationStatus {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.invalidated, &other.invalidated)
+    }
+}
+impl std::hash::Hash for InvalidationStatus {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        Arc::as_ptr(&self.invalidated).hash(state);
+    }
+}
+
 /// A type chat can convert to a [`MountedWidget`] through a [`WidgetContext`].
 pub trait ManageWidget {
     /// The managed type, which can be `Option<MountedWidget>` or
@@ -1392,52 +1389,11 @@ pub trait Trackable: sealed::Trackable {}
 impl<T> Trackable for T where T: sealed::Trackable {}
 
 pub(crate) mod sealed {
-    use std::hash::{Hash, Hasher};
-    use std::sync::Arc;
-
-    use crate::context::InvalidationStatus;
     use crate::widget::WidgetId;
-    use crate::window::sealed::WindowCommand;
+    use crate::window::WindowHandle;
 
     pub trait Trackable {
         fn redraw_when_changed(&self, handle: WindowHandle);
         fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId);
-    }
-
-    #[derive(Clone)]
-    pub struct WindowHandle {
-        pub(crate) kludgine: kludgine::app::WindowHandle<WindowCommand>,
-        pub(crate) redraw_status: InvalidationStatus,
-    }
-
-    impl Eq for WindowHandle {}
-
-    impl PartialEq for WindowHandle {
-        fn eq(&self, other: &Self) -> bool {
-            Arc::ptr_eq(
-                &self.redraw_status.invalidated,
-                &other.redraw_status.invalidated,
-            )
-        }
-    }
-
-    impl Hash for WindowHandle {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            Arc::as_ptr(&self.redraw_status.invalidated).hash(state);
-        }
-    }
-
-    impl WindowHandle {
-        pub fn redraw(&self) {
-            if self.redraw_status.should_send_refresh() {
-                let _result = self.kludgine.send(WindowCommand::Redraw);
-            }
-        }
-
-        pub fn invalidate(&self, widget: WidgetId) {
-            if self.redraw_status.invalidate(widget) {
-                self.redraw();
-            }
-        }
     }
 }

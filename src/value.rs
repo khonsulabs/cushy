@@ -17,11 +17,11 @@ use intentional::Assert;
 use kempt::{Map, Sort};
 
 use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
-use crate::context::sealed::WindowHandle;
 use crate::context::{self, WidgetContext};
 use crate::utils::{run_in_bg, IgnorePoison, WithClone};
 use crate::widget::{Children, MakeWidget, MakeWidgetWithTag, WidgetId, WidgetInstance};
 use crate::widgets::{Radio, Select, Space, Switcher};
+use crate::window::WindowHandle;
 
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.

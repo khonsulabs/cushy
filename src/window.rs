@@ -2,6 +2,7 @@
 
 use std::cell::RefCell;
 use std::ffi::OsStr;
+use std::hash::Hash;
 use std::ops::{Deref, DerefMut, Not};
 use std::path::Path;
 use std::string::ToString;
@@ -17,7 +18,7 @@ use kludgine::app::winit::event::{
 use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window;
 use kludgine::app::WindowBehavior as _;
-use kludgine::cosmic_text::{Family, FamilyOwned};
+use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::figures::units::{Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size, Zero};
 use kludgine::render::Drawing;
@@ -46,6 +47,7 @@ use crate::{initialize_tracing, ConstraintLimit};
 /// A currently running Gooey window.
 pub struct RunningWindow<'window> {
     window: kludgine::app::Window<'window, WindowCommand>,
+    invalidation_status: InvalidationStatus,
     gooey: Gooey,
     focused: Dynamic<bool>,
     occluded: Dynamic<bool>,
@@ -55,6 +57,7 @@ pub struct RunningWindow<'window> {
 impl<'window> RunningWindow<'window> {
     pub(crate) fn new(
         window: kludgine::app::Window<'window, WindowCommand>,
+        invalidation_status: &InvalidationStatus,
         gooey: &Gooey,
         focused: &Dynamic<bool>,
         occluded: &Dynamic<bool>,
@@ -62,6 +65,7 @@ impl<'window> RunningWindow<'window> {
     ) -> Self {
         Self {
             window,
+            invalidation_status: invalidation_status.clone(),
             gooey: gooey.clone(),
             focused: focused.clone(),
             occluded: occluded.clone(),
@@ -81,6 +85,20 @@ impl<'window> RunningWindow<'window> {
     #[must_use]
     pub const fn occluded(&self) -> &Dynamic<bool> {
         &self.occluded
+    }
+
+    /// Request that the window closes.
+    ///
+    /// A window may disallow itself from being closed by customizing
+    /// [`WindowBehavior::close_requested`].
+    pub fn request_close(&self) {
+        self.handle().request_close();
+    }
+
+    /// Returns a handle to this window.
+    #[must_use]
+    pub fn handle(&self) -> WindowHandle {
+        WindowHandle::new(self.window.handle(), self.invalidation_status.clone())
     }
 
     /// Returns a dynamic that is synchronized with this window's inner size.
@@ -332,12 +350,14 @@ where
         App: Application,
     {
         let gooey = app.gooey().clone();
+        let redraw_status = InvalidationStatus::default();
         let handle = GooeyWindow::<Behavior>::open_with(
             app,
             sealed::Context {
                 user: self.context,
                 settings: RefCell::new(sealed::WindowSettings {
                     gooey,
+                    redraw_status: redraw_status.clone(),
                     on_closed: self.on_closed,
                     transparent: self.attributes.transparent,
                     attributes: Some(self.attributes),
@@ -356,7 +376,7 @@ where
             },
         )?;
 
-        Ok(handle.map(WindowHandle::from))
+        Ok(handle.map(|handle| WindowHandle::new(handle, redraw_status)))
     }
 
     fn run_in(self, app: PendingApp) -> crate::Result {
@@ -455,7 +475,6 @@ where
                     EventContext::new(
                         WidgetContext::new(
                             previously_active,
-                            &self.redraw_status,
                             &self.current_theme,
                             window,
                             self.theme_mode.get(),
@@ -468,7 +487,6 @@ where
                 EventContext::new(
                     WidgetContext::new(
                         default.clone(),
-                        &self.redraw_status,
                         &self.current_theme,
                         window,
                         self.theme_mode.get(),
@@ -487,7 +505,6 @@ where
             EventContext::new(
                 WidgetContext::new(
                     keyboard_activated,
-                    &self.redraw_status,
                     &self.current_theme,
                     window,
                     self.theme_mode.get(),
@@ -517,7 +534,6 @@ where
             let mut context = EventContext::new(
                 WidgetContext::new(
                     managed,
-                    &self.redraw_status,
                     &self.current_theme,
                     window,
                     self.theme_mode.get(),
@@ -591,37 +607,11 @@ where
 
         root_mode.unwrap_or(RootMode::Fit)
     }
-}
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-enum RootMode {
-    Fit,
-    Expand,
-    Align,
-}
-
-impl<T> kludgine::app::WindowBehavior<WindowCommand> for GooeyWindow<T>
-where
-    T: WindowBehavior,
-{
-    type Context = sealed::Context<T::Context>;
-
-    fn initialize(
-        window: kludgine::app::Window<'_, WindowCommand>,
-        graphics: &mut kludgine::Graphics<'_>,
-        context: Self::Context,
-    ) -> Self {
-        let mut settings = context.settings.borrow_mut();
-        let gooey = settings.gooey.clone();
-        let occluded = settings.occluded.take().unwrap_or_default();
-        let focused = settings.focused.take().unwrap_or_default();
-        let theme = settings.theme.take().expect("theme always present");
-        let inner_size = settings.inner_size.take().unwrap_or_default();
-        let on_closed = settings.on_closed.take();
-
-        inner_size.set(window.inner_size());
-
-        let fontdb = graphics.font_system().db_mut();
+    fn load_fonts(
+        settings: &mut sealed::WindowSettings,
+        fontdb: &mut fontdb::Database,
+    ) -> FontState {
         for font_to_load in settings.font_data_to_load.drain(..) {
             fontdb.load_font_data(font_to_load);
         }
@@ -668,6 +658,39 @@ where
             || default_family(Family::Cursive),
             |name| fontdb.set_cursive_family(name),
         );
+        fonts
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+enum RootMode {
+    Fit,
+    Expand,
+    Align,
+}
+
+impl<T> kludgine::app::WindowBehavior<WindowCommand> for GooeyWindow<T>
+where
+    T: WindowBehavior,
+{
+    type Context = sealed::Context<T::Context>;
+
+    fn initialize(
+        window: kludgine::app::Window<'_, WindowCommand>,
+        graphics: &mut kludgine::Graphics<'_>,
+        context: Self::Context,
+    ) -> Self {
+        let mut settings = context.settings.borrow_mut();
+        let gooey = settings.gooey.clone();
+        let occluded = settings.occluded.take().unwrap_or_default();
+        let focused = settings.focused.take().unwrap_or_default();
+        let theme = settings.theme.take().expect("theme always present");
+        let inner_size = settings.inner_size.take().unwrap_or_default();
+        let on_closed = settings.on_closed.take();
+
+        inner_size.set(window.inner_size());
+
+        let fonts = Self::load_fonts(&mut settings, graphics.font_system().db_mut());
 
         let theme_mode = match settings.theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
@@ -678,8 +701,16 @@ where
             None => Value::dynamic(window.theme().into()),
         };
         let transparent = settings.transparent;
+        let redraw_status = settings.redraw_status.clone();
         let mut behavior = T::initialize(
-            &mut RunningWindow::new(window, &gooey, &focused, &occluded, &inner_size),
+            &mut RunningWindow::new(
+                window,
+                &redraw_status,
+                &gooey,
+                &focused,
+                &occluded,
+                &inner_size,
+            ),
             context.user,
         );
         let tree = Tree::default();
@@ -701,7 +732,7 @@ where
                 widget: None,
             },
             mouse_buttons: AHashMap::default(),
-            redraw_status: InvalidationStatus::default(),
+            redraw_status,
             initial_frame: true,
             occluded,
             focused,
@@ -740,6 +771,7 @@ where
         let resizable = window.winit().is_resizable();
         let mut window = RunningWindow::new(
             window,
+            &self.redraw_status,
             &self.gooey,
             &self.focused,
             &self.occluded,
@@ -752,7 +784,6 @@ where
         let mut context = GraphicsContext {
             widget: WidgetContext::new(
                 self.root.clone(),
-                &self.redraw_status,
                 &self.current_theme,
                 &mut window,
                 self.theme_mode.get(),
@@ -876,6 +907,7 @@ where
             &mut self.behavior,
             &mut RunningWindow::new(
                 window,
+                &self.redraw_status,
                 &self.gooey,
                 &self.focused,
                 &self.occluded,
@@ -949,6 +981,7 @@ where
         };
         let mut window = RunningWindow::new(
             window,
+            &self.redraw_status,
             &self.gooey,
             &self.focused,
             &self.occluded,
@@ -957,7 +990,6 @@ where
         let mut target = EventContext::new(
             WidgetContext::new(
                 target,
-                &self.redraw_status,
                 &self.current_theme,
                 &mut window,
                 self.theme_mode.get(),
@@ -994,7 +1026,6 @@ where
                         let mut target = EventContext::new(
                             WidgetContext::new(
                                 target,
-                                &self.redraw_status,
                                 &self.current_theme,
                                 &mut window,
                                 self.theme_mode.get(),
@@ -1055,6 +1086,7 @@ where
 
         let mut window = RunningWindow::new(
             window,
+            &self.redraw_status,
             &self.gooey,
             &self.focused,
             &self.occluded,
@@ -1063,7 +1095,6 @@ where
         let mut widget = EventContext::new(
             WidgetContext::new(
                 widget,
-                &self.redraw_status,
                 &self.current_theme,
                 &mut window,
                 self.theme_mode.get(),
@@ -1091,6 +1122,7 @@ where
             .unwrap_or_else(|| self.tree.widget(self.root.id()).expect("missing widget"));
         let mut window = RunningWindow::new(
             window,
+            &self.redraw_status,
             &self.gooey,
             &self.focused,
             &self.occluded,
@@ -1099,7 +1131,6 @@ where
         let mut target = EventContext::new(
             WidgetContext::new(
                 widget,
-                &self.redraw_status,
                 &self.current_theme,
                 &mut window,
                 self.theme_mode.get(),
@@ -1124,6 +1155,7 @@ where
 
         let mut window = RunningWindow::new(
             window,
+            &self.redraw_status,
             &self.gooey,
             &self.focused,
             &self.occluded,
@@ -1133,7 +1165,6 @@ where
         EventContext::new(
             WidgetContext::new(
                 self.root.clone(),
-                &self.redraw_status,
                 &self.current_theme,
                 &mut window,
                 self.theme_mode.get(),
@@ -1152,7 +1183,6 @@ where
                 let mut context = EventContext::new(
                     WidgetContext::new(
                         handler.clone(),
-                        &self.redraw_status,
                         &self.current_theme,
                         &mut window,
                         self.theme_mode.get(),
@@ -1177,6 +1207,7 @@ where
         if self.cursor.widget.take().is_some() {
             let mut window = RunningWindow::new(
                 window,
+                &self.redraw_status,
                 &self.gooey,
                 &self.focused,
                 &self.occluded,
@@ -1185,7 +1216,6 @@ where
             let mut context = EventContext::new(
                 WidgetContext::new(
                     self.root.clone(),
-                    &self.redraw_status,
                     &self.current_theme,
                     &mut window,
                     self.theme_mode.get(),
@@ -1207,6 +1237,7 @@ where
     ) {
         let mut window = RunningWindow::new(
             window,
+            &self.redraw_status,
             &self.gooey,
             &self.focused,
             &self.occluded,
@@ -1217,7 +1248,6 @@ where
                 EventContext::new(
                     WidgetContext::new(
                         self.root.clone(),
-                        &self.redraw_status,
                         &self.current_theme,
                         &mut window,
                         self.theme_mode.get(),
@@ -1236,7 +1266,6 @@ where
                         &mut EventContext::new(
                             WidgetContext::new(
                                 hovered.clone(),
-                                &self.redraw_status,
                                 &self.current_theme,
                                 &mut window,
                                 self.theme_mode.get(),
@@ -1276,7 +1305,6 @@ where
                 let mut context = EventContext::new(
                     WidgetContext::new(
                         handler,
-                        &self.redraw_status,
                         &self.current_theme,
                         &mut window,
                         self.theme_mode.get(),
@@ -1321,6 +1349,7 @@ where
             WindowCommand::RequestClose => {
                 let mut window = RunningWindow::new(
                     window,
+                    &self.redraw_status,
                     &self.gooey,
                     &self.focused,
                     &self.occluded,
@@ -1367,6 +1396,7 @@ pub(crate) mod sealed {
     use kludgine::figures::Size;
 
     use crate::app::Gooey;
+    use crate::context::InvalidationStatus;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
     use crate::widget::OnceCallback;
@@ -1379,6 +1409,7 @@ pub(crate) mod sealed {
 
     pub struct WindowSettings {
         pub gooey: Gooey,
+        pub redraw_status: InvalidationStatus,
         pub attributes: Option<WindowAttributes>,
         pub occluded: Option<Dynamic<bool>>,
         pub focused: Option<Dynamic<bool>>,
@@ -1501,20 +1532,56 @@ fn default_family(query: Family<'_>) -> Option<FamilyOwned> {
 }
 
 /// A handle to an open Gooey window.
-pub struct WindowHandle(kludgine::app::WindowHandle<sealed::WindowCommand>);
+#[derive(Clone)]
+pub struct WindowHandle {
+    pub(crate) kludgine: kludgine::app::WindowHandle<WindowCommand>,
+    pub(crate) redraw_status: InvalidationStatus,
+}
 
 impl WindowHandle {
+    pub(crate) fn new(
+        kludgine: kludgine::app::WindowHandle<WindowCommand>,
+        redraw_status: InvalidationStatus,
+    ) -> Self {
+        Self {
+            kludgine,
+            redraw_status,
+        }
+    }
+
     /// Request that the window closes.
     ///
     /// A window may disallow itself from being closed by customizing
     /// [`WindowBehavior::close_requested`].
     pub fn request_close(&self) {
-        let _result = self.0.send(sealed::WindowCommand::RequestClose);
+        let _result = self.kludgine.send(sealed::WindowCommand::RequestClose);
+    }
+
+    /// Requests that the window redraws.
+    pub fn redraw(&self) {
+        if self.redraw_status.should_send_refresh() {
+            let _result = self.kludgine.send(WindowCommand::Redraw);
+        }
+    }
+
+    /// Marks `widget` as invalidated, and if needed, refreshes the window.
+    pub fn invalidate(&self, widget: WidgetId) {
+        if self.redraw_status.invalidate(widget) {
+            self.redraw();
+        }
     }
 }
 
-impl From<kludgine::app::WindowHandle<sealed::WindowCommand>> for WindowHandle {
-    fn from(handle: kludgine::app::WindowHandle<sealed::WindowCommand>) -> Self {
-        WindowHandle(handle)
+impl Eq for WindowHandle {}
+
+impl PartialEq for WindowHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.redraw_status == other.redraw_status
+    }
+}
+
+impl Hash for WindowHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.redraw_status.hash(state);
     }
 }

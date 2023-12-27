@@ -19,7 +19,6 @@ use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use kludgine::Color;
 
 use crate::app::{Application, Open, PendingApp, Run};
-use crate::context::sealed::WindowHandle;
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{
     FontFamily, FontStyle, FontWeight, Heading1FontFamily, Heading1Style, Heading1Weight,
@@ -43,7 +42,7 @@ use crate::widgets::{
     Align, Button, Checkbox, Collapse, Container, Expand, Layers, Resize, Scroll, Space, Stack,
     Style, Themed, ThemedMode, Validated, Wrap,
 };
-use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
+use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior, WindowHandle};
 use crate::ConstraintLimit;
 
 /// A type that makes up a graphical user interface.
