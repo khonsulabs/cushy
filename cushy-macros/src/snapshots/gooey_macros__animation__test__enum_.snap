@@ -1,8 +1,8 @@
 ---
-source: gooey-macros/src/animation.rs
+source: cushy-macros/src/animation.rs
 expression: unparse(ok)
 ---
-impl ::gooey::animation::LinearInterpolate for Enum {
+impl ::cushy::animation::LinearInterpolate for Enum {
     /**# Panics
  Panics if the the enum variants are overflown (this can only happen on percentages outside 0..1 range).*/
     fn lerp(&self, __target: &Self, __percent: f32) -> Self {
@@ -14,7 +14,7 @@ impl ::gooey::animation::LinearInterpolate for Enum {
         }
         let __self = variant_to_index(&self);
         let __target = variant_to_index(&self);
-        match ::gooey::animation::LinearInterpolate::lerp(
+        match ::cushy::animation::LinearInterpolate::lerp(
             &__self,
             &__target,
             __percent,

@@ -52,13 +52,13 @@ use crate::ConstraintLimit;
 ///
 /// # Widgets are hierarchical
 ///
-/// Gooey's widgets are organized in a hierarchical structure: widgets can
-/// contain other widgets. A window in Gooey contains a single root widget,
+/// Cushy's widgets are organized in a hierarchical structure: widgets can
+/// contain other widgets. A window in Cushy contains a single root widget,
 /// which may contain one or more additional widgets.
 ///
 /// # How Widgets are created
 ///
-/// Gooey offers several approaches to creating widgets. The primary trait that
+/// Cushy offers several approaches to creating widgets. The primary trait that
 /// is used to instantiate a widget is [`MakeWidget`]. This trait is
 /// automatically implemented for all types that implement [`Widget`].
 ///
@@ -119,8 +119,8 @@ use crate::ConstraintLimit;
 ///
 /// Next, the window sets the root's layout. When a widget contains another
 /// widget, it must call [`LayoutContext::set_child_layout`] for the child to be
-/// able to be rendered. This tells Gooey the location to draw the widget. While
-/// it is possible to provide any rectangle, Gooey clips all widgets and their
+/// able to be rendered. This tells Cushy the location to draw the widget. While
+/// it is possible to provide any rectangle, Cushy clips all widgets and their
 /// children so that they cannot draw outside of their assigned bounds.
 ///
 /// Once the layout has been determined, the window will invoke the root
@@ -136,13 +136,13 @@ use crate::ConstraintLimit;
 ///
 /// # Controlling Invalidation and Redrawing
 ///
-/// Gooey only redraws window contents when requested by the operating system or
-/// a tracked [`Dynamic`] is updated. Similarly, Gooey caches the known layout
+/// Cushy only redraws window contents when requested by the operating system or
+/// a tracked [`Dynamic`] is updated. Similarly, Cushy caches the known layout
 /// sizes and locations for widgets unless they are *invalidated*. Invalidation
 /// is done automatically when the window size changes or a tracked [`Dynamic`]
 /// is updated.
 ///
-/// These systems require Gooey to track which [`Dynamic`] values a widget
+/// These systems require Cushy to track which [`Dynamic`] values a widget
 /// depends on for redrawing and invalidation. During a widget's redraw and
 /// layout functions, it needs to ensure that all depended upon [`Dynamic`]s are
 /// tracked using one of the various
@@ -231,33 +231,33 @@ use crate::ConstraintLimit;
 ///
 /// # Styling
 ///
-/// Gooey allows widgets to receive styling information through the widget
-/// hierarchy using [`Styles`]. Gooey calculates the effectives styles for each
+/// Cushy allows widgets to receive styling information through the widget
+/// hierarchy using [`Styles`]. Cushy calculates the effectives styles for each
 /// widget by inheriting all inheritable styles from its parent.
 ///
 /// The [`Style`] widget allows assigining [`Styles`] to all of its children
-/// widget. It works by calling [`WidgetContext::attach_styles`], and Gooey
+/// widget. It works by calling [`WidgetContext::attach_styles`], and Cushy
 /// takes care of the rest.
 ///
-/// Styling in Gooey aims to be simple, easy-to-understand, and extensible.
+/// Styling in Cushy aims to be simple, easy-to-understand, and extensible.
 ///
 /// # Color Themes
 ///
-/// Gooey aims to make it easy for developers to customize the appearance of its
-/// applications. The way color themes work in Gooey begins with the
+/// Cushy aims to make it easy for developers to customize the appearance of its
+/// applications. The way color themes work in Cushy begins with the
 /// [`ColorScheme`](crate::styles::ColorScheme). A color scheme is a set of
 /// [`ColorSource`](crate::styles::ColorSource) that are used to generate a
 /// variety of shades of colors for various roles color plays in a user
-/// interface. In a way, coloring Gooey apps is a bit like paint-by-number,
+/// interface. In a way, coloring Cushy apps is a bit like paint-by-number,
 /// where the number is the name of the color role.
 ///
 /// A `ColorScheme` can be used to create a [`ThemePair`], which is theme
 /// definition that a theme for light and dark mode.
 ///
 /// In [the repository][repo], the `theme` example is a good way to explore how
-/// the color system works in Gooey.
+/// the color system works in Cushy.
 ///
-/// [repo]: https://github.com/khonsulabs/gooey
+/// [repo]: https://github.com/khonsulabs/cushy
 pub trait Widget: Send + Debug + 'static {
     /// Redraw the contents of this widget.
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
@@ -327,7 +327,7 @@ pub trait Widget: Send + Debug + 'static {
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {}
 
     /// This widget has been targeted to be focused. If this function returns
-    /// true, the widget will be focused. If false, Gooey will continue
+    /// true, the widget will be focused. If false, Cushy will continue
     /// searching for another focus target.
     #[allow(unused_variables)]
     fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
@@ -487,7 +487,7 @@ pub enum RootBehavior {
     PassThrough,
     /// This widget will try to expand to fill the window.
     Expand,
-    /// This widget will measure its contents to fit its child, but Gooey should
+    /// This widget will measure its contents to fit its child, but Cushy should
     /// still stretch this widget to fill the window.
     Align,
     /// This widget adjusts its child layout with padding.
@@ -643,7 +643,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {}
 
     /// This widget has been targeted to be focused. If this function returns
-    /// true, the widget will be focused. If false, Gooey will continue
+    /// true, the widget will be focused. If false, Cushy will continue
     /// searching for another focus target.
     #[allow(unused_variables)]
     fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
@@ -1061,7 +1061,7 @@ pub trait MakeWidget: Sized {
 
     /// Sets the widget that should be focused next.
     ///
-    /// Gooey automatically determines reverse tab order by using this same
+    /// Cushy automatically determines reverse tab order by using this same
     /// relationship.
     fn with_next_focus(self, next_focus: impl IntoValue<Option<WidgetId>>) -> WidgetInstance {
         self.make_widget().with_next_focus(next_focus)
@@ -1441,7 +1441,7 @@ impl WidgetInstance {
 
     /// Sets the widget that should be focused next.
     ///
-    /// Gooey automatically determines reverse tab order by using this same
+    /// Cushy automatically determines reverse tab order by using this same
     /// relationship.
     ///
     /// # Panics

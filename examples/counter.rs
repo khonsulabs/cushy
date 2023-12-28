@@ -1,11 +1,11 @@
 use std::string::ToString;
 
-use gooey::value::Dynamic;
-use gooey::widget::MakeWidget;
-use gooey::Run;
+use cushy::value::Dynamic;
+use cushy::widget::MakeWidget;
+use cushy::Run;
 use kludgine::figures::units::Lp;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let counter = Dynamic::new(0i32);
     let label = counter.map_each(ToString::to_string);
 

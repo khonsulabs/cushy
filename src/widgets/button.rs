@@ -372,7 +372,7 @@ impl Widget for Button {
                 // colors. most_contrasting from a 0-alpha color is not a
                 // meaningful measurement, so we only start measuring contrast
                 // once we reach 50% opacity. If we ever add solid background
-                // tracking (<https://github.com/khonsulabs/gooey/issues/73>),
+                // tracking (<https://github.com/khonsulabs/cushy/issues/73>),
                 // we should use that color for most_contrasting always.
                 let color = if style.background.alpha() > 128 {
                     style

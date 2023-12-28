@@ -1,14 +1,14 @@
-use gooey::animation::ZeroToOne;
-use gooey::value::{Dynamic, MapEachCloned};
-use gooey::widget::MakeWidget;
-use gooey::widgets::image::{Aspect, ImageScaling};
-use gooey::widgets::slider::Slidable;
-use gooey::widgets::Image;
-use gooey::Run;
+use cushy::animation::ZeroToOne;
+use cushy::value::{Dynamic, MapEachCloned};
+use cushy::widget::MakeWidget;
+use cushy::widgets::image::{Aspect, ImageScaling};
+use cushy::widgets::slider::Slidable;
+use cushy::widgets::Image;
+use cushy::Run;
 use kludgine::figures::Size;
 use kludgine::include_texture;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let mode = Dynamic::<ScalingMode>::default();
     let scale = Dynamic::new(1f32);
     let orientation_width = Dynamic::<ZeroToOne>::default();

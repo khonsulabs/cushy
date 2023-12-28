@@ -325,7 +325,7 @@ impl<T> Dynamic<T> {
     /// code may produce slightly more readable code.
     ///
     /// ```rust
-    /// let value = gooey::value::Dynamic::new(1);
+    /// let value = cushy::value::Dynamic::new(1);
     ///
     /// // Using with_clone
     /// value.with_clone(|value| {
@@ -950,7 +950,7 @@ pub enum ReplaceError<T> {
 
 /// A deadlock occurred accessing a [`Dynamic`].
 ///
-/// Currently Gooey is only able to detect deadlocks where a single thread tries
+/// Currently Cushy is only able to detect deadlocks where a single thread tries
 /// to lock the same [`Dynamic`] multiple times.
 #[derive(Debug)]
 struct DeadlockError;
@@ -2709,7 +2709,7 @@ fn map_cycle_is_finite() {
     let a = Dynamic::new(0_usize);
 
     // This callback updates a each time a is updated with a + 1, causing an
-    // infinite cycle if not broken by Gooey.
+    // infinite cycle if not broken by Cushy.
     a.for_each_cloned({
         let a = a.clone();
         move |current| {
@@ -2718,7 +2718,7 @@ fn map_cycle_is_finite() {
     })
     .persist();
 
-    // Gooey will invoke the callback for the first set call, but the set call
+    // Cushy will invoke the callback for the first set call, but the set call
     // within the callback will not cause the callback to be invoked again.
     // Thus, we expect setting the value to 1 to result in `a` containing 2.
     a.set(1);

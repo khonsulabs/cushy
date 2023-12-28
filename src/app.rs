@@ -7,16 +7,16 @@ use crate::utils::IgnorePoison;
 use crate::window::sealed::WindowCommand;
 use crate::window::WindowHandle;
 
-/// A Gooey application that has not started running yet.
+/// A Cushy application that has not started running yet.
 pub struct PendingApp {
     app: kludgine::app::PendingApp<WindowCommand>,
-    gooey: Gooey,
+    cushy: Cushy,
 }
 
 impl PendingApp {
     /// The shared resources this application utilizes.
-    pub const fn gooey(&self) -> &Gooey {
-        &self.gooey
+    pub const fn cushy(&self) -> &Cushy {
+        &self.cushy
     }
 }
 
@@ -30,7 +30,7 @@ impl Default for PendingApp {
     fn default() -> Self {
         Self {
             app: kludgine::app::PendingApp::default(),
-            gooey: Gooey {
+            cushy: Cushy {
                 clipboard: Clipboard::new()
                     .ok()
                     .map(|clipboard| Arc::new(Mutex::new(clipboard))),
@@ -47,11 +47,11 @@ impl AsApplication<AppEvent<WindowCommand>> for PendingApp {
 
 /// Shared resources for a GUI application.
 #[derive(Clone)]
-pub struct Gooey {
+pub struct Cushy {
     pub(crate) clipboard: Option<Arc<Mutex<Clipboard>>>,
 }
 
-impl Gooey {
+impl Cushy {
     /// Returns a locked mutex guard to the OS's clipboard, if one was able to be
     /// initialized when the window opened.
     #[must_use]
@@ -62,37 +62,37 @@ impl Gooey {
     }
 }
 
-/// A type that is a Gooey application.
+/// A type that is a Cushy application.
 pub trait Application: AsApplication<AppEvent<WindowCommand>> {
     /// Returns the shared resources for the application.
-    fn gooey(&self) -> &Gooey;
+    fn cushy(&self) -> &Cushy;
     /// Returns this type as an [`App`] handle.
     fn as_app(&self) -> App;
 }
 
 impl Application for PendingApp {
-    fn gooey(&self) -> &Gooey {
-        &self.gooey
+    fn cushy(&self) -> &Cushy {
+        &self.cushy
     }
 
     fn as_app(&self) -> App {
         App {
             app: self.app.as_app(),
-            gooey: self.gooey.clone(),
+            cushy: self.cushy.clone(),
         }
     }
 }
 
-/// A handle to a Gooey application.
+/// A handle to a Cushy application.
 #[derive(Clone)]
 pub struct App {
     app: kludgine::app::App<WindowCommand>,
-    gooey: Gooey,
+    cushy: Cushy,
 }
 
 impl Application for App {
-    fn gooey(&self) -> &Gooey {
-        &self.gooey
+    fn cushy(&self) -> &Cushy {
+        &self.cushy
     }
 
     fn as_app(&self) -> App {

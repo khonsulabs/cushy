@@ -29,7 +29,7 @@ pub fn linear_interpolate(
                         let ident = ident
                             .map(ToTokens::into_token_stream)
                             .unwrap_or_else(|| proc_macro2::Literal::usize_unsuffixed(idx).into_token_stream());
-                            quote!(#ident: ::gooey::animation::LinearInterpolate::lerp(&self.#ident, &__target.#ident, __percent),)
+                            quote!(#ident: ::cushy::animation::LinearInterpolate::lerp(&self.#ident, &__target.#ident, __percent),)
                     }),
             };
             doc = "# Panics\n Panics if any field's lerp panics (this should only happen on percentages outside 0..1 range).";
@@ -62,7 +62,7 @@ pub fn linear_interpolate(
             let idx: Vec<_> = (0..variants.len()).collect();
             doc = "# Panics\n Panics if the the enum variants are overflown (this can only happen on percentages outside 0..1 range).";
             quote! {
-                # use ::gooey::animation::LinearInterpolate;
+                # use ::cushy::animation::LinearInterpolate;
                 fn variant_to_index(__v: &#item_ident) -> usize {
                     match __v {
                         #(#variants => #idx,)*
@@ -80,7 +80,7 @@ pub fn linear_interpolate(
     };
 
     Ok(quote! {
-        impl ::gooey::animation::LinearInterpolate for #item_ident {
+        impl ::cushy::animation::LinearInterpolate for #item_ident {
             #[doc = #doc]
             fn lerp(&self, __target: &Self, __percent: f32) -> Self {
                 #body

@@ -3,9 +3,9 @@
 
 use std::collections::HashMap;
 
-use gooey::value::{Dynamic, Switchable};
-use gooey::widget::MakeWidget;
-use gooey::Run;
+use cushy::value::{Dynamic, Switchable};
+use cushy::widget::MakeWidget;
+use cushy::Run;
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
 enum Tab {
@@ -14,7 +14,7 @@ enum Tab {
     Missing,
 }
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let mut tab_contents = HashMap::new();
     tab_contents.insert(Tab::First, "This is the first tab!".make_widget());
     tab_contents.insert(Tab::Second, "This is the second tab!".make_widget());

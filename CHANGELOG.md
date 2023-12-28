@@ -9,12 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
+- This crate has been renamed from `Gooey` to `Cushy`. Other than the name of
+  the library changing, the only type to change name is `Gooey` -> `Cushy`. This
+  changelog has had all references and links updated.
 - Many bounds required `UnwindSafe` due to a misunderstanding on how to handle
   this trait in `appit`. All requirements for `UnwindSafe` have been removed.
-- `Gooey` no longer implements default. To gain access to a `Gooey` instance,
+- `Cushy` no longer implements default. To gain access to a `Cushy` instance,
   create a `PendingApp` or get a reference to the running `App`.
-- `Window::new` no longer accepts a `Gooey` parameter. The window now adopts the
-  `Gooey` from the application it is opened within.
+- `Window::new` no longer accepts a `Cushy` parameter. The window now adopts the
+  `Cushy` from the application it is opened within.
 - `MakeWidget::into_window()` no longer takes any parameters.
 
 ### Changed
@@ -61,10 +64,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   application.
 
   The `multi-window` example demonstates using this feature to open multiple
-  windows before starting Gooey as well as dynamically opening windows at
+  windows before starting Cushy as well as dynamically opening windows at
   runtime.
 - `Window::on_close` sets a callback to be invoked when the window has closed.
-- `WindowHandle` is a handle to a Gooey window. It enables requesting that the
+- `WindowHandle` is a handle to a Cushy window. It enables requesting that the
   window closes, refreshing the window, or invalidating a widget contained in
   the window.
 - `RunningWindow::handle()` returns a `WindowHandle` for the current window.
@@ -89,10 +92,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ensuring the callback stays alive as long as the dynamic has an instance
   alive.
 
-[91]: https://github.com/khonsulabs/gooey/issues/91
-[92]: https://github.com/khonsulabs/gooey/issues/92
-[112]: https://github.com/khonsulabs/gooey/issues/112
-[113]: https://github.com/khonsulabs/gooey/issues/113
+[91]: https://github.com/khonsulabs/cushy/issues/91
+[92]: https://github.com/khonsulabs/cushy/issues/92
+[112]: https://github.com/khonsulabs/cushy/issues/112
+[113]: https://github.com/khonsulabs/cushy/issues/113
 
 ## v0.1.3 (2023-12-19)
 
@@ -120,14 +123,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An integer underflow has been fixed in the Grid/Stack widgets.
 - Padding is now rounded to the nearest whole pixel when applied across widgets.
 
-[94]: https://github.com/khonsulabs/gooey/pull/94
-[97]: https://github.com/khonsulabs/gooey/issues/97
+[94]: https://github.com/khonsulabs/cushy/pull/94
+[97]: https://github.com/khonsulabs/cushy/issues/97
 
 ## v0.1.2 (2023-12-18)
 
 ### Fixed
 
-- Gooey now compiles for Windows. An indirect dependency, `appit`, also needs to
+- Cushy now compiles for Windows. An indirect dependency, `appit`, also needs to
   be updated to v0.1.1. Running `cargo update` should be enough to update
   `appit`.
 
@@ -137,4 +140,4 @@ This release only contains fixed links in the README. No code was changed.
 
 ## v0.1.0 (2023-12-18)
 
-This is the initial alpha release of Gooey.
+This is the initial alpha release of Cushy.

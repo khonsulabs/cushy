@@ -1,9 +1,9 @@
-use gooey::value::Dynamic;
-use gooey::widget::MakeWidget;
-use gooey::Run;
+use cushy::value::Dynamic;
+use cushy::widget::MakeWidget;
+use cushy::Run;
 
 // begin rustme snippet: readme
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     // Create a dynamic usize.
     let count = Dynamic::new(0_isize);
     // Create a dynamic that contains `count.to_string()`

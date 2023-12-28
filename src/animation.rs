@@ -1,6 +1,6 @@
 //! Types for creating animations.
 //!
-//! Animations in Gooey are performed by transitioning a [`Dynamic`]'s contained
+//! Animations in Cushy are performed by transitioning a [`Dynamic`]'s contained
 //! value over time. This starts with [`Dynamic::transition_to()`], which
 //! returns a [`DynamicTransition`].
 //!
@@ -17,9 +17,9 @@
 //! ```rust
 //! use std::time::Duration;
 //!
-//! use gooey::animation::easings::EaseInOutElastic;
-//! use gooey::animation::{AnimationTarget, Spawn};
-//! use gooey::value::Dynamic;
+//! use cushy::animation::easings::EaseInOutElastic;
+//! use cushy::animation::{AnimationTarget, Spawn};
+//! use cushy::value::Dynamic;
 //!
 //! let value = Dynamic::new(0);
 //! let mut reader = value.create_reader();
@@ -775,8 +775,8 @@ impl Animate for Duration {
 /// the wrappers [`BinaryLerp`] and [`ImmediateLerp`] can be used.
 ///
 /// ```
-/// use gooey::animation::{BinaryLerp, ImmediateLerp, LinearInterpolate};
-/// use gooey::kludgine::Color;
+/// use cushy::animation::{BinaryLerp, ImmediateLerp, LinearInterpolate};
+/// use cushy::kludgine::Color;
 ///
 /// #[derive(LinearInterpolate, PartialEq, Debug)]
 /// struct Struct(Color, BinaryLerp<&'static str>, ImmediateLerp<&'static str>);
@@ -811,7 +811,7 @@ pub trait LinearInterpolate: PartialEq {
 }
 
 /// Derives [`LinerarInterpolate`](trait@LinearInterpolate) for structs and fieldless enums.
-pub use gooey_macros::LinearInterpolate;
+pub use cushy_macros::LinearInterpolate;
 
 macro_rules! impl_lerp_for_int {
     ($type:ident, $unsigned:ident, $float:ident) => {

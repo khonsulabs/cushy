@@ -27,7 +27,7 @@ use kludgine::Kludgine;
 use tracing::Level;
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
-use crate::app::{Application, Gooey, Open, PendingApp, Run};
+use crate::app::{Application, Cushy, Open, PendingApp, Run};
 use crate::context::{
     AsEventContext, EventContext, Exclusive, GraphicsContext, InvalidationStatus, LayoutContext,
     WidgetContext,
@@ -44,11 +44,11 @@ use crate::widget::{
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit};
 
-/// A currently running Gooey window.
+/// A currently running Cushy window.
 pub struct RunningWindow<'window> {
     window: kludgine::app::Window<'window, WindowCommand>,
     invalidation_status: InvalidationStatus,
-    gooey: Gooey,
+    cushy: Cushy,
     focused: Dynamic<bool>,
     occluded: Dynamic<bool>,
     inner_size: Dynamic<Size<UPx>>,
@@ -58,7 +58,7 @@ impl<'window> RunningWindow<'window> {
     pub(crate) fn new(
         window: kludgine::app::Window<'window, WindowCommand>,
         invalidation_status: &InvalidationStatus,
-        gooey: &Gooey,
+        cushy: &Cushy,
         focused: &Dynamic<bool>,
         occluded: &Dynamic<bool>,
         inner_size: &Dynamic<Size<UPx>>,
@@ -66,7 +66,7 @@ impl<'window> RunningWindow<'window> {
         Self {
             window,
             invalidation_status: invalidation_status.clone(),
-            gooey: gooey.clone(),
+            cushy: cushy.clone(),
             focused: focused.clone(),
             occluded: occluded.clone(),
             inner_size: inner_size.clone(),
@@ -116,7 +116,7 @@ impl<'window> RunningWindow<'window> {
     /// initialized when the window opened.
     #[must_use]
     pub fn clipboard_guard(&self) -> Option<MutexGuard<'_, Clipboard>> {
-        self.gooey.clipboard_guard()
+        self.cushy.clipboard_guard()
     }
 }
 
@@ -134,10 +134,10 @@ impl<'window> DerefMut for RunningWindow<'window> {
     }
 }
 
-/// The attributes of a Gooey window.
+/// The attributes of a Cushy window.
 pub type WindowAttributes = kludgine::app::WindowAttributes;
 
-/// A Gooey window that is not yet running.
+/// A Cushy window that is not yet running.
 #[must_use]
 pub struct Window<Behavior>
 where
@@ -305,7 +305,7 @@ where
                             .and_then(OsStr::to_str)
                             .map(ToString::to_string)
                     })
-                    .unwrap_or_else(|| String::from("Gooey App"))
+                    .unwrap_or_else(|| String::from("Cushy App"))
             })
             .clone();
         Self {
@@ -355,14 +355,14 @@ where
     where
         App: Application,
     {
-        let gooey = app.gooey().clone();
+        let cushy = app.cushy().clone();
 
-        let handle = GooeyWindow::<Behavior>::open_with(
+        let handle = CushyWindow::<Behavior>::open_with(
             app,
             sealed::Context {
                 user: self.context,
                 settings: RefCell::new(sealed::WindowSettings {
-                    gooey,
+                    cushy,
                     redraw_status: self.pending.0.redraw_status.clone(),
                     on_closed: self.on_closed,
                     transparent: self.attributes.transparent,
@@ -391,7 +391,7 @@ where
     }
 }
 
-/// The behavior of a Gooey window.
+/// The behavior of a Cushy window.
 pub trait WindowBehavior: Sized + 'static {
     /// The type that is provided when initializing this window.
     type Context: Send + 'static;
@@ -424,7 +424,7 @@ pub trait WindowBehavior: Sized + 'static {
     }
 }
 
-struct GooeyWindow<T> {
+struct CushyWindow<T> {
     behavior: T,
     tree: Tree,
     root: MountedWidget,
@@ -446,11 +446,11 @@ struct GooeyWindow<T> {
     theme_mode: Value<ThemeMode>,
     transparent: bool,
     fonts: FontState,
-    gooey: Gooey,
+    cushy: Cushy,
     on_closed: Option<OnceCallback>,
 }
 
-impl<T> GooeyWindow<T>
+impl<T> CushyWindow<T>
 where
     T: WindowBehavior,
 {
@@ -675,7 +675,7 @@ enum RootMode {
     Align,
 }
 
-impl<T> kludgine::app::WindowBehavior<WindowCommand> for GooeyWindow<T>
+impl<T> kludgine::app::WindowBehavior<WindowCommand> for CushyWindow<T>
 where
     T: WindowBehavior,
 {
@@ -687,7 +687,7 @@ where
         context: Self::Context,
     ) -> Self {
         let mut settings = context.settings.borrow_mut();
-        let gooey = settings.gooey.clone();
+        let cushy = settings.cushy.clone();
         let occluded = settings.occluded.take().unwrap_or_default();
         let focused = settings.focused.take().unwrap_or_default();
         let theme = settings.theme.take().expect("theme always present");
@@ -712,7 +712,7 @@ where
             &mut RunningWindow::new(
                 window,
                 &redraw_status,
-                &gooey,
+                &cushy,
                 &focused,
                 &occluded,
                 &inner_size,
@@ -752,7 +752,7 @@ where
             theme_mode,
             transparent,
             fonts,
-            gooey,
+            cushy,
             on_closed,
         }
     }
@@ -778,7 +778,7 @@ where
         let mut window = RunningWindow::new(
             window,
             &self.redraw_status,
-            &self.gooey,
+            &self.cushy,
             &self.focused,
             &self.occluded,
             &self.inner_size,
@@ -914,7 +914,7 @@ where
             &mut RunningWindow::new(
                 window,
                 &self.redraw_status,
-                &self.gooey,
+                &self.cushy,
                 &self.focused,
                 &self.occluded,
                 &self.inner_size,
@@ -988,7 +988,7 @@ where
         let mut window = RunningWindow::new(
             window,
             &self.redraw_status,
-            &self.gooey,
+            &self.cushy,
             &self.focused,
             &self.occluded,
             &self.inner_size,
@@ -1093,7 +1093,7 @@ where
         let mut window = RunningWindow::new(
             window,
             &self.redraw_status,
-            &self.gooey,
+            &self.cushy,
             &self.focused,
             &self.occluded,
             &self.inner_size,
@@ -1129,7 +1129,7 @@ where
         let mut window = RunningWindow::new(
             window,
             &self.redraw_status,
-            &self.gooey,
+            &self.cushy,
             &self.focused,
             &self.occluded,
             &self.inner_size,
@@ -1162,7 +1162,7 @@ where
         let mut window = RunningWindow::new(
             window,
             &self.redraw_status,
-            &self.gooey,
+            &self.cushy,
             &self.focused,
             &self.occluded,
             &self.inner_size,
@@ -1214,7 +1214,7 @@ where
             let mut window = RunningWindow::new(
                 window,
                 &self.redraw_status,
-                &self.gooey,
+                &self.cushy,
                 &self.focused,
                 &self.occluded,
                 &self.inner_size,
@@ -1244,7 +1244,7 @@ where
         let mut window = RunningWindow::new(
             window,
             &self.redraw_status,
-            &self.gooey,
+            &self.cushy,
             &self.focused,
             &self.occluded,
             &self.inner_size,
@@ -1356,7 +1356,7 @@ where
                 let mut window = RunningWindow::new(
                     window,
                     &self.redraw_status,
-                    &self.gooey,
+                    &self.cushy,
                     &self.focused,
                     &self.occluded,
                     &self.inner_size,
@@ -1369,7 +1369,7 @@ where
     }
 }
 
-impl<Behavior> Drop for GooeyWindow<Behavior> {
+impl<Behavior> Drop for CushyWindow<Behavior> {
     fn drop(&mut self) {
         if let Some(on_closed) = self.on_closed.take() {
             on_closed.invoke(());
@@ -1401,7 +1401,7 @@ pub(crate) mod sealed {
     use kludgine::figures::units::UPx;
     use kludgine::figures::Size;
 
-    use crate::app::Gooey;
+    use crate::app::Cushy;
     use crate::context::InvalidationStatus;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
@@ -1414,7 +1414,7 @@ pub(crate) mod sealed {
     }
 
     pub struct WindowSettings {
-        pub gooey: Gooey,
+        pub cushy: Cushy,
         pub redraw_status: InvalidationStatus,
         pub attributes: Option<WindowAttributes>,
         pub occluded: Option<Dynamic<bool>>,
@@ -1537,7 +1537,7 @@ fn default_family(query: Family<'_>) -> Option<FamilyOwned> {
         .map(FamilyOwned::Name)
 }
 
-/// A handle to an open Gooey window.
+/// A handle to an open Cushy window.
 #[derive(Clone)]
 pub struct WindowHandle {
     inner: InnerWindowHandle,

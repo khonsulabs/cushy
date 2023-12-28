@@ -7,7 +7,7 @@ use interner::global::{GlobalString, StringPool};
 static NAMES: StringPool<ahash::RandomState> =
     StringPool::with_hasher(ahash::RandomState::with_seeds(0, 0, 0, 0));
 
-/// A smart-string type that is used as a "name" in Gooey.
+/// A smart-string type that is used as a "name" in Cushy.
 ///
 /// This type ensures that globably only one instance of any unique wrapped
 /// string exists. By ensuring all instances of each unique string are the same

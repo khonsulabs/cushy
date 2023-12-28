@@ -3,7 +3,7 @@
 #![allow(clippy::module_name_repetitions, clippy::missing_errors_doc)]
 
 // for proc-macros
-extern crate self as gooey;
+extern crate self as cushy;
 
 #[macro_use]
 mod utils;
@@ -23,7 +23,7 @@ pub mod widgets;
 pub mod window;
 use std::ops::Sub;
 
-pub use app::{App, Application, Gooey, Open, PendingApp, Run};
+pub use app::{App, Application, Cushy, Open, PendingApp, Run};
 pub use kludgine;
 use kludgine::app::winit::error::EventLoopError;
 use kludgine::figures::units::UPx;
@@ -119,7 +119,7 @@ pub type Result<T = (), E = EventLoopError> = std::result::Result<T, E>;
 
 /// Counts the number of expressions passed to it.
 ///
-/// This is used inside of Gooey macros to preallocate collections.
+/// This is used inside of Cushy macros to preallocate collections.
 #[macro_export]
 #[doc(hidden)]
 macro_rules! count {

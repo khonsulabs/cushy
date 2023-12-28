@@ -1,16 +1,16 @@
-use gooey::kludgine::include_texture;
-use gooey::value::{Dynamic, MapEach};
-use gooey::widget::MakeWidget;
-use gooey::widgets::Image;
-use gooey::window::PendingWindow;
-use gooey::{Application, Open, PendingApp, Run};
+use cushy::kludgine::include_texture;
+use cushy::value::{Dynamic, MapEach};
+use cushy::widget::MakeWidget;
+use cushy::widgets::Image;
+use cushy::window::PendingWindow;
+use cushy::{Application, Open, PendingApp, Run};
 use kludgine::LazyTexture;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     // To open multiple applications, we need a handle to the application. This
     // starts with the `PendingApp` type.
     let app = PendingApp::default();
-    // Gooey ensures it's easy to share resources between windows.
+    // Cushy ensures it's easy to share resources between windows.
     let texture = include_texture!("assets/ferris-happy.png").expect("valid image");
 
     let open_windows = Dynamic::new(0_usize);

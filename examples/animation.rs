@@ -1,21 +1,21 @@
 use std::time::Duration;
 
-use gooey::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn};
-use gooey::value::Dynamic;
-use gooey::widget::MakeWidget;
-use gooey::widgets::progress::Progressable;
-use gooey::{Run, WithClone};
+use cushy::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn};
+use cushy::value::Dynamic;
+use cushy::widget::MakeWidget;
+use cushy::widgets::progress::Progressable;
+use cushy::{Run, WithClone};
 use kludgine::figures::units::Lp;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let animation = Dynamic::new(AnimationHandle::new());
     let value = Dynamic::new(50);
 
-    // Gooey's animation system supports using a `Duration` as a step in
+    // Cushy's animation system supports using a `Duration` as a step in
     // animation to create a delay. This can also be used to call a function
     // after a specified amount of time:
     Duration::from_secs(1)
-        .on_complete(|| println!("Gooey animations are neat!"))
+        .on_complete(|| println!("Cushy animations are neat!"))
         .launch();
 
     "To 0"

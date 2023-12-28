@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use alot::{LotId, OrderedLots};
-use gooey::widget::{RootBehavior, WidgetInstance};
+use cushy::widget::{RootBehavior, WidgetInstance};
 use intentional::Assert;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};

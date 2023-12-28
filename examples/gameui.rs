@@ -1,12 +1,12 @@
-use gooey::value::Dynamic;
-use gooey::widget::{MakeWidget, HANDLED, IGNORED};
-use gooey::widgets::input::InputValue;
-use gooey::Run;
+use cushy::value::Dynamic;
+use cushy::widget::{MakeWidget, HANDLED, IGNORED};
+use cushy::widgets::input::InputValue;
+use cushy::Run;
 use kludgine::app::winit::event::ElementState;
 use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::Color;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let chat_log = Dynamic::new("Chat log goes here.\n".repeat(100));
     let chat_message = Dynamic::new(String::new());
 

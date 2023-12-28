@@ -1103,7 +1103,7 @@ pub trait ComponentDefinition: NamedComponent {
 
 /// Describes whether a type should invalidate a widget.
 pub trait RequireInvalidation {
-    /// Gooey tracks two different states:
+    /// Cushy tracks two different states:
     ///
     /// - Whether to repaint the window
     /// - Whether to relayout a widget
@@ -1535,7 +1535,7 @@ impl Default for ThemePair {
     }
 }
 
-/// A Gooey Color theme.
+/// A Cushy Color theme.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Theme {
     /// The primary color theme.
@@ -2408,7 +2408,7 @@ where
     }
 }
 
-/// A color scheme for a Gooey application.
+/// A color scheme for a Cushy application.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ColorScheme {
     /// The primary accent color.

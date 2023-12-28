@@ -1,14 +1,14 @@
-use gooey::styles::components::{LineHeight, TextSize};
-use gooey::value::Dynamic;
-use gooey::widget::{Children, MakeWidget};
-use gooey::widgets::wrap::{VerticalAlign, WrapAlign};
-use gooey::Run;
+use cushy::styles::components::{LineHeight, TextSize};
+use cushy::value::Dynamic;
+use cushy::widget::{Children, MakeWidget};
+use cushy::widgets::wrap::{VerticalAlign, WrapAlign};
+use cushy::Run;
 use kludgine::figures::units::Lp;
 use rand::{thread_rng, Rng};
 
 const EXPLANATION: &str = "This example demonstrates the Wrap widget. Each word shown here is an individual Label widget that is being positioned by the Wrap widget.";
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let mut rng = thread_rng();
     let words = EXPLANATION
         .split_ascii_whitespace()

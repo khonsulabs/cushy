@@ -1,14 +1,14 @@
 use std::process::exit;
 
-use gooey::value::{Dynamic, Validations};
-use gooey::widget::MakeWidget;
-use gooey::widgets::input::{InputValue, MaskedString};
-use gooey::widgets::layers::OverlayLayer;
-use gooey::widgets::Expand;
-use gooey::Run;
+use cushy::value::{Dynamic, Validations};
+use cushy::widget::MakeWidget;
+use cushy::widgets::input::{InputValue, MaskedString};
+use cushy::widgets::layers::OverlayLayer;
+use cushy::widgets::Expand;
+use cushy::Run;
 use kludgine::figures::units::Lp;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let tooltips = OverlayLayer::default();
     let username = Dynamic::default();
     let password = Dynamic::default();

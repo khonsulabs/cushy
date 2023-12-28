@@ -1,12 +1,12 @@
-use gooey::value::Dynamic;
-use gooey::widget::MakeWidget;
-use gooey::widgets::input::InputValue;
-use gooey::widgets::slider::Slidable;
-use gooey::widgets::Custom;
-use gooey::Run;
+use cushy::value::Dynamic;
+use cushy::widget::MakeWidget;
+use cushy::widgets::input::InputValue;
+use cushy::widgets::slider::Slidable;
+use cushy::widgets::Custom;
+use cushy::Run;
 use kludgine::figures::units::Lp;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let allow_blur = Dynamic::new(true);
     "Input Field"
         .and(Dynamic::<String>::default().into_input())

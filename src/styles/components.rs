@@ -9,18 +9,18 @@ use crate::animation::easings::{EaseInOutQuadradic, EaseInQuadradic, EaseOutQuad
 use crate::animation::{EasingFunction, ZeroToOne};
 use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
 
-/// Defines a set of style components for Gooey.
+/// Defines a set of style components for Cushy.
 ///
 /// These macros implement [`NamedComponent`](crate::styles::NamedComponent) and
 /// [`ComponentDefinition`](crate::styles::ComponentDefinition) for each entry
 /// defined. The syntax is:
 ///
 /// ```rust
-/// use gooey::define_components;
-/// use gooey::styles::Dimension;
-/// use gooey::styles::components::{SurfaceColor, TextColor};
-/// use gooey::kludgine::Color;
-/// use gooey::kludgine::figures::Zero;
+/// use cushy::define_components;
+/// use cushy::styles::Dimension;
+/// use cushy::styles::components::{SurfaceColor, TextColor};
+/// use cushy::kludgine::Color;
+/// use cushy::kludgine::figures::Zero;
 ///
 /// define_components! {
 ///     GroupName {

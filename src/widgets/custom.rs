@@ -266,7 +266,7 @@ impl Custom {
 
     /// Invokes `advance_focus` when this widget has focus and focus is
     /// requested to advance to another widget. Returning
-    /// [`HANDLED`](crate::widget::HANDLED) will signal to Gooey that the focus
+    /// [`HANDLED`](crate::widget::HANDLED) will signal to Cushy that the focus
     /// has moved and the request should not be processed any further.
     ///
     /// This callback corresponds to [`WrapperWidget::advance_focus`].

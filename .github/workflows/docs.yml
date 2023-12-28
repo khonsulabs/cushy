@@ -30,6 +30,6 @@ jobs:
           url: ${{ secrets.DOSSIER_URL }}
           api-key-id: ${{ secrets.DOSSIER_API_KEY_ID }}
           api-key: ${{ secrets.DOSSIER_API_KEY }}
-          project: gooey
+          project: cushy
           from: target/doc/
           to: /${{ github.ref_name }}/docs

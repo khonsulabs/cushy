@@ -1,4 +1,4 @@
-//! Types that provide access to the Gooey runtime.
+//! Types that provide access to the Cushy runtime.
 use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicBool, Ordering};
