@@ -642,16 +642,13 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
 
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
     /// context's widget.
-    ///
-    /// # Panics
-    ///
-    /// This function panics if the widget being drawn has no layout set (via
-    /// [`LayoutContext::set_child_layout()`]).
     pub fn redraw(&mut self) {
-        assert!(
-            self.last_layout().is_some(),
-            "redraw called without set_widget_layout"
-        );
+        let Some(layout) = self.last_layout() else {
+            return;
+        };
+        if layout.size.width <= 0 || layout.size.height <= 0 {
+            return;
+        }
 
         self.tree.note_widget_rendered(self.current_node.node_id);
         let widget = self.current_node.clone();

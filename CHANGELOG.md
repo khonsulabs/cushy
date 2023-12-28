@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   also provides this export, so existing references through kludgine will
   continue to work. This was added as an attempt to fix links on docs.rs (see
   rust-lang/docs.rs#1588).
+- `Disclose` is a new widget that shows a disclosure triangle and uses a
+  `Collapse` widget to show/hide the content when the disclosure button is
+  clicked. This widget also supports an optional label that is shown above the
+  content and is also clickable.
 
 ## v0.2.0
 

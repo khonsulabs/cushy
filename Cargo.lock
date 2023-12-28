@@ -738,9 +738,9 @@ dependencies = [
 
 [[package]]
 name = "figures"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63172cefd2b4018ab01e207ce8b951e757575412d58a9370619d19ea16ddc948"
+checksum = "813f0f9e0ba0d378a8e2cd51df24dd724ba8fbc07baa3dd192813eeba407ea86"
 dependencies = [
  "bytemuck",
  "euclid",

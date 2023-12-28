@@ -39,8 +39,8 @@ use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Validation, Valu
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::{
-    Align, Button, Checkbox, Collapse, Container, Expand, Layers, Resize, Scroll, Space, Stack,
-    Style, Themed, ThemedMode, Validated, Wrap,
+    Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Resize, Scroll, Space,
+    Stack, Style, Themed, ThemedMode, Validated, Wrap,
 };
 use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior, WindowHandle};
 use crate::ConstraintLimit;
@@ -1296,6 +1296,11 @@ pub trait MakeWidget: Sized {
     /// revealed when the dynamic contains `false`.
     fn collapse_vertically(self, collapse_when: impl IntoDynamic<bool>) -> Collapse {
         Collapse::vertical(collapse_when, self)
+    }
+
+    /// Returns a new widget that allows hiding and showing `contents`.
+    fn disclose(self) -> Disclose {
+        Disclose::new(self)
     }
 
     /// Returns a widget that shows validation errors and/or hints.

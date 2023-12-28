@@ -1,0 +1,350 @@
+//! A widget that hides/shows associated content.
+
+use std::time::Duration;
+
+use figures::units::{Lp, Px, UPx};
+use figures::{Angle, IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
+use kludgine::app::winit::window::CursorIcon;
+use kludgine::shapes::{PathBuilder, StrokeOptions};
+use kludgine::{Color, DrawableExt};
+
+use super::button::{ButtonActiveBackground, ButtonBackground, ButtonHoverBackground};
+use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
+use crate::context::LayoutContext;
+use crate::styles::components::{HighlightColor, IntrinsicPadding, OutlineColor, TextSize};
+use crate::styles::Dimension;
+use crate::value::{Dynamic, IntoDynamic, IntoValue, Value};
+use crate::widget::{
+    EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetRef, WidgetTag,
+    HANDLED, IGNORED,
+};
+use crate::ConstraintLimit;
+
+/// A widget that hides and shows another widget.
+pub struct Disclose {
+    contents: WidgetInstance,
+    label: Option<WidgetInstance>,
+    collapsed: Value<bool>,
+}
+
+impl Disclose {
+    /// Returns a new widget that allows hiding and showing `contents`.
+    #[must_use]
+    pub fn new(contents: impl MakeWidget) -> Self {
+        Self {
+            contents: contents.make_widget(),
+            label: None,
+            collapsed: Value::Constant(true),
+        }
+    }
+
+    /// Sets `label` as a clickable label for this widget.
+    #[must_use]
+    pub fn labelled_by(mut self, label: impl MakeWidget) -> Self {
+        self.label = Some(label.make_widget());
+        self
+    }
+
+    /// Sets this widget's collapsed value.
+    ///
+    /// If a `Value::Constant` is provided, it is used as the initial collapse
+    /// state. If a `Value::Dynamic` is provided, it will be updated when the
+    /// contents are shown and hidden.
+    #[must_use]
+    pub fn collapsed(mut self, collapsed: impl IntoValue<bool>) -> Self {
+        self.collapsed = collapsed.into_value();
+        self
+    }
+}
+
+impl MakeWidgetWithTag for Disclose {
+    fn make_with_tag(self, tag: WidgetTag) -> WidgetInstance {
+        let collapsed = self.collapsed.into_dynamic();
+
+        DiscloseIndicator::new(collapsed.clone(), self.label, self.contents)
+            .make_with_tag(tag)
+            .make_widget()
+    }
+}
+
+#[derive(Debug)]
+struct DiscloseIndicator {
+    label: Option<WidgetRef>,
+    contents: WidgetRef,
+    collapsed: Dynamic<bool>,
+    hovering_indicator: bool,
+    target_colors: Option<(Color, Color)>,
+    color_animation: AnimationHandle,
+    color: Dynamic<Color>,
+    stroke_color: Dynamic<Color>,
+    angle: Dynamic<Angle>,
+    mouse_buttons_pressed: usize,
+}
+
+fn collapse_angle(collapsed: bool) -> Angle {
+    if collapsed {
+        Angle::degrees(0)
+    } else {
+        Angle::degrees(90)
+    }
+}
+
+impl DiscloseIndicator {
+    fn new(
+        collapsed: Dynamic<bool>,
+        label: Option<WidgetInstance>,
+        contents: WidgetInstance,
+    ) -> Self {
+        let angle = Dynamic::new(collapse_angle(collapsed.get()));
+
+        let mut _angle_animation = AnimationHandle::default();
+        angle.set_source({
+            let angle = angle.clone();
+            collapsed.for_each(move |collapsed| {
+                _angle_animation = angle
+                    .transition_to(collapse_angle(*collapsed))
+                    .over(Duration::from_millis(125))
+                    .spawn();
+            })
+        });
+
+        Self {
+            contents: WidgetRef::new(contents.collapse_vertically(collapsed.clone())),
+            collapsed,
+            hovering_indicator: false,
+            label: label.map(WidgetRef::Unmounted),
+            target_colors: None,
+            color: Dynamic::new(Color::CLEAR_WHITE),
+            stroke_color: Dynamic::new(Color::CLEAR_WHITE),
+            color_animation: AnimationHandle::default(),
+            angle,
+            mouse_buttons_pressed: 0,
+        }
+    }
+
+    fn effective_colors(
+        &mut self,
+        context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>,
+    ) -> (Color, Color) {
+        let current_color = if context.active() {
+            context.get(&ButtonActiveBackground)
+        } else if self.hovering_indicator {
+            context.get(&ButtonHoverBackground)
+        } else {
+            context.get(&ButtonBackground)
+        };
+        let stroke_color = if self.hovering_indicator {
+            context.get(&OutlineColor)
+        } else {
+            context.get(&OutlineColor).with_alpha(0)
+        };
+        let target_colors = (current_color, stroke_color);
+        if self.target_colors.is_none() {
+            self.target_colors = Some(target_colors);
+            self.color.set(current_color);
+        } else if self.target_colors != Some(target_colors) {
+            self.target_colors = Some(target_colors);
+            self.color_animation = (
+                self.color.transition_to(current_color),
+                self.stroke_color.transition_to(stroke_color),
+            )
+                .over(Duration::from_millis(125))
+                .spawn();
+        }
+
+        (
+            self.color.get_tracking_redraw(context),
+            self.stroke_color.get_tracking_redraw(context),
+        )
+    }
+}
+
+impl Widget for DiscloseIndicator {
+    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+        let angle = self.angle.get_tracking_redraw(context);
+        let (color, stroke_color) = self.effective_colors(context);
+        let size = context
+            .get(&IndicatorSize)
+            .into_px(context.gfx.scale())
+            .round();
+        let stroke = StrokeOptions::px_wide(Lp::points(2).into_px(context.gfx.scale()).round());
+
+        let radius = ((size - stroke.line_width) / 2).round();
+        let pt1 = Point::new(radius, Px::ZERO).rotate_by(Angle::degrees(0));
+        let pt2 = Point::new(radius, Px::ZERO).rotate_by(Angle::degrees(120));
+        let pt3 = Point::new(radius, Px::ZERO).rotate_by(Angle::degrees(240));
+
+        let path = PathBuilder::new(pt1).line_to(pt2).line_to(pt3).close();
+
+        let indicator_layout_height = if let Some(label) = &mut self.label {
+            let label = label.mounted(context);
+            context.for_other(&label).redraw();
+            label
+                .last_layout()
+                .unwrap_or_default()
+                .size
+                .height
+                .max(size)
+        } else {
+            size
+        };
+
+        let center = (Point::new(size, indicator_layout_height) / 2).round();
+        context
+            .gfx
+            .draw_shape(path.fill(color).translate_by(center).rotate_by(angle));
+
+        let stroke_options = if context.focused(true) {
+            stroke.colored(context.get(&HighlightColor))
+        } else {
+            StrokeOptions::px_wide(Lp::points(1).into_px(context.gfx.scale()).round())
+                .colored(stroke_color)
+        };
+        context.gfx.draw_shape(
+            path.stroke(stroke_options)
+                .translate_by(center)
+                .rotate_by(angle),
+        );
+
+        let contents = self.contents.mounted(context);
+        context.for_other(&contents).redraw();
+    }
+
+    fn layout(
+        &mut self,
+        mut available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+    ) -> Size<UPx> {
+        let indicator_size = context
+            .get(&IndicatorSize)
+            .into_upx(context.gfx.scale())
+            .round();
+        let padding = context
+            .get(&IntrinsicPadding)
+            .into_upx(context.gfx.scale())
+            .round();
+
+        let content_inset = indicator_size + padding;
+        available_space.width -= content_inset;
+
+        let label_size = if let Some(label) = &mut self.label {
+            let label = label.mounted(context);
+            let label_size = context.for_other(&label).layout(available_space);
+            let label_vertical_offset = if label_size.height < indicator_size {
+                (indicator_size - label_size.height).round()
+            } else {
+                UPx::ZERO
+            };
+            context.set_child_layout(
+                &label,
+                Rect::new(Point::new(content_inset, label_vertical_offset), label_size)
+                    .into_signed(),
+            );
+            Size::new(label_size.width, label_size.height.max(indicator_size))
+        } else {
+            Size::ZERO
+        };
+
+        let content_vertical_offset = if label_size.height > 0 {
+            label_size.height + padding
+        } else {
+            label_size.height
+        };
+
+        available_space.height -= content_vertical_offset;
+
+        let contents = self.contents.mounted(context);
+        let content_size = context.for_other(&contents).layout(available_space);
+        let content_rect = Rect::new(
+            Point::new(content_inset, content_vertical_offset),
+            content_size,
+        );
+        context.set_child_layout(&contents, content_rect.into_signed());
+        Size::new(
+            content_inset + content_rect.size.width.max(label_size.width),
+            indicator_size.max(content_rect.origin.y + content_rect.size.height),
+        )
+    }
+
+    fn hit_test(
+        &mut self,
+        location: Point<Px>,
+        context: &mut crate::context::EventContext<'_, '_>,
+    ) -> bool {
+        let size = context
+            .get(&IndicatorSize)
+            .into_px(context.kludgine.scale())
+            .round();
+        if let Some(label) = &mut self.label {
+            let layout = label.mounted(context).last_layout().unwrap_or_default();
+
+            location.y < size.max(layout.size.height)
+        } else {
+            location.x < size && location.y < size
+        }
+    }
+
+    fn hover(
+        &mut self,
+        location: Point<Px>,
+        context: &mut crate::context::EventContext<'_, '_>,
+    ) -> Option<CursorIcon> {
+        let hovering = self.hit_test(location, context);
+        if self.hovering_indicator != hovering {
+            context.set_needs_redraw();
+            self.hovering_indicator = true;
+        }
+
+        hovering.then_some(CursorIcon::Pointer)
+    }
+
+    fn unhover(&mut self, context: &mut crate::context::EventContext<'_, '_>) {
+        if self.hovering_indicator {
+            self.hovering_indicator = false;
+            context.set_needs_redraw();
+        }
+    }
+
+    fn mouse_down(
+        &mut self,
+        location: Point<Px>,
+        _device_id: kludgine::app::winit::event::DeviceId,
+        _button: kludgine::app::winit::event::MouseButton,
+        context: &mut crate::context::EventContext<'_, '_>,
+    ) -> EventHandling {
+        if self.hit_test(location, context) {
+            self.mouse_buttons_pressed += 1;
+            self.activate(context);
+            HANDLED
+        } else {
+            IGNORED
+        }
+    }
+
+    fn mouse_up(
+        &mut self,
+        _location: Option<Point<Px>>,
+        _device_id: kludgine::app::winit::event::DeviceId,
+        _button: kludgine::app::winit::event::MouseButton,
+        context: &mut crate::context::EventContext<'_, '_>,
+    ) {
+        self.mouse_buttons_pressed -= 1;
+        if self.mouse_buttons_pressed == 0 {
+            self.deactivate(context);
+            self.collapsed.toggle();
+        }
+    }
+
+    fn activate(&mut self, _context: &mut crate::context::EventContext<'_, '_>) {
+        if self.mouse_buttons_pressed == 0 {
+            self.collapsed.toggle();
+        }
+    }
+}
+
+define_components! {
+    Disclose {
+        /// The size to render a [`Disclose`] indicator.
+        IndicatorSize(Dimension, "size", @TextSize)
+    }
+}

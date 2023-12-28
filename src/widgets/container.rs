@@ -587,32 +587,20 @@ fn shadow_arc(
     context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
 ) {
     let full_radius = radius + gradient;
-    let mut current_outer_arc = rotate_point(
-        origin,
-        Point::new(origin.x + full_radius, origin.y),
-        start_angle,
-    );
-    let mut current_inner_arc =
-        rotate_point(origin, Point::new(origin.x + radius, origin.y), start_angle);
+    let mut current_outer_arc = origin + Point::new(full_radius, Px::ZERO).rotate_by(start_angle);
+
+    let mut current_inner_arc = origin + Point::new(radius, Px::ZERO).rotate_by(start_angle);
     let mut angle = Angle::degrees(0);
 
     while angle < Angle::degrees(90) {
         angle += Angle::degrees(5);
 
-        let outer_arc = rotate_point(
-            origin,
-            Point::new(origin.x + full_radius, origin.y),
-            start_angle + angle,
-        );
+        let outer_arc = origin + Point::new(full_radius, Px::ZERO).rotate_by(start_angle + angle);
         if outer_arc == current_outer_arc {
             continue;
         }
 
-        let inner_arc = rotate_point(
-            origin,
-            Point::new(origin.x + radius, origin.y),
-            start_angle + angle,
-        );
+        let inner_arc = origin + Point::new(radius, Px::ZERO).rotate_by(start_angle + angle);
 
         let mut path = PathBuilder::new((current_inner_arc, solid_color));
         path = path
@@ -636,13 +624,6 @@ fn shadow_arc(
         current_outer_arc = outer_arc;
         current_inner_arc = inner_arc;
     }
-}
-
-fn rotate_point(origin: Point<Px>, point: Point<Px>, angle: Angle) -> Point<Px> {
-    let cos = angle.into_raidans_f().cos();
-    let sin = angle.into_raidans_f().sin();
-    let d = point - origin;
-    origin + Point::new(d.x * cos - d.y * sin, d.y * cos + d.x * sin)
 }
 
 /// The selected background configuration of a [`Container`].

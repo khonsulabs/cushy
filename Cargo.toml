@@ -19,7 +19,7 @@ roboto-flex = []
 
 [dependencies]
 kludgine = { version = "0.7.0", features = ["app"] }
-figures = "0.2.0"
+figures = "0.2.1"
 # kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
 #     "app",
 # ] }

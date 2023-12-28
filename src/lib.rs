@@ -21,7 +21,7 @@ pub mod value;
 pub mod widget;
 pub mod widgets;
 pub mod window;
-use std::ops::Sub;
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 pub use app::{App, Application, Cushy, Open, PendingApp, Run};
 use figures::units::UPx;
@@ -102,14 +102,39 @@ impl FitMeasuredSize for Size<ConstraintLimit> {
     }
 }
 
+impl Add<UPx> for ConstraintLimit {
+    type Output = Self;
+
+    fn add(mut self, rhs: UPx) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl AddAssign<UPx> for ConstraintLimit {
+    fn add_assign(&mut self, rhs: UPx) {
+        *self = match *self {
+            ConstraintLimit::Fill(px) => ConstraintLimit::Fill(px.saturating_add(rhs)),
+            ConstraintLimit::SizeToFit(px) => ConstraintLimit::SizeToFit(px.saturating_add(rhs)),
+        };
+    }
+}
+
 impl Sub<UPx> for ConstraintLimit {
     type Output = Self;
 
-    fn sub(self, rhs: UPx) -> Self::Output {
-        match self {
+    fn sub(mut self, rhs: UPx) -> Self::Output {
+        self -= rhs;
+        self
+    }
+}
+
+impl SubAssign<UPx> for ConstraintLimit {
+    fn sub_assign(&mut self, rhs: UPx) {
+        *self = match *self {
             ConstraintLimit::Fill(px) => ConstraintLimit::Fill(px.saturating_sub(rhs)),
             ConstraintLimit::SizeToFit(px) => ConstraintLimit::SizeToFit(px.saturating_sub(rhs)),
-        }
+        };
     }
 }
 
