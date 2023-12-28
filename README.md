@@ -2,7 +2,7 @@
 
 ![Cushy is considered alpha and unsupported](https://img.shields.io/badge/status-alpha-orange)
 [![crate version](https://img.shields.io/crates/v/cushy.svg)](https://crates.io/crates/cushy)
-[![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)](https://khonsu.dev/cushy/main/docs/cushy/)
+[![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)](https://docs.rs/cushy)
 
 Cushy is an experimental Graphical User Interface (GUI) crate for the Rust
 programming language. It features a reactive data model and aims to enable
@@ -65,10 +65,10 @@ and problem it aims to solve. Doing so will help prevent friction in merging
 pull requests, as it ensures changes fit the vision the maintainers have for
 Cushy.
 
-[widget]: https://khonsu.dev/cushy/main/docs/cushy/widget/trait.Widget.html
-[widgets]: https://khonsu.dev/cushy/main/docs/cushy/widgets/index.html
-[button-example]: https://github.com/khonsulabs/cushy/tree/main/examples/basic-button.rs
-[examples]: https://github.com/khonsulabs/cushy/tree/main/examples/
+[widget]: https://docs.rs/cushy/*/cushy/widget/trait.Widget.html
+[widgets]: https://docs.rs/cushy/*/cushy/widgets/index.html
+[button-example]: https://github.com/khonsulabs/cushy/tree/v0.2.0/examples/basic-button.rs
+[examples]: https://github.com/khonsulabs/cushy/tree/v0.2.0/examples/
 [kludgine]: https://github.com/khonsulabs/kludgine
 [figures]: https://github.com/khonsulabs/figures
 [wgpu]: https://github.com/gfx-rs/wgpu
