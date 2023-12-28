@@ -1,11 +1,11 @@
-use cushy::value::Dynamic;
-use cushy::widget::MakeWidget;
-use cushy::widgets::input::InputValue;
-use cushy::widgets::Custom;
-use cushy::Run;
+use gooey::value::Dynamic;
+use gooey::widget::MakeWidget;
+use gooey::widgets::input::InputValue;
+use gooey::widgets::Custom;
+use gooey::Run;
 use kludgine::app::winit::window::CursorIcon;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     Custom::new(
         "Try hovering the mouse cursor around this window"
             .and(

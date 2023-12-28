@@ -1,11 +1,11 @@
-use cushy::widgets::Canvas;
-use cushy::{Run, Tick};
+use gooey::widgets::Canvas;
+use gooey::{Run, Tick};
 use kludgine::figures::{Angle, IntoSigned, Point, Px2D, Rect, Size};
 use kludgine::shapes::Shape;
 use kludgine::text::{Text, TextOrigin};
 use kludgine::{Color, DrawableExt};
 
-fn main() -> cushy::Result<()> {
+fn main() -> gooey::Result<()> {
     let mut angle = Angle::degrees(0);
     Canvas::new(move |context| {
         angle += Angle::degrees(1);

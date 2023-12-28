@@ -1,13 +1,13 @@
-use cushy::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
-use cushy::widgets::container::ContainerShadow;
-use cushy::widgets::layers::{OverlayBuilder, OverlayLayer};
-use cushy::Run;
+use gooey::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
+use gooey::widgets::container::ContainerShadow;
+use gooey::widgets::layers::{OverlayBuilder, OverlayLayer};
+use gooey::Run;
 use kludgine::figures::units::Lp;
 use kludgine::figures::Point;
 use kludgine::Color;
 use rand::{thread_rng, Rng};
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let overlay = OverlayLayer::default();
 
     test_widget(&overlay, true)

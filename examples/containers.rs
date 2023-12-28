@@ -1,12 +1,12 @@
-use cushy::value::Dynamic;
-use cushy::widget::{MakeWidget, WidgetInstance};
-use cushy::widgets::container::ContainerShadow;
-use cushy::window::ThemeMode;
-use cushy::Run;
+use gooey::value::Dynamic;
+use gooey::widget::{MakeWidget, WidgetInstance};
+use gooey::widgets::container::ContainerShadow;
+use gooey::window::ThemeMode;
+use gooey::Run;
 use kludgine::figures::units::Lp;
 use kludgine::figures::Point;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let theme_mode = Dynamic::default();
     set_of_containers(3, theme_mode.clone())
         .centered()

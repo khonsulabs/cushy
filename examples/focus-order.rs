@@ -1,17 +1,17 @@
 use std::process::exit;
 
-use cushy::value::{Dynamic, MapEach};
-use cushy::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
-use cushy::widgets::grid::{Grid, GridDimension, GridWidgets};
-use cushy::widgets::input::{InputValue, MaskedString};
-use cushy::widgets::Expand;
-use cushy::Run;
+use gooey::value::{Dynamic, MapEach};
+use gooey::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
+use gooey::widgets::grid::{Grid, GridDimension, GridWidgets};
+use gooey::widgets::input::{InputValue, MaskedString};
+use gooey::widgets::Expand;
+use gooey::Run;
 use kludgine::figures::units::Lp;
 
 /// This example is the same as login, but it has an explicit tab order to
 /// change from the default order (username, password, cancel, log in) to
 /// username, password, log in, cancel.
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let username = Dynamic::default();
     let password = Dynamic::default();
 

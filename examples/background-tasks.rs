@@ -3,18 +3,18 @@
 
 use std::time::Duration;
 
-use cushy::animation::ZeroToOne;
-use cushy::value::{Dynamic, Switchable};
-use cushy::widget::MakeWidget;
-use cushy::widgets::progress::{Progress, Progressable};
-use cushy::Run;
+use gooey::animation::ZeroToOne;
+use gooey::value::{Dynamic, Switchable};
+use gooey::widget::MakeWidget;
+use gooey::widgets::progress::{Progress, Progressable};
+use gooey::Run;
 
 #[derive(Debug, Default, Eq, PartialEq)]
 struct Task {
     progress: Dynamic<Progress>,
 }
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let task = Dynamic::new(None::<Task>);
 
     task.switcher(|task, dynamic| {

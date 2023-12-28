@@ -4,6 +4,10 @@
 [![crate version](https://img.shields.io/crates/v/cushy.svg)](https://crates.io/crates/cushy)
 [![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)](https://docs.rs/cushy)
 
+**This crate has [been renamed](https://github.com/khonsulabs/cushy/issues/117)
+from `gooey` to [cushy](https://crates.io/crates/cushy). No more versions will
+be published at this name.**
+
 Cushy is an experimental Graphical User Interface (GUI) crate for the Rust
 programming language. It features a reactive data model and aims to enable
 easily creating responsive, efficient user interfaces. To enable easy
@@ -32,7 +36,7 @@ reactive data models work, consider this example that displays a button that
 increments its own label:
 
 ```rust,ignore
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     // Create a dynamic usize.
     let count = Dynamic::new(0_isize);
     // Create a dynamic that contains `count.to_string()`

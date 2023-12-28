@@ -1,12 +1,12 @@
-use cushy::styles::components::{TextColor, TextSize};
-use cushy::widget::MakeWidget;
-use cushy::widgets::stack::Stack;
-use cushy::widgets::Style;
-use cushy::Run;
+use gooey::styles::components::{TextColor, TextSize};
+use gooey::widget::MakeWidget;
+use gooey::widgets::stack::Stack;
+use gooey::widgets::Style;
+use gooey::Run;
 use kludgine::figures::units::Lp;
 use kludgine::Color;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     Stack::rows("Green".and(red_text("Red")))
         .with(&TextColor, Color::GREEN)
         // Local styles are not inherited. In this situation, the text size is

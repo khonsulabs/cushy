@@ -1,7 +1,7 @@
-use cushy::widget::MakeWidget;
-use cushy::Run;
+use gooey::widget::MakeWidget;
+use gooey::Run;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     "Heading 1"
         .h1()
         .and("Heading 2".h2())

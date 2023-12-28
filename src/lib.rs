@@ -3,7 +3,7 @@
 #![allow(clippy::module_name_repetitions, clippy::missing_errors_doc)]
 
 // for proc-macros
-extern crate self as cushy;
+extern crate self as gooey;
 
 #[macro_use]
 mod utils;

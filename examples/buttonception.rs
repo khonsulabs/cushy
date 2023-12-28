@@ -16,13 +16,13 @@
 //! ┃ ┃ ┣ clicked_button Label
 //! ```
 
-use cushy::value::Dynamic;
-use cushy::widget::MakeWidget;
-use cushy::widgets::button::{ButtonHoverBackground, ButtonHoverForeground};
-use cushy::Run;
+use gooey::value::Dynamic;
+use gooey::widget::MakeWidget;
+use gooey::widgets::button::{ButtonHoverBackground, ButtonHoverForeground};
+use gooey::Run;
 use kludgine::Color;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let clicked_button = Dynamic::<&'static str>::default();
 
     let inner_button = "So I put buttons in your buttons"

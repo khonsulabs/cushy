@@ -16,11 +16,11 @@ use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
 /// defined. The syntax is:
 ///
 /// ```rust
-/// use cushy::define_components;
-/// use cushy::styles::Dimension;
-/// use cushy::styles::components::{SurfaceColor, TextColor};
-/// use cushy::kludgine::Color;
-/// use cushy::kludgine::figures::Zero;
+/// use gooey::define_components;
+/// use gooey::styles::Dimension;
+/// use gooey::styles::components::{SurfaceColor, TextColor};
+/// use gooey::kludgine::Color;
+/// use gooey::kludgine::figures::Zero;
 ///
 /// define_components! {
 ///     GroupName {

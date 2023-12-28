@@ -1,5 +1,5 @@
-use cushy::widget::MakeWidget;
-use cushy::Run;
+use gooey::widget::MakeWidget;
+use gooey::Run;
 
 /// This example shows a tricky layout problem. The hierarchy of widgets is
 /// this:
@@ -40,7 +40,7 @@ use cushy::Run;
 /// a Stack is asked to layout with the Stack's non-primary being a size-to-fit
 /// measurement, a second layout call for all children is required with Known
 /// measurements to allow layouts like this example to work correctly.
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     // TODO once we have offscreen rendering, turn this into a test case
     "Really Long Label"
         .and("Short".into_button().centered())

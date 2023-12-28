@@ -1,15 +1,15 @@
 //! This example shows two approaches to writing custom widgets: implementing
 //! traits or using the [`Custom`] widget with callbacks.
 
-use cushy::value::Dynamic;
-use cushy::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag, HANDLED};
-use cushy::widgets::Custom;
-use cushy::Run;
+use gooey::value::Dynamic;
+use gooey::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag, HANDLED};
+use gooey::widgets::Custom;
+use gooey::Run;
 use kludgine::figures::units::{Lp, UPx};
 use kludgine::figures::{ScreenScale, Size};
 use kludgine::Color;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     "Inline Widgets"
         .and(callback_widget())
         .into_rows()
@@ -90,14 +90,14 @@ impl Default for Toggle {
 }
 
 impl Widget for Toggle {
-    fn redraw(&mut self, context: &mut cushy::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut gooey::context::GraphicsContext<'_, '_, '_, '_, '_>) {
         context.fill(self.color.get_tracking_redraw(context));
     }
 
     fn layout(
         &mut self,
-        available_space: Size<cushy::ConstraintLimit>,
-        context: &mut cushy::context::LayoutContext<'_, '_, '_, '_, '_>,
+        available_space: Size<gooey::ConstraintLimit>,
+        context: &mut gooey::context::LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<UPx> {
         Size::new(
             available_space.width.min(),
@@ -108,7 +108,7 @@ impl Widget for Toggle {
     fn hit_test(
         &mut self,
         _location: kludgine::figures::Point<kludgine::figures::units::Px>,
-        _context: &mut cushy::context::EventContext<'_, '_>,
+        _context: &mut gooey::context::EventContext<'_, '_>,
     ) -> bool {
         true
     }
@@ -118,8 +118,8 @@ impl Widget for Toggle {
         _location: kludgine::figures::Point<kludgine::figures::units::Px>,
         _device_id: kludgine::app::winit::event::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        _context: &mut cushy::context::EventContext<'_, '_>,
-    ) -> cushy::widget::EventHandling {
+        _context: &mut gooey::context::EventContext<'_, '_>,
+    ) -> gooey::widget::EventHandling {
         self.value.toggle();
 
         HANDLED

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use cushy::value::{Dynamic, MapEach};
-use cushy::widget::{Children, MakeWidget};
-use cushy::widgets::input::InputValue;
-use cushy::Run;
+use gooey::value::{Dynamic, MapEach};
+use gooey::widget::{Children, MakeWidget};
+use gooey::widgets::input::InputValue;
+use gooey::Run;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Contact {
@@ -13,7 +13,7 @@ pub struct Contact {
     pub title: String,
 }
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let initial_contacts = vec![
         Contact {
             id: 0,

@@ -1,6 +1,6 @@
-use cushy::value::Dynamic;
-use cushy::widget::MakeWidget;
-use cushy::Run;
+use gooey::value::Dynamic;
+use gooey::widget::MakeWidget;
+use gooey::Run;
 
 #[derive(Default, Eq, PartialEq, Debug, Clone, Copy)]
 pub enum Choice {
@@ -10,7 +10,7 @@ pub enum Choice {
     C,
 }
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let option = Dynamic::default();
 
     option

@@ -1,12 +1,12 @@
-use cushy::value::{Dynamic, MapEach};
-use cushy::widget::MakeWidget;
-use cushy::widgets::progress::Progressable;
-use cushy::widgets::slider::Slidable;
-use cushy::Run;
+use gooey::value::{Dynamic, MapEach};
+use gooey::widget::MakeWidget;
+use gooey::widgets::progress::Progressable;
+use gooey::widgets::slider::Slidable;
+use gooey::Run;
 use kludgine::figures::units::Lp;
 use kludgine::figures::Size;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let indeterminant = Dynamic::new(false);
     let value = Dynamic::new(0_u8);
     let progress = (&indeterminant, &value)

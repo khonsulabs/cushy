@@ -1,10 +1,10 @@
-use cushy::value::Dynamic;
-use cushy::widget::MakeWidget;
-use cushy::widgets::input::{InputValue, MaskedString};
-use cushy::Run;
+use gooey::value::Dynamic;
+use gooey::widget::MakeWidget;
+use gooey::widgets::input::{InputValue, MaskedString};
+use gooey::Run;
 use kludgine::figures::units::Px;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let contents = Dynamic::from("Hello World");
     let password = Dynamic::new(MaskedString::default());
 

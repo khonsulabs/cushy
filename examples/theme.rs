@@ -1,24 +1,24 @@
 use std::fmt::Write;
 
-use cushy::styles::components::{TextColor, WidgetBackground};
-use cushy::styles::{
+use gooey::styles::components::{TextColor, WidgetBackground};
+use gooey::styles::{
     ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme,
     ThemePair,
 };
-use cushy::value::{Dynamic, MapEachCloned};
-use cushy::widget::MakeWidget;
-use cushy::widgets::checkbox::Checkable;
-use cushy::widgets::color::ColorSourcePicker;
-use cushy::widgets::input::InputValue;
-use cushy::widgets::slider::Slidable;
-use cushy::widgets::Space;
-use cushy::window::ThemeMode;
-use cushy::{Open, PendingApp};
+use gooey::value::{Dynamic, MapEachCloned};
+use gooey::widget::MakeWidget;
+use gooey::widgets::checkbox::Checkable;
+use gooey::widgets::color::ColorSourcePicker;
+use gooey::widgets::input::InputValue;
+use gooey::widgets::slider::Slidable;
+use gooey::widgets::Space;
+use gooey::window::ThemeMode;
+use gooey::{Open, PendingApp};
 use kludgine::figures::units::Lp;
 use kludgine::Color;
 use palette::OklabHue;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let app = PendingApp::default();
 
     let (theme_mode, theme_switcher) = dark_mode_picker();

@@ -1,12 +1,12 @@
-use cushy::kludgine::include_texture;
-use cushy::value::{Dynamic, MapEach};
-use cushy::widget::MakeWidget;
-use cushy::widgets::Image;
-use cushy::window::PendingWindow;
-use cushy::{Application, Open, PendingApp, Run};
+use gooey::kludgine::include_texture;
+use gooey::value::{Dynamic, MapEach};
+use gooey::widget::MakeWidget;
+use gooey::widgets::Image;
+use gooey::window::PendingWindow;
+use gooey::{Application, Open, PendingApp, Run};
 use kludgine::LazyTexture;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     // To open multiple applications, we need a handle to the application. This
     // starts with the `PendingApp` type.
     let app = PendingApp::default();

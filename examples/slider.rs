@@ -1,14 +1,14 @@
-use cushy::animation::{LinearInterpolate, PercentBetween};
-use cushy::value::{Dynamic, ForEach};
-use cushy::widget::MakeWidget;
-use cushy::widgets::checkbox::Checkable;
-use cushy::widgets::input::InputValue;
-use cushy::widgets::slider::Slidable;
-use cushy::Run;
+use gooey::animation::{LinearInterpolate, PercentBetween};
+use gooey::value::{Dynamic, ForEach};
+use gooey::widget::MakeWidget;
+use gooey::widgets::checkbox::Checkable;
+use gooey::widgets::input::InputValue;
+use gooey::widgets::slider::Slidable;
+use gooey::Run;
 use kludgine::figures::units::Lp;
 use kludgine::figures::Ranged;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let enabled = Dynamic::new(true);
     u8_slider()
         .and(u8_range_slider())
@@ -86,7 +86,7 @@ enum SlidableEnum {
 }
 
 impl PercentBetween for SlidableEnum {
-    fn percent_between(&self, min: &Self, max: &Self) -> cushy::animation::ZeroToOne {
+    fn percent_between(&self, min: &Self, max: &Self) -> gooey::animation::ZeroToOne {
         let min = *min as u8;
         let max = *max as u8;
         let value = *self as u8;

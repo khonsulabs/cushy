@@ -1,7 +1,7 @@
-use cushy::widget::MakeWidget;
-use cushy::Run;
+use gooey::widget::MakeWidget;
+use gooey::Run;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     include_str!("../src/widgets/scroll.rs")
         .scroll()
         .expand()

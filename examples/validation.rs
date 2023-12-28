@@ -1,10 +1,10 @@
-use cushy::value::{Dynamic, Validations};
-use cushy::widget::MakeWidget;
-use cushy::widgets::input::InputValue;
-use cushy::Run;
+use gooey::value::{Dynamic, Validations};
+use gooey::widget::MakeWidget;
+use gooey::widgets::input::InputValue;
+use gooey::Run;
 use kludgine::figures::units::Lp;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let text = Dynamic::default();
     let validations = Validations::default();
 

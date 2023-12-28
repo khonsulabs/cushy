@@ -1,9 +1,9 @@
-use cushy::value::Dynamic;
-use cushy::widget::{MakeWidget, WidgetInstance};
-use cushy::Run;
+use gooey::value::Dynamic;
+use gooey::widget::{MakeWidget, WidgetInstance};
+use gooey::Run;
 use kludgine::figures::Size;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let focused = Dynamic::new(false);
     let occluded = Dynamic::new(false);
     let inner_size = Dynamic::new(Size::default());
@@ -15,7 +15,7 @@ fn main() -> cushy::Result {
         .into_rows()
         .centered();
 
-    cushy::window::Window::<WidgetInstance>::for_widget(widgets)
+    gooey::window::Window::<WidgetInstance>::for_widget(widgets)
         .focused(focused)
         .occluded(occluded)
         .inner_size(inner_size)

@@ -1,5 +1,5 @@
 [package]
-name = "cushy-macros"
+name = "gooey-macros"
 version = "0.2.0"
 edition = "2021"
 description = "Macros for the Cushy GUI framework"

@@ -1,9 +1,9 @@
-use cushy::value::Dynamic;
-use cushy::widget::MakeWidget;
-use cushy::widgets::button::ButtonKind;
-use cushy::Run;
+use gooey::value::Dynamic;
+use gooey::widget::MakeWidget;
+use gooey::widgets::button::ButtonKind;
+use gooey::Run;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let clicked_label = Dynamic::new(String::from("Click a Button"));
     let default_is_outline = Dynamic::new(false);
     let default_button_style = default_is_outline.map_each(|is_outline| {

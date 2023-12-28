@@ -2,6 +2,10 @@
 [![crate version](https://img.shields.io/crates/v/cushy.svg)](https://crates.io/crates/cushy)
 [![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)]($docs$)
 
+**This crate has [been renamed](https://github.com/khonsulabs/cushy/issues/117)
+from `gooey` to [cushy](https://crates.io/crates/cushy). No more versions will
+be published at this name.**
+
 Cushy is an experimental Graphical User Interface (GUI) crate for the Rust
 programming language. It features a reactive data model and aims to enable
 easily creating responsive, efficient user interfaces. To enable easy

@@ -1,18 +1,18 @@
 ---
-source: cushy-macros/src/animation.rs
+source: gooey-macros/src/animation.rs
 expression: unparse(ok)
 ---
-impl ::cushy::animation::LinearInterpolate for HelloWorld {
+impl ::gooey::animation::LinearInterpolate for HelloWorld {
     /**# Panics
  Panics if any field's lerp panics (this should only happen on percentages outside 0..1 range).*/
     fn lerp(&self, __target: &Self, __percent: f32) -> Self {
         HelloWorld {
-            0: ::cushy::animation::LinearInterpolate::lerp(
+            0: ::gooey::animation::LinearInterpolate::lerp(
                 &self.0,
                 &__target.0,
                 __percent,
             ),
-            1: ::cushy::animation::LinearInterpolate::lerp(
+            1: ::gooey::animation::LinearInterpolate::lerp(
                 &self.1,
                 &__target.1,
                 __percent,

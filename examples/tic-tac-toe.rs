@@ -3,13 +3,13 @@ use std::iter;
 use std::ops::Not;
 use std::time::SystemTime;
 
-use cushy::value::Dynamic;
-use cushy::widget::MakeWidget;
-use cushy::widgets::button::ButtonKind;
-use cushy::{Run, WithClone};
+use gooey::value::Dynamic;
+use gooey::widget::MakeWidget;
+use gooey::widgets::button::ButtonKind;
+use gooey::{Run, WithClone};
 use kludgine::figures::units::Lp;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let app = Dynamic::default();
     app.map_each(app.with_clone(|app| {
         move |state: &AppState| match state {

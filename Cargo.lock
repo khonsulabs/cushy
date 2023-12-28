@@ -569,42 +569,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96a6ac251f4a2aca6b3f91340350eab87ae57c3f127ffeb585e92bd336717991"
 
 [[package]]
-name = "cushy"
-version = "0.2.0"
-dependencies = [
- "ahash",
- "alot",
- "arboard",
- "cushy-macros",
- "image",
- "intentional",
- "interner",
- "kempt",
- "kludgine",
- "palette",
- "pollster",
- "rand",
- "tracing",
- "tracing-subscriber",
- "unicode-segmentation",
- "zeroize",
-]
-
-[[package]]
-name = "cushy-macros"
-version = "0.2.0"
-dependencies = [
- "attribute-derive",
- "insta",
- "manyhow 0.10.4",
- "prettyplease",
- "proc-macro2",
- "quote",
- "quote-use 0.8.0",
- "syn",
-]
-
-[[package]]
 name = "d3d12"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -932,6 +896,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6c8098adac955faa2d31079b65dc48841251f69efd3ac25477903fc424362ead"
 dependencies = [
  "gl_generator",
+]
+
+[[package]]
+name = "gooey"
+version = "0.2.0"
+dependencies = [
+ "ahash",
+ "alot",
+ "arboard",
+ "gooey-macros",
+ "image",
+ "intentional",
+ "interner",
+ "kempt",
+ "kludgine",
+ "palette",
+ "pollster",
+ "rand",
+ "tracing",
+ "tracing-subscriber",
+ "unicode-segmentation",
+ "zeroize",
+]
+
+[[package]]
+name = "gooey-macros"
+version = "0.2.0"
+dependencies = [
+ "attribute-derive",
+ "insta",
+ "manyhow 0.10.4",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "quote-use 0.8.0",
+ "syn",
 ]
 
 [[package]]

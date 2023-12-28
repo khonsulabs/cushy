@@ -1,7 +1,7 @@
 [workspace]
 
 [package]
-name = "cushy"
+name = "gooey"
 version = "0.2.0"
 edition = "2021"
 description = "A wgpu-powered graphical user interface (GUI) library with a reactive data model"
@@ -33,7 +33,7 @@ tracing-subscriber = { version = "0.3", optional = true, features = [
 ] }
 palette = "0.7.3"
 ahash = "0.8.6"
-cushy-macros = { version = "0.2.0", path = "cushy-macros" }
+gooey-macros = { version = "0.2.0", path = "gooey-macros" }
 arboard = "3.2.1"
 zeroize = "1.6.1"
 unicode-segmentation = "1.10.1"

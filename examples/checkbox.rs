@@ -1,9 +1,9 @@
-use cushy::value::Dynamic;
-use cushy::widget::MakeWidget;
-use cushy::widgets::checkbox::{Checkable, CheckboxState};
-use cushy::Run;
+use gooey::value::Dynamic;
+use gooey::widget::MakeWidget;
+use gooey::widgets::checkbox::{Checkable, CheckboxState};
+use gooey::Run;
 
-fn main() -> cushy::Result {
+fn main() -> gooey::Result {
     let checkbox_state = Dynamic::new(CheckboxState::Checked);
     let label = checkbox_state.map_each(|state| format!("Check Me! Current: {state:?}"));
 

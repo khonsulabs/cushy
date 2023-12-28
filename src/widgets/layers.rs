@@ -5,7 +5,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use alot::{LotId, OrderedLots};
-use cushy::widget::{RootBehavior, WidgetInstance};
 use intentional::Assert;
 use kludgine::figures::units::{Lp, Px, UPx};
 use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
@@ -16,8 +15,8 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, DynamicGuard, IntoValue, Value};
 use crate::widget::{
-    Callback, Children, MakeWidget, MountedChildren, MountedWidget, Widget, WidgetId, WidgetRef,
-    WrapperWidget,
+    Callback, Children, MakeWidget, MountedChildren, MountedWidget, RootBehavior, Widget, WidgetId,
+    WidgetInstance, WidgetRef, WrapperWidget,
 };
 use crate::widgets::container::ContainerShadow;
 use crate::ConstraintLimit;
