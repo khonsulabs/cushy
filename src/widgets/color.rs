@@ -1,10 +1,10 @@
 //! Widgets for selecting colors.
 use std::ops::Range;
 
+use figures::units::{Lp, Px};
+use figures::{FloatConversion, Point, Rect, Round, ScreenScale, Zero};
 use intentional::Cast;
 use kludgine::app::winit::event::{DeviceId, MouseButton};
-use kludgine::figures::units::{Lp, Px};
-use kludgine::figures::{FloatConversion, Point, Rect, Round, ScreenScale, Zero};
 use kludgine::shapes::{self, FillOptions, PathBuilder, Shape, StrokeOptions};
 use kludgine::{Color, DrawableExt, Origin};
 

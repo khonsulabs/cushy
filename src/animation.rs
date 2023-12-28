@@ -48,10 +48,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use alot::{LotId, Lots};
+use figures::units::{Lp, Px, UPx};
+use figures::{Angle, Ranged, UnscaledUnit, Zero};
 use intentional::Cast;
 use kempt::Set;
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Angle, Ranged, UnscaledUnit, Zero};
 use kludgine::Color;
 
 use crate::animation::easings::Linear;

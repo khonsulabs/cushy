@@ -5,8 +5,8 @@ use cushy::widget::MakeWidget;
 use cushy::widgets::container::ContainerShadow;
 use cushy::widgets::slider::Slidable;
 use cushy::Run;
-use kludgine::figures::units::Lp;
-use kludgine::figures::{Point, Size};
+use figures::units::Lp;
+use figures::{Point, Size};
 use kludgine::shapes::CornerRadii;
 
 fn main() -> cushy::Result {

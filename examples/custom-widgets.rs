@@ -5,8 +5,8 @@ use cushy::value::Dynamic;
 use cushy::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag, HANDLED};
 use cushy::widgets::Custom;
 use cushy::Run;
-use kludgine::figures::units::{Lp, UPx};
-use kludgine::figures::{ScreenScale, Size};
+use figures::units::{Lp, UPx};
+use figures::{ScreenScale, Size};
 use kludgine::Color;
 
 fn main() -> cushy::Result {
@@ -107,7 +107,7 @@ impl Widget for Toggle {
 
     fn hit_test(
         &mut self,
-        _location: kludgine::figures::Point<kludgine::figures::units::Px>,
+        _location: figures::Point<figures::units::Px>,
         _context: &mut cushy::context::EventContext<'_, '_>,
     ) -> bool {
         true
@@ -115,7 +115,7 @@ impl Widget for Toggle {
 
     fn mouse_down(
         &mut self,
-        _location: kludgine::figures::Point<kludgine::figures::units::Px>,
+        _location: figures::Point<figures::units::Px>,
         _device_id: kludgine::app::winit::event::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
         _context: &mut cushy::context::EventContext<'_, '_>,

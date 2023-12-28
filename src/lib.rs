@@ -24,12 +24,12 @@ pub mod window;
 use std::ops::Sub;
 
 pub use app::{App, Application, Cushy, Open, PendingApp, Run};
-pub use kludgine;
+use figures::units::UPx;
+use figures::{Fraction, ScreenUnit, Size};
 use kludgine::app::winit::error::EventLoopError;
-use kludgine::figures::units::UPx;
-use kludgine::figures::{Fraction, ScreenUnit, Size};
 pub use names::Name;
 pub use utils::{Lazy, WithClone};
+pub use {figures, kludgine};
 
 pub use self::graphics::Graphics;
 pub use self::tick::{InputState, Tick};

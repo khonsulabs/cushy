@@ -11,6 +11,8 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use ahash::AHashMap;
 use alot::LotId;
 use arboard::Clipboard;
+use figures::units::{Px, UPx};
+use figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size, Zero};
 use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
     DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
@@ -19,8 +21,6 @@ use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window;
 use kludgine::app::WindowBehavior as _;
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size, Zero};
 use kludgine::render::Drawing;
 use kludgine::wgpu::CompositeAlphaMode;
 use kludgine::Kludgine;
@@ -1398,8 +1398,8 @@ pub(crate) struct CursorState {
 pub(crate) mod sealed {
     use std::cell::RefCell;
 
-    use kludgine::figures::units::UPx;
-    use kludgine::figures::Size;
+    use figures::units::UPx;
+    use figures::Size;
 
     use crate::app::Cushy;
     use crate::context::InvalidationStatus;

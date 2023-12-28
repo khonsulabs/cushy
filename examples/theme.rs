@@ -14,7 +14,7 @@ use cushy::widgets::slider::Slidable;
 use cushy::widgets::Space;
 use cushy::window::ThemeMode;
 use cushy::{Open, PendingApp};
-use kludgine::figures::units::Lp;
+use figures::units::Lp;
 use kludgine::Color;
 use palette::OklabHue;
 

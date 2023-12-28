@@ -1,10 +1,10 @@
 //! A clickable, labeled button
 use std::time::Duration;
 
+use figures::units::{Lp, Px, UPx};
+use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size};
 use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
 use kludgine::app::winit::window::CursorIcon;
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
 

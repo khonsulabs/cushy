@@ -6,7 +6,7 @@ use cushy::widgets::input::{InputValue, MaskedString};
 use cushy::widgets::layers::OverlayLayer;
 use cushy::widgets::Expand;
 use cushy::Run;
-use kludgine::figures::units::Lp;
+use figures::units::Lp;
 
 fn main() -> cushy::Result {
     let tooltips = OverlayLayer::default();

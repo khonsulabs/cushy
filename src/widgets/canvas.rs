@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
-use kludgine::figures::units::UPx;
-use kludgine::figures::Size;
+use figures::units::UPx;
+use figures::Size;
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::value::Dynamic;

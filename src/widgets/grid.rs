@@ -6,11 +6,9 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 
 use alot::{LotId, OrderedLots};
+use figures::units::{Lp, UPx};
+use figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size};
 use intentional::{Assert, Cast};
-use kludgine::figures::units::{Lp, UPx};
-use kludgine::figures::{
-    Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size,
-};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::IntrinsicPadding;
@@ -577,8 +575,8 @@ impl Deref for GridLayout {
 mod tests {
     use std::cmp::Ordering;
 
-    use kludgine::figures::units::UPx;
-    use kludgine::figures::{Fraction, IntoSigned, Size};
+    use figures::units::UPx;
+    use figures::{Fraction, IntoSigned, Size};
 
     use super::{GridDimension, GridLayout, Orientation};
     use crate::styles::Dimension;

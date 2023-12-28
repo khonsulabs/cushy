@@ -1,7 +1,7 @@
 //! A read-only text widget.
 
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, Round, Size};
+use figures::units::{Px, UPx};
+use figures::{Point, Round, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{CanRenderTo, Color, DrawableExt};
 

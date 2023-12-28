@@ -3,8 +3,8 @@ use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::container::ContainerShadow;
 use cushy::window::ThemeMode;
 use cushy::Run;
-use kludgine::figures::units::Lp;
-use kludgine::figures::Point;
+use figures::units::Lp;
+use figures::Point;
 
 fn main() -> cushy::Result {
     let theme_mode = Dynamic::default();

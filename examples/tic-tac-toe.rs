@@ -7,7 +7,7 @@ use cushy::value::Dynamic;
 use cushy::widget::MakeWidget;
 use cushy::widgets::button::ButtonKind;
 use cushy::{Run, WithClone};
-use kludgine::figures::units::Lp;
+use figures::units::Lp;
 
 fn main() -> cushy::Result {
     let app = Dynamic::default();

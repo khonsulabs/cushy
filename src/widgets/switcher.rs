@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use kludgine::figures::Size;
+use figures::Size;
 
 use crate::context::{AsEventContext, LayoutContext};
 use crate::value::{Dynamic, DynamicReader, IntoDynamic};

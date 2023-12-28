@@ -1,8 +1,8 @@
 //! A labeled widget with a circular indicator representing a value.
 use std::fmt::Debug;
 
-use kludgine::figures::units::Lp;
-use kludgine::figures::{Point, ScreenScale, Size};
+use figures::units::Lp;
+use figures::{Point, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::DrawableExt;
 
@@ -119,7 +119,7 @@ where
         &mut self,
         _available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Size<kludgine::figures::units::UPx> {
+    ) -> Size<figures::units::UPx> {
         let radio_size = context.get(&RadioSize).into_upx(context.gfx.scale());
         Size::squared(radio_size)
     }

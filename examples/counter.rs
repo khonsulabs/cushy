@@ -3,7 +3,7 @@ use std::string::ToString;
 use cushy::value::Dynamic;
 use cushy::widget::MakeWidget;
 use cushy::Run;
-use kludgine::figures::units::Lp;
+use figures::units::Lp;
 
 fn main() -> cushy::Result {
     let counter = Dynamic::new(0i32);

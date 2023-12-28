@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use kludgine::figures::units::Px;
-use kludgine::figures::Size;
+use figures::units::Px;
+use figures::Size;
 
 use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::{AnimationHandle, AnimationTarget, EasingFunction, Spawn};

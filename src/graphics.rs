@@ -1,11 +1,11 @@
 use std::ops::{Deref, DerefMut};
 
 use ahash::AHashSet;
-use kludgine::cosmic_text::FamilyOwned;
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{
+use figures::units::{Px, UPx};
+use figures::{
     self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
 };
+use kludgine::cosmic_text::FamilyOwned;
 use kludgine::render::Renderer;
 use kludgine::shapes::Shape;
 use kludgine::text::{MeasuredText, Text, TextOrigin};

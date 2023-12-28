@@ -576,6 +576,7 @@ dependencies = [
  "alot",
  "arboard",
  "cushy-macros",
+ "figures",
  "image",
  "intentional",
  "interner",

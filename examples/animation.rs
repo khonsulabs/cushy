@@ -5,7 +5,7 @@ use cushy::value::Dynamic;
 use cushy::widget::MakeWidget;
 use cushy::widgets::progress::Progressable;
 use cushy::{Run, WithClone};
-use kludgine::figures::units::Lp;
+use figures::units::Lp;
 
 fn main() -> cushy::Result {
     let animation = Dynamic::new(AnimationHandle::new());

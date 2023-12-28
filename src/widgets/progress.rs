@@ -3,8 +3,8 @@
 use std::ops::RangeInclusive;
 use std::time::Duration;
 
-use kludgine::figures::units::Px;
-use kludgine::figures::{Angle, Point, Ranged, ScreenScale, Size, Zero};
+use figures::units::Px;
+use figures::{Angle, Point, Ranged, ScreenScale, Size, Zero};
 use kludgine::shapes::{Path, StrokeOptions};
 use kludgine::Color;
 
@@ -383,9 +383,9 @@ impl Widget for Spinner {
 
     fn layout(
         &mut self,
-        available_space: kludgine::figures::Size<crate::ConstraintLimit>,
+        available_space: figures::Size<crate::ConstraintLimit>,
         context: &mut crate::context::LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> kludgine::figures::Size<kludgine::figures::units::UPx> {
+    ) -> figures::Size<figures::units::UPx> {
         let track_size = context.get(&TrackSize).into_px(context.gfx.scale());
         let minimum_size = track_size * 4;
 

@@ -2,8 +2,8 @@ use cushy::styles::components::FontFamily;
 use cushy::styles::FontFamilyList;
 use cushy::widget::MakeWidget;
 use cushy::Run;
+use figures::units::Lp;
 use kludgine::cosmic_text::FamilyOwned;
-use kludgine::figures::units::Lp;
 
 fn main() -> cushy::Result {
     include_str!("./nested-scroll.rs")

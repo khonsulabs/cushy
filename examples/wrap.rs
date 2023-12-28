@@ -3,7 +3,7 @@ use cushy::value::Dynamic;
 use cushy::widget::{Children, MakeWidget};
 use cushy::widgets::wrap::{VerticalAlign, WrapAlign};
 use cushy::Run;
-use kludgine::figures::units::Lp;
+use figures::units::Lp;
 use rand::{thread_rng, Rng};
 
 const EXPLANATION: &str = "This example demonstrates the Wrap widget. Each word shown here is an individual Label widget that is being positioned by the Wrap widget.";

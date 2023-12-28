@@ -3,7 +3,7 @@ use cushy::widget::MakeWidget;
 use cushy::widgets::stack::Stack;
 use cushy::widgets::Style;
 use cushy::Run;
-use kludgine::figures::units::Lp;
+use figures::units::Lp;
 use kludgine::Color;
 
 fn main() -> cushy::Result {

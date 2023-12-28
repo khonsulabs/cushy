@@ -3,11 +3,11 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use ahash::AHashSet;
+use figures::units::Px;
+use figures::Point;
 use intentional::Assert;
 use kludgine::app::winit::event::{ElementState, KeyEvent, MouseButton};
 use kludgine::app::winit::keyboard::Key;
-use kludgine::figures::units::Px;
-use kludgine::figures::Point;
 
 use crate::context::WidgetContext;
 use crate::utils::IgnorePoison;

@@ -1,13 +1,11 @@
 //! A container that scrolls its contents on a virtual surface.
 use std::time::{Duration, Instant};
 
+use figures::units::{Lp, Px, UPx};
+use figures::{FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero};
 use intentional::Cast;
 use kludgine::app::winit::event::{DeviceId, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{
-    FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero,
-};
 use kludgine::shapes::Shape;
 use kludgine::Color;
 

@@ -1,9 +1,9 @@
 //! A widget for laying out multiple widgets in a similar fashion as how words
 //! are wrapped in a paragraph.
 
+use figures::units::{Px, UPx};
+use figures::{IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use intentional::Cast;
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero};
 
 use crate::context::{AsEventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::{IntrinsicPadding, LayoutOrder};

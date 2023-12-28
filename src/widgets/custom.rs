@@ -1,11 +1,11 @@
 use std::fmt::Debug;
 
+use figures::units::Px;
+use figures::{Point, Size};
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::window::CursorIcon;
-use kludgine::figures::units::Px;
-use kludgine::figures::{Point, Size};
 use kludgine::Color;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};

@@ -4,7 +4,7 @@ use cushy::widgets::input::InputValue;
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::Custom;
 use cushy::Run;
-use kludgine::figures::units::Lp;
+use figures::units::Lp;
 
 fn main() -> cushy::Result {
     let allow_blur = Dynamic::new(true);

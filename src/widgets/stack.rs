@@ -1,7 +1,7 @@
 //! A widget that combines a collection of [`Children`] widgets into one.
 
-use kludgine::figures::units::UPx;
-use kludgine::figures::{IntoSigned, Rect, Round, ScreenScale, Size};
+use figures::units::UPx;
+use figures::{IntoSigned, Rect, Round, ScreenScale, Size};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::IntrinsicPadding;

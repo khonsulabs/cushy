@@ -3,14 +3,12 @@ use std::fmt::Debug;
 use std::mem;
 use std::ops::RangeInclusive;
 
+use figures::units::{Lp, Px, UPx};
+use figures::{FloatConversion, IntoSigned, Point, Ranged, Rect, Round, ScreenScale, Size};
 use intentional::{Assert, Cast as _};
 use kludgine::app::winit::event::{DeviceId, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window::CursorIcon;
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{
-    FloatConversion, IntoSigned, Point, Ranged, Rect, Round, ScreenScale, Size,
-};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, DrawableExt, Origin};
 

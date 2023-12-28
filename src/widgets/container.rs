@@ -2,10 +2,8 @@
 
 use std::ops::Div;
 
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{
-    Abs, Angle, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero,
-};
+use figures::units::{Lp, Px, UPx};
+use figures::{Abs, Angle, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::shapes::{CornerRadii, PathBuilder, Shape};
 use kludgine::Color;
 
@@ -763,7 +761,7 @@ where
     type Px = ContainerShadow<Px>;
     type UPx = ContainerShadow<UPx>;
 
-    fn into_px(self, scale: kludgine::figures::Fraction) -> Self::Px {
+    fn into_px(self, scale: figures::Fraction) -> Self::Px {
         ContainerShadow {
             color: self.color,
             offset: self.offset.into_px(scale),
@@ -772,7 +770,7 @@ where
         }
     }
 
-    fn from_px(px: Self::Px, scale: kludgine::figures::Fraction) -> Self {
+    fn from_px(px: Self::Px, scale: figures::Fraction) -> Self {
         Self {
             color: px.color,
             offset: Point::from_px(px.offset, scale),
@@ -781,7 +779,7 @@ where
         }
     }
 
-    fn into_upx(self, scale: kludgine::figures::Fraction) -> Self::UPx {
+    fn into_upx(self, scale: figures::Fraction) -> Self::UPx {
         ContainerShadow {
             color: self.color,
             offset: self.offset.into_upx(scale),
@@ -790,7 +788,7 @@ where
         }
     }
 
-    fn from_upx(px: Self::UPx, scale: kludgine::figures::Fraction) -> Self {
+    fn from_upx(px: Self::UPx, scale: figures::Fraction) -> Self {
         Self {
             color: px.color,
             offset: Point::from_upx(px.offset, scale),
@@ -799,7 +797,7 @@ where
         }
     }
 
-    fn into_lp(self, scale: kludgine::figures::Fraction) -> Self::Lp {
+    fn into_lp(self, scale: figures::Fraction) -> Self::Lp {
         ContainerShadow {
             color: self.color,
             offset: self.offset.into_lp(scale),
@@ -808,7 +806,7 @@ where
         }
     }
 
-    fn from_lp(lp: Self::Lp, scale: kludgine::figures::Fraction) -> Self {
+    fn from_lp(lp: Self::Lp, scale: figures::Fraction) -> Self {
         Self {
             color: lp.color,
             offset: Point::from_lp(lp.offset, scale),

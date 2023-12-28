@@ -6,7 +6,7 @@ use cushy::widgets::grid::{Grid, GridDimension, GridWidgets};
 use cushy::widgets::input::{InputValue, MaskedString};
 use cushy::widgets::Expand;
 use cushy::Run;
-use kludgine::figures::units::Lp;
+use figures::units::Lp;
 
 /// This example is the same as login, but it has an explicit tab order to
 /// change from the default order (username, password, cancel, log in) to

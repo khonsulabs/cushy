@@ -8,14 +8,14 @@ use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+use figures::units::{Lp, Px, UPx};
+use figures::{
+    Abs, FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size,
+};
 use intentional::Cast;
 use kludgine::app::winit::event::{ElementState, Ime, KeyEvent};
 use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window::{CursorIcon, ImePurpose};
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{
-    Abs, FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size,
-};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{CanRenderTo, Color, DrawableExt};

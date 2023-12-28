@@ -1,4 +1,4 @@
-use kludgine::figures::{Fraction, IntoSigned, ScreenScale, Size};
+use figures::{Fraction, IntoSigned, ScreenScale, Size};
 
 use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::DimensionRange;
@@ -50,8 +50,8 @@ impl Resize {
     /// `width` can be an any of:
     ///
     /// - [`Dimension`](crate::styles::Dimension)
-    /// - [`Px`](crate::kludgine::figures::units::Px)
-    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - [`Px`](crate::figures::units::Px)
+    /// - [`Lp`](crate::figures::units::Lp)
     /// - A range of any fo the above.
     #[must_use]
     pub fn width(mut self, width: impl Into<DimensionRange>) -> Self {
@@ -64,8 +64,8 @@ impl Resize {
     /// `height` can be an any of:
     ///
     /// - [`Dimension`](crate::styles::Dimension)
-    /// - [`Px`](crate::kludgine::figures::units::Px)
-    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - [`Px`](crate::figures::units::Px)
+    /// - [`Lp`](crate::figures::units::Lp)
     /// - A range of any fo the above.
     #[must_use]
     pub fn height(mut self, height: impl Into<DimensionRange>) -> Self {

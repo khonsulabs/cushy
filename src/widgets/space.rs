@@ -1,5 +1,5 @@
-use kludgine::figures::units::UPx;
-use kludgine::figures::Size;
+use figures::units::UPx;
+use figures::Size;
 use kludgine::Color;
 
 use crate::context::{GraphicsContext, LayoutContext};

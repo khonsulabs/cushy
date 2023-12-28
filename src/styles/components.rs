@@ -1,7 +1,7 @@
 //! All style components supported by the built-in widgets.
 
+use figures::units::Lp;
 use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
-use kludgine::figures::units::Lp;
 use kludgine::shapes::CornerRadii;
 use kludgine::Color;
 
@@ -20,7 +20,7 @@ use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
 /// use cushy::styles::Dimension;
 /// use cushy::styles::components::{SurfaceColor, TextColor};
 /// use cushy::kludgine::Color;
-/// use cushy::kludgine::figures::Zero;
+/// use cushy::figures::Zero;
 ///
 /// define_components! {
 ///     GroupName {

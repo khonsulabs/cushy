@@ -11,12 +11,13 @@ use std::ops::{
 use std::sync::Arc;
 
 use ahash::AHashMap;
-use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size, Zero};
-use kludgine::shapes::CornerRadii;
-use kludgine::Color;
-use palette::{IntoColor, Okhsl, OklabHue, Srgb};
+use figures::units::{Lp, Px, UPx};
+use figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size, Zero};
+pub use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
+pub use kludgine::shapes::CornerRadii;
+pub use kludgine::Color;
+pub use palette::OklabHue;
+use palette::{IntoColor, Okhsl, Srgb};
 
 use crate::animation::{EasingFunction, ZeroToOne};
 use crate::context::WidgetContext;
@@ -747,25 +748,25 @@ impl ScreenScale for Dimension {
     type Px = Px;
     type UPx = UPx;
 
-    fn into_px(self, scale: kludgine::figures::Fraction) -> Px {
+    fn into_px(self, scale: figures::Fraction) -> Px {
         match self {
             Dimension::Px(px) => px,
             Dimension::Lp(lp) => lp.into_px(scale),
         }
     }
 
-    fn from_px(px: Px, _scale: kludgine::figures::Fraction) -> Self {
+    fn from_px(px: Px, _scale: figures::Fraction) -> Self {
         Self::from(px)
     }
 
-    fn into_lp(self, scale: kludgine::figures::Fraction) -> Lp {
+    fn into_lp(self, scale: figures::Fraction) -> Lp {
         match self {
             Dimension::Px(px) => px.into_lp(scale),
             Dimension::Lp(lp) => lp,
         }
     }
 
-    fn from_lp(lp: Lp, _scale: kludgine::figures::Fraction) -> Self {
+    fn from_lp(lp: Lp, _scale: figures::Fraction) -> Self {
         Self::from(lp)
     }
 

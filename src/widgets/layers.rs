@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use alot::{LotId, OrderedLots};
 use cushy::widget::{RootBehavior, WidgetInstance};
+use figures::units::{Lp, Px, UPx};
+use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use intentional::Assert;
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 
 use crate::animation::easings::EaseOutQuadradic;
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};

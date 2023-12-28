@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex, Weak};
 
 use ahash::AHashMap;
 use alot::{LotId, Lots};
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, Rect, Size};
+use figures::units::{Px, UPx};
+use figures::{Point, Rect, Size};
 
 use crate::styles::{Styles, ThemePair, VisualOrder};
 use crate::utils::IgnorePoison;

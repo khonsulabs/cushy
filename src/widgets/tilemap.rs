@@ -1,17 +1,14 @@
 use std::fmt::Debug;
 
+use figures::units::{Px, UPx};
+use figures::{Point, Size};
 use intentional::Cast;
-use kludgine::app::winit::event::ElementState;
+use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
-use kludgine::figures::units::Px;
-use kludgine::figures::Point;
+use kludgine::tilemap;
+use kludgine::tilemap::TileMapFocus;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
-use crate::kludgine::app::winit::event::{DeviceId, KeyEvent, MouseScrollDelta, TouchPhase};
-use crate::kludgine::figures::units::UPx;
-use crate::kludgine::figures::Size;
-use crate::kludgine::tilemap;
-use crate::kludgine::tilemap::TileMapFocus;
 use crate::tick::Tick;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
@@ -112,7 +109,7 @@ where
 
     fn hit_test(
         &mut self,
-        _location: kludgine::figures::Point<kludgine::figures::units::Px>,
+        _location: figures::Point<figures::units::Px>,
         _context: &mut EventContext<'_, '_>,
     ) -> bool {
         true

@@ -9,13 +9,13 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::{slice, vec};
 
 use alot::LotId;
+use figures::units::{Px, UPx};
+use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use intentional::Assert;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::window::CursorIcon;
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use kludgine::Color;
 
 use crate::app::{Application, Open, PendingApp, Run};
@@ -1156,7 +1156,7 @@ pub trait MakeWidget: Sized {
     ///
     /// - [`Dimension`]
     /// - [`Px`]
-    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - [`Lp`](crate::figures::units::Lp)
     /// - A range of any fo the above.
     #[must_use]
     fn width(self, width: impl Into<DimensionRange>) -> Resize {
@@ -1169,7 +1169,7 @@ pub trait MakeWidget: Sized {
     ///
     /// - [`Dimension`]
     /// - [`Px`]
-    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - [`Lp`](crate::figures::units::Lp)
     /// - A range of any fo the above.
     #[must_use]
     fn height(self, height: impl Into<DimensionRange>) -> Resize {

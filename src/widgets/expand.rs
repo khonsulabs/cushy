@@ -1,4 +1,4 @@
-use kludgine::figures::{IntoSigned, Size};
+use figures::{IntoSigned, Size};
 
 use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};

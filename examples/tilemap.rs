@@ -2,9 +2,9 @@ use std::array;
 use std::cmp::Ordering;
 use std::time::Duration;
 
+use cushy::figures::units::Px;
+use cushy::figures::{Point, Rect, Size};
 use cushy::kludgine::app::winit::keyboard::Key;
-use cushy::kludgine::figures::units::Px;
-use cushy::kludgine::figures::{Point, Rect, Size};
 use cushy::kludgine::render::Renderer;
 use cushy::kludgine::shapes::Shape;
 use cushy::kludgine::tilemap::{
@@ -14,8 +14,8 @@ use cushy::kludgine::Color;
 use cushy::value::Dynamic;
 use cushy::widgets::TileMap;
 use cushy::{Run, Tick};
+use figures::FloatConversion;
 use kludgine::app::winit::keyboard::NamedKey;
-use kludgine::figures::FloatConversion;
 use kludgine::sprite::{Sprite, SpriteSource};
 use kludgine::{include_aseprite_sprite, DrawableExt};
 

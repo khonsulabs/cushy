@@ -5,8 +5,8 @@ use cushy::widgets::checkbox::Checkable;
 use cushy::widgets::input::InputValue;
 use cushy::widgets::slider::Slidable;
 use cushy::Run;
-use kludgine::figures::units::Lp;
-use kludgine::figures::Ranged;
+use figures::units::Lp;
+use figures::Ranged;
 
 fn main() -> cushy::Result {
     let enabled = Dynamic::new(true);

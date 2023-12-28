@@ -3,8 +3,8 @@ use std::error::Error;
 use std::fmt::Display;
 use std::ops::Not;
 
-use kludgine::figures::units::Lp;
-use kludgine::figures::{Point, Rect, Round, ScreenScale, Size};
+use figures::units::Lp;
+use figures::{Point, Rect, Round, ScreenScale, Size};
 use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 
 use crate::context::{GraphicsContext, LayoutContext};
@@ -245,7 +245,7 @@ impl Widget for CheckboxOrnament {
         &mut self,
         _available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Size<kludgine::figures::units::UPx> {
+    ) -> Size<figures::units::UPx> {
         let checkbox_size = context.get(&CheckboxSize).into_upx(context.gfx.scale());
         Size::squared(checkbox_size)
     }

@@ -5,7 +5,7 @@ use cushy::widgets::image::{Aspect, ImageScaling};
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::Image;
 use cushy::Run;
-use kludgine::figures::Size;
+use figures::Size;
 use kludgine::include_texture;
 
 fn main() -> cushy::Result {

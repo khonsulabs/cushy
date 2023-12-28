@@ -1,7 +1,7 @@
 //! A widget that displays an image/texture.
 
-use kludgine::figures::units::UPx;
-use kludgine::figures::{FloatConversion, IntoSigned, Point, Rect, Size, Zero};
+use figures::units::UPx;
+use figures::{FloatConversion, IntoSigned, Point, Rect, Size, Zero};
 use kludgine::{AnyTexture, CollectedTexture, LazyTexture, SharedTexture, Texture, TextureRegion};
 
 use crate::animation::ZeroToOne;

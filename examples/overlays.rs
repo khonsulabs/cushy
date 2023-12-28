@@ -2,8 +2,8 @@ use cushy::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
 use cushy::widgets::container::ContainerShadow;
 use cushy::widgets::layers::{OverlayBuilder, OverlayLayer};
 use cushy::Run;
-use kludgine::figures::units::Lp;
-use kludgine::figures::Point;
+use figures::units::Lp;
+use figures::Point;
 use kludgine::Color;
 use rand::{thread_rng, Rng};
 

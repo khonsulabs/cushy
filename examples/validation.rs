@@ -2,7 +2,7 @@ use cushy::value::{Dynamic, Validations};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::Run;
-use kludgine::figures::units::Lp;
+use figures::units::Lp;
 
 fn main() -> cushy::Result {
     let text = Dynamic::default();
