@@ -1,6 +1,6 @@
 [package]
 name = "cushy-macros"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Macros for the Cushy GUI framework"
 repository = "https://github.com/khonsulabs/cushy"
