@@ -105,8 +105,9 @@ dependencies = [
 
 [[package]]
 name = "appit"
-version = "0.1.1"
-source = "git+https://github.com/khonsulabs/appit#1ff4b7b2a6f93e2c719787c76e585e6c2ecf290c"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19f4127675fb55fa12ce1f3eaaf24826db1a00a4b5f108c0698bafbefab32c9b"
 dependencies = [
  "winit",
 ]
@@ -1177,8 +1178,9 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "kludgine"
-version = "0.6.1"
-source = "git+https://github.com/khonsulabs/kludgine#daf7a2df751c2e77ac226d3ddf5a408b85172cc9"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33370975064272061b94d15ef0eb94ab1379c8da6eb585ce03fe5ac13494aab6"
 dependencies = [
  "ahash",
  "alot",

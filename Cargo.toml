@@ -18,10 +18,10 @@ tracing-output = ["dep:tracing-subscriber"]
 roboto-flex = []
 
 [dependencies]
-# kludgine = { version = "0.6.1", features = ["app"] }
-kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
-    "app",
-] }
+kludgine = { version = "0.7.0", features = ["app"] }
+# kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
+#     "app",
+# ] }
 alot = "0.3"
 interner = "0.2.1"
 kempt = "0.2.1"
