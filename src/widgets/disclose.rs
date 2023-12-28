@@ -11,7 +11,7 @@ use kludgine::{Color, DrawableExt};
 use super::button::{ButtonActiveBackground, ButtonBackground, ButtonHoverBackground};
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::LayoutContext;
-use crate::styles::components::{HighlightColor, IntrinsicPadding, OutlineColor, TextSize};
+use crate::styles::components::{HighlightColor, IntrinsicPadding, LineHeight, OutlineColor};
 use crate::styles::Dimension;
 use crate::value::{Dynamic, IntoDynamic, IntoValue, Value};
 use crate::widget::{
@@ -61,9 +61,7 @@ impl MakeWidgetWithTag for Disclose {
     fn make_with_tag(self, tag: WidgetTag) -> WidgetInstance {
         let collapsed = self.collapsed.into_dynamic();
 
-        DiscloseIndicator::new(collapsed.clone(), self.label, self.contents)
-            .make_with_tag(tag)
-            .make_widget()
+        DiscloseIndicator::new(collapsed.clone(), self.label, self.contents).make_with_tag(tag)
     }
 }
 
@@ -135,6 +133,8 @@ impl DiscloseIndicator {
         };
         let stroke_color = if self.hovering_indicator {
             context.get(&OutlineColor)
+        } else if context.focused(true) {
+            context.get(&HighlightColor)
         } else {
             context.get(&OutlineColor).with_alpha(0)
         };
@@ -142,6 +142,7 @@ impl DiscloseIndicator {
         if self.target_colors.is_none() {
             self.target_colors = Some(target_colors);
             self.color.set(current_color);
+            self.stroke_color.set(stroke_color);
         } else if self.target_colors != Some(target_colors) {
             self.target_colors = Some(target_colors);
             self.color_animation = (
@@ -167,9 +168,11 @@ impl Widget for DiscloseIndicator {
             .get(&IndicatorSize)
             .into_px(context.gfx.scale())
             .round();
-        let stroke = StrokeOptions::px_wide(Lp::points(2).into_px(context.gfx.scale()).round());
+        let stroke_options =
+            StrokeOptions::px_wide(Lp::points(1).into_px(context.gfx.scale()).round())
+                .colored(stroke_color);
 
-        let radius = ((size - stroke.line_width) / 2).round();
+        let radius = ((size - stroke_options.line_width) / 2).round();
         let pt1 = Point::new(radius, Px::ZERO).rotate_by(Angle::degrees(0));
         let pt2 = Point::new(radius, Px::ZERO).rotate_by(Angle::degrees(120));
         let pt3 = Point::new(radius, Px::ZERO).rotate_by(Angle::degrees(240));
@@ -194,12 +197,6 @@ impl Widget for DiscloseIndicator {
             .gfx
             .draw_shape(path.fill(color).translate_by(center).rotate_by(angle));
 
-        let stroke_options = if context.focused(true) {
-            stroke.colored(context.get(&HighlightColor))
-        } else {
-            StrokeOptions::px_wide(Lp::points(1).into_px(context.gfx.scale()).round())
-                .colored(stroke_color)
-        };
         context.gfx.draw_shape(
             path.stroke(stroke_options)
                 .translate_by(center)
@@ -266,6 +263,18 @@ impl Widget for DiscloseIndicator {
         )
     }
 
+    fn accept_focus(&mut self, _context: &mut crate::context::EventContext<'_, '_>) -> bool {
+        true
+    }
+
+    fn focus(&mut self, context: &mut crate::context::EventContext<'_, '_>) {
+        context.set_needs_redraw();
+    }
+
+    fn blur(&mut self, context: &mut crate::context::EventContext<'_, '_>) {
+        context.set_needs_redraw();
+    }
+
     fn hit_test(
         &mut self,
         location: Point<Px>,
@@ -292,7 +301,7 @@ impl Widget for DiscloseIndicator {
         let hovering = self.hit_test(location, context);
         if self.hovering_indicator != hovering {
             context.set_needs_redraw();
-            self.hovering_indicator = true;
+            self.hovering_indicator = hovering;
         }
 
         hovering.then_some(CursorIcon::Pointer)
@@ -315,6 +324,7 @@ impl Widget for DiscloseIndicator {
         if self.hit_test(location, context) {
             self.mouse_buttons_pressed += 1;
             self.activate(context);
+            context.focus();
             HANDLED
         } else {
             IGNORED
@@ -345,6 +355,6 @@ impl Widget for DiscloseIndicator {
 define_components! {
     Disclose {
         /// The size to render a [`Disclose`] indicator.
-        IndicatorSize(Dimension, "size", @TextSize)
+        IndicatorSize(Dimension, "size", @LineHeight)
     }
 }

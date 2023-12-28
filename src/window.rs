@@ -666,6 +666,100 @@ where
         );
         fonts
     }
+
+    fn handle_window_keyboard_input(
+        &mut self,
+        window: &mut RunningWindow<'_>,
+        kludgine: &mut Kludgine,
+        input: KeyEvent,
+    ) {
+        match input.logical_key {
+            Key::Character(ch) if ch == "w" && window.modifiers().primary() => {
+                if input.state.is_pressed()
+                    && Self::request_close(&mut self.should_close, &mut self.behavior, window)
+                {
+                    window.set_needs_redraw();
+                }
+            }
+            Key::Named(NamedKey::Space) if !window.modifiers().possible_shortcut() => {
+                let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
+                let target = self.tree.widget_from_node(target).expect("missing widget");
+                let mut target = EventContext::new(
+                    WidgetContext::new(
+                        target,
+                        &self.current_theme,
+                        window,
+                        self.theme_mode.get(),
+                        &mut self.cursor,
+                    ),
+                    kludgine,
+                );
+
+                match input.state {
+                    ElementState::Pressed => {
+                        if target.active() {
+                            target.deactivate();
+                            target.apply_pending_state();
+                        }
+                        target.activate();
+                    }
+                    ElementState::Released => {
+                        target.deactivate();
+                    }
+                }
+            }
+
+            Key::Named(NamedKey::Tab) if !window.modifiers().possible_shortcut() => {
+                if input.state.is_pressed() {
+                    let reverse = window.modifiers().state().shift_key();
+
+                    let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
+                    let target = self.tree.widget_from_node(target).expect("missing widget");
+                    let mut target = EventContext::new(
+                        WidgetContext::new(
+                            target,
+                            &self.current_theme,
+                            window,
+                            self.theme_mode.get(),
+                            &mut self.cursor,
+                        ),
+                        kludgine,
+                    );
+
+                    if reverse {
+                        target.return_focus();
+                    } else {
+                        target.advance_focus();
+                    }
+                }
+            }
+            Key::Named(NamedKey::Enter) => {
+                self.keyboard_activate_widget(
+                    input.state.is_pressed(),
+                    self.tree.default_widget(),
+                    window,
+                    kludgine,
+                );
+            }
+            Key::Named(NamedKey::Escape) => {
+                self.keyboard_activate_widget(
+                    input.state.is_pressed(),
+                    self.tree.escape_widget(),
+                    window,
+                    kludgine,
+                );
+            }
+            _ => {
+                tracing::event!(
+                    Level::DEBUG,
+                    logical = ?input.logical_key,
+                    physical = ?input.physical_key,
+                    state = ?input.state,
+                    "Ignored Keyboard Input",
+                );
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -1011,68 +1105,7 @@ where
         drop(target);
 
         if !handled {
-            match input.logical_key {
-                Key::Character(ch) if ch == "w" && window.modifiers().primary() => {
-                    if input.state.is_pressed()
-                        && Self::request_close(
-                            &mut self.should_close,
-                            &mut self.behavior,
-                            &mut window,
-                        )
-                    {
-                        window.set_needs_redraw();
-                    }
-                }
-                Key::Named(NamedKey::Tab) if !window.modifiers().possible_shortcut() => {
-                    if input.state.is_pressed() {
-                        let reverse = window.modifiers().state().shift_key();
-
-                        let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
-                        let target = self.tree.widget_from_node(target).expect("missing widget");
-                        let mut target = EventContext::new(
-                            WidgetContext::new(
-                                target,
-                                &self.current_theme,
-                                &mut window,
-                                self.theme_mode.get(),
-                                &mut self.cursor,
-                            ),
-                            kludgine,
-                        );
-
-                        if reverse {
-                            target.return_focus();
-                        } else {
-                            target.advance_focus();
-                        }
-                    }
-                }
-                Key::Named(NamedKey::Enter) => {
-                    self.keyboard_activate_widget(
-                        input.state.is_pressed(),
-                        self.tree.default_widget(),
-                        &mut window,
-                        kludgine,
-                    );
-                }
-                Key::Named(NamedKey::Escape) => {
-                    self.keyboard_activate_widget(
-                        input.state.is_pressed(),
-                        self.tree.escape_widget(),
-                        &mut window,
-                        kludgine,
-                    );
-                }
-                _ => {
-                    tracing::event!(
-                        Level::DEBUG,
-                        logical = ?input.logical_key,
-                        physical = ?input.physical_key,
-                        state = ?input.state,
-                        "Ignored Keyboard Input",
-                    );
-                }
-            }
+            self.handle_window_keyboard_input(&mut window, kludgine, input);
         }
     }
 

@@ -174,9 +174,12 @@ impl Tree {
 
             let mut index = 0;
             while index < unordered.len() {
-                let Some(layout) = &data.nodes[unordered[index]].layout else {
-                    unordered.remove(index);
-                    continue;
+                let layout = match &data.nodes[unordered[index]].layout {
+                    Some(layout) if layout.size.width > 0 && layout.size.height > 0 => layout,
+                    _ => {
+                        unordered.remove(index);
+                        continue;
+                    }
                 };
                 let top = layout.origin.y;
                 let bottom = top + layout.size.height;

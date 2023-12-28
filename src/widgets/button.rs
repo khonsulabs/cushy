@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size};
-use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
+use kludgine::app::winit::event::{DeviceId, MouseButton};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
@@ -19,9 +19,8 @@ use crate::styles::components::{
     HighlightColor, IntrinsicPadding, OpaqueWidgetColor, OutlineColor, SurfaceColor, TextColor,
 };
 use crate::styles::{ColorExt, Styles};
-use crate::utils::ModifiersExt;
 use crate::value::{Dynamic, IntoValue, Value};
-use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
+use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED};
 use crate::FitMeasuredSize;
 
 /// A clickable button.
@@ -482,34 +481,6 @@ impl Widget for Button {
             Rect::new(Point::squared(padding), size).into_signed(),
         );
         size + double_padding
-    }
-
-    fn keyboard_input(
-        &mut self,
-        _device_id: DeviceId,
-        input: KeyEvent,
-        _is_synthetic: bool,
-        context: &mut EventContext<'_, '_>,
-    ) -> EventHandling {
-        if input.text.as_deref() == Some(" ") && !context.modifiers().possible_shortcut() {
-            let changed = match input.state {
-                ElementState::Pressed => {
-                    let changed = context.activate();
-                    if !changed {
-                        // The widget was already active. This is now a repeated keypress
-                        self.invoke_on_click(context);
-                    }
-                    changed
-                }
-                ElementState::Released => context.deactivate(),
-            };
-            if changed {
-                context.set_needs_redraw();
-            }
-            HANDLED
-        } else {
-            IGNORED
-        }
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_, '_>) {

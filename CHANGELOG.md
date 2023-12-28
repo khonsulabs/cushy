@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- The root widget is now included in the search for widgets to accept focus.
+- Widgets that have been laid out with a 0px width or height no longer have
+  their `redraw` functions called nor can they receive focus.
+
 ### Added
 
 - `figures` is now directly re-exported at this crate's root. Kludgine still
@@ -17,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Collapse` widget to show/hide the content when the disclosure button is
   clicked. This widget also supports an optional label that is shown above the
   content and is also clickable.
+- [#99][99]: When an unhandled spacebar event is received by the window, the
+  focused widget will be activated and deactived by the events. This previously
+  was a `Button`-specific behavior that has been refactored into an automatic
+  behavior for all widgets.
+
+[99]: https://github.com/khonsulabs/cushy/issues/99
 
 ## v0.2.0
 

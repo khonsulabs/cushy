@@ -6,7 +6,7 @@ fn main() -> cushy::Result {
     Disclose::new(
         "This is some inner content"
             .align_left()
-            .and(Disclose::new("This is even further inside"))
+            .and(Disclose::new("This is even further inside".contain()))
             .into_rows(),
     )
     .labelled_by("This demonstrates the Disclose widget")

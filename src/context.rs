@@ -357,7 +357,19 @@ impl<'context, 'window> EventContext<'context, 'window> {
 
         // We've exhausted a forward scan, we can now start searching the final
         // parent, which is the root.
-        self.next_focus_within(&root, None, stop_at, advance)
+        let mut child_context = self.for_other(&root);
+        let accept_focus = root.lock().as_widget().accept_focus(&mut child_context);
+        drop(child_context);
+        if accept_focus {
+            Some(root.id())
+        } else if stop_at == root.id() {
+            // We cycled completely.
+            None
+        } else if let Some(next_focus) = self.widget().explicit_focus_target(advance) {
+            Some(next_focus.id())
+        } else {
+            self.next_focus_within(&root, None, stop_at, advance)
+        }
     }
 
     fn next_focus_sibling(
@@ -379,6 +391,11 @@ impl<'context, 'window> EventContext<'context, 'window> {
         stop_at: WidgetId,
         advance: bool,
     ) -> Option<WidgetId> {
+        let last_layout = self.current_node.last_layout()?;
+        if last_layout.size.width <= 0 || last_layout.size.height <= 0 {
+            return None;
+        }
+
         let mut visual_order = self.get(&LayoutOrder);
         if !advance {
             visual_order = visual_order.rev();
@@ -397,16 +414,15 @@ impl<'context, 'window> EventContext<'context, 'window> {
         }
 
         for child in children {
-            // Ensure we haven't cycled completely.
-            if stop_at == child.id() {
-                break;
-            }
-
             let mut child_context = self.for_other(&child);
             let accept_focus = child.lock().as_widget().accept_focus(&mut child_context);
             drop(child_context);
             if accept_focus {
                 return Some(child.id());
+            } else if stop_at == child.id() {
+                // We cycled completely, and the original widget didn't accept
+                // focus.
+                return None;
             } else if let Some(next_focus) = self.widget().explicit_focus_target(advance) {
                 return Some(next_focus.id());
             } else if let Some(focus) = self.next_focus_within(&child, None, stop_at, advance) {
