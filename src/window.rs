@@ -1,6 +1,7 @@
 //! Types for displaying a [`Widget`] inside of a desktop window.
 
 use std::cell::RefCell;
+use std::collections::hash_map;
 use std::ffi::OsStr;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut, Not};
@@ -23,7 +24,7 @@ use kludgine::app::WindowBehavior as _;
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::render::Drawing;
 use kludgine::wgpu::CompositeAlphaMode;
-use kludgine::Kludgine;
+use kludgine::{Kludgine, KludgineId};
 use tracing::Level;
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
@@ -47,6 +48,7 @@ use crate::{initialize_tracing, ConstraintLimit};
 /// A currently running Cushy window.
 pub struct RunningWindow<'window> {
     window: kludgine::app::Window<'window, WindowCommand>,
+    kludgine_id: KludgineId,
     invalidation_status: InvalidationStatus,
     cushy: Cushy,
     focused: Dynamic<bool>,
@@ -57,6 +59,7 @@ pub struct RunningWindow<'window> {
 impl<'window> RunningWindow<'window> {
     pub(crate) fn new(
         window: kludgine::app::Window<'window, WindowCommand>,
+        kludgine_id: KludgineId,
         invalidation_status: &InvalidationStatus,
         cushy: &Cushy,
         focused: &Dynamic<bool>,
@@ -65,12 +68,21 @@ impl<'window> RunningWindow<'window> {
     ) -> Self {
         Self {
             window,
+            kludgine_id,
             invalidation_status: invalidation_status.clone(),
             cushy: cushy.clone(),
             focused: focused.clone(),
             occluded: occluded.clone(),
             inner_size: inner_size.clone(),
         }
+    }
+
+    /// Returns the [`KludgineId`] of this window.
+    ///
+    /// Each window has its own unique `KludgineId`.
+    #[must_use]
+    pub const fn kludgine_id(&self) -> KludgineId {
+        self.kludgine_id
     }
 
     /// Returns a dynamic that is updated whenever this window's focus status
@@ -820,6 +832,7 @@ where
         let mut behavior = T::initialize(
             &mut RunningWindow::new(
                 window,
+                graphics.id(),
                 &redraw_status,
                 &cushy,
                 &focused,
@@ -886,6 +899,7 @@ where
         let resizable = window.winit().is_resizable();
         let mut window = RunningWindow::new(
             window,
+            graphics.id(),
             &self.redraw_status,
             &self.cushy,
             &self.focused,
@@ -1012,13 +1026,14 @@ where
     fn close_requested(
         &mut self,
         window: kludgine::app::Window<'_, WindowCommand>,
-        _kludgine: &mut Kludgine,
+        kludgine: &mut Kludgine,
     ) -> bool {
         Self::request_close(
             &mut self.should_close,
             &mut self.behavior,
             &mut RunningWindow::new(
                 window,
+                kludgine.id(),
                 &self.redraw_status,
                 &self.cushy,
                 &self.focused,
@@ -1093,6 +1108,7 @@ where
         };
         let mut window = RunningWindow::new(
             window,
+            kludgine.id(),
             &self.redraw_status,
             &self.cushy,
             &self.focused,
@@ -1137,6 +1153,7 @@ where
 
         let mut window = RunningWindow::new(
             window,
+            kludgine.id(),
             &self.redraw_status,
             &self.cushy,
             &self.focused,
@@ -1173,6 +1190,7 @@ where
             .unwrap_or_else(|| self.tree.widget(self.root.id()).expect("missing widget"));
         let mut window = RunningWindow::new(
             window,
+            kludgine.id(),
             &self.redraw_status,
             &self.cushy,
             &self.focused,
@@ -1206,6 +1224,7 @@ where
 
         let mut window = RunningWindow::new(
             window,
+            kludgine.id(),
             &self.redraw_status,
             &self.cushy,
             &self.focused,
@@ -1258,6 +1277,7 @@ where
         if self.cursor.widget.take().is_some() {
             let mut window = RunningWindow::new(
                 window,
+                kludgine.id(),
                 &self.redraw_status,
                 &self.cushy,
                 &self.focused,
@@ -1288,6 +1308,7 @@ where
     ) {
         let mut window = RunningWindow::new(
             window,
+            kludgine.id(),
             &self.redraw_status,
             &self.cushy,
             &self.focused,
@@ -1390,7 +1411,7 @@ where
     fn event(
         &mut self,
         mut window: kludgine::app::Window<'_, WindowCommand>,
-        _kludgine: &mut Kludgine,
+        kludgine: &mut Kludgine,
         event: WindowCommand,
     ) {
         match event {
@@ -1400,6 +1421,7 @@ where
             WindowCommand::RequestClose => {
                 let mut window = RunningWindow::new(
                     window,
+                    kludgine.id(),
                     &self.redraw_status,
                     &self.cushy,
                     &self.focused,
@@ -1740,4 +1762,47 @@ impl PendingWindow {
 struct PendingWindowHandle {
     handle: OnceLock<kludgine::app::WindowHandle<WindowCommand>>,
     commands: Mutex<Vec<WindowCommand>>,
+}
+
+/// A collection that stores an instance of `T` per window.
+///
+/// This is a convenience wrapper around a `HashMap<KludgineId, T>`.
+#[derive(Debug, Clone)]
+pub struct WindowLocal<T> {
+    by_window: AHashMap<KludgineId, T>,
+}
+
+impl<T> WindowLocal<T> {
+    /// Looks up the entry for this window.
+    ///
+    /// Internally this API uses [`HashMap::entry`](hash_map::HashMap::entry).
+    pub fn entry(&mut self, context: &WidgetContext<'_, '_>) -> hash_map::Entry<'_, KludgineId, T> {
+        self.by_window.entry(context.kludgine_id())
+    }
+
+    /// Sets `value` as the local value for `context`'s window.
+    pub fn set(&mut self, context: &WidgetContext<'_, '_>, value: T) {
+        self.by_window.insert(context.kludgine_id(), value);
+    }
+
+    /// Looks up the value for this window, returning None if not found.
+    ///
+    /// Internally this API uses [`HashMap::get`](hash_map::HashMap::get).
+    #[must_use]
+    pub fn get(&self, context: &WidgetContext<'_, '_>) -> Option<&T> {
+        self.by_window.get(&context.kludgine_id())
+    }
+
+    /// Removes any stored value for this window.
+    pub fn clear_for(&mut self, context: &WidgetContext<'_, '_>) -> Option<T> {
+        self.by_window.remove(&context.kludgine_id())
+    }
+}
+
+impl<T> Default for WindowLocal<T> {
+    fn default() -> Self {
+        Self {
+            by_window: AHashMap::default(),
+        }
+    }
 }

@@ -21,6 +21,7 @@ use crate::styles::components::{
 use crate::styles::{ColorExt, Styles};
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED};
+use crate::window::WindowLocal;
 use crate::FitMeasuredSize;
 
 /// A clickable button.
@@ -33,13 +34,18 @@ pub struct Button {
     /// The kind of button to draw.
     pub kind: Value<ButtonKind>,
     focusable: bool,
+    per_window: WindowLocal<PerWindow>,
+}
+
+#[derive(Debug, Default)]
+struct PerWindow {
     buttons_pressed: usize,
     cached_state: CacheState,
     active_colors: Option<Dynamic<ButtonColors>>,
     color_animation: AnimationHandle,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Default, Debug, Eq, PartialEq, Clone, Copy)]
 struct CacheState {
     key: WidgetCacheKey,
     kind: ButtonKind,
@@ -133,14 +139,8 @@ impl Button {
         Self {
             content: content.widget_ref(),
             on_click: None,
-            cached_state: CacheState {
-                key: WidgetCacheKey::default(),
-                kind: ButtonKind::default(),
-            },
-            buttons_pressed: 0,
-            active_colors: None,
+            per_window: WindowLocal::default(),
             kind: Value::Constant(ButtonKind::default()),
-            color_animation: AnimationHandle::default(),
             focusable: true,
         }
     }
@@ -229,7 +229,9 @@ impl Button {
         let kind = self.kind.get_tracking_redraw(context);
         let visual_state = Self::visual_style(context);
 
-        self.cached_state = CacheState {
+        let window_local = self.per_window.entry(context).or_default();
+
+        window_local.cached_state = CacheState {
             key: context.cache_key(),
             kind,
         };
@@ -247,33 +249,46 @@ impl Button {
 
     fn update_colors(&mut self, context: &mut WidgetContext<'_, '_>, immediate: bool) {
         let new_style = self.determine_stateful_colors(context);
+        let window_local = self.per_window.entry(context).or_default();
 
-        match (immediate, &self.active_colors) {
+        match (immediate, &window_local.active_colors) {
             (false, Some(style)) => {
-                self.color_animation = (style.transition_to(new_style))
+                window_local.color_animation = (style.transition_to(new_style))
                     .over(Duration::from_millis(150))
                     .with_easing(context.get(&Easing))
                     .spawn();
             }
             (true, Some(style)) => {
                 style.set(new_style);
-                self.color_animation.clear();
+                window_local.color_animation.clear();
             }
             _ => {
                 let new_style = Dynamic::new(new_style);
                 let foreground = new_style.map_each(|s| s.foreground);
-                self.active_colors = Some(new_style);
+                window_local.active_colors = Some(new_style);
                 context.attach_styles(Styles::new().with(&TextColor, foreground));
             }
         }
     }
 
     fn current_style(&mut self, context: &mut WidgetContext<'_, '_>) -> ButtonColors {
-        if self.active_colors.is_none() {
+        if self
+            .per_window
+            .entry(context)
+            .or_default()
+            .active_colors
+            .is_none()
+        {
             self.update_colors(context, false);
         }
 
-        let style = self.active_colors.as_ref().expect("always initialized");
+        let style = self
+            .per_window
+            .entry(context)
+            .or_default()
+            .active_colors
+            .as_ref()
+            .expect("always initialized");
         context.redraw_when_changed(style);
         style.get()
     }
@@ -353,7 +368,10 @@ impl Widget for Button {
         #![allow(clippy::similar_names)]
 
         let current_style = self.kind.get_tracking_redraw(context);
-        if self.cached_state.key != context.cache_key() || self.cached_state.kind != current_style {
+        let window_local = self.per_window.entry(context).or_default();
+        if window_local.cached_state.key != context.cache_key()
+            || window_local.cached_state.kind != current_style
+        {
             self.update_colors(context, false);
         }
 
@@ -414,7 +432,7 @@ impl Widget for Button {
         _button: MouseButton,
         context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
-        self.buttons_pressed += 1;
+        self.per_window.entry(context).or_default().buttons_pressed += 1;
         context.activate();
         HANDLED
     }
@@ -446,8 +464,9 @@ impl Widget for Button {
         _button: MouseButton,
         context: &mut EventContext<'_, '_>,
     ) {
-        self.buttons_pressed -= 1;
-        if self.buttons_pressed == 0 {
+        let window_local = self.per_window.entry(context).or_default();
+        window_local.buttons_pressed -= 1;
+        if window_local.buttons_pressed == 0 {
             context.deactivate();
 
             if let (true, Some(location)) = (self.focusable, location) {
@@ -472,7 +491,7 @@ impl Widget for Button {
             .into_upx(context.gfx.scale())
             .round();
         let double_padding = padding * 2;
-        let mounted = self.content.mounted(&mut context.as_event_context());
+        let mounted = self.content.mounted(context);
         let available_space = available_space.map(|space| space - double_padding);
         let size = context.for_other(&mounted).layout(available_space);
         let size = available_space.fit_measured(size, context.gfx.scale());
@@ -510,9 +529,10 @@ impl Widget for Button {
     }
 
     fn activate(&mut self, context: &mut EventContext<'_, '_>) {
+        let window_local = self.per_window.entry(context).or_default();
         // If we have no buttons pressed, the event should fire on activate not
         // on deactivate.
-        if self.buttons_pressed == 0 {
+        if window_local.buttons_pressed == 0 {
             self.invoke_on_click(context);
         }
         self.update_colors(context, true);

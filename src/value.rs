@@ -268,7 +268,7 @@ impl<T> Dynamic<T> {
     #[must_use]
     pub fn weak_clone(&self) -> Self
     where
-        T: Clone + PartialEq + Send + 'static,
+        T: Clone + Send + 'static,
     {
         let weak_source = self.downgrade();
         let weak_out = Dynamic::new(self.get());
@@ -276,7 +276,7 @@ impl<T> Dynamic<T> {
             let weak_out = weak_out.clone();
             move || {
                 if let Some(source) = weak_source.upgrade() {
-                    weak_out.set(source.get());
+                    *weak_out.lock() = source.get();
                 }
             }
         }));

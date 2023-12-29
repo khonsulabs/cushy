@@ -381,7 +381,7 @@ impl GridLayout {
         scale: Fraction,
         mut measure: impl FnMut(usize, usize, Size<ConstraintLimit>, bool) -> Size<UPx>,
     ) -> Size<UPx> {
-        let (space_constraint, other_constraint) = self.orientation.split_size(available);
+        let (space_constraint, mut other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
         let known_gutters = gutter.saturating_mul(UPx::new(
             (self.children.len() - self.fit_to_content.len())
@@ -391,6 +391,13 @@ impl GridLayout {
         let allocated_space =
             self.allocated_space.0 + self.allocated_space.1.into_upx(scale).ceil() + known_gutters;
         let mut remaining = available_space.saturating_sub(allocated_space);
+
+        if self.elements_per_child > 1 {
+            // When we are in multi-row mode, we force a size-to-fit mode for
+            // children. Trying to ask each row to fill will never work.
+            other_constraint = ConstraintLimit::SizeToFit(other_constraint.max());
+        }
+
         // If our `other_constraint` is not known, we will need to give child
         // widgets an opportunity to lay themselves out in the full area. This
         // requires one extra layout call, so we avoid persisting layouts during

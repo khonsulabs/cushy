@@ -17,23 +17,43 @@ pub struct DebugContext {
 }
 
 impl DebugContext {
-    /// Observes `value` using `label` in this debug context.
+    /// Observes `value` by showing the `Debug` output. Returns `value`.
     ///
     /// When the final reference to `value` is dropped, this observation will
     /// automatically be removed.
-    pub fn observe<T>(&self, label: impl Into<String>, value: &Dynamic<T>)
+    ///
+    /// This function is designed to work similarly to the [`dbg!`] macro.
+    pub fn dbg<T>(&self, label: impl Into<String>, value: Dynamic<T>) -> Dynamic<T>
     where
-        T: PartialEq + Clone + Debug + Send + Sync + 'static,
+        T: Clone + Debug + Send + Sync + 'static,
+    {
+        self.observe(label, &value, |value| {
+            value.map_each(|value| format!("{value:?}")).make_widget()
+        });
+        value
+    }
+
+    /// Observes `value` by attaching the widget created by `make_observer` to
+    /// this context.
+    ///
+    /// When the final reference to `value` is dropped, this observation will
+    /// automatically be removed.
+    pub fn observe<T, Widget, MakeObserver>(
+        &self,
+        label: impl Into<String>,
+        value: &Dynamic<T>,
+        make_observer: MakeObserver,
+    ) where
+        T: Clone + Send + Sync + 'static,
+        MakeObserver: FnOnce(Dynamic<T>) -> Widget,
+        Widget: MakeWidget,
     {
         let reader = value.create_reader();
         let id = self.section.map_ref(|section| {
             section.values.lock().push(Box::new(RegisteredValue {
                 label: label.into(),
                 value: reader.clone(),
-                widget: value
-                    .weak_clone()
-                    .map_each(|value| format!("{value:?}"))
-                    .make_widget(),
+                widget: make_observer(value.weak_clone()).make_widget(),
             }))
         });
         let this = self.clone();
@@ -79,7 +99,7 @@ impl DebugContext {
     fn into_window(self) -> Window {
         self.section
             .map_ref(|section| section.widget.clone())
-            .vertical_scroll()
+            // .vertical_scroll()
             .into_window()
             .titled("Cushy Debugger")
     }
@@ -173,7 +193,7 @@ impl DebugSection {
         let value_grid = Grid::from_rows(values.map_each(|values| {
             values
                 .iter()
-                .map(|o| [o.label().make_widget(), o.widget().clone()])
+                .map(|o| (o.label(), o.widget().clone().align_left()))
                 .collect::<GridWidgets<2>>()
         }));
 

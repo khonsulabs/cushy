@@ -8,20 +8,32 @@ const INTRO: &str = "This example demonstrates the DebugContext, which allows ob
 
 fn main() -> cushy::Result {
     let app = PendingApp::default();
-    let dbg = DebugContext::default();
-    let window_count = Dynamic::new(0_usize);
-    let total_windows = Dynamic::new(0_usize);
+    let info = DebugContext::default();
 
-    dbg.observe("Open Windows", &window_count);
-    dbg.observe("Total Windows", &total_windows);
-    dbg.clone().open(&app)?;
+    let window_count = Dynamic::new(0_usize);
+    let total_windows = info.dbg("Total Windows", Dynamic::new(0_usize));
+    let open_window_button = "Open a Window"
+        .into_button()
+        .on_click({
+            let app = app.as_app();
+            let info = info.clone();
+            let window_count = window_count.clone();
+            let total_windows = total_windows.clone();
+            move |()| open_a_window(&window_count, &total_windows, &info, &app)
+        })
+        .make_widget();
+
+    info.observe("Open Windows", &window_count, |window_count| {
+        window_count
+            .map_each(ToString::to_string)
+            .and(open_window_button.clone())
+            .into_columns()
+    });
+
+    info.clone().open(&app)?;
 
     INTRO
-        .and("Open a Window".into_button().on_click({
-            let app = app.as_app();
-
-            move |()| open_a_window(&window_count, &total_windows, &dbg, &app)
-        }))
+        .and(open_window_button)
         .into_rows()
         .centered()
         .run_in(app)
@@ -30,7 +42,7 @@ fn main() -> cushy::Result {
 fn open_a_window(
     window_count: &Dynamic<usize>,
     total_windows: &Dynamic<usize>,
-    dbg: &DebugContext,
+    info: &DebugContext,
     app: &dyn Application,
 ) {
     *window_count.lock() += 1;
@@ -39,10 +51,9 @@ fn open_a_window(
         *total
     });
     let window_title = format!("Window #{window_number}");
-    let dbg = dbg.section(&window_title);
+    let dbg = info.section(&window_title);
 
-    let value = Dynamic::new(0_u8);
-    dbg.observe("Slider", &value);
+    let value = dbg.dbg("Slider", Dynamic::new(0_u8));
 
     let window_count = window_count.clone();
     let _ = format!("This is window {window_number}.")

@@ -110,7 +110,7 @@ impl DiscloseIndicator {
             contents: WidgetRef::new(contents.collapse_vertically(collapsed.clone())),
             collapsed,
             hovering_indicator: false,
-            label: label.map(WidgetRef::Unmounted),
+            label: label.map(WidgetRef::new),
             target_colors: None,
             color: Dynamic::new(Color::CLEAR_WHITE),
             stroke_color: Dynamic::new(Color::CLEAR_WHITE),

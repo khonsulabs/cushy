@@ -92,10 +92,7 @@ impl Stack {
                             {
                                 (child, size)
                             } else {
-                                (
-                                    WidgetRef::Unmounted(widget.clone()),
-                                    GridDimension::FitContent,
-                                )
+                                (WidgetRef::new(widget.clone()), GridDimension::FitContent)
                             };
                             drop(guard);
                             this.insert(index, widget.mounted(context));

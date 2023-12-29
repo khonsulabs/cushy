@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use figures::Size;
 
-use crate::context::{AsEventContext, LayoutContext};
+use crate::context::LayoutContext;
 use crate::value::{Dynamic, DynamicReader, IntoDynamic};
 use crate::widget::{WidgetInstance, WidgetRef, WrapperWidget};
 use crate::ConstraintLimit;
@@ -55,10 +55,7 @@ impl WrapperWidget for Switcher {
         context: &mut LayoutContext<'_, '_, '_, '_, '_>,
     ) -> Size<ConstraintLimit> {
         if self.source.has_updated() {
-            let removed = std::mem::replace(&mut self.child, WidgetRef::new(self.source.get()));
-            if let WidgetRef::Mounted(removed) = removed {
-                context.remove_child(&removed);
-            }
+            self.child.unmount_in(context);
         }
         context.invalidate_when_changed(&self.source);
         available_space

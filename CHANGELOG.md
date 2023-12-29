@@ -7,12 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Breaking Changes
+
+- `WidgetRef` is now a `struct` instead of an enum. This refactor changes the
+  mounted state to be stored in a `WindowLocal`, ensuring `WidgetRef`s work
+  properly when used in a `WidgetInstance` shared between multiple windows.
+- `WidgetRef::unmount_in` should be called when the widget is being unmounted to
+  clean up individual window state.
+
 ### Fixed
 
 - The root widget is now included in the search for widgets to accept focus.
 - Widgets that have been laid out with a 0px width or height no longer have
   their `redraw` functions called nor can they receive focus.
 - `Grid` now synchronizes removal of widgets from `GridWidgets` correctly.
+- `WidgetInstance`s can now be shared between windows. Any unpredictable
+  behaviors when doing this should be reported, as some widgets may still have
+  state that should be moved into a `WindowLocal` type.
+- `Grid` no longer passes `ConstraintLimit::Fill` along to children when it
+  contains more than one element. Previously, if rows contained widgets that
+  filled the given space, this would cause the grid to calculate layouts
+  incorrectly.
+
+### Changed
+
+- `WidgetCacheKey` now includes the `KludgineId` of the context it was created
+  from. This ensures if a `WidgetInstance` moves or is shared between windows,
+  the cache is invalidated.
 
 ### Added
 
@@ -43,6 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   existence.
 - `Dynamic::readers()` returns the number of `DynamicReader`s for the dynamic in
   existence.
+- `RunningWindow::kludgine_id()` returns a unique id for that window.
+- `WindowLocal<T>` is a `HashMap`-based type that stores data on a per-window
+  basis using `RunningWindow::kludgine_id()` as the key.
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 

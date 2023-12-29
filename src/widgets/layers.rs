@@ -178,7 +178,7 @@ impl Widget for OverlayLayer {
         let state = self.state.lock();
 
         for child in &state.overlays {
-            let WidgetRef::Mounted(mounted) = &child.widget else {
+            let Some(mounted) = child.widget.as_mounted(context) else {
                 continue;
             };
 

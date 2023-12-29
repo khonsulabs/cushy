@@ -35,9 +35,9 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "ahash"
-version = "0.8.6"
+version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "91429305e9f0a25f6205c5b8e0d2db09e0708a7a6df0f42212bb56c32c8ac97a"
+checksum = "77c3a9648d43b9cd48db467b3f87fdd6e146bcc88ab0180006cef2179fe11d01"
 dependencies = [
  "cfg-if",
  "getrandom",
@@ -1155,9 +1155,9 @@ checksum = "d7e253b574775d0ebd7975c471fc18f72f0775a4d42b563b5fbc3c4068aa1075"
 
 [[package]]
 name = "kempt"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13a912e97bbe1ec7cbead29896008766dedc4790350c55aece45998fde067200"
+checksum = "4a37a6bdb52eae6acb1efbab069af766555a6d77712380fd48876b83543d3071"
 
 [[package]]
 name = "khronos-egl"
@@ -1179,7 +1179,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.7.0"
-source = "git+https://github.com/khonsulabs/kludgine#a38466b021ce55c26c6d533191a87a22109016b2"
+source = "git+https://github.com/khonsulabs/kludgine#0bda2a6dc273aa49338f23ea5190aefdf037d740"
 dependencies = [
  "ahash",
  "alot",

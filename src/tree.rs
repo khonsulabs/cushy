@@ -83,15 +83,17 @@ impl Tree {
 
         let node = &mut data.nodes[widget];
         node.layout = Some(rect);
-        let mut children_to_offset = node.children.clone();
-        while let Some(child) = children_to_offset.pop() {
-            if let Some(layout) = data
-                .nodes
-                .get_mut(child)
-                .and_then(|child| child.layout.as_mut())
-            {
-                layout.origin += rect.origin;
-                children_to_offset.extend(data.nodes[child].children.iter().copied());
+        if !node.children.is_empty() {
+            let mut children_to_offset = node.children.clone();
+            while let Some(child) = children_to_offset.pop() {
+                if let Some(layout) = data
+                    .nodes
+                    .get_mut(child)
+                    .and_then(|child| child.layout.as_mut())
+                {
+                    layout.origin += rect.origin;
+                    children_to_offset.extend(data.nodes[child].children.iter().copied());
+                }
             }
         }
     }
@@ -396,6 +398,20 @@ impl Tree {
             .lock()
             .ignore_poison()
             .invalidate(id, include_hierarchy);
+    }
+}
+
+impl Eq for Tree {}
+
+impl PartialEq for Tree {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.data, &other.data)
+    }
+}
+
+impl PartialEq<WeakTree> for Tree {
+    fn eq(&self, other: &WeakTree) -> bool {
+        Arc::as_ptr(&self.data) == Weak::as_ptr(&other.0)
     }
 }
 

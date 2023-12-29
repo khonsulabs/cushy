@@ -9,6 +9,7 @@ use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::TextColor;
 use crate::value::{Dynamic, Generation, IntoValue, Value};
 use crate::widget::{Widget, WidgetInstance};
+use crate::window::WindowLocal;
 use crate::ConstraintLimit;
 
 /// A read-only text widget.
@@ -16,7 +17,7 @@ use crate::ConstraintLimit;
 pub struct Label {
     /// The contents of the label.
     pub text: Value<String>,
-    prepared_text: Option<(MeasuredText<Px>, Option<Generation>, Px, Color)>,
+    prepared_text: WindowLocal<(MeasuredText<Px>, Option<Generation>, Px, Color)>,
 }
 
 impl Label {
@@ -24,7 +25,7 @@ impl Label {
     pub fn new(text: impl IntoValue<String>) -> Self {
         Self {
             text: text.into_value(),
-            prepared_text: None,
+            prepared_text: WindowLocal::default(),
         }
     }
 
@@ -35,14 +36,15 @@ impl Label {
         width: Px,
     ) -> &MeasuredText<Px> {
         let check_generation = self.text.generation();
-        match &self.prepared_text {
+        match self.prepared_text.get(context) {
             Some((prepared, prepared_generation, prepared_width, prepared_color))
                 if prepared.can_render_to(&context.gfx)
                     && *prepared_generation == check_generation
                     && *prepared_color == color
                     && (*prepared_width == width
-                        || ((*prepared_width < width || prepared.size.width <= width)
-                            && prepared.line_height == prepared.size.height)) => {}
+                        || (*prepared_width < width
+                            || (prepared.size.width <= width
+                                && prepared.line_height == prepared.size.height))) => {}
             _ => {
                 context.apply_current_font_settings();
                 let measured = self.text.map(|text| {
@@ -50,12 +52,13 @@ impl Label {
                         .gfx
                         .measure_text(Text::new(text, color).wrap_at(width))
                 });
-                self.prepared_text = Some((measured, check_generation, width, color));
+                self.prepared_text
+                    .set(context, (measured, check_generation, width, color));
             }
         }
 
         self.prepared_text
-            .as_ref()
+            .get(context)
             .map(|(prepared, _, _, _)| prepared)
             .expect("always initialized")
     }
@@ -86,11 +89,15 @@ impl Widget for Label {
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width);
 
-        prepared.size.try_cast().unwrap_or_default()
+        prepared.size.try_cast().unwrap_or_default().ceil()
     }
 
     fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fmt.debug_tuple("Label").field(&self.text).finish()
+    }
+
+    fn unmounted(&mut self, context: &mut crate::context::EventContext<'_, '_>) {
+        self.prepared_text.clear_for(context);
     }
 }
 

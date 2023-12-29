@@ -19,7 +19,9 @@ use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
 
 use crate::app::{Application, Open, PendingApp, Run};
-use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::context::{
+    AsEventContext, EventContext, GraphicsContext, LayoutContext, ManageWidget, WidgetContext,
+};
 use crate::styles::components::{
     FontFamily, FontStyle, FontWeight, Heading1FontFamily, Heading1Style, Heading1Weight,
     Heading2FontFamily, Heading2Style, Heading2Weight, Heading3FontFamily, Heading3Style,
@@ -42,7 +44,7 @@ use crate::widgets::{
     Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Resize, Scroll, Space,
     Stack, Style, Themed, ThemedMode, Validated, Wrap,
 };
-use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior, WindowHandle};
+use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior, WindowHandle, WindowLocal};
 use crate::ConstraintLimit;
 
 /// A type that makes up a graphical user interface.
@@ -620,7 +622,9 @@ pub trait WrapperWidget: Debug + Send + 'static {
 
     /// The widget has been removed from its parent widget.
     #[allow(unused_variables)]
-    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+        self.child_mut().unmount_in(context);
+    }
 
     /// Returns true if this widget should respond to mouse input at `location`.
     #[allow(unused_variables)]
@@ -2237,24 +2241,34 @@ impl MountableChild for MountedWidget {
 
 /// A child widget
 #[derive(Clone)]
-pub enum WidgetRef {
-    /// An unmounted child widget
-    Unmounted(WidgetInstance),
-    /// A mounted child widget
-    Mounted(MountedWidget),
+pub struct WidgetRef {
+    instance: WidgetInstance,
+    mounted: WindowLocal<MountedWidget>,
 }
 
 impl WidgetRef {
     /// Returns a new unmounted child
     pub fn new(widget: impl MakeWidget) -> Self {
-        Self::Unmounted(widget.make_widget())
+        Self {
+            instance: widget.make_widget(),
+            mounted: WindowLocal::default(),
+        }
+    }
+
+    /// Returns this child, mounting it in the process if necessary.
+    fn mounted_for_context<'window>(
+        &mut self,
+        context: &mut impl AsEventContext<'window>,
+    ) -> &MountedWidget {
+        let mut context = context.as_event_context();
+        self.mounted
+            .entry(&context)
+            .or_insert_with(|| context.push_child(self.instance.clone()))
     }
 
     /// Returns this child, mounting it in the process if necessary.
     pub fn mount_if_needed<'window>(&mut self, context: &mut impl AsEventContext<'window>) {
-        if let WidgetRef::Unmounted(instance) = self {
-            *self = WidgetRef::Mounted(context.push_child(instance.clone()));
-        }
+        self.mounted_for_context(context);
     }
 
     /// Returns this child, mounting it in the process if necessary.
@@ -2262,39 +2276,39 @@ impl WidgetRef {
         &mut self,
         context: &mut impl AsEventContext<'window>,
     ) -> MountedWidget {
-        self.mount_if_needed(context);
+        self.mounted_for_context(context).clone()
+    }
 
-        let Self::Mounted(widget) = self else {
-            unreachable!("just initialized")
-        };
-        widget.clone()
+    /// Returns this child, mounting it in the process if necessary.
+    #[must_use]
+    pub fn as_mounted(&self, context: &WidgetContext<'_, '_>) -> Option<&MountedWidget> {
+        self.mounted.get(context)
     }
 
     /// Returns the a reference to the underlying widget instance.
     #[must_use]
-    pub fn widget(&self) -> &WidgetInstance {
-        match self {
-            WidgetRef::Unmounted(widget) => widget,
-            WidgetRef::Mounted(managed) => &managed.widget,
+    pub const fn widget(&self) -> &WidgetInstance {
+        &self.instance
+    }
+
+    /// Unmounts this widget from the window belonging to `context`, if needed.
+    pub fn unmount_in<'window>(&mut self, context: &mut impl AsEventContext<'window>) {
+        let mut context = context.as_event_context();
+        if let Some(mounted) = self.mounted.clear_for(&context) {
+            context.remove_child(&mounted);
         }
     }
 }
 
 impl AsRef<WidgetId> for WidgetRef {
     fn as_ref(&self) -> &WidgetId {
-        match self {
-            WidgetRef::Unmounted(widget) => widget.as_ref(),
-            WidgetRef::Mounted(widget) => widget.as_ref(),
-        }
+        self.instance.as_ref()
     }
 }
 
 impl Debug for WidgetRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unmounted(arg0) => Debug::fmt(arg0, f),
-            Self::Mounted(arg0) => Debug::fmt(arg0, f),
-        }
+        Debug::fmt(&self.instance, f)
     }
 }
 
@@ -2302,11 +2316,18 @@ impl Eq for WidgetRef {}
 
 impl PartialEq for WidgetRef {
     fn eq(&self, other: &Self) -> bool {
-        if let (WidgetRef::Mounted(this), WidgetRef::Mounted(other)) = (self, other) {
-            this == other
-        } else {
-            self.widget() == other.widget()
-        }
+        self.instance == other.instance
+    }
+}
+
+impl ManageWidget for WidgetRef {
+    type Managed = Option<MountedWidget>;
+
+    fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed {
+        self.mounted
+            .get(context)
+            .cloned()
+            .or_else(|| context.tree.widget(self.instance.id()))
     }
 }
 

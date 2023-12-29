@@ -12,7 +12,7 @@ use kludgine::app::winit::event::{
 };
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::{Shape, StrokeOptions};
-use kludgine::{Color, Kludgine};
+use kludgine::{Color, Kludgine, KludgineId};
 
 use crate::animation::ZeroToOne;
 use crate::graphics::Graphics;
@@ -24,9 +24,7 @@ use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::tree::Tree;
 use crate::utils::IgnorePoison;
 use crate::value::{IntoValue, Value};
-use crate::widget::{
-    EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance, WidgetRef,
-};
+use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
 use crate::window::{CursorState, RunningWindow, ThemeMode};
 use crate::ConstraintLimit;
 
@@ -893,6 +891,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             tree,
             effective_styles: current_node.effective_styles(),
             cache: WidgetCacheKey {
+                kludgine_id: Some(window.kludgine_id()),
                 theme_mode,
                 enabled,
             },
@@ -941,6 +940,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
             WidgetContext {
                 effective_styles,
                 cache: WidgetCacheKey {
+                    kludgine_id: self.cache.kludgine_id,
                     theme_mode,
                     enabled: current_node.enabled(&self.handle()),
                 },
@@ -1333,17 +1333,6 @@ impl ManageWidget for WidgetInstance {
     }
 }
 
-impl ManageWidget for WidgetRef {
-    type Managed = Option<MountedWidget>;
-
-    fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed {
-        match self {
-            WidgetRef::Unmounted(instance) => context.tree.widget(instance.id()),
-            WidgetRef::Mounted(instance) => Some(instance.clone()),
-        }
-    }
-}
-
 impl ManageWidget for MountedWidget {
     type Managed = Self;
 
@@ -1383,6 +1372,7 @@ impl<T> MapManagedWidget<T> for MountedWidget {
 /// keys are not equal, the widget should clear all caches.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct WidgetCacheKey {
+    kludgine_id: Option<KludgineId>,
     theme_mode: ThemeMode,
     enabled: bool,
 }
@@ -1390,6 +1380,7 @@ pub struct WidgetCacheKey {
 impl Default for WidgetCacheKey {
     fn default() -> Self {
         Self {
+            kludgine_id: None,
             theme_mode: ThemeMode::default().inverse(),
             enabled: false,
         }
