@@ -106,8 +106,7 @@ dependencies = [
 [[package]]
 name = "appit"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19f4127675fb55fa12ce1f3eaaf24826db1a00a4b5f108c0698bafbefab32c9b"
+source = "git+https://github.com/khonsulabs/appit#0fa6a4b3a512eb3ef3c844fcbb03d2efbecec863"
 dependencies = [
  "winit",
 ]
@@ -1180,8 +1179,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33370975064272061b94d15ef0eb94ab1379c8da6eb585ce03fe5ac13494aab6"
+source = "git+https://github.com/khonsulabs/kludgine#a38466b021ce55c26c6d533191a87a22109016b2"
 dependencies = [
  "ahash",
  "alot",
@@ -1381,9 +1379,9 @@ dependencies = [
 
 [[package]]
 name = "memchr"
-version = "2.6.4"
+version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f665ee40bc4a3c5590afb1e9677db74a508659dfd71e126420da8274909a0167"
+checksum = "523dc4f511e55ab87b694dc30d0f820d60906ef06413f93d4d7a1385599cc149"
 
 [[package]]
 name = "memmap2"

@@ -359,7 +359,7 @@ where
 {
     fn open<App>(self, app: &App) -> crate::Result<Option<WindowHandle>>
     where
-        App: Application,
+        App: Application + ?Sized,
     {
         let cushy = app.cushy().clone();
 

@@ -119,7 +119,7 @@ pub trait Open: Sized {
     /// Opens the provided type as a window inside of `app`.
     fn open<App>(self, app: &App) -> crate::Result<Option<WindowHandle>>
     where
-        App: Application;
+        App: Application + ?Sized;
 
     /// Runs the provided type inside of the pending `app`, returning `Ok(())`
     /// upon successful execution and program exit. Note that this function may

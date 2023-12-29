@@ -468,7 +468,7 @@ where
 {
     fn open<App>(self, app: &App) -> crate::Result<Option<crate::window::WindowHandle>>
     where
-        App: Application,
+        App: Application + ?Sized,
     {
         Window::<WidgetInstance>::new(self.make_widget()).open(app)
     }
@@ -1948,6 +1948,15 @@ impl Children {
         W: MakeWidget,
     {
         self.ordered.insert(index, widget.make_widget());
+    }
+
+    /// Extends this collection with the contents of `iter`.
+    pub fn extend<T, Iter>(&mut self, iter: Iter)
+    where
+        Iter: IntoIterator<Item = T>,
+        T: MakeWidget,
+    {
+        self.ordered.extend(iter.into_iter().map(T::make_widget));
     }
 
     /// Adds `widget` to self and returns the updated list.

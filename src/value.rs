@@ -781,15 +781,25 @@ impl<T> Clone for Dynamic<T> {
 
 impl<T> Drop for Dynamic<T> {
     fn drop(&mut self) {
-        let mut state = self.state().expect("deadlocked");
-        if Arc::strong_count(&self.0) == state.readers + 1 {
-            let on_disconnect = std::mem::take(&mut state.on_disconnect);
-            drop(state);
+        // Ignoring deadlocks here allows complex flows to work properly, and
+        // the only issue is that `on_disconnect` will not fire if during a map
+        // callback on a `DynamicReader` the final reference to the source
+        // `Dynamic`.
+        if let Ok(mut state) = self.state() {
+            if Arc::strong_count(&self.0) == state.readers + 1 {
+                let on_disconnect = std::mem::take(&mut state.on_disconnect);
+                drop(state);
 
-            for on_disconnect in on_disconnect {
-                on_disconnect.invoke(());
+                for on_disconnect in on_disconnect {
+                    on_disconnect.invoke(());
+                }
+
+                self.0.sync.notify_all();
             }
-
+        } else {
+            // In the event that this is the rare edge case and a reader is
+            // blocking, we want to signal that we've dropped the final
+            // reference.
             self.0.sync.notify_all();
         }
     }

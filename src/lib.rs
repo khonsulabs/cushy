@@ -15,6 +15,7 @@ mod names;
 #[macro_use]
 pub mod styles;
 mod app;
+pub mod debug;
 mod tick;
 mod tree;
 pub mod value;
