@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contains more than one element. Previously, if rows contained widgets that
   filled the given space, this would cause the grid to calculate layouts
   incorrectly.
+- A potential edge case where a `DynamicReader` would not return after being
+  disconnected has been removed.
 
 ### Changed
 

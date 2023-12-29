@@ -43,7 +43,7 @@ impl<T> Dynamic<T> {
                 readers: 0,
                 wakers: Vec::new(),
                 widgets: AHashSet::new(),
-                on_disconnect: Vec::new(),
+                on_disconnect: Some(Vec::new()),
                 source_callback: CallbackHandle::default(),
             }),
             during_callback_state: Mutex::default(),
@@ -811,10 +811,10 @@ impl<T> Drop for Dynamic<T> {
         // `Dynamic`.
         if let Ok(mut state) = self.state() {
             if Arc::strong_count(&self.0) == state.readers + 1 {
-                let on_disconnect = std::mem::take(&mut state.on_disconnect);
+                let on_disconnect = state.on_disconnect.take();
                 drop(state);
 
-                for on_disconnect in on_disconnect {
+                for on_disconnect in on_disconnect.into_iter().flatten() {
                     on_disconnect.invoke(());
                 }
 
@@ -1182,7 +1182,7 @@ struct State<T> {
     windows: AHashSet<WindowHandle>,
     widgets: AHashSet<(WindowHandle, WidgetId)>,
     wakers: Vec<Waker>,
-    on_disconnect: Vec<OnceCallback>,
+    on_disconnect: Option<Vec<OnceCallback>>,
     readers: usize,
 }
 
@@ -1606,7 +1606,9 @@ impl<T> DynamicReader<T> {
             let state = self.source.state.lock().ignore_poison();
             if state.wrapped.generation != self.read_generation {
                 return true;
-            } else if state.readers == Arc::strong_count(&self.source) {
+            } else if state.readers == Arc::strong_count(&self.source)
+                || state.on_disconnect.is_none()
+            {
                 return false;
             }
             drop(state);
@@ -1619,7 +1621,8 @@ impl<T> DynamicReader<T> {
     /// Returns true if this reader still has any writers connected to it.
     #[must_use]
     pub fn connected(&self) -> bool {
-        self.source.state.lock().ignore_poison().readers < Arc::strong_count(&self.source)
+        let state = self.source.state.lock().ignore_poison();
+        state.readers < Arc::strong_count(&self.source) && state.on_disconnect.is_some()
     }
 
     /// Suspends the current async task until the contained value has been
@@ -1643,11 +1646,11 @@ impl<T> DynamicReader<T> {
     where
         OnDisconnect: FnOnce() + Send + 'static,
     {
-        self.source
-            .state()
-            .expect("deadlocked")
-            .on_disconnect
-            .push(OnceCallback::new(|()| on_disconnect()));
+        let mut state = self.source.state().expect("deadlocked");
+
+        if let Some(callbacks) = &mut state.on_disconnect {
+            callbacks.push(OnceCallback::new(|()| on_disconnect()));
+        }
     }
 }
 
@@ -1705,7 +1708,9 @@ impl<'a, T> Future for BlockUntilUpdatedFuture<'a, T> {
         let mut state = self.0.source.state().expect("deadlocked");
         if state.wrapped.generation != self.0.read_generation {
             return Poll::Ready(true);
-        } else if state.readers == Arc::strong_count(&self.0.source) {
+        } else if state.readers == Arc::strong_count(&self.0.source)
+            || state.on_disconnect.is_none()
+        {
             return Poll::Ready(false);
         }
 
