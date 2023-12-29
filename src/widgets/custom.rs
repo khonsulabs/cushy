@@ -527,6 +527,8 @@ impl WrapperWidget for Custom {
     fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
         if let Some(unmounted) = &mut self.unmounted {
             unmounted.invoke(context);
+        } else {
+            self.child_mut().unmount_in(context);
         }
     }
 

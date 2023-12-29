@@ -541,6 +541,10 @@ impl Widget for Button {
     fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {
         self.update_colors(context, false);
     }
+
+    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+        self.content.unmount_in(context);
+    }
 }
 
 define_components! {

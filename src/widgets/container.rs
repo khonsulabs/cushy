@@ -206,6 +206,10 @@ impl Widget for Container {
             .finish()
     }
 
+    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+        self.child.unmount_in(context);
+    }
+
     fn full_control_redraw(&self) -> bool {
         true
     }

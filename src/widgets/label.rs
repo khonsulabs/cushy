@@ -41,10 +41,7 @@ impl Label {
                 if prepared.can_render_to(&context.gfx)
                     && *prepared_generation == check_generation
                     && *prepared_color == color
-                    && (*prepared_width == width
-                        || (*prepared_width < width
-                            || (prepared.size.width <= width
-                                && prepared.line_height == prepared.size.height))) => {}
+                    && *prepared_width == width => {}
             _ => {
                 context.apply_current_font_settings();
                 let measured = self.text.map(|text| {

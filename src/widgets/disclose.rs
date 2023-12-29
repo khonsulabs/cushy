@@ -10,7 +10,7 @@ use kludgine::{Color, DrawableExt};
 
 use super::button::{ButtonActiveBackground, ButtonBackground, ButtonHoverBackground};
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
-use crate::context::LayoutContext;
+use crate::context::{EventContext, LayoutContext};
 use crate::styles::components::{HighlightColor, IntrinsicPadding, LineHeight, OutlineColor};
 use crate::styles::Dimension;
 use crate::value::{Dynamic, IntoDynamic, IntoValue, Value};
@@ -161,6 +161,13 @@ impl DiscloseIndicator {
 }
 
 impl Widget for DiscloseIndicator {
+    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+        if let Some(label) = &mut self.label {
+            label.unmount_in(context);
+        }
+        self.contents.unmount_in(context);
+    }
+
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
         let angle = self.angle.get_tracking_redraw(context);
         let (color, stroke_color) = self.effective_colors(context);
@@ -263,23 +270,19 @@ impl Widget for DiscloseIndicator {
         )
     }
 
-    fn accept_focus(&mut self, _context: &mut crate::context::EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, _context: &mut EventContext<'_, '_>) -> bool {
         true
     }
 
-    fn focus(&mut self, context: &mut crate::context::EventContext<'_, '_>) {
+    fn focus(&mut self, context: &mut EventContext<'_, '_>) {
         context.set_needs_redraw();
     }
 
-    fn blur(&mut self, context: &mut crate::context::EventContext<'_, '_>) {
+    fn blur(&mut self, context: &mut EventContext<'_, '_>) {
         context.set_needs_redraw();
     }
 
-    fn hit_test(
-        &mut self,
-        location: Point<Px>,
-        context: &mut crate::context::EventContext<'_, '_>,
-    ) -> bool {
+    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
         let size = context
             .get(&IndicatorSize)
             .into_px(context.kludgine.scale())
@@ -296,7 +299,7 @@ impl Widget for DiscloseIndicator {
     fn hover(
         &mut self,
         location: Point<Px>,
-        context: &mut crate::context::EventContext<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) -> Option<CursorIcon> {
         let hovering = self.hit_test(location, context);
         if self.hovering_indicator != hovering {
@@ -307,7 +310,7 @@ impl Widget for DiscloseIndicator {
         hovering.then_some(CursorIcon::Pointer)
     }
 
-    fn unhover(&mut self, context: &mut crate::context::EventContext<'_, '_>) {
+    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
         if self.hovering_indicator {
             self.hovering_indicator = false;
             context.set_needs_redraw();
@@ -319,7 +322,7 @@ impl Widget for DiscloseIndicator {
         location: Point<Px>,
         _device_id: kludgine::app::winit::event::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        context: &mut crate::context::EventContext<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) -> EventHandling {
         if self.hit_test(location, context) {
             self.mouse_buttons_pressed += 1;
@@ -336,7 +339,7 @@ impl Widget for DiscloseIndicator {
         _location: Option<Point<Px>>,
         _device_id: kludgine::app::winit::event::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        context: &mut crate::context::EventContext<'_, '_>,
+        context: &mut EventContext<'_, '_>,
     ) {
         self.mouse_buttons_pressed -= 1;
         if self.mouse_buttons_pressed == 0 {
@@ -345,7 +348,7 @@ impl Widget for DiscloseIndicator {
         }
     }
 
-    fn activate(&mut self, _context: &mut crate::context::EventContext<'_, '_>) {
+    fn activate(&mut self, _context: &mut EventContext<'_, '_>) {
         if self.mouse_buttons_pressed == 0 {
             self.collapsed.toggle();
         }

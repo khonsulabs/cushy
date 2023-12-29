@@ -144,6 +144,10 @@ impl Scroll {
 }
 
 impl Widget for Scroll {
+    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+        self.contents.unmount_in(context);
+    }
+
     fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
         true
     }
