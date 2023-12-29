@@ -19,7 +19,9 @@ use kempt::{Map, Sort};
 use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
 use crate::context::{self, WidgetContext};
 use crate::utils::{run_in_bg, IgnorePoison, WithClone};
-use crate::widget::{Children, MakeWidget, MakeWidgetWithTag, WidgetId, WidgetInstance};
+use crate::widget::{
+    Children, MakeWidget, MakeWidgetWithTag, OnceCallback, WidgetId, WidgetInstance,
+};
 use crate::widgets::{Radio, Select, Space, Switcher};
 use crate::window::WindowHandle;
 
@@ -41,6 +43,7 @@ impl<T> Dynamic<T> {
                 readers: 0,
                 wakers: Vec::new(),
                 widgets: AHashSet::new(),
+                on_disconnect: Vec::new(),
                 source_callback: CallbackHandle::default(),
             }),
             during_callback_state: Mutex::default(),
@@ -232,6 +235,28 @@ impl<T> Dynamic<T> {
         T: Clone + Send + 'static,
     {
         self.map_each(|value| U::from(value))
+    }
+
+    /// Returns a new dynamic that contains a weak clone of `self`'s contents.
+    ///
+    /// The returned `Dynamic` does not use any strong references, ensuring the
+    /// returned dynamic does not extend the lifetime of `self`.
+    #[must_use]
+    pub fn weak_clone(&self) -> Self
+    where
+        T: Clone + PartialEq + Send + 'static,
+    {
+        let weak_source = self.downgrade();
+        let weak_out = Dynamic::new(self.get());
+        weak_out.set_source(self.0.for_each({
+            let weak_out = weak_out.clone();
+            move || {
+                if let Some(source) = weak_source.upgrade() {
+                    weak_out.set(source.get());
+                }
+            }
+        }));
+        weak_out
     }
 
     /// Attaches `for_each` to this value so that it is invoked each time the
@@ -756,9 +781,15 @@ impl<T> Clone for Dynamic<T> {
 
 impl<T> Drop for Dynamic<T> {
     fn drop(&mut self) {
-        let state = self.state().expect("deadlocked");
-        if state.readers == 0 {
+        let mut state = self.state().expect("deadlocked");
+        if Arc::strong_count(&self.0) == state.readers + 1 {
+            let on_disconnect = std::mem::take(&mut state.on_disconnect);
             drop(state);
+
+            for on_disconnect in on_disconnect {
+                on_disconnect.invoke(());
+            }
+
             self.0.sync.notify_all();
         }
     }
@@ -1117,6 +1148,7 @@ struct State<T> {
     windows: AHashSet<WindowHandle>,
     widgets: AHashSet<(WindowHandle, WidgetId)>,
     wakers: Vec<Waker>,
+    on_disconnect: Vec<OnceCallback>,
     readers: usize,
 }
 
@@ -1550,12 +1582,38 @@ impl<T> DynamicReader<T> {
         }
     }
 
+    /// Returns true if this reader still has any writers connected to it.
+    #[must_use]
+    pub fn connected(&self) -> bool {
+        self.source.state.lock().ignore_poison().readers < Arc::strong_count(&self.source)
+    }
+
     /// Suspends the current async task until the contained value has been
     /// updated or there are no remaining writers for the value.
     ///
     /// Returns true if a newly updated value was discovered.
     pub fn wait_until_updated(&mut self) -> BlockUntilUpdatedFuture<'_, T> {
         BlockUntilUpdatedFuture(self)
+    }
+
+    /// Invokes `on_disconnect` when no instances of `Dynamic<T>` exist.
+    ///
+    /// This callback will be invoked even if this `DynamicReader` has been
+    /// dropped.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    pub fn on_disconnect<OnDisconnect>(&self, on_disconnect: OnDisconnect)
+    where
+        OnDisconnect: FnOnce() + Send + 'static,
+    {
+        self.source
+            .state()
+            .expect("deadlocked")
+            .on_disconnect
+            .push(OnceCallback::new(|()| on_disconnect()));
     }
 }
 

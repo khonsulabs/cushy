@@ -139,7 +139,7 @@ pub type WindowAttributes = kludgine::app::WindowAttributes;
 
 /// A Cushy window that is not yet running.
 #[must_use]
-pub struct Window<Behavior>
+pub struct Window<Behavior = WidgetInstance>
 where
     Behavior: WindowBehavior,
 {
@@ -147,6 +147,8 @@ where
     pending: PendingWindow,
     /// The attributes of this window.
     pub attributes: WindowAttributes,
+    /// The title to display in the title bar of the window.
+    pub title: Value<String>,
     /// The colors to use to theme the user interface.
     pub theme: Value<ThemePair>,
     /// When true, the system fonts will be loaded into the font database. This
@@ -280,6 +282,12 @@ impl Window<WidgetInstance> {
         self.on_closed = Some(OnceCallback::new(|()| on_close()));
         self
     }
+
+    /// Sets the window's title.
+    pub fn titled(mut self, title: impl IntoValue<String>) -> Self {
+        self.title = title.into_value();
+        self
+    }
 }
 
 impl<Behavior> Window<Behavior>
@@ -310,10 +318,8 @@ where
             .clone();
         Self {
             pending,
-            attributes: WindowAttributes {
-                title,
-                ..WindowAttributes::default()
-            },
+            title: Value::Constant(title),
+            attributes: WindowAttributes::default(),
             on_closed: None,
             context,
             load_system_fonts: true,
@@ -363,6 +369,7 @@ where
                 user: self.context,
                 settings: RefCell::new(sealed::WindowSettings {
                     cushy,
+                    title: self.title,
                     redraw_status: self.pending.0.redraw_status.clone(),
                     on_closed: self.on_closed,
                     transparent: self.attributes.transparent,
@@ -781,6 +788,14 @@ where
         context: Self::Context,
     ) -> Self {
         let mut settings = context.settings.borrow_mut();
+        if let Value::Dynamic(title) = &settings.title {
+            let handle = window.handle();
+            title
+                .for_each_cloned(move |title| {
+                    let _result = handle.send(WindowCommand::SetTitle(title));
+                })
+                .persist();
+        }
         let cushy = settings.cushy.clone();
         let occluded = settings.occluded.take().unwrap_or_default();
         let focused = settings.focused.take().unwrap_or_default();
@@ -985,15 +1000,12 @@ where
     }
 
     fn initial_window_attributes(context: &Self::Context) -> kludgine::app::WindowAttributes {
-        let mut attrs = context
-            .settings
-            .borrow_mut()
-            .attributes
-            .take()
-            .expect("called more than once");
-        if let Some(Value::Constant(theme_mode)) = &context.settings.borrow().theme_mode {
+        let mut settings = context.settings.borrow_mut();
+        let mut attrs = settings.attributes.take().expect("called more than once");
+        if let Some(Value::Constant(theme_mode)) = &settings.theme_mode {
             attrs.preferred_theme = Some((*theme_mode).into());
         }
+        attrs.title = settings.title.get();
         attrs
     }
 
@@ -1398,6 +1410,9 @@ where
                     window.close();
                 }
             }
+            WindowCommand::SetTitle(new_title) => {
+                window.set_title(&new_title);
+            }
         }
     }
 }
@@ -1449,6 +1464,7 @@ pub(crate) mod sealed {
     pub struct WindowSettings {
         pub cushy: Cushy,
         pub redraw_status: InvalidationStatus,
+        pub title: Value<String>,
         pub attributes: Option<WindowAttributes>,
         pub occluded: Option<Dynamic<bool>>,
         pub focused: Option<Dynamic<bool>>,
@@ -1469,6 +1485,7 @@ pub(crate) mod sealed {
     pub enum WindowCommand {
         Redraw,
         RequestClose,
+        SetTitle(String),
     }
 }
 

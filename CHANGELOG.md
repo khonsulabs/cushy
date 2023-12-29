@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The root widget is now included in the search for widgets to accept focus.
 - Widgets that have been laid out with a 0px width or height no longer have
   their `redraw` functions called nor can they receive focus.
+- `Grid` now synchronizes removal of widgets from `GridWidgets` correctly.
 
 ### Added
 
@@ -27,6 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   focused widget will be activated and deactived by the events. This previously
   was a `Button`-specific behavior that has been refactored into an automatic
   behavior for all widgets.
+- `GridWidgets` now implements `FromIterator` for types that implement
+  `Into<GridSection<N>>`.
+- `Window::titled` allows setting a window's title, and can be provided a
+  string-type or a `Dynamic<String>` to allow updating the title while the
+  window is open.
+- `Dynamic::weak_clone` returns a new dynamic that is updated from the original
+  dynamic, but is careful to not add any strong references to the source
+  `Dynamic`. This allows breaking dynamic graphs into independent "sections"
+  that can be deallocated independently of other graphs it is connected with.
+- `DynamicReader::on_disconnect` allows attaching a callback that is invoked
+  once the final source `Dynamic` is dropped.
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 

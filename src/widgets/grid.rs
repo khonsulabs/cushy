@@ -69,10 +69,10 @@ impl<const ELEMENTS: usize> Grid<ELEMENTS> {
 
     fn synchronize_specs(&mut self, context: &mut EventContext<'_, '_>) {
         let current_generation = self.columns.generation();
-        if current_generation.map_or_else(
-            || self.layout.children.len() != ELEMENTS,
-            |gen| Some(gen) != self.spec_generation,
-        ) {
+        let count_changed = self.layout.children.len() != ELEMENTS;
+        if count_changed
+            || current_generation.map_or_else(|| true, |gen| Some(gen) != self.spec_generation)
+        {
             self.spec_generation = current_generation;
             self.columns.map(|columns| {
                 self.layout.truncate(0);
@@ -819,6 +819,15 @@ where
 {
     fn from(value: T) -> Self {
         Self(vec![value.into()])
+    }
+}
+
+impl<A, const N: usize> FromIterator<A> for GridWidgets<N>
+where
+    A: Into<GridSection<N>>,
+{
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        Self(iter.into_iter().map(A::into).collect())
     }
 }
 
