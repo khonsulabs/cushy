@@ -60,6 +60,30 @@ impl<T> Dynamic<T> {
         WeakDynamic::from(self)
     }
 
+    /// Returns the number [`Dynamic`]s that point to this same value.
+    ///
+    /// The returned count includes `self`.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    #[must_use]
+    pub fn instances(&self) -> usize {
+        Arc::strong_count(&self.0) - self.readers()
+    }
+
+    /// Returns the number of [`DynamicReader`]s for this value.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if this value is already locked by the current
+    /// thread.
+    #[must_use]
+    pub fn readers(&self) -> usize {
+        self.state().expect("deadlocked").readers
+    }
+
     /// Returns a new dynamic that has its contents linked with `self` by the
     /// pair of mapping functions provided.
     ///
@@ -2800,4 +2824,33 @@ fn compare_swap() {
     assert_eq!(dynamic.compare_swap(&1, 0), Err(2));
     assert_eq!(dynamic.compare_swap(&2, 0), Ok(2));
     assert_eq!(dynamic.get(), 0);
+}
+
+#[test]
+fn ref_counts() {
+    let dynamic = Dynamic::new(1);
+    assert_eq!(dynamic.instances(), 1);
+
+    let second = dynamic.clone();
+    assert_eq!(dynamic.instances(), 2);
+
+    assert_eq!(dynamic.readers(), 0);
+    let reader = second.into_reader();
+    assert_eq!(dynamic.instances(), 1);
+    assert_eq!(dynamic.readers(), 1);
+
+    // Test that once the last instance is dropped that the reader is no longer
+    // connected and that on_disconnect gets invoked.
+    assert!(reader.connected());
+    let invoked = Dynamic::new(false);
+    reader.on_disconnect({
+        let invoked = invoked.clone();
+        move || {
+            invoked.set(true);
+        }
+    });
+    drop(dynamic);
+
+    assert!(invoked.get());
+    assert!(!reader.connected());
 }

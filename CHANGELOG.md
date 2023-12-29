@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that can be deallocated independently of other graphs it is connected with.
 - `DynamicReader::on_disconnect` allows attaching a callback that is invoked
   once the final source `Dynamic` is dropped.
+- `Dynamic::instances()` returns the number of clones the dynamic has in
+  existence.
+- `Dynamic::readers()` returns the number of `DynamicReader`s for the dynamic in
+  existence.
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 

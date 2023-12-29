@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use alot::OrderedLots;
 
-use crate::value::{Dynamic, DynamicReader, ForEach};
+use crate::value::{Dynamic, DynamicReader, ForEach, WeakDynamic};
 use crate::widget::{Children, MakeWidget, WidgetInstance};
 use crate::widgets::grid::{Grid, GridWidgets};
 use crate::window::Window;
@@ -83,6 +83,15 @@ impl DebugContext {
             .into_window()
             .titled("Cushy Debugger")
     }
+
+    /// Returns true if this debug context has no child sections or observed
+    /// values.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.section.map_ref(|section| {
+            section.children.map_ref(OrderedLots::len) + section.values.map_ref(OrderedLots::len)
+        }) == 0
+    }
 }
 
 impl Open for DebugContext {
@@ -95,6 +104,22 @@ impl Open for DebugContext {
 
     fn run_in(self, app: crate::PendingApp) -> crate::Result {
         self.into_window().run_in(app)
+    }
+}
+
+impl Drop for DebugContext {
+    fn drop(&mut self) {
+        // If the only two references are this context and the parent owning the
+        // child section, then we want to remove the section if nothing was
+        // added to it.
+        if self.section.instances() == 2 {
+            let section = self.section.lock();
+            if let Some(parent) = section.parent.clone() {
+                let label = section.label.clone();
+                drop(section);
+                DebugSection::remove_child_section(&parent, &label);
+            }
+        }
     }
 }
 
@@ -132,6 +157,7 @@ struct DebugSection {
     children: Dynamic<OrderedLots<Dynamic<DebugSection>>>,
     values: Dynamic<OrderedLots<Box<dyn Observable>>>,
     widget: WidgetInstance,
+    parent: Option<WeakDynamic<DebugSection>>,
 }
 
 impl Default for DebugSection {
@@ -162,23 +188,13 @@ impl DebugSection {
 
         let parent = parent.map(Dynamic::downgrade);
         // Create a cleanup task to remove this section once it becomes empty.
-        if let Some(parent) = parent {
+        if let Some(parent) = parent.clone() {
             let label = label.clone();
             (&children, &values)
                 .for_each({
                     move |(children, values)| {
                         if children.is_empty() && values.is_empty() {
-                            if let Some(parent) = parent.upgrade() {
-                                let parent = parent.lock();
-                                let mut children = parent.children.lock();
-                                if let Some(index) =
-                                    children.iter().enumerate().find_map(|(index, child)| {
-                                        child.map_ref(|child| child.label == label).then_some(index)
-                                    })
-                                {
-                                    children.remove_by_index(index);
-                                }
-                            }
+                            Self::remove_child_section(&parent, &label);
                         }
                     }
                 })
@@ -204,6 +220,26 @@ impl DebugSection {
             children,
             values,
             widget,
+            parent,
         }
     }
+
+    fn remove_child_section(parent: &WeakDynamic<DebugSection>, label: &str) {
+        if let Some(parent) = parent.upgrade() {
+            let parent = parent.lock();
+            let mut children = parent.children.lock();
+            if let Some(index) = children.iter().enumerate().find_map(|(index, child)| {
+                child.map_ref(|child| child.label == label).then_some(index)
+            }) {
+                children.remove_by_index(index);
+            }
+        }
+    }
+}
+
+#[test]
+fn empty_child_clears_on_drop() {
+    let root = DebugContext::default();
+    drop(root.section("child"));
+    assert!(root.is_empty());
 }
