@@ -1289,6 +1289,9 @@ impl MulAssign for ZeroToOne {
 impl Div for ZeroToOne {
     type Output = Self;
 
+    /// Divides `self` by `rhs`.
+    ///
+    /// If `rhs` is `0.`, the result will be [`ZeroToOne::ONE`].
     fn div(mut self, rhs: Self) -> Self::Output {
         self /= rhs;
         self
@@ -1296,6 +1299,9 @@ impl Div for ZeroToOne {
 }
 
 impl DivAssign for ZeroToOne {
+    /// Divides `self` by `rhs`.
+    ///
+    /// If `rhs` is `0.`, the result will be [`ZeroToOne::ONE`].
     fn div_assign(&mut self, rhs: Self) {
         self.checked_div(rhs);
     }
@@ -1305,6 +1311,8 @@ impl Div<f32> for ZeroToOne {
     type Output = Self;
 
     /// Divides `self` by `rhs`.
+    ///
+    /// If `rhs` is `0.`, the result will be [`ZeroToOne::ONE`].
     ///
     /// # Panics
     ///
@@ -1317,6 +1325,8 @@ impl Div<f32> for ZeroToOne {
 
 impl DivAssign<f32> for ZeroToOne {
     /// Divides `self` by `rhs`.
+    ///
+    /// If `rhs` is `0.`, the result will be [`ZeroToOne::ONE`].
     ///
     /// # Panics
     ///
