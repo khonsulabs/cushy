@@ -243,7 +243,7 @@ impl Tree {
                     // For any widgets that were shared, remove them, as they don't
                     // need to have their events fired again.
                     let mut new_index = 0;
-                    while !old_hovered.is_empty() && old_hovered.get(0) == hovered.get(new_index) {
+                    while !old_hovered.is_empty() && old_hovered.first() == hovered.get(new_index) {
                         old_hovered.remove(0);
                         new_index += 1;
                     }
