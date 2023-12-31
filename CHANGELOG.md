@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   incorrectly.
 - A potential edge case where a `DynamicReader` would not return after being
   disconnected has been removed.
+- [#120][120]: Dividing a `ZeroToOne` now properly checks for `NaN` and `0.`.
 
 ### Changed
 
@@ -71,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   basis using `RunningWindow::kludgine_id()` as the key.
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
+[120]: https://github.com/khonsulabs/cushy/issues/120
 
 ## v0.2.0
 

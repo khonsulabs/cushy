@@ -1146,6 +1146,21 @@ impl ZeroToOne {
     pub fn one_minus(self) -> Self {
         Self(1. - self.0)
     }
+
+    fn checked_div<Float: PossiblyNaN>(&mut self, rhs: Float) {
+        let rhs = rhs.into();
+        if Float::CAN_BE_NAN {
+            assert!(!rhs.is_nan());
+        }
+        if rhs > 0. {
+            self.0 /= rhs;
+        } else if *self > 0. {
+            // The limit of f(x) -> x/0 is infinity, but the highest value we
+            // can represent is 1.0.
+            *self = Self::ONE;
+        }
+        // If both lhs and rhs are 0, this is a noop.
+    }
 }
 
 impl Zero for ZeroToOne {
@@ -1171,12 +1186,28 @@ impl FromStr for ZeroToOne {
 }
 
 impl From<f32> for ZeroToOne {
+    /// Returns a `ZeroToOne` clamped between 0.0 and 1.0.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `value` is not a number.
     fn from(value: f32) -> Self {
         Self::new(value)
     }
 }
 
+impl From<ZeroToOne> for f32 {
+    fn from(value: ZeroToOne) -> Self {
+        value.0
+    }
+}
+
 impl From<f64> for ZeroToOne {
+    /// Returns a `ZeroToOne` clamped between 0.0 and 1.0.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `value` is not a number.
     fn from(value: f64) -> Self {
         Self::new(value.cast())
     }
@@ -1258,23 +1289,53 @@ impl MulAssign for ZeroToOne {
 impl Div for ZeroToOne {
     type Output = Self;
 
-    fn div(self, rhs: Self) -> Self::Output {
-        self / rhs.0
+    fn div(mut self, rhs: Self) -> Self::Output {
+        self /= rhs;
+        self
     }
 }
 
 impl DivAssign for ZeroToOne {
     fn div_assign(&mut self, rhs: Self) {
-        self.0 /= rhs.0;
+        self.checked_div(rhs);
     }
 }
 
 impl Div<f32> for ZeroToOne {
     type Output = Self;
 
-    fn div(self, rhs: f32) -> Self::Output {
-        Self(self.0 / rhs)
+    /// Divides `self` by `rhs`.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `rhs` is not a number.
+    fn div(mut self, rhs: f32) -> Self::Output {
+        self /= rhs;
+        self
     }
+}
+
+impl DivAssign<f32> for ZeroToOne {
+    /// Divides `self` by `rhs`.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `rhs` is not a number.
+    fn div_assign(&mut self, rhs: f32) {
+        self.checked_div(rhs);
+    }
+}
+
+trait PossiblyNaN: Into<f32> {
+    const CAN_BE_NAN: bool;
+}
+
+impl PossiblyNaN for ZeroToOne {
+    const CAN_BE_NAN: bool = false;
+}
+
+impl PossiblyNaN for f32 {
+    const CAN_BE_NAN: bool = true;
 }
 
 impl Ranged for ZeroToOne {
@@ -1303,6 +1364,18 @@ impl From<ZeroToOne> for Component {
     fn from(value: ZeroToOne) -> Self {
         Component::Percent(value)
     }
+}
+
+#[test]
+fn zero_to_one_div() {
+    std::panic::catch_unwind(|| ZeroToOne::ONE / f32::NAN).expect_err("div by nan");
+    let mut value = ZeroToOne::ONE;
+    std::panic::catch_unwind(move || value /= f32::NAN).expect_err("div by nan");
+
+    assert_eq!(ZeroToOne::ZERO / ZeroToOne::ZERO, ZeroToOne::ZERO);
+    assert_eq!(ZeroToOne::new(0.5) / ZeroToOne::ZERO, ZeroToOne::ONE);
+    assert_eq!(ZeroToOne::ZERO / 0., ZeroToOne::ZERO);
+    assert_eq!(ZeroToOne::new(0.5) / 0., ZeroToOne::ONE);
 }
 
 /// An easing function for customizing animations.
