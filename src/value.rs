@@ -1594,16 +1594,18 @@ impl<T> DynamicReader<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     pub fn block_until_updated(&mut self) -> bool {
-        let mut deadlock_state = self.source.during_callback_state.lock().ignore_poison();
         assert!(
-            deadlock_state
+            self.source
+                .during_callback_state
+                .lock()
+                .ignore_poison()
                 .as_ref()
                 .map_or(true, |state| state.locked_thread
                     != std::thread::current().id()),
             "deadlocked"
         );
+        let mut state = self.source.state.lock().ignore_poison();
         loop {
-            let state = self.source.state.lock().ignore_poison();
             if state.wrapped.generation != self.read_generation {
                 return true;
             } else if state.readers == Arc::strong_count(&self.source)
@@ -1611,10 +1613,9 @@ impl<T> DynamicReader<T> {
             {
                 return false;
             }
-            drop(state);
 
             // Wait for a notification of a change, which is synch
-            deadlock_state = self.source.sync.wait(deadlock_state).ignore_poison();
+            state = self.source.sync.wait(state).ignore_poison();
         }
     }
 
