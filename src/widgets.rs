@@ -42,7 +42,6 @@ pub use custom::Custom;
 pub use data::Data;
 pub use disclose::Disclose;
 pub use expand::Expand;
-pub use image::Image;
 pub use input::Input;
 pub use label::Label;
 pub use layers::Layers;
@@ -61,3 +60,5 @@ pub use themed::Themed;
 pub use tilemap::TileMap;
 pub use validated::Validated;
 pub use wrap::Wrap;
+
+pub use self::image::Image;
