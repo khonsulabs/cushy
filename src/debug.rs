@@ -53,7 +53,7 @@ impl DebugContext {
             section.values.lock().push(Box::new(RegisteredValue {
                 label: label.into(),
                 value: reader.clone(),
-                widget: make_observer(value.weak_clone()).make_widget(),
+                widget: make_observer(value.clone()).make_widget(),
             }))
         });
         let this = self.clone();

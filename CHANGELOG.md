@@ -31,12 +31,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A potential edge case where a `DynamicReader` would not return after being
   disconnected has been removed.
 - [#120][120]: Dividing a `ZeroToOne` now properly checks for `NaN` and `0.`.
+- Removed a possible deadlock when using `DynamicReader::block_until_updated`.
+- Removed an edge case ensuring `Waker`s are signaled for `DynamicReader`s that
+  are waiting for value when the last `Dynamic` is dropped.
 
 ### Changed
 
 - `WidgetCacheKey` now includes the `KludgineId` of the context it was created
   from. This ensures if a `WidgetInstance` moves or is shared between windows,
   the cache is invalidated.
+- All `Dynamic` mapping functions now utilize weak references, and clean up as
+  necessary if a value is not able to be upgraded.
 
 ### Added
 
@@ -57,10 +62,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Window::titled` allows setting a window's title, and can be provided a
   string-type or a `Dynamic<String>` to allow updating the title while the
   window is open.
-- `Dynamic::weak_clone` returns a new dynamic that is updated from the original
-  dynamic, but is careful to not add any strong references to the source
-  `Dynamic`. This allows breaking dynamic graphs into independent "sections"
-  that can be deallocated independently of other graphs it is connected with.
 - `DynamicReader::on_disconnect` allows attaching a callback that is invoked
   once the final source `Dynamic` is dropped.
 - `Dynamic::instances()` returns the number of clones the dynamic has in
