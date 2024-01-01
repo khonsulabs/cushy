@@ -1,12 +1,9 @@
 //! Types that provide access to the Cushy runtime.
 use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
 
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
-use kempt::Set;
 use kludgine::app::winit::event::{
     DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
 };
@@ -22,7 +19,6 @@ use crate::styles::components::{
 };
 use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::tree::Tree;
-use crate::utils::IgnorePoison;
 use crate::value::{IntoValue, Value};
 use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
 use crate::window::{CursorState, RunningWindow, ThemeMode};
@@ -1267,46 +1263,6 @@ impl DerefMut for PendingState<'_> {
     }
 }
 
-#[derive(Default, Clone)]
-pub(crate) struct InvalidationStatus {
-    refresh_sent: Arc<AtomicBool>,
-    invalidated: Arc<Mutex<Set<WidgetId>>>,
-}
-
-impl InvalidationStatus {
-    pub fn should_send_refresh(&self) -> bool {
-        self.refresh_sent
-            .compare_exchange(false, true, Ordering::Release, Ordering::Acquire)
-            .is_ok()
-    }
-
-    pub fn refresh_received(&self) {
-        self.refresh_sent.store(false, Ordering::Release);
-    }
-
-    pub fn invalidate(&self, widget: WidgetId) -> bool {
-        let mut invalidated = self.invalidated.lock().ignore_poison();
-        invalidated.insert(widget)
-    }
-
-    pub fn invalidations(&self) -> MutexGuard<'_, Set<WidgetId>> {
-        self.invalidated.lock().ignore_poison()
-    }
-}
-
-impl Eq for InvalidationStatus {}
-
-impl PartialEq for InvalidationStatus {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.invalidated, &other.invalidated)
-    }
-}
-impl std::hash::Hash for InvalidationStatus {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        Arc::as_ptr(&self.invalidated).hash(state);
-    }
-}
-
 /// A type chat can convert to a [`MountedWidget`] through a [`WidgetContext`].
 pub trait ManageWidget {
     /// The managed type, which can be `Option<MountedWidget>` or
@@ -1393,11 +1349,57 @@ pub trait Trackable: sealed::Trackable {}
 impl<T> Trackable for T where T: sealed::Trackable {}
 
 pub(crate) mod sealed {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex, MutexGuard};
+
+    use kempt::Set;
+
+    use crate::utils::IgnorePoison;
     use crate::widget::WidgetId;
     use crate::window::WindowHandle;
 
     pub trait Trackable {
         fn redraw_when_changed(&self, handle: WindowHandle);
         fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId);
+    }
+
+    #[derive(Default, Clone)]
+    pub struct InvalidationStatus {
+        refresh_sent: Arc<AtomicBool>,
+        invalidated: Arc<Mutex<Set<WidgetId>>>,
+    }
+
+    impl InvalidationStatus {
+        pub fn should_send_refresh(&self) -> bool {
+            self.refresh_sent
+                .compare_exchange(false, true, Ordering::Release, Ordering::Acquire)
+                .is_ok()
+        }
+
+        pub fn refresh_received(&self) {
+            self.refresh_sent.store(false, Ordering::Release);
+        }
+
+        pub fn invalidate(&self, widget: WidgetId) -> bool {
+            let mut invalidated = self.invalidated.lock().ignore_poison();
+            invalidated.insert(widget)
+        }
+
+        pub fn invalidations(&self) -> MutexGuard<'_, Set<WidgetId>> {
+            self.invalidated.lock().ignore_poison()
+        }
+    }
+
+    impl Eq for InvalidationStatus {}
+
+    impl PartialEq for InvalidationStatus {
+        fn eq(&self, other: &Self) -> bool {
+            Arc::ptr_eq(&self.invalidated, &other.invalidated)
+        }
+    }
+    impl std::hash::Hash for InvalidationStatus {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            Arc::as_ptr(&self.invalidated).hash(state);
+        }
     }
 }

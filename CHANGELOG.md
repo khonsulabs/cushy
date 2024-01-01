@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed a possible deadlock when using `DynamicReader::block_until_updated`.
 - Removed an edge case ensuring `Waker`s are signaled for `DynamicReader`s that
   are waiting for value when the last `Dynamic` is dropped.
+- Compatibility with Rust v1.70.0 has been restored, and continuous integration
+  testing the MSRV has been added.
 
 ### Changed
 

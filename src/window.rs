@@ -29,9 +29,9 @@ use tracing::Level;
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
 use crate::app::{Application, Cushy, Open, PendingApp, Run};
+use crate::context::sealed::InvalidationStatus;
 use crate::context::{
-    AsEventContext, EventContext, Exclusive, GraphicsContext, InvalidationStatus, LayoutContext,
-    WidgetContext,
+    AsEventContext, EventContext, Exclusive, GraphicsContext, LayoutContext, WidgetContext,
 };
 use crate::graphics::{FontState, Graphics};
 use crate::styles::{Edges, FontFamilyList, ThemePair};
@@ -1472,7 +1472,7 @@ pub(crate) mod sealed {
     use figures::Size;
 
     use crate::app::Cushy;
-    use crate::context::InvalidationStatus;
+    use crate::context::sealed::InvalidationStatus;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
     use crate::widget::OnceCallback;
