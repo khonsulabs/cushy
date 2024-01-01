@@ -20,7 +20,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
-      - uses: dtolnay/rust-toolchain@${{ matrix.version }}
+
+      - uses: dtolnay/rust-toolchain
+        with:
+          toolchain: ${{ matrix.version }}
 
       - name: Run clippy
         if: matrix.version == 'stable'
