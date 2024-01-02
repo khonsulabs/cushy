@@ -19,7 +19,7 @@
 //!
 //! use cushy::animation::easings::EaseInOutElastic;
 //! use cushy::animation::{AnimationTarget, Spawn};
-//! use cushy::value::Dynamic;
+//! use cushy::value::{Dynamic, Source};
 //!
 //! let value = Dynamic::new(0);
 //! let mut reader = value.create_reader();

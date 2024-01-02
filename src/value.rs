@@ -814,7 +814,9 @@ impl<T> Dynamic<T> {
     /// code may produce slightly more readable code.
     ///
     /// ```rust
-    /// let value = cushy::value::Dynamic::new(1);
+    /// use cushy::value::{Dynamic, Source};
+    ///
+    /// let value = Dynamic::new(1);
     ///
     /// // Using with_clone
     /// value.with_clone(|value| {
