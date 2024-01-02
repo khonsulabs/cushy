@@ -1,5 +1,6 @@
 //! Types for storing and interacting with values in Widgets.
 
+use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 use std::fmt::{self, Debug, Display};
 use std::future::Future;
@@ -22,7 +23,7 @@ use crate::utils::{run_in_bg, IgnorePoison, WithClone};
 use crate::widget::{
     Children, MakeWidget, MakeWidgetWithTag, OnceCallback, WidgetId, WidgetInstance,
 };
-use crate::widgets::{Radio, Select, Space, Switcher};
+use crate::widgets::{Label, Radio, Select, Space, Switcher};
 use crate::window::WindowHandle;
 
 /// A source of one or more `T` values.
@@ -607,14 +608,14 @@ pub struct Mutable<'a, T> {
 
 #[derive(Debug)]
 enum Mutated<'a> {
-    Tracked(&'a mut bool),
+    External(&'a mut bool),
     Ignored,
 }
 
 impl Mutated<'_> {
     fn set(&mut self, mutated: bool) {
         match self {
-            Self::Tracked(value) => **value = mutated,
+            Self::External(value) => **value = mutated,
             Self::Ignored => {}
         }
     }
@@ -643,7 +644,7 @@ impl<'a, T> Mutable<'a, T> {
         *mutated = false;
         Self {
             value,
-            mutated: Mutated::Tracked(mutated),
+            mutated: Mutated::External(mutated),
         }
     }
 }
@@ -657,6 +658,201 @@ impl<'a, T> From<&'a mut T> for Mutable<'a, T> {
     }
 }
 
+/// A unique, reactive value.
+///
+/// This type is useful for situations where a value is owned by exactly one
+/// type but needs to have reactivity through [`Source`]/[`Destination`].
+///
+/// A [`Dynamic`] utilizes a [`Arc`] + [`Mutex`] to support updating its values
+/// from multiple threads. This type utilizes a [`RefCell`], preventing it from
+/// being shared between multiple threads.
+#[derive(Default)]
+pub struct Owned<T> {
+    wrapped: RefCell<GenerationalValue<T>>,
+    callbacks: Arc<OwnedCallbacks<T>>,
+}
+
+impl<T> Owned<T> {
+    /// Returns a new reactive value.
+    pub fn new(value: T) -> Self {
+        Self {
+            wrapped: RefCell::new(GenerationalValue {
+                value,
+                generation: Generation::default(),
+            }),
+            callbacks: Arc::default(),
+        }
+    }
+
+    /// Borrows the contents of this value with read-only access.
+    pub fn borrow(&self) -> OwnedRef<'_, T> {
+        OwnedRef(self.wrapped.borrow())
+    }
+
+    /// Borrows the contents of this value with exclusive access.
+    ///
+    /// When the returned type is accessed through [`DerefMut`], all associated
+    /// reactive callbacks will be invoked upon dropping the returned
+    /// [`OwnedMut`].
+    pub fn borrow_mut(&mut self) -> OwnedMut<'_, T> {
+        OwnedMut {
+            borrowed: self.wrapped.borrow_mut(),
+            accessed_mut: false,
+            owned: self,
+        }
+    }
+
+    /// Returns the contained value.
+    pub fn into_inner(self) -> T {
+        self.wrapped.into_inner().value
+    }
+}
+
+impl<T> Source<T> for Owned<T> {
+    fn try_map_generational<R>(
+        &self,
+        map: impl FnOnce(&GenerationalValue<T>) -> R,
+    ) -> Result<R, DeadlockError> {
+        Ok(map(&self.wrapped.borrow()))
+    }
+
+    fn for_each_generational_try<F>(&self, for_each: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: for<'a> FnMut(&'a GenerationalValue<T>) -> Result<(), CallbackDisconnected>
+            + Send
+            + 'static,
+    {
+        let mut callbacks = self.callbacks.active.lock().ignore_poison();
+        CallbackHandle(CallbackHandleInner::Single(CallbackHandleData {
+            id: Some(callbacks.push(Box::new(for_each))),
+            callbacks: self.callbacks.clone(),
+        }))
+    }
+
+    fn for_each_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Clone + Send + 'static,
+        F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.for_each_generational_try(move |value| for_each(value.clone()))
+    }
+}
+
+impl<T> Destination<T> for Owned<T>
+where
+    T: 'static,
+{
+    fn try_map_mut<R>(&self, map: impl FnOnce(Mutable<'_, T>) -> R) -> Result<R, DeadlockError> {
+        let mut updated = false;
+        let result = map(Mutable::new(
+            &mut self.wrapped.borrow_mut().value,
+            &mut updated,
+        ));
+        if updated {
+            self.callbacks.invoke(&self.wrapped.borrow());
+        }
+        Ok(result)
+    }
+}
+
+/// A read-only reference to the value in an [`Owned`].
+pub struct OwnedRef<'a, T>(Ref<'a, GenerationalValue<T>>)
+where
+    T: 'static;
+
+impl<T> Deref for OwnedRef<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// An exclusive reference to the value contained in an [`Owned`].
+///
+/// This type tracks if the referenced value is accessed through [`DerefMut`].
+/// If it is, reactive callbacks associated with the [`Owned`] value will be
+/// invoked.
+pub struct OwnedMut<'a, T>
+where
+    T: 'static,
+{
+    owned: &'a Owned<T>,
+    borrowed: RefMut<'a, GenerationalValue<T>>,
+    accessed_mut: bool,
+}
+
+impl<T> Deref for OwnedMut<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.borrowed.value
+    }
+}
+
+impl<T> DerefMut for OwnedMut<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.accessed_mut = true;
+        &mut self.borrowed.value
+    }
+}
+
+impl<T> Drop for OwnedMut<'_, T>
+where
+    T: 'static,
+{
+    fn drop(&mut self) {
+        if self.accessed_mut {
+            self.owned.callbacks.invoke(&self.borrowed);
+        }
+    }
+}
+
+struct OwnedCallbacks<T> {
+    active: Mutex<Lots<Box<dyn OwnedCallbackFn<T>>>>,
+}
+
+impl<T> Default for OwnedCallbacks<T> {
+    fn default() -> Self {
+        Self {
+            active: Mutex::default(),
+        }
+    }
+}
+
+impl<T> OwnedCallbacks<T>
+where
+    T: 'static,
+{
+    pub fn invoke(&self, value: &GenerationalValue<T>) {
+        let mut callbacks = self.active.lock().ignore_poison();
+        callbacks.drain_filter(|callback| callback.updated(value).is_err());
+    }
+}
+
+impl<T> CallbackCollection for OwnedCallbacks<T>
+where
+    T: 'static,
+{
+    fn remove(&self, id: LotId) {
+        self.active.lock().ignore_poison().remove(id);
+    }
+}
+
+trait OwnedCallbackFn<T>: Send + 'static {
+    fn updated(&mut self, value: &GenerationalValue<T>) -> Result<(), CallbackDisconnected>;
+}
+
+impl<F, T> OwnedCallbackFn<T> for F
+where
+    F: for<'a> FnMut(&'a GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
+{
+    fn updated(&mut self, value: &GenerationalValue<T>) -> Result<(), CallbackDisconnected> {
+        self(value)
+    }
+}
+
 /// An instance of a value that provides APIs to observe and react to its
 /// contents.
 pub struct Dynamic<T>(Arc<DynamicData<T>>);
@@ -665,19 +861,7 @@ impl<T> Dynamic<T> {
     /// Creates a new instance wrapping `value`.
     pub fn new(value: T) -> Self {
         Self(Arc::new(DynamicData {
-            state: Mutex::new(State {
-                wrapped: GenerationalValue {
-                    value,
-                    generation: Generation::default(),
-                },
-                callbacks: Arc::default(),
-                windows: AHashSet::new(),
-                readers: 0,
-                wakers: Vec::new(),
-                widgets: AHashSet::new(),
-                on_disconnect: Some(Vec::new()),
-                source_callback: CallbackHandle::default(),
-            }),
+            state: Mutex::new(State::new(value)),
             during_callback_state: Mutex::default(),
             sync: Condvar::default(),
         }))
@@ -839,14 +1023,6 @@ impl<T> Dynamic<T> {
         with_clone(self.clone())
     }
 
-    pub(crate) fn redraw_when_changed(&self, window: WindowHandle) {
-        self.0.redraw_when_changed(window);
-    }
-
-    pub(crate) fn invalidate_when_changed(&self, window: WindowHandle, widget: WidgetId) {
-        self.0.invalidate_when_changed(window, widget);
-    }
-
     /// Returns a new reference-based reader for this dynamic value.
     ///
     /// # Panics
@@ -884,6 +1060,10 @@ impl<T> Dynamic<T> {
     /// thread.
     #[must_use]
     pub fn lock(&self) -> DynamicGuard<'_, T> {
+        self.lock_inner()
+    }
+
+    fn lock_inner<const READONLY: bool>(&self) -> DynamicGuard<'_, T, READONLY> {
         DynamicGuard {
             guard: self.0.state().expect("deadlocked"),
             accessed_mut: false,
@@ -1007,12 +1187,12 @@ impl MakeWidgetWithTag for Dynamic<Option<WidgetInstance>> {
 }
 
 impl<T> context::sealed::Trackable for Dynamic<T> {
-    fn redraw_when_changed(&self, handle: WindowHandle) {
-        self.redraw_when_changed(handle);
+    fn inner_redraw_when_changed(&self, handle: WindowHandle) {
+        self.0.redraw_when_changed(handle);
     }
 
-    fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
-        self.invalidate_when_changed(handle, id);
+    fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
+        self.0.invalidate_when_changed(handle, id);
     }
 }
 
@@ -1240,6 +1420,10 @@ impl Display for DeadlockError {
     }
 }
 
+trait CallbackCollection: Send + Sync + 'static {
+    fn remove(&self, id: LotId);
+}
+
 /// A handle to a callback installed on a [`Dynamic`]. When dropped, the
 /// callback will be uninstalled.
 ///
@@ -1262,7 +1446,7 @@ enum CallbackHandleInner {
 
 struct CallbackHandleData {
     id: Option<LotId>,
-    callbacks: Arc<ChangeCallbacksData>,
+    callbacks: Arc<dyn CallbackCollection>,
 }
 
 impl Debug for CallbackHandle {
@@ -1328,8 +1512,7 @@ impl CallbackHandleData {
 impl Drop for CallbackHandleData {
     fn drop(&mut self) {
         if let Some(id) = self.id {
-            let mut data = self.callbacks.callbacks.lock().ignore_poison();
-            data.callbacks.remove(id);
+            self.callbacks.remove(id);
         }
     }
 }
@@ -1399,6 +1582,22 @@ struct State<T> {
 }
 
 impl<T> State<T> {
+    fn new(value: T) -> Self {
+        Self {
+            wrapped: GenerationalValue {
+                value,
+                generation: Generation::default(),
+            },
+            callbacks: Arc::default(),
+            windows: AHashSet::new(),
+            readers: 0,
+            wakers: Vec::new(),
+            widgets: AHashSet::new(),
+            on_disconnect: Some(Vec::new()),
+            source_callback: CallbackHandle::default(),
+        }
+    }
+
     fn note_changed(&mut self) -> ChangeCallbacks {
         self.wrapped.generation = self.wrapped.generation.next();
 
@@ -1479,6 +1678,13 @@ struct ChangeCallbacksData {
     callbacks: Mutex<CallbacksList>,
     currently_executing: Mutex<Option<ThreadId>>,
     sync: Condvar,
+}
+
+impl CallbackCollection for ChangeCallbacksData {
+    fn remove(&self, id: LotId) {
+        let mut data = self.callbacks.lock().ignore_poison();
+        data.callbacks.remove(id);
+    }
 }
 
 struct CallbacksList {
@@ -1569,7 +1775,7 @@ where
 }
 
 /// A value stored in a [`Dynamic`] with its [`Generation`].
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Default, Clone, Debug, Eq, PartialEq)]
 pub struct GenerationalValue<T> {
     /// The stored value.
     pub value: T,
@@ -1858,11 +2064,11 @@ impl<T> DynamicReader<T> {
 }
 
 impl<T> context::sealed::Trackable for DynamicReader<T> {
-    fn redraw_when_changed(&self, handle: WindowHandle) {
+    fn inner_redraw_when_changed(&self, handle: WindowHandle) {
         self.source.redraw_when_changed(handle);
     }
 
-    fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
+    fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
         self.source.invalidate_when_changed(handle, id);
     }
 }
@@ -1997,6 +2203,78 @@ impl Generation {
     }
 }
 
+/// A type that can convert into a `ReadOnly<T>`.
+pub trait IntoReadOnly<T> {
+    /// Returns `self` as a `ReadOnly`.
+    fn into_read_only(self) -> ReadOnly<T>;
+}
+
+impl<T> IntoReadOnly<T> for T {
+    fn into_read_only(self) -> ReadOnly<T> {
+        ReadOnly::Constant(self)
+    }
+}
+
+impl<T> IntoReadOnly<T> for ReadOnly<T> {
+    fn into_read_only(self) -> ReadOnly<T> {
+        self
+    }
+}
+
+impl<T> IntoReadOnly<T> for Value<T> {
+    fn into_read_only(self) -> ReadOnly<T> {
+        match self {
+            Value::Constant(value) => ReadOnly::Constant(value),
+            Value::Dynamic(dynamic) => ReadOnly::Reader(dynamic.into_reader()),
+        }
+    }
+}
+
+impl<T> IntoReadOnly<T> for Dynamic<T> {
+    fn into_read_only(self) -> ReadOnly<T> {
+        self.create_reader().into_read_only()
+    }
+}
+
+impl<T> IntoReadOnly<T> for DynamicReader<T> {
+    fn into_read_only(self) -> ReadOnly<T> {
+        ReadOnly::Reader(self)
+    }
+}
+
+impl<T> IntoReadOnly<T> for Owned<T> {
+    fn into_read_only(self) -> ReadOnly<T> {
+        ReadOnly::Constant(self.into_inner())
+    }
+}
+
+/// A type that can be converted into a [`DynamicReader<T>`].
+pub trait IntoReader<T> {
+    /// Returns this value as a reader.
+    fn into_reader(self) -> DynamicReader<T>;
+
+    /// Returns `self` being `Display`ed in a [`Label`] widget.
+    fn into_label(self) -> Label<T>
+    where
+        Self: Sized,
+        T: Debug + Display + Send + 'static,
+    {
+        Label::new(self.into_reader())
+    }
+}
+
+impl<T> IntoReader<T> for Dynamic<T> {
+    fn into_reader(self) -> DynamicReader<T> {
+        self.into_reader()
+    }
+}
+
+impl<T> IntoReader<T> for DynamicReader<T> {
+    fn into_reader(self) -> DynamicReader<T> {
+        self
+    }
+}
+
 /// A type that can convert into a `Dynamic<T>`.
 pub trait IntoDynamic<T> {
     /// Returns `self` as a dynamic.
@@ -2085,6 +2363,90 @@ impl GetWidget<usize> for Vec<WidgetInstance> {
 }
 
 impl<T, W> Switchable<T> for W where W: IntoDynamic<T> {}
+
+/// A value that can only be read from.
+pub enum ReadOnly<T> {
+    /// A value that will not ever change externally.
+    Constant(T),
+    /// A value that is read from a dynamic.
+    Reader(DynamicReader<T>),
+}
+
+impl<T> ReadOnly<T> {
+    /// Returns a clone of the currently stored value.
+    #[must_use]
+    pub fn get(&self) -> T
+    where
+        T: Clone,
+    {
+        match self {
+            Self::Constant(value) => value.clone(),
+            Self::Reader(value) => value.get(),
+        }
+    }
+
+    /// Returns the current generation of the data stored, if the contained
+    /// value is [`Dynamic`].
+    pub fn generation(&self) -> Option<Generation> {
+        match self {
+            Self::Constant(_) => None,
+            Self::Reader(value) => Some(value.generation()),
+        }
+    }
+
+    /// Maps the current contents to `map` and returns the result.
+    pub fn map<R>(&self, map: impl FnOnce(&T) -> R) -> R {
+        match self {
+            Self::Constant(value) => map(value),
+            Self::Reader(dynamic) => dynamic.map_ref(map),
+        }
+    }
+
+    /// Returns a new value that is updated using `U::from(T.clone())` each time
+    /// `self` is updated.
+    #[must_use]
+    pub fn map_each<R, F>(&self, mut map: F) -> ReadOnly<R>
+    where
+        T: Send + 'static,
+        F: for<'a> FnMut(&'a T) -> R + Send + 'static,
+        R: PartialEq + Send + 'static,
+    {
+        match self {
+            Self::Constant(value) => ReadOnly::Constant(map(value)),
+            Self::Reader(dynamic) => ReadOnly::Reader(dynamic.map_each(map).into_reader()),
+        }
+    }
+}
+
+impl<T> From<DynamicReader<T>> for ReadOnly<T> {
+    fn from(value: DynamicReader<T>) -> Self {
+        Self::Reader(value)
+    }
+}
+
+impl<T> From<Dynamic<T>> for ReadOnly<T> {
+    fn from(value: Dynamic<T>) -> Self {
+        Self::from(value.into_reader())
+    }
+}
+
+impl<T> From<Owned<T>> for ReadOnly<T> {
+    fn from(value: Owned<T>) -> Self {
+        Self::Constant(value.into_inner())
+    }
+}
+
+impl<T> Debug for ReadOnly<T>
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Constant(arg0) => Debug::fmt(arg0, f),
+            Self::Reader(arg0) => Debug::fmt(arg0, f),
+        }
+    }
+}
 
 /// A value that may be either constant or dynamic.
 pub enum Value<T> {
@@ -2205,23 +2567,39 @@ impl<T> Value<T> {
             Value::Dynamic(value) => Some(value.generation()),
         }
     }
+}
 
-    /// Marks the widget for redraw when this value is updated.
-    ///
-    /// This function has no effect if the value is constant.
-    pub fn redraw_when_changed(&self, context: &WidgetContext<'_, '_>) {
-        if let Value::Dynamic(dynamic) = self {
-            context.redraw_when_changed(dynamic);
+impl<T> crate::context::sealed::Trackable for ReadOnly<T> {
+    fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
+        if let ReadOnly::Reader(dynamic) = self {
+            dynamic.inner_invalidate_when_changed(handle, id);
         }
     }
 
-    /// Marks the widget for redraw when this value is updated.
-    ///
-    /// This function has no effect if the value is constant.
-    pub fn invalidate_when_changed(&self, context: &WidgetContext<'_, '_>) {
-        if let Value::Dynamic(dynamic) = self {
-            context.invalidate_when_changed(dynamic);
+    fn inner_redraw_when_changed(&self, handle: WindowHandle) {
+        if let ReadOnly::Reader(dynamic) = self {
+            dynamic.inner_redraw_when_changed(handle);
         }
+    }
+}
+
+impl<T> crate::context::sealed::Trackable for Value<T> {
+    fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
+        if let Value::Dynamic(dynamic) = self {
+            dynamic.inner_invalidate_when_changed(handle, id);
+        }
+    }
+
+    fn inner_redraw_when_changed(&self, handle: WindowHandle) {
+        if let Value::Dynamic(dynamic) = self {
+            dynamic.inner_redraw_when_changed(handle);
+        }
+    }
+}
+
+impl<T> From<Dynamic<T>> for Value<T> {
+    fn from(value: Dynamic<T>) -> Self {
+        Self::Dynamic(value)
     }
 }
 
@@ -2285,9 +2663,9 @@ impl<'a> IntoValue<String> for &'a str {
     }
 }
 
-impl IntoValue<String> for Dynamic<&'static str> {
-    fn into_value(self) -> Value<String> {
-        self.map_each(ToString::to_string).into_value()
+impl<'a> IntoReadOnly<String> for &'a str {
+    fn into_read_only(self) -> ReadOnly<String> {
+        ReadOnly::Constant(self.to_string())
     }
 }
 
@@ -2327,10 +2705,13 @@ pub trait ForEach<T> {
 }
 
 macro_rules! impl_tuple_for_each {
-    ($($type:ident $field:tt $var:ident),+) => {
-        impl<$($type,)+> ForEach<($($type,)+)> for ($(&Dynamic<$type>,)+)
+    ($($type:ident $source:ident $field:tt $var:ident),+) => {
+        impl<$($type,$source,)+> ForEach<($($type,)+)> for ($(&$source,)+)
         where
-            $($type: Send + 'static,)+
+            $(
+                $source: DynamicRead<$type> + Source<$type> + Clone + Send + 'static,
+                $type: Send + 'static,
+            )+
         {
             type Ref<'a> = ($(&'a $type,)+);
 
@@ -2408,7 +2789,7 @@ macro_rules! impl_tuple_for_each {
     ) => {
         $handles += $var.for_each((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
             move |$var: &$type| {
-                $(let $rvar = $rvar.lock();)+
+                $(let $rvar = $rvar.read();)+
                 let mut for_each =
                     for_each.lock().ignore_poison();
                 (for_each)(($(&$avar,)+));
@@ -2417,7 +2798,26 @@ macro_rules! impl_tuple_for_each {
     };
 }
 
-impl_all_tuples!(impl_tuple_for_each);
+/// Read access to a value stored in a [`Dynamic`].
+pub trait DynamicRead<T> {
+    /// Returns a guard that provides exclusive, read-only access to the value
+    /// contained wihtin this dynamic.
+    fn read(&self) -> DynamicGuard<'_, T, true>;
+}
+
+impl<T> DynamicRead<T> for Dynamic<T> {
+    fn read(&self) -> DynamicGuard<'_, T, true> {
+        self.lock_inner()
+    }
+}
+
+impl<T> DynamicRead<T> for DynamicReader<T> {
+    fn read(&self) -> DynamicGuard<'_, T, true> {
+        self.lock()
+    }
+}
+
+impl_all_tuples!(impl_tuple_for_each, 2);
 
 /// A type that can create a `Dynamic<U>` from a `T` passed into a mapping
 /// function.
@@ -2435,11 +2835,14 @@ pub trait MapEach<T, U> {
 }
 
 macro_rules! impl_tuple_map_each {
-    ($($type:ident $field:tt $var:ident),+) => {
-        impl<U, $($type),+> MapEach<($($type,)+), U> for ($(&Dynamic<$type>,)+)
+    ($($type:ident $source:ident $field:tt $var:ident),+) => {
+        impl<U, $($type,$source),+> MapEach<($($type,)+), U> for ($(&$source,)+)
         where
             U: PartialEq + Send + 'static,
-            $($type: Send + 'static),+
+            $(
+                $type: Send + 'static,
+                $source: DynamicRead<$type> + Source<$type> + Clone + Send + 'static,
+            )+
         {
             type Ref<'a> = ($(&'a $type,)+);
 
@@ -2448,7 +2851,7 @@ macro_rules! impl_tuple_map_each {
                 F: for<'a> FnMut(Self::Ref<'a>) -> U + Send + 'static,
             {
                 let dynamic = {
-                    $(let $var = self.$field.lock();)+
+                    $(let $var = self.$field.read();)+
 
                     Dynamic::new(map_each(($(&$var,)+)))
                 };
@@ -2465,7 +2868,7 @@ macro_rules! impl_tuple_map_each {
     };
 }
 
-impl_all_tuples!(impl_tuple_map_each);
+impl_all_tuples!(impl_tuple_map_each, 2);
 
 /// A type that can have a `for_each` operation applied to it.
 pub trait ForEachCloned<T> {
@@ -2476,10 +2879,13 @@ pub trait ForEachCloned<T> {
 }
 
 macro_rules! impl_tuple_for_each_cloned {
-    ($($type:ident $field:tt $var:ident),+) => {
-        impl<$($type,)+> ForEachCloned<($($type,)+)> for ($(&Dynamic<$type>,)+)
+    ($($type:ident $source:ident $field:tt $var:ident),+) => {
+        impl<$($type,$source,)+> ForEachCloned<($($type,)+)> for ($(&$source,)+)
         where
-            $($type: Clone + Send + 'static,)+
+            $(
+                $type: Clone + Send + 'static,
+                $source: Source<$type> + Clone + Send + 'static,
+            )+
         {
 
             #[allow(unused_mut)]
@@ -2566,7 +2972,7 @@ macro_rules! impl_tuple_for_each_cloned {
     };
 }
 
-impl_all_tuples!(impl_tuple_for_each_cloned);
+impl_all_tuples!(impl_tuple_for_each_cloned, 2);
 
 /// A type that can create a `Dynamic<U>` from a `T` passed into a mapping
 /// function.
@@ -2579,11 +2985,14 @@ pub trait MapEachCloned<T, U> {
 }
 
 macro_rules! impl_tuple_map_each_cloned {
-    ($($type:ident $field:tt $var:ident),+) => {
-        impl<U, $($type),+> MapEachCloned<($($type,)+), U> for ($(&Dynamic<$type>,)+)
+    ($($type:ident $source:ident $field:tt $var:ident),+) => {
+        impl<U, $($type,$source),+> MapEachCloned<($($type,)+), U> for ($(&$source,)+)
         where
             U: PartialEq + Send + 'static,
-            $($type: Clone + Send + 'static),+
+            $(
+                $type: Clone + Send + 'static,
+                $source: Source<$type> + Clone + Send + 'static,
+            )+
         {
 
             fn map_each_cloned<F>(&self, mut map_each: F) -> Dynamic<U>
@@ -2608,7 +3017,7 @@ macro_rules! impl_tuple_map_each_cloned {
     };
 }
 
-impl_all_tuples!(impl_tuple_map_each_cloned);
+impl_all_tuples!(impl_tuple_map_each_cloned, 2);
 
 /// The status of validating data.
 #[derive(Debug, Default, Clone, Eq, PartialEq)]

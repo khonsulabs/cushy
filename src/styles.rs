@@ -20,7 +20,7 @@ pub use palette::OklabHue;
 use palette::{IntoColor, Okhsl, Srgb};
 
 use crate::animation::{EasingFunction, ZeroToOne};
-use crate::context::WidgetContext;
+use crate::context::{Trackable, WidgetContext};
 use crate::names::Name;
 use crate::utils::Lazy;
 use crate::value::{Dynamic, IntoValue, Source, Value};

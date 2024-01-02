@@ -7,18 +7,32 @@ use kludgine::app::winit::event::Modifiers;
 use kludgine::app::winit::keyboard::ModifiersState;
 
 /// Invokes the provided macro with a pattern that can be matched using this
-/// `macro_rules!` expression: `$($type:ident $field:tt $var:ident),+`, where `$type` is an
-/// identifier to use for the generic parameter and `$field` is the field index
-/// inside of the tuple.
+/// `macro_rules!` expression: `$($type:ident $field:tt $var:ident),+`, where
+/// `$type` is an identifier to use for the generic parameter and `$field` is
+/// the field index inside of the tuple.
+///
+/// If `impl_all_tuples!(macro_name, 2)` is provided, an additional identifier
+/// will be provided before `$field`.
 macro_rules! impl_all_tuples {
     ($macro_name:ident) => {
+        impl_all_tuples!($macro_name, 1);
+    };
+    ($macro_name:ident, 1) => {
         $macro_name!(T0 0 t0);
         $macro_name!(T0 0 t0, T1 1 t1);
         $macro_name!(T0 0 t0, T1 1 t1, T2 2 t2);
         $macro_name!(T0 0 t0, T1 1 t1, T2 2 t2, T3 3 t3);
         $macro_name!(T0 0 t0, T1 1 t1, T2 2 t2, T3 3 t3, T4 4 t4);
         $macro_name!(T0 0 t0, T1 1 t1, T2 2 t2, T3 3 t3, T4 4 t4, T5 5 t5);
-    }
+    };
+    ($macro_name:ident, 2) => {
+        $macro_name!(T0 Y0 0 t0);
+        $macro_name!(T0 Y0 0 t0, T1 Y1 1 t1);
+        $macro_name!(T0 Y0 0 t0, T1 Y1 1 t1, T2 Y2 2 t2);
+        $macro_name!(T0 Y0 0 t0, T1 Y1 1 t1, T2 Y2 2 t2, T3 Y3 3 t3);
+        $macro_name!(T0 Y0 0 t0, T1 Y1 1 t1, T2 Y2 2 t2, T3 Y3 3 t3, T4 Y4 4 t4);
+        $macro_name!(T0 Y0 0 t0, T1 Y1 1 t1, T2 Y2 2 t2, T3 Y3 3 t3, T4 Y4 4 t4, T5 Y5 5 t5);
+    };
 }
 
 /// Invokes a function with a clone of `self`.

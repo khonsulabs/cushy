@@ -1,30 +1,37 @@
 //! A read-only text widget.
 
+use std::fmt::Write;
+
 use figures::units::{Px, UPx};
 use figures::{Point, Round, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{CanRenderTo, Color, DrawableExt};
 
-use crate::context::{GraphicsContext, LayoutContext};
+use crate::context::{GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::TextColor;
-use crate::value::{Dynamic, Generation, IntoValue, Value};
+use crate::value::{Dynamic, Generation, IntoReadOnly, ReadOnly, Value};
 use crate::widget::{Widget, WidgetInstance};
 use crate::window::WindowLocal;
 use crate::ConstraintLimit;
 
 /// A read-only text widget.
 #[derive(Debug)]
-pub struct Label {
+pub struct Label<T> {
     /// The contents of the label.
-    pub text: Value<String>,
+    pub display: ReadOnly<T>,
+    displayed: String,
     prepared_text: WindowLocal<(MeasuredText<Px>, Option<Generation>, Px, Color)>,
 }
 
-impl Label {
+impl<T> Label<T>
+where
+    T: std::fmt::Debug + std::fmt::Display + Send + 'static,
+{
     /// Returns a new label that displays `text`.
-    pub fn new(text: impl IntoValue<String>) -> Self {
+    pub fn new(text: impl IntoReadOnly<T>) -> Self {
         Self {
-            text: text.into_value(),
+            display: text.into_read_only(),
+            displayed: String::new(),
             prepared_text: WindowLocal::default(),
         }
     }
@@ -35,7 +42,7 @@ impl Label {
         color: Color,
         width: Px,
     ) -> &MeasuredText<Px> {
-        let check_generation = self.text.generation();
+        let check_generation = self.display.generation();
         match self.prepared_text.get(context) {
             Some((prepared, prepared_generation, prepared_width, prepared_color))
                 if prepared.can_render_to(&context.gfx)
@@ -44,10 +51,14 @@ impl Label {
                     && *prepared_width == width => {}
             _ => {
                 context.apply_current_font_settings();
-                let measured = self.text.map(|text| {
+                let measured = self.display.map(|text| {
+                    self.displayed.clear();
+                    if let Err(err) = write!(&mut self.displayed, "{text}") {
+                        tracing::error!("Error invoking Display: {err}");
+                    }
                     context
                         .gfx
-                        .measure_text(Text::new(text, color).wrap_at(width))
+                        .measure_text(Text::new(&self.displayed, color).wrap_at(width))
                 });
                 self.prepared_text
                     .set(context, (measured, check_generation, width, color));
@@ -61,9 +72,12 @@ impl Label {
     }
 }
 
-impl Widget for Label {
+impl<T> Widget for Label<T>
+where
+    T: std::fmt::Debug + std::fmt::Display + Send + 'static,
+{
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        self.text.invalidate_when_changed(context);
+        self.display.invalidate_when_changed(context);
 
         let size = context.gfx.region().size;
         let center = Point::from(size) / 2;
@@ -90,7 +104,7 @@ impl Widget for Label {
     }
 
     fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_tuple("Label").field(&self.text).finish()
+        fmt.debug_tuple("Label").field(&self.display).finish()
     }
 
     fn unmounted(&mut self, context: &mut crate::context::EventContext<'_, '_>) {
@@ -99,19 +113,20 @@ impl Widget for Label {
 }
 
 macro_rules! impl_make_widget {
-    ($($type:ty),*) => {
+    ($($type:ty => $kind:ty),*) => {
         $(impl crate::widget::MakeWidgetWithTag for $type {
             fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
-                Label::new(self).make_with_tag(id)
+                Label::<$kind>::new(self).make_with_tag(id)
             }
         })*
     };
 }
 
 impl_make_widget!(
-    &'_ str,
-    String,
-    Value<String>,
-    Dynamic<String>,
-    Dynamic<&'static str>
+    &'_ str => String,
+    String => String,
+    Dynamic<String> => String,
+    Dynamic<&'static str> => &'static str,
+    Value<String> => String,
+    ReadOnly<String> => String
 );

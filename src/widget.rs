@@ -19,6 +19,7 @@ use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
 
 use crate::app::{Application, Open, PendingApp, Run};
+use crate::context::sealed::Trackable as _;
 use crate::context::{
     AsEventContext, EventContext, GraphicsContext, LayoutContext, ManageWidget, WidgetContext,
 };
@@ -149,8 +150,9 @@ use crate::ConstraintLimit;
 /// layout functions, it needs to ensure that all depended upon [`Dynamic`]s are
 /// tracked using one of the various
 /// `*_tracking_redraw()`/`*_tracking_invalidate()` functions. For example,
-/// [`Dynamic::get_tracking_redraw()`] and
-/// [`Dynamic::get_tracking_invalidate()`].
+/// [`Source::get_tracking_redraw()`](crate::value::Source::get_tracking_redraw)
+/// and
+/// [`Source::get_tracking_invalidate()`](crate::value::Source::get_tracking_invalidate).
 ///
 /// # Hover State: Hit Testing
 ///
@@ -1564,7 +1566,7 @@ impl WidgetInstance {
 
     pub(crate) fn enabled(&self, context: &WindowHandle) -> bool {
         if let Value::Dynamic(dynamic) = &self.data.enabled {
-            dynamic.redraw_when_changed(context.clone());
+            dynamic.inner_redraw_when_changed(context.clone());
         }
         self.data.enabled.get()
     }

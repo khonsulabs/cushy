@@ -1,5 +1,5 @@
 use cushy::animation::{LinearInterpolate, PercentBetween};
-use cushy::value::{Destination, Dynamic, ForEach, Source};
+use cushy::value::{Destination, Dynamic, ForEach, IntoReader, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::checkbox::Checkable;
 use cushy::widgets::input::InputValue;
@@ -31,7 +31,6 @@ fn u8_slider() -> impl MakeWidget {
     let max = Dynamic::new(u8::MAX);
     let max_text = max.linked_string();
     let value = Dynamic::new(128_u8);
-    let value_text = value.map_each(ToString::to_string);
 
     "Min"
         .and(min_text.into_input())
@@ -39,8 +38,8 @@ fn u8_slider() -> impl MakeWidget {
         .and(max_text.into_input())
         .into_columns()
         .centered()
-        .and(value.slider_between(min, max))
-        .and(value_text.centered())
+        .and(value.clone().slider_between(min, max))
+        .and(value.into_label().centered())
         .into_rows()
 }
 

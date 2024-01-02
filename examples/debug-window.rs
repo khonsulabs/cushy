@@ -1,5 +1,5 @@
 use cushy::debug::DebugContext;
-use cushy::value::{Destination, Dynamic, Source};
+use cushy::value::{Destination, Dynamic, IntoReader};
 use cushy::widget::MakeWidget;
 use cushy::widgets::slider::Slidable;
 use cushy::{Application, Open, PendingApp};
@@ -25,7 +25,7 @@ fn main() -> cushy::Result {
 
     info.observe("Open Windows", &window_count, |window_count| {
         window_count
-            .map_each(ToString::to_string)
+            .into_label()
             .and(open_window_button.clone())
             .into_columns()
     });

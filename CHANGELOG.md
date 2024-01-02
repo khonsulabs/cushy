@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parameter. This type tracks whether the reference is accessed using
   `DerefMut`, allowing `map_mut` to skip invoking change callbacks if only
   `Deref` is used.
+- `redraw_when_changed()`/`invalidate_when_changed()` from some types have been
+  moved to the `Trackable` trait. This was to ensure all trackable types provide
+  the same API.
+- `Label` has been refactored to accept any `Display` type. As a result of this,
+  `Label::text` is now named `display` and `Label::new()` now accepts an
+  `IntoReadOnly<T>` instead of `IntoValue<String>`.
 
 ### Fixed
 
@@ -44,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are waiting for value when the last `Dynamic` is dropped.
 - Compatibility with Rust v1.70.0 has been restored, and continuous integration
   testing the MSRV has been added.
+- `Progress` now utilizes `IntoSource<Progress>` instead of
+  `IntoDynamic<Progress>`. In general, this should not cause any code breakages
+  unless the traits were being used in generics.
 
 ### Changed
 
@@ -52,6 +61,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the cache is invalidated.
 - All `Dynamic` mapping functions now utilize weak references, and clean up as
   necessary if a value is not able to be upgraded.
+- `ForEach`/`MapEach`'s implementations for tuples are now defined using
+  `Source<T>` and `DynamicRead<T>`. This allows combinations of `Dynamic<T>`s
+  and `DynamicReader<T>`s to be used in for_each/map_each expressions.
 
 ### Added
 
@@ -84,6 +96,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Source<T>` and `Destination<T>` are new traits that contain the reactive data
   model's API interface. `Dynamic<T>` implements both traits, and
   `DynamicReader<T>` implements only `Source<T>`.
+- `DynamicRead<T>` is a new trait that provides read-only access to a dynamic's
+  contents.
+- `IntoReadOnly<T>` is a new trait that types can implement to convert into a
+  `ReadOnly<T>`.
+- `IntoReader<T>` is a new trait that types can implement to convert into a
+  `DynamicReader<T>`.
+- `ReadOnly<T>` is a type similar to `Value<T>` but instead of possibly being a
+  `Dynamic<T>`, `ReadOnly::Reader` contains a `DynamicReader<T>`. This type can
+  be used where widgets that receive a value but never mutate it.
+- `Owned<T>` is a new type that can be used where no shared ownership is
+  necessary. This type uses a `RefCell` internally instead of an `Arc` +
+  `Mutex`. `Owned<T>` implements `Source<T>` and `Destination<T>`.
+- `GenerationalValue<T>` now implements `Default` when `T` does.
+- `Value<T>` now implements `From<Dynamic<T>>`.
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 [120]: https://github.com/khonsulabs/cushy/issues/120

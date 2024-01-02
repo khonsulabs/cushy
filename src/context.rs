@@ -969,12 +969,12 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
 
     /// Ensures that this widget will be redrawn when `value` has been updated.
     pub fn redraw_when_changed(&self, value: &impl Trackable) {
-        value.redraw_when_changed(self.handle());
+        value.inner_redraw_when_changed(self.handle());
     }
 
     /// Ensures that this widget will be redrawn when `value` has been updated.
     pub fn invalidate_when_changed(&self, value: &impl Trackable) {
-        value.invalidate_when_changed(self.handle(), self.current_node.id());
+        value.inner_invalidate_when_changed(self.handle(), self.current_node.id());
     }
 
     /// Returns the last layout of this widget.
@@ -1344,7 +1344,27 @@ impl Default for WidgetCacheKey {
 }
 
 /// A type that can be tracked to refresh or invalidate widgets.
-pub trait Trackable: sealed::Trackable {}
+pub trait Trackable: sealed::Trackable {
+    /// Marks the widget for redraw when this value is updated.
+    ///
+    /// This function has no effect if the value is constant.
+    fn redraw_when_changed(&self, context: &WidgetContext<'_, '_>)
+    where
+        Self: Sized,
+    {
+        context.redraw_when_changed(self);
+    }
+
+    /// Marks the widget for redraw when this value is updated.
+    ///
+    /// This function has no effect if the value is constant.
+    fn invalidate_when_changed(&self, context: &WidgetContext<'_, '_>)
+    where
+        Self: Sized,
+    {
+        context.invalidate_when_changed(self);
+    }
+}
 
 impl<T> Trackable for T where T: sealed::Trackable {}
 
@@ -1359,8 +1379,8 @@ pub(crate) mod sealed {
     use crate::window::WindowHandle;
 
     pub trait Trackable {
-        fn redraw_when_changed(&self, handle: WindowHandle);
-        fn invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId);
+        fn inner_redraw_when_changed(&self, handle: WindowHandle);
+        fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId);
     }
 
     #[derive(Default, Clone)]
