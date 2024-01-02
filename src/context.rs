@@ -19,7 +19,7 @@ use crate::styles::components::{
 };
 use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::tree::Tree;
-use crate::value::{IntoValue, Value};
+use crate::value::{IntoValue, Source, Value};
 use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
 use crate::window::{CursorState, RunningWindow, ThemeMode};
 use crate::ConstraintLimit;

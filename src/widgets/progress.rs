@@ -12,7 +12,7 @@ use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::{
     AnimationHandle, AnimationTarget, IntoAnimate, PercentBetween, Spawn, ZeroToOne,
 };
-use crate::value::{Dynamic, IntoDynamic, IntoValue, MapEach, Value};
+use crate::value::{Destination, Dynamic, IntoDynamic, IntoValue, MapEach, Source, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::slider::{InactiveTrackColor, Slidable, TrackColor, TrackSize};
 use crate::widgets::Data;

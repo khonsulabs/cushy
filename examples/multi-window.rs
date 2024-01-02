@@ -1,5 +1,5 @@
 use cushy::kludgine::include_texture;
-use cushy::value::{Dynamic, MapEach};
+use cushy::value::{Destination, Dynamic, MapEach};
 use cushy::widget::MakeWidget;
 use cushy::widgets::Image;
 use cushy::window::PendingWindow;
@@ -63,13 +63,13 @@ fn open_another_window(
     counter: &Dynamic<usize>,
     texture: &LazyTexture,
 ) {
-    let my_number = counter.map_mut(|count| {
+    let my_number = counter.map_mut(|mut count| {
         *count += 1;
         *count
     });
 
     let open_windows = open_windows.clone();
-    open_windows.map_mut(|open_windows| *open_windows += 1);
+    open_windows.map_mut(|mut open_windows| *open_windows += 1);
 
     let window = PendingWindow::default();
     let handle = window.handle();
@@ -87,7 +87,7 @@ fn open_another_window(
                 .into_rows()
                 .centered(),
         )
-        .on_close(move || open_windows.map_mut(|open_windows| *open_windows -= 1))
+        .on_close(move || open_windows.map_mut(|mut open_windows| *open_windows -= 1))
         .open(app)
         .expect("error opening another window");
 }

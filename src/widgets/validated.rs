@@ -8,7 +8,9 @@ use crate::styles::components::{
     ErrorColor, LineHeight, LineHeight2, OutlineColor, TextColor, TextSize, TextSize2,
 };
 use crate::styles::Dimension;
-use crate::value::{Dynamic, IntoDynamic, IntoValue, MapEach, Validation, Value};
+use crate::value::{
+    Destination, Dynamic, IntoDynamic, IntoValue, MapEach, Source, Validation, Value,
+};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, WidgetInstance, WidgetRef, WrapperWidget};
 
 /// A widget that displays validation information around another widget.

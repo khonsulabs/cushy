@@ -3,7 +3,7 @@ use std::iter;
 use std::ops::Not;
 use std::time::SystemTime;
 
-use cushy::value::Dynamic;
+use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::button::ButtonKind;
 use cushy::{Run, WithClone};

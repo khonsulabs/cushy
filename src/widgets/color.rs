@@ -12,7 +12,7 @@ use crate::animation::ZeroToOne;
 use crate::context::{EventContext, GraphicsContext};
 use crate::styles::components::{HighlightColor, OutlineColor, TextColor};
 use crate::styles::{ColorExt, ColorSource};
-use crate::value::{Dynamic, IntoValue, Value};
+use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{EventHandling, Widget, HANDLED};
 
 /// A widget that selects a [`ColorSource`].

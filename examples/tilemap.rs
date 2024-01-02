@@ -11,7 +11,7 @@ use cushy::kludgine::tilemap::{
     DebugGrid, Object, ObjectLayer, TileArray, TileKind, TileMapFocus, TILE_SIZE,
 };
 use cushy::kludgine::Color;
-use cushy::value::Dynamic;
+use cushy::value::{Destination, Dynamic};
 use cushy::widgets::TileMap;
 use cushy::{Run, Tick};
 use figures::FloatConversion;
@@ -71,7 +71,7 @@ fn main() -> cushy::Result {
 
             let cursor_pos = input.mouse.as_ref().map(|mouse| mouse.position);
 
-            layers.map_mut(|layers| {
+            layers.map_mut(|mut layers| {
                 let player = &mut layers.1[myself];
 
                 let animation_tag = match direction.x.total_cmp(&0.) {

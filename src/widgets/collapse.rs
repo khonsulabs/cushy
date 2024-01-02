@@ -6,7 +6,7 @@ use figures::Size;
 use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::{AnimationHandle, AnimationTarget, EasingFunction, Spawn};
 use crate::context::LayoutContext;
-use crate::value::{Dynamic, IntoDynamic};
+use crate::value::{Dynamic, IntoDynamic, Source};
 use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 

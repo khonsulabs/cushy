@@ -1,4 +1,4 @@
-use cushy::value::Dynamic;
+use cushy::value::{Dynamic, Source};
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::Run;
 use figures::Size;

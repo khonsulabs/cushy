@@ -1,4 +1,4 @@
-use cushy::value::{Dynamic, Validations};
+use cushy::value::{Destination, Dynamic, Validations};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::Run;

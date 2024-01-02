@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   properly when used in a `WidgetInstance` shared between multiple windows.
 - `WidgetRef::unmount_in` should be called when the widget is being unmounted to
   clean up individual window state.
+- `Dynamic<T>` and `DynamicReader<T>` have had most of their functions moved
+  into the traits `Source<T>` and `Destination<T>`. This unifies the APIs
+  between the two types, and offers a path for other specialized reactive data
+  types to all share a unified API.
+- `map_mut` now takes a `Mutable<'_, T>` parameter instead of an `&mut T`
+  parameter. This type tracks whether the reference is accessed using
+  `DerefMut`, allowing `map_mut` to skip invoking change callbacks if only
+  `Deref` is used.
 
 ### Fixed
 
@@ -73,6 +81,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RunningWindow::kludgine_id()` returns a unique id for that window.
 - `WindowLocal<T>` is a `HashMap`-based type that stores data on a per-window
   basis using `RunningWindow::kludgine_id()` as the key.
+- `Source<T>` and `Destination<T>` are new traits that contain the reactive data
+  model's API interface. `Dynamic<T>` implements both traits, and
+  `DynamicReader<T>` implements only `Source<T>`.
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 [120]: https://github.com/khonsulabs/cushy/issues/120

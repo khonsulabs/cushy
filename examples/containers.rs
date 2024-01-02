@@ -1,4 +1,4 @@
-use cushy::value::Dynamic;
+use cushy::value::{Destination, Dynamic};
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::container::ContainerShadow;
 use cushy::window::ThemeMode;
@@ -22,7 +22,7 @@ fn set_of_containers(repeat: usize, theme_mode: Dynamic<ThemeMode>) -> WidgetIns
         "Toggle Theme Mode"
             .into_button()
             .on_click(move |_| {
-                theme_mode.map_mut(|mode| mode.toggle());
+                theme_mode.map_mut(|mut mode| mode.toggle());
             })
             .make_widget()
     };

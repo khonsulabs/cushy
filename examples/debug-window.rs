@@ -1,5 +1,5 @@
 use cushy::debug::DebugContext;
-use cushy::value::Dynamic;
+use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::slider::Slidable;
 use cushy::{Application, Open, PendingApp};
@@ -46,7 +46,7 @@ fn open_a_window(
     app: &dyn Application,
 ) {
     *window_count.lock() += 1;
-    let window_number = total_windows.map_mut(|total| {
+    let window_number = total_windows.map_mut(|mut total| {
         *total += 1;
         *total
     });

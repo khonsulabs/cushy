@@ -36,7 +36,7 @@ impl Align {
     #[must_use]
     pub fn align_left(mut self) -> Self {
         self.edges
-            .map_mut(|edges| edges.left = FlexibleDimension::ZERO);
+            .map_mut(|mut edges| edges.left = FlexibleDimension::ZERO);
         self
     }
 
@@ -44,7 +44,7 @@ impl Align {
     #[must_use]
     pub fn align_top(mut self) -> Self {
         self.edges
-            .map_mut(|edges| edges.top = FlexibleDimension::ZERO);
+            .map_mut(|mut edges| edges.top = FlexibleDimension::ZERO);
         self
     }
 
@@ -52,7 +52,7 @@ impl Align {
     #[must_use]
     pub fn align_bottom(mut self) -> Self {
         self.edges
-            .map_mut(|edges| edges.bottom = FlexibleDimension::ZERO);
+            .map_mut(|mut edges| edges.bottom = FlexibleDimension::ZERO);
         self
     }
 
@@ -60,14 +60,14 @@ impl Align {
     #[must_use]
     pub fn align_right(mut self) -> Self {
         self.edges
-            .map_mut(|edges| edges.right = FlexibleDimension::ZERO);
+            .map_mut(|mut edges| edges.right = FlexibleDimension::ZERO);
         self
     }
 
     /// Sets the left and right edges of alignment to 0 and returns self.
     #[must_use]
     pub fn fit_horizontally(mut self) -> Self {
-        self.edges.map_mut(|edges| {
+        self.edges.map_mut(|mut edges| {
             edges.left = FlexibleDimension::ZERO;
             edges.right = FlexibleDimension::ZERO;
         });
@@ -77,7 +77,7 @@ impl Align {
     /// Sets the top and bottom edges of alignment to 0 and returns self.
     #[must_use]
     pub fn fit_vertically(mut self) -> Self {
-        self.edges.map_mut(|edges| {
+        self.edges.map_mut(|mut edges| {
             edges.top = FlexibleDimension::ZERO;
             edges.bottom = FlexibleDimension::ZERO;
         });

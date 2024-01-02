@@ -1,6 +1,6 @@
 use std::string::ToString;
 
-use cushy::value::Dynamic;
+use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::Run;
 use figures::units::Lp;

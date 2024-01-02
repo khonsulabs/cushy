@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use alot::OrderedLots;
 
-use crate::value::{Dynamic, DynamicReader, ForEach, WeakDynamic};
+use crate::value::{Dynamic, DynamicReader, ForEach, Source, WeakDynamic};
 use crate::widget::{Children, MakeWidget, WidgetInstance};
 use crate::widgets::grid::{Grid, GridWidgets};
 use crate::window::Window;

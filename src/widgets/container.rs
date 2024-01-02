@@ -10,7 +10,7 @@ use kludgine::Color;
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{CornerRadius, IntrinsicPadding, Opacity, SurfaceColor};
 use crate::styles::{Component, ContainerLevel, Dimension, Edges, RequireInvalidation, Styles};
-use crate::value::{Dynamic, IntoValue, Value};
+use crate::value::{Dynamic, IntoValue, Source, Value};
 use crate::widget::{MakeWidget, RootBehavior, Widget, WidgetInstance, WidgetRef};
 use crate::ConstraintLimit;
 

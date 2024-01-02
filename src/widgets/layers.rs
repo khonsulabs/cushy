@@ -14,7 +14,7 @@ use crate::animation::easings::EaseOutQuadradic;
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::utils::IgnorePoison;
-use crate::value::{Dynamic, DynamicGuard, IntoValue, Value};
+use crate::value::{Destination, Dynamic, DynamicGuard, IntoValue, Source, Value};
 use crate::widget::{
     Callback, Children, MakeWidget, MountedChildren, MountedWidget, Widget, WidgetId, WidgetRef,
     WrapperWidget,
@@ -593,7 +593,7 @@ impl OverlayBuilder<'_> {
     #[must_use]
     pub fn show(self) -> OverlayHandle {
         self.fade_in();
-        self.overlay.state.map_mut(|state| {
+        self.overlay.state.map_mut(|mut state| {
             state.new_overlays += 1;
             OverlayHandle {
                 state: self.overlay.state.clone(),

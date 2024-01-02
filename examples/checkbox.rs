@@ -1,4 +1,4 @@
-use cushy::value::Dynamic;
+use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::checkbox::{Checkable, CheckboxState};
 use cushy::Run;

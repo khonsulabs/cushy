@@ -19,7 +19,7 @@ use crate::styles::components::{
     HighlightColor, IntrinsicPadding, OpaqueWidgetColor, OutlineColor, SurfaceColor, TextColor,
 };
 use crate::styles::{ColorExt, Styles};
-use crate::value::{Dynamic, IntoValue, Value};
+use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED};
 use crate::window::WindowLocal;
 use crate::FitMeasuredSize;

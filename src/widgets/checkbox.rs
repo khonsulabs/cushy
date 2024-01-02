@@ -10,7 +10,7 @@ use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{LineHeight, OutlineColor, TextColor, WidgetAccentColor};
 use crate::styles::Dimension;
-use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
+use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;

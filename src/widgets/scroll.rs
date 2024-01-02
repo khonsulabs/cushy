@@ -13,7 +13,7 @@ use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, Zer
 use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::components::{EasingIn, EasingOut, LineHeight};
 use crate::styles::Dimension;
-use crate::value::Dynamic;
+use crate::value::{Destination, Dynamic, Source};
 use crate::widget::{EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
 use crate::ConstraintLimit;
 

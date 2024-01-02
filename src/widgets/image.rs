@@ -6,7 +6,7 @@ use kludgine::{AnyTexture, CollectedTexture, LazyTexture, SharedTexture, Texture
 
 use crate::animation::ZeroToOne;
 use crate::context::LayoutContext;
-use crate::value::{IntoValue, Value};
+use crate::value::{IntoValue, Source, Value};
 use crate::widget::Widget;
 use crate::ConstraintLimit;
 

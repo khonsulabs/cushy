@@ -1,6 +1,6 @@
 use std::process::exit;
 
-use cushy::value::{Dynamic, MapEach};
+use cushy::value::{Dynamic, MapEach, Source};
 use cushy::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
 use cushy::widgets::grid::{Grid, GridDimension, GridWidgets};
 use cushy::widgets::input::{InputValue, MaskedString};

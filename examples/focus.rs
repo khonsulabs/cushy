@@ -1,4 +1,4 @@
-use cushy::value::Dynamic;
+use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::widgets::slider::Slidable;

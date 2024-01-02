@@ -13,7 +13,7 @@ use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{EventContext, LayoutContext};
 use crate::styles::components::{HighlightColor, IntrinsicPadding, LineHeight, OutlineColor};
 use crate::styles::Dimension;
-use crate::value::{Dynamic, IntoDynamic, IntoValue, Value};
+use crate::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{
     EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetRef, WidgetTag,
     HANDLED, IGNORED,

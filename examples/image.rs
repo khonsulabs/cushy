@@ -1,5 +1,5 @@
 use cushy::animation::ZeroToOne;
-use cushy::value::{Dynamic, MapEachCloned};
+use cushy::value::{Dynamic, MapEachCloned, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::image::{Aspect, ImageScaling};
 use cushy::widgets::slider::Slidable;

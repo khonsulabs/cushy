@@ -1,7 +1,7 @@
 //! This example shows two approaches to writing custom widgets: implementing
 //! traits or using the [`Custom`] widget with callbacks.
 
-use cushy::value::Dynamic;
+use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag, HANDLED};
 use cushy::widgets::Custom;
 use cushy::Run;

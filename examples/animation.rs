@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use cushy::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn};
-use cushy::value::Dynamic;
+use cushy::value::{Destination, Dynamic};
 use cushy::widget::MakeWidget;
 use cushy::widgets::progress::Progressable;
 use cushy::{Run, WithClone};

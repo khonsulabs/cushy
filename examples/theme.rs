@@ -5,7 +5,7 @@ use cushy::styles::{
     ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme,
     ThemePair,
 };
-use cushy::value::{Dynamic, MapEachCloned};
+use cushy::value::{Destination, Dynamic, MapEachCloned, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::checkbox::Checkable;
 use cushy::widgets::color::ColorSourcePicker;
@@ -218,9 +218,10 @@ fn color_editor(color: &Dynamic<ColorSource>) -> impl MakeWidget {
     hue.for_each_cloned({
         let color = color.clone();
         move |hue| {
-            let mut source = color.get();
-            source.hue = OklabHue::new(hue);
-            color.set(source);
+            if let Ok(mut source) = color.try_get() {
+                source.hue = OklabHue::new(hue);
+                color.set(source);
+            }
         }
     })
     .persist();
@@ -231,9 +232,10 @@ fn color_editor(color: &Dynamic<ColorSource>) -> impl MakeWidget {
         .for_each_cloned({
             let color = color.clone();
             move |saturation| {
-                let mut source = color.get();
-                source.saturation = saturation;
-                color.set(source);
+                if let Ok(mut source) = color.try_get() {
+                    source.saturation = saturation;
+                    color.set(source);
+                }
             }
         })
         .persist();

@@ -25,7 +25,7 @@ use zeroize::Zeroizing;
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::{HighlightColor, IntrinsicPadding, OutlineColor, TextColor};
 use crate::utils::ModifiersExt;
-use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Value};
+use crate::value::{Destination, Dynamic, Generation, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
 use crate::{ConstraintLimit, Lazy};
 
@@ -189,7 +189,7 @@ where
     }
 
     fn replace_range(&mut self, start: Cursor, end: Cursor, new_text: &str) {
-        self.value.map_mut(|value| {
+        self.value.map_mut(|mut value| {
             let value = value.as_string_mut();
             let start = start.offset.min(value.len().saturating_sub(1));
             let end = end.offset.min(value.len());

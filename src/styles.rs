@@ -23,7 +23,7 @@ use crate::animation::{EasingFunction, ZeroToOne};
 use crate::context::WidgetContext;
 use crate::names::Name;
 use crate::utils::Lazy;
-use crate::value::{Dynamic, IntoValue, Value};
+use crate::value::{Dynamic, IntoValue, Source, Value};
 
 #[macro_use]
 pub mod components;

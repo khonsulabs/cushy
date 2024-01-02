@@ -19,7 +19,7 @@ use crate::styles::components::{
     WidgetAccentColor,
 };
 use crate::styles::{Dimension, HorizontalOrder, VerticalOrder, VisualOrder};
-use crate::value::{Dynamic, IntoDynamic, IntoValue, Value};
+use crate::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
 use crate::ConstraintLimit;
 
@@ -445,7 +445,7 @@ where
         let mut max = self.maximum.get_tracking_redraw(context);
 
         if max < min {
-            self.maximum.map_mut(|max| *max = min.clone());
+            self.maximum.map_mut(|mut max| *max = min.clone());
             max = min.clone();
         }
         let mut value_clamped = false;
@@ -472,7 +472,7 @@ where
 
         if value_clamped {
             self.value
-                .map_mut(|v| *v = T::from_parts(start_value.clone(), end_value.clone()));
+                .map_mut(|mut v| *v = T::from_parts(start_value.clone(), end_value.clone()));
         }
 
         let start_percent = start_value.percent_between(&min, &max);

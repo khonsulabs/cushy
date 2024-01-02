@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use figures::Size;
 
 use crate::context::LayoutContext;
-use crate::value::{Dynamic, DynamicReader, IntoDynamic};
+use crate::value::{Dynamic, DynamicReader, IntoDynamic, Source};
 use crate::widget::{WidgetInstance, WidgetRef, WrapperWidget};
 use crate::ConstraintLimit;
 
@@ -37,7 +37,7 @@ impl Switcher {
     /// `widget_factory` each time `value` changes.
     #[must_use]
     pub fn new(source: impl IntoDynamic<WidgetInstance>) -> Self {
-        let mut source = source.into_dynamic().into_reader();
+        let source = source.into_dynamic().into_reader();
         let child = WidgetRef::new(source.get());
         Self { source, child }
     }

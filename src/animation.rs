@@ -57,7 +57,7 @@ use kludgine::Color;
 use crate::animation::easings::Linear;
 use crate::styles::{Component, RequireInvalidation};
 use crate::utils::{run_in_bg, IgnorePoison};
-use crate::value::Dynamic;
+use crate::value::{Destination, Dynamic, Source};
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
 static NEW_ANIMATIONS: Condvar = Condvar::new();
