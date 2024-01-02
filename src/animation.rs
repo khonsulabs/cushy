@@ -1153,7 +1153,7 @@ impl ZeroToOne {
             assert!(!rhs.is_nan());
         }
         if rhs > 0. {
-            self.0 /= rhs;
+            self.0 = (self.0 / rhs).clamp(0., 1.);
         } else if *self > 0. {
             // The limit of f(x) -> x/0 is infinity, but the highest value we
             // can represent is 1.0.
@@ -1386,6 +1386,9 @@ fn zero_to_one_div() {
     assert_eq!(ZeroToOne::new(0.5) / ZeroToOne::ZERO, ZeroToOne::ONE);
     assert_eq!(ZeroToOne::ZERO / 0., ZeroToOne::ZERO);
     assert_eq!(ZeroToOne::new(0.5) / 0., ZeroToOne::ONE);
+
+    assert_eq!(ZeroToOne::ONE / 0.5, ZeroToOne::ONE);
+    assert_eq!(ZeroToOne::ONE / -0.5, ZeroToOne::ONE);
 }
 
 /// An easing function for customizing animations.
