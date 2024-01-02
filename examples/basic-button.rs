@@ -9,8 +9,7 @@ fn main() -> cushy::Result {
 
     // Create a new label displaying `count`
     count
-        .clone()
-        .into_label()
+        .to_label()
         // Use the label as the contents of a button
         .into_button()
         // Set the `on_click` callback to a closure that increments the counter.

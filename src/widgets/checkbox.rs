@@ -257,6 +257,14 @@ pub trait Checkable: IntoDynamic<CheckboxState> + Sized {
     fn into_checkbox(self, label: impl MakeWidget) -> Checkbox {
         Checkbox::new(self.into_dynamic(), label)
     }
+
+    /// Returns a new checkbox using `self` as the value and `label`.
+    fn to_checkbox(&self, label: impl MakeWidget) -> Checkbox
+    where
+        Self: Clone,
+    {
+        self.clone().into_checkbox(label)
+    }
 }
 
 impl<T> Checkable for T where T: IntoDynamic<CheckboxState> {}

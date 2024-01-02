@@ -18,8 +18,7 @@ fn main() -> cushy::Result {
         .align_left()
         .and(
             username
-                .clone()
-                .into_input()
+                .to_input()
                 .placeholder("Username")
                 .validation(validations.validate(&username, |u: &String| {
                     if u.is_empty() {
@@ -40,8 +39,7 @@ fn main() -> cushy::Result {
         .align_left()
         .and(
             password
-                .clone()
-                .into_input()
+                .to_input()
                 .placeholder("Password")
                 .validation(
                     validations.validate(&password, |u: &MaskedString| match u.len() {

@@ -7,8 +7,7 @@ fn main() -> cushy::Result {
     let counter = Dynamic::new(0i32);
 
     counter
-        .clone()
-        .into_label()
+        .to_label()
         .width(Lp::points(100))
         .and("+".into_button().on_click(counter.with_clone(|counter| {
             move |_| {

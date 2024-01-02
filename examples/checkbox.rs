@@ -9,7 +9,7 @@ fn main() -> cushy::Result {
 
     checkbox_state
         .clone()
-        .into_checkbox(label)
+        .to_checkbox(label)
         .and("Maybe".into_button().on_click(move |()| {
             checkbox_state.set(CheckboxState::Indeterminant);
         }))

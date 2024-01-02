@@ -345,6 +345,14 @@ pub trait IntoAnimate: Sized + Send + Sync {
     /// Return this change as a running animation.
     fn into_animate(self) -> Self::Animate;
 
+    /// Returns a clone of this change as a running animation.
+    fn to_animate(&self) -> Self::Animate
+    where
+        Self: Clone,
+    {
+        self.clone().into_animate()
+    }
+
     /// Returns an combined animation that performs `self` and `other` in
     /// sequence.
     fn and_then<Other: IntoAnimate>(self, other: Other) -> Chain<Self, Other> {
@@ -674,7 +682,7 @@ where
             }
 
             if self.keep_cycling() {
-                self.running = Some(self.animation.clone().into_animate());
+                self.running = Some(self.animation.to_animate());
             } else {
                 self.running = None;
                 return ControlFlow::Break(elapsed);

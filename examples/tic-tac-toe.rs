@@ -194,7 +194,6 @@ fn square(row: usize, column: usize, game: &Dynamic<GameState>) -> impl MakeWidg
     });
 
     label
-        .clone()
         .into_button()
         .kind(ButtonKind::Outline)
         .on_click(move |_| game.lock().play(row, column))

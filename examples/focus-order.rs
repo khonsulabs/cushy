@@ -22,15 +22,9 @@ fn main() -> cushy::Result {
     let (cancel_tag, cancel_id) = WidgetTag::new();
     let (username_tag, username_id) = WidgetTag::new();
 
-    let username_row = (
-        "Username",
-        username.clone().into_input().make_with_tag(username_tag),
-    );
+    let username_row = ("Username", username.to_input().make_with_tag(username_tag));
 
-    let password_row = (
-        "Password",
-        password.clone().into_input().with_next_focus(login_id),
-    );
+    let password_row = ("Password", password.to_input().with_next_focus(login_id));
 
     let buttons = "Cancel"
         .into_button()

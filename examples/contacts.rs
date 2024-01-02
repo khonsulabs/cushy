@@ -76,11 +76,11 @@ fn edit_contact_form(contact: &Contact, db: &Dynamic<HashMap<u64, Contact>>) -> 
     let title = Dynamic::new(contact.title.clone());
 
     "First Name"
-        .and(first.clone().into_input())
+        .and(first.to_input())
         .and("Last Name")
-        .and(last.clone().into_input())
+        .and(last.to_input())
         .and("Title")
-        .and(title.clone().into_input())
+        .and(title.to_input())
         .and(
             "Save"
                 .into_button()

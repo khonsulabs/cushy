@@ -17,19 +17,21 @@ fn main() -> cushy::Result {
         .and(Color::RED.expand_weighted(2))
         .into_columns()
         .expand()
-        .and(chat_message.clone().into_input().on_key(move |input| {
-            match (input.state, input.logical_key) {
-                (ElementState::Pressed, Key::Named(NamedKey::Enter)) => {
-                    let new_message = chat_message.take();
-                    chat_log.map_mut(|mut chat_log| {
-                        chat_log.push_str(&new_message);
-                        chat_log.push('\n');
-                    });
-                    HANDLED
-                }
-                _ => IGNORED,
-            }
-        }))
+        .and(
+            chat_message
+                .to_input()
+                .on_key(move |input| match (input.state, input.logical_key) {
+                    (ElementState::Pressed, Key::Named(NamedKey::Enter)) => {
+                        let new_message = chat_message.take();
+                        chat_log.map_mut(|mut chat_log| {
+                            chat_log.push_str(&new_message);
+                            chat_log.push('\n');
+                        });
+                        HANDLED
+                    }
+                    _ => IGNORED,
+                }),
+        )
         .into_rows()
         .expand()
         .run()

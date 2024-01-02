@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Label` has been refactored to accept any `Display` type. As a result of this,
   `Label::text` is now named `display` and `Label::new()` now accepts an
   `IntoReadOnly<T>` instead of `IntoValue<String>`.
+- `Dynamic<Children>::wrap` has been renamed to `into_wrap` for consistency.
 
 ### Fixed
 
@@ -110,6 +111,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Mutex`. `Owned<T>` implements `Source<T>` and `Destination<T>`.
 - `GenerationalValue<T>` now implements `Default` when `T` does.
 - `Value<T>` now implements `From<Dynamic<T>>`.
+- Most `into_` functions that create widgets now have `to_` variations that
+  clone `self` before calling the `into_` function. This has only been done in
+  situations where it is known or likely that the clone being performed is
+  cheap.
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 [120]: https://github.com/khonsulabs/cushy/issues/120

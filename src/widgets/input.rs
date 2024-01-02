@@ -1351,6 +1351,13 @@ where
     fn into_input(self) -> Input<Storage> {
         Input::new(self.into_dynamic())
     }
+    /// Returns this string as a text input widget.
+    fn to_input(&self) -> Input<Storage>
+    where
+        Self: Clone,
+    {
+        self.clone().into_input()
+    }
 }
 
 impl<T> InputValue<String> for T where T: IntoDynamic<String> {}

@@ -10,15 +10,13 @@ fn main() -> cushy::Result {
 
     "Hinted"
         .and(
-            text.clone()
-                .into_input()
+            text.to_input()
                 .validation(validations.validate(&text, validate_input))
                 .hint("* required"),
         )
         .and("Not Hinted")
         .and(
-            text.clone()
-                .into_input()
+            text.to_input()
                 .validation(validations.validate(&text, validate_input)),
         )
         .and(

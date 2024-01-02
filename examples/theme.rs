@@ -206,8 +206,7 @@ fn optional_editor(label: &str, color: &Dynamic<ColorSource>) -> (Dynamic<bool>,
     (
         enabled.clone(),
         enabled
-            .clone()
-            .into_checkbox(swatch_label(label, color))
+            .to_checkbox(swatch_label(label, color))
             .and(color_editor(color).collapse_vertically(hide_editor))
             .into_rows(),
     )

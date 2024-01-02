@@ -1165,7 +1165,30 @@ impl Dynamic<WidgetInstance> {
     /// dynamic.
     #[must_use]
     pub fn into_switcher(self) -> Switcher {
+        self.into_reader().into_switcher()
+    }
+
+    /// Returns a new [`Switcher`] widget whose contents is the value of this
+    /// dynamic.
+    #[must_use]
+    pub fn to_switcher(&self) -> Switcher {
+        self.create_reader().into_switcher()
+    }
+}
+
+impl DynamicReader<WidgetInstance> {
+    /// Returns a new [`Switcher`] widget whose contents is the value of this
+    /// dynamic reader.
+    #[must_use]
+    pub fn into_switcher(self) -> Switcher {
         Switcher::new(self)
+    }
+
+    /// Returns a new [`Switcher`] widget whose contents is the value of this
+    /// dynamic reader.
+    #[must_use]
+    pub fn to_switcher(&self) -> Switcher {
+        Switcher::new(self.clone())
     }
 }
 
@@ -2260,6 +2283,15 @@ pub trait IntoReader<T> {
         T: Debug + Display + Send + 'static,
     {
         Label::new(self.into_reader())
+    }
+
+    /// Returns `self` being `Display`ed in a [`Label`] widget.
+    fn to_label(&self) -> Label<T>
+    where
+        Self: Clone,
+        T: Debug + Display + Send + 'static,
+    {
+        self.clone().into_label()
     }
 }
 

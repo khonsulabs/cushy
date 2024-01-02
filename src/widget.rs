@@ -2074,10 +2074,22 @@ impl Dynamic<Children> {
         Stack::rows(self)
     }
 
+    /// Returns `self` as a vertical [`Stack`] of rows.
+    #[must_use]
+    pub fn to_rows(&self) -> Stack {
+        self.clone().into_rows()
+    }
+
     /// Returns `self` as a horizontal [`Stack`] of columns.
     #[must_use]
     pub fn into_columns(self) -> Stack {
         Stack::columns(self)
+    }
+
+    /// Returns `self` as a horizontal [`Stack`] of columns.
+    #[must_use]
+    pub fn to_columns(&self) -> Stack {
+        self.clone().into_columns()
     }
 
     /// Returns `self` as [`Layers`], with the widgets being stacked in the Z
@@ -2087,11 +2099,25 @@ impl Dynamic<Children> {
         Layers::new(self)
     }
 
+    /// Returns `self` as [`Layers`], with the widgets being stacked in the Z
+    /// direction.
+    #[must_use]
+    pub fn to_layers(&self) -> Layers {
+        self.clone().into_layers()
+    }
+
     /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
     /// into additional rows as needed.
     #[must_use]
-    pub fn wrap(self) -> Wrap {
+    pub fn into_wrap(self) -> Wrap {
         Wrap::new(self)
+    }
+
+    /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
+    /// into additional rows as needed.
+    #[must_use]
+    pub fn to_wrap(&self) -> Wrap {
+        self.clone().into_wrap()
     }
 }
 

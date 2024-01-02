@@ -10,8 +10,7 @@ fn main() -> cushy::Result {
     let collapse = Dynamic::new(false);
 
     collapse
-        .clone()
-        .into_checkbox("Collapse")
+        .to_checkbox("Collapse")
         .and(
             "Content Above"
                 .contain()
