@@ -97,7 +97,7 @@ impl Wrap {
 }
 
 impl Widget for Wrap {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         for child in self.mounted.children() {
             context.for_other(child).redraw();
         }
@@ -107,7 +107,7 @@ impl Widget for Wrap {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         struct RowChild {
             index: usize,

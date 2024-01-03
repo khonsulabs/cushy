@@ -98,14 +98,14 @@ impl WrapperWidget for Expand {
         &mut self.child
     }
 
-    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+    fn root_behavior(&mut self, _context: &mut EventContext<'_>) -> Option<RootBehavior> {
         Some(RootBehavior::Expand)
     }
 
     fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         let available_space = available_space.map(|lim| ConstraintLimit::Fill(lim.max()));
         let child = self.child.mounted(&mut context.as_event_context());

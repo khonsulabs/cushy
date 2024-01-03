@@ -206,7 +206,7 @@ impl WrapperWidget for Style {
         &mut self.child
     }
 
-    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn mounted(&mut self, context: &mut EventContext<'_>) {
         context.attach_styles(self.styles.clone());
     }
 }

@@ -56,7 +56,7 @@ impl Stack {
         self
     }
 
-    fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
+    fn synchronize_children(&mut self, context: &mut EventContext<'_>) {
         let current_generation = self.children.generation();
         self.children.invalidate_when_changed(context);
         if current_generation.map_or_else(
@@ -118,7 +118,7 @@ impl Stack {
 }
 
 impl Widget for Stack {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         for (layout, child) in self.layout.iter().zip(&self.synced_children) {
             if layout.size > 0 {
                 context.for_other(child).redraw();
@@ -129,7 +129,7 @@ impl Widget for Stack {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         self.synchronize_children(&mut context.as_event_context());
 

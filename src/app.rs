@@ -30,11 +30,7 @@ impl Default for PendingApp {
     fn default() -> Self {
         Self {
             app: kludgine::app::PendingApp::default(),
-            cushy: Cushy {
-                clipboard: Clipboard::new()
-                    .ok()
-                    .map(|clipboard| Arc::new(Mutex::new(clipboard))),
-            },
+            cushy: Cushy::new(),
         }
     }
 }
@@ -52,6 +48,14 @@ pub struct Cushy {
 }
 
 impl Cushy {
+    pub(crate) fn new() -> Self {
+        Self {
+            clipboard: Clipboard::new()
+                .ok()
+                .map(|clipboard| Arc::new(Mutex::new(clipboard))),
+        }
+    }
+
     /// Returns a locked mutex guard to the OS's clipboard, if one was able to be
     /// initialized when the window opened.
     #[must_use]
@@ -77,7 +81,7 @@ impl Application for PendingApp {
 
     fn as_app(&self) -> App {
         App {
-            app: self.app.as_app(),
+            app: Some(self.app.as_app()),
             cushy: self.cushy.clone(),
         }
     }
@@ -86,7 +90,7 @@ impl Application for PendingApp {
 /// A handle to a Cushy application.
 #[derive(Clone)]
 pub struct App {
-    app: kludgine::app::App<WindowCommand>,
+    app: Option<kludgine::app::App<WindowCommand>>,
     cushy: Cushy,
 }
 
@@ -102,7 +106,10 @@ impl Application for App {
 
 impl AsApplication<AppEvent<WindowCommand>> for App {
     fn as_application(&self) -> &dyn kludgine::app::Application<AppEvent<WindowCommand>> {
-        self.app.as_application()
+        self.app
+            .as_ref()
+            .map(AsApplication::as_application)
+            .expect("no app")
     }
 }
 

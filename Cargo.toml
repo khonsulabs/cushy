@@ -39,6 +39,8 @@ cushy-macros = { version = "0.2.0", path = "cushy-macros" }
 arboard = "3.2.1"
 zeroize = "1.6.1"
 unicode-segmentation = "1.10.1"
+pollster = "0.3.0"
+bytemuck = "1.14.0"
 
 
 # [patch.crates-io]
@@ -57,7 +59,6 @@ unicode-segmentation = "1.10.1"
 opt-level = 2
 
 [dev-dependencies]
-pollster = "0.3.0"
 rand = "0.8.5"
 image = { version = "0.24.7", features = ["png"] }
 

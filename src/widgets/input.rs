@@ -166,7 +166,7 @@ where
         });
     }
 
-    fn forward_delete(&mut self, context: &mut EventContext<'_, '_>) {
+    fn forward_delete(&mut self, context: &mut EventContext<'_>) {
         if !context.enabled() {
             return;
         }
@@ -200,7 +200,7 @@ where
         });
     }
 
-    fn delete(&mut self, context: &mut EventContext<'_, '_>) {
+    fn delete(&mut self, context: &mut EventContext<'_>) {
         if !context.enabled() {
             return;
         }
@@ -231,7 +231,7 @@ where
         &mut self,
         direction: Affinity,
         mode: CursorNavigationMode,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         if !matches!(mode, CursorNavigationMode::Line) {
             self.line_navigation_x_target = None;
@@ -315,11 +315,7 @@ where
         }
     }
 
-    fn move_cursor_by_line_extent(
-        &mut self,
-        affinity: Affinity,
-        context: &mut EventContext<'_, '_>,
-    ) {
+    fn move_cursor_by_line_extent(&mut self, affinity: Affinity, context: &mut EventContext<'_>) {
         let Some(cache) = self.cache.as_ref() else {
             return;
         };
@@ -339,7 +335,7 @@ where
         self.selection.cursor = self.cursor_from_point(position, context);
     }
 
-    fn move_cursor_by_line(&mut self, affinity: Affinity, context: &mut EventContext<'_, '_>) {
+    fn move_cursor_by_line(&mut self, affinity: Affinity, context: &mut EventContext<'_>) {
         let Some(cache) = self.cache.as_ref() else {
             return;
         };
@@ -406,13 +402,13 @@ where
         self.mask_symbol.map(|mask| !mask.is_empty())
     }
 
-    fn copy_selection_to_clipboard(&mut self, context: &mut EventContext<'_, '_>) {
+    fn copy_selection_to_clipboard(&mut self, context: &mut EventContext<'_>) {
         if self.is_masked() {
             return;
         }
 
         self.map_selected_text(|text| {
-            if let Some(mut clipboard) = context.clipboard_guard() {
+            if let Some(mut clipboard) = context.cushy().clipboard_guard() {
                 match clipboard.set_text(text) {
                     Ok(()) => {}
                     Err(err) => tracing::error!("error copying to clipboard: {err}"),
@@ -421,7 +417,7 @@ where
         });
     }
 
-    fn replace_selection(&mut self, new_text: &str, context: &mut EventContext<'_, '_>) {
+    fn replace_selection(&mut self, new_text: &str, context: &mut EventContext<'_>) {
         if !context.enabled() {
             return;
         }
@@ -444,12 +440,13 @@ where
         };
     }
 
-    fn paste_from_clipboard(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn paste_from_clipboard(&mut self, context: &mut EventContext<'_>) -> bool {
         if !context.enabled() {
             return false;
         }
 
         match context
+            .cushy()
             .clipboard_guard()
             .map(|mut clipboard| clipboard.get_text())
         {
@@ -465,7 +462,7 @@ where
         }
     }
 
-    fn handle_key(&mut self, input: KeyEvent, context: &mut EventContext<'_, '_>) -> EventHandling {
+    fn handle_key(&mut self, input: KeyEvent, context: &mut EventContext<'_>) -> EventHandling {
         match (input.state, input.logical_key, input.text.as_deref()) {
             (ElementState::Pressed,  Key::Named(key @ (NamedKey::Backspace| NamedKey::Delete)), _) => {
                 match key {
@@ -547,11 +544,7 @@ where
         }
     }
 
-    fn layout_text(
-        &mut self,
-        width: Option<Px>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
-    ) {
+    fn layout_text(&mut self, width: Option<Px>, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         context.invalidate_when_changed(&self.value);
 
         let mut key = {
@@ -808,11 +801,7 @@ where
         }
     }
 
-    fn cursor_from_point(
-        &mut self,
-        location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
-    ) -> Cursor {
+    fn cursor_from_point(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> Cursor {
         let mut cursor = self.cached_cursor_from_point(location, context);
         if let Some(symbol) = self.mask.graphemes(true).next() {
             let grapheme_offset = cursor.offset / symbol.len();
@@ -831,7 +820,7 @@ where
     fn cached_cursor_from_point(
         &mut self,
         location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Cursor {
         let Some(cache) = &self.cache else {
             return Cursor::default();
@@ -973,11 +962,11 @@ impl<Storage> Widget for Input<Storage>
 where
     Storage: InputStorage + Debug,
 {
-    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
         true
     }
 
-    fn accept_focus(&mut self, _context: &mut EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, _context: &mut EventContext<'_>) -> bool {
         true
     }
 
@@ -986,7 +975,7 @@ where
         location: Point<Px>,
         _device_id: kludgine::app::winit::event::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         self.mouse_buttons_down += 1;
         context.focus();
@@ -1000,7 +989,7 @@ where
     fn hover(
         &mut self,
         _location: Point<Px>,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) -> Option<CursorIcon> {
         Some(CursorIcon::Text)
     }
@@ -1010,7 +999,7 @@ where
         location: Point<Px>,
         _device_id: kludgine::app::winit::event::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         let cursor_location = self.cursor_from_point(location, context);
         if self.selection.cursor != cursor_location {
@@ -1025,13 +1014,13 @@ where
         _location: Option<Point<Px>>,
         _device_id: kludgine::app::winit::event::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) {
         self.mouse_buttons_down -= 1;
     }
 
     #[allow(clippy::too_many_lines)]
-    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         if self.needs_to_select_all {
             self.needs_to_select_all = false;
             self.select_all();
@@ -1177,7 +1166,7 @@ where
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         let padding = context
             .get(&IntrinsicPadding)
@@ -1202,7 +1191,7 @@ where
         _device_id: kludgine::app::winit::event::DeviceId,
         input: kludgine::app::winit::event::KeyEvent,
         _is_synthetic: bool,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         if let Some(on_key) = &mut self.on_key {
             on_key.invoke(input.clone())?;
@@ -1219,7 +1208,7 @@ where
         handled
     }
 
-    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_, '_>) -> EventHandling {
+    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_>) -> EventHandling {
         match ime {
             Ime::Enabled | Ime::Disabled => {}
             Ime::Preedit(text, cursor) => {
@@ -1234,7 +1223,7 @@ where
         HANDLED
     }
 
-    fn focus(&mut self, context: &mut EventContext<'_, '_>) {
+    fn focus(&mut self, context: &mut EventContext<'_>) {
         if self.mouse_buttons_down == 0 {
             self.needs_to_select_all = true;
         }
@@ -1248,7 +1237,7 @@ where
         context.set_needs_redraw();
     }
 
-    fn blur(&mut self, context: &mut EventContext<'_, '_>) {
+    fn blur(&mut self, context: &mut EventContext<'_>) {
         context.set_ime_allowed(false);
         context.set_needs_redraw();
     }

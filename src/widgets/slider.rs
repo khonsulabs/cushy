@@ -144,7 +144,7 @@ where
         self
     }
 
-    fn draw_track(&mut self, spec: &TrackSpec, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn draw_track(&mut self, spec: &TrackSpec, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         if self.horizontal {
             self.rendered_size = spec.size.width;
         } else {
@@ -238,7 +238,7 @@ where
         focus: Option<Knob>,
         focus_ring_width: Px,
         spec: &TrackSpec,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut GraphicsContext<'_, '_, '_, '_>,
     ) {
         let (a, a_is_focused, b) = match (start_knob, focus) {
             (Some(start_knob), Some(Knob::Start)) => (end_knob, false, Some((start_knob, true))),
@@ -257,7 +257,7 @@ where
         is_focused: bool,
         focus_ring_width: Px,
         spec: &TrackSpec,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut GraphicsContext<'_, '_, '_, '_>,
     ) {
         context.gfx.draw_shape(
             Shape::filled_circle(spec.half_knob, spec.knob_color, Origin::Center)
@@ -417,7 +417,7 @@ impl<T> Widget for Slider<T>
 where
     T: SliderValue,
 {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let (track_color, inactive_track_color, knob_color) = if context.enabled() {
             (
                 context.get(&TrackColor),
@@ -500,7 +500,7 @@ where
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         self.knob_size = if self.knob_visible {
             context.get(&KnobSize).into_upx(context.gfx.scale())
@@ -552,14 +552,14 @@ where
         }
     }
 
-    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
         self.interactive
     }
 
     fn hover(
         &mut self,
         _location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<CursorIcon> {
         (self.interactive && self.knob_visible).then_some({
             if context.enabled() {
@@ -574,14 +574,14 @@ where
         })
     }
 
-    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, context: &mut EventContext<'_>) -> bool {
         context.enabled()
             && self.interactive
             && self.knob_visible
             && context.get(&AutoFocusableControls).is_all()
     }
 
-    fn focus(&mut self, context: &mut EventContext<'_, '_>) {
+    fn focus(&mut self, context: &mut EventContext<'_>) {
         if self.mouse_buttons_down == 0 {
             self.focused_knob = Some(if T::RANGED && !context.focus_is_advancing() {
                 Knob::End
@@ -595,7 +595,7 @@ where
     fn advance_focus(
         &mut self,
         direction: VisualOrder,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         let (true, Some(focused)) = (T::RANGED, self.focused_knob) else {
             return IGNORED;
@@ -619,7 +619,7 @@ where
         HANDLED
     }
 
-    fn blur(&mut self, context: &mut EventContext<'_, '_>) {
+    fn blur(&mut self, context: &mut EventContext<'_>) {
         self.previous_focus = self.focused_knob.take();
         context.set_needs_redraw();
     }
@@ -629,7 +629,7 @@ where
         location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         let true = self.interactive else {
             return IGNORED;
@@ -652,7 +652,7 @@ where
         location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         if context.enabled() {
             self.update_from_click(location, None);
@@ -664,7 +664,7 @@ where
         _location: Option<Point<Px>>,
         _device_id: DeviceId,
         _button: MouseButton,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) {
         self.mouse_buttons_down -= 1;
     }
@@ -674,7 +674,7 @@ where
         _device_id: DeviceId,
         input: kludgine::app::winit::event::KeyEvent,
         _is_synthetic: bool,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) -> EventHandling {
         let true = self.interactive else {
             return IGNORED;
@@ -699,7 +699,7 @@ where
         _device_id: DeviceId,
         delta: MouseScrollDelta,
         _phase: TouchPhase,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         let true = self.interactive else {
             return IGNORED;

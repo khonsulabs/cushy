@@ -51,7 +51,7 @@ impl Collapse {
         }
     }
 
-    fn note_child_size(&mut self, size: Px, context: &mut LayoutContext<'_, '_, '_, '_, '_>) {
+    fn note_child_size(&mut self, size: Px, context: &mut LayoutContext<'_, '_, '_, '_>) {
         let (easing, target) = if self.collapse.get_tracking_invalidate(context) {
             (EasingFunction::from(EaseOutQuadradic), Px::ZERO)
         } else {
@@ -90,7 +90,7 @@ impl WrapperWidget for Collapse {
         &mut self,
         size: Size<Px>,
         _available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         let clip_size = self.size.get_tracking_invalidate(context);
         if self.vertical {

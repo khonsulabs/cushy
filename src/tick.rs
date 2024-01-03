@@ -25,7 +25,7 @@ pub struct Tick {
 
 impl Tick {
     /// Signals that this widget has been redrawn.
-    pub fn rendered(&self, context: &WidgetContext<'_, '_>) {
+    pub fn rendered(&self, context: &WidgetContext<'_>) {
         context.redraw_when_changed(&self.data.tick_number);
 
         self.data.sync.notify_one();

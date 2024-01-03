@@ -103,7 +103,7 @@ pub trait Source<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     #[must_use]
-    fn get_tracking_redraw(&self, context: &WidgetContext<'_, '_>) -> T
+    fn get_tracking_redraw(&self, context: &WidgetContext<'_>) -> T
     where
         T: Clone,
         Self: Trackable + Sized,
@@ -121,7 +121,7 @@ pub trait Source<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     #[must_use]
-    fn get_tracking_invalidate(&self, context: &WidgetContext<'_, '_>) -> T
+    fn get_tracking_invalidate(&self, context: &WidgetContext<'_>) -> T
     where
         T: Clone,
         Self: Trackable + Sized,
@@ -2508,7 +2508,7 @@ impl<T> Value<T> {
     /// updated.
     pub fn map_tracking_redraw<R>(
         &self,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
         map: impl FnOnce(&T) -> R,
     ) -> R {
         match self {
@@ -2526,7 +2526,7 @@ impl<T> Value<T> {
     /// updated.
     pub fn map_tracking_invalidate<R>(
         &self,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
         map: impl FnOnce(&T) -> R,
     ) -> R {
         match self {
@@ -2573,7 +2573,7 @@ impl<T> Value<T> {
     ///
     /// If `self` is a dynamic, `context` will be refreshed when the value is
     /// updated.
-    pub fn get_tracking_redraw(&self, context: &WidgetContext<'_, '_>) -> T
+    pub fn get_tracking_redraw(&self, context: &WidgetContext<'_>) -> T
     where
         T: Clone,
     {
@@ -2584,7 +2584,7 @@ impl<T> Value<T> {
     ///
     /// If `self` is a dynamic, `context` will be invalidated when the value is
     /// updated.
-    pub fn get_tracking_invalidate(&self, context: &WidgetContext<'_, '_>) -> T
+    pub fn get_tracking_invalidate(&self, context: &WidgetContext<'_>) -> T
     where
         T: Clone,
     {

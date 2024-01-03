@@ -20,8 +20,8 @@ impl Canvas {
     /// Returns a new canvas that draws its contents by invoking `render`.
     pub fn new<F>(render: F) -> Self
     where
-        F: for<'clip, 'gfx, 'pass, 'context, 'window> FnMut(
-                &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
+        F: for<'clip, 'gfx, 'pass, 'context> FnMut(
+                &mut GraphicsContext<'context, 'clip, 'gfx, 'pass>,
             ) + Send
             + 'static,
     {
@@ -40,7 +40,7 @@ impl Canvas {
 }
 
 impl Widget for Canvas {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         context.redraw_when_changed(&self.redraw);
         self.render.render(context);
         if let Some(tick) = &self.tick {
@@ -51,7 +51,7 @@ impl Widget for Canvas {
     fn layout(
         &mut self,
         available_space: Size<crate::ConstraintLimit>,
-        _context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        _context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         available_space.map(ConstraintLimit::max)
     }
@@ -64,17 +64,16 @@ impl Debug for Canvas {
 }
 
 trait RenderFunction: Send + 'static {
-    fn render(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
+    fn render(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>);
 }
 
 impl<F> RenderFunction for F
 where
-    F: for<'clip, 'gfx, 'pass, 'context, 'window> FnMut(
-            &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
-        ) + Send
+    F: for<'clip, 'gfx, 'pass, 'context> FnMut(&mut GraphicsContext<'context, 'clip, 'gfx, 'pass>)
+        + Send
         + 'static,
 {
-    fn render(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn render(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         self(context);
     }
 }

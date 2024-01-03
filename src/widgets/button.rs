@@ -71,7 +71,7 @@ impl ButtonKind {
     pub fn colors_for_default(
         self,
         visual_state: VisualState,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
     ) -> ButtonColors {
         match self {
             ButtonKind::Solid => match visual_state {
@@ -171,7 +171,7 @@ impl Button {
         self
     }
 
-    fn invoke_on_click(&mut self, context: &WidgetContext<'_, '_>) {
+    fn invoke_on_click(&mut self, context: &WidgetContext<'_>) {
         if context.enabled() {
             if let Some(on_click) = self.on_click.as_mut() {
                 on_click.invoke(());
@@ -179,7 +179,7 @@ impl Button {
         }
     }
 
-    fn visual_style(context: &WidgetContext<'_, '_>) -> VisualState {
+    fn visual_style(context: &WidgetContext<'_>) -> VisualState {
         if !context.enabled() {
             VisualState::Disabled
         } else if context.active() {
@@ -195,7 +195,7 @@ impl Button {
     #[must_use]
     pub fn colors_for_transparent(
         visual_state: VisualState,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
     ) -> ButtonColors {
         match visual_state {
             VisualState::Normal => ButtonColors {
@@ -225,7 +225,7 @@ impl Button {
         }
     }
 
-    fn determine_stateful_colors(&mut self, context: &mut WidgetContext<'_, '_>) -> ButtonColors {
+    fn determine_stateful_colors(&mut self, context: &mut WidgetContext<'_>) -> ButtonColors {
         let kind = self.kind.get_tracking_redraw(context);
         let visual_state = Self::visual_style(context);
 
@@ -247,7 +247,7 @@ impl Button {
         }
     }
 
-    fn update_colors(&mut self, context: &mut WidgetContext<'_, '_>, immediate: bool) {
+    fn update_colors(&mut self, context: &mut WidgetContext<'_>, immediate: bool) {
         let new_style = self.determine_stateful_colors(context);
         let window_local = self.per_window.entry(context).or_default();
 
@@ -271,7 +271,7 @@ impl Button {
         }
     }
 
-    fn current_style(&mut self, context: &mut WidgetContext<'_, '_>) -> ButtonColors {
+    fn current_style(&mut self, context: &mut WidgetContext<'_>) -> ButtonColors {
         if self
             .per_window
             .entry(context)
@@ -318,7 +318,7 @@ impl VisualState {
     /// Returns the colors to apply to a [`ButtonKind::Solid`] [`Button`] or
     /// button-like widget.
     #[must_use]
-    pub fn solid_colors(self, context: &WidgetContext<'_, '_>) -> ButtonColors {
+    pub fn solid_colors(self, context: &WidgetContext<'_>) -> ButtonColors {
         match self {
             VisualState::Normal => ButtonColors {
                 background: context.get(&ButtonBackground),
@@ -346,7 +346,7 @@ impl VisualState {
     /// Returns the colors to apply to a [`ButtonKind::Outline`] [`Button`] or
     /// button-like widget.
     #[must_use]
-    pub fn outline_colors(self, context: &WidgetContext<'_, '_>) -> ButtonColors {
+    pub fn outline_colors(self, context: &WidgetContext<'_>) -> ButtonColors {
         let solid = self.solid_colors(context);
         ButtonColors {
             background: solid.outline,
@@ -364,7 +364,7 @@ impl Widget for Button {
             .finish()
     }
 
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         #![allow(clippy::similar_names)]
 
         let current_style = self.kind.get_tracking_redraw(context);
@@ -417,11 +417,11 @@ impl Widget for Button {
         context.for_other(&content).redraw();
     }
 
-    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
         true
     }
 
-    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, context: &mut EventContext<'_>) -> bool {
         self.focusable && context.enabled() && context.get(&AutoFocusableControls).is_all()
     }
 
@@ -430,7 +430,7 @@ impl Widget for Button {
         _location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         self.per_window.entry(context).or_default().buttons_pressed += 1;
         context.activate();
@@ -442,7 +442,7 @@ impl Widget for Button {
         location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         let changed = if Rect::from(context.last_layout().expect("must have been rendered").size)
             .contains(location)
@@ -462,7 +462,7 @@ impl Widget for Button {
         location: Option<Point<Px>>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         let window_local = self.per_window.entry(context).or_default();
         window_local.buttons_pressed -= 1;
@@ -484,7 +484,7 @@ impl Widget for Button {
     fn layout(
         &mut self,
         available_space: Size<crate::ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         let padding = context
             .get(&IntrinsicPadding)
@@ -502,14 +502,14 @@ impl Widget for Button {
         size + double_padding
     }
 
-    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unhover(&mut self, context: &mut EventContext<'_>) {
         self.update_colors(context, false);
     }
 
     fn hover(
         &mut self,
         _location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<CursorIcon> {
         self.update_colors(context, false);
 
@@ -520,15 +520,15 @@ impl Widget for Button {
         }
     }
 
-    fn focus(&mut self, context: &mut EventContext<'_, '_>) {
+    fn focus(&mut self, context: &mut EventContext<'_>) {
         context.set_needs_redraw();
     }
 
-    fn blur(&mut self, context: &mut EventContext<'_, '_>) {
+    fn blur(&mut self, context: &mut EventContext<'_>) {
         context.set_needs_redraw();
     }
 
-    fn activate(&mut self, context: &mut EventContext<'_, '_>) {
+    fn activate(&mut self, context: &mut EventContext<'_>) {
         let window_local = self.per_window.entry(context).or_default();
         // If we have no buttons pressed, the event should fire on activate not
         // on deactivate.
@@ -538,11 +538,11 @@ impl Widget for Button {
         self.update_colors(context, true);
     }
 
-    fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {
+    fn deactivate(&mut self, context: &mut EventContext<'_>) {
         self.update_colors(context, false);
     }
 
-    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unmounted(&mut self, context: &mut EventContext<'_>) {
         self.content.unmount_in(context);
     }
 }

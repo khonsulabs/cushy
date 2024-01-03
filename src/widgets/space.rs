@@ -38,7 +38,7 @@ impl Space {
 }
 
 impl Widget for Space {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let color = self.color.get_tracking_redraw(context);
         context.fill(color);
     }
@@ -46,7 +46,7 @@ impl Widget for Space {
     fn layout(
         &mut self,
         _available_space: Size<ConstraintLimit>,
-        _context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        _context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         Size::default()
     }

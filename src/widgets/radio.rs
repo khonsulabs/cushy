@@ -80,7 +80,7 @@ impl<T> Widget for RadioOrnament<T>
 where
     T: Debug + Eq + Send + 'static,
 {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let radio_size = context
             .gfx
             .region()
@@ -118,7 +118,7 @@ where
     fn layout(
         &mut self,
         _available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<figures::units::UPx> {
         let radio_size = context.get(&RadioSize).into_upx(context.gfx.scale());
         Size::squared(radio_size)

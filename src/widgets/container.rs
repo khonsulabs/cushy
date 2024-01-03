@@ -158,7 +158,7 @@ impl Container {
         self
     }
 
-    fn padding(&self, context: &GraphicsContext<'_, '_, '_, '_, '_>) -> Edges<Px> {
+    fn padding(&self, context: &GraphicsContext<'_, '_, '_, '_>) -> Edges<Px> {
         match &self.padding {
             Some(padding) => padding.get(),
             None => Edges::from(context.get(&IntrinsicPadding)),
@@ -166,7 +166,7 @@ impl Container {
         .map(|dim| dim.into_px(context.gfx.scale()).round())
     }
 
-    fn effective_background_color(&mut self, context: &WidgetContext<'_, '_>) -> kludgine::Color {
+    fn effective_background_color(&mut self, context: &WidgetContext<'_>) -> kludgine::Color {
         let background = match self.background.get() {
             ContainerBackground::Color(color) => EffectiveBackground::Color(color),
             ContainerBackground::Level(level) => EffectiveBackground::Level(level),
@@ -206,7 +206,7 @@ impl Widget for Container {
             .finish()
     }
 
-    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unmounted(&mut self, context: &mut EventContext<'_>) {
         self.child.unmount_in(context);
     }
 
@@ -215,7 +215,7 @@ impl Widget for Container {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let opacity = context.get(&Opacity);
 
         let background = self.effective_background_color(context);
@@ -251,7 +251,7 @@ impl Widget for Container {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         let child = self.child.mounted(context);
 
@@ -308,7 +308,7 @@ impl Widget for Container {
 
     fn root_behavior(
         &mut self,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<(RootBehavior, WidgetInstance)> {
         let mut padding = self
             .padding
@@ -345,7 +345,7 @@ fn render_shadow(
     mut corner_radii: CornerRadii<Px>,
     shadow: &ContainerShadow<Px>,
     background: Color,
-    context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+    context: &mut GraphicsContext<'_, '_, '_, '_>,
 ) {
     let shadow_color = shadow.color.unwrap_or_else(|| context.theme_pair().shadow);
     let shadow_color =
@@ -588,7 +588,7 @@ fn shadow_arc(
     solid_color: Color,
     transparent_color: Color,
     start_angle: Angle,
-    context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+    context: &mut GraphicsContext<'_, '_, '_, '_>,
 ) {
     let full_radius = radius + gradient;
     let mut current_outer_arc = origin + Point::new(full_radius, Px::ZERO).rotate_by(start_angle);

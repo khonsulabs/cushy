@@ -4,27 +4,31 @@ use std::cell::RefCell;
 use std::collections::hash_map;
 use std::ffi::OsStr;
 use std::hash::Hash;
+use std::marker::PhantomData;
+use std::num::TryFromIntError;
 use std::ops::{Deref, DerefMut, Not};
 use std::path::Path;
 use std::string::ToString;
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
+use std::time::{Duration, Instant};
 
 use ahash::AHashMap;
 use alot::LotId;
 use arboard::Clipboard;
 use figures::units::{Px, UPx};
-use figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, ScreenScale, Size, Zero};
+use figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, Round, ScreenScale, Size, Zero};
+use intentional::{Assert, Cast};
 use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
-    DeviceId, ElementState, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
+    DeviceId, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::keyboard::{Key, NamedKey};
-use kludgine::app::winit::window;
-use kludgine::app::WindowBehavior as _;
+use kludgine::app::winit::window::{self, CursorIcon};
+use kludgine::app::{winit, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::render::Drawing;
-use kludgine::wgpu::CompositeAlphaMode;
-use kludgine::{Kludgine, KludgineId};
+use kludgine::wgpu::{self, CompositeAlphaMode, COPY_BYTES_PER_ROW_ALIGNMENT};
+use kludgine::{Color, Kludgine, KludgineId, Texture};
 use tracing::Level;
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
@@ -48,9 +52,183 @@ use crate::widget::{
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit};
 
+/// A platform-dependent window implementation.
+pub trait PlatformWindowImplementation {
+    /// Marks the window to close as soon as possible.
+    fn close(&mut self);
+    /// Returns the underlying `winit` window, if one exists.
+    fn winit(&self) -> Option<&winit::window::Window>;
+    /// Sets the window to redraw as soon as possible.
+    fn set_needs_redraw(&mut self);
+    /// Sets the window to redraw after a `duration`.
+    fn redraw_in(&mut self, duration: Duration);
+    /// Sets the window to redraw at a specified instant.
+    fn redraw_at(&mut self, moment: Instant);
+    /// Returns the current keyboard modifiers.
+    fn modifiers(&self) -> Modifiers;
+    /// Returns the amount of time that has elapsed since the last redraw.
+    fn elapsed(&self) -> Duration;
+    /// Sets the current cursor icon to `cursor`.
+    fn set_cursor_icon(&mut self, cursor: CursorIcon);
+    /// Returns a handle for the window.
+    fn handle(&self, redraw_status: InvalidationStatus) -> WindowHandle;
+    /// Returns the current inner size of the window.
+    fn inner_size(&self) -> Size<UPx>;
+
+    /// Returns true if the window can have its size changed.
+    ///
+    /// The provided implementation returns
+    /// [`winit::window::Window::is_resizable`], or true if this window has no
+    /// winit window.
+    fn is_resizable(&self) -> bool {
+        self.winit()
+            .map_or(true, winit::window::Window::is_resizable)
+    }
+
+    /// Returns true if the window can have its size changed.
+    ///
+    /// The provided implementation returns [`winit::window::Window::theme`], or
+    /// dark if this window has no winit window.
+    fn theme(&self) -> winit::window::Theme {
+        self.winit()
+            .and_then(winit::window::Window::theme)
+            .unwrap_or(winit::window::Theme::Dark)
+    }
+
+    /// Requests that the window change its inner size.
+    ///
+    /// The provided implementation forwards the request onto the winit window,
+    /// if present.
+    fn request_inner_size(&mut self, inner_size: Size<UPx>) {
+        self.winit()
+            .map(|winit| winit.request_inner_size(PhysicalSize::from(inner_size)));
+    }
+
+    /// Sets whether [`Ime`] events should be enabled.
+    ///
+    /// The provided implementation forwards the request onto the winit window,
+    /// if present.
+    fn set_ime_allowed(&self, allowed: bool) {
+        if let Some(winit) = self.winit() {
+            winit.set_ime_allowed(allowed);
+        }
+    }
+
+    /// Sets the current [`Ime`] purpose.
+    ///
+    /// The provided implementation forwards the request onto the winit window,
+    /// if present.
+    fn set_ime_purpose(&self, purpose: winit::window::ImePurpose) {
+        if let Some(winit) = self.winit() {
+            winit.set_ime_purpose(purpose);
+        }
+    }
+
+    /// Sets the window's minimum inner size.
+    fn set_min_inner_size(&self, min_size: Option<Size<UPx>>) {
+        if let Some(winit) = self.winit() {
+            winit.set_min_inner_size::<PhysicalSize<u32>>(min_size.map(Into::into));
+        }
+    }
+
+    /// Sets the window's maximum inner size.
+    fn set_max_inner_size(&self, max_size: Option<Size<UPx>>) {
+        if let Some(winit) = self.winit() {
+            winit.set_max_inner_size::<PhysicalSize<u32>>(max_size.map(Into::into));
+        }
+    }
+}
+
+impl PlatformWindowImplementation for kludgine::app::Window<'_, WindowCommand> {
+    fn set_cursor_icon(&mut self, cursor: CursorIcon) {
+        self.winit().set_cursor_icon(cursor);
+    }
+
+    fn inner_size(&self) -> Size<UPx> {
+        self.winit().inner_size().into()
+    }
+
+    fn close(&mut self) {
+        self.close();
+    }
+
+    fn winit(&self) -> Option<&winit::window::Window> {
+        Some(self.winit())
+    }
+
+    fn set_needs_redraw(&mut self) {
+        self.set_needs_redraw();
+    }
+
+    fn redraw_in(&mut self, duration: Duration) {
+        self.redraw_in(duration);
+    }
+
+    fn redraw_at(&mut self, moment: Instant) {
+        self.redraw_at(moment);
+    }
+
+    fn modifiers(&self) -> Modifiers {
+        self.modifiers()
+    }
+
+    fn elapsed(&self) -> Duration {
+        self.elapsed()
+    }
+
+    fn handle(&self, redraw_status: InvalidationStatus) -> WindowHandle {
+        WindowHandle::new(self.handle(), redraw_status)
+    }
+}
+
+/// A platform-dependent window.
+pub trait PlatformWindow {
+    /// Marks the window to close as soon as possible.
+    fn close(&mut self);
+    /// Returns the underlying `winit` window, if one exists.
+    fn winit(&self) -> Option<&winit::window::Window>;
+    /// Returns a handle for the window.
+    fn handle(&self) -> WindowHandle;
+    /// Returns the unique id of the [`Kludgine`] instance used by this window.
+    fn kludgine_id(&self) -> KludgineId;
+    /// Returns the dynamic that is synchrnoized with the window's focus.
+    fn focused(&self) -> &Dynamic<bool>;
+    /// Returns the dynamic that is synchronized with the window's occlusion
+    /// status.
+    fn occluded(&self) -> &Dynamic<bool>;
+    /// Returns the current inner size of the window.
+    fn inner_size(&self) -> &Dynamic<Size<UPx>>;
+    /// Returns the shared application resources.
+    fn cushy(&self) -> &Cushy;
+    /// Sets the window to redraw as soon as possible.
+    fn set_needs_redraw(&mut self);
+    /// Sets the window to redraw after a `duration`.
+    fn redraw_in(&mut self, duration: Duration);
+    /// Sets the window to redraw at a specified instant.
+    fn redraw_at(&mut self, moment: Instant);
+    /// Returns the current keyboard modifiers.
+    fn modifiers(&self) -> Modifiers;
+    /// Returns the amount of time that has elapsed since the last redraw.
+    fn elapsed(&self) -> Duration;
+    /// Sets the current cursor icon to `cursor`.
+    fn set_cursor_icon(&mut self, cursor: CursorIcon);
+
+    /// Sets whether [`Ime`] events should be enabled.
+    fn set_ime_allowed(&self, allowed: bool);
+    /// Sets the current [`Ime`] purpose.
+    fn set_ime_purpose(&self, purpose: winit::window::ImePurpose);
+
+    /// Requests that the window change its inner size.
+    fn request_inner_size(&mut self, inner_size: Size<UPx>);
+    /// Sets the window's minimum inner size.
+    fn set_min_inner_size(&self, min_size: Option<Size<UPx>>);
+    /// Sets the window's maximum inner size.
+    fn set_max_inner_size(&self, max_size: Option<Size<UPx>>);
+}
+
 /// A currently running Cushy window.
-pub struct RunningWindow<'window> {
-    window: kludgine::app::Window<'window, WindowCommand>,
+pub struct RunningWindow<W> {
+    window: W,
     kludgine_id: KludgineId,
     invalidation_status: InvalidationStatus,
     cushy: Cushy,
@@ -59,9 +237,12 @@ pub struct RunningWindow<'window> {
     inner_size: Dynamic<Size<UPx>>,
 }
 
-impl<'window> RunningWindow<'window> {
+impl<W> RunningWindow<W>
+where
+    W: PlatformWindowImplementation,
+{
     pub(crate) fn new(
-        window: kludgine::app::Window<'window, WindowCommand>,
+        window: W,
         kludgine_id: KludgineId,
         invalidation_status: &InvalidationStatus,
         cushy: &Cushy,
@@ -113,7 +294,7 @@ impl<'window> RunningWindow<'window> {
     /// Returns a handle to this window.
     #[must_use]
     pub fn handle(&self) -> WindowHandle {
-        WindowHandle::new(self.window.handle(), self.invalidation_status.clone())
+        self.window.handle(self.invalidation_status.clone())
     }
 
     /// Returns a dynamic that is synchronized with this window's inner size.
@@ -135,17 +316,104 @@ impl<'window> RunningWindow<'window> {
     }
 }
 
-impl<'window> Deref for RunningWindow<'window> {
-    type Target = kludgine::app::Window<'window, WindowCommand>;
+impl<W> Deref for RunningWindow<W>
+where
+    W: PlatformWindowImplementation + 'static,
+{
+    type Target = dyn PlatformWindowImplementation;
 
     fn deref(&self) -> &Self::Target {
         &self.window
     }
 }
 
-impl<'window> DerefMut for RunningWindow<'window> {
+impl<W> DerefMut for RunningWindow<W>
+where
+    W: PlatformWindowImplementation + 'static,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.window
+    }
+}
+
+impl<W> PlatformWindow for RunningWindow<W>
+where
+    W: PlatformWindowImplementation,
+{
+    fn close(&mut self) {
+        self.window.close();
+    }
+
+    fn winit(&self) -> Option<&winit::window::Window> {
+        self.window.winit()
+    }
+
+    fn handle(&self) -> WindowHandle {
+        self.window.handle(self.invalidation_status.clone())
+    }
+
+    fn kludgine_id(&self) -> KludgineId {
+        self.kludgine_id
+    }
+
+    fn focused(&self) -> &Dynamic<bool> {
+        &self.focused
+    }
+
+    fn occluded(&self) -> &Dynamic<bool> {
+        &self.occluded
+    }
+
+    fn inner_size(&self) -> &Dynamic<Size<UPx>> {
+        &self.inner_size
+    }
+
+    fn cushy(&self) -> &Cushy {
+        &self.cushy
+    }
+
+    fn set_needs_redraw(&mut self) {
+        self.window.set_needs_redraw();
+    }
+
+    fn redraw_in(&mut self, duration: Duration) {
+        self.window.redraw_in(duration);
+    }
+
+    fn redraw_at(&mut self, moment: Instant) {
+        self.window.redraw_at(moment);
+    }
+
+    fn modifiers(&self) -> Modifiers {
+        self.window.modifiers()
+    }
+
+    fn elapsed(&self) -> Duration {
+        self.window.elapsed()
+    }
+
+    fn set_ime_allowed(&self, allowed: bool) {
+        self.window.set_ime_allowed(allowed);
+    }
+
+    fn set_ime_purpose(&self, purpose: winit::window::ImePurpose) {
+        self.window.set_ime_purpose(purpose);
+    }
+
+    fn set_cursor_icon(&mut self, cursor: CursorIcon) {
+        self.window.set_cursor_icon(cursor);
+    }
+
+    fn set_min_inner_size(&self, min_size: Option<Size<UPx>>) {
+        self.window.set_min_inner_size(min_size);
+    }
+
+    fn set_max_inner_size(&self, max_size: Option<Size<UPx>>) {
+        self.window.set_max_inner_size(max_size);
+    }
+
+    fn request_inner_size(&mut self, inner_size: Size<UPx>) {
+        self.window.request_inner_size(inner_size);
     }
 }
 
@@ -377,7 +645,9 @@ where
         App: Application + ?Sized,
     {
         let cushy = app.cushy().clone();
-
+        // let Some(app) = app.as_app().as_kludgine() else {
+        //     return Ok(None);
+        // };
         let handle = CushyWindow::<Behavior>::open_with(
             app,
             sealed::Context {
@@ -389,9 +659,9 @@ where
                     on_closed: self.on_closed,
                     transparent: self.attributes.transparent,
                     attributes: Some(self.attributes),
-                    occluded: self.occluded,
-                    focused: self.focused,
-                    inner_size: self.inner_size,
+                    occluded: self.occluded.unwrap_or_default(),
+                    focused: self.focused.unwrap_or_default(),
+                    inner_size: self.inner_size.unwrap_or_default(),
                     theme: Some(self.theme),
                     theme_mode: self.theme_mode,
                     font_data_to_load: self.font_data_to_load,
@@ -419,7 +689,10 @@ pub trait WindowBehavior: Sized + 'static {
     type Context: Send + 'static;
 
     /// Return a new instance of this behavior using `context`.
-    fn initialize(window: &mut RunningWindow<'_>, context: Self::Context) -> Self;
+    fn initialize(
+        window: &mut RunningWindow<kludgine::app::Window<'_, WindowCommand>>,
+        context: Self::Context,
+    ) -> Self;
 
     /// Create the window's root widget. This function is only invoked once.
     fn make_root(&mut self) -> WidgetInstance;
@@ -428,7 +701,10 @@ pub trait WindowBehavior: Sized + 'static {
     /// the window will be closed. Returning false prevents the window from
     /// closing.
     #[allow(unused_variables)]
-    fn close_requested(&self, window: &mut RunningWindow<'_>) -> bool {
+    fn close_requested<W>(&self, window: &mut RunningWindow<W>) -> bool
+    where
+        W: PlatformWindowImplementation,
+    {
         true
     }
 
@@ -479,7 +755,7 @@ where
     fn request_close(
         should_close: &mut bool,
         behavior: &mut T,
-        window: &mut RunningWindow<'_>,
+        window: &mut RunningWindow<kludgine::app::Window<'_, WindowCommand>>,
     ) -> bool {
         *should_close |= behavior.close_requested(window);
 
@@ -490,7 +766,7 @@ where
         &mut self,
         is_pressed: bool,
         widget: Option<LotId>,
-        window: &mut RunningWindow<'_>,
+        window: &mut RunningWindow<kludgine::app::Window<'_, WindowCommand>>,
         kludgine: &mut Kludgine,
     ) {
         if is_pressed {
@@ -544,12 +820,15 @@ where
         }
     }
 
-    fn constrain_window_resizing(
+    fn constrain_window_resizing<W>(
         &mut self,
         resizable: bool,
-        window: &mut RunningWindow<'_>,
+        window: &mut RunningWindow<W>,
         graphics: &mut kludgine::Graphics<'_>,
-    ) -> RootMode {
+    ) -> RootMode
+    where
+        W: PlatformWindowImplementation,
+    {
         let mut root_or_child = self.root.widget.clone();
         let mut root_mode = None;
         let mut padding = Edges::<Px>::default();
@@ -691,7 +970,7 @@ where
 
     fn handle_window_keyboard_input(
         &mut self,
-        window: &mut RunningWindow<'_>,
+        window: &mut RunningWindow<kludgine::app::Window<'_, WindowCommand>>,
         kludgine: &mut Kludgine,
         input: KeyEvent,
     ) {
@@ -782,40 +1061,31 @@ where
             }
         }
     }
-}
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-enum RootMode {
-    Fit,
-    Expand,
-    Align,
-}
-
-impl<T> kludgine::app::WindowBehavior<WindowCommand> for CushyWindow<T>
-where
-    T: WindowBehavior,
-{
-    type Context = sealed::Context<T::Context>;
-
-    fn initialize(
-        window: kludgine::app::Window<'_, WindowCommand>,
+    #[allow(clippy::needless_pass_by_value)]
+    fn new<W>(
+        mut behavior: T,
+        window: W,
         graphics: &mut kludgine::Graphics<'_>,
-        context: Self::Context,
-    ) -> Self {
-        let mut settings = context.settings.borrow_mut();
+        mut settings: sealed::WindowSettings,
+    ) -> Self
+    where
+        W: PlatformWindowImplementation,
+    {
+        let redraw_status = settings.redraw_status.clone();
         if let Value::Dynamic(title) = &settings.title {
-            let handle = window.handle();
+            let handle = window.handle(redraw_status.clone());
             title
                 .for_each_cloned(move |title| {
-                    let _result = handle.send(WindowCommand::SetTitle(title));
+                    handle.inner.send(WindowCommand::SetTitle(title));
                 })
                 .persist();
         }
         let cushy = settings.cushy.clone();
-        let occluded = settings.occluded.take().unwrap_or_default();
-        let focused = settings.focused.take().unwrap_or_default();
-        let theme = settings.theme.take().expect("theme always present");
-        let inner_size = settings.inner_size.take().unwrap_or_default();
+        let occluded = settings.occluded.clone();
+        let focused = settings.focused.clone();
+        let theme = settings.theme.take().unwrap_or_default();
+        let inner_size = settings.inner_size.clone();
         let on_closed = settings.on_closed.take();
 
         inner_size.set(window.inner_size());
@@ -831,19 +1101,7 @@ where
             None => Value::dynamic(window.theme().into()),
         };
         let transparent = settings.transparent;
-        let redraw_status = settings.redraw_status.clone();
-        let mut behavior = T::initialize(
-            &mut RunningWindow::new(
-                window,
-                graphics.id(),
-                &redraw_status,
-                &cushy,
-                &focused,
-                &occluded,
-                &inner_size,
-            ),
-            context.user,
-        );
+
         let tree = Tree::default();
         let root = tree.push_boxed(behavior.make_root(), None);
 
@@ -882,11 +1140,10 @@ where
         }
     }
 
-    fn prepare(
-        &mut self,
-        window: kludgine::app::Window<'_, WindowCommand>,
-        graphics: &mut kludgine::Graphics<'_>,
-    ) {
+    fn prepare<W>(&mut self, window: W, graphics: &mut kludgine::Graphics<'_>)
+    where
+        W: PlatformWindowImplementation,
+    {
         if let Some(theme) = &mut self.theme {
             if theme.has_updated() {
                 self.current_theme = theme.get();
@@ -899,7 +1156,7 @@ where
         self.tree
             .new_frame(self.redraw_status.invalidations().drain());
 
-        let resizable = window.winit().is_resizable();
+        let resizable = window.is_resizable();
         let mut window = RunningWindow::new(
             window,
             graphics.id(),
@@ -953,9 +1210,7 @@ where
         layout_context.redraw_when_changed(&self.inner_size);
         let inner_size_generation = self.inner_size.generation();
         if self.inner_size_generation != inner_size_generation {
-            let _ = layout_context
-                .winit()
-                .request_inner_size(PhysicalSize::from(self.inner_size.get()));
+            layout_context.request_inner_size(self.inner_size.get());
             self.inner_size_generation = inner_size_generation;
         } else if actual_size != window_size && !resizable {
             let mut new_size = actual_size;
@@ -965,9 +1220,7 @@ where
             if let Some(max_size) = self.max_inner_size {
                 new_size = new_size.min(max_size);
             }
-            let _ = layout_context
-                .winit()
-                .request_inner_size(PhysicalSize::from(new_size));
+            layout_context.request_inner_size(new_size);
         }
         self.root.set_layout(Rect::from(render_size.into_signed()));
 
@@ -988,6 +1241,74 @@ where
         } else {
             layout_context.redraw();
         }
+    }
+
+    fn close_requested<W>(&mut self, window: W, kludgine: &mut Kludgine) -> bool
+    where
+        W: PlatformWindowImplementation,
+    {
+        if self.behavior.close_requested(&mut RunningWindow::new(
+            window,
+            kludgine.id(),
+            &self.redraw_status,
+            &self.cushy,
+            &self.focused,
+            &self.occluded,
+            &self.inner_size,
+        )) {
+            self.should_close = true;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+enum RootMode {
+    Fit,
+    Expand,
+    Align,
+}
+
+impl<T> kludgine::app::WindowBehavior<WindowCommand> for CushyWindow<T>
+where
+    T: WindowBehavior,
+{
+    type Context = sealed::Context<T::Context>;
+
+    fn initialize(
+        window: kludgine::app::Window<'_, WindowCommand>,
+        graphics: &mut kludgine::Graphics<'_>,
+        context: Self::Context,
+    ) -> Self {
+        let settings = context.settings.borrow_mut();
+        let mut window = RunningWindow::new(
+            window,
+            graphics.id(),
+            &settings.redraw_status,
+            &settings.cushy,
+            &settings.focused,
+            &settings.occluded,
+            &settings.inner_size,
+        );
+        drop(settings);
+
+        let behavior = T::initialize(&mut window, context.user);
+        Self::new(
+            behavior,
+            window.window,
+            graphics,
+            context.settings.into_inner(),
+        )
+    }
+
+    fn prepare(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        graphics: &mut kludgine::Graphics<'_>,
+    ) {
+        self.prepare(window, graphics);
     }
 
     fn focus_changed(
@@ -1451,8 +1772,8 @@ impl<Behavior> Drop for CushyWindow<Behavior> {
 }
 
 fn recursively_handle_event(
-    context: &mut EventContext<'_, '_>,
-    mut each_widget: impl FnMut(&mut EventContext<'_, '_>) -> EventHandling,
+    context: &mut EventContext<'_>,
+    mut each_widget: impl FnMut(&mut EventContext<'_>) -> EventHandling,
 ) -> Option<MountedWidget> {
     match each_widget(context) {
         HANDLED => Some(context.widget().clone()),
@@ -1491,9 +1812,9 @@ pub(crate) mod sealed {
         pub redraw_status: InvalidationStatus,
         pub title: Value<String>,
         pub attributes: Option<WindowAttributes>,
-        pub occluded: Option<Dynamic<bool>>,
-        pub focused: Option<Dynamic<bool>>,
-        pub inner_size: Option<Dynamic<Size<UPx>>>,
+        pub occluded: Dynamic<bool>,
+        pub focused: Dynamic<bool>,
+        pub inner_size: Dynamic<Size<UPx>>,
         pub theme: Option<Value<ThemePair>>,
         pub theme_mode: Option<Value<ThemeMode>>,
         pub transparent: bool,
@@ -1511,6 +1832,12 @@ pub(crate) mod sealed {
         Redraw,
         RequestClose,
         SetTitle(String),
+    }
+
+    pub trait CaptureFormat {
+        const HAS_ALPHA: bool;
+
+        fn convert_rgba(data: &mut Vec<u8>, width: u32, bytes_per_row: u32);
     }
 }
 
@@ -1678,6 +2005,7 @@ impl Hash for WindowHandle {
 enum InnerWindowHandle {
     Pending(Arc<PendingWindowHandle>),
     Known(kludgine::app::WindowHandle<WindowCommand>),
+    Virtual(WindowDynamicState),
 }
 
 impl InnerWindowHandle {
@@ -1697,6 +2025,11 @@ impl InnerWindowHandle {
             InnerWindowHandle::Known(handle) => {
                 let _result = handle.send(message);
             }
+            InnerWindowHandle::Virtual(state) => match message {
+                WindowCommand::Redraw => state.redraw_target.set(RedrawTarget::Now),
+                WindowCommand::RequestClose => state.close_requested.set(true),
+                WindowCommand::SetTitle(title) => state.title.set(title),
+            },
         };
     }
 }
@@ -1779,12 +2112,12 @@ impl<T> WindowLocal<T> {
     /// Looks up the entry for this window.
     ///
     /// Internally this API uses [`HashMap::entry`](hash_map::HashMap::entry).
-    pub fn entry(&mut self, context: &WidgetContext<'_, '_>) -> hash_map::Entry<'_, KludgineId, T> {
+    pub fn entry(&mut self, context: &WidgetContext<'_>) -> hash_map::Entry<'_, KludgineId, T> {
         self.by_window.entry(context.kludgine_id())
     }
 
     /// Sets `value` as the local value for `context`'s window.
-    pub fn set(&mut self, context: &WidgetContext<'_, '_>, value: T) {
+    pub fn set(&mut self, context: &WidgetContext<'_>, value: T) {
         self.by_window.insert(context.kludgine_id(), value);
     }
 
@@ -1792,12 +2125,12 @@ impl<T> WindowLocal<T> {
     ///
     /// Internally this API uses [`HashMap::get`](hash_map::HashMap::get).
     #[must_use]
-    pub fn get(&self, context: &WidgetContext<'_, '_>) -> Option<&T> {
+    pub fn get(&self, context: &WidgetContext<'_>) -> Option<&T> {
         self.by_window.get(&context.kludgine_id())
     }
 
     /// Removes any stored value for this window.
-    pub fn clear_for(&mut self, context: &WidgetContext<'_, '_>) -> Option<T> {
+    pub fn clear_for(&mut self, context: &WidgetContext<'_>) -> Option<T> {
         self.by_window.remove(&context.kludgine_id())
     }
 }
@@ -1807,5 +2140,682 @@ impl<T> Default for WindowLocal<T> {
         Self {
             by_window: AHashMap::default(),
         }
+    }
+}
+
+/// The state of a [`VirtualWindow`].
+pub struct VirtualState {
+    /// State that may be updated outside of the window's event callbacks.
+    pub dynamic: WindowDynamicState,
+    /// When true, this window should be closed.
+    pub closed: bool,
+    /// The current keyboard modifers.
+    pub modifiers: Modifiers,
+    /// The amount of time elapsed since the last redraw call.
+    pub elapsed: Duration,
+    /// The currently set cursor icon.
+    pub cursor: CursorIcon,
+    /// The inner size of the virtual window.
+    pub size: Size<UPx>,
+}
+
+impl VirtualState {
+    fn new() -> Self {
+        Self {
+            dynamic: WindowDynamicState::default(),
+            closed: false,
+            modifiers: Modifiers::default(),
+            elapsed: Duration::ZERO,
+            cursor: CursorIcon::default(),
+            size: Size::new(UPx::new(800), UPx::new(600)),
+        }
+    }
+}
+
+/// Window state that is able to be updated outside of event handling,
+/// potentially via other threads depending on the application.
+#[derive(Clone, Debug, Default)]
+pub struct WindowDynamicState {
+    /// The target of the next frame to draw.
+    pub redraw_target: Dynamic<RedrawTarget>,
+    /// When true, the window has been asked to close. To ensure full Cushy
+    /// functionality, upon detecting this, [`VirtualWindow::request_close`]
+    /// should be invoked.
+    pub close_requested: Dynamic<bool>,
+    /// The current title of the window.
+    pub title: Dynamic<String>,
+}
+
+/// A target for the next redraw of a window.
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RedrawTarget {
+    /// The window should not redraw.
+    #[default]
+    Never,
+    /// The window should redraw as soon as possible.
+    Now,
+    /// The window should try to redraw at the given instant.
+    At(Instant),
+}
+
+impl PlatformWindowImplementation for &mut VirtualState {
+    fn close(&mut self) {
+        self.closed = true;
+    }
+
+    fn winit(&self) -> Option<&winit::window::Window> {
+        None
+    }
+
+    fn handle(&self, redraw_status: InvalidationStatus) -> WindowHandle {
+        WindowHandle {
+            inner: InnerWindowHandle::Virtual(self.dynamic.clone()),
+            redraw_status,
+        }
+    }
+
+    fn set_needs_redraw(&mut self) {
+        self.dynamic.redraw_target.set(RedrawTarget::Now);
+    }
+
+    fn redraw_in(&mut self, duration: Duration) {
+        self.redraw_at(Instant::now() + duration);
+    }
+
+    fn redraw_at(&mut self, moment: Instant) {
+        self.dynamic.redraw_target.map_mut(|mut redraw_at| {
+            if match *redraw_at {
+                RedrawTarget::At(instant) => moment < instant,
+                RedrawTarget::Never => true,
+                RedrawTarget::Now => false,
+            } {
+                *redraw_at = RedrawTarget::At(moment);
+            }
+        });
+    }
+
+    fn modifiers(&self) -> Modifiers {
+        self.modifiers
+    }
+
+    fn elapsed(&self) -> Duration {
+        self.elapsed
+    }
+
+    fn set_cursor_icon(&mut self, cursor: CursorIcon) {
+        self.cursor = cursor;
+    }
+
+    fn inner_size(&self) -> Size<UPx> {
+        self.size
+    }
+
+    fn request_inner_size(&mut self, inner_size: Size<UPx>) {
+        self.size = inner_size;
+        self.set_needs_redraw();
+    }
+}
+
+/// A builder for a [`VirtualWindow`].
+pub struct VirtualWindowBuilder {
+    widget: WidgetInstance,
+    multisample_count: u32,
+    initial_size: Size<UPx>,
+    scale: f32,
+    transparent: bool,
+}
+
+impl VirtualWindowBuilder {
+    /// Returns a new builder for a virtual window that contains `contents`.
+    #[must_use]
+    pub fn new(contents: impl MakeWidget) -> Self {
+        Self {
+            widget: contents.make_widget(),
+            multisample_count: 4,
+            initial_size: Size::new(UPx::new(800), UPx::new(600)),
+            scale: 1.,
+            transparent: false,
+        }
+    }
+
+    /// Sets this virtual window's multi-sample count.
+    ///
+    /// By default, 4 samples are taken. When 1 sample is used, multisampling is
+    /// fully disabled.
+    #[must_use]
+    pub fn multisample_count(mut self, count: u32) -> Self {
+        self.multisample_count = count;
+        self
+    }
+
+    /// Sets the size of the virtual window.
+    #[must_use]
+    pub fn size<Unit>(mut self, size: Size<Unit>) -> Self
+    where
+        Unit: Into<UPx>,
+    {
+        self.initial_size = size.map(Into::into);
+        self
+    }
+
+    /// Sets the DPI scaling factor of the virtual window.
+    #[must_use]
+    pub fn scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Sets the window not fill its background before rendering its contents.
+    #[must_use]
+    pub fn transparent(mut self) -> Self {
+        self.transparent = true;
+        self
+    }
+
+    /// Returns the initialized virtual window.
+    #[must_use]
+    pub fn finish(self, device: &wgpu::Device, queue: &wgpu::Queue) -> VirtualWindow {
+        VirtualWindow::new(
+            self.widget,
+            self.multisample_count,
+            self.initial_size,
+            self.scale,
+            self.transparent,
+            device,
+            queue,
+        )
+    }
+}
+
+/// A virtual Cushy window.
+///
+/// This type allows rendering Cushy applications directly into any wgpu
+/// application.
+pub struct VirtualWindow {
+    window: CushyWindow<WidgetInstance>,
+    kludgine: Kludgine,
+    last_rendered_at: Option<Instant>,
+    state: VirtualState,
+}
+
+impl VirtualWindow {
+    /// Returns a new virtual window with the provided specifications.
+    fn new(
+        widget: WidgetInstance,
+        multisample_count: u32,
+        initial_size: Size<UPx>,
+        scale: f32,
+        transparent: bool,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Self {
+        let mut kludgine = Kludgine::new(
+            device,
+            queue,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
+            wgpu::MultisampleState {
+                count: multisample_count,
+                ..Default::default()
+            },
+            initial_size,
+            scale,
+        );
+        let mut state = VirtualState::new();
+        let window = CushyWindow::<WidgetInstance>::new(
+            widget.make_widget(),
+            &mut state,
+            &mut kludgine::Graphics::new(&mut kludgine, device, queue),
+            sealed::WindowSettings {
+                cushy: Cushy::new(),
+                redraw_status: InvalidationStatus::default(),
+                title: Value::default(),
+                attributes: None,
+                occluded: Dynamic::default(),
+                focused: Dynamic::default(),
+                inner_size: Dynamic::default(),
+                theme: None,
+                theme_mode: None,
+                transparent,
+                serif_font_family: FontFamilyList::default(),
+                sans_serif_font_family: FontFamilyList::default(),
+                fantasy_font_family: FontFamilyList::default(),
+                monospace_font_family: FontFamilyList::default(),
+                cursive_font_family: FontFamilyList::default(),
+                font_data_to_load: Vec::default(),
+                on_closed: None,
+            },
+        );
+
+        Self {
+            window,
+            kludgine,
+            last_rendered_at: None,
+            state,
+        }
+    }
+
+    /// Prepares all necessary resources and operations necessary to render the
+    /// next frame.
+    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        let now = Instant::now();
+        self.state.elapsed = self
+            .last_rendered_at
+            .map(|i| now.duration_since(i))
+            .unwrap_or_default();
+        self.last_rendered_at = Some(now);
+        self.window.prepare(
+            &mut self.state,
+            &mut kludgine::Graphics::new(&mut self.kludgine, device, queue),
+        );
+    }
+
+    /// Renders this window in a wgpu render pass created from `pass`.
+    ///
+    /// Returns the submission index of the last command submission, if any
+    /// commands were submitted.
+    pub fn render(
+        &mut self,
+        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Option<wgpu::SubmissionIndex> {
+        let mut frame = self.kludgine.next_frame();
+        let mut gfx = frame.render(pass, device, queue);
+        self.window.contents.render(1., &mut gfx);
+        drop(gfx);
+        frame.submit(queue)
+    }
+
+    /// Renders this window into `texture` after performing `load_op`.
+    pub fn render_into(
+        &mut self,
+        texture: &kludgine::Texture,
+        load_op: wgpu::LoadOp<Color>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Option<wgpu::SubmissionIndex> {
+        let mut frame = self.kludgine.next_frame();
+        let mut gfx = frame.render_into(texture, load_op, device, queue);
+        self.window.contents.render(1., &mut gfx);
+        drop(gfx);
+        frame.submit(queue)
+    }
+
+    /// Returns a new [`kludgine::Graphics`] context for this window.
+    #[must_use]
+    pub fn graphics<'gfx>(
+        &'gfx mut self,
+        device: &'gfx wgpu::Device,
+        queue: &'gfx wgpu::Queue,
+    ) -> kludgine::Graphics<'gfx> {
+        kludgine::Graphics::new(&mut self.kludgine, device, queue)
+    }
+
+    /// Requests that the window close.
+    ///
+    /// Returns true if the request should be honored.
+    pub fn request_close(&mut self) -> bool {
+        if self
+            .window
+            .close_requested(&mut self.state, &mut self.kludgine)
+        {
+            self.state.closed = true;
+            true
+        } else {
+            self.state.dynamic.close_requested.set(false);
+            false
+        }
+    }
+
+    /// Returns true if this window should no longer be open.
+    #[must_use]
+    pub fn closed(&self) -> bool {
+        self.state.closed
+    }
+}
+
+/// A color format containing 8-bit red, green, and blue channels.
+pub struct Rgb8;
+
+/// A color format containing 8-bit red, green, blue, and alpha channels.
+pub struct Rgba8;
+
+/// A format that can be captured in a [`VirtualRecorder`].
+pub trait CaptureFormat: sealed::CaptureFormat {}
+
+impl CaptureFormat for Rgb8 {}
+
+impl sealed::CaptureFormat for Rgb8 {
+    const HAS_ALPHA: bool = false;
+
+    fn convert_rgba(data: &mut Vec<u8>, width: u32, bytes_per_row: u32) {
+        let packed_width = width * 4;
+        // Tightly pack the rgb data, discarding the alpha and extra padding.q
+        let mut index = 0;
+        data.retain(|_| {
+            let retain = index % bytes_per_row < packed_width && index % 4 < 3;
+            index += 1;
+            retain
+        });
+    }
+}
+
+impl CaptureFormat for Rgba8 {}
+
+impl sealed::CaptureFormat for Rgba8 {
+    const HAS_ALPHA: bool = true;
+
+    fn convert_rgba(data: &mut Vec<u8>, width: u32, bytes_per_row: u32) {
+        let packed_width = width * 4;
+        if packed_width != bytes_per_row {
+            // Tightly pack the rgba data
+            let mut index = 0;
+            data.retain(|_| {
+                let retain = index % bytes_per_row < packed_width;
+                index += 1;
+                retain
+            });
+        }
+    }
+}
+
+/// A builder of a [`VirtualRecorder`].
+pub struct VirtualRecorderBuilder<Format> {
+    contents: WidgetInstance,
+    size: Size<UPx>,
+    scale: f32,
+    format: PhantomData<Format>,
+}
+
+impl VirtualRecorderBuilder<Rgb8> {
+    /// Returns a builder of a [`VirtualRecorder`] that renders `contents`.
+    pub fn new(contents: impl MakeWidget) -> Self {
+        Self {
+            contents: contents.make_widget(),
+            size: Size::new(UPx::new(800), UPx::new(600)),
+            scale: 1.0,
+            format: PhantomData,
+        }
+    }
+
+    /// Enables transparency support to render the contents without a background
+    /// color.
+    #[must_use]
+    pub fn with_alpha(self) -> VirtualRecorderBuilder<Rgba8> {
+        VirtualRecorderBuilder {
+            contents: self.contents,
+            size: self.size,
+            scale: self.scale,
+            format: PhantomData,
+        }
+    }
+}
+
+impl<Format> VirtualRecorderBuilder<Format>
+where
+    Format: CaptureFormat,
+{
+    /// Sets the size of the virtual window.
+    #[must_use]
+    pub fn size<Unit>(mut self, size: Size<Unit>) -> Self
+    where
+        Unit: Into<UPx>,
+    {
+        self.size = size.map(Into::into);
+        self
+    }
+
+    /// Returns an initialized [`VirtualRecorder`].
+    pub fn finish(self) -> Result<VirtualRecorder<Format>, VirtualRecorderError> {
+        VirtualRecorder::new(self.size, self.scale, self.contents)
+    }
+}
+
+struct Capture {
+    buffer: wgpu::Buffer,
+    texture: Texture,
+    multisample: Texture,
+}
+
+/// A recorder of a [`VirtualWindow`].
+pub struct VirtualRecorder<Format = Rgb8> {
+    window: VirtualWindow,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    capture: Option<Capture>,
+    data: Vec<u8>,
+    format: PhantomData<Format>,
+}
+
+impl<Format> VirtualRecorder<Format>
+where
+    Format: CaptureFormat,
+{
+    /// Returns a new virtual recorder that renders `contents` into a graphic of
+    /// `size`.
+    ///
+    /// `scale` adjusts the default DPI scaling to perform. It does not affect
+    /// the `size`.
+    pub fn new(
+        size: Size<UPx>,
+        scale: f32,
+        contents: impl MakeWidget,
+    ) -> Result<Self, VirtualRecorderError> {
+        let wgpu = wgpu::Instance::default();
+        let adapter =
+            pollster::block_on(wgpu.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .ok_or(VirtualRecorderError::NoAdapter)?;
+        let (device, queue) = pollster::block_on(adapter.request_device(
+            &wgpu::DeviceDescriptor {
+                label: None,
+                features: Kludgine::REQURED_FEATURES,
+                limits: Kludgine::adjust_limits(wgpu::Limits::downlevel_webgl2_defaults()),
+            },
+            None,
+        ))?;
+
+        let mut recorder = Self {
+            window: VirtualWindow::new(
+                contents.make_widget(),
+                4,
+                size,
+                scale,
+                Format::HAS_ALPHA,
+                &device,
+                &queue,
+            ),
+            device,
+            queue,
+            capture: None,
+            data: Vec::new(),
+            format: PhantomData,
+        };
+
+        recorder.refresh()?;
+
+        Ok(recorder)
+    }
+
+    /// Returns the tightly-packed captured bytes.
+    ///
+    /// The layout of this data is determined by the `Format` generic.
+    pub fn bytes(&self) -> &[u8] {
+        &self.data
+    }
+
+    /// Returns the current size of the recorder.
+    pub const fn size(&self) -> Size<UPx> {
+        self.window.kludgine.size()
+    }
+
+    fn recreate_buffers_if_needed(&mut self, size: Size<UPx>, bytes: u64) {
+        if self
+            .capture
+            .as_ref()
+            .map_or(true, |capture| capture.texture.size() != size)
+        {
+            let texture = Texture::new(
+                &self.window.graphics(&self.device, &self.queue),
+                size,
+                wgpu::TextureFormat::Rgba8UnormSrgb,
+                wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
+                wgpu::FilterMode::Linear,
+            );
+            let multisample = Texture::multisampled(
+                &self.window.graphics(&self.device, &self.queue),
+                4,
+                size,
+                wgpu::TextureFormat::Rgba8UnormSrgb,
+                wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                wgpu::FilterMode::Linear,
+            );
+            let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: None,
+                size: bytes,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            });
+            self.capture = Some(Capture {
+                buffer,
+                texture,
+                multisample,
+            });
+        }
+    }
+
+    /// Redraws the contents.
+    pub fn refresh(&mut self) -> Result<(), wgpu::BufferAsyncError> {
+        let render_size = self.window.kludgine.size().ceil();
+        let bytes_per_row = copy_buffer_aligned_bytes_per_row(render_size.width.get() * 4);
+        let size = u64::from(bytes_per_row) * u64::from(render_size.height.get());
+        self.recreate_buffers_if_needed(render_size, size);
+
+        let capture = self.capture.as_ref().assert("always initialized above");
+
+        self.window.prepare(&self.device, &self.queue);
+
+        self.window.render(
+            &wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: capture.multisample.view(),
+                    resolve_target: Some(capture.texture.view()),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(Color::CLEAR_BLACK.into()),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            },
+            &self.device,
+            &self.queue,
+        );
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        capture.texture.copy_to_buffer(
+            wgpu::ImageCopyBuffer {
+                buffer: &capture.buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: None,
+                },
+            },
+            &mut encoder,
+        );
+        self.queue.submit([encoder.finish()]);
+
+        let map_result = Arc::new(Mutex::new(None));
+        let condvar = Arc::new(Condvar::new());
+        let slice = capture.buffer.slice(0..size);
+
+        std::thread::scope(|scope| {
+            scope.spawn({
+                let map_result = map_result.clone();
+                let condvar = condvar.clone();
+                move || {
+                    condvar.notify_one();
+                    slice.map_async(wgpu::MapMode::Read, {
+                        move |result| {
+                            *map_result.lock().assert("thread panicked") = Some(result);
+                            condvar.notify_one();
+                        }
+                    });
+                }
+            });
+
+            // Now that we've queued up the data mapping thread, let's make sure
+            // our vec is allocated. Since an allocation can take a moment, this
+            // is the perfect to do it.
+            self.data.clear();
+            self.data.reserve(size.cast());
+
+            // Wait for the buffer to have been mapped.
+            loop {
+                self.device.poll(wgpu::Maintain::Poll);
+
+                let mut result = map_result.lock().assert("thread panicked");
+                if let Some(result) = result.take() {
+                    result?;
+                    break;
+                }
+
+                let _guard = condvar
+                    .wait_timeout(result, Duration::from_millis(1))
+                    .assert("thread panicked");
+            }
+
+            Ok(())
+        })?;
+
+        self.data
+            .extend_from_slice(bytemuck::cast_slice(&slice.get_mapped_range()));
+
+        Format::convert_rgba(&mut self.data, render_size.width.get(), bytes_per_row);
+
+        Ok(())
+    }
+}
+
+fn copy_buffer_aligned_bytes_per_row(width: u32) -> u32 {
+    (width + COPY_BYTES_PER_ROW_ALIGNMENT - 1) / COPY_BYTES_PER_ROW_ALIGNMENT
+        * COPY_BYTES_PER_ROW_ALIGNMENT
+}
+
+/// An error from a [`VirtualRecorder`].
+#[derive(Debug)]
+pub enum VirtualRecorderError {
+    /// No compatible wgpu adapters could be found.
+    NoAdapter,
+    /// An error occurred requesting a device.
+    RequestDevice(wgpu::RequestDeviceError),
+    /// The capture texture dimensions are too large to fit in the current host
+    /// platform's memory.
+    TooLarge,
+    /// An error occurred trying to read a buffer.
+    MapBuffer(wgpu::BufferAsyncError),
+}
+
+impl From<wgpu::RequestDeviceError> for VirtualRecorderError {
+    fn from(value: wgpu::RequestDeviceError) -> Self {
+        Self::RequestDevice(value)
+    }
+}
+
+impl From<wgpu::BufferAsyncError> for VirtualRecorderError {
+    fn from(value: wgpu::BufferAsyncError) -> Self {
+        Self::MapBuffer(value)
+    }
+}
+
+impl From<TryFromIntError> for VirtualRecorderError {
+    fn from(_: TryFromIntError) -> Self {
+        Self::TooLarge
     }
 }

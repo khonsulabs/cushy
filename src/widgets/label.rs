@@ -38,7 +38,7 @@ where
 
     fn prepared_text(
         &mut self,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut GraphicsContext<'_, '_, '_, '_>,
         color: Color,
         width: Px,
     ) -> &MeasuredText<Px> {
@@ -76,7 +76,7 @@ impl<T> Widget for Label<T>
 where
     T: std::fmt::Debug + std::fmt::Display + Send + 'static,
 {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         self.display.invalidate_when_changed(context);
 
         let size = context.gfx.region().size;
@@ -94,7 +94,7 @@ where
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         let color = context.get(&TextColor);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
@@ -107,7 +107,7 @@ where
         fmt.debug_tuple("Label").field(&self.display).finish()
     }
 
-    fn unmounted(&mut self, context: &mut crate::context::EventContext<'_, '_>) {
+    fn unmounted(&mut self, context: &mut crate::context::EventContext<'_>) {
         self.prepared_text.clear_for(context);
     }
 }

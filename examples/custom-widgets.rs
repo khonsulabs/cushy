@@ -90,14 +90,14 @@ impl Default for Toggle {
 }
 
 impl Widget for Toggle {
-    fn redraw(&mut self, context: &mut cushy::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut cushy::context::GraphicsContext<'_, '_, '_, '_>) {
         context.fill(self.color.get_tracking_redraw(context));
     }
 
     fn layout(
         &mut self,
         available_space: Size<cushy::ConstraintLimit>,
-        context: &mut cushy::context::LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut cushy::context::LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         Size::new(
             available_space.width.min(),
@@ -108,7 +108,7 @@ impl Widget for Toggle {
     fn hit_test(
         &mut self,
         _location: figures::Point<figures::units::Px>,
-        _context: &mut cushy::context::EventContext<'_, '_>,
+        _context: &mut cushy::context::EventContext<'_>,
     ) -> bool {
         true
     }
@@ -118,7 +118,7 @@ impl Widget for Toggle {
         _location: figures::Point<figures::units::Px>,
         _device_id: kludgine::app::winit::event::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        _context: &mut cushy::context::EventContext<'_, '_>,
+        _context: &mut cushy::context::EventContext<'_>,
     ) -> cushy::widget::EventHandling {
         self.value.toggle();
 

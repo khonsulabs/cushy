@@ -97,7 +97,7 @@ impl Scroll {
         (clamped, max_scroll)
     }
 
-    fn show_scrollbars(&mut self, context: &mut EventContext<'_, '_>) {
+    fn show_scrollbars(&mut self, context: &mut EventContext<'_>) {
         let should_hide = self.drag.mouse_buttons_down == 0;
         if should_hide != self.scrollbar_opacity_animation.will_hide
             || self.scrollbar_opacity_animation.handle.is_complete()
@@ -130,7 +130,7 @@ impl Scroll {
         }
     }
 
-    fn hide_scrollbars(&mut self, context: &mut EventContext<'_, '_>) {
+    fn hide_scrollbars(&mut self, context: &mut EventContext<'_>) {
         if self.drag.mouse_buttons_down == 0 && !self.scrollbar_opacity_animation.will_hide {
             self.scrollbar_opacity_animation.will_hide = true;
             self.scrollbar_opacity_animation.handle = self
@@ -144,29 +144,29 @@ impl Scroll {
 }
 
 impl Widget for Scroll {
-    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unmounted(&mut self, context: &mut EventContext<'_>) {
         self.contents.unmount_in(context);
     }
 
-    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
         true
     }
 
     fn hover(
         &mut self,
         _location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<CursorIcon> {
         self.show_scrollbars(context);
 
         None
     }
 
-    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unhover(&mut self, context: &mut EventContext<'_>) {
         self.hide_scrollbars(context);
     }
 
-    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         context.redraw_when_changed(&self.scrollbar_opacity);
 
         let managed = self.contents.mounted(&mut context.as_event_context());
@@ -198,7 +198,7 @@ impl Widget for Scroll {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         self.bar_width = context
             .get(&ScrollBarThickness)
@@ -302,7 +302,7 @@ impl Widget for Scroll {
         _device_id: DeviceId,
         delta: MouseScrollDelta,
         _phase: TouchPhase,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         let amount = match delta {
             MouseScrollDelta::LineDelta(x, y) => Point::new(x, y) * self.line_height.into_float(),
@@ -330,7 +330,7 @@ impl Widget for Scroll {
         location: Point<Px>,
         _device_id: DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         let relative_x = (self.control_size.width - location.x).max(Px::ZERO);
         let in_vertical_area = self.enabled.y && relative_x <= self.bar_width;
@@ -380,7 +380,7 @@ impl Widget for Scroll {
         location: Point<Px>,
         _device_id: DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) {
         self.drag.update(
             location,
@@ -397,7 +397,7 @@ impl Widget for Scroll {
         location: Option<Point<Px>>,
         _device_id: DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         self.drag.mouse_buttons_down -= 1;
 

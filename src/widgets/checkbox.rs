@@ -175,7 +175,7 @@ struct CheckboxOrnament {
 }
 
 impl Widget for CheckboxOrnament {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let checkbox_size = context
             .gfx
             .region()
@@ -244,7 +244,7 @@ impl Widget for CheckboxOrnament {
     fn layout(
         &mut self,
         _available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<figures::units::UPx> {
         let checkbox_size = context.get(&CheckboxSize).into_upx(context.gfx.scale());
         Size::squared(checkbox_size)

@@ -52,7 +52,7 @@ impl WrapperWidget for Switcher {
     fn adjust_child_constraints(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<ConstraintLimit> {
         if self.source.has_updated() {
             self.child = WidgetRef::new(self.source.get());
