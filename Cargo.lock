@@ -574,7 +574,6 @@ dependencies = [
  "ahash",
  "alot",
  "arboard",
- "bytemuck",
  "cushy-macros",
  "figures",
  "image",

@@ -2774,8 +2774,7 @@ where
             Ok(())
         })?;
 
-        self.data
-            .extend_from_slice(bytemuck::cast_slice(&slice.get_mapped_range()));
+        self.data.extend_from_slice(&slice.get_mapped_range());
 
         Format::convert_rgba(&mut self.data, render_size.width.get(), bytes_per_row);
 
