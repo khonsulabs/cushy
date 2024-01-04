@@ -10,7 +10,6 @@ fn ui() -> impl MakeWidget {
 }
 
 fn main() {
-    // The default recorder generated solid, rgb images.
     let mut recorder = ui()
         .build_recorder()
         .size(Size::new(320, 240))
@@ -32,7 +31,5 @@ fn main() {
         .animate_cursor_to(initial_point, Duration::from_millis(250), EaseInOutSine)
         .unwrap();
     animation.wait_for(Duration::from_millis(500)).unwrap();
-    animation
-        .write_to("examples/offscreen-animated.png")
-        .unwrap();
+    animation.write_to("examples/offscreen-apng.png").unwrap();
 }
