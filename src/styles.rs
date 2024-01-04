@@ -1742,7 +1742,7 @@ impl FixedTheme {
 ///
 /// The goal of this type is to allow various tones of a given hue/saturation to
 /// be generated easily.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct ColorSource {
     /// A measurement of hue, in degees, from -180 to 180.
     ///
@@ -1758,6 +1758,13 @@ pub struct ColorSource {
     /// A saturation of 0.0 corresponds to shades of gray, while a saturation of
     /// 1.0 corresponds to fully saturated colors.
     pub saturation: ZeroToOne,
+}
+
+impl PartialEq for ColorSource {
+    fn eq(&self, other: &Self) -> bool {
+        (self.hue.into_degrees() - other.hue.into_degrees()).abs() < f32::EPSILON
+            && self.saturation == other.saturation
+    }
 }
 
 impl ColorSource {

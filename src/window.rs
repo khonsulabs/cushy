@@ -20,6 +20,7 @@ use figures::units::{Px, UPx};
 use figures::{
     Fraction, IntoSigned, IntoUnsigned, Point, Ranged, Rect, Round, ScreenScale, Size, Zero,
 };
+use image::{DynamicImage, RgbImage, RgbaImage};
 use intentional::{Assert, Cast};
 use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
@@ -728,6 +729,7 @@ pub trait WindowBehavior: Sized + 'static {
     }
 }
 
+#[allow(clippy::struct_excessive_bools)]
 struct CushyWindow<T> {
     behavior: T,
     tree: Tree,
@@ -745,6 +747,7 @@ struct CushyWindow<T> {
     keyboard_activated: Option<WidgetId>,
     min_inner_size: Option<Size<UPx>>,
     max_inner_size: Option<Size<UPx>>,
+    resize_to_fit: bool,
     theme: Option<DynamicReader<ThemePair>>,
     current_theme: ThemePair,
     theme_mode: Value<ThemeMode>,
@@ -1146,6 +1149,7 @@ where
             keyboard_activated: None,
             min_inner_size: None,
             max_inner_size: None,
+            resize_to_fit: false,
             current_theme,
             theme,
             theme_mode,
@@ -1172,7 +1176,7 @@ where
         self.tree
             .new_frame(self.redraw_status.invalidations().drain());
 
-        let resizable = window.is_resizable();
+        let resizable = window.is_resizable() || self.resize_to_fit;
         let mut window = RunningWindow::new(
             window,
             graphics.id(),
@@ -1237,6 +1241,8 @@ where
                 new_size = new_size.min(max_size);
             }
             layout_context.request_inner_size(new_size);
+        } else if self.resize_to_fit && window_size != layout_size {
+            layout_context.request_inner_size(layout_size);
         }
         self.root.set_layout(Rect::from(render_size.into_signed()));
 
@@ -1895,7 +1901,9 @@ pub(crate) mod sealed {
     use std::cell::RefCell;
 
     use figures::units::UPx;
-    use figures::Size;
+    use figures::{Point, Size};
+    use image::DynamicImage;
+    use kludgine::Color;
 
     use crate::app::Cushy;
     use crate::context::sealed::InvalidationStatus;
@@ -1940,6 +1948,8 @@ pub(crate) mod sealed {
         const HAS_ALPHA: bool;
 
         fn convert_rgba(data: &mut Vec<u8>, width: u32, bytes_per_row: u32);
+        fn load_image(data: &[u8], size: Size<UPx>) -> DynamicImage;
+        fn pixel_color(location: Point<UPx>, data: &[u8], size: Size<UPx>) -> Color;
     }
 }
 
@@ -2708,6 +2718,31 @@ impl sealed::CaptureFormat for Rgb8 {
             retain
         });
     }
+
+    fn load_image(data: &[u8], size: Size<UPx>) -> DynamicImage {
+        DynamicImage::ImageRgb8(
+            RgbImage::from_vec(size.width.get(), size.height.get(), data.to_vec())
+                .expect("incorrect dimensions"),
+        )
+    }
+
+    fn pixel_color(location: Point<UPx>, data: &[u8], size: Size<UPx>) -> Color {
+        let pixel_offset = pixel_offset(data, location, size, 3);
+        Color::new(pixel_offset[0], pixel_offset[1], pixel_offset[2], 255)
+    }
+}
+
+fn pixel_offset(
+    data: &[u8],
+    location: Point<UPx>,
+    size: Size<UPx>,
+    bytes_per_component: u32,
+) -> &[u8] {
+    assert!(location.x < size.width && location.y < size.height);
+
+    let width = size.width.get();
+    let index = location.y.get() * width + location.x.get();
+    &data[usize::try_from(index * bytes_per_component).expect("offset out of bounds")..]
 }
 
 impl CaptureFormat for Rgba8 {}
@@ -2727,6 +2762,23 @@ impl sealed::CaptureFormat for Rgba8 {
             });
         }
     }
+
+    fn load_image(data: &[u8], size: Size<UPx>) -> DynamicImage {
+        DynamicImage::ImageRgba8(
+            RgbaImage::from_vec(size.width.get(), size.height.get(), data.to_vec())
+                .expect("incorrect dimensions"),
+        )
+    }
+
+    fn pixel_color(location: Point<UPx>, data: &[u8], size: Size<UPx>) -> Color {
+        let pixel_offset = pixel_offset(data, location, size, 4);
+        Color::new(
+            pixel_offset[0],
+            pixel_offset[1],
+            pixel_offset[2],
+            pixel_offset[3],
+        )
+    }
 }
 
 /// A builder of a [`VirtualRecorder`].
@@ -2735,6 +2787,7 @@ pub struct VirtualRecorderBuilder<Format> {
     size: Size<UPx>,
     scale: f32,
     format: PhantomData<Format>,
+    resize_to_fit: bool,
 }
 
 impl VirtualRecorderBuilder<Rgb8> {
@@ -2745,6 +2798,7 @@ impl VirtualRecorderBuilder<Rgb8> {
             size: Size::new(UPx::new(800), UPx::new(600)),
             scale: 1.0,
             format: PhantomData,
+            resize_to_fit: false,
         }
     }
 
@@ -2756,6 +2810,7 @@ impl VirtualRecorderBuilder<Rgb8> {
             contents: self.contents,
             size: self.size,
             scale: self.scale,
+            resize_to_fit: self.resize_to_fit,
             format: PhantomData,
         }
     }
@@ -2787,9 +2842,17 @@ where
         self
     }
 
+    /// Sets this virtual recorder to allow updating its size based on the
+    /// contents being rendered.
+    #[must_use]
+    pub fn resize_to_fit(mut self) -> Self {
+        self.resize_to_fit = true;
+        self
+    }
+
     /// Returns an initialized [`VirtualRecorder`].
     pub fn finish(self) -> Result<VirtualRecorder<Format>, VirtualRecorderError> {
-        VirtualRecorder::new(self.size, self.scale, self.contents)
+        VirtualRecorder::new(self.size, self.scale, self.resize_to_fit, self.contents)
     }
 }
 
@@ -2864,7 +2927,9 @@ pub struct VirtualRecorder<Format = Rgb8> {
     queue: Arc<wgpu::Queue>,
     capture: Option<Box<Capture>>,
     data: Vec<u8>,
+    data_size: Size<UPx>,
     cursor: Dynamic<Point<Px>>,
+    cursor_visible: bool,
     cursor_graphic: Drawing,
     format: PhantomData<Format>,
 }
@@ -2881,6 +2946,7 @@ where
     pub fn new(
         size: Size<UPx>,
         scale: f32,
+        resize_to_fit: bool,
         contents: impl MakeWidget,
     ) -> Result<Self, VirtualRecorderError> {
         let wgpu = wgpu::Instance::default();
@@ -2912,11 +2978,18 @@ where
             queue: Arc::new(queue),
             cursor: Dynamic::default(),
             cursor_graphic: Drawing::default(),
+            cursor_visible: false,
             capture: None,
             data: Vec::new(),
+            data_size: Size::ZERO,
             format: PhantomData,
         };
+        recorder.window.window.resize_to_fit = resize_to_fit;
         recorder.refresh()?;
+
+        if resize_to_fit && recorder.window.state.size != recorder.window.size() {
+            recorder.refresh()?;
+        }
         Ok(recorder)
     }
 
@@ -2925,6 +2998,52 @@ where
     /// The layout of this data is determined by the `Format` generic.
     pub fn bytes(&self) -> &[u8] {
         &self.data
+    }
+
+    /// Returns the color of the pixel at `location`.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if location is outside of the bounds of the
+    /// captured image. When the window's size has been changed, this function
+    /// operates on the size of the window when the last call to
+    /// [`Self::refresh()`] was made.
+    pub fn pixel_color<Unit>(&self, location: Point<Unit>) -> Color
+    where
+        Unit: Into<UPx>,
+    {
+        Format::pixel_color(location.map(Into::into), self.bytes(), self.data_size)
+    }
+
+    /// Asserts that the color of the pixel at `location` is `expected`.
+    ///
+    /// This function allows for slight color variations. This is because of how
+    /// colorspace corrections can lead to rounding errors.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if the color is not the expected color.
+    pub fn assert_pixel_color<Unit>(&self, location: Point<Unit>, expected: Color, component: &str)
+    where
+        Unit: Into<UPx>,
+    {
+        let location = location.map(Into::into);
+        let color = self.pixel_color(location);
+        let max_delta = color
+            .red()
+            .abs_diff(expected.red())
+            .max(color.green().abs_diff(expected.green()))
+            .max(color.blue().abs_diff(expected.blue()))
+            .max(color.alpha().abs_diff(expected.alpha()));
+        assert!(
+            max_delta <= 1,
+            "assertion failed: {component} at {location:?} was {color:?}, not {expected:?}"
+        );
+    }
+
+    /// Returns the current contents as an image.
+    pub fn image(&self) -> DynamicImage {
+        Format::load_image(self.bytes(), self.data_size)
     }
 
     fn recreate_buffers_if_needed(&mut self, size: Size<UPx>, bytes: u64, bytes_per_row: u32) {
@@ -2967,20 +3086,28 @@ where
     }
 
     fn redraw(&mut self) {
-        let render_size = self.window.kludgine.size().ceil();
+        let mut render_size = self.window.kludgine.size().ceil();
+        if self.window.state.size != render_size {
+            let current_scale = self.window.scale();
+            self.window
+                .resize(self.window.state.size, current_scale, &self.queue);
+            render_size = self.window.state.size;
+        }
         let bytes_per_row = copy_buffer_aligned_bytes_per_row(render_size.width.get() * 4);
         let size = u64::from(bytes_per_row) * u64::from(render_size.height.get());
         self.recreate_buffers_if_needed(render_size, size, bytes_per_row);
 
         let capture = self.capture.as_ref().assert("always initialized above");
 
-        let mut gfx = self.window.graphics(&self.device, &self.queue);
-        let mut frame = self.cursor_graphic.new_frame(&mut gfx);
-        frame.draw_shape(
-            Shape::filled_circle(Px::new(4), Color::WHITE, Origin::Center)
-                .translate_by(self.cursor.get()),
-        );
-        drop(frame);
+        if self.cursor_visible {
+            let mut gfx = self.window.graphics(&self.device, &self.queue);
+            let mut frame = self.cursor_graphic.new_frame(&mut gfx);
+            frame.draw_shape(
+                Shape::filled_circle(Px::new(4), Color::WHITE, Origin::Center)
+                    .translate_by(self.cursor.get()),
+            );
+            drop(frame);
+        }
 
         self.window.prepare(&self.device, &self.queue);
 
@@ -3001,7 +3128,7 @@ where
             },
             &self.device,
             &self.queue,
-            Some(&self.cursor_graphic),
+            self.cursor_visible.then_some(&self.cursor_graphic),
         );
     }
 
@@ -3012,6 +3139,7 @@ where
         let capture = self.capture.as_ref().assert("always initialized above");
 
         capture.map_into::<Format>(&mut self.data, &self.device, &self.queue)?;
+        self.data_size = capture.texture.size();
 
         Ok(())
     }
@@ -3021,11 +3149,28 @@ where
         self.cursor.set(position);
     }
 
+    /// Enables or disables drawing of the virtual cursor.
+    pub fn set_cursor_visible(&mut self, visible: bool) {
+        self.cursor_visible = visible;
+    }
+
     /// Begins recording an animated png.
     pub fn record_animated_png(&mut self, target_fps: u8) -> AnimationRecorder<'_, Format> {
         AnimationRecorder {
             target_fps,
-            assembler: FrameAssembler::spawn::<Format>(self.device.clone(), self.queue.clone()),
+            assembler: Some(FrameAssembler::spawn::<Format>(
+                self.device.clone(),
+                self.queue.clone(),
+            )),
+            recorder: self,
+        }
+    }
+
+    /// Returns a recorder that does not store any rendered frames.
+    pub fn simulate_animation(&mut self) -> AnimationRecorder<'_, Format> {
+        AnimationRecorder {
+            target_fps: 0,
+            assembler: None,
             recorder: self,
         }
     }
@@ -3040,7 +3185,7 @@ fn copy_buffer_aligned_bytes_per_row(width: u32) -> u32 {
 pub struct AnimationRecorder<'a, Format> {
     recorder: &'a mut VirtualRecorder<Format>,
     target_fps: u8,
-    assembler: FrameAssembler,
+    assembler: Option<FrameAssembler>,
 }
 
 impl<Format> AnimationRecorder<'_, Format>
@@ -3070,6 +3215,10 @@ where
 
     /// Waits until `time`, rendering frames as needed.
     pub fn wait_until(&mut self, time: Instant) -> Result<(), VirtualRecorderError> {
+        let Some(assembler) = self.assembler.as_ref() else {
+            return Ok(());
+        };
+
         let frame_duration = Duration::from_micros(1_000_000 / u64::from(self.target_fps));
         let mut last_frame = Instant::now();
 
@@ -3090,19 +3239,19 @@ where
             if final_frame || next_frame == now {
                 // Try to reuse an existing capture instead of forcing an
                 // allocation.
-                if let Ok(capture) = self.assembler.resuable_captures.try_recv() {
+                if let Ok(capture) = assembler.resuable_captures.try_recv() {
                     self.recorder.capture = Some(capture);
                 }
                 let elapsed = now.saturating_duration_since(last_frame);
                 last_frame = now;
                 self.recorder.redraw();
                 let capture = self.recorder.capture.take().assert("always present");
-                if self.assembler.sender.send((capture, elapsed)).is_err() {
+                if assembler.sender.send((capture, elapsed)).is_err() {
                     break;
                 }
             }
 
-            if now > time {
+            if final_frame {
                 break;
             }
 
@@ -3114,8 +3263,13 @@ where
     }
 
     /// Encodes the currently recorded frames into a new file at `path`.
+    ///
+    /// If this animation was created from
+    /// [`VirtualRecorder::simulate_animation`], this function will do nothing.
     pub fn write_to(self, path: impl AsRef<Path>) -> Result<(), VirtualRecorderError> {
-        let frames = self.assembler.finish()?;
+        let Some(frames) = self.assembler.map(FrameAssembler::finish).transpose()? else {
+            return Ok(());
+        };
         let mut file = std::fs::OpenOptions::new()
             .create(true)
             .truncate(true)
@@ -3131,28 +3285,20 @@ where
         encoder.set_animated(u32::try_from(frames.len()).assert("too many frames"), 0)?;
         encoder.set_compression(png::Compression::Best);
 
-        let mut current_frame_delay = frames.first().assert("always at least one frame").duration;
-        encoder.set_frame_delay(
-            current_frame_delay
-                .as_millis()
-                // TODO should be checked
-                .cast(),
-            1_000,
-        )?;
+        let mut current_frame_delay = Duration::ZERO;
         let mut writer = encoder.write_header()?;
         for frame in &frames {
+            writer.write_image_data(&frame.data)?;
             if current_frame_delay != frame.duration {
                 current_frame_delay = frame.duration;
+                // This has a limitation that a single frame can't be longer
+                // than ~6.5 seconds, but it ensures frame timing is more
+                // accurate.
                 writer.set_frame_delay(
-                    current_frame_delay
-                        .as_millis()
-                        // TODO should be checked
-                        .cast(),
-                    1_000,
+                    u16::try_from(current_frame_delay.as_nanos() / 100_000).unwrap_or(u16::MAX),
+                    10_000,
                 )?;
             }
-
-            writer.write_image_data(&frame.data)?;
         }
 
         writer.finish()?;

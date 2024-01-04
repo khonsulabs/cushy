@@ -12,15 +12,7 @@ fn main() {
         .size(Size::new(320, 240))
         .finish()
         .unwrap();
-    image::save_buffer_with_format(
-        "examples/offscreen.png",
-        recorder.bytes(),
-        recorder.window.size().width.get(),
-        recorder.window.size().height.get(),
-        image::ColorType::Rgb8,
-        image::ImageFormat::Png,
-    )
-    .unwrap();
+    recorder.image().save("examples/offscreen.png").unwrap();
 
     // Creating a recorder with alpha makes the virtual window transparent.
     let recorder = ui()
@@ -29,15 +21,7 @@ fn main() {
         .size(Size::new(320, 240))
         .finish()
         .unwrap();
-    image::save_buffer_with_format(
-        "examples/offscreen-transparent.png",
-        recorder.bytes(),
-        recorder.window.size().width.get(),
-        recorder.window.size().height.get(),
-        image::ColorType::Rgba8,
-        image::ImageFormat::Png,
-    )
-    .unwrap();
+    recorder.image().save("examples/offscreen.png").unwrap();
 }
 
 #[test]

@@ -17,6 +17,7 @@ fn main() {
         .unwrap();
     let initial_point = Point::new(Px::new(140), Px::new(150));
     recorder.set_cursor_position(initial_point);
+    recorder.set_cursor_visible(true);
     recorder.refresh().unwrap();
     let mut animation = recorder.record_animated_png(60);
     animation

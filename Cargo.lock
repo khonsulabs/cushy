@@ -989,6 +989,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "guide-examples"
+version = "0.0.0"
+dependencies = [
+ "cushy",
+]
+
+[[package]]
 name = "half"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1180,7 +1187,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.7.0"
-source = "git+https://github.com/khonsulabs/kludgine#6b0d5fa0477daaf79f75a6f7dad819377a45e645"
+source = "git+https://github.com/khonsulabs/kludgine#8017775228d22b5efce6d6b7a89e81dfc9b25961"
 dependencies = [
  "ahash",
  "alot",
@@ -1193,6 +1200,7 @@ dependencies = [
  "intentional",
  "justjson",
  "lyon_tessellation",
+ "palette",
  "pollster",
  "smallvec",
  "unicode-bidi",
@@ -2332,9 +2340,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.47"
+version = "2.0.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1726efe18f42ae774cc644f330953a5e7b3c3003d3edcecf18850fe9d4dd9afb"
+checksum = "0f3531638e407dfc0814761abb7c00a5b54992b849452a0646b7f65c9f770f3f"
 dependencies = [
  "proc-macro2",
  "quote",

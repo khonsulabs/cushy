@@ -1,0 +1,6 @@
+[book]
+authors = ["Jonathan Johnson"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Cushy User's Guide"
