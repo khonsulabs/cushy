@@ -652,10 +652,7 @@ where
         App: Application + ?Sized,
     {
         let cushy = app.cushy().clone();
-        // let Some(app) = app.as_app().as_kludgine() else {
-        //     return Ok(None);
-        // };
-        let handle = CushyWindow::<Behavior>::open_with(
+        let handle = OpenWindow::<Behavior>::open_with(
             app,
             sealed::Context {
                 user: self.context,
@@ -730,7 +727,7 @@ pub trait WindowBehavior: Sized + 'static {
 }
 
 #[allow(clippy::struct_excessive_bools)]
-struct CushyWindow<T> {
+struct OpenWindow<T> {
     behavior: T,
     tree: Tree,
     root: MountedWidget,
@@ -757,7 +754,7 @@ struct CushyWindow<T> {
     on_closed: Option<OnceCallback>,
 }
 
-impl<T> CushyWindow<T>
+impl<T> OpenWindow<T>
 where
     T: WindowBehavior,
 {
@@ -1623,7 +1620,7 @@ enum RootMode {
     Align,
 }
 
-impl<T> kludgine::app::WindowBehavior<WindowCommand> for CushyWindow<T>
+impl<T> kludgine::app::WindowBehavior<WindowCommand> for OpenWindow<T>
 where
     T: WindowBehavior,
 {
@@ -1871,7 +1868,7 @@ where
     }
 }
 
-impl<Behavior> Drop for CushyWindow<Behavior> {
+impl<Behavior> Drop for OpenWindow<Behavior> {
     fn drop(&mut self) {
         if let Some(on_closed) = self.on_closed.take() {
             on_closed.invoke(());
@@ -2369,7 +2366,7 @@ impl PlatformWindowImplementation for &mut VirtualState {
 }
 
 /// A builder for a [`VirtualWindow`].
-pub struct VirtualWindowBuilder {
+pub struct CushyWindowBuilder {
     widget: WidgetInstance,
     multisample_count: u32,
     initial_size: Size<UPx>,
@@ -2377,8 +2374,8 @@ pub struct VirtualWindowBuilder {
     transparent: bool,
 }
 
-impl VirtualWindowBuilder {
-    /// Returns a new builder for a virtual window that contains `contents`.
+impl CushyWindowBuilder {
+    /// Returns a new builder for a Cushy window that contains `contents`.
     #[must_use]
     pub fn new(contents: impl MakeWidget) -> Self {
         Self {
@@ -2390,7 +2387,7 @@ impl VirtualWindowBuilder {
         }
     }
 
-    /// Sets this virtual window's multi-sample count.
+    /// Sets this window's multi-sample count.
     ///
     /// By default, 4 samples are taken. When 1 sample is used, multisampling is
     /// fully disabled.
@@ -2400,7 +2397,7 @@ impl VirtualWindowBuilder {
         self
     }
 
-    /// Sets the size of the virtual window.
+    /// Sets the size of the window.
     #[must_use]
     pub fn size<Unit>(mut self, size: Size<Unit>) -> Self
     where
@@ -2410,7 +2407,7 @@ impl VirtualWindowBuilder {
         self
     }
 
-    /// Sets the DPI scaling factor of the virtual window.
+    /// Sets the DPI scaling factor of the window.
     #[must_use]
     pub fn scale(mut self, scale: f32) -> Self {
         self.scale = scale;
@@ -2424,58 +2421,26 @@ impl VirtualWindowBuilder {
         self
     }
 
-    /// Returns the initialized virtual window.
+    /// Returns the initialized window.
     #[must_use]
-    pub fn finish(self, device: &wgpu::Device, queue: &wgpu::Queue) -> VirtualWindow {
-        VirtualWindow::new(
-            self.widget,
-            self.multisample_count,
-            self.initial_size,
-            self.scale,
-            self.transparent,
-            device,
-            queue,
-        )
-    }
-}
-
-/// A virtual Cushy window.
-///
-/// This type allows rendering Cushy applications directly into any wgpu
-/// application.
-pub struct VirtualWindow {
-    window: CushyWindow<WidgetInstance>,
-    kludgine: Kludgine,
-    last_rendered_at: Option<Instant>,
-    state: VirtualState,
-}
-
-impl VirtualWindow {
-    /// Returns a new virtual window with the provided specifications.
-    fn new(
-        widget: WidgetInstance,
-        multisample_count: u32,
-        initial_size: Size<UPx>,
-        scale: f32,
-        transparent: bool,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-    ) -> Self {
+    pub fn finish<W>(self, window: W, device: &wgpu::Device, queue: &wgpu::Queue) -> CushyWindow
+    where
+        W: PlatformWindowImplementation,
+    {
         let mut kludgine = Kludgine::new(
             device,
             queue,
             wgpu::TextureFormat::Rgba8UnormSrgb,
             wgpu::MultisampleState {
-                count: multisample_count,
+                count: self.multisample_count,
                 ..Default::default()
             },
-            initial_size,
-            scale,
+            self.initial_size,
+            self.scale,
         );
-        let mut state = VirtualState::new();
-        let window = CushyWindow::<WidgetInstance>::new(
-            widget.make_widget(),
-            &mut state,
+        let window = OpenWindow::<WidgetInstance>::new(
+            self.widget,
+            window,
             &mut kludgine::Graphics::new(&mut kludgine, device, queue),
             sealed::WindowSettings {
                 cushy: Cushy::new(),
@@ -2487,7 +2452,7 @@ impl VirtualWindow {
                 inner_size: Dynamic::default(),
                 theme: None,
                 theme_mode: None,
-                transparent,
+                transparent: self.transparent,
                 serif_font_family: FontFamilyList::default(),
                 sans_serif_font_family: FontFamilyList::default(),
                 fantasy_font_family: FontFamilyList::default(),
@@ -2498,25 +2463,41 @@ impl VirtualWindow {
             },
         );
 
-        Self {
-            window,
-            kludgine,
-            last_rendered_at: None,
-            state,
-        }
+        CushyWindow { window, kludgine }
     }
 
+    /// Returns an initialized [`VirtualWindow`].
+    #[must_use]
+    pub fn finish_virtual(self, device: &wgpu::Device, queue: &wgpu::Queue) -> VirtualWindow {
+        let mut state = VirtualState::new();
+        let cushy = self.finish(&mut state, device, queue);
+
+        VirtualWindow {
+            cushy,
+            state,
+            last_rendered_at: None,
+        }
+    }
+}
+
+/// A standalone Cushy window.
+///
+/// This type allows rendering Cushy applications directly into any wgpu
+/// application.
+pub struct CushyWindow {
+    window: OpenWindow<WidgetInstance>,
+    kludgine: Kludgine,
+}
+
+impl CushyWindow {
     /// Prepares all necessary resources and operations necessary to render the
     /// next frame.
-    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        let now = Instant::now();
-        self.state.elapsed = self
-            .last_rendered_at
-            .map(|i| now.duration_since(i))
-            .unwrap_or_default();
-        self.last_rendered_at = Some(now);
+    pub fn prepare<W>(&mut self, window: W, device: &wgpu::Device, queue: &wgpu::Queue)
+    where
+        W: PlatformWindowImplementation,
+    {
         self.window.prepare(
-            &mut self.state,
+            window,
             &mut kludgine::Graphics::new(&mut self.kludgine, device, queue),
         );
     }
@@ -2545,7 +2526,6 @@ impl VirtualWindow {
         queue: &wgpu::Queue,
         additional_drawing: Option<&Drawing>,
     ) -> Option<wgpu::SubmissionIndex> {
-        self.state.dynamic.redraw_target.set(RedrawTarget::Never);
         let mut frame = self.kludgine.next_frame();
         let mut gfx = frame.render(pass, device, queue);
         self.window.contents.render(1., &mut gfx);
@@ -2564,7 +2544,6 @@ impl VirtualWindow {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<wgpu::SubmissionIndex> {
-        self.state.dynamic.redraw_target.set(RedrawTarget::Never);
         let mut frame = self.kludgine.next_frame();
         let mut gfx = frame.render_into(texture, load_op, device, queue);
         self.window.contents.render(1., &mut gfx);
@@ -2585,11 +2564,191 @@ impl VirtualWindow {
     /// Requests that the window close.
     ///
     /// Returns true if the request should be honored.
+    pub fn request_close<W>(&mut self, window: W) -> bool
+    where
+        W: PlatformWindowImplementation,
+    {
+        self.window.close_requested(window, &mut self.kludgine)
+    }
+
+    /// Returns the current size of the window.
+    pub const fn size(&self) -> Size<UPx> {
+        self.kludgine.size()
+    }
+
+    /// Returns the current DPI scale of the window.
+    pub const fn scale(&self) -> Fraction {
+        self.kludgine.scale()
+    }
+
+    /// Updates the dimensions and DPI scaling of the window.
+    pub fn resize(&mut self, new_size: Size<UPx>, new_scale: impl Into<f32>, queue: &wgpu::Queue) {
+        self.kludgine.resize(new_size, new_scale.into(), queue);
+        self.window.resized(new_size);
+    }
+
+    /// Provide keyboard input to this virtual window.
+    ///
+    /// Returns whether the event was [`HANDLED`] or [`IGNORED`].
+    pub fn keyboard_input<W>(
+        &mut self,
+        window: W,
+        device_id: DeviceId,
+        input: KeyEvent,
+        is_synthetic: bool,
+    ) -> EventHandling
+    where
+        W: PlatformWindowImplementation,
+    {
+        self.window
+            .keyboard_input(window, &mut self.kludgine, device_id, input, is_synthetic)
+    }
+
+    /// Provides mouse wheel input to this window.
+    ///
+    /// Returns whether the event was [`HANDLED`] or [`IGNORED`].
+    pub fn mouse_wheel<W>(
+        &mut self,
+        window: W,
+        device_id: DeviceId,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+    ) -> EventHandling
+    where
+        W: PlatformWindowImplementation,
+    {
+        self.window
+            .mouse_wheel(window, &mut self.kludgine, device_id, delta, phase)
+    }
+
+    /// Provides input manager events to this window.
+    ///
+    /// Returns whether the event was [`HANDLED`] or [`IGNORED`].
+    pub fn ime<W>(&mut self, window: W, ime: &Ime) -> EventHandling
+    where
+        W: PlatformWindowImplementation,
+    {
+        self.window.ime(window, &mut self.kludgine, ime)
+    }
+
+    /// Provides cursor movement events to this window.
+    pub fn cursor_moved<W>(
+        &mut self,
+        window: W,
+        device_id: DeviceId,
+        position: impl Into<Point<Px>>,
+    ) where
+        W: PlatformWindowImplementation,
+    {
+        self.window
+            .cursor_moved(window, &mut self.kludgine, device_id, position);
+    }
+
+    /// Notifies the window that the cursor is no longer within the window.
+    pub fn cursor_left<W>(&mut self, window: W)
+    where
+        W: PlatformWindowImplementation,
+    {
+        self.window.cursor_left(window, &mut self.kludgine);
+    }
+
+    /// Provides mouse input events to tihs window.
+    ///
+    /// Returns whether the event was [`HANDLED`] or [`IGNORED`].
+    pub fn mouse_input<W>(
+        &mut self,
+        window: W,
+        device_id: DeviceId,
+        state: ElementState,
+        button: MouseButton,
+    ) -> EventHandling
+    where
+        W: PlatformWindowImplementation,
+    {
+        self.window
+            .mouse_input(window, &mut self.kludgine, device_id, state, button)
+    }
+}
+
+/// A virtual Cushy window.
+///
+/// This type allows rendering Cushy applications directly into any wgpu
+/// application.
+pub struct VirtualWindow {
+    cushy: CushyWindow,
+    state: VirtualState,
+    last_rendered_at: Option<Instant>,
+}
+
+impl VirtualWindow {
+    /// Prepares all necessary resources and operations necessary to render the
+    /// next frame.
+    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        let now = Instant::now();
+        self.state.elapsed = self
+            .last_rendered_at
+            .map(|i| now.duration_since(i))
+            .unwrap_or_default();
+        self.last_rendered_at = Some(now);
+        self.cushy.prepare(&mut self.state, device, queue);
+    }
+
+    /// Renders this window in a wgpu render pass created from `pass`.
+    ///
+    /// Returns the submission index of the last command submission, if any
+    /// commands were submitted.
+    pub fn render(
+        &mut self,
+        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Option<wgpu::SubmissionIndex> {
+        self.render_with(pass, device, queue, None)
+    }
+
+    /// Renders this window in a wgpu render pass created from `pass`.
+    ///
+    /// Returns the submission index of the last command submission, if any
+    /// commands were submitted.
+    pub fn render_with(
+        &mut self,
+        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        additional_drawing: Option<&Drawing>,
+    ) -> Option<wgpu::SubmissionIndex> {
+        self.state.dynamic.redraw_target.set(RedrawTarget::Never);
+        self.cushy
+            .render_with(pass, device, queue, additional_drawing)
+    }
+
+    /// Renders this window into `texture` after performing `load_op`.
+    pub fn render_into(
+        &mut self,
+        texture: &kludgine::Texture,
+        load_op: wgpu::LoadOp<Color>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Option<wgpu::SubmissionIndex> {
+        self.state.dynamic.redraw_target.set(RedrawTarget::Never);
+        self.cushy.render_into(texture, load_op, device, queue)
+    }
+
+    /// Returns a new [`kludgine::Graphics`] context for this window.
+    #[must_use]
+    pub fn graphics<'gfx>(
+        &'gfx mut self,
+        device: &'gfx wgpu::Device,
+        queue: &'gfx wgpu::Queue,
+    ) -> kludgine::Graphics<'gfx> {
+        self.cushy.graphics(device, queue)
+    }
+
+    /// Requests that the window close.
+    ///
+    /// Returns true if the request should be honored.
     pub fn request_close(&mut self) -> bool {
-        if self
-            .window
-            .close_requested(&mut self.state, &mut self.kludgine)
-        {
+        if self.cushy.request_close(&mut self.state) {
             self.state.closed = true;
             true
         } else {
@@ -2612,18 +2771,17 @@ impl VirtualWindow {
 
     /// Returns the current size of the window.
     pub const fn size(&self) -> Size<UPx> {
-        self.kludgine.size()
+        self.cushy.size()
     }
 
     /// Returns the current DPI scale of the window.
     pub const fn scale(&self) -> Fraction {
-        self.kludgine.scale()
+        self.cushy.scale()
     }
 
     /// Updates the dimensions and DPI scaling of the window.
     pub fn resize(&mut self, new_size: Size<UPx>, new_scale: impl Into<f32>, queue: &wgpu::Queue) {
-        self.kludgine.resize(new_size, new_scale.into(), queue);
-        self.window.resized(new_size);
+        self.cushy.resize(new_size, new_scale.into(), queue);
     }
 
     /// Provide keyboard input to this virtual window.
@@ -2635,13 +2793,8 @@ impl VirtualWindow {
         input: KeyEvent,
         is_synthetic: bool,
     ) -> EventHandling {
-        self.window.keyboard_input(
-            &mut self.state,
-            &mut self.kludgine,
-            device_id,
-            input,
-            is_synthetic,
-        )
+        self.cushy
+            .keyboard_input(&mut self.state, device_id, input, is_synthetic)
     }
 
     /// Provides mouse wheel input to this window.
@@ -2653,26 +2806,26 @@ impl VirtualWindow {
         delta: MouseScrollDelta,
         phase: TouchPhase,
     ) -> EventHandling {
-        self.window
-            .mouse_wheel(&mut self.state, &mut self.kludgine, device_id, delta, phase)
+        self.cushy
+            .mouse_wheel(&mut self.state, device_id, delta, phase)
     }
 
     /// Provides input manager events to this window.
     ///
     /// Returns whether the event was [`HANDLED`] or [`IGNORED`].
     pub fn ime(&mut self, ime: &Ime) -> EventHandling {
-        self.window.ime(&mut self.state, &mut self.kludgine, ime)
+        self.cushy.ime(&mut self.state, ime)
     }
 
     /// Provides cursor movement events to this window.
     pub fn cursor_moved(&mut self, device_id: DeviceId, position: impl Into<Point<Px>>) {
-        self.window
-            .cursor_moved(&mut self.state, &mut self.kludgine, device_id, position);
+        self.cushy
+            .cursor_moved(&mut self.state, device_id, position);
     }
 
     /// Notifies the window that the cursor is no longer within the window.
     pub fn cursor_left(&mut self) {
-        self.window.cursor_left(&mut self.state, &mut self.kludgine);
+        self.cushy.cursor_left(&mut self.state);
     }
 
     /// Provides mouse input events to tihs window.
@@ -2684,13 +2837,8 @@ impl VirtualWindow {
         state: ElementState,
         button: MouseButton,
     ) -> EventHandling {
-        self.window.mouse_input(
-            &mut self.state,
-            &mut self.kludgine,
-            device_id,
-            state,
-            button,
-        )
+        self.cushy
+            .mouse_input(&mut self.state, device_id, state, button)
     }
 }
 
@@ -2962,15 +3110,12 @@ where
             None,
         ))?;
 
-        let window = VirtualWindow::new(
-            contents.make_widget(),
-            4,
-            size,
-            scale,
-            Format::HAS_ALPHA,
-            &device,
-            &queue,
-        );
+        let window = contents
+            .build_virtual_window()
+            .size(size)
+            .scale(scale)
+            .transparent()
+            .finish_virtual(&device, &queue);
 
         let mut recorder = Self {
             window,
@@ -2984,7 +3129,7 @@ where
             data_size: Size::ZERO,
             format: PhantomData,
         };
-        recorder.window.window.resize_to_fit = resize_to_fit;
+        recorder.window.cushy.window.resize_to_fit = resize_to_fit;
         recorder.refresh()?;
 
         if resize_to_fit && recorder.window.state.size != recorder.window.size() {
@@ -3086,7 +3231,7 @@ where
     }
 
     fn redraw(&mut self) {
-        let mut render_size = self.window.kludgine.size().ceil();
+        let mut render_size = self.window.size().ceil();
         if self.window.state.size != render_size {
             let current_scale = self.window.scale();
             self.window

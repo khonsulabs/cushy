@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
+- All context types no longer accept a `'window` lifetime. For most end-user
+  code, it means removing one elided lifetime from these types:
+  - `WidgetContext`
+  - `EventContext`
+  - `LayoutContext`
+  - `GraphicsContext`
+- `WidgetContext`'s `Deref` target is now `&mut dyn PlatformWindow`. This change
+  ensures all widgets utilize a shared interface between any host architecture.
+- All `DeviceId` parameters have been changed to a `DeviceId` type provided by
+  Cushy. This allows for creating arbitrary input device IDs when creating an
+  integration with other frameworks or driving simulated input in a
+  `VirtualWindow`.
 - `WidgetRef` is now a `struct` instead of an enum. This refactor changes the
   mounted state to be stored in a `WindowLocal`, ensuring `WidgetRef`s work
   properly when used in a `WidgetInstance` shared between multiple windows.
@@ -60,14 +72,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WidgetCacheKey` now includes the `KludgineId` of the context it was created
   from. This ensures if a `WidgetInstance` moves or is shared between windows,
   the cache is invalidated.
-- All `Dynamic` mapping functions now utilize weak references, and clean up as
-  necessary if a value is not able to be upgraded.
+- All `Dynamic` mapping functions now utilize weak references, and the
+  `CallbackHandle` now contains a strong reference to the originating dynamic.
+  This should have no visible impact on end-user code.
 - `ForEach`/`MapEach`'s implementations for tuples are now defined using
   `Source<T>` and `DynamicRead<T>`. This allows combinations of `Dynamic<T>`s
   and `DynamicReader<T>`s to be used in for_each/map_each expressions.
 
 ### Added
 
+- Cushy now supports being embedded in any wgpu application. Here are the API
+  highlights:
+
+  - `CushyWindow` is a type that contains the state of a standalone window. It
+    defines an API designed to enable full control with winit integration into
+    any wgpu application. This type's design is inspired by wpgu's
+    "Encapsulating Graphics Work" article. Each of its functions require being
+    passed a type that implements `PlatformWindowImplementation`, which exposes
+    all APIs Cushy needs to be fully functional.
+  - `VirtualWindow` is a type that makes it easy to render a Cushy interface in
+    any wgpu application where no winit integration is desired. It utilizes
+    `VirtualState` as its `PlatformWindowImplementation`. This type also exposes
+    a design inspired by wpgu's "Encapsulating Graphics Work" article.
+  - `WindowDynamicState` is a set of dynamics that can be updated through
+    external threads and tasks.
+  - is a new trait that allows
+  customizing the behavior that Cushy widgets need to be rendered.
+- Cushy now supports easily rendering a virtual window: `VirtualRecorder`. This
+  type utilizes a `VirtualWindow` and provides easy access to captured images.
+  This type has the ability to capture animated PNGs as well as still images.
 - `figures` is now directly re-exported at this crate's root. Kludgine still
   also provides this export, so existing references through kludgine will
   continue to work. This was added as an attempt to fix links on docs.rs (see
@@ -115,6 +148,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clone `self` before calling the `into_` function. This has only been done in
   situations where it is known or likely that the clone being performed is
   cheap.
+- `CallbackHandle` now has `weak()` and `forget_owners()`. These functions allow
+  a `CallbackHandle` to release its strong references to the `Dynamic` that the
+  callback is installed on. This enables forming weak callback graphs that clean
+  up independent of one another.
+- `Source<T>::weak_clone` returns a `Dynamic<T>` with a clone of each value
+  stored in the original source. The returned dynamic holds no strong references
+  to the original source.
+- `Point`, `Size`, and `Rect` now implement `LinearInterpolate`.
+- `MakeWidget::build_virtual_window()` returns a builder for a `VirtualWindow`.
+- `MakeWidget::build_recorder()` returns a builder for a `VirtualRecorder`.
+- `Space::dynamic()` returns a space that dynamically colors itself using
+  component provided. This allows the spacer to use values from the theme at
+  runtime.
+- `Space::primary()` returns a space that contains the primary color.
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 [120]: https://github.com/khonsulabs/cushy/issues/120
