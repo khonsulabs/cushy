@@ -41,5 +41,8 @@ jobs:
           cargo build --all-features --all-targets
 
       - name: Run all features unit tests
+        # for msrv, we only check build compatibility, as it's possible bugs are
+        # fixed purely by updating the rust version.
+        if: matrix.version == 'stable'
         run: |
           cargo test --all-features --all-targets

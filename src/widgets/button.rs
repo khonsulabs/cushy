@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size};
-use kludgine::app::winit::event::{DeviceId, MouseButton};
+use kludgine::app::winit::event::MouseButton;
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
@@ -21,7 +21,7 @@ use crate::styles::components::{
 use crate::styles::{ColorExt, Styles};
 use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED};
-use crate::window::WindowLocal;
+use crate::window::{DeviceId, WindowLocal};
 use crate::FitMeasuredSize;
 
 /// A clickable button.

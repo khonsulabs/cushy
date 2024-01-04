@@ -18,6 +18,7 @@ use crate::widget::{
     EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetRef, WidgetTag,
     HANDLED, IGNORED,
 };
+use crate::window::DeviceId;
 use crate::ConstraintLimit;
 
 /// A widget that hides and shows another widget.
@@ -316,7 +317,7 @@ impl Widget for DiscloseIndicator {
     fn mouse_down(
         &mut self,
         location: Point<Px>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_>,
     ) -> EventHandling {
@@ -333,7 +334,7 @@ impl Widget for DiscloseIndicator {
     fn mouse_up(
         &mut self,
         _location: Option<Point<Px>>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_>,
     ) {

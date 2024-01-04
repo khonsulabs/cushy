@@ -2,9 +2,7 @@ use std::fmt::Debug;
 
 use figures::units::Px;
 use figures::{Point, Size};
-use kludgine::app::winit::event::{
-    DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
-};
+use kludgine::app::winit::event::{Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
 
@@ -13,6 +11,7 @@ use crate::styles::VisualOrder;
 use crate::value::{IntoValue, Value};
 use crate::widget::{EventHandling, MakeWidget, WidgetRef, WrappedLayout, WrapperWidget, IGNORED};
 use crate::widgets::Space;
+use crate::window::DeviceId;
 use crate::ConstraintLimit;
 
 /// A callback-based custom widget.

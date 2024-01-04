@@ -15,8 +15,8 @@ fn main() {
     image::save_buffer_with_format(
         "examples/offscreen.png",
         recorder.bytes(),
-        recorder.size().width.get(),
-        recorder.size().height.get(),
+        recorder.window.size().width.get(),
+        recorder.window.size().height.get(),
         image::ColorType::Rgb8,
         image::ImageFormat::Png,
     )
@@ -32,8 +32,8 @@ fn main() {
     image::save_buffer_with_format(
         "examples/offscreen-transparent.png",
         recorder.bytes(),
-        recorder.size().width.get(),
-        recorder.size().height.get(),
+        recorder.window.size().width.get(),
+        recorder.window.size().height.get(),
         image::ColorType::Rgba8,
         image::ImageFormat::Png,
     )

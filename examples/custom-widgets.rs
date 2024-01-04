@@ -4,6 +4,7 @@
 use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag, HANDLED};
 use cushy::widgets::Custom;
+use cushy::window::DeviceId;
 use cushy::Run;
 use figures::units::{Lp, UPx};
 use figures::{ScreenScale, Size};
@@ -116,7 +117,7 @@ impl Widget for Toggle {
     fn mouse_down(
         &mut self,
         _location: figures::Point<figures::units::Px>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
         _context: &mut cushy::context::EventContext<'_>,
     ) -> cushy::widget::EventHandling {

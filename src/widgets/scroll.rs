@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use figures::units::{Lp, Px, UPx};
 use figures::{FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero};
 use intentional::Cast;
-use kludgine::app::winit::event::{DeviceId, MouseScrollDelta, TouchPhase};
+use kludgine::app::winit::event::{MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::Shape;
 use kludgine::Color;
@@ -15,6 +15,7 @@ use crate::styles::components::{EasingIn, EasingOut, LineHeight};
 use crate::styles::Dimension;
 use crate::value::{Destination, Dynamic, Source};
 use crate::widget::{EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
+use crate::window::DeviceId;
 use crate::ConstraintLimit;
 
 /// A widget that supports scrolling its contents.

@@ -16,22 +16,27 @@ use ahash::AHashMap;
 use alot::LotId;
 use arboard::Clipboard;
 use figures::units::{Px, UPx};
-use figures::{IntoSigned, IntoUnsigned, Point, Ranged, Rect, Round, ScreenScale, Size, Zero};
+use figures::{
+    Fraction, IntoSigned, IntoUnsigned, Point, Ranged, Rect, Round, ScreenScale, Size, Zero,
+};
 use intentional::{Assert, Cast};
 use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
-    DeviceId, ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
+    ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window::{self, CursorIcon};
 use kludgine::app::{winit, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::render::Drawing;
+use kludgine::shapes::Shape;
 use kludgine::wgpu::{self, CompositeAlphaMode, COPY_BYTES_PER_ROW_ALIGNMENT};
-use kludgine::{Color, Kludgine, KludgineId, Texture};
+use kludgine::{Color, DrawableExt, Kludgine, KludgineId, Origin, Texture};
 use tracing::Level;
 
-use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
+use crate::animation::{
+    AnimationTarget, Easing, LinearInterpolate, PercentBetween, Spawn, ZeroToOne,
+};
 use crate::app::{Application, Cushy, Open, PendingApp, Run};
 use crate::context::sealed::InvalidationStatus;
 use crate::context::{
@@ -701,9 +706,9 @@ pub trait WindowBehavior: Sized + 'static {
     /// the window will be closed. Returning false prevents the window from
     /// closing.
     #[allow(unused_variables)]
-    fn close_requested<W>(&self, window: &mut RunningWindow<W>) -> bool
+    fn close_requested<W>(&self, window: &mut W) -> bool
     where
-        W: PlatformWindowImplementation,
+        W: PlatformWindow,
     {
         true
     }
@@ -762,13 +767,15 @@ where
         *should_close
     }
 
-    fn keyboard_activate_widget(
+    fn keyboard_activate_widget<W>(
         &mut self,
         is_pressed: bool,
         widget: Option<LotId>,
-        window: &mut RunningWindow<kludgine::app::Window<'_, WindowCommand>>,
+        window: &mut W,
         kludgine: &mut Kludgine,
-    ) {
+    ) where
+        W: PlatformWindow,
+    {
         if is_pressed {
             if let Some(default) = widget.and_then(|id| self.tree.widget_from_node(id)) {
                 if let Some(previously_active) = self
@@ -968,19 +975,22 @@ where
         fonts
     }
 
-    fn handle_window_keyboard_input(
+    fn handle_window_keyboard_input<W>(
         &mut self,
-        window: &mut RunningWindow<kludgine::app::Window<'_, WindowCommand>>,
+        window: &mut W,
         kludgine: &mut Kludgine,
         input: KeyEvent,
-    ) {
+    ) -> EventHandling
+    where
+        W: PlatformWindow,
+    {
         match input.logical_key {
             Key::Character(ch) if ch == "w" && window.modifiers().primary() => {
-                if input.state.is_pressed()
-                    && Self::request_close(&mut self.should_close, &mut self.behavior, window)
-                {
+                if input.state.is_pressed() && self.behavior.close_requested(window) {
+                    self.should_close = true;
                     window.set_needs_redraw();
                 }
+                HANDLED
             }
             Key::Named(NamedKey::Space) if !window.modifiers().possible_shortcut() => {
                 let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
@@ -1008,6 +1018,7 @@ where
                         target.deactivate();
                     }
                 }
+                HANDLED
             }
 
             Key::Named(NamedKey::Tab) if !window.modifiers().possible_shortcut() => {
@@ -1033,6 +1044,7 @@ where
                         target.advance_focus();
                     }
                 }
+                HANDLED
             }
             Key::Named(NamedKey::Enter) => {
                 self.keyboard_activate_widget(
@@ -1041,6 +1053,7 @@ where
                     window,
                     kludgine,
                 );
+                HANDLED
             }
             Key::Named(NamedKey::Escape) => {
                 self.keyboard_activate_widget(
@@ -1049,6 +1062,7 @@ where
                     window,
                     kludgine,
                 );
+                HANDLED
             }
             _ => {
                 tracing::event!(
@@ -1058,6 +1072,7 @@ where
                     state = ?input.state,
                     "Ignored Keyboard Input",
                 );
+                IGNORED
             }
         }
     }
@@ -1262,6 +1277,336 @@ where
             false
         }
     }
+
+    fn resized(&mut self, new_size: Size<UPx>) {
+        self.inner_size.set(new_size);
+        // We want to prevent a resize request for this resized event.
+        self.inner_size_generation = self.inner_size.generation();
+        self.root.invalidate();
+    }
+
+    pub fn keyboard_input<W>(
+        &mut self,
+        window: W,
+        kludgine: &mut Kludgine,
+        device_id: DeviceId,
+        input: KeyEvent,
+        is_synthetic: bool,
+    ) -> EventHandling
+    where
+        W: PlatformWindowImplementation,
+    {
+        let mut window = RunningWindow::new(
+            window,
+            kludgine.id(),
+            &self.redraw_status,
+            &self.cushy,
+            &self.focused,
+            &self.occluded,
+            &self.inner_size,
+        );
+        let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
+        let Some(target) = self.tree.widget_from_node(target) else {
+            return IGNORED;
+        };
+        let mut target = EventContext::new(
+            WidgetContext::new(
+                target,
+                &self.current_theme,
+                &mut window,
+                self.theme_mode.get(),
+                &mut self.cursor,
+            ),
+            kludgine,
+        );
+
+        if recursively_handle_event(&mut target, |widget| {
+            widget.keyboard_input(device_id, input.clone(), is_synthetic)
+        })
+        .is_some()
+        {
+            return HANDLED;
+        }
+        drop(target);
+
+        self.handle_window_keyboard_input(&mut window, kludgine, input)
+    }
+
+    pub fn mouse_wheel<W>(
+        &mut self,
+        window: W,
+        kludgine: &mut Kludgine,
+        device_id: DeviceId,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+    ) -> EventHandling
+    where
+        W: PlatformWindowImplementation,
+    {
+        let mut window = RunningWindow::new(
+            window,
+            kludgine.id(),
+            &self.redraw_status,
+            &self.cushy,
+            &self.focused,
+            &self.occluded,
+            &self.inner_size,
+        );
+        let widget = self
+            .tree
+            .hovered_widget()
+            .and_then(|hovered| self.tree.widget_from_node(hovered))
+            .unwrap_or_else(|| self.tree.widget(self.root.id()).expect("missing widget"));
+
+        let mut widget = EventContext::new(
+            WidgetContext::new(
+                widget,
+                &self.current_theme,
+                &mut window,
+                self.theme_mode.get(),
+                &mut self.cursor,
+            ),
+            kludgine,
+        );
+        if recursively_handle_event(&mut widget, |widget| {
+            widget.mouse_wheel(device_id, delta, phase)
+        })
+        .is_some()
+        {
+            HANDLED
+        } else {
+            IGNORED
+        }
+    }
+
+    fn ime<W>(&mut self, window: W, kludgine: &mut Kludgine, ime: &Ime) -> EventHandling
+    where
+        W: PlatformWindowImplementation,
+    {
+        let mut window = RunningWindow::new(
+            window,
+            kludgine.id(),
+            &self.redraw_status,
+            &self.cushy,
+            &self.focused,
+            &self.occluded,
+            &self.inner_size,
+        );
+        let widget = self
+            .tree
+            .focused_widget()
+            .and_then(|hovered| self.tree.widget_from_node(hovered))
+            .unwrap_or_else(|| self.tree.widget(self.root.id()).expect("missing widget"));
+        let mut target = EventContext::new(
+            WidgetContext::new(
+                widget,
+                &self.current_theme,
+                &mut window,
+                self.theme_mode.get(),
+                &mut self.cursor,
+            ),
+            kludgine,
+        );
+
+        if recursively_handle_event(&mut target, |widget| widget.ime(ime.clone())).is_some() {
+            HANDLED
+        } else {
+            IGNORED
+        }
+    }
+
+    fn cursor_moved<W>(
+        &mut self,
+        window: W,
+        kludgine: &mut Kludgine,
+        device_id: DeviceId,
+        position: impl Into<Point<Px>>,
+    ) where
+        W: PlatformWindowImplementation,
+    {
+        let mut window = RunningWindow::new(
+            window,
+            kludgine.id(),
+            &self.redraw_status,
+            &self.cushy,
+            &self.focused,
+            &self.occluded,
+            &self.inner_size,
+        );
+
+        let location = position.into();
+        self.cursor.location = Some(location);
+
+        EventContext::new(
+            WidgetContext::new(
+                self.root.clone(),
+                &self.current_theme,
+                &mut window,
+                self.theme_mode.get(),
+                &mut self.cursor,
+            ),
+            kludgine,
+        )
+        .update_hovered_widget();
+
+        if let Some(state) = self.mouse_buttons.get(&device_id) {
+            // Mouse Drag
+            for (button, handler) in state {
+                let Some(handler) = self.tree.widget(*handler) else {
+                    continue;
+                };
+                let mut context = EventContext::new(
+                    WidgetContext::new(
+                        handler.clone(),
+                        &self.current_theme,
+                        &mut window,
+                        self.theme_mode.get(),
+                        &mut self.cursor,
+                    ),
+                    kludgine,
+                );
+                let Some(last_rendered_at) = context.last_layout() else {
+                    continue;
+                };
+                context.mouse_drag(location - last_rendered_at.origin, device_id, *button);
+            }
+        }
+    }
+
+    fn cursor_left<W>(&mut self, window: W, kludgine: &mut Kludgine)
+    where
+        W: PlatformWindowImplementation,
+    {
+        if self.cursor.widget.take().is_some() {
+            let mut window = RunningWindow::new(
+                window,
+                kludgine.id(),
+                &self.redraw_status,
+                &self.cushy,
+                &self.focused,
+                &self.occluded,
+                &self.inner_size,
+            );
+
+            let mut context = EventContext::new(
+                WidgetContext::new(
+                    self.root.clone(),
+                    &self.current_theme,
+                    &mut window,
+                    self.theme_mode.get(),
+                    &mut self.cursor,
+                ),
+                kludgine,
+            );
+            context.clear_hover();
+        }
+    }
+
+    fn mouse_input<W>(
+        &mut self,
+        window: W,
+        kludgine: &mut Kludgine,
+        device_id: DeviceId,
+        state: ElementState,
+        button: MouseButton,
+    ) -> EventHandling
+    where
+        W: PlatformWindowImplementation,
+    {
+        let mut window = RunningWindow::new(
+            window,
+            kludgine.id(),
+            &self.redraw_status,
+            &self.cushy,
+            &self.focused,
+            &self.occluded,
+            &self.inner_size,
+        );
+        match state {
+            ElementState::Pressed => {
+                EventContext::new(
+                    WidgetContext::new(
+                        self.root.clone(),
+                        &self.current_theme,
+                        &mut window,
+                        self.theme_mode.get(),
+                        &mut self.cursor,
+                    ),
+                    kludgine,
+                )
+                .clear_focus();
+
+                if let (ElementState::Pressed, Some(location), Some(hovered)) = (
+                    state,
+                    self.cursor.location,
+                    self.cursor.widget.and_then(|id| self.tree.widget(id)),
+                ) {
+                    if let Some(handler) = recursively_handle_event(
+                        &mut EventContext::new(
+                            WidgetContext::new(
+                                hovered.clone(),
+                                &self.current_theme,
+                                &mut window,
+                                self.theme_mode.get(),
+                                &mut self.cursor,
+                            ),
+                            kludgine,
+                        ),
+                        |context| {
+                            let Some(layout) = context.last_layout() else {
+                                return IGNORED;
+                            };
+                            let relative = location - layout.origin;
+                            context.mouse_down(relative, device_id, button)
+                        },
+                    ) {
+                        self.mouse_buttons
+                            .entry(device_id)
+                            .or_default()
+                            .insert(button, handler.id());
+                        return HANDLED;
+                    }
+                }
+                IGNORED
+            }
+            ElementState::Released => {
+                let Some(device_buttons) = self.mouse_buttons.get_mut(&device_id) else {
+                    return IGNORED;
+                };
+                let Some(handler) = device_buttons.remove(&button) else {
+                    return IGNORED;
+                };
+                if device_buttons.is_empty() {
+                    self.mouse_buttons.remove(&device_id);
+                }
+                let Some(handler) = self.tree.widget(handler) else {
+                    return IGNORED;
+                };
+                let cursor_location = self.cursor.location;
+                let mut context = EventContext::new(
+                    WidgetContext::new(
+                        handler,
+                        &self.current_theme,
+                        &mut window,
+                        self.theme_mode.get(),
+                        &mut self.cursor,
+                    ),
+                    kludgine,
+                );
+
+                let relative = if let (Some(last_rendered), Some(location)) =
+                    (context.last_layout(), cursor_location)
+                {
+                    Some(location - last_rendered.origin)
+                } else {
+                    None
+                };
+
+                context.mouse_up(relative, device_id, button);
+                HANDLED
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -1402,10 +1747,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.inner_size.set(window.inner_size());
-        // We want to prevent a resize request for this resized event.
-        self.inner_size_generation = self.inner_size.generation();
-        self.root.invalidate();
+        self.resized(window.inner_size());
     }
 
     // fn theme_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
@@ -1422,81 +1764,22 @@ where
         &mut self,
         window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
-        device_id: DeviceId,
+        device_id: winit::event::DeviceId,
         input: KeyEvent,
         is_synthetic: bool,
     ) {
-        let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
-        let Some(target) = self.tree.widget_from_node(target) else {
-            return;
-        };
-        let mut window = RunningWindow::new(
-            window,
-            kludgine.id(),
-            &self.redraw_status,
-            &self.cushy,
-            &self.focused,
-            &self.occluded,
-            &self.inner_size,
-        );
-        let mut target = EventContext::new(
-            WidgetContext::new(
-                target,
-                &self.current_theme,
-                &mut window,
-                self.theme_mode.get(),
-                &mut self.cursor,
-            ),
-            kludgine,
-        );
-
-        let handled = recursively_handle_event(&mut target, |widget| {
-            widget.keyboard_input(device_id, input.clone(), is_synthetic)
-        })
-        .is_some();
-        drop(target);
-
-        if !handled {
-            self.handle_window_keyboard_input(&mut window, kludgine, input);
-        }
+        self.keyboard_input(window, kludgine, device_id.into(), input, is_synthetic);
     }
 
     fn mouse_wheel(
         &mut self,
         window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
-        device_id: DeviceId,
+        device_id: winit::event::DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
     ) {
-        let widget = self
-            .tree
-            .hovered_widget()
-            .and_then(|hovered| self.tree.widget_from_node(hovered))
-            .unwrap_or_else(|| self.tree.widget(self.root.id()).expect("missing widget"));
-
-        let mut window = RunningWindow::new(
-            window,
-            kludgine.id(),
-            &self.redraw_status,
-            &self.cushy,
-            &self.focused,
-            &self.occluded,
-            &self.inner_size,
-        );
-        let mut widget = EventContext::new(
-            WidgetContext::new(
-                widget,
-                &self.current_theme,
-                &mut window,
-                self.theme_mode.get(),
-                &mut self.cursor,
-            ),
-            kludgine,
-        );
-        recursively_handle_event(&mut widget, |widget| {
-            widget.mouse_wheel(device_id, delta, phase)
-        });
+        self.mouse_wheel(window, kludgine, device_id.into(), delta, phase);
     }
 
     // fn modifiers_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
@@ -1507,219 +1790,37 @@ where
         kludgine: &mut Kludgine,
         ime: Ime,
     ) {
-        let widget = self
-            .tree
-            .focused_widget()
-            .and_then(|hovered| self.tree.widget_from_node(hovered))
-            .unwrap_or_else(|| self.tree.widget(self.root.id()).expect("missing widget"));
-        let mut window = RunningWindow::new(
-            window,
-            kludgine.id(),
-            &self.redraw_status,
-            &self.cushy,
-            &self.focused,
-            &self.occluded,
-            &self.inner_size,
-        );
-        let mut target = EventContext::new(
-            WidgetContext::new(
-                widget,
-                &self.current_theme,
-                &mut window,
-                self.theme_mode.get(),
-                &mut self.cursor,
-            ),
-            kludgine,
-        );
-
-        let _handled =
-            recursively_handle_event(&mut target, |widget| widget.ime(ime.clone())).is_some();
+        self.ime(window, kludgine, &ime);
     }
 
     fn cursor_moved(
         &mut self,
         window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
-        device_id: DeviceId,
+        device_id: winit::event::DeviceId,
         position: PhysicalPosition<f64>,
     ) {
-        let location = Point::<Px>::from(position);
-        self.cursor.location = Some(location);
-
-        let mut window = RunningWindow::new(
-            window,
-            kludgine.id(),
-            &self.redraw_status,
-            &self.cushy,
-            &self.focused,
-            &self.occluded,
-            &self.inner_size,
-        );
-
-        EventContext::new(
-            WidgetContext::new(
-                self.root.clone(),
-                &self.current_theme,
-                &mut window,
-                self.theme_mode.get(),
-                &mut self.cursor,
-            ),
-            kludgine,
-        )
-        .update_hovered_widget();
-
-        if let Some(state) = self.mouse_buttons.get(&device_id) {
-            // Mouse Drag
-            for (button, handler) in state {
-                let Some(handler) = self.tree.widget(*handler) else {
-                    continue;
-                };
-                let mut context = EventContext::new(
-                    WidgetContext::new(
-                        handler.clone(),
-                        &self.current_theme,
-                        &mut window,
-                        self.theme_mode.get(),
-                        &mut self.cursor,
-                    ),
-                    kludgine,
-                );
-                let Some(last_rendered_at) = context.last_layout() else {
-                    continue;
-                };
-                context.mouse_drag(location - last_rendered_at.origin, device_id, *button);
-            }
-        }
+        self.cursor_moved(window, kludgine, device_id.into(), position);
     }
 
     fn cursor_left(
         &mut self,
         window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
-        _device_id: DeviceId,
+        _device_id: winit::event::DeviceId,
     ) {
-        if self.cursor.widget.take().is_some() {
-            let mut window = RunningWindow::new(
-                window,
-                kludgine.id(),
-                &self.redraw_status,
-                &self.cushy,
-                &self.focused,
-                &self.occluded,
-                &self.inner_size,
-            );
-            let mut context = EventContext::new(
-                WidgetContext::new(
-                    self.root.clone(),
-                    &self.current_theme,
-                    &mut window,
-                    self.theme_mode.get(),
-                    &mut self.cursor,
-                ),
-                kludgine,
-            );
-            context.clear_hover();
-        }
+        self.cursor_left(window, kludgine);
     }
 
     fn mouse_input(
         &mut self,
         window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
-        device_id: DeviceId,
+        device_id: winit::event::DeviceId,
         state: ElementState,
         button: MouseButton,
     ) {
-        let mut window = RunningWindow::new(
-            window,
-            kludgine.id(),
-            &self.redraw_status,
-            &self.cushy,
-            &self.focused,
-            &self.occluded,
-            &self.inner_size,
-        );
-        match state {
-            ElementState::Pressed => {
-                EventContext::new(
-                    WidgetContext::new(
-                        self.root.clone(),
-                        &self.current_theme,
-                        &mut window,
-                        self.theme_mode.get(),
-                        &mut self.cursor,
-                    ),
-                    kludgine,
-                )
-                .clear_focus();
-
-                if let (ElementState::Pressed, Some(location), Some(hovered)) = (
-                    state,
-                    self.cursor.location,
-                    self.cursor.widget.and_then(|id| self.tree.widget(id)),
-                ) {
-                    if let Some(handler) = recursively_handle_event(
-                        &mut EventContext::new(
-                            WidgetContext::new(
-                                hovered.clone(),
-                                &self.current_theme,
-                                &mut window,
-                                self.theme_mode.get(),
-                                &mut self.cursor,
-                            ),
-                            kludgine,
-                        ),
-                        |context| {
-                            let Some(layout) = context.last_layout() else {
-                                return IGNORED;
-                            };
-                            let relative = location - layout.origin;
-                            context.mouse_down(relative, device_id, button)
-                        },
-                    ) {
-                        self.mouse_buttons
-                            .entry(device_id)
-                            .or_default()
-                            .insert(button, handler.id());
-                    }
-                }
-            }
-            ElementState::Released => {
-                let Some(device_buttons) = self.mouse_buttons.get_mut(&device_id) else {
-                    return;
-                };
-                let Some(handler) = device_buttons.remove(&button) else {
-                    return;
-                };
-                if device_buttons.is_empty() {
-                    self.mouse_buttons.remove(&device_id);
-                }
-                let Some(handler) = self.tree.widget(handler) else {
-                    return;
-                };
-                let cursor_location = self.cursor.location;
-                let mut context = EventContext::new(
-                    WidgetContext::new(
-                        handler,
-                        &self.current_theme,
-                        &mut window,
-                        self.theme_mode.get(),
-                        &mut self.cursor,
-                    ),
-                    kludgine,
-                );
-
-                let relative = if let (Some(last_rendered), Some(location)) =
-                    (context.last_layout(), cursor_location)
-                {
-                    Some(location - last_rendered.origin)
-                } else {
-                    None
-                };
-
-                context.mouse_up(relative, device_id, button);
-            }
-        }
+        self.mouse_input(window, kludgine, device_id.into(), state, button);
     }
 
     fn theme_changed(
@@ -2419,9 +2520,27 @@ impl VirtualWindow {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<wgpu::SubmissionIndex> {
+        self.render_with(pass, device, queue, None)
+    }
+
+    /// Renders this window in a wgpu render pass created from `pass`.
+    ///
+    /// Returns the submission index of the last command submission, if any
+    /// commands were submitted.
+    pub fn render_with(
+        &mut self,
+        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        additional_drawing: Option<&Drawing>,
+    ) -> Option<wgpu::SubmissionIndex> {
+        self.state.dynamic.redraw_target.set(RedrawTarget::Never);
         let mut frame = self.kludgine.next_frame();
         let mut gfx = frame.render(pass, device, queue);
         self.window.contents.render(1., &mut gfx);
+        if let Some(additional) = additional_drawing {
+            additional.render(1., &mut gfx);
+        }
         drop(gfx);
         frame.submit(queue)
     }
@@ -2434,6 +2553,7 @@ impl VirtualWindow {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<wgpu::SubmissionIndex> {
+        self.state.dynamic.redraw_target.set(RedrawTarget::Never);
         let mut frame = self.kludgine.next_frame();
         let mut gfx = frame.render_into(texture, load_op, device, queue);
         self.window.contents.render(1., &mut gfx);
@@ -2471,6 +2591,95 @@ impl VirtualWindow {
     #[must_use]
     pub fn closed(&self) -> bool {
         self.state.closed
+    }
+
+    /// Returns a reference to the window's state.
+    #[must_use]
+    pub const fn state(&self) -> &VirtualState {
+        &self.state
+    }
+
+    /// Returns the current size of the window.
+    pub const fn size(&self) -> Size<UPx> {
+        self.kludgine.size()
+    }
+
+    /// Returns the current DPI scale of the window.
+    pub const fn scale(&self) -> Fraction {
+        self.kludgine.scale()
+    }
+
+    /// Updates the dimensions and DPI scaling of the window.
+    pub fn resize(&mut self, new_size: Size<UPx>, new_scale: impl Into<f32>, queue: &wgpu::Queue) {
+        self.kludgine.resize(new_size, new_scale.into(), queue);
+        self.window.resized(new_size);
+    }
+
+    /// Provide keyboard input to this virtual window.
+    ///
+    /// Returns whether the event was [`HANDLED`] or [`IGNORED`].
+    pub fn keyboard_input(
+        &mut self,
+        device_id: DeviceId,
+        input: KeyEvent,
+        is_synthetic: bool,
+    ) -> EventHandling {
+        self.window.keyboard_input(
+            &mut self.state,
+            &mut self.kludgine,
+            device_id,
+            input,
+            is_synthetic,
+        )
+    }
+
+    /// Provides mouse wheel input to this window.
+    ///
+    /// Returns whether the event was [`HANDLED`] or [`IGNORED`].
+    pub fn mouse_wheel(
+        &mut self,
+        device_id: DeviceId,
+        delta: MouseScrollDelta,
+        phase: TouchPhase,
+    ) -> EventHandling {
+        self.window
+            .mouse_wheel(&mut self.state, &mut self.kludgine, device_id, delta, phase)
+    }
+
+    /// Provides input manager events to this window.
+    ///
+    /// Returns whether the event was [`HANDLED`] or [`IGNORED`].
+    pub fn ime(&mut self, ime: &Ime) -> EventHandling {
+        self.window.ime(&mut self.state, &mut self.kludgine, ime)
+    }
+
+    /// Provides cursor movement events to this window.
+    pub fn cursor_moved(&mut self, device_id: DeviceId, position: impl Into<Point<Px>>) {
+        self.window
+            .cursor_moved(&mut self.state, &mut self.kludgine, device_id, position);
+    }
+
+    /// Notifies the window that the cursor is no longer within the window.
+    pub fn cursor_left(&mut self) {
+        self.window.cursor_left(&mut self.state, &mut self.kludgine);
+    }
+
+    /// Provides mouse input events to tihs window.
+    ///
+    /// Returns whether the event was [`HANDLED`] or [`IGNORED`].
+    pub fn mouse_input(
+        &mut self,
+        device_id: DeviceId,
+        state: ElementState,
+        button: MouseButton,
+    ) -> EventHandling {
+        self.window.mouse_input(
+            &mut self.state,
+            &mut self.kludgine,
+            device_id,
+            state,
+            button,
+        )
     }
 }
 
@@ -2565,6 +2774,18 @@ where
         self
     }
 
+    /// Sets the DPI scaling to apply to this virtual window.
+    ///
+    /// When scale is 1.0, resolution-independent content will be rendered at
+    /// 96-ppi.
+    ///
+    /// This setting does not affect the image's pixel dimensions.
+    #[must_use]
+    pub fn scale(mut self, scale: f32) -> Self {
+        self.scale = scale;
+        self
+    }
+
     /// Returns an initialized [`VirtualRecorder`].
     pub fn finish(self) -> Result<VirtualRecorder<Format>, VirtualRecorderError> {
         VirtualRecorder::new(self.size, self.scale, self.contents)
@@ -2579,11 +2800,14 @@ struct Capture {
 
 /// A recorder of a [`VirtualWindow`].
 pub struct VirtualRecorder<Format = Rgb8> {
-    window: VirtualWindow,
+    /// The virtual window being recorded.
+    pub window: VirtualWindow,
     device: wgpu::Device,
     queue: wgpu::Queue,
     capture: Option<Capture>,
     data: Vec<u8>,
+    cursor: Dynamic<Point<Px>>,
+    cursor_graphic: Drawing,
     format: PhantomData<Format>,
 }
 
@@ -2614,26 +2838,26 @@ where
             None,
         ))?;
 
-        let mut recorder = Self {
-            window: VirtualWindow::new(
-                contents.make_widget(),
-                4,
-                size,
-                scale,
-                Format::HAS_ALPHA,
-                &device,
-                &queue,
-            ),
+        let window = VirtualWindow::new(
+            contents.make_widget(),
+            4,
+            size,
+            scale,
+            Format::HAS_ALPHA,
+            &device,
+            &queue,
+        );
+
+        Ok(Self {
+            window,
             device,
             queue,
+            cursor: Dynamic::default(),
+            cursor_graphic: Drawing::default(),
             capture: None,
             data: Vec::new(),
             format: PhantomData,
-        };
-
-        recorder.refresh()?;
-
-        Ok(recorder)
+        })
     }
 
     /// Returns the tightly-packed captured bytes.
@@ -2641,11 +2865,6 @@ where
     /// The layout of this data is determined by the `Format` generic.
     pub fn bytes(&self) -> &[u8] {
         &self.data
-    }
-
-    /// Returns the current size of the recorder.
-    pub const fn size(&self) -> Size<UPx> {
-        self.window.kludgine.size()
     }
 
     fn recreate_buffers_if_needed(&mut self, size: Size<UPx>, bytes: u64) {
@@ -2694,9 +2913,17 @@ where
 
         let capture = self.capture.as_ref().assert("always initialized above");
 
+        let mut gfx = self.window.graphics(&self.device, &self.queue);
+        let mut frame = self.cursor_graphic.new_frame(&mut gfx);
+        frame.draw_shape(
+            Shape::filled_circle(Px::new(4), Color::WHITE, Origin::Center)
+                .translate_by(self.cursor.get()),
+        );
+        drop(frame);
+
         self.window.prepare(&self.device, &self.queue);
 
-        self.window.render(
+        self.window.render_with(
             &wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -2713,6 +2940,7 @@ where
             },
             &self.device,
             &self.queue,
+            Some(&self.cursor_graphic),
         );
 
         let mut encoder = self
@@ -2740,7 +2968,6 @@ where
                 let map_result = map_result.clone();
                 let condvar = condvar.clone();
                 move || {
-                    condvar.notify_one();
                     slice.map_async(wgpu::MapMode::Read, {
                         move |result| {
                             *map_result.lock().assert("thread panicked") = Some(result);
@@ -2775,16 +3002,171 @@ where
         })?;
 
         self.data.extend_from_slice(&slice.get_mapped_range());
+        capture.buffer.unmap();
 
         Format::convert_rgba(&mut self.data, render_size.width.get(), bytes_per_row);
 
         Ok(())
+    }
+
+    /// Sets the cursor position immediately.
+    pub fn set_cursor_position(&self, position: Point<Px>) {
+        self.cursor.set(position);
+    }
+
+    /// Begins recording an animated png.
+    pub fn record_animated_png(&mut self, target_fps: u8) -> AnimationRecorder<'_, Format> {
+        AnimationRecorder {
+            recorder: self,
+            target_fps,
+            frames: Vec::new(),
+        }
     }
 }
 
 fn copy_buffer_aligned_bytes_per_row(width: u32) -> u32 {
     (width + COPY_BYTES_PER_ROW_ALIGNMENT - 1) / COPY_BYTES_PER_ROW_ALIGNMENT
         * COPY_BYTES_PER_ROW_ALIGNMENT
+}
+
+/// An animated PNG recorder.
+pub struct AnimationRecorder<'a, Format> {
+    recorder: &'a mut VirtualRecorder<Format>,
+    target_fps: u8,
+    frames: Vec<Frame>,
+}
+
+impl<Format> AnimationRecorder<'_, Format>
+where
+    Format: CaptureFormat,
+{
+    /// Animates the cursor to move from its current location to `location`.
+    pub fn animate_cursor_to(
+        &mut self,
+        location: Point<Px>,
+        over: Duration,
+        easing: impl Easing,
+    ) -> Result<(), VirtualRecorderError> {
+        self.recorder
+            .cursor
+            .transition_to(location)
+            .over(over)
+            .with_easing(easing)
+            .launch();
+        self.wait_for(over)
+    }
+
+    /// Waits for `duration`, rendering frames as needed.
+    pub fn wait_for(&mut self, duration: Duration) -> Result<(), VirtualRecorderError> {
+        self.wait_until(Instant::now() + duration)
+    }
+
+    /// Waits until `time`, rendering frames as needed.
+    pub fn wait_until(&mut self, time: Instant) -> Result<(), VirtualRecorderError> {
+        let frame_duration = Duration::from_micros(1_000_000 / u64::from(self.target_fps));
+        let mut last_frame = Instant::now();
+
+        loop {
+            let now = Instant::now();
+            let final_frame = now > time;
+
+            self.recorder
+                .window
+                .cursor_moved(DeviceId::Virtual(0), self.recorder.cursor.get());
+
+            let next_frame = match self.recorder.window.state.dynamic.redraw_target.get() {
+                RedrawTarget::Never => now + frame_duration,
+                RedrawTarget::Now => now,
+                RedrawTarget::At(instant) => now.min(instant),
+            };
+
+            if final_frame || next_frame == now {
+                let elapsed = now.saturating_duration_since(last_frame);
+                last_frame = now;
+                self.recorder.refresh()?;
+                match self.frames.last_mut() {
+                    Some(frame) if frame.data == self.recorder.bytes() => {
+                        frame.duration += elapsed;
+                    }
+                    _ => {
+                        self.frames.push(Frame {
+                            data: self.recorder.bytes().to_vec(),
+                            duration: elapsed,
+                        });
+                    }
+                }
+            }
+
+            if now > time {
+                break;
+            }
+
+            let render_duration = now.elapsed();
+            std::thread::sleep(frame_duration.saturating_sub(render_duration));
+        }
+
+        Ok(())
+    }
+
+    /// Encodes the currently recorded frames into a new file at `path`.
+    pub fn write_to(&self, path: impl AsRef<Path>) -> Result<(), png::EncodingError> {
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(path)?;
+        let mut encoder = png::Encoder::new(
+            &mut file,
+            self.recorder.window.size().width.get(),
+            self.recorder.window.size().height.get(),
+        );
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_adaptive_filter(png::AdaptiveFilterType::Adaptive);
+        encoder.set_animated(
+            u32::try_from(self.frames.len()).assert("too many frames"),
+            0,
+        )?;
+        encoder.set_compression(png::Compression::Best);
+
+        let mut current_frame_delay = self
+            .frames
+            .first()
+            .assert("always at least one frame")
+            .duration;
+        encoder.set_frame_delay(
+            current_frame_delay
+                .as_millis()
+                // TODO should be checked
+                .cast(),
+            1_000,
+        )?;
+        let mut writer = encoder.write_header()?;
+        for frame in &self.frames {
+            if current_frame_delay != frame.duration {
+                current_frame_delay = frame.duration;
+                writer.set_frame_delay(
+                    current_frame_delay
+                        .as_millis()
+                        // TODO should be checked
+                        .cast(),
+                    1_000,
+                )?;
+            }
+
+            writer.write_image_data(&frame.data)?;
+        }
+
+        writer.finish()?;
+
+        file.sync_all()?;
+
+        Ok(())
+    }
+}
+
+struct Frame {
+    data: Vec<u8>,
+    duration: Duration,
 }
 
 /// An error from a [`VirtualRecorder`].
@@ -2816,5 +3198,20 @@ impl From<wgpu::BufferAsyncError> for VirtualRecorderError {
 impl From<TryFromIntError> for VirtualRecorderError {
     fn from(_: TryFromIntError) -> Self {
         Self::TooLarge
+    }
+}
+
+/// A unique identifier of an input device.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub enum DeviceId {
+    /// A winit-supplied device id.
+    Winit(winit::event::DeviceId),
+    /// A simulated device.
+    Virtual(u64),
+}
+
+impl From<winit::event::DeviceId> for DeviceId {
+    fn from(value: winit::event::DeviceId) -> Self {
+        Self::Winit(value)
     }
 }

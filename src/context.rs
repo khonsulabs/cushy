@@ -4,9 +4,7 @@ use std::ops::{Deref, DerefMut};
 
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
-use kludgine::app::winit::event::{
-    DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
-};
+use kludgine::app::winit::event::{Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine, KludgineId};
@@ -21,7 +19,7 @@ use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::tree::Tree;
 use crate::value::{IntoValue, Source, Value};
 use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
-use crate::window::{CursorState, PlatformWindow, ThemeMode};
+use crate::window::{CursorState, DeviceId, PlatformWindow, ThemeMode};
 use crate::ConstraintLimit;
 
 /// A context to an event function.

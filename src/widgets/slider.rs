@@ -6,7 +6,7 @@ use std::ops::RangeInclusive;
 use figures::units::{Lp, Px, UPx};
 use figures::{FloatConversion, IntoSigned, Point, Ranged, Rect, Round, ScreenScale, Size};
 use intentional::{Assert, Cast as _};
-use kludgine::app::winit::event::{DeviceId, MouseButton, MouseScrollDelta, TouchPhase};
+use kludgine::app::winit::event::{MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::{Shape, StrokeOptions};
@@ -21,6 +21,7 @@ use crate::styles::components::{
 use crate::styles::{Dimension, HorizontalOrder, VerticalOrder, VisualOrder};
 use crate::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
+use crate::window::DeviceId;
 use crate::ConstraintLimit;
 
 /// A widget that allows sliding between two values.

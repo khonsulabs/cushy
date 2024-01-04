@@ -4,7 +4,7 @@ use std::ops::Range;
 use figures::units::{Lp, Px};
 use figures::{FloatConversion, Point, Rect, Round, ScreenScale, Zero};
 use intentional::Cast;
-use kludgine::app::winit::event::{DeviceId, MouseButton};
+use kludgine::app::winit::event::MouseButton;
 use kludgine::shapes::{self, FillOptions, PathBuilder, Shape, StrokeOptions};
 use kludgine::{Color, DrawableExt, Origin};
 
@@ -14,6 +14,7 @@ use crate::styles::components::{HighlightColor, OutlineColor, TextColor};
 use crate::styles::{ColorExt, ColorSource};
 use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{EventHandling, Widget, HANDLED};
+use crate::window::DeviceId;
 
 /// A widget that selects a [`ColorSource`].
 #[derive(Debug)]

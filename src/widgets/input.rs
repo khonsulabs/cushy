@@ -973,7 +973,7 @@ where
     fn mouse_down(
         &mut self,
         location: Point<Px>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: crate::window::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_>,
     ) -> EventHandling {
@@ -997,7 +997,7 @@ where
     fn mouse_drag(
         &mut self,
         location: Point<Px>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: crate::window::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_>,
     ) {
@@ -1012,7 +1012,7 @@ where
     fn mouse_up(
         &mut self,
         _location: Option<Point<Px>>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: crate::window::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
         _context: &mut EventContext<'_>,
     ) {
@@ -1188,7 +1188,7 @@ where
 
     fn keyboard_input(
         &mut self,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: crate::window::DeviceId,
         input: kludgine::app::winit::event::KeyEvent,
         _is_synthetic: bool,
         context: &mut EventContext<'_>,
