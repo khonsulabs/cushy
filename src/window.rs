@@ -120,6 +120,15 @@ pub trait PlatformWindowImplementation {
             winit.set_ime_allowed(allowed);
         }
     }
+    /// Sets the location of the cursor.
+    fn set_ime_location(&self, location: Rect<Px>) {
+        if let Some(winit) = self.winit() {
+            winit.set_ime_cursor_area(
+                PhysicalPosition::from(location.origin),
+                PhysicalSize::from(location.size),
+            );
+        }
+    }
 
     /// Sets the current [`Ime`] purpose.
     ///
@@ -220,6 +229,8 @@ pub trait PlatformWindow {
     /// Sets the current cursor icon to `cursor`.
     fn set_cursor_icon(&mut self, cursor: CursorIcon);
 
+    /// Sets the location of the cursor.
+    fn set_ime_location(&self, location: Rect<Px>);
     /// Sets whether [`Ime`] events should be enabled.
     fn set_ime_allowed(&self, allowed: bool);
     /// Sets the current [`Ime`] purpose.
@@ -421,6 +432,10 @@ where
 
     fn request_inner_size(&mut self, inner_size: Size<UPx>) {
         self.window.request_inner_size(inner_size);
+    }
+
+    fn set_ime_location(&self, location: Rect<Px>) {
+        self.window.set_ime_location(location);
     }
 }
 

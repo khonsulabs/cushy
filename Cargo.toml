@@ -55,6 +55,8 @@ image = { version = "0.24.7", features = ["png"] }
 # kludgine = { path = "../kludgine" }
 # [patch."https://github.com/khonsulabs/appit"]
 # appit = { path = "../appit" }
+# [patch."https://github.com/khonsulabs/figures"]
+# figures = { path = "../figures" }
 
 [profile.dev.package."*"]
 opt-level = 2

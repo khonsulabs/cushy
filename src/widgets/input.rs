@@ -1057,6 +1057,7 @@ where
 
         if context.focused(false) {
             context.set_ime_allowed(true);
+            context.set_ime_location(context.gfx.region());
             context.set_ime_purpose(if info.masked {
                 ImePurpose::Password
             } else {
