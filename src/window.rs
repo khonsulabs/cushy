@@ -3425,7 +3425,11 @@ where
             self.recorder.window.size().width.get(),
             self.recorder.window.size().height.get(),
         );
-        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_color(if Format::HAS_ALPHA {
+            png::ColorType::Rgba
+        } else {
+            png::ColorType::Rgb
+        });
         encoder.set_adaptive_filter(png::AdaptiveFilterType::Adaptive);
         encoder.set_animated(u32::try_from(frames.len()).assert("too many frames"), 0)?;
         encoder.set_compression(png::Compression::Best);
