@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use figures::units::{Px, UPx};
 use figures::{Point, Size};
 use intentional::Cast;
-use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseScrollDelta, TouchPhase};
+use kludgine::app::winit::event::{ElementState, KeyEvent, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::tilemap;
 use kludgine::tilemap::TileMapFocus;
@@ -12,6 +12,7 @@ use crate::context::{EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::tick::Tick;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
+use crate::window::DeviceId;
 use crate::ConstraintLimit;
 
 /// A layered tile-based 2d game surface.
@@ -64,7 +65,7 @@ impl<Layers> Widget for TileMap<Layers>
 where
     Layers: tilemap::Layers,
 {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let focus = self.focus.get();
         // TODO this needs to be updated to support being placed in side of a scroll view.
         let redraw_after = match &mut self.layers {
@@ -103,14 +104,14 @@ where
         }
     }
 
-    fn accept_focus(&mut self, _context: &mut EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, _context: &mut EventContext<'_>) -> bool {
         true
     }
 
     fn hit_test(
         &mut self,
         _location: figures::Point<figures::units::Px>,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) -> bool {
         true
     }
@@ -118,7 +119,7 @@ where
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        _context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        _context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         Size::new(available_space.width.max(), available_space.height.max())
     }
@@ -128,7 +129,7 @@ where
         _device_id: DeviceId,
         delta: MouseScrollDelta,
         _phase: TouchPhase,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         let amount = match delta {
             MouseScrollDelta::LineDelta(_, lines) => lines,
@@ -141,11 +142,7 @@ where
         HANDLED
     }
 
-    fn hover(
-        &mut self,
-        local: Point<Px>,
-        context: &mut EventContext<'_, '_>,
-    ) -> Option<CursorIcon> {
+    fn hover(&mut self, local: Point<Px>, context: &mut EventContext<'_>) -> Option<CursorIcon> {
         if let Some(tick) = &self.tick {
             let Some(size) = context.last_layout().map(|rect| rect.size) else {
                 return None;
@@ -163,7 +160,7 @@ where
         None
     }
 
-    fn unhover(&mut self, _context: &mut EventContext<'_, '_>) {
+    fn unhover(&mut self, _context: &mut EventContext<'_>) {
         if let Some(tick) = &self.tick {
             tick.set_cursor_position(None);
         }
@@ -174,7 +171,7 @@ where
         _device_id: DeviceId,
         input: KeyEvent,
         _is_synthetic: bool,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) -> EventHandling {
         if let Some(tick) = &self.tick {
             tick.key_input(&input)?;
@@ -188,7 +185,7 @@ where
         _location: Point<Px>,
         _device_id: DeviceId,
         button: kludgine::app::winit::event::MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         if let Some(tick) = &self.tick {
             tick.mouse_button(button, ElementState::Pressed);
@@ -204,7 +201,7 @@ where
         _location: Option<Point<Px>>,
         _device_id: DeviceId,
         button: kludgine::app::winit::event::MouseButton,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) {
         if let Some(tick) = &self.tick {
             tick.mouse_button(button, ElementState::Released);

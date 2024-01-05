@@ -4,7 +4,7 @@ use std::ops::Range;
 use figures::units::{Lp, Px};
 use figures::{FloatConversion, Point, Rect, Round, ScreenScale, Zero};
 use intentional::Cast;
-use kludgine::app::winit::event::{DeviceId, MouseButton};
+use kludgine::app::winit::event::MouseButton;
 use kludgine::shapes::{self, FillOptions, PathBuilder, Shape, StrokeOptions};
 use kludgine::{Color, DrawableExt, Origin};
 
@@ -14,6 +14,7 @@ use crate::styles::components::{HighlightColor, OutlineColor, TextColor};
 use crate::styles::{ColorExt, ColorSource};
 use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{EventHandling, Widget, HANDLED};
+use crate::window::DeviceId;
 
 /// A widget that selects a [`ColorSource`].
 #[derive(Debug)]
@@ -69,7 +70,7 @@ impl ColorSourcePicker {
 }
 
 impl Widget for ColorSourcePicker {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let loupe_size = Lp::mm(3).into_px(context.gfx.scale());
         let size = context.gfx.region().size;
 
@@ -148,7 +149,7 @@ impl Widget for ColorSourcePicker {
         );
     }
 
-    fn hit_test(&mut self, location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
         self.visible_rect.contains(location)
     }
 
@@ -157,7 +158,7 @@ impl Widget for ColorSourcePicker {
         location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) -> EventHandling {
         self.update_from_mouse(location);
         HANDLED
@@ -168,7 +169,7 @@ impl Widget for ColorSourcePicker {
         location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) {
         self.update_from_mouse(location);
     }
@@ -180,7 +181,7 @@ fn draw_gradient_segment(
     height: Px,
     hue: Range<f32>,
     lightness: ZeroToOne,
-    context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+    context: &mut GraphicsContext<'_, '_, '_, '_>,
 ) {
     let mid_left = (
         Point::new(start.x, start.y + height / 2),

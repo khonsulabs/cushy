@@ -4,9 +4,7 @@ use std::ops::{Deref, DerefMut};
 
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
-use kludgine::app::winit::event::{
-    DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
-};
+use kludgine::app::winit::event::{Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine, KludgineId};
@@ -21,16 +19,16 @@ use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
 use crate::tree::Tree;
 use crate::value::{IntoValue, Source, Value};
 use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
-use crate::window::{CursorState, RunningWindow, ThemeMode};
+use crate::window::{CursorState, DeviceId, PlatformWindow, ThemeMode};
 use crate::ConstraintLimit;
 
 /// A context to an event function.
 ///
 /// This type is a combination of a reference to the rendering library,
 /// [`Kludgine`], and a [`WidgetContext`].
-pub struct EventContext<'context, 'window> {
+pub struct EventContext<'context> {
     /// The context for the widget receiving the event.
-    pub widget: WidgetContext<'context, 'window>,
+    pub widget: WidgetContext<'context>,
     /// The rendering library's state.
     ///
     /// This is useful for accessing the current [scale](Kludgine::scale) or
@@ -38,13 +36,10 @@ pub struct EventContext<'context, 'window> {
     pub kludgine: &'context mut Kludgine,
 }
 
-impl<'context, 'window> EventContext<'context, 'window> {
+impl<'context> EventContext<'context> {
     const MAX_PENDING_CHANGE_CYCLES: u8 = 100;
 
-    pub(crate) fn new(
-        widget: WidgetContext<'context, 'window>,
-        kludgine: &'context mut Kludgine,
-    ) -> Self {
+    pub(crate) fn new(widget: WidgetContext<'context>, kludgine: &'context mut Kludgine) -> Self {
         Self { widget, kludgine }
     }
 
@@ -58,10 +53,10 @@ impl<'context, 'window> EventContext<'context, 'window> {
     pub fn for_other<'child, Widget>(
         &'child mut self,
         widget: &Widget,
-    ) -> <Widget::Managed as MapManagedWidget<EventContext<'child, 'window>>>::Result
+    ) -> <Widget::Managed as MapManagedWidget<EventContext<'child>>>::Result
     where
         Widget: ManageWidget,
-        Widget::Managed: MapManagedWidget<EventContext<'child, 'window>>,
+        Widget::Managed: MapManagedWidget<EventContext<'child>>,
     {
         widget
             .manage(self)
@@ -177,7 +172,8 @@ impl<'context, 'window> EventContext<'context, 'window> {
                 cursor = widget_cursor;
             }
         }
-        self.winit().set_cursor_icon(cursor.unwrap_or_default());
+        self.window_mut()
+            .set_cursor_icon(cursor.unwrap_or_default());
     }
 
     pub(crate) fn clear_hover(&mut self) {
@@ -189,7 +185,7 @@ impl<'context, 'window> EventContext<'context, 'window> {
             old_hover.lock().as_widget().unhover(&mut old_hover_context);
         }
 
-        self.winit().set_cursor_icon(CursorIcon::Default);
+        self.window_mut().set_cursor_icon(CursorIcon::Default);
     }
 
     fn apply_pending_activation(&mut self) {
@@ -480,15 +476,15 @@ impl<'context, 'window> EventContext<'context, 'window> {
     }
 }
 
-impl<'context, 'window> Deref for EventContext<'context, 'window> {
-    type Target = WidgetContext<'context, 'window>;
+impl<'context> Deref for EventContext<'context> {
+    type Target = WidgetContext<'context>;
 
     fn deref(&self) -> &Self::Target {
         &self.widget
     }
 }
 
-impl<'context, 'window> DerefMut for EventContext<'context, 'window> {
+impl<'context> DerefMut for EventContext<'context> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.widget
     }
@@ -523,18 +519,18 @@ impl<T> DerefMut for Exclusive<'_, T> {
 }
 
 /// A context to a function that is rendering a widget.
-pub struct GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass> {
+pub struct GraphicsContext<'context, 'clip, 'gfx, 'pass> {
     /// The context of the widget being rendered.
-    pub widget: WidgetContext<'context, 'window>,
+    pub widget: WidgetContext<'context>,
     /// The graphics context clipped and offset to the area of the widget being
     /// rendered. Drawing at 0,0 will draw at the top-left pixel of the laid-out
     /// widget region.
     pub gfx: Exclusive<'context, Graphics<'clip, 'gfx, 'pass>>,
 }
 
-impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass> {
+impl<'context, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'clip, 'gfx, 'pass> {
     /// Returns a new instance that borrows from `self`.
-    pub fn borrowed(&mut self) -> GraphicsContext<'_, 'window, 'clip, 'gfx, 'pass> {
+    pub fn borrowed(&mut self) -> GraphicsContext<'_, 'clip, 'gfx, 'pass> {
         GraphicsContext {
             widget: self.widget.borrowed(),
             gfx: Exclusive::Borrowed(&mut self.gfx),
@@ -546,12 +542,10 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     pub fn for_other<'child, Widget>(
         &'child mut self,
         widget: &Widget,
-    ) -> <Widget::Managed as MapManagedWidget<
-        GraphicsContext<'child, 'window, 'child, 'gfx, 'pass>,
-    >>::Result
+    ) -> <Widget::Managed as MapManagedWidget<GraphicsContext<'child, 'child, 'gfx, 'pass>>>::Result
     where
         Widget: ManageWidget,
-        Widget::Managed: MapManagedWidget<GraphicsContext<'child, 'window, 'child, 'gfx, 'pass>>,
+        Widget::Managed: MapManagedWidget<GraphicsContext<'child, 'child, 'gfx, 'pass>>,
     {
         let opacity = self.get(&Opacity);
         widget.manage(self).map(|widget| {
@@ -577,7 +571,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     }
 
     /// Returns a new graphics context that renders to the `clip` rectangle.
-    pub fn clipped_to(&mut self, clip: Rect<Px>) -> GraphicsContext<'_, 'window, '_, 'gfx, 'pass> {
+    pub fn clipped_to(&mut self, clip: Rect<Px>) -> GraphicsContext<'_, '_, 'gfx, 'pass> {
         GraphicsContext {
             widget: self.widget.borrowed(),
             gfx: Exclusive::Owned(self.gfx.clipped_to(clip)),
@@ -675,7 +669,7 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'window, '
     }
 }
 
-impl Drop for GraphicsContext<'_, '_, '_, '_, '_> {
+impl Drop for GraphicsContext<'_, '_, '_, '_> {
     fn drop(&mut self) {
         if matches!(self.widget.pending_state, PendingState::Owned(_)) {
             self.as_event_context().apply_pending_state();
@@ -683,36 +677,30 @@ impl Drop for GraphicsContext<'_, '_, '_, '_, '_> {
     }
 }
 
-impl<'context, 'window, 'clip, 'gfx, 'pass> Deref
-    for GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>
-{
-    type Target = WidgetContext<'context, 'window>;
+impl<'context, 'clip, 'gfx, 'pass> Deref for GraphicsContext<'context, 'clip, 'gfx, 'pass> {
+    type Target = WidgetContext<'context>;
 
     fn deref(&self) -> &Self::Target {
         &self.widget
     }
 }
 
-impl<'context, 'window, 'clip, 'gfx, 'pass> DerefMut
-    for GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>
-{
+impl<'context, 'clip, 'gfx, 'pass> DerefMut for GraphicsContext<'context, 'clip, 'gfx, 'pass> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.widget
     }
 }
 
 /// A context to a function that is rendering a widget.
-pub struct LayoutContext<'context, 'window, 'clip, 'gfx, 'pass> {
+pub struct LayoutContext<'context, 'clip, 'gfx, 'pass> {
     /// The graphics context that this layout operation is being performed
     /// within.
-    pub graphics: GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
+    pub graphics: GraphicsContext<'context, 'clip, 'gfx, 'pass>,
     persist_layout: bool,
 }
 
-impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'clip, 'gfx, 'pass> {
-    pub(crate) fn new(
-        graphics: &'context mut GraphicsContext<'_, 'window, 'clip, 'gfx, 'pass>,
-    ) -> Self {
+impl<'context, 'clip, 'gfx, 'pass> LayoutContext<'context, 'clip, 'gfx, 'pass> {
+    pub(crate) fn new(graphics: &'context mut GraphicsContext<'_, 'clip, 'gfx, 'pass>) -> Self {
         Self {
             graphics: graphics.borrowed(),
             persist_layout: true,
@@ -736,10 +724,10 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'cl
     pub fn for_other<'child, Widget>(
         &'child mut self,
         widget: &Widget,
-    ) -> <Widget::Managed as MapManagedWidget<LayoutContext<'child, 'window, 'child, 'gfx, 'pass>>>::Result
+    ) -> <Widget::Managed as MapManagedWidget<LayoutContext<'child, 'child, 'gfx, 'pass>>>::Result
     where
         Widget: ManageWidget,
-        Widget::Managed: MapManagedWidget<LayoutContext<'child, 'window, 'child, 'gfx, 'pass>>,
+        Widget::Managed: MapManagedWidget<LayoutContext<'child, 'child, 'gfx, 'pass>>,
     {
         widget.manage(self).map(|widget| LayoutContext {
             graphics: self.graphics.for_other(&widget),
@@ -782,36 +770,30 @@ impl<'context, 'window, 'clip, 'gfx, 'pass> LayoutContext<'context, 'window, 'cl
     }
 }
 
-impl<'context, 'window, 'clip, 'gfx, 'pass> AsEventContext<'window>
-    for LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>
-{
-    fn as_event_context(&mut self) -> EventContext<'_, 'window> {
+impl<'context, 'clip, 'gfx, 'pass> AsEventContext for LayoutContext<'context, 'clip, 'gfx, 'pass> {
+    fn as_event_context(&mut self) -> EventContext<'_> {
         self.graphics.as_event_context()
     }
 }
 
-impl<'context, 'window, 'clip, 'gfx, 'pass> Deref
-    for LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>
-{
-    type Target = GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>;
+impl<'context, 'clip, 'gfx, 'pass> Deref for LayoutContext<'context, 'clip, 'gfx, 'pass> {
+    type Target = GraphicsContext<'context, 'clip, 'gfx, 'pass>;
 
     fn deref(&self) -> &Self::Target {
         &self.graphics
     }
 }
 
-impl<'context, 'window, 'clip, 'gfx, 'pass> DerefMut
-    for LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>
-{
+impl<'context, 'clip, 'gfx, 'pass> DerefMut for LayoutContext<'context, 'clip, 'gfx, 'pass> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.graphics
     }
 }
 
 /// Converts from one context to an [`EventContext`].
-pub trait AsEventContext<'window> {
+pub trait AsEventContext {
     /// Returns this context as an [`EventContext`].
-    fn as_event_context(&mut self) -> EventContext<'_, 'window>;
+    fn as_event_context(&mut self) -> EventContext<'_>;
 
     /// Pushes a new child widget into the widget hierarchy beneathq the
     /// context's widget.
@@ -837,14 +819,14 @@ pub trait AsEventContext<'window> {
     }
 }
 
-impl<'window> AsEventContext<'window> for EventContext<'_, 'window> {
-    fn as_event_context(&mut self) -> EventContext<'_, 'window> {
+impl AsEventContext for EventContext<'_> {
+    fn as_event_context(&mut self) -> EventContext<'_> {
         EventContext::new(self.widget.borrowed(), self.kludgine)
     }
 }
 
-impl<'window> AsEventContext<'window> for GraphicsContext<'_, 'window, '_, '_, '_> {
-    fn as_event_context(&mut self) -> EventContext<'_, 'window> {
+impl AsEventContext for GraphicsContext<'_, '_, '_, '_> {
+    fn as_event_context(&mut self) -> EventContext<'_> {
         EventContext::new(self.widget.borrowed(), &mut self.gfx)
     }
 }
@@ -853,10 +835,10 @@ impl<'window> AsEventContext<'window> for GraphicsContext<'_, 'window, '_, '_, '
 ///
 /// This type provides access to the widget hierarchy from the perspective of a
 /// specific widget.
-pub struct WidgetContext<'context, 'window> {
+pub struct WidgetContext<'context> {
     current_node: MountedWidget,
     pub(crate) tree: Tree,
-    window: &'context mut RunningWindow<'window>,
+    window: &'context mut dyn PlatformWindow,
     theme: Cow<'context, ThemePair>,
     cursor: &'context mut CursorState,
     pending_state: PendingState<'context>,
@@ -864,11 +846,11 @@ pub struct WidgetContext<'context, 'window> {
     cache: WidgetCacheKey,
 }
 
-impl<'context, 'window> WidgetContext<'context, 'window> {
+impl<'context> WidgetContext<'context> {
     pub(crate) fn new(
         current_node: MountedWidget,
         theme: &'context ThemePair,
-        window: &'context mut RunningWindow<'window>,
+        window: &'context mut dyn PlatformWindow,
         theme_mode: ThemeMode,
         cursor: &'context mut CursorState,
     ) -> Self {
@@ -899,7 +881,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     }
 
     /// Returns a new instance that borrows from `self`.
-    pub fn borrowed(&mut self) -> WidgetContext<'_, 'window> {
+    pub fn borrowed(&mut self) -> WidgetContext<'_> {
         WidgetContext {
             tree: self.tree.clone(),
             current_node: self.current_node.clone(),
@@ -916,10 +898,10 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     pub fn for_other<'child, Widget>(
         &'child mut self,
         widget: &Widget,
-    ) -> <Widget::Managed as MapManagedWidget<WidgetContext<'child, 'window>>>::Result
+    ) -> <Widget::Managed as MapManagedWidget<WidgetContext<'child>>>::Result
     where
         Widget: ManageWidget,
-        Widget::Managed: MapManagedWidget<WidgetContext<'child, 'window>>,
+        Widget::Managed: MapManagedWidget<WidgetContext<'child>>,
     {
         widget.manage(self).map(|current_node| {
             let (effective_styles, theme, theme_mode) = current_node.overidden_theme();
@@ -1159,13 +1141,13 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
 
     /// Returns the window containing this widget.
     #[must_use]
-    pub fn window(&self) -> &RunningWindow<'window> {
+    pub fn window(&self) -> &dyn PlatformWindow {
         self.window
     }
 
     /// Returns an exclusive reference to the window containing this widget.
     #[must_use]
-    pub fn window_mut(&mut self) -> &mut RunningWindow<'window> {
+    pub fn window_mut(&mut self) -> &mut dyn PlatformWindow {
         self.window
     }
 
@@ -1201,9 +1183,7 @@ impl<'context, 'window> WidgetContext<'context, 'window> {
     }
 }
 
-impl dyn AsEventContext<'_> {}
-
-impl Drop for EventContext<'_, '_> {
+impl Drop for EventContext<'_> {
     fn drop(&mut self) {
         if matches!(self.widget.pending_state, PendingState::Owned(_)) {
             self.apply_pending_state();
@@ -1211,17 +1191,17 @@ impl Drop for EventContext<'_, '_> {
     }
 }
 
-impl<'window> Deref for WidgetContext<'_, 'window> {
-    type Target = RunningWindow<'window>;
+impl<'context> Deref for WidgetContext<'context> {
+    type Target = &'context mut dyn PlatformWindow;
 
     fn deref(&self) -> &Self::Target {
-        self.window
+        &self.window
     }
 }
 
-impl<'window> DerefMut for WidgetContext<'_, 'window> {
+impl DerefMut for WidgetContext<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.window
+        &mut self.window
     }
 }
 
@@ -1270,13 +1250,13 @@ pub trait ManageWidget {
     type Managed: MapManagedWidget<MountedWidget>;
 
     /// Resolve `self` into a [`MountedWidget`].
-    fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed;
+    fn manage(&self, context: &WidgetContext<'_>) -> Self::Managed;
 }
 
 impl ManageWidget for WidgetId {
     type Managed = Option<MountedWidget>;
 
-    fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed {
+    fn manage(&self, context: &WidgetContext<'_>) -> Self::Managed {
         context.tree.widget(*self)
     }
 }
@@ -1284,7 +1264,7 @@ impl ManageWidget for WidgetId {
 impl ManageWidget for WidgetInstance {
     type Managed = Option<MountedWidget>;
 
-    fn manage(&self, context: &WidgetContext<'_, '_>) -> Self::Managed {
+    fn manage(&self, context: &WidgetContext<'_>) -> Self::Managed {
         context.tree.widget(self.id())
     }
 }
@@ -1292,7 +1272,7 @@ impl ManageWidget for WidgetInstance {
 impl ManageWidget for MountedWidget {
     type Managed = Self;
 
-    fn manage(&self, _context: &WidgetContext<'_, '_>) -> Self::Managed {
+    fn manage(&self, _context: &WidgetContext<'_>) -> Self::Managed {
         self.clone()
     }
 }
@@ -1348,7 +1328,7 @@ pub trait Trackable: sealed::Trackable {
     /// Marks the widget for redraw when this value is updated.
     ///
     /// This function has no effect if the value is constant.
-    fn redraw_when_changed(&self, context: &WidgetContext<'_, '_>)
+    fn redraw_when_changed(&self, context: &WidgetContext<'_>)
     where
         Self: Sized,
     {
@@ -1358,7 +1338,7 @@ pub trait Trackable: sealed::Trackable {
     /// Marks the widget for redraw when this value is updated.
     ///
     /// This function has no effect if the value is constant.
-    fn invalidate_when_changed(&self, context: &WidgetContext<'_, '_>)
+    fn invalidate_when_changed(&self, context: &WidgetContext<'_>)
     where
         Self: Sized,
     {

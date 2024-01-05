@@ -67,7 +67,7 @@ impl<const ELEMENTS: usize> Grid<ELEMENTS> {
         self
     }
 
-    fn synchronize_specs(&mut self, context: &mut EventContext<'_, '_>) {
+    fn synchronize_specs(&mut self, context: &mut EventContext<'_>) {
         let current_generation = self.columns.generation();
         let count_changed = self.layout.children.len() != ELEMENTS;
         if count_changed
@@ -84,7 +84,7 @@ impl<const ELEMENTS: usize> Grid<ELEMENTS> {
         }
     }
 
-    fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
+    fn synchronize_children(&mut self, context: &mut EventContext<'_>) {
         self.synchronize_specs(context);
         let current_generation = self.rows.generation();
         self.rows.invalidate_when_changed(context);
@@ -132,7 +132,7 @@ impl<const ELEMENTS: usize> Grid<ELEMENTS> {
 }
 
 impl<const COLUMNS: usize> Widget for Grid<COLUMNS> {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         for (row, widgets) in self.live_rows.iter_mut().enumerate() {
             if self.layout.others[row] > 0 {
                 for (column, cell) in widgets.iter().enumerate() {
@@ -147,7 +147,7 @@ impl<const COLUMNS: usize> Widget for Grid<COLUMNS> {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         self.synchronize_children(&mut context.as_event_context());
 

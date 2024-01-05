@@ -102,10 +102,7 @@ impl WrapperWidget for ValidatedWidget {
         &mut self.contents
     }
 
-    fn redraw_background(
-        &mut self,
-        context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>,
-    ) {
+    fn redraw_background(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         self.error_color.set(context.get(&InvalidTextColor));
         self.default_color.set(context.get(&HintTextColor));
     }

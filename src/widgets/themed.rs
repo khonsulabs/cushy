@@ -25,7 +25,7 @@ impl WrapperWidget for Themed {
         &mut self.child
     }
 
-    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn mounted(&mut self, context: &mut EventContext<'_>) {
         context.attach_theme(self.theme.clone());
     }
 }

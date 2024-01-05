@@ -112,7 +112,7 @@ impl Image {
 }
 
 impl Widget for Image {
-    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         self.contents.map(|texture| {
             let size = texture.size().into_signed();
             let rect = match self.scaling.get() {
@@ -147,7 +147,7 @@ impl Widget for Image {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         match self.scaling.get_tracking_invalidate(context) {
             ImageScaling::Aspect { .. } | ImageScaling::Stretch => {

@@ -318,7 +318,7 @@ impl Spinner {
         start: ZeroToOne,
         sweep: ZeroToOne,
         color: Color,
-        context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>,
     ) {
         if sweep > 0. {
             context.gfx.draw_shape(
@@ -335,7 +335,7 @@ impl Spinner {
 }
 
 impl Widget for Spinner {
-    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         let track_size = context.get(&TrackSize).into_px(context.gfx.scale());
         let start = self.start.get_tracking_redraw(context);
         let end = self.end.get_tracking_redraw(context);
@@ -384,7 +384,7 @@ impl Widget for Spinner {
     fn layout(
         &mut self,
         available_space: figures::Size<crate::ConstraintLimit>,
-        context: &mut crate::context::LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut crate::context::LayoutContext<'_, '_, '_, '_>,
     ) -> figures::Size<figures::units::UPx> {
         let track_size = context.get(&TrackSize).into_px(context.gfx.scale());
         let minimum_size = track_size * 4;

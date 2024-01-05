@@ -69,7 +69,7 @@ macro_rules! define_components {
         define_components!($type, |context| context.theme().$($path)*);
     };
     ($type:ty, |$context:ident| $($expr:tt)*) => {
-        fn default_value(&self, $context: &WidgetContext<'_, '_>) -> $type {
+        fn default_value(&self, $context: &WidgetContext<'_>) -> $type {
             $($expr)*
         }
     };

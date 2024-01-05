@@ -89,14 +89,14 @@ impl WrapperWidget for Resize {
         &mut self.child
     }
 
-    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+    fn root_behavior(&mut self, _context: &mut EventContext<'_>) -> Option<RootBehavior> {
         Some(RootBehavior::Resize(Size::new(self.width, self.height)))
     }
 
     fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         let child = self.child.mounted(&mut context.as_event_context());
         let size = if let (Some(width), Some(height)) =

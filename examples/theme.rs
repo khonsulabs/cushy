@@ -213,28 +213,26 @@ fn optional_editor(label: &str, color: &Dynamic<ColorSource>) -> (Dynamic<bool>,
 }
 
 fn color_editor(color: &Dynamic<ColorSource>) -> impl MakeWidget {
-    let hue = color.map_each(|color| color.hue.into_positive_degrees());
+    let hue = color.map_each_cloned(|color| color.hue.into_positive_degrees());
     hue.for_each_cloned({
         let color = color.clone();
         move |hue| {
-            if let Ok(mut source) = color.try_get() {
-                source.hue = OklabHue::new(hue);
-                color.set(source);
-            }
+            let mut source = color.get();
+            source.hue = OklabHue::new(hue);
+            color.set(source);
         }
     })
     .persist();
 
     let hue_text = hue.linked_string();
-    let saturation = color.map_each(|color| color.saturation);
+    let saturation = color.map_each_cloned(|color| color.saturation);
     saturation
         .for_each_cloned({
             let color = color.clone();
             move |saturation| {
-                if let Ok(mut source) = color.try_get() {
-                    source.saturation = saturation;
-                    color.set(source);
-                }
+                let mut source = color.get();
+                source.saturation = saturation;
+                color.set(source);
             }
         })
         .persist();

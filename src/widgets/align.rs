@@ -87,7 +87,7 @@ impl Align {
     fn measure(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Layout {
         let margin = self.edges.get();
         let vertical = FrameInfo::new(context.gfx.scale(), margin.top, margin.bottom);
@@ -179,14 +179,14 @@ impl WrapperWidget for Align {
         &mut self.child
     }
 
-    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+    fn root_behavior(&mut self, _context: &mut EventContext<'_>) -> Option<RootBehavior> {
         Some(RootBehavior::Align)
     }
 
     fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         let layout = self.measure(available_space, context);
 

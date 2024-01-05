@@ -114,7 +114,7 @@ impl Styles {
         &self,
         component: &impl NamedComponent,
         fallback: &Fallback,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
     ) -> Fallback::ComponentType
     where
         Fallback: ComponentDefinition + ?Sized,
@@ -127,10 +127,7 @@ impl Styles {
             .unwrap_or_else(|| fallback.default_value(context))
     }
 
-    fn resolve_component<T>(
-        component: &Value<Component>,
-        context: &WidgetContext<'_, '_>,
-    ) -> Option<T>
+    fn resolve_component<T>(component: &Value<Component>, context: &WidgetContext<'_>) -> Option<T>
     where
         T: ComponentType,
     {
@@ -162,7 +159,7 @@ impl Styles {
     pub fn try_get<Named>(
         &self,
         component: &Named,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
     ) -> Option<Named::ComponentType>
     where
         Named: ComponentDefinition + ?Sized,
@@ -176,11 +173,7 @@ impl Styles {
     /// Returns the component associated with the given name, or if not found,
     /// returns the default value provided by the definition.
     #[must_use]
-    pub fn get<Named>(
-        &self,
-        component: &Named,
-        context: &WidgetContext<'_, '_>,
-    ) -> Named::ComponentType
+    pub fn get<Named>(&self, component: &Named, context: &WidgetContext<'_>) -> Named::ComponentType
     where
         Named: ComponentDefinition + ?Sized,
     {
@@ -440,10 +433,8 @@ impl Component {
     #[must_use]
     pub fn dynamic<T, Func>(resolve: Func) -> Self
     where
-        Func: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<T>
-            + Send
-            + Sync
-            + 'static,
+        Func:
+            for<'a, 'context> Fn(&'a WidgetContext<'context>) -> Option<T> + Send + Sync + 'static,
         T: ComponentType,
     {
         Self::Dynamic(DynamicComponent::new(move |context| {
@@ -1099,7 +1090,7 @@ pub trait ComponentDefinition: NamedComponent {
     type ComponentType: ComponentType;
 
     /// Returns the default value to use for this component.
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType;
+    fn default_value(&self, context: &WidgetContext<'_>) -> Self::ComponentType;
 }
 
 /// Describes whether a type should invalidate a widget.
@@ -1751,7 +1742,7 @@ impl FixedTheme {
 ///
 /// The goal of this type is to allow various tones of a given hue/saturation to
 /// be generated easily.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct ColorSource {
     /// A measurement of hue, in degees, from -180 to 180.
     ///
@@ -1767,6 +1758,13 @@ pub struct ColorSource {
     /// A saturation of 0.0 corresponds to shades of gray, while a saturation of
     /// 1.0 corresponds to fully saturated colors.
     pub saturation: ZeroToOne,
+}
+
+impl PartialEq for ColorSource {
+    fn eq(&self, other: &Self) -> bool {
+        (self.hue.into_degrees() - other.hue.into_degrees()).abs() < f32::EPSILON
+            && self.saturation == other.saturation
+    }
 }
 
 impl ColorSource {
@@ -2535,19 +2533,19 @@ impl PartialEq for DynamicComponent {
 /// A type that resolves to a [`Component`] at runtime.
 pub trait DynamicComponentResolver: Send + Sync + 'static {
     /// Returns the effective component, if one should be applied.
-    fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component>;
+    fn resolve_component(&self, context: &WidgetContext<'_>) -> Option<Component>;
 }
 
 struct DynamicFunctionWrapper<F>(F);
 
 impl<T> DynamicComponentResolver for DynamicFunctionWrapper<T>
 where
-    T: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<Component>
+    T: for<'a, 'context> Fn(&'a WidgetContext<'context>) -> Option<Component>
         + Send
         + Sync
         + 'static,
 {
-    fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component> {
+    fn resolve_component(&self, context: &WidgetContext<'_>) -> Option<Component> {
         self.0(context)
     }
 }
@@ -2556,7 +2554,7 @@ impl<T> DynamicComponentResolver for T
 where
     T: ComponentDefinition + Clone + Send + Sync + 'static,
 {
-    fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component> {
+    fn resolve_component(&self, context: &WidgetContext<'_>) -> Option<Component> {
         Some(context.get(self).into_component())
     }
 }
@@ -2576,7 +2574,7 @@ impl DynamicComponent {
     #[must_use]
     pub fn new<Func>(resolve: Func) -> Self
     where
-        Func: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<Component>
+        Func: for<'a, 'context> Fn(&'a WidgetContext<'context>) -> Option<Component>
             + Send
             + Sync
             + 'static,
@@ -2587,7 +2585,7 @@ impl DynamicComponent {
     /// Invokes the resolver function, optionally returning a resolved
     /// component.
     #[must_use]
-    pub fn resolve(&self, context: &WidgetContext<'_, '_>) -> Option<Component> {
+    pub fn resolve(&self, context: &WidgetContext<'_>) -> Option<Component> {
         self.0.resolve_component(context)
     }
 }

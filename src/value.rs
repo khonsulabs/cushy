@@ -103,7 +103,7 @@ pub trait Source<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     #[must_use]
-    fn get_tracking_redraw(&self, context: &WidgetContext<'_, '_>) -> T
+    fn get_tracking_redraw(&self, context: &WidgetContext<'_>) -> T
     where
         T: Clone,
         Self: Trackable + Sized,
@@ -121,7 +121,7 @@ pub trait Source<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     #[must_use]
-    fn get_tracking_invalidate(&self, context: &WidgetContext<'_, '_>) -> T
+    fn get_tracking_invalidate(&self, context: &WidgetContext<'_>) -> T
     where
         T: Clone,
         Self: Trackable + Sized,
@@ -287,6 +287,30 @@ pub trait Source<T> {
             mapped.set(map(value));
             Ok(())
         }));
+        mapped
+    }
+
+    /// Returns a new [`Dynamic`] that contains a clone of each value from
+    /// `self`.
+    ///
+    /// The returned dynamic does not hold a strong reference to `self`,
+    /// ensuring that `self` can be cleaned up even if the returned dynamic
+    /// still exists.
+    fn weak_clone(&self) -> Dynamic<T>
+    where
+        T: Clone + Send + 'static,
+    {
+        let mapped = Dynamic::new(self.get());
+        let mapped_weak = mapped.downgrade();
+
+        mapped.set_source(
+            self.for_each_cloned_try(move |value| {
+                let mapped = mapped_weak.upgrade().ok_or(CallbackDisconnected)?;
+                *mapped.lock() = value.clone();
+                Ok(())
+            })
+            .weak(),
+        );
         mapped
     }
 
@@ -510,7 +534,7 @@ impl<T> Source<T> for Arc<DynamicData<T>> {
             + 'static,
     {
         let this = WeakDynamic(Arc::downgrade(self));
-        DynamicData::for_each(self, move || {
+        dynamic_for_each(self, move || {
             let this = this.upgrade().ok_or(CallbackDisconnected)?;
             this.map_generational(&mut for_each)?;
             Ok(())
@@ -523,7 +547,7 @@ impl<T> Source<T> for Arc<DynamicData<T>> {
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
         let this = WeakDynamic(Arc::downgrade(self));
-        DynamicData::for_each(self, move || {
+        dynamic_for_each(self, move || {
             let this = this.upgrade().ok_or(CallbackDisconnected)?;
 
             if let Ok(value) = this.try_map_generational(GenerationalValue::clone) {
@@ -726,6 +750,7 @@ impl<T> Source<T> for Owned<T> {
         let mut callbacks = self.callbacks.active.lock().ignore_poison();
         CallbackHandle(CallbackHandleInner::Single(CallbackHandleData {
             id: Some(callbacks.push(Box::new(for_each))),
+            owner: None,
             callbacks: self.callbacks.clone(),
         }))
     }
@@ -944,9 +969,10 @@ impl<T> Dynamic<T> {
             Ok(())
         }));
 
-        let t_weak = self.downgrade();
+        // The linked dynamic holds a reference to the original, since it's
+        // being created from the original.
+        let t = self.clone();
         self.set_source(r.for_each_try(move |r| {
-            let t = t_weak.upgrade().ok_or(CallbackDisconnected)?;
             if let Some(update) = r_into_t(r).into() {
                 let _result = t.replace(update);
             }
@@ -1388,18 +1414,20 @@ impl<T> DynamicData<T> {
 
         Ok(old)
     }
+}
 
-    pub fn for_each<F>(&self, map: F) -> CallbackHandle
-    where
-        F: for<'a> FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
-    {
-        let state = self.state().expect("deadlocked");
-        let mut data = state.callbacks.callbacks.lock().ignore_poison();
-        CallbackHandle(CallbackHandleInner::Single(CallbackHandleData {
-            id: Some(data.callbacks.push(Box::new(map))),
-            callbacks: state.callbacks.clone(),
-        }))
-    }
+fn dynamic_for_each<T, F>(this: &Arc<DynamicData<T>>, map: F) -> CallbackHandle
+where
+    F: for<'a> FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
+    T: Send + 'static,
+{
+    let state = this.state().expect("deadlocked");
+    let mut data = state.callbacks.callbacks.lock().ignore_poison();
+    CallbackHandle(CallbackHandleInner::Single(CallbackHandleData {
+        id: Some(data.callbacks.push(Box::new(map))),
+        owner: Some(this.clone()),
+        callbacks: state.callbacks.clone(),
+    }))
 }
 
 /// A callback function is no longer connected to its source.
@@ -1467,8 +1495,12 @@ enum CallbackHandleInner {
     Multi(Vec<CallbackHandleData>),
 }
 
+trait ReferencedDynamic: Sync + Send + 'static {}
+impl<T> ReferencedDynamic for T where T: Sync + Send + 'static {}
+
 struct CallbackHandleData {
     id: Option<LotId>,
+    owner: Option<Arc<dyn ReferencedDynamic>>,
     callbacks: Arc<dyn CallbackCollection>,
 }
 
@@ -1508,6 +1540,33 @@ impl CallbackHandle {
             }
         }
     }
+
+    /// Drops any references to owning [`Dynamic`]s associated with this
+    /// callback.
+    ///
+    /// This enables creating weak connections between callback graphs.
+    pub fn forget_owners(&mut self) {
+        match &mut self.0 {
+            CallbackHandleInner::None => {}
+            CallbackHandleInner::Single(handle) => {
+                handle.owner = None;
+            }
+            CallbackHandleInner::Multi(handles) => {
+                for handle in handles {
+                    handle.owner = None;
+                }
+            }
+        }
+    }
+
+    /// Drops any references to owning [`Dynamic`]s associated with this
+    /// callback, and returns self.
+    ///
+    /// This uses [`Self::forget_owners()`].
+    pub fn weak(mut self) -> Self {
+        self.forget_owners();
+        self
+    }
 }
 
 impl Eq for CallbackHandle {}
@@ -1539,6 +1598,7 @@ impl Drop for CallbackHandleData {
         }
     }
 }
+
 impl PartialEq for CallbackHandleData {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id && Arc::ptr_eq(&self.callbacks, &other.callbacks)
@@ -2508,7 +2568,7 @@ impl<T> Value<T> {
     /// updated.
     pub fn map_tracking_redraw<R>(
         &self,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
         map: impl FnOnce(&T) -> R,
     ) -> R {
         match self {
@@ -2526,7 +2586,7 @@ impl<T> Value<T> {
     /// updated.
     pub fn map_tracking_invalidate<R>(
         &self,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
         map: impl FnOnce(&T) -> R,
     ) -> R {
         match self {
@@ -2573,7 +2633,7 @@ impl<T> Value<T> {
     ///
     /// If `self` is a dynamic, `context` will be refreshed when the value is
     /// updated.
-    pub fn get_tracking_redraw(&self, context: &WidgetContext<'_, '_>) -> T
+    pub fn get_tracking_redraw(&self, context: &WidgetContext<'_>) -> T
     where
         T: Clone,
     {
@@ -2584,7 +2644,7 @@ impl<T> Value<T> {
     ///
     /// If `self` is a dynamic, `context` will be invalidated when the value is
     /// updated.
-    pub fn get_tracking_invalidate(&self, context: &WidgetContext<'_, '_>) -> T
+    pub fn get_tracking_invalidate(&self, context: &WidgetContext<'_>) -> T
     where
         T: Clone,
     {
@@ -2932,7 +2992,7 @@ macro_rules! impl_tuple_for_each_cloned {
         }
     };
     ($self:ident $for_each:ident $handles:ident [] [$type:ident $field:tt $var:ident]) => {
-        $handles += $self.$field.for_each(move |field: &$type| $for_each((field.clone(),)));
+        $handles += $self.$field.for_each_cloned(move |field| $for_each((field,)));
     };
     ($self:ident $for_each:ident $handles:ident [] [$($type:ident $field:tt $var:ident),+]) => {
         let $for_each = Arc::new(Mutex::new($for_each));

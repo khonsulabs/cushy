@@ -49,7 +49,7 @@ use std::time::{Duration, Instant};
 
 use alot::{LotId, Lots};
 use figures::units::{Lp, Px, UPx};
-use figures::{Angle, Ranged, UnscaledUnit, Zero};
+use figures::{Angle, Point, Ranged, Rect, Size, UnscaledUnit, Zero};
 use intentional::Cast;
 use kempt::Set;
 use kludgine::Color;
@@ -928,6 +928,42 @@ macro_rules! impl_unscaled_lerp {
 impl_unscaled_lerp!(Px);
 impl_unscaled_lerp!(Lp);
 impl_unscaled_lerp!(UPx);
+
+impl<Unit> LinearInterpolate for Point<Unit>
+where
+    Unit: LinearInterpolate,
+{
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        Self::new(
+            self.x.lerp(&target.x, percent),
+            self.y.lerp(&target.y, percent),
+        )
+    }
+}
+
+impl<Unit> LinearInterpolate for Size<Unit>
+where
+    Unit: LinearInterpolate,
+{
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        Self::new(
+            self.width.lerp(&target.width, percent),
+            self.height.lerp(&target.height, percent),
+        )
+    }
+}
+
+impl<Unit> LinearInterpolate for Rect<Unit>
+where
+    Unit: LinearInterpolate,
+{
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        Self::new(
+            self.origin.lerp(&target.origin, percent),
+            self.size.lerp(&target.size, percent),
+        )
+    }
+}
 
 #[test]
 fn integer_lerps() {
