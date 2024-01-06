@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Label::text` is now named `display` and `Label::new()` now accepts an
   `IntoReadOnly<T>` instead of `IntoValue<String>`.
 - `Dynamic<Children>::wrap` has been renamed to `into_wrap` for consistency.
+- Cushy now has its own `KeyEvent` type, as winit's has private fields. This
+  prevented simulating input in a `VirtualWindow`.
 
 ### Fixed
 

@@ -6,13 +6,14 @@ use ahash::AHashSet;
 use figures::units::Px;
 use figures::Point;
 use intentional::Assert;
-use kludgine::app::winit::event::{ElementState, KeyEvent, MouseButton};
+use kludgine::app::winit::event::{ElementState, MouseButton};
 use kludgine::app::winit::keyboard::Key;
 
 use crate::context::WidgetContext;
 use crate::utils::IgnorePoison;
 use crate::value::{Destination, Dynamic};
 use crate::widget::{EventHandling, HANDLED, IGNORED};
+use crate::window::KeyEvent;
 
 /// A fixed-rate callback that provides access to tracked input on its
 /// associated widget.

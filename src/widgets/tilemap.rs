@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use figures::units::{Px, UPx};
 use figures::{Point, Size};
 use intentional::Cast;
-use kludgine::app::winit::event::{ElementState, KeyEvent, MouseScrollDelta, TouchPhase};
+use kludgine::app::winit::event::{ElementState, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::tilemap;
 use kludgine::tilemap::TileMapFocus;
@@ -12,7 +12,7 @@ use crate::context::{EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::tick::Tick;
 use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
-use crate::window::DeviceId;
+use crate::window::{DeviceId, KeyEvent};
 use crate::ConstraintLimit;
 
 /// A layered tile-based 2d game surface.

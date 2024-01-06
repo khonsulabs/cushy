@@ -24,9 +24,11 @@ use image::{DynamicImage, RgbImage, RgbaImage};
 use intentional::{Assert, Cast};
 use kludgine::app::winit::dpi::{PhysicalPosition, PhysicalSize};
 use kludgine::app::winit::event::{
-    ElementState, Ime, KeyEvent, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
+    ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
 };
-use kludgine::app::winit::keyboard::{Key, NamedKey};
+use kludgine::app::winit::keyboard::{
+    Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
+};
 use kludgine::app::winit::window::{self, CursorIcon};
 use kludgine::app::{winit, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
@@ -35,6 +37,7 @@ use kludgine::shapes::Shape;
 use kludgine::wgpu::{self, CompositeAlphaMode, COPY_BYTES_PER_ROW_ALIGNMENT};
 use kludgine::{Color, DrawableExt, Kludgine, KludgineId, Origin, Texture};
 use tracing::Level;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::animation::{
     AnimationTarget, Easing, LinearInterpolate, PercentBetween, Spawn, ZeroToOne,
@@ -1298,6 +1301,14 @@ where
         self.root.invalidate();
     }
 
+    pub fn set_focused(&mut self, focused: bool) {
+        self.focused.set(focused);
+    }
+
+    pub fn set_occluded(&mut self, occluded: bool) {
+        self.occluded.set(occluded);
+    }
+
     pub fn keyboard_input<W>(
         &mut self,
         window: W,
@@ -1674,7 +1685,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.focused.set(window.focused());
+        self.set_focused(window.focused());
     }
 
     fn occlusion_changed(
@@ -1682,7 +1693,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.occluded.set(window.ocluded());
+        self.set_occluded(window.ocluded());
     }
 
     fn render<'pass>(
@@ -1778,10 +1789,16 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
         device_id: winit::event::DeviceId,
-        input: KeyEvent,
+        input: winit::event::KeyEvent,
         is_synthetic: bool,
     ) {
-        self.keyboard_input(window, kludgine, device_id.into(), input, is_synthetic);
+        self.keyboard_input(
+            window,
+            kludgine,
+            device_id.into(),
+            input.into(),
+            is_synthetic,
+        );
     }
 
     fn mouse_wheel(
@@ -2570,6 +2587,14 @@ impl CushyWindow {
         kludgine::Graphics::new(&mut self.kludgine, device, queue)
     }
 
+    pub fn set_focused(&mut self, focused: bool) {
+        self.window.set_focused(focused);
+    }
+
+    pub fn set_occluded(&mut self, occluded: bool) {
+        self.window.set_occluded(occluded);
+    }
+
     /// Requests that the window close.
     ///
     /// Returns true if the request should be honored.
@@ -2699,6 +2724,7 @@ impl VirtualWindow {
             .map(|i| now.duration_since(i))
             .unwrap_or_default();
         self.last_rendered_at = Some(now);
+        self.state.dynamic.redraw_target.set(RedrawTarget::Never);
         self.cushy.prepare(&mut self.state, device, queue);
     }
 
@@ -2726,7 +2752,6 @@ impl VirtualWindow {
         queue: &wgpu::Queue,
         additional_drawing: Option<&Drawing>,
     ) -> Option<wgpu::SubmissionIndex> {
-        self.state.dynamic.redraw_target.set(RedrawTarget::Never);
         self.cushy
             .render_with(pass, device, queue, additional_drawing)
     }
@@ -2739,7 +2764,6 @@ impl VirtualWindow {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<wgpu::SubmissionIndex> {
-        self.state.dynamic.redraw_target.set(RedrawTarget::Never);
         self.cushy.render_into(texture, load_op, device, queue)
     }
 
@@ -2764,6 +2788,14 @@ impl VirtualWindow {
             self.state.dynamic.close_requested.set(false);
             false
         }
+    }
+
+    pub fn set_focused(&mut self, focused: bool) {
+        self.cushy.set_focused(focused);
+    }
+
+    pub fn set_occluded(&mut self, occluded: bool) {
+        self.cushy.set_occluded(occluded);
     }
 
     /// Returns true if this window should no longer be open.
@@ -3363,6 +3395,40 @@ where
         self.wait_for(over)
     }
 
+    pub fn animate_text_input(
+        &mut self,
+        text: &str,
+        duration: Duration,
+    ) -> Result<(), VirtualRecorderError> {
+        let graphemes = text.graphemes(true).count();
+        let delay_per_event =
+            Duration::from_nanos(duration.as_nanos().cast::<u64>() / graphemes.cast::<u64>() / 2);
+        for grapheme in text.graphemes(true) {
+            let grapheme = SmolStr::new(grapheme);
+            let mut event = KeyEvent {
+                physical_key: PhysicalKey::Unidentified(NativeKeyCode::Xkb(0)),
+                logical_key: Key::Character(grapheme.clone()),
+                text: Some(SmolStr::new(grapheme)),
+                location: KeyLocation::Standard,
+                state: ElementState::Pressed,
+                repeat: false,
+            };
+            let _handled =
+                self.recorder
+                    .window
+                    .keyboard_input(DeviceId::Virtual(0), event.clone(), true);
+            self.wait_for(delay_per_event)?;
+
+            event.state = ElementState::Released;
+            let _handled = self
+                .recorder
+                .window
+                .keyboard_input(DeviceId::Virtual(0), event, true);
+            self.wait_for(delay_per_event)?;
+        }
+        Ok(())
+    }
+
     /// Waits for `duration`, rendering frames as needed.
     pub fn wait_for(&mut self, duration: Duration) -> Result<(), VirtualRecorderError> {
         self.wait_until(Instant::now() + duration)
@@ -3391,7 +3457,7 @@ where
                 RedrawTarget::At(instant) => now.min(instant),
             };
 
-            if final_frame || next_frame == now {
+            if final_frame || next_frame <= now {
                 // Try to reuse an existing capture instead of forcing an
                 // allocation.
                 if let Ok(capture) = assembler.resuable_captures.try_recv() {
@@ -3399,6 +3465,7 @@ where
                 }
                 let elapsed = now.saturating_duration_since(last_frame);
                 last_frame = now;
+                println!("Redrawing");
                 self.recorder.redraw();
                 let capture = self.recorder.capture.take().assert("always present");
                 if assembler.sender.send((capture, elapsed)).is_err() {
@@ -3447,8 +3514,7 @@ where
         let mut current_frame_delay = Duration::ZERO;
         let mut writer = encoder.write_header()?;
         for frame in &frames {
-            writer.write_image_data(&frame.data)?;
-            if current_frame_delay != frame.duration {
+            if current_frame_delay != frame.duration && frames.len() > 1 {
                 current_frame_delay = frame.duration;
                 // This has a limitation that a single frame can't be longer
                 // than ~6.5 seconds, but it ensures frame timing is more
@@ -3458,9 +3524,10 @@ where
                     10_000,
                 )?;
             }
+            writer.write_image_data(&frame.data)?;
         }
 
-        writer.finish()?;
+        writer.finish().unwrap();
 
         file.sync_all()?;
 
@@ -3602,5 +3669,29 @@ impl FrameAssembler {
         }
 
         let _result = result.send(Ok(assembled));
+    }
+}
+
+/// Describes a keyboard input targeting a window.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEvent {
+    pub physical_key: PhysicalKey,
+    pub logical_key: Key,
+    pub text: Option<SmolStr>,
+    pub location: KeyLocation,
+    pub state: ElementState,
+    pub repeat: bool,
+}
+
+impl From<winit::event::KeyEvent> for KeyEvent {
+    fn from(event: winit::event::KeyEvent) -> Self {
+        Self {
+            physical_key: event.physical_key,
+            logical_key: event.logical_key,
+            text: event.text,
+            location: event.location,
+            state: event.state,
+            repeat: event.repeat,
+        }
     }
 }

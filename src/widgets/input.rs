@@ -13,7 +13,7 @@ use figures::{
     Abs, FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size,
 };
 use intentional::Cast;
-use kludgine::app::winit::event::{ElementState, Ime, KeyEvent};
+use kludgine::app::winit::event::{ElementState, Ime};
 use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window::{CursorIcon, ImePurpose};
 use kludgine::shapes::{Shape, StrokeOptions};
@@ -27,13 +27,14 @@ use crate::styles::components::{HighlightColor, IntrinsicPadding, OutlineColor, 
 use crate::utils::ModifiersExt;
 use crate::value::{Destination, Dynamic, Generation, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
+use crate::window::KeyEvent;
 use crate::{ConstraintLimit, Lazy};
 
 const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
 
 /// A text input widget.
 #[must_use]
-pub struct Input<Storage> {
+pub struct Input<Storage = String> {
     /// The value of this widget.
     pub value: Dynamic<Storage>,
     /// The placeholder text to display when no value is present.
@@ -1149,8 +1150,6 @@ where
                     );
                 }
                 context.redraw_in(cursor_state.remaining_until_blink);
-            } else {
-                context.redraw_when_changed(context.window().focused());
             }
         }
 
@@ -1190,7 +1189,7 @@ where
     fn keyboard_input(
         &mut self,
         _device_id: crate::window::DeviceId,
-        input: kludgine::app::winit::event::KeyEvent,
+        input: KeyEvent,
         _is_synthetic: bool,
         context: &mut EventContext<'_>,
     ) -> EventHandling {

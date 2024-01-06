@@ -12,7 +12,7 @@ use alot::LotId;
 use figures::units::{Px, UPx};
 use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use intentional::Assert;
-use kludgine::app::winit::event::{Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase};
+use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
 
@@ -45,8 +45,8 @@ use crate::widgets::{
 };
 use crate::window::sealed::WindowCommand;
 use crate::window::{
-    CushyWindowBuilder, DeviceId, Rgb8, RunningWindow, ThemeMode, VirtualRecorderBuilder, Window,
-    WindowBehavior, WindowHandle, WindowLocal,
+    CushyWindowBuilder, DeviceId, KeyEvent, Rgb8, RunningWindow, ThemeMode, VirtualRecorderBuilder,
+    Window, WindowBehavior, WindowHandle, WindowLocal,
 };
 use crate::ConstraintLimit;
 

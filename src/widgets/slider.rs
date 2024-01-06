@@ -21,7 +21,7 @@ use crate::styles::components::{
 use crate::styles::{Dimension, HorizontalOrder, VerticalOrder, VisualOrder};
 use crate::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
-use crate::window::DeviceId;
+use crate::window::{DeviceId, KeyEvent};
 use crate::ConstraintLimit;
 
 /// A widget that allows sliding between two values.
@@ -673,7 +673,7 @@ where
     fn keyboard_input(
         &mut self,
         _device_id: DeviceId,
-        input: kludgine::app::winit::event::KeyEvent,
+        input: KeyEvent,
         _is_synthetic: bool,
         _context: &mut EventContext<'_>,
     ) -> EventHandling {
