@@ -67,3 +67,10 @@ impl BookExample {
     // {
     // }
 }
+
+#[macro_export]
+macro_rules! book_example {
+    ($name:ident) => {
+        guide_examples::BookExample::new(stringify!($name), $name())
+    };
+}

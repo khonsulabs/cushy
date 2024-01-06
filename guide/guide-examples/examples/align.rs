@@ -1,132 +1,166 @@
+use std::array;
+
 use cushy::figures::units::{Lp, Px};
 use cushy::figures::{Point, Size};
-use cushy::styles::{Edges, ThemePair};
+use cushy::styles::ThemePair;
 use cushy::widget::MakeWidget;
-use cushy::widgets::Space;
-use guide_examples::BookExample;
+use cushy::widgets::grid::{GridDimension, GridWidgets};
+use cushy::widgets::{Grid, Space};
+use guide_examples::book_example;
 
+// ANCHOR: content
 fn content() -> impl MakeWidget {
-    Space::primary().size(Size::squared(Px::new(32)))
+    Space::primary().size(Size::squared(Px::new(32)..))
+}
+// ANCHOR_END: content
+
+fn align_left() -> impl MakeWidget {
+    // ANCHOR: align-left
+    content().align_left()
+    // ANCHOR_END: align-left
+}
+
+fn centered() -> impl MakeWidget {
+    // ANCHOR: horizontal-center
+    content().centered()
+    // ANCHOR_END: horizontal-center
+}
+
+fn align_right() -> impl MakeWidget {
+    // ANCHOR: align-right
+    content().align_right()
+    // ANCHOR_END: align-right
+}
+
+fn align_horizontal() -> impl MakeWidget {
+    Grid::from_rows(
+        GridWidgets::new()
+            .and(("Unaligned", content()))
+            .and(("align_left()", align_left()))
+            .and(("centered()", centered()))
+            .and(("align_right()", align_right())),
+    )
+    .dimensions([
+        GridDimension::FitContent,
+        GridDimension::Fractional { weight: 1 },
+    ])
+}
+
+fn align_top() -> impl MakeWidget {
+    // ANCHOR: align-top
+    content().align_top()
+    // ANCHOR_END: align-top
+}
+
+fn align_bottom() -> impl MakeWidget {
+    // ANCHOR: align-bottom
+    content().align_bottom()
+    // ANCHOR_END: align-bottom
+}
+
+fn align_vertical() -> impl MakeWidget {
+    Grid::from_rows(
+        GridWidgets::new()
+            .and(("Unaligned", "align_top()", "centered()", "align_bottom()"))
+            .and((
+                content().height(Lp::inches(1)).centered(),
+                align_top(),
+                centered(),
+                align_bottom(),
+            )),
+    )
+    .dimensions(array::from_fn(|_| GridDimension::Fractional { weight: 1 }))
+}
+
+fn align() -> impl MakeWidget {
+    "Horizontal Alignment"
+        .and(align_horizontal().contain())
+        .and("Vertical Alignment")
+        .and(align_vertical().contain())
+        .into_rows()
 }
 
 fn main() {
-    BookExample::new(
-        "align-horizontal",
-        "Default Behavior"
-            .and(content())
-            .and("align_left()")
-            .and({
-                // ANCHOR: align-left
-                content().align_left()
-                // ANCHOR_END: align-left
-            })
-            .and("pad_by().align_left()")
-            .and({
-                // ANCHOR: align-left-pad
-                content()
-                    .pad_by(Edges::default().with_left(Lp::inches(1)))
-                    .align_left()
-                // ANCHOR_END: align-left-pad
-            })
-            .and("centered()")
-            .and({
-                // ANCHOR: centered
-                content().centered()
-                // ANCHOR_END: centered
-            })
-            .and("pad_by().align_right()")
-            .and({
-                // ANCHOR: align-right-pad
-                content()
-                    .pad_by(Edges::default().with_right(Lp::inches(1)))
-                    .align_right()
-                // ANCHOR_END: align-right-pad
-            })
-            .and("align_right()")
-            .and({
-                // ANCHOR: align-right
-                content().align_right()
-                // ANCHOR_END: align-right
-            })
-            .into_rows(),
-    )
-    .still_frame(|recorder| {
-        const LEFT: u32 = 40;
-        const PADDING: u32 = 96;
-        const RIGHT: u32 = 710;
-        const CENTER: u32 = 375;
+    let theme = ThemePair::default();
+    let container_color = theme.dark.surface.low_container;
+    let primary = theme.dark.primary.color;
+    book_example!(align).still_frame(|recorder| {
+        const LEFT: u32 = 145;
+        const RIGHT: u32 = 705;
+        const H_CENTER: u32 = (RIGHT + LEFT) / 2;
+        const TOP: u32 = 282;
+        const BOTTOM: u32 = 345;
+        const V_CENTER: u32 = (TOP + BOTTOM) / 2;
 
-        let container_color = ThemePair::default().dark.surface.lowest_container;
-        let primary = ThemePair::default().dark.primary.color;
-
-        recorder.assert_pixel_color(Point::new(LEFT, 35), container_color, "surface");
+        // Verify the inner container color
+        recorder.assert_pixel_color(Point::new(32, 62), container_color, "surface");
 
         // Default fills the entire space
-        recorder.assert_pixel_color(Point::new(LEFT, 70), primary, "default spacer");
-        recorder.assert_pixel_color(Point::new(CENTER, 70), primary, "default spacer");
-        recorder.assert_pixel_color(Point::new(RIGHT, 70), primary, "default spacer");
+        recorder.assert_pixel_color(Point::new(LEFT, 78), primary, "default spacer");
+        recorder.assert_pixel_color(Point::new(H_CENTER, 78), primary, "default spacer");
+        recorder.assert_pixel_color(Point::new(RIGHT, 78), primary, "default spacer");
 
         // align-left
-        recorder.assert_pixel_color(Point::new(LEFT, 140), primary, "align-left spacer");
+        recorder.assert_pixel_color(Point::new(LEFT, 110), primary, "align-left spacer");
         recorder.assert_pixel_color(
-            Point::new(LEFT + PADDING, 140),
+            Point::new(H_CENTER, 110),
             container_color,
             "align-left empty",
         );
 
-        // align-left-pad
-        recorder.assert_pixel_color(
-            Point::new(LEFT + PADDING, 215),
-            primary,
-            "align-left-pad spacer",
-        );
-        recorder.assert_pixel_color(
-            Point::new(LEFT, 215),
-            container_color,
-            "align-left-pad empty before",
-        );
-        recorder.assert_pixel_color(
-            Point::new(CENTER, 215),
-            container_color,
-            "align-left-pad empty after",
-        );
-
         // centered
-        recorder.assert_pixel_color(Point::new(CENTER, 295), primary, "centered spacer");
+        recorder.assert_pixel_color(Point::new(H_CENTER, 142), primary, "centered spacer");
         recorder.assert_pixel_color(
-            Point::new(LEFT + PADDING, 295),
+            Point::new(LEFT, 142),
             container_color,
             "centered empty before",
         );
         recorder.assert_pixel_color(
-            Point::new(RIGHT - PADDING, 295),
+            Point::new(RIGHT, 142),
             container_color,
             "centered empty after",
         );
 
-        // align-right-pad
-        recorder.assert_pixel_color(
-            Point::new(RIGHT - PADDING, 360),
-            primary,
-            "align-right-pad spacer",
-        );
-        recorder.assert_pixel_color(
-            Point::new(CENTER, 360),
-            container_color,
-            "align-right-pad empty before",
-        );
-        recorder.assert_pixel_color(
-            Point::new(RIGHT, 360),
-            container_color,
-            "align-right-pad empty after",
-        );
-
         // align-right
-        recorder.assert_pixel_color(Point::new(RIGHT, 435), primary, "align-right spacer");
+        recorder.assert_pixel_color(Point::new(RIGHT, 175), primary, "align-right spacer");
         recorder.assert_pixel_color(
-            Point::new(RIGHT - PADDING, 435),
+            Point::new(V_CENTER, 175),
             container_color,
             "align-right empty",
+        );
+
+        // Default fills the entire space
+        recorder.assert_pixel_color(Point::new(115, TOP), primary, "default spacer");
+        recorder.assert_pixel_color(Point::new(115, V_CENTER), primary, "default spacer");
+        recorder.assert_pixel_color(Point::new(115, BOTTOM), primary, "default spacer");
+
+        // align-top
+        recorder.assert_pixel_color(Point::new(285, TOP), primary, "align-top spacer");
+        recorder.assert_pixel_color(
+            Point::new(285, V_CENTER),
+            container_color,
+            "align-top empty",
+        );
+
+        // centered
+        recorder.assert_pixel_color(Point::new(460, V_CENTER), primary, "centered spacer");
+        recorder.assert_pixel_color(
+            Point::new(460, TOP),
+            container_color,
+            "centered empty before",
+        );
+        recorder.assert_pixel_color(
+            Point::new(460, BOTTOM),
+            container_color,
+            "centered empty after",
+        );
+
+        // align-bottom
+        recorder.assert_pixel_color(Point::new(635, BOTTOM), primary, "align-bottom spacer");
+        recorder.assert_pixel_color(
+            Point::new(635, V_CENTER),
+            container_color,
+            "align-bottom empty",
         );
     });
 }
