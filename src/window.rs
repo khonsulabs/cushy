@@ -27,7 +27,7 @@ use kludgine::app::winit::event::{
     ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::keyboard::{
-    Key, KeyCode, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
+    Key, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
 };
 use kludgine::app::winit::window::{self, CursorIcon};
 use kludgine::app::{winit, WindowBehavior as _};
@@ -2590,10 +2590,19 @@ impl CushyWindow {
         kludgine::Graphics::new(&mut self.kludgine, device, queue)
     }
 
+    /// Sets the window's focused status.
+    ///
+    /// Being focused means that the window is expecting to be able to receive
+    /// user input.
     pub fn set_focused(&mut self, focused: bool) {
         self.window.set_focused(focused);
     }
 
+    /// Sets the window's occlusion status.
+    ///
+    /// This should only be set to true if the window is not visible at all to
+    /// the end user due to being offscreen, minimized, or fully hidden behind
+    /// other windows.
     pub fn set_occluded(&mut self, occluded: bool) {
         self.window.set_occluded(occluded);
     }
@@ -2793,10 +2802,19 @@ impl VirtualWindow {
         }
     }
 
+    /// Sets the window's focused status.
+    ///
+    /// Being focused means that the window is expecting to be able to receive
+    /// user input.
     pub fn set_focused(&mut self, focused: bool) {
         self.cushy.set_focused(focused);
     }
 
+    /// Sets the window's occlusion status.
+    ///
+    /// This should only be set to true if the window is not visible at all to
+    /// the end user due to being offscreen, minimized, or fully hidden behind
+    /// other windows.
     pub fn set_occluded(&mut self, occluded: bool) {
         self.cushy.set_occluded(occluded);
     }
@@ -3398,6 +3416,7 @@ where
         self.wait_for(over)
     }
 
+    /// Animates entering the graphemes from `text` over `duration`.
     pub fn animate_text_input(
         &mut self,
         text: &str,
@@ -3530,7 +3549,7 @@ where
             writer.write_image_data(&frame.data)?;
         }
 
-        writer.finish().unwrap();
+        writer.finish()?;
 
         file.sync_all()?;
 
@@ -3678,11 +3697,39 @@ impl FrameAssembler {
 /// Describes a keyboard input targeting a window.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEvent {
-    pub physical_key: PhysicalKey,
+    /// The logical key that is interpretted from the `physical_key`.
+    ///
+    /// See [`KeyEvent::logical_key`](winit::event::KeyEvent::logical_key) for
+    /// more information.
     pub logical_key: Key,
+    /// The physical key that caused this event.
+    ///
+    /// See [`KeyEvent::logical_key`](winit::event::KeyEvent::physical_key) for
+    /// more information.
+    pub physical_key: PhysicalKey,
+
+    /// The text being input by this event, if any.
+    ///
+    /// See [`KeyEvent::logical_key`](winit::event::KeyEvent::text) for
+    /// more information.
     pub text: Option<SmolStr>,
+
+    /// The physical location of the key being presed.
+    ///
+    /// See [`KeyEvent::logical_key`](winit::event::KeyEvent::location) for
+    /// more information.
     pub location: KeyLocation,
+
+    /// The state of this key for this event.
+    ///
+    /// See [`KeyEvent::logical_key`](winit::event::KeyEvent::state) for
+    /// more information.
     pub state: ElementState,
+
+    /// If true, this event was caused by a key being repeated.
+    ///
+    /// See [`KeyEvent::logical_key`](winit::event::KeyEvent::logical_key) for
+    /// more information.
     pub repeat: bool,
 }
 
