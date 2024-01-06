@@ -40,10 +40,10 @@ fn book() {
     }
 
     guide_examples::book_example!(intro).animated(|animation| {
-        animation.wait_for(Duration::from_millis(1_000)).unwrap();
+        animation.wait_for(Duration::from_secs(1)).unwrap();
         animation
             .animate_text_input("Ferris 🦀", Duration::from_secs(1))
             .unwrap();
-        animation.wait_for(Duration::from_millis(1_000)).unwrap();
+        animation.wait_for(Duration::from_secs(1)).unwrap();
     });
 }
