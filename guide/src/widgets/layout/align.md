@@ -1,7 +1,5 @@
 # Aligning Widgets
 
-{{#title Align - Layout Widgets - Cushy User's Guide}}
-
 The [`Align`][align] widget positions a child widget within its parent. It
 supports both horizontal and vertical alignment.
 
@@ -18,7 +16,7 @@ to the parent's matching edge.
 
 ## Examples
 
-![Align widget example](/examples/align.png)
+![Align widget example](../../examples/align.png)
 
 The `content()` function in each of these snippets is a [`Space`][space] widget
 occupying at least 32px squared:
