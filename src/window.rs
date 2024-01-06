@@ -3177,6 +3177,7 @@ where
     /// # Panics
     ///
     /// This function panics if the color is not the expected color.
+    #[track_caller]
     pub fn assert_pixel_color<Unit>(&self, location: Point<Unit>, expected: Color, component: &str)
     where
         Unit: Into<UPx>,

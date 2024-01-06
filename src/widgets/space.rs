@@ -71,10 +71,10 @@ impl Widget for Space {
 
     fn layout(
         &mut self,
-        _available_space: Size<ConstraintLimit>,
+        available_space: Size<ConstraintLimit>,
         _context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
-        Size::default()
+        available_space.map(ConstraintLimit::min)
     }
 }
 
