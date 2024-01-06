@@ -201,8 +201,6 @@ impl PlatformWindowImplementation for kludgine::app::Window<'_, WindowCommand> {
 pub trait PlatformWindow {
     /// Marks the window to close as soon as possible.
     fn close(&mut self);
-    /// Returns the underlying `winit` window, if one exists.
-    fn winit(&self) -> Option<&winit::window::Window>;
     /// Returns a handle for the window.
     fn handle(&self) -> WindowHandle;
     /// Returns the unique id of the [`Kludgine`] instance used by this window.
@@ -360,10 +358,6 @@ where
 {
     fn close(&mut self) {
         self.window.close();
-    }
-
-    fn winit(&self) -> Option<&winit::window::Window> {
-        self.window.winit()
     }
 
     fn handle(&self) -> WindowHandle {
