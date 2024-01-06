@@ -999,7 +999,10 @@ where
     {
         match input.logical_key {
             Key::Character(ch) if ch == "w" && window.modifiers().primary() => {
-                if input.state.is_pressed() && self.behavior.close_requested(window) {
+                if !input.repeat
+                    && input.state.is_pressed()
+                    && self.behavior.close_requested(window)
+                {
                     self.should_close = true;
                     window.set_needs_redraw();
                 }

@@ -71,6 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `IntoDynamic<Progress>`. In general, this should not cause any code breakages
   unless the traits were being used in generics.
 - `Space` now honors `ConstraintLimit::Fill` in its layout.
+- When handling the Ctrl/Cmd+W shortcut to close windows, repeat keys are now
+  ignored.
 
 ### Changed
 
