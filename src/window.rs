@@ -3487,7 +3487,6 @@ where
                 }
                 let elapsed = now.saturating_duration_since(last_frame);
                 last_frame = now;
-                println!("Redrawing");
                 self.recorder.redraw();
                 let capture = self.recorder.capture.take().assert("always present");
                 if assembler.sender.send((capture, elapsed)).is_err() {

@@ -7,11 +7,11 @@ when available. It does not utilize any existing widget libraries.
 
 Cushy's high-level goals are to be:
 
-- Easy-to-use.
-- Flexible.
-- Predictable.
-- Efficient.
-- Accessible.
+- Easy-to-use
+- Flexible
+- Predictable
+- Efficient
+- Accessible
 
 Being so early in development, Cushy has not yet achieved all of its goals,
 especially with regards to accessibility.

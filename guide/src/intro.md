@@ -41,8 +41,8 @@ pieces of data our user interface is going to work with, we can start assembling
 the interface.
 
 First, we create `name_input` by converting the `Dynamic<String>` into a text
-[`Input<String>`][input]. Since `Dynamic<String>` can be used as a
-[`Label`][label], all that's left is laying out our two widgets.
+input widget ([`Input<String>`][input]). Since `Dynamic<String>` can be used as
+a [`Label`][label], all that's left is laying out our two widgets.
 
 To layout `name_input` and `greeting`, we use a [`Stack`][stack] to lay out the
 widgets as rows.

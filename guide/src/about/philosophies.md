@@ -8,9 +8,8 @@ displayed. Here's the philosophies that drive Cushy's design:
 - Everything is a widget. The "root" of a user interface/window is a widget, and
   widgets can contain other widgets.
 - Composition is powerful and easy to reason about. The built-in widget library
-  is aimed at providing a suite of libraries each with an individual purpose to
-  aide in developers being able to compose more complex user interfaces from
-  more basic widgets.
+  is aimed at providing a suite of single-purpose widgets that can be composed
+  to create more complex user interfaces.
 - If a developer dislikes a built-in widget's behavior, they should be empowered
   to create their own that behaves the way they desire. To ensure developers
   have this flexibility, all provided widgets must only utilize functionality
