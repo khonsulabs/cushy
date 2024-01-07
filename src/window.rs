@@ -56,8 +56,8 @@ use crate::value::{
     Destination, Dynamic, DynamicReader, Generation, IntoDynamic, IntoValue, Source, Value,
 };
 use crate::widget::{
-    EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, Widget, WidgetId,
-    WidgetInstance, HANDLED, IGNORED,
+    EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, WidgetId, WidgetInstance,
+    HANDLED, IGNORED,
 };
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit};
@@ -496,9 +496,9 @@ impl Window<WidgetInstance> {
     /// Returns a new instance using `widget` as its contents.
     pub fn for_widget<W>(widget: W) -> Self
     where
-        W: Widget,
+        W: MakeWidget,
     {
-        Self::new(WidgetInstance::new(widget))
+        Self::new(widget.make_widget())
     }
 
     /// Sets `focused` to be the dynamic updated when this window's focus status

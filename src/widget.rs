@@ -455,14 +455,16 @@ pub trait Widget: Send + Debug + 'static {
     }
 }
 
+// ANCHOR: run
 impl<T> Run for T
 where
     T: MakeWidget,
 {
     fn run(self) -> crate::Result {
-        Window::<WidgetInstance>::new(self.make_widget()).run()
+        Window::for_widget(self).run()
     }
 }
+// ANCHOR_END: run
 
 impl<T> Open for T
 where

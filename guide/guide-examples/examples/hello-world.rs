@@ -8,7 +8,7 @@ fn main() -> cushy::Result {
 
 #[test]
 fn book() {
-    fn hello_world() -> impl MakeWidget {
+    fn hello_world() -> impl cushy::widget::MakeWidget {
         "Hello, World!"
     }
 

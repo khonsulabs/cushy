@@ -6,6 +6,8 @@
 
 - [About Cushy](./about.md)
   - [Cushy's Philosophies](./about/philosophies.md)
+  - [Everything is a `Widget`](./about/widgets.md)
+  - [Reactive Data Model](./about/reactive.md)
 - [Widgets]()
   - [Layout Widgets](./widgets/layout.md)
     - [Align](./widgets/layout/align.md)

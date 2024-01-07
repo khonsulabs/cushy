@@ -2030,7 +2030,7 @@ impl<T> PartialEq<WeakDynamic<T>> for Dynamic<T> {
     }
 }
 
-/// A reader that tracks the last generation accessed through this reader.
+/// A reader of a [`Dynamic<T>`] that tracks the last generation accessed.
 pub struct DynamicReader<T> {
     source: Arc<DynamicData<T>>,
     read_generation: Mutex<Generation>,

@@ -5,8 +5,8 @@ displayed. Here's the philosophies that drive Cushy's design:
 
 - Cushy retains information between redraws so that many events can be handled
   without redrawing the user interface.
-- Everything is a widget. The "root" of a user interface/window is a widget, and
-  widgets can contain other widgets.
+- [Everything is a widget](./widgets.md). The "root" of a user interface/window
+  is a widget, and widgets can contain other widgets.
 - Composition is powerful and easy to reason about. The built-in widget library
   is aimed at providing a suite of single-purpose widgets that can be composed
   to create more complex user interfaces.
