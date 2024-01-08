@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use figures::units::UPx;
-use figures::{Fraction, IntoSigned, Point, Rect, ScreenScale, Size};
+use figures::{Fraction, IntoSigned, Point, Rect, ScreenScale, Size, Zero};
 
 use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::{Edges, FlexibleDimension};

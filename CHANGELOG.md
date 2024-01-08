@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Dynamic<Children>::wrap` has been renamed to `into_wrap` for consistency.
 - Cushy now has its own `KeyEvent` type, as winit's has private fields. This
   prevented simulating input in a `VirtualWindow`.
+- `FlexibleDimension::ZERO` has been removed, and now `FlexibleDimension`
+  implements `Zero` which defines an associated constant of the same name and
+  purpose.
 
 ### Fixed
 

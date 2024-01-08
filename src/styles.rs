@@ -649,9 +649,15 @@ pub enum FlexibleDimension {
     Dimension(Dimension),
 }
 
-impl FlexibleDimension {
-    /// A dimension of 0 pixels.
-    pub const ZERO: Self = Self::Dimension(Dimension::ZERO);
+impl Zero for FlexibleDimension {
+    const ZERO: Self = Self::Dimension(Dimension::ZERO);
+
+    fn is_zero(&self) -> bool {
+        match self {
+            FlexibleDimension::Auto => false,
+            FlexibleDimension::Dimension(dim) => dim.is_zero(),
+        }
+    }
 }
 
 impl Debug for FlexibleDimension {
