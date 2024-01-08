@@ -52,4 +52,4 @@ jobs:
           # to create a wgpu Adapter to cause unit test failures on CI. Long
           # term it would be nice to have a reliable way to run Mac CI with a
           # GPU adapter available.
-          NO_ADAPTER: ${{ matris.os == "macos-stable" && "github-ci" || "" }}
+          NO_ADAPTER: ${{ matrix.os == "macos-stable" && "github-ci" || "" }}
