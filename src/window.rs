@@ -3607,6 +3607,28 @@ impl From<io::Error> for VirtualRecorderError {
     }
 }
 
+impl std::fmt::Display for VirtualRecorderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VirtualRecorderError::NoAdapter => {
+                f.write_str("no compatible graphics adapters were found")
+            }
+            VirtualRecorderError::RequestDevice(err) => {
+                write!(f, "error requesting graphics device: {err}")
+            }
+            VirtualRecorderError::TooLarge => {
+                f.write_str("the rendered surface is too large for this cpu architecture")
+            }
+            VirtualRecorderError::MapBuffer(err) => {
+                write!(f, "error reading rendered graphics data: {err}")
+            }
+            VirtualRecorderError::PngEncode(err) => write!(f, "error encoding png: {err}"),
+        }
+    }
+}
+
+impl std::error::Error for VirtualRecorderError {}
+
 /// A unique identifier of an input device.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum DeviceId {

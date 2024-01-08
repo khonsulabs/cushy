@@ -45,4 +45,11 @@ jobs:
         # fixed purely by updating the rust version.
         if: matrix.version == 'stable'
         run: |
-          cargo test --all-features --all-targets
+          cargo test --all-features --all-targets -- --nocapture
+        env:
+          # When running on Mac OS CI, it's pretty common to not get an adapter
+          # returned. We don't want errors specifically caused by not being able
+          # to create a wgpu Adapter to cause unit test failures on CI. Long
+          # term it would be nice to have a reliable way to run Mac CI with a
+          # GPU adapter available.
+          NO_ADAPTER: ${{ matris.os == "macos-stable" && "github-ci" || "" }}
