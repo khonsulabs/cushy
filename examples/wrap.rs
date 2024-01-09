@@ -1,6 +1,6 @@
 use cushy::styles::components::{LineHeight, TextSize};
 use cushy::value::Dynamic;
-use cushy::widget::{Children, MakeWidget};
+use cushy::widget::{MakeWidget, WidgetList};
 use cushy::widgets::wrap::{VerticalAlign, WrapAlign};
 use cushy::Run;
 use figures::units::Lp;
@@ -16,7 +16,7 @@ fn main() -> cushy::Result {
             let text_size = Lp::points(rng.gen_range(14..48));
             word.with(&TextSize, text_size).with(&LineHeight, text_size)
         })
-        .collect::<Children>();
+        .collect::<WidgetList>();
 
     let align = Dynamic::<WrapAlign>::default();
     let vertical_align = Dynamic::<VerticalAlign>::default();
@@ -50,7 +50,7 @@ fn main() -> cushy::Result {
         .h3()
         .and(
             words
-                .wrap()
+                .into_wrap()
                 .align(align)
                 .vertical_align(vertical_align)
                 .expand_horizontally()

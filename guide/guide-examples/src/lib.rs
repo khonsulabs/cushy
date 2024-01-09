@@ -14,11 +14,9 @@ pub struct BookExampleBuilder {
 
 impl BookExampleBuilder {
     pub fn finish(self) -> BookExample {
-        let mut recorder = self.recorder.finish().expect("error creating recorder");
-        recorder.window.set_focused(true);
         BookExample {
             name: self.name,
-            recorder,
+            recorder: self.recorder.finish().expect("error creating recorder"),
         }
     }
 

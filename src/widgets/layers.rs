@@ -16,7 +16,7 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::utils::IgnorePoison;
 use crate::value::{Destination, Dynamic, DynamicGuard, IntoValue, Source, Value};
 use crate::widget::{
-    Callback, Children, MakeWidget, MountedChildren, MountedWidget, Widget, WidgetId, WidgetRef,
+    Callback, MakeWidget, MountedChildren, MountedWidget, Widget, WidgetId, WidgetList, WidgetRef,
     WrapperWidget,
 };
 use crate::widgets::container::ContainerShadow;
@@ -26,13 +26,13 @@ use crate::ConstraintLimit;
 #[derive(Debug)]
 pub struct Layers {
     /// The children that are laid out as layers with index 0 being the lowest (bottom).
-    pub children: Value<Children>,
+    pub children: Value<WidgetList>,
     mounted: MountedChildren,
 }
 
 impl Layers {
     /// Returns a new instance that lays out `children` as layers.
-    pub fn new(children: impl IntoValue<Children>) -> Self {
+    pub fn new(children: impl IntoValue<WidgetList>) -> Self {
         Self {
             children: children.into_value(),
             mounted: MountedChildren::default(),

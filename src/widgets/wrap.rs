@@ -9,7 +9,7 @@ use crate::context::{AsEventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::{IntrinsicPadding, LayoutOrder};
 use crate::styles::{FlexibleDimension, HorizontalOrder};
 use crate::value::{IntoValue, Value};
-use crate::widget::{Children, MountedChildren, Widget};
+use crate::widget::{MountedChildren, Widget, WidgetList};
 use crate::ConstraintLimit;
 
 /// A widget that lays its children out horizontally, wrapping into multiple
@@ -20,7 +20,7 @@ use crate::ConstraintLimit;
 #[derive(Debug)]
 pub struct Wrap {
     /// The children to wrap.
-    pub children: Value<Children>,
+    pub children: Value<WidgetList>,
     /// The horizontal alignment for widgets on the same row.
     pub align: Value<WrapAlign>,
     /// The vertical alignment for widgets on the same row.
@@ -34,7 +34,7 @@ pub struct Wrap {
 impl Wrap {
     /// Returns a new widget that wraps `children`.
     #[must_use]
-    pub fn new(children: impl IntoValue<Children>) -> Self {
+    pub fn new(children: impl IntoValue<WidgetList>) -> Self {
         Self {
             children: children.into_value(),
             align: Value::default(),

@@ -15,6 +15,7 @@ pub struct PendingApp {
 
 impl PendingApp {
     /// The shared resources this application utilizes.
+    #[must_use]
     pub const fn cushy(&self) -> &Cushy {
         &self.cushy
     }

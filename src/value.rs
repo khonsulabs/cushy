@@ -21,7 +21,7 @@ use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearIn
 use crate::context::{self, Trackable, WidgetContext};
 use crate::utils::{run_in_bg, IgnorePoison, WithClone};
 use crate::widget::{
-    Children, MakeWidget, MakeWidgetWithTag, OnceCallback, WidgetId, WidgetInstance,
+    MakeWidget, MakeWidgetWithTag, OnceCallback, WidgetId, WidgetInstance, WidgetList,
 };
 use crate::widgets::{Label, Radio, Select, Space, Switcher};
 use crate::window::WindowHandle;
@@ -2442,7 +2442,7 @@ where
     }
 }
 
-impl GetWidget<usize> for Children {
+impl GetWidget<usize> for WidgetList {
     fn get<'a>(&'a self, key: &usize) -> Option<&'a WidgetInstance> {
         (**self).get(*key)
     }

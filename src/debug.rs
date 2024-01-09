@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use alot::OrderedLots;
 
 use crate::value::{Dynamic, DynamicReader, ForEach, Source, WeakDynamic};
-use crate::widget::{Children, MakeWidget, WidgetInstance};
+use crate::widget::{MakeWidget, WidgetInstance, WidgetList};
 use crate::widgets::grid::{Grid, GridWidgets};
 use crate::window::Window;
 use crate::{Open, PendingApp};
@@ -203,7 +203,7 @@ impl DebugSection {
             children
                 .iter()
                 .map(|section| section.map_ref(|section| section.widget.clone()))
-                .collect::<Children>()
+                .collect::<WidgetList>()
         });
 
         let parent = parent.map(Dynamic::downgrade);

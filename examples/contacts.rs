@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cushy::value::{Dynamic, MapEach, Source};
-use cushy::widget::{Children, MakeWidget};
+use cushy::widget::{MakeWidget, WidgetList};
 use cushy::widgets::input::InputValue;
 use cushy::Run;
 
@@ -50,7 +50,7 @@ fn main() -> cushy::Result {
                         .new_select(Some(id), format!("{first} {last}").align_left())
                         .make_widget()
                 })
-                .collect::<Children>()
+                .collect::<WidgetList>()
         }
     });
 

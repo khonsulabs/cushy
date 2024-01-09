@@ -1,4 +1,4 @@
-//! A widget that combines a collection of [`Children`] widgets into one.
+//! A widget that combines a collection of [`WidgetList`] widgets into one.
 
 use figures::units::UPx;
 use figures::{IntoSigned, Rect, Round, ScreenScale, Size};
@@ -7,18 +7,18 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::FlexibleDimension;
 use crate::value::{Generation, IntoValue, Value};
-use crate::widget::{Children, ChildrenSyncChange, MountedWidget, Widget, WidgetRef};
+use crate::widget::{ChildrenSyncChange, MountedWidget, Widget, WidgetList, WidgetRef};
 use crate::widgets::grid::{GridDimension, GridLayout, Orientation};
 use crate::widgets::{Expand, Resize};
 use crate::ConstraintLimit;
 
-/// A widget that displays a collection of [`Children`] widgets in a
+/// A widget that displays a collection of [`WidgetList`] widgets in a
 /// [orientation](Orientation).
 #[derive(Debug)]
 pub struct Stack {
     orientation: Orientation,
     /// The children widgets that belong to this array.
-    pub children: Value<Children>,
+    pub children: Value<WidgetList>,
     /// The amount of space to place between each widget.
     pub gutter: Value<FlexibleDimension>,
     layout: GridLayout,
@@ -28,7 +28,7 @@ pub struct Stack {
 
 impl Stack {
     /// Returns a new widget with the given orientation and widgets.
-    pub fn new(orientation: Orientation, widgets: impl IntoValue<Children>) -> Self {
+    pub fn new(orientation: Orientation, widgets: impl IntoValue<WidgetList>) -> Self {
         Self {
             orientation,
             children: widgets.into_value(),
@@ -40,12 +40,12 @@ impl Stack {
     }
 
     /// Returns a new instance that displays `widgets` in a series of columns.
-    pub fn columns(widgets: impl IntoValue<Children>) -> Self {
+    pub fn columns(widgets: impl IntoValue<WidgetList>) -> Self {
         Self::new(Orientation::Column, widgets)
     }
 
     /// Returns a new instance that displays `widgets` in a series of rows.
-    pub fn rows(widgets: impl IntoValue<Children>) -> Self {
+    pub fn rows(widgets: impl IntoValue<WidgetList>) -> Self {
         Self::new(Orientation::Row, widgets)
     }
 
@@ -60,7 +60,7 @@ impl Stack {
         let current_generation = self.children.generation();
         self.children.invalidate_when_changed(context);
         if current_generation.map_or_else(
-            || self.children.map(Children::len) != self.layout.len(),
+            || self.children.map(WidgetList::len) != self.layout.len(),
             |gen| Some(gen) != self.layout_generation,
         ) {
             self.layout_generation = self.children.generation();

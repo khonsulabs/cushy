@@ -42,12 +42,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Label` has been refactored to accept any `Display` type. As a result of this,
   `Label::text` is now named `display` and `Label::new()` now accepts an
   `IntoReadOnly<T>` instead of `IntoValue<String>`.
-- `Dynamic<Children>::wrap` has been renamed to `into_wrap` for consistency.
+- `Dynamic<WidgetList>::wrap` and `WidgetList::wrap` have been renamed to
+  `into_wrap` for consistency.
 - Cushy now has its own `KeyEvent` type, as winit's has private fields. This
   prevented simulating input in a `VirtualWindow`.
 - `FlexibleDimension::ZERO` has been removed, and now `FlexibleDimension`
   implements `Zero` which defines an associated constant of the same name and
   purpose.
+- `Children` has been renamed to `WidgetList`.
 
 ### Fixed
 

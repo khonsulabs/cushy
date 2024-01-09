@@ -1,4 +1,4 @@
-# Introduction
+# Welcome to the Cushy User's Guide
 
 This is a user's guide for [Cushy][cushy], a [Rust][rust] GUI crate. The
 [documentation][docs] is a great resource for finding information about specific

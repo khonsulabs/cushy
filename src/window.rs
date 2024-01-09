@@ -1,4 +1,5 @@
-//! Types for displaying a [`Widget`] inside of a desktop window.
+//! Types for displaying a [`Widget`](crate::widget::Widget) inside of a desktop
+//! window.
 
 use std::cell::RefCell;
 use std::collections::hash_map;
@@ -2499,7 +2500,8 @@ impl CushyWindowBuilder {
     #[must_use]
     pub fn finish_virtual(self, device: &wgpu::Device, queue: &wgpu::Queue) -> VirtualWindow {
         let mut state = VirtualState::new();
-        let cushy = self.finish(&mut state, device, queue);
+        let mut cushy = self.finish(&mut state, device, queue);
+        cushy.set_focused(true);
 
         VirtualWindow {
             cushy,

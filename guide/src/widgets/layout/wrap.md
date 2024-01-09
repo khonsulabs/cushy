@@ -1,6 +1,6 @@
 # Wrap
 
-The [`Wrap`][wrap] widget lays its [`Children`][children] widgets out in a
+The [`Wrap`][wrap] widget lays its [`WidgetList`][children] widgets out in a
 fashion that mimics text layout.
 
 It works by measuring each child with [`SizeToFit`][size-to-fit] and laying out
@@ -26,7 +26,7 @@ Once the widgets have been grouped into rows, the [alignment][align] and
 
 [wrap]: <{{ docs }}/widgets/wrap/struct.Wrap.html>
 [wrapalign]: <{{ docs }}/widgets/wrap/enum.WrapAlign.html>
-[children]: <{{ docs }}/widget/struct.Children.html>
+[children]: <{{ docs }}/widget/struct.WidgetList.html>
 [size-to-fit]: <{{ docs }}/enum.ConstraintLimit.html#variant.SizeToFit>
 [spacing]: <{{ docs }}/widgets/wrap/struct.Wrap.html#method.spacing>
 [align]: <{{ docs }}/widgets/wrap/struct.Wrap.html#method.align>

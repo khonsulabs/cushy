@@ -91,4 +91,4 @@ Any widget can be aligned to the bottom using
 [flexauto]: <{{ docs }}/styles/enum.FlexibleDimension.html#variant.Auto>
 [fit-vert]: <https://cushy.rs/main/docs/cushy/widget/trait.MakeWidget.html#method.fit_vertically>
 [fit-horiz]: <https://cushy.rs/main/docs/cushy/widget/trait.MakeWidget.html#method.fit_horizontally>
-[space]: ../utility/space.md
+[space]: ../controls/space.md

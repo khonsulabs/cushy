@@ -1117,8 +1117,8 @@ pub trait MakeWidget: Sized {
     }
 
     /// Returns a collection of widgets using `self` and `other`.
-    fn and(self, other: impl MakeWidget) -> Children {
-        let mut children = Children::new();
+    fn and(self, other: impl MakeWidget) -> WidgetList {
+        let mut children = WidgetList::new();
         children.push(self);
         children.push(other);
         children
@@ -1922,14 +1922,25 @@ impl WidgetGuard<'_> {
     }
 }
 
-/// A list of [`Widget`]s.
+/// A list of [`Widget`]s without a layout strategy.
+///
+/// To use a `WidgetList` in a user interface, a choice must be made for how
+/// each child should be positioned. The built-in widgets that can layout a
+/// `WidgetList` are:
+///
+/// - As rows: [`Stack::rows`] / [`Self::into_rows`]
+/// - As columns: [`Stack::columns`] / [`Self::into_columns`]
+/// - Positioned on top of each other in the Z orientation: [`Layers::new`] /
+///   [`Self::into_layers`]
+/// - Layout horizontally, wrapping into multiple rows as needed: [`Wrap::new`]
+///   / [`Self::into_wrap`].
 #[derive(Default, Eq, PartialEq)]
 #[must_use]
-pub struct Children {
+pub struct WidgetList {
     ordered: Vec<WidgetInstance>,
 }
 
-impl Children {
+impl WidgetList {
     /// Returns an empty list.
     pub const fn new() -> Self {
         Self {
@@ -2021,7 +2032,7 @@ impl Children {
     /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
     /// into additional rows as needed.
     #[must_use]
-    pub fn wrap(self) -> Wrap {
+    pub fn into_wrap(self) -> Wrap {
         Wrap::new(self)
     }
 
@@ -2066,13 +2077,13 @@ impl Children {
     }
 }
 
-impl Debug for Children {
+impl Debug for WidgetList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Debug::fmt(&self.ordered, f)
     }
 }
 
-impl Dynamic<Children> {
+impl Dynamic<WidgetList> {
     /// Returns `self` as a vertical [`Stack`] of rows.
     #[must_use]
     pub fn into_rows(self) -> Stack {
@@ -2126,7 +2137,7 @@ impl Dynamic<Children> {
     }
 }
 
-impl<W> FromIterator<W> for Children
+impl<W> FromIterator<W> for WidgetList
 where
     W: MakeWidget,
 {
@@ -2137,7 +2148,7 @@ where
     }
 }
 
-impl Deref for Children {
+impl Deref for WidgetList {
     type Target = [WidgetInstance];
 
     fn deref(&self) -> &Self::Target {
@@ -2145,13 +2156,13 @@ impl Deref for Children {
     }
 }
 
-impl DerefMut for Children {
+impl DerefMut for WidgetList {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.ordered
     }
 }
 
-impl<'a> IntoIterator for &'a Children {
+impl<'a> IntoIterator for &'a WidgetList {
     type IntoIter = slice::Iter<'a, WidgetInstance>;
     type Item = &'a WidgetInstance;
 
@@ -2160,7 +2171,7 @@ impl<'a> IntoIterator for &'a Children {
     }
 }
 
-/// A change to perform during [`Children::synchronize_with`].
+/// A change to perform during [`WidgetList::synchronize_with`].
 pub enum ChildrenSyncChange {
     /// Insert a new widget at the given index.
     Insert(usize, WidgetInstance),
@@ -2174,7 +2185,7 @@ pub enum ChildrenSyncChange {
 ///
 /// This collection is a helper aimed at making it easier to build widgets that
 /// contain multiple children widgets. It is used in conjunction with a
-/// `Value<Children>`.
+/// `Value<WidgetList>`.
 #[derive(Debug)]
 pub struct MountedChildren<T = MountedWidget> {
     generation: Option<Generation>,
@@ -2186,10 +2197,14 @@ where
     T: MountableChild,
 {
     /// Mounts and unmounts all children needed to be in sync with `children`.
-    pub fn synchronize_with(&mut self, children: &Value<Children>, context: &mut EventContext<'_>) {
+    pub fn synchronize_with(
+        &mut self,
+        children: &Value<WidgetList>,
+        context: &mut EventContext<'_>,
+    ) {
         let current_generation = children.generation();
         if current_generation.map_or_else(
-            || children.map(Children::len) != self.children.len(),
+            || children.map(WidgetList::len) != self.children.len(),
             |gen| Some(gen) != self.generation,
         ) {
             self.generation = current_generation;
