@@ -1,6 +1,7 @@
 ![Cushy is considered alpha and unsupported](https://img.shields.io/badge/status-alpha-orange)
 [![crate version](https://img.shields.io/crates/v/cushy.svg)](https://crates.io/crates/cushy)
-[![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)]($docs$)
+[![Documentation for `$ref-name$`](https://img.shields.io/badge/docs-$ref-name$-informational)]($docs$)
+[![Cushy User's Guide](https://img.shields.io/badge/user%27s%20guide-$ref-name$-informational)][guide]
 
 Cushy is an experimental Graphical User Interface (GUI) crate for the Rust
 programming language. It features a reactive data model and aims to enable
@@ -33,9 +34,12 @@ increments its own label:
 $../examples/basic-button.rs:readme$
 ```
 
-A great way to learn more about Cushy is to explore the [examples
-directory][examples]. Nearly every feature in Cushy was initially tested by
-creating an example.
+Here are some ways to learn more about Cushy:
+
+- Explore the [examples directory][examples]. Nearly every feature in Cushy was
+initially tested by creating an example.
+- Browse the [user's guide][guide].
+- Ask questions [in Discussions][discussions] or [on Discord][discord].
 
 ## Project Status
 
@@ -63,3 +67,6 @@ Cushy.
 [arboard]: https://github.com/1Password/arboard
 [ecton]: https://github.com/khonsulabs/ecton
 [issues]: https://github.com/khonsulabs/cushy/issues
+[guide]: https://cushy.rs/$ref-name$/guide/
+[discussions]: https://github.com/khonsulabs/cushy/discussions
+[discord]: https://discord.khonsulabs.com/

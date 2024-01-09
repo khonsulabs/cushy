@@ -37,16 +37,16 @@ Configuration(
                 release: "v0.2.0",
             ),
             "docs": (
-                default: "https://khonsu.dev/cushy/main/docs/cushy/",
+                default: "https://cushy.rs/main/docs/cushy/",
                 release: "https://docs.rs/cushy",
             ),
             "widget": (
-                default: "https://khonsu.dev/cushy/main/docs/cushy/widget/trait.Widget.html",
+                default: "https://cushy.rs/main/docs/cushy/widget/trait.Widget.html",
                 release: "https://docs.rs/cushy/*/cushy/widget/trait.Widget.html",
                 for_docs: "crate::widget::Widget",
             ),
             "widgets": (
-                default: "https://khonsu.dev/cushy/main/docs/cushy/widgets/index.html",
+                default: "https://cushy.rs/main/docs/cushy/widgets/index.html",
                 release: "https://docs.rs/cushy/*/cushy/widgets/index.html",
                 for_docs: "mod@crate::widgets",
             ),

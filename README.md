@@ -2,7 +2,8 @@
 
 ![Cushy is considered alpha and unsupported](https://img.shields.io/badge/status-alpha-orange)
 [![crate version](https://img.shields.io/crates/v/cushy.svg)](https://crates.io/crates/cushy)
-[![Documentation for `main` branch](https://img.shields.io/badge/docs-main-informational)](https://khonsu.dev/cushy/main/docs/cushy/)
+[![Documentation for `main`](https://img.shields.io/badge/docs-main-informational)](https://cushy.rs/main/docs/cushy/)
+[![Cushy User's Guide](https://img.shields.io/badge/user%27s%20guide-main-informational)][guide]
 
 Cushy is an experimental Graphical User Interface (GUI) crate for the Rust
 programming language. It features a reactive data model and aims to enable
@@ -48,9 +49,12 @@ fn main() -> cushy::Result {
 }
 ```
 
-A great way to learn more about Cushy is to explore the [examples
-directory][examples]. Nearly every feature in Cushy was initially tested by
-creating an example.
+Here are some ways to learn more about Cushy:
+
+- Explore the [examples directory][examples]. Nearly every feature in Cushy was
+initially tested by creating an example.
+- Browse the [user's guide][guide].
+- Ask questions [in Discussions][discussions] or [on Discord][discord].
 
 ## Project Status
 
@@ -65,8 +69,8 @@ and problem it aims to solve. Doing so will help prevent friction in merging
 pull requests, as it ensures changes fit the vision the maintainers have for
 Cushy.
 
-[widget]: https://khonsu.dev/cushy/main/docs/cushy/widget/trait.Widget.html
-[widgets]: https://khonsu.dev/cushy/main/docs/cushy/widgets/index.html
+[widget]: https://cushy.rs/main/docs/cushy/widget/trait.Widget.html
+[widgets]: https://cushy.rs/main/docs/cushy/widgets/index.html
 [button-example]: https://github.com/khonsulabs/cushy/tree/main/examples/basic-button.rs
 [examples]: https://github.com/khonsulabs/cushy/tree/main/examples/
 [kludgine]: https://github.com/khonsulabs/kludgine
@@ -78,6 +82,9 @@ Cushy.
 [arboard]: https://github.com/1Password/arboard
 [ecton]: https://github.com/khonsulabs/ecton
 [issues]: https://github.com/khonsulabs/cushy/issues
+[guide]: https://cushy.rs/main/guide/
+[discussions]: https://github.com/khonsulabs/cushy/discussions
+[discord]: https://discord.khonsulabs.com/
 
 ## Open-source Licenses
 
