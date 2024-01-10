@@ -1828,8 +1828,10 @@ impl Drop for ChangeCallbacks {
                     return;
                 }
                 Some(executing) if executing == &current_thread => {
-                    tracing::warn!("Could not invoke dynamic callbacks because they are already running on this thread");
-
+                    // The callbacks are already running, and they triggered
+                    // again. We ignore this rather than trying to continue to
+                    // propagate because this can only be caused by a cycle
+                    // happening during a callback already executing.
                     return;
                 }
                 Some(_) => {

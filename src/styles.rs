@@ -1852,17 +1852,17 @@ impl Lightness for u8 {
 /// Extra functionality added to the [`Color`] type from Kludgine.
 pub trait ColorExt: Copy {
     /// Converts this color into its hue, saturation, and lightness components.
-    fn into_hsl(self) -> Hsl;
+    fn into_hsla(self) -> Hsla;
 
     /// Returns the hue and saturation of this color.
     fn source(self) -> ColorSource {
-        self.into_hsl().source
+        self.into_hsla().hsl.source
     }
 
     /// Returns the perceived lightness of this color.
     #[must_use]
     fn lightness(self) -> ZeroToOne {
-        self.into_hsl().lightness
+        self.into_hsla().hsl.lightness
     }
 
     /// Returns the contrast between this color and the components provided.
@@ -1893,7 +1893,7 @@ pub trait ColorExt: Copy {
 }
 
 impl ColorExt for Color {
-    fn into_hsl(self) -> Hsl {
+    fn into_hsla(self) -> Hsla {
         let mut hsl: palette::Okhsl =
             Srgb::new(self.red_f32(), self.green_f32(), self.blue_f32()).into_color();
 
@@ -1905,12 +1905,15 @@ impl ColorExt for Color {
             hsl.saturation = 0.0;
         }
 
-        Hsl {
-            source: ColorSource {
-                hue: hsl.hue,
-                saturation: ZeroToOne::new(hsl.saturation),
+        Hsla {
+            hsl: Hsl {
+                source: ColorSource {
+                    hue: hsl.hue,
+                    saturation: ZeroToOne::new(hsl.saturation),
+                },
+                lightness: ZeroToOne::new(hsl.lightness),
             },
-            lightness: ZeroToOne::new(hsl.lightness * self.alpha_f32()),
+            alpha: ZeroToOne::new(self.alpha_f32()),
         }
     }
 
@@ -1920,15 +1923,14 @@ impl ColorExt for Color {
         check_lightness: ZeroToOne,
         check_alpha: ZeroToOne,
     ) -> ZeroToOne {
-        let other = self.into_hsl();
-        let lightness_delta = other.lightness.difference_between(check_lightness);
+        let other = self.into_hsla();
+        let lightness_delta = other.hsl.lightness.difference_between(check_lightness);
 
-        let average_lightness = ZeroToOne::new((*check_lightness + *other.lightness) / 2.);
+        let average_lightness = ZeroToOne::new((*check_lightness + *other.hsl.lightness) / 2.);
 
-        let source_change = check_source.contrast_between(other.source);
+        let source_change = check_source.contrast_between(other.hsl.source);
 
-        let other_alpha = ZeroToOne::new(self.alpha_f32());
-        let alpha_delta = check_alpha.difference_between(other_alpha);
+        let alpha_delta = check_alpha.difference_between(other.alpha);
 
         ZeroToOne::new(
             (*lightness_delta
@@ -1942,16 +1944,15 @@ impl ColorExt for Color {
     where
         Self: Copy,
     {
-        let check = self.into_hsl();
-        let check_alpha = ZeroToOne::new(self.alpha_f32());
+        let check = self.into_hsla();
 
         let mut others = others.iter().copied();
         let mut most_contrasting = others.next().expect("at least one comparison");
         let mut most_contrast_amount =
-            most_contrasting.contrast_between(check.source, check.lightness, check_alpha);
+            most_contrasting.contrast_between(check.hsl.source, check.hsl.lightness, check.alpha);
         for other in others {
             let contrast_amount =
-                other.contrast_between(check.source, check.lightness, check_alpha);
+                other.contrast_between(check.hsl.source, check.hsl.lightness, check.alpha);
             if contrast_amount > most_contrast_amount {
                 most_contrasting = other;
                 most_contrast_amount = contrast_amount;
@@ -1959,6 +1960,27 @@ impl ColorExt for Color {
         }
 
         most_contrasting
+    }
+}
+
+/// A color composed of hue, saturation, and lightness.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hsla {
+    /// The hue, saturation, and lightness of this color.
+    pub hsl: Hsl,
+    /// The alpha of this color.
+    pub alpha: ZeroToOne,
+}
+
+impl From<Color> for Hsla {
+    fn from(value: Color) -> Self {
+        value.into_hsla()
+    }
+}
+
+impl From<Hsla> for Color {
+    fn from(value: Hsla) -> Self {
+        Color::from(value.hsl).with_alpha_f32(*value.alpha)
     }
 }
 
@@ -1973,7 +1995,7 @@ pub struct Hsl {
 
 impl From<Color> for Hsl {
     fn from(value: Color) -> Self {
-        value.into_hsl()
+        value.into_hsla().hsl
     }
 }
 

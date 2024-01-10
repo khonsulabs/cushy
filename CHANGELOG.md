@@ -50,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   implements `Zero` which defines an associated constant of the same name and
   purpose.
 - `Children` has been renamed to `WidgetList`.
+- `ColorExt::into_source_and_lightness` has been renamed to
+  `ColorExt::into_hsl`, and its return type is now `Hsl` instead of the
+  individual components.
 
 ### Fixed
 
@@ -175,8 +178,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runtime.
 - `Space::primary()` returns a space that contains the primary color.
 - `Hsl` is a new color type that is composed of hue, saturation, and lightness.
-- `HslPicker` is a color picker for `Hsl` colors.
-- `LightnessPicker` is a picker of lightness values.
+- `Hsla` is a new color type that combines `Hsl` with an alpha component.
+- Additional color pickers are now available:
+
+  - `HslPicker` picks `Hsl`
+  - `HslaPicker` picks `Hsla`
+  - `RgbPicker` picks `Color` with 255/1.0 alpha channel
+  - `RgbaPicker` picks `Color`
+- `ComponentPicker` is a picker of various `ColorComponent` implementors. It has
+  constructors for each
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 [120]: https://github.com/khonsulabs/cushy/issues/120
