@@ -253,7 +253,7 @@ approach is how the built-in [`Checkbox`][checkbox], [`Radio`][radio] and
 [align]: ../widgets/layout/align.md
 [expand]: ../widgets/layout/expand.md
 [book-example-wrapper]: <{{ src }}/guide/guide-examples/examples/composition-wrapperwidget.rs>
-[book-example-widget]: <{{ src }}/guide/guide-examples/examples/composition-wrapperwidget.rs>
+[book-example-widget]: <{{ src }}/guide/guide-examples/examples/composition-widget.rs>
 [measuredtext]: <https://docs.rs/kludgine/latest/kludgine/text/struct.MeasuredText.html>
 [windowlocal]: <{{ docs }}/window/struct.WindowLocal.html>
 [constraintlimit-min]: <{{ docs }}/enum.ConstraintLimit.html#method.min>

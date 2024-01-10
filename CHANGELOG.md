@@ -174,6 +174,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   component provided. This allows the spacer to use values from the theme at
   runtime.
 - `Space::primary()` returns a space that contains the primary color.
+- `Hsl` is a new color type that is composed of hue, saturation, and lightness.
+- `HslPicker` is a color picker for `Hsl` colors.
+- `LightnessPicker` is a picker of lightness values.
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 [120]: https://github.com/khonsulabs/cushy/issues/120
