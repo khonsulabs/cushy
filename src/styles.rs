@@ -13,6 +13,7 @@ use std::sync::Arc;
 use ahash::AHashMap;
 use figures::units::{Lp, Px, UPx};
 use figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size, Zero};
+use intentional::Cast;
 pub use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
 pub use kludgine::shapes::CornerRadii;
 pub use kludgine::Color;
@@ -2283,11 +2284,15 @@ impl ColorSchemeBuilder {
 
     fn generate_error(&self, secondary: ColorSource, tertiary: ColorSource) -> ColorSource {
         let mut error = ColorSource::new(30., self.primary.saturation);
-        while [self.primary, secondary, tertiary]
-            .iter()
-            .any(|c| c.contrast_between(error) < 0.10)
+        let shift_degrees = self.hue_shift.into_positive_degrees().ceil().cast::<u32>();
+        let mut iters_left = (360 - (shift_degrees - 1)) / shift_degrees;
+        while iters_left > 0
+            && [self.primary, secondary, tertiary]
+                .iter()
+                .any(|c| c.contrast_between(error) < 0.20)
         {
             error.hue -= self.hue_shift;
+            iters_left -= 1;
         }
 
         error
