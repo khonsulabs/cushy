@@ -22,8 +22,8 @@ fn background_task(progress_a: Dynamic<u8>, progress_b: Dynamic<u8>) {
         InvalidationBatch::batch(|_batch| {
             // This set of operations has a net effect of incrementing
             // progress_a, and adding 5 to progress_b. But the operations are
-            // are done by first adding double the amount, waiting for a bit,
-            // then subtracting to get back to the desired loop behavior.
+            // are done by incrementing by ones and twos over the course of
+            // 200ms.
             //
             // This is a convoluted way to simulate having a complex operation
             // in a background thread that a user wishes to synchronize the user
