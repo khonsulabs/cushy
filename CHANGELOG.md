@@ -81,6 +81,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Space` now honors `ConstraintLimit::Fill` in its layout.
 - When handling the Ctrl/Cmd+W shortcut to close windows, repeat keys are now
   ignored.
+- `Color::constrast_between` was incorrectly allowing hue shifts to weigh in on
+  the contrast when the color was desaturated, and the attempt to account for
+  that was incorrectly being applied to the lightness contrast calculation. In
+  short, this function should be much more accurate in perceived contrast
+  evaluation.
 
 ### Changed
 

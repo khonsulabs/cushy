@@ -1799,6 +1799,7 @@ impl ColorSource {
     #[must_use]
     pub fn contrast_between(self, other: Self) -> ZeroToOne {
         let saturation_delta = self.saturation.difference_between(other.saturation);
+        let average_saturation = ZeroToOne::new((*self.saturation + *other.saturation) / 2.);
 
         let self_hue = self.hue.into_positive_degrees();
         let other_hue = other.hue.into_positive_degrees();
@@ -1816,7 +1817,7 @@ impl ColorSource {
             } / 180.,
         );
 
-        saturation_delta.one_minus() * hue_delta
+        ZeroToOne::new((*saturation_delta + *hue_delta * *average_saturation) / 2.)
     }
 }
 
@@ -1926,18 +1927,14 @@ impl ColorExt for Color {
         let other = self.into_hsla();
         let lightness_delta = other.hsl.lightness.difference_between(check_lightness);
 
-        let average_lightness = ZeroToOne::new((*check_lightness + *other.hsl.lightness) / 2.);
-
         let source_change = check_source.contrast_between(other.hsl.source);
 
         let alpha_delta = check_alpha.difference_between(other.alpha);
 
-        ZeroToOne::new(
-            (*lightness_delta
-                + *average_lightness * *source_change
-                + *average_lightness * *alpha_delta)
-                / 3.,
-        )
+        // The lightness amount is the most important factor in contrast
+        // calculations. Thus, we give a higher weight to it in our average
+        // calculation.
+        ZeroToOne::new((*lightness_delta * 3. + *source_change + *alpha_delta) / 5.)
     }
 
     fn most_contrasting(self, others: &[Self]) -> Self
