@@ -3591,7 +3591,8 @@ impl InvalidationBatch<'_> {
 
     /// Invokes all pending invalidations.
     ///
-    /// This function is a no-op if `self` is a nested batch. Only the first batch of each thread
+    /// This function is a no-op if `self` is a nested batch. Only the root
+    /// batch of each thread can trigger invalidations manually.
     pub fn invoke(&self) {
         let mut batch = self.0.borrow_mut();
         if batch.nesting == 1 {
