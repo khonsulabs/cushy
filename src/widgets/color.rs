@@ -10,7 +10,7 @@ use kludgine::{Color, DrawableExt, Origin};
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
-use crate::styles::components::{HighlightColor, OutlineColor, TextColor};
+use crate::styles::components::{HighlightColor, OutlineColor, SurfaceColor, TextColor};
 use crate::styles::{ColorExt, ColorSource, Hsl, Hsla};
 use crate::value::{
     Destination, Dynamic, ForEachCloned, IntoDynamic, IntoReadOnly, IntoValue, MapEach, ReadOnly,
@@ -149,7 +149,6 @@ impl MakeWidgetWithTag for HslaPicker {
             .and(ComponentPicker::lightness(self.lightness))
             .and(ComponentPicker::alpha_f32(self.alpha, preview_color))
             .into_rows()
-            .gutter(Px::ZERO)
             .make_widget()
     }
 }
@@ -543,18 +542,31 @@ where
             Point::new(value_x - loupe_size / 2, options.line_width / 2),
             Size::new(loupe_size, size.height - options.line_width),
         );
-        let selected_color = self.component.loupe_color(value);
-        let loupe_color = if let Some(selected_color) = selected_color {
-            context.gfx.draw_shape(&Shape::filled_round_rect(
-                loupe_rect,
-                CornerRadii::from(loupe_size),
-                selected_color,
-            ));
-
-            selected_color.most_contrasting(&[context.get(&OutlineColor), context.get(&TextColor)])
-        } else {
-            context.get(&OutlineColor)
+        let selected_color = self
+            .component
+            .loupe_color(value)
+            .ok_or_else(|| self.component.interpolate_color(value));
+        let mut selected_color = match selected_color {
+            Ok(selected_color) => {
+                context.gfx.draw_shape(&Shape::filled_round_rect(
+                    loupe_rect,
+                    CornerRadii::from(loupe_size),
+                    selected_color,
+                ));
+                selected_color
+            }
+            Err(selected_color) => selected_color,
         };
+
+        let alpha = selected_color.alpha();
+        if alpha < 255 {
+            let alpha_f32 = alpha.percent_between(&0, &255);
+            let surface = context.theme().surface.color;
+            selected_color = surface.lerp(&selected_color.with_alpha(255), *alpha_f32);
+        }
+
+        let loupe_color =
+            selected_color.most_contrasting(&[context.get(&SurfaceColor), context.get(&TextColor)]);
 
         context.gfx.draw_shape(&Shape::stroked_round_rect(
             loupe_rect,
