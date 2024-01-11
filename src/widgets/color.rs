@@ -344,12 +344,11 @@ impl ColorComponent for Alpha {
         );
         let mut y = Px::ZERO;
         let mut offset = false;
+        let mut gfx = context.gfx.clipped_to(rect);
         while y < rect.size.height {
             let mut x = if offset { checker_size } else { Px::ZERO };
             while x < rect.size.width {
-                context
-                    .gfx
-                    .draw_shape(shape.translate_by(rect.origin + Point::new(x, y)));
+                gfx.draw_shape(shape.translate_by(Point::new(x, y)));
                 x += checker_size * 2;
             }
             y += checker_size;
