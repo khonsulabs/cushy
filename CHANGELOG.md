@@ -192,6 +192,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `RgbaPicker` picks `Color`
 - `ComponentPicker` is a picker of various `ColorComponent` implementors. It has
   constructors for each
+- `InvalidationBatch` is a type that can batch invalidation requests being made
+  by a background task. This can be useful if the background task is updating a
+  variety of `Dynamic<T>`s, but wish to limit redrawing the interface until the
+  task has completed its updates.
+
+  This type does not prevent redraws from being performed due to the operating
+  system or other threads requeseting them.
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 [120]: https://github.com/khonsulabs/cushy/issues/120

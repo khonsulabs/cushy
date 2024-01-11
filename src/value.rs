@@ -1389,12 +1389,12 @@ impl<T> DynamicData<T> {
 
     pub fn redraw_when_changed(&self, window: WindowHandle) {
         let mut state = self.state().expect("deadlocked");
-        state.windows.insert(window);
+        state.invalidation.windows.insert(window);
     }
 
     pub fn invalidate_when_changed(&self, window: WindowHandle, widget: WidgetId) {
         let mut state = self.state().expect("deadlocked");
-        state.widgets.insert((window, widget));
+        state.invalidation.widgets.insert((window, widget));
     }
 
     pub fn map_mut<R>(&self, map: impl FnOnce(Mutable<T>) -> R) -> Result<R, DeadlockError> {
@@ -1653,13 +1653,47 @@ impl AddAssign for CallbackHandle {
     }
 }
 
+#[derive(Default)]
+struct InvalidationState {
+    windows: AHashSet<WindowHandle>,
+    widgets: AHashSet<(WindowHandle, WidgetId)>,
+    wakers: Vec<Waker>,
+}
+
+impl InvalidationState {
+    fn invoke(&mut self) {
+        for (window, widget) in self.widgets.drain() {
+            window.invalidate(widget);
+        }
+        for window in self.windows.drain() {
+            window.redraw();
+        }
+        for waker in self.wakers.drain(..) {
+            waker.wake();
+        }
+    }
+
+    fn extend(&mut self, other: &mut InvalidationState) {
+        self.widgets.extend(other.widgets.drain());
+        self.windows.extend(other.windows.drain());
+
+        for waker in other.wakers.drain(..) {
+            if !self
+                .wakers
+                .iter()
+                .any(|existing| existing.will_wake(&waker))
+            {
+                self.wakers.push(waker);
+            }
+        }
+    }
+}
+
 struct State<T> {
     wrapped: GenerationalValue<T>,
     source_callback: CallbackHandle,
     callbacks: Arc<ChangeCallbacksData>,
-    windows: AHashSet<WindowHandle>,
-    widgets: AHashSet<(WindowHandle, WidgetId)>,
-    wakers: Vec<Waker>,
+    invalidation: InvalidationState,
     on_disconnect: Option<Vec<OnceCallback>>,
     readers: usize,
 }
@@ -1672,10 +1706,12 @@ impl<T> State<T> {
                 generation: Generation::default(),
             },
             callbacks: Arc::default(),
-            windows: AHashSet::new(),
+            invalidation: InvalidationState {
+                windows: AHashSet::new(),
+                wakers: Vec::new(),
+                widgets: AHashSet::new(),
+            },
             readers: 0,
-            wakers: Vec::new(),
-            widgets: AHashSet::new(),
             on_disconnect: Some(Vec::new()),
             source_callback: CallbackHandle::default(),
         }
@@ -1684,14 +1720,8 @@ impl<T> State<T> {
     fn note_changed(&mut self) -> ChangeCallbacks {
         self.wrapped.generation = self.wrapped.generation.next();
 
-        for (window, widget) in self.widgets.drain() {
-            window.invalidate(widget);
-        }
-        for window in self.windows.drain() {
-            window.redraw();
-        }
-        for waker in self.wakers.drain(..) {
-            waker.wake();
+        if !InvalidationBatch::take_invalidations(&mut self.invalidation) {
+            self.invalidation.invoke();
         }
 
         ChangeCallbacks {
@@ -1714,7 +1744,7 @@ impl<T> State<T> {
     fn cleanup(&mut self) -> StateCleanup {
         StateCleanup {
             on_disconnect: self.on_disconnect.take(),
-            wakers: std::mem::take(&mut self.wakers),
+            wakers: std::mem::take(&mut self.invalidation.wakers),
         }
     }
 }
@@ -2208,7 +2238,7 @@ impl<'a, T> Future for BlockUntilUpdatedFuture<'a, T> {
             return Poll::Ready(false);
         }
 
-        state.wakers.push(cx.waker().clone());
+        state.invalidation.wakers.push(cx.waker().clone());
         Poll::Pending
     }
 }
@@ -3505,6 +3535,82 @@ where
                 );
             }
         }
+    }
+}
+
+/// A batch of invalidations across one or more windows.
+///
+/// This type helps background tasks synchronize when to invalidate or redraw a
+/// widget. Without this type, if a tracked dynamic is changed, the window is
+/// immediately sent a request to redraw itself. These requests are batched to
+/// ensure efficiency, but if a background task is updating several dynamics
+/// independent of one another, it may desire that those updates only trigger
+/// one redraw per "step".
+///
+/// The closure invoked by [`InvalidationBatch::batch`] will gather all
+/// invalidations into a single batch that can be executed by the handle
+/// provided or automatically when the closure returns.
+pub struct InvalidationBatch<'a>(&'a RefCell<InvalidationBatchGuard>);
+
+#[derive(Default)]
+struct InvalidationBatchGuard {
+    nesting: usize,
+    state: InvalidationState,
+}
+
+thread_local! {
+    static GUARD: RefCell<InvalidationBatchGuard> = RefCell::default();
+}
+
+impl InvalidationBatch<'_> {
+    /// Executes `batched` gathering all tracked invalidations into a shared
+    /// batch.
+    ///
+    /// The closure accepts an `&InvalidationBatch<'_>` parameter which can be
+    /// used to [`invoke()`](Self::invoke) the batch on-demand while during
+    /// `batched`.
+    ///
+    /// This function supports nested invocation. When nested, only the
+    /// outermost batch can manually invoke. When the outermost batch's callback
+    /// ends, any pending invalidations are invoked automatically.
+    pub fn batch(batched: impl FnOnce(&InvalidationBatch<'_>)) {
+        GUARD.with(|guard| {
+            let mut batch = guard.borrow_mut();
+            batch.nesting += 1;
+            drop(batch);
+
+            batched(&InvalidationBatch(guard));
+
+            let mut batch = guard.borrow_mut();
+            batch.nesting -= 1;
+            if batch.nesting == 0 {
+                batch.state.invoke();
+            }
+        });
+    }
+
+    /// Invokes all pending invalidations.
+    ///
+    /// This function is a no-op if `self` is a nested batch. Only the first batch of each thread
+    pub fn invoke(&self) {
+        let mut batch = self.0.borrow_mut();
+        if batch.nesting == 1 {
+            batch.state.invoke();
+        }
+    }
+
+    #[must_use]
+    fn take_invalidations(state: &mut InvalidationState) -> bool {
+        GUARD.with(|guard| {
+            let mut batch = guard.borrow_mut();
+            if batch.nesting > 0 {
+                // A batch is active on this thread
+                batch.state.extend(state);
+                true
+            } else {
+                false
+            }
+        })
     }
 }
 
