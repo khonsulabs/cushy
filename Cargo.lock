@@ -1182,7 +1182,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.7.0"
-source = "git+https://github.com/khonsulabs/kludgine#70d9a0df83e8d49894a1b7611385047e9ce23739"
+source = "git+https://github.com/khonsulabs/kludgine#c44147ed4a0b48778c5a0201bd3a3208bfee0b7a"
 dependencies = [
  "ahash",
  "alot",
