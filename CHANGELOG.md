@@ -199,6 +199,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   This type does not prevent redraws from being performed due to the operating
   system or other threads requeseting them.
+- A new feature `plotters` enables integration with the excellent
+  [plotters][plotters] crate. `Graphics::as_plot_area()` is a new function that
+  returns a `plotters::DrawingArea` that can be used to draw any plot that the
+  `plotters` crate supports.
+
+[plotters]: https://github.com/plotters-rs/plotters
 
 [99]: https://github.com/khonsulabs/cushy/issues/99
 [120]: https://github.com/khonsulabs/cushy/issues/120

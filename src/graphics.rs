@@ -6,7 +6,7 @@ use figures::{
     self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
 };
 use kludgine::cosmic_text::FamilyOwned;
-use kludgine::render::Renderer;
+use kludgine::drawing::Renderer;
 use kludgine::shapes::Shape;
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{
@@ -302,6 +302,19 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         );
         text.translation += Point::<Unit>::from_px(self.translation(), self.scale());
         self.renderer.draw_measured_text(text, origin);
+    }
+
+    /// Returns this renderer as a
+    /// [`DrawingArea`](plotters::drawing::DrawingArea) compatible with the
+    /// [plotters](https://github.com/plotters-rs/plotters) crate.
+    #[cfg(feature = "plotters")]
+    pub fn as_plot_area(
+        &mut self,
+    ) -> plotters::drawing::DrawingArea<
+        kludgine::drawing::PlotterBackend<'_, 'gfx, 'pass>,
+        plotters::coord::Shift,
+    > {
+        self.renderer.as_plot_area()
     }
 }
 

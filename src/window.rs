@@ -33,7 +33,7 @@ use kludgine::app::winit::keyboard::{
 use kludgine::app::winit::window::{self, CursorIcon};
 use kludgine::app::{winit, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
-use kludgine::render::Drawing;
+use kludgine::drawing::Drawing;
 use kludgine::shapes::Shape;
 use kludgine::wgpu::{self, CompositeAlphaMode, COPY_BYTES_PER_ROW_ALIGNMENT};
 use kludgine::{Color, DrawableExt, Kludgine, KludgineId, Origin, Texture};

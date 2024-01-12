@@ -5,7 +5,7 @@ use std::time::Duration;
 use cushy::figures::units::Px;
 use cushy::figures::{Point, Rect, Size};
 use cushy::kludgine::app::winit::keyboard::Key;
-use cushy::kludgine::render::Renderer;
+use cushy::kludgine::drawing::Renderer;
 use cushy::kludgine::shapes::Shape;
 use cushy::kludgine::tilemap::{
     DebugGrid, Object, ObjectLayer, TileArray, TileKind, TileMapFocus, TILE_SIZE,
