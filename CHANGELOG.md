@@ -203,6 +203,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [plotters][plotters] crate. `Graphics::as_plot_area()` is a new function that
   returns a `plotters::DrawingArea` that can be used to draw any plot that the
   `plotters` crate supports.
+- `Delimiter` is a new widget that is similar to html's `hr` tag.
 
 [plotters]: https://github.com/plotters-rs/plotters
 
