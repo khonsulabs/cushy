@@ -7,6 +7,7 @@ use figures::{Point, Round, Size};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{CanRenderTo, Color, DrawableExt};
 
+use super::input::CowString;
 use crate::context::{GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::TextColor;
 use crate::value::{Dynamic, Generation, IntoReadOnly, ReadOnly, Value};
@@ -125,6 +126,7 @@ macro_rules! impl_make_widget {
 impl_make_widget!(
     &'_ str => String,
     String => String,
+    CowString => CowString,
     Dynamic<String> => String,
     Dynamic<&'static str> => &'static str,
     Value<String> => String,
