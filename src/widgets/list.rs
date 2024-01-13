@@ -28,8 +28,10 @@ impl List {
 /// The style of a [`List`] widget's item indicators.
 #[derive(Default, Debug, Clone)]
 pub enum ListStyle {
+    /// A solid circle indicator, using the unicode bullet indicator.
     #[default]
     Disc,
+    /// A custom list indicator style.
     Custom(Arc<dyn ListIndicator>),
 }
 
