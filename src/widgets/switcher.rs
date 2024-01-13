@@ -55,6 +55,7 @@ impl WrapperWidget for Switcher {
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<ConstraintLimit> {
         if self.source.has_updated() {
+            self.child.unmount_in(context);
             self.child = WidgetRef::new(self.source.get());
         }
         context.invalidate_when_changed(&self.source);
