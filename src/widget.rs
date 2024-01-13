@@ -39,6 +39,7 @@ use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
+use crate::widgets::list::List;
 use crate::widgets::{
     Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Resize, Scroll, Space,
     Stack, Style, Themed, ThemedMode, Validated, Wrap,
@@ -2034,6 +2035,12 @@ impl WidgetList {
     #[must_use]
     pub fn into_wrap(self) -> Wrap {
         Wrap::new(self)
+    }
+
+    /// Returns `self` as an unordered [`List`].
+    #[must_use]
+    pub fn into_list(self) -> List {
+        List::new(self)
     }
 
     /// Synchronizes this list of children with another collection.
