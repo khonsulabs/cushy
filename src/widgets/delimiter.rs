@@ -74,10 +74,10 @@ impl Widget for Delimiter {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let line_width = self.get_size(context).into_upx(context.gfx.scale());
         let half_line = line_width / 2;
-        let end = dbg!(match self.orientation {
+        let end = match self.orientation {
             Orientation::Horizontal => Point::new(context.gfx.size().width - half_line, half_line),
             Orientation::Vertical => Point::new(half_line, context.gfx.size().height - half_line),
-        });
+        };
         let color = context.get(&DelimiterColor);
         context.gfx.draw_shape(
             &PathBuilder::new(Point::squared(half_line))
@@ -96,9 +96,9 @@ impl Widget for Delimiter {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let size = dbg!(self.get_size(context).into_upx(context.gfx.scale()));
+        let size = self.get_size(context).into_upx(context.gfx.scale());
         match self.orientation {
-            Orientation::Horizontal => Size::new(dbg!(available_space.width).max(), size),
+            Orientation::Horizontal => Size::new(available_space.width.max(), size),
             Orientation::Vertical => Size::new(size, available_space.height.max()),
         }
     }
