@@ -1,7 +1,7 @@
 //! A widget that displays an image/texture.
 
-use figures::units::UPx;
-use figures::{FloatConversion, IntoSigned, Point, Rect, Size, Zero};
+use figures::units::{Px, UPx};
+use figures::{FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use kludgine::{AnyTexture, CollectedTexture, LazyTexture, SharedTexture, Texture, TextureRegion};
 
 use crate::animation::ZeroToOne;
@@ -109,37 +109,44 @@ impl Image {
             Value::Dynamic(amount) => Value::Dynamic(amount.map_each_cloned(ImageScaling::Scale)),
         })
     }
+
+    fn calculate_image_rect(
+        &self,
+        texture: &AnyTexture,
+        within_size: Size<UPx>,
+        context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>,
+    ) -> Rect<Px> {
+        let within_size = within_size.into_signed();
+        let size = texture.size().into_signed();
+        match self.scaling.get_tracking_invalidate(context) {
+            ImageScaling::Aspect { mode, orientation } => {
+                let scale_width = within_size.width.into_float() / size.width.into_float();
+                let scale_height = within_size.height.into_float() / size.height.into_float();
+
+                let effective_scale = match mode {
+                    Aspect::Fill => scale_width.max(scale_height),
+                    Aspect::Fit => scale_width.min(scale_height),
+                };
+                let scaled = size * effective_scale;
+
+                let x = (within_size.width - scaled.width) * *orientation.width;
+                let y = (within_size.height - scaled.height) * *orientation.height;
+
+                Rect::new(Point::new(x, y), scaled)
+            }
+            ImageScaling::Stretch => within_size.into(),
+            ImageScaling::Scale(factor) => {
+                let size = size.map(|px| px * factor);
+                size.into()
+            }
+        }
+    }
 }
 
 impl Widget for Image {
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         self.contents.map(|texture| {
-            let size = texture.size().into_signed();
-            let rect = match self.scaling.get() {
-                ImageScaling::Aspect { mode, orientation } => {
-                    let scale_width =
-                        context.gfx.region().size.width.into_float() / size.width.into_float();
-                    let scale_height =
-                        context.gfx.region().size.height.into_float() / size.height.into_float();
-
-                    let effective_scale = match mode {
-                        Aspect::Fill => scale_width.max(scale_height),
-                        Aspect::Fit => scale_width.min(scale_height),
-                    };
-                    let scaled = size * effective_scale;
-
-                    let x = (context.gfx.region().size.width - scaled.width) * *orientation.width;
-                    let y =
-                        (context.gfx.region().size.height - scaled.height) * *orientation.height;
-
-                    Rect::new(Point::new(x, y), scaled)
-                }
-                ImageScaling::Stretch => context.gfx.region().size.into(),
-                ImageScaling::Scale(factor) => {
-                    let size = size.map(|px| px * factor);
-                    size.into()
-                }
-            };
+            let rect = self.calculate_image_rect(texture, context.gfx.size(), context);
             context.gfx.draw_texture(texture, rect);
         });
     }
@@ -149,15 +156,10 @@ impl Widget for Image {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
-        match self.scaling.get_tracking_invalidate(context) {
-            ImageScaling::Aspect { .. } | ImageScaling::Stretch => {
-                available_space.map(ConstraintLimit::min)
-            }
-            ImageScaling::Scale(factor) => self
-                .contents
-                .map_tracking_invalidate(context, AnyTexture::size)
-                .map(|px| px * factor),
-        }
+        let rect = self.contents.map(|texture| {
+            self.calculate_image_rect(texture, available_space.map(ConstraintLimit::max), context)
+        });
+        rect.size.into_unsigned()
     }
 }
 

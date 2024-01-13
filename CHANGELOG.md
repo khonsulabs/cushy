@@ -88,6 +88,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   evaluation.
 - `Graphics::set_font_family` now clears the cached font family list, ensuring
   that the next call to apply_current_font_settings works correctly.
+- `Image` now returns the correct size from `layout()` when in aspect scaling
+  modes. Previously, it reported back the minimum size, since it's scale was
+  considered flexible. This new behavior ensures that it always requests a size
+  that is scaled with the aspect ratio.
+
+  The rendering behavior remains unchanged, and the image will scale correctly
+  within whatever bounds it is given.
 
 ### Changed
 
