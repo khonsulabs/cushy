@@ -66,6 +66,12 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         )
     }
 
+    /// Sets the current font family.
+    pub fn set_font_family(&mut self, family: cosmic_text::FamilyOwned) {
+        self.font_state.current_font_family = None;
+        self.renderer.set_font_family(family);
+    }
+
     /// Returns the first font family in `list` that is currently in the font
     /// system, or None if no font families match.
     pub fn find_available_font_family(&mut self, list: &FontFamilyList) -> Option<FamilyOwned> {

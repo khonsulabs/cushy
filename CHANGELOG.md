@@ -86,6 +86,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that was incorrectly being applied to the lightness contrast calculation. In
   short, this function should be much more accurate in perceived contrast
   evaluation.
+- `Graphics::set_font_family` now clears the cached font family list, ensuring
+  that the next call to apply_current_font_settings works correctly.
 
 ### Changed
 
