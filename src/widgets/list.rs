@@ -10,7 +10,8 @@ use nominals::{
     HangeulSyllable, HanjaFormal, Hebrew, HexLower, HexUpper, Hiragana, HiraganaIroha,
     JapaneseFormal, JapaneseInformal, Kannada, Katakana, KatakanaIroha, Lao, LetterLower,
     LetterUpper, Malayalam, Mongolian, Myanmar, NominalSystem, Oriya, Persian, RomanLower,
-    RomanUpper, Tamil, Telugu, Thai, Tibetan,
+    RomanUpper, SimplifiedChineseFormal, SimplifiedChineseInformal, Tamil, Telugu, Thai, Tibetan,
+    TraditionalChineseFormal, TraditionalChineseInformal,
 };
 
 use super::grid::GridWidgets;
@@ -134,6 +135,22 @@ pub enum ListStyle {
     HexLower,
     /// Hexadecimal uppercase digits (0-9A-F)
     HexUpper,
+    /// Informal Traditional Chinese with ordinary characters.
+    ChineseTraditional,
+    /// Informal Traditional Chinese with financial characters.
+    ChineseTraditionalFinancial,
+    /// Formal Traditional Chinese with ordinary characters.
+    ChineseTraditionalFormal,
+    /// Formal Traditional Chinese with financial characters.
+    ChineseTraditionalFormalFinancial,
+    /// Informal Simplified Chinese with ordinary characters.
+    ChineseSimplified,
+    /// Informal Simplified Chinese with financial characters.
+    ChineseSimplifiedFinancial,
+    /// Formal Simplified Chinese with ordinary characters.
+    ChineseSimplifiedFormal,
+    /// Formal Simplified Chinese with financial characters.
+    ChineseSimplifiedFormalFinancial,
     /// Greek lowercase alphabet.
     GreekUpper,
     /// Greek uppercase alphabet.
@@ -176,6 +193,14 @@ impl ListStyle {
             ListStyle::ArmenianUpper,
             ListStyle::Bengali,
             ListStyle::Cambodian,
+            ListStyle::ChineseSimplified,
+            ListStyle::ChineseSimplifiedFinancial,
+            ListStyle::ChineseSimplifiedFormal,
+            ListStyle::ChineseSimplifiedFormalFinancial,
+            ListStyle::ChineseTraditional,
+            ListStyle::ChineseTraditionalFinancial,
+            ListStyle::ChineseTraditionalFormal,
+            ListStyle::ChineseTraditionalFormalFinancial,
             ListStyle::CjkDecimal,
             ListStyle::CjkEarthlyBranch,
             ListStyle::CjkHeavenlyStem,
@@ -380,6 +405,42 @@ impl ListIndicator for ListStyle {
             ListStyle::Tibetan => Some(Indicator::delimited(String::from(
                 Tibetan.one_based().format_nominal(index),
             ))),
+            ListStyle::ChineseTraditional => Some(Indicator::delimited(String::from(
+                TraditionalChineseInformal::default().format_nominal(index),
+            ))),
+            ListStyle::ChineseTraditionalFinancial => Some(Indicator::delimited(String::from(
+                TraditionalChineseInformal::default()
+                    .financial()
+                    .format_nominal(index),
+            ))),
+            ListStyle::ChineseTraditionalFormal => Some(Indicator::delimited(String::from(
+                TraditionalChineseFormal::default().format_nominal(index),
+            ))),
+            ListStyle::ChineseTraditionalFormalFinancial => {
+                Some(Indicator::delimited(String::from(
+                    TraditionalChineseFormal::default()
+                        .financial()
+                        .format_nominal(index),
+                )))
+            }
+            ListStyle::ChineseSimplified => Some(Indicator::delimited(String::from(
+                SimplifiedChineseInformal::default().format_nominal(index),
+            ))),
+            ListStyle::ChineseSimplifiedFinancial => Some(Indicator::delimited(String::from(
+                SimplifiedChineseInformal::default()
+                    .financial()
+                    .format_nominal(index),
+            ))),
+            ListStyle::ChineseSimplifiedFormal => Some(Indicator::delimited(String::from(
+                SimplifiedChineseFormal::default().format_nominal(index),
+            ))),
+            ListStyle::ChineseSimplifiedFormalFinancial => {
+                Some(Indicator::delimited(String::from(
+                    SimplifiedChineseFormal::default()
+                        .financial()
+                        .format_nominal(index),
+                )))
+            }
         }
     }
 }
