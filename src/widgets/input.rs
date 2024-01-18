@@ -1385,6 +1385,15 @@ where
     }
 }
 
+impl From<CowString> for String {
+    fn from(s: CowString) -> Self {
+        match Arc::try_unwrap(s.0) {
+            Ok(s) => s,
+            Err(arc) => (*arc).clone(),
+        }
+    }
+}
+
 /// A cheap-to-clone, copy-on-write [`String`] type that masks its contents in
 /// [`Debug`] and [`InputStorage`] implementations.
 ///

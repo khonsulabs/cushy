@@ -44,6 +44,7 @@ pollster = "0.3.0"
 png = "0.17.10"
 image = { version = "0.24.7", features = ["png"] }
 plotters = { version = "0.3.5", default-features = false, optional = true }
+nominals = "0.2.1"
 
 
 # [patch.crates-io]

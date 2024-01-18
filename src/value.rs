@@ -1122,7 +1122,7 @@ impl<T> Dynamic<T> {
         // Technically this trait bound isn't necessary, but it prevents trying
         // to call new_radio on unsupported types. The MakeWidget/Widget
         // implementations require these bounds (and more).
-        T: Clone + Eq,
+        T: Clone + PartialEq,
     {
         Radio::new(widget_value, self.clone(), label)
     }
@@ -1137,7 +1137,7 @@ impl<T> Dynamic<T> {
         // Technically this trait bound isn't necessary, but it prevents trying
         // to call new_select on unsupported types. The MakeWidget/Widget
         // implementations require these bounds (and more).
-        T: Clone + Eq,
+        T: Clone + PartialEq,
     {
         Select::new(widget_value, self.clone(), label)
     }

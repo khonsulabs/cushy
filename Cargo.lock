@@ -576,6 +576,7 @@ dependencies = [
  "interner",
  "kempt",
  "kludgine",
+ "nominals",
  "palette",
  "plotters",
  "png",
@@ -1478,6 +1479,12 @@ dependencies = [
  "libc",
  "memoffset",
 ]
+
+[[package]]
+name = "nominals"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c1ae56aa93d00075cffa92cf1a4f525bfb6664fe70c062cf793b642e352414f"
 
 [[package]]
 name = "nu-ansi-term"

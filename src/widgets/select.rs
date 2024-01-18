@@ -47,7 +47,7 @@ impl<T> Select<T> {
 
 impl<T> MakeWidgetWithTag for Select<T>
 where
-    T: Clone + Debug + Eq + Send + Sync + 'static,
+    T: Clone + Debug + PartialEq + Send + Sync + 'static,
 {
     fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         let selected = self.state.map_each({

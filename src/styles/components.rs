@@ -39,7 +39,7 @@ use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
 /// ```
 #[macro_export]
 macro_rules! define_components {
-    ($($widget:ident { $($(#$doc:tt)* $component:ident($type:ty, $name:expr, $($default:tt)*))* })*) => {$($(
+    ($($widget:ident { $($(#$doc:tt)* $component:ident($type:ty, $name:expr $(, $($default:tt)*)?))* })*) => {$($(
         $(#$doc)*
         #[derive(Clone, Copy, Eq, PartialEq, Debug)]
         pub struct $component;
@@ -60,7 +60,7 @@ macro_rules! define_components {
             impl ComponentDefinition for $component {
                 type ComponentType = $type;
 
-                define_components!($type, $($default)*);
+                define_components!($type, $($($default)*)?);
             }
         };
 
@@ -84,7 +84,10 @@ macro_rules! define_components {
             ])
         });
     };
-    ($type:ty, $($expr:tt)*) => {
+    ($type:ty, ) => {
+        define_components!($type, |_context| <$type>::default());
+    };
+    ($type:ty, $($expr:tt)+) => {
         define_components!($type, |_context| $($expr)*);
     };
 }

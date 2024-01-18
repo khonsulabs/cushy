@@ -25,6 +25,7 @@ use crate::context::{Trackable, WidgetContext};
 use crate::names::Name;
 use crate::utils::Lazy;
 use crate::value::{Dynamic, IntoValue, Source, Value};
+use crate::widgets::input::CowString;
 
 #[macro_use]
 pub mod components;
@@ -410,6 +411,8 @@ pub enum Component {
     FontWeight(Weight),
     /// The style of a font.
     FontStyle(Style),
+    /// A string value.
+    String(CowString),
 
     /// A custom component type.
     Custom(CustomComponent),
@@ -443,6 +446,38 @@ impl Component {
         }))
     }
 }
+
+macro_rules! impl_component_from_string {
+    ($type:ty) => {
+        impl From<$type> for Component {
+            fn from(s: $type) -> Self {
+                Self::String(s.into())
+            }
+        }
+    };
+}
+
+impl_component_from_string!(String);
+impl_component_from_string!(CowString);
+impl_component_from_string!(&'_ str);
+
+macro_rules! impl_component_try_from_string {
+    ($type:ty) => {
+        impl TryFrom<Component> for $type {
+            type Error = Component;
+
+            fn try_from(s: Component) -> Result<Self, Self::Error> {
+                match s {
+                    Component::String(s) => Ok(s.into()),
+                    other => Err(other),
+                }
+            }
+        }
+    };
+}
+
+impl_component_try_from_string!(String);
+impl_component_try_from_string!(CowString);
 
 impl From<FamilyOwned> for Component {
     fn from(value: FamilyOwned) -> Self {
@@ -2545,6 +2580,18 @@ impl From<FamilyOwned> for FontFamilyList {
 impl From<Vec<FamilyOwned>> for FontFamilyList {
     fn from(value: Vec<FamilyOwned>) -> Self {
         Self(Arc::new(value))
+    }
+}
+
+impl IntoValue<FontFamilyList> for FamilyOwned {
+    fn into_value(self) -> Value<FontFamilyList> {
+        FontFamilyList::from(self).into_value()
+    }
+}
+
+impl IntoValue<FontFamilyList> for Vec<FamilyOwned> {
+    fn into_value(self) -> Value<FontFamilyList> {
+        FontFamilyList::from(self).into_value()
     }
 }
 

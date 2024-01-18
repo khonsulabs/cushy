@@ -213,6 +213,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   returns a `plotters::DrawingArea` that can be used to draw any plot that the
   `plotters` crate supports.
 - `Delimiter` is a new widget that is similar to html's `hr` tag.
+- `List` is a new widget that creates lists similar to HTML's `ol` and `ul`
+  tags.
 
 [plotters]: https://github.com/plotters-rs/plotters
 
@@ -233,6 +235,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Window::new` no longer accepts a `Cushy` parameter. The window now adopts the
   `Cushy` from the application it is opened within.
 - `MakeWidget::into_window()` no longer takes any parameters.
+- `Label<T>` is now generic over a new trait: `DynamicDisplay`. This new trait
+  allows a way to query a `WidgetContext` to resolve the value to display. The
+  trait is automatically implemented for all types that implement `Display`, so
+  this change in practice shouldn't break much code.
 
 ### Changed
 

@@ -52,7 +52,7 @@ impl<T> Radio<T> {
 
 impl<T> MakeWidgetWithTag for Radio<T>
 where
-    T: Clone + Debug + Eq + Send + 'static,
+    T: Clone + Debug + PartialEq + Send + 'static,
 {
     fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         RadioOrnament {
@@ -78,7 +78,7 @@ struct RadioOrnament<T> {
 
 impl<T> Widget for RadioOrnament<T>
 where
-    T: Debug + Eq + Send + 'static,
+    T: Debug + PartialEq + Send + 'static,
 {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let radio_size = context

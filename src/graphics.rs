@@ -81,10 +81,10 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     /// Sets the font family to the first family in `list`.
     pub fn set_available_font_family(&mut self, list: &FontFamilyList) {
         if self.font_state.current_font_family.as_ref() != Some(list) {
-            self.font_state.current_font_family = Some(list.clone());
             if let Some(family) = self.find_available_font_family(list) {
                 self.set_font_family(family);
             }
+            self.font_state.current_font_family = Some(list.clone());
         }
     }
 
