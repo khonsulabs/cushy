@@ -3168,8 +3168,8 @@ where
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: Kludgine::REQURED_FEATURES,
-                limits: Kludgine::adjust_limits(wgpu::Limits::downlevel_webgl2_defaults()),
+                required_features: Kludgine::REQURED_FEATURES,
+                required_limits: Kludgine::adjust_limits(wgpu::Limits::downlevel_webgl2_defaults()),
             },
             None,
         ))?;

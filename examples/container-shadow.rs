@@ -6,7 +6,7 @@ use cushy::widgets::container::ContainerShadow;
 use cushy::widgets::slider::Slidable;
 use cushy::Run;
 use figures::units::Lp;
-use figures::{Point, Size};
+use figures::{Point, Size, Zero};
 use kludgine::shapes::CornerRadii;
 
 fn main() -> cushy::Result {

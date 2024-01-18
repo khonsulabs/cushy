@@ -24,7 +24,7 @@ plotters = ["dep:plotters", "kludgine/plotters"]
 kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
     "app",
 ] }
-figures = "0.2.1"
+figures = { version = "0.2.1", git = "https://github.com/khonsulabs/figures" }
 alot = "0.3"
 interner = "0.2.1"
 kempt = "0.2.1"

@@ -1,6 +1,6 @@
 use cushy::context::{GraphicsContext, LayoutContext, Trackable};
 use cushy::figures::units::{Px, UPx};
-use cushy::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size};
+use cushy::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero};
 use cushy::kludgine::text::{MeasuredText, TextOrigin};
 use cushy::styles::components::IntrinsicPadding;
 use cushy::value::{Dynamic, IntoValue, Value};

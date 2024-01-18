@@ -10,7 +10,7 @@ use std::{slice, vec};
 
 use alot::LotId;
 use figures::units::{Px, UPx};
-use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
+use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use intentional::Assert;
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;

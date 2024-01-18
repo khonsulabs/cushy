@@ -4,7 +4,7 @@ use std::mem;
 use std::ops::RangeInclusive;
 
 use figures::units::{Lp, Px, UPx};
-use figures::{FloatConversion, IntoSigned, Point, Ranged, Rect, Round, ScreenScale, Size};
+use figures::{FloatConversion, IntoSigned, Point, Ranged, Rect, Round, ScreenScale, Size, Zero};
 use intentional::{Assert, Cast as _};
 use kludgine::app::winit::event::{MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::keyboard::{Key, NamedKey};

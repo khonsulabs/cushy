@@ -26,7 +26,7 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 pub use app::{App, Application, Cushy, Open, PendingApp, Run};
 use figures::units::UPx;
-use figures::{Fraction, ScreenUnit, Size};
+use figures::{Fraction, ScreenUnit, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;
 pub use names::Name;
 pub use utils::{Lazy, WithClone};

@@ -3,7 +3,7 @@ use cushy::widgets::container::ContainerShadow;
 use cushy::widgets::layers::{OverlayBuilder, OverlayLayer};
 use cushy::Run;
 use figures::units::Lp;
-use figures::Point;
+use figures::{Point, Zero};
 use kludgine::Color;
 use rand::{thread_rng, Rng};
 

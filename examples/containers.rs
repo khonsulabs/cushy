@@ -4,7 +4,7 @@ use cushy::widgets::container::ContainerShadow;
 use cushy::window::ThemeMode;
 use cushy::Run;
 use figures::units::Lp;
-use figures::Point;
+use figures::{Point, Zero};
 
 fn main() -> cushy::Result {
     let theme_mode = Dynamic::default();

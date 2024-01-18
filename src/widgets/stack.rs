@@ -1,7 +1,7 @@
 //! A widget that combines a collection of [`WidgetList`] widgets into one.
 
 use figures::units::UPx;
-use figures::{IntoSigned, Rect, Round, ScreenScale, Size};
+use figures::{IntoSigned, Rect, Round, ScreenScale, Size, Zero};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::IntrinsicPadding;

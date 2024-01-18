@@ -7,7 +7,7 @@ use std::ops::{Deref, DerefMut};
 
 use alot::{LotId, OrderedLots};
 use figures::units::{Lp, UPx};
-use figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size};
+use figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use intentional::{Assert, Cast};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
@@ -583,7 +583,7 @@ mod tests {
     use std::cmp::Ordering;
 
     use figures::units::UPx;
-    use figures::{Fraction, IntoSigned, Size};
+    use figures::{Fraction, IntoSigned, Size, Zero};
 
     use super::{GridDimension, GridLayout, Orientation};
     use crate::styles::Dimension;
