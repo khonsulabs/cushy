@@ -1089,6 +1089,23 @@ impl<T> Dynamic<T> {
         self.lock_inner()
     }
 
+    /// Returns an exclusive reference to the contents of this dynamic.
+    ///
+    /// This call will block until all other guards for this dynamic have been
+    /// dropped.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the current thread already holds a lock to this
+    /// dynamic.
+    pub fn try_lock(&self) -> Result<DynamicGuard<'_, T>, DeadlockError> {
+        Ok(DynamicGuard {
+            guard: self.0.state()?,
+            accessed_mut: false,
+            prevent_notifications: false,
+        })
+    }
+
     fn lock_inner<const READONLY: bool>(&self) -> DynamicGuard<'_, T, READONLY> {
         DynamicGuard {
             guard: self.0.state().expect("deadlocked"),

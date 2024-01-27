@@ -1363,7 +1363,7 @@ pub(crate) mod sealed {
         fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId);
     }
 
-    #[derive(Default, Clone)]
+    #[derive(Debug, Default, Clone)]
     pub struct InvalidationStatus {
         refresh_sent: Arc<AtomicBool>,
         invalidated: Arc<Mutex<Set<WidgetId>>>,

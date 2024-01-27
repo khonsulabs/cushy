@@ -9,7 +9,7 @@ use crate::ConstraintLimit;
 ///
 /// Some parent widgets support weighting children when there is more than one
 /// [`Expand`]ed widget.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Expand {
     kind: ExpandKind,
     child: WidgetRef,

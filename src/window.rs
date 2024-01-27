@@ -1964,7 +1964,7 @@ pub(crate) mod sealed {
         pub on_closed: Option<OnceCallback>,
     }
 
-    #[derive(Clone)]
+    #[derive(Debug, Clone)]
     pub enum WindowCommand {
         Redraw,
         RequestClose,
@@ -2079,7 +2079,7 @@ fn default_family(query: Family<'_>) -> Option<FamilyOwned> {
 }
 
 /// A handle to an open Cushy window.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct WindowHandle {
     inner: InnerWindowHandle,
     pub(crate) redraw_status: InvalidationStatus,
@@ -2140,7 +2140,7 @@ impl Hash for WindowHandle {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 enum InnerWindowHandle {
     Pending(Arc<PendingWindowHandle>),
     Known(kludgine::app::WindowHandle<WindowCommand>),
@@ -2233,7 +2233,7 @@ impl PendingWindow {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct PendingWindowHandle {
     handle: OnceLock<kludgine::app::WindowHandle<WindowCommand>>,
     commands: Mutex<Vec<WindowCommand>>,

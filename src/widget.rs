@@ -2129,6 +2129,18 @@ impl Dynamic<WidgetList> {
         self.clone().into_layers()
     }
 
+    /// Returns `self` as an unordered [`List`].
+    #[must_use]
+    pub fn into_list(self) -> List {
+        List::new(self)
+    }
+
+    /// Returns `self` as an unordered [`List`].
+    #[must_use]
+    pub fn to_list(self) -> List {
+        self.clone().into_list()
+    }
+
     /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
     /// into additional rows as needed.
     #[must_use]

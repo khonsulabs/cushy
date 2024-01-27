@@ -476,7 +476,8 @@ fn build_grid_widgets(style: &ListStyle, children: &WidgetList) -> GridWidgets<2
                         .list_indicator(index.wrapping_add(1))
                         .unwrap_or_default(),
                 )
-                .align_right(),
+                .align_right()
+                .align_top(),
                 child.clone().align_left().make_widget(),
             )
         })

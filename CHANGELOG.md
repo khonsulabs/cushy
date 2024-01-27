@@ -215,6 +215,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Delimiter` is a new widget that is similar to html's `hr` tag.
 - `List` is a new widget that creates lists similar to HTML's `ol` and `ul`
   tags.
+- `Dynamic::try_lock()` is a panic-free version of `Dynamic::lock()`.
 
 [plotters]: https://github.com/plotters-rs/plotters
 
