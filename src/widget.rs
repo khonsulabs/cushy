@@ -2190,6 +2190,74 @@ impl<'a> IntoIterator for &'a WidgetList {
     }
 }
 
+impl<I: IntoIterator> MakeWidgetList for I
+where
+    I::Item: MakeWidget,
+{
+    fn make_widget_list(self) -> WidgetList {
+        self.into_iter().collect()
+    }
+}
+
+/// Allows to convert collections or iterators directly into [`Stack`], [`Layers`], etc.
+///
+/// ```
+/// use cushy::widget::{MakeWidget, MakeWidgetList};
+///
+/// vec!["hello", "label"].into_rows();
+///
+/// vec!["hello", "button"]
+///     .into_iter()
+///     .map(|l| l.into_button())
+///     .into_columns();
+/// ```
+pub trait MakeWidgetList: Sized {
+    /// Returns self as a `WidgetList`.
+    fn make_widget_list(self) -> WidgetList;
+
+    /// Adds `widget` to self and returns the updated list.
+    fn and<W>(self, widget: W) -> WidgetList
+    where
+        W: MakeWidget,
+    {
+        let mut list = self.make_widget_list();
+        list.push(widget);
+        list
+    }
+
+    /// Returns `self` as a vertical [`Stack`] of rows.
+    #[must_use]
+    fn into_rows(self) -> Stack {
+        Stack::rows(self.make_widget_list())
+    }
+
+    /// Returns `self` as a horizontal [`Stack`] of columns.
+    #[must_use]
+    fn into_columns(self) -> Stack {
+        Stack::columns(self.make_widget_list())
+    }
+
+    /// Returns `self` as [`Layers`], with the widgets being stacked in the Z
+    /// direction.
+    #[must_use]
+    fn into_layers(self) -> Layers {
+        Layers::new(self.make_widget_list())
+    }
+
+    /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
+    /// into additional rows as needed.
+    #[must_use]
+    fn into_wrap(self) -> Wrap {
+        Wrap::new(self.make_widget_list())
+    }
+
+    /// Returns `self` as an unordered [`List`].
+    #[must_use]
+    fn into_list(self) -> List {
+        List::new(self.make_widget_list())
+    }
+}
+
 /// A change to perform during [`WidgetList::synchronize_with`].
 pub enum ChildrenSyncChange {
     /// Insert a new widget at the given index.
