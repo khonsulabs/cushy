@@ -5,17 +5,19 @@ use kludgine::app::{AppEvent, AsApplication};
 
 use crate::utils::IgnorePoison;
 use crate::window::sealed::WindowCommand;
+use crate::window::WindowHandle;
 
-/// A Gooey application that has not started running yet.
+/// A Cushy application that has not started running yet.
 pub struct PendingApp {
     app: kludgine::app::PendingApp<WindowCommand>,
-    gooey: Gooey,
+    cushy: Cushy,
 }
 
 impl PendingApp {
     /// The shared resources this application utilizes.
-    pub const fn gooey(&self) -> &Gooey {
-        &self.gooey
+    #[must_use]
+    pub const fn cushy(&self) -> &Cushy {
+        &self.cushy
     }
 }
 
@@ -29,11 +31,7 @@ impl Default for PendingApp {
     fn default() -> Self {
         Self {
             app: kludgine::app::PendingApp::default(),
-            gooey: Gooey {
-                clipboard: Clipboard::new()
-                    .ok()
-                    .map(|clipboard| Arc::new(Mutex::new(clipboard))),
-            },
+            cushy: Cushy::new(),
         }
     }
 }
@@ -46,11 +44,19 @@ impl AsApplication<AppEvent<WindowCommand>> for PendingApp {
 
 /// Shared resources for a GUI application.
 #[derive(Clone)]
-pub struct Gooey {
+pub struct Cushy {
     pub(crate) clipboard: Option<Arc<Mutex<Clipboard>>>,
 }
 
-impl Gooey {
+impl Cushy {
+    pub(crate) fn new() -> Self {
+        Self {
+            clipboard: Clipboard::new()
+                .ok()
+                .map(|clipboard| Arc::new(Mutex::new(clipboard))),
+        }
+    }
+
     /// Returns a locked mutex guard to the OS's clipboard, if one was able to be
     /// initialized when the window opened.
     #[must_use]
@@ -61,37 +67,37 @@ impl Gooey {
     }
 }
 
-/// A type that is a Gooey application.
+/// A type that is a Cushy application.
 pub trait Application: AsApplication<AppEvent<WindowCommand>> {
     /// Returns the shared resources for the application.
-    fn gooey(&self) -> &Gooey;
+    fn cushy(&self) -> &Cushy;
     /// Returns this type as an [`App`] handle.
     fn as_app(&self) -> App;
 }
 
 impl Application for PendingApp {
-    fn gooey(&self) -> &Gooey {
-        &self.gooey
+    fn cushy(&self) -> &Cushy {
+        &self.cushy
     }
 
     fn as_app(&self) -> App {
         App {
-            app: self.app.as_app(),
-            gooey: self.gooey.clone(),
+            app: Some(self.app.as_app()),
+            cushy: self.cushy.clone(),
         }
     }
 }
 
-/// A handle to a Gooey application.
+/// A handle to a Cushy application.
 #[derive(Clone)]
 pub struct App {
-    app: kludgine::app::App<WindowCommand>,
-    gooey: Gooey,
+    app: Option<kludgine::app::App<WindowCommand>>,
+    cushy: Cushy,
 }
 
 impl Application for App {
-    fn gooey(&self) -> &Gooey {
-        &self.gooey
+    fn cushy(&self) -> &Cushy {
+        &self.cushy
     }
 
     fn as_app(&self) -> App {
@@ -101,7 +107,10 @@ impl Application for App {
 
 impl AsApplication<AppEvent<WindowCommand>> for App {
     fn as_application(&self) -> &dyn kludgine::app::Application<AppEvent<WindowCommand>> {
-        self.app.as_application()
+        self.app
+            .as_ref()
+            .map(AsApplication::as_application)
+            .expect("no app")
     }
 }
 
@@ -116,9 +125,9 @@ pub trait Run: Sized {
 /// A type that can be opened as a window in an application.
 pub trait Open: Sized {
     /// Opens the provided type as a window inside of `app`.
-    fn open<App>(self, app: &App) -> crate::Result
+    fn open<App>(self, app: &App) -> crate::Result<Option<WindowHandle>>
     where
-        App: Application;
+        App: Application + ?Sized;
 
     /// Runs the provided type inside of the pending `app`, returning `Ok(())`
     /// upon successful execution and program exit. Note that this function may

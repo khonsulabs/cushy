@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
-use kludgine::figures::units::UPx;
-use kludgine::figures::{Fraction, IntoSigned, Point, Rect, ScreenScale, Size};
+use figures::units::UPx;
+use figures::{Fraction, IntoSigned, Point, Rect, ScreenScale, Size, Zero};
 
 use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::{Edges, FlexibleDimension};
@@ -36,7 +36,7 @@ impl Align {
     #[must_use]
     pub fn align_left(mut self) -> Self {
         self.edges
-            .map_mut(|edges| edges.left = FlexibleDimension::ZERO);
+            .map_mut(|mut edges| edges.left = FlexibleDimension::ZERO);
         self
     }
 
@@ -44,7 +44,7 @@ impl Align {
     #[must_use]
     pub fn align_top(mut self) -> Self {
         self.edges
-            .map_mut(|edges| edges.top = FlexibleDimension::ZERO);
+            .map_mut(|mut edges| edges.top = FlexibleDimension::ZERO);
         self
     }
 
@@ -52,7 +52,7 @@ impl Align {
     #[must_use]
     pub fn align_bottom(mut self) -> Self {
         self.edges
-            .map_mut(|edges| edges.bottom = FlexibleDimension::ZERO);
+            .map_mut(|mut edges| edges.bottom = FlexibleDimension::ZERO);
         self
     }
 
@@ -60,14 +60,14 @@ impl Align {
     #[must_use]
     pub fn align_right(mut self) -> Self {
         self.edges
-            .map_mut(|edges| edges.right = FlexibleDimension::ZERO);
+            .map_mut(|mut edges| edges.right = FlexibleDimension::ZERO);
         self
     }
 
     /// Sets the left and right edges of alignment to 0 and returns self.
     #[must_use]
     pub fn fit_horizontally(mut self) -> Self {
-        self.edges.map_mut(|edges| {
+        self.edges.map_mut(|mut edges| {
             edges.left = FlexibleDimension::ZERO;
             edges.right = FlexibleDimension::ZERO;
         });
@@ -77,7 +77,7 @@ impl Align {
     /// Sets the top and bottom edges of alignment to 0 and returns self.
     #[must_use]
     pub fn fit_vertically(mut self) -> Self {
-        self.edges.map_mut(|edges| {
+        self.edges.map_mut(|mut edges| {
             edges.top = FlexibleDimension::ZERO;
             edges.bottom = FlexibleDimension::ZERO;
         });
@@ -87,7 +87,7 @@ impl Align {
     fn measure(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Layout {
         let margin = self.edges.get();
         let vertical = FrameInfo::new(context.gfx.scale(), margin.top, margin.bottom);
@@ -179,14 +179,14 @@ impl WrapperWidget for Align {
         &mut self.child
     }
 
-    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+    fn root_behavior(&mut self, _context: &mut EventContext<'_>) -> Option<RootBehavior> {
         Some(RootBehavior::Align)
     }
 
     fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         let layout = self.measure(available_space, context);
 

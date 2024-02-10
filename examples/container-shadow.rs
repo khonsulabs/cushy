@@ -1,15 +1,15 @@
-use gooey::styles::components::CornerRadius;
-use gooey::styles::Dimension;
-use gooey::value::{Dynamic, MapEachCloned};
-use gooey::widget::MakeWidget;
-use gooey::widgets::container::ContainerShadow;
-use gooey::widgets::slider::Slidable;
-use gooey::Run;
-use kludgine::figures::units::Lp;
-use kludgine::figures::{Point, Size};
+use cushy::styles::components::CornerRadius;
+use cushy::styles::Dimension;
+use cushy::value::{Dynamic, MapEachCloned};
+use cushy::widget::MakeWidget;
+use cushy::widgets::container::ContainerShadow;
+use cushy::widgets::slider::Slidable;
+use cushy::Run;
+use figures::units::Lp;
+use figures::{Point, Size, Zero};
 use kludgine::shapes::CornerRadii;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let top_left = Dynamic::new(Lp::mm(1));
     let top_right = Dynamic::new(Lp::mm(1));
     let bottom_right = Dynamic::new(Lp::mm(1));

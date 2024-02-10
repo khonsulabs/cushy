@@ -1,14 +1,14 @@
-use gooey::styles::components::{LineHeight, TextSize};
-use gooey::value::Dynamic;
-use gooey::widget::{Children, MakeWidget};
-use gooey::widgets::wrap::{VerticalAlign, WrapAlign};
-use gooey::Run;
-use kludgine::figures::units::Lp;
+use cushy::styles::components::{LineHeight, TextSize};
+use cushy::value::Dynamic;
+use cushy::widget::{MakeWidget, WidgetList};
+use cushy::widgets::wrap::{VerticalAlign, WrapAlign};
+use cushy::Run;
+use figures::units::Lp;
 use rand::{thread_rng, Rng};
 
 const EXPLANATION: &str = "This example demonstrates the Wrap widget. Each word shown here is an individual Label widget that is being positioned by the Wrap widget.";
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let mut rng = thread_rng();
     let words = EXPLANATION
         .split_ascii_whitespace()
@@ -16,7 +16,7 @@ fn main() -> gooey::Result {
             let text_size = Lp::points(rng.gen_range(14..48));
             word.with(&TextSize, text_size).with(&LineHeight, text_size)
         })
-        .collect::<Children>();
+        .collect::<WidgetList>();
 
     let align = Dynamic::<WrapAlign>::default();
     let vertical_align = Dynamic::<VerticalAlign>::default();
@@ -50,7 +50,7 @@ fn main() -> gooey::Result {
         .h3()
         .and(
             words
-                .wrap()
+                .into_wrap()
                 .align(align)
                 .vertical_align(vertical_align)
                 .expand_horizontally()

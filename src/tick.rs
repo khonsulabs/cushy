@@ -3,16 +3,17 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use ahash::AHashSet;
+use figures::units::Px;
+use figures::Point;
 use intentional::Assert;
-use kludgine::app::winit::event::{ElementState, KeyEvent, MouseButton};
+use kludgine::app::winit::event::{ElementState, MouseButton};
 use kludgine::app::winit::keyboard::Key;
-use kludgine::figures::units::Px;
-use kludgine::figures::Point;
 
 use crate::context::WidgetContext;
 use crate::utils::IgnorePoison;
-use crate::value::Dynamic;
+use crate::value::{Destination, Dynamic};
 use crate::widget::{EventHandling, HANDLED, IGNORED};
+use crate::window::KeyEvent;
 
 /// A fixed-rate callback that provides access to tracked input on its
 /// associated widget.
@@ -25,7 +26,7 @@ pub struct Tick {
 
 impl Tick {
     /// Signals that this widget has been redrawn.
-    pub fn rendered(&self, context: &WidgetContext<'_, '_>) {
+    pub fn rendered(&self, context: &WidgetContext<'_>) {
         context.redraw_when_changed(&self.data.tick_number);
 
         self.data.sync.notify_one();
@@ -211,7 +212,7 @@ where
 
         // Signal that we have a new frame, which will cause the widget to
         // redraw.
-        data.tick_number.map_mut(|tick| *tick += 1);
+        data.tick_number.map_mut(|mut tick| *tick += 1);
 
         // Wait for a frame to be rendered.
         while state.keep_running {

@@ -2,26 +2,26 @@ use std::array;
 use std::cmp::Ordering;
 use std::time::Duration;
 
-use gooey::kludgine::app::winit::keyboard::Key;
-use gooey::kludgine::figures::units::Px;
-use gooey::kludgine::figures::{Point, Rect, Size};
-use gooey::kludgine::render::Renderer;
-use gooey::kludgine::shapes::Shape;
-use gooey::kludgine::tilemap::{
+use cushy::figures::units::Px;
+use cushy::figures::{Point, Rect, Size};
+use cushy::kludgine::app::winit::keyboard::Key;
+use cushy::kludgine::drawing::Renderer;
+use cushy::kludgine::shapes::Shape;
+use cushy::kludgine::tilemap::{
     DebugGrid, Object, ObjectLayer, TileArray, TileKind, TileMapFocus, TILE_SIZE,
 };
-use gooey::kludgine::Color;
-use gooey::value::Dynamic;
-use gooey::widgets::TileMap;
-use gooey::{Run, Tick};
+use cushy::kludgine::Color;
+use cushy::value::{Destination, Dynamic};
+use cushy::widgets::TileMap;
+use cushy::{Run, Tick};
+use figures::FloatConversion;
 use kludgine::app::winit::keyboard::NamedKey;
-use kludgine::figures::FloatConversion;
 use kludgine::sprite::{Sprite, SpriteSource};
 use kludgine::{include_aseprite_sprite, DrawableExt};
 
 const PLAYER_SIZE: Px = Px::new(16);
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let mut characters = ObjectLayer::new();
 
     let mut sprite = include_aseprite_sprite!("assets/stickguy").unwrap();
@@ -71,7 +71,7 @@ fn main() -> gooey::Result {
 
             let cursor_pos = input.mouse.as_ref().map(|mouse| mouse.position);
 
-            layers.map_mut(|layers| {
+            layers.map_mut(|mut layers| {
                 let player = &mut layers.1[myself];
 
                 let animation_tag = match direction.x.total_cmp(&0.) {

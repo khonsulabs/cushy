@@ -1,9 +1,9 @@
 [package]
-name = "gooey-macros"
-version = "0.1.0"
+name = "cushy-macros"
+version = "0.2.0"
 edition = "2021"
-description = "Macros for the Gooey GUI framework"
-repository = "https://github.com/khonsulabs/gooey"
+description = "Macros for the Cushy GUI framework"
+repository = "https://github.com/khonsulabs/cushy"
 license = "MIT OR Apache-2.0"
 readme = "./README.md"
 

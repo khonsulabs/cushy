@@ -1,6 +1,6 @@
-use gooey::value::{Dynamic, Switchable};
-use gooey::widget::{MakeWidget, WidgetInstance};
-use gooey::Run;
+use cushy::value::{Destination, Dynamic, Switchable};
+use cushy::widget::{MakeWidget, WidgetInstance};
+use cushy::Run;
 
 #[derive(Debug, Eq, PartialEq)]
 enum ActiveContent {
@@ -8,7 +8,7 @@ enum ActiveContent {
     Success,
 }
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let active = Dynamic::new(ActiveContent::Intro);
 
     active

@@ -2,17 +2,15 @@
 
 use std::ops::Div;
 
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{
-    Abs, Angle, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero,
-};
+use figures::units::{Lp, Px, UPx};
+use figures::{Abs, Angle, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::shapes::{CornerRadii, PathBuilder, Shape};
 use kludgine::Color;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{CornerRadius, IntrinsicPadding, Opacity, SurfaceColor};
 use crate::styles::{Component, ContainerLevel, Dimension, Edges, RequireInvalidation, Styles};
-use crate::value::{Dynamic, IntoValue, Value};
+use crate::value::{Dynamic, IntoValue, Source, Value};
 use crate::widget::{MakeWidget, RootBehavior, Widget, WidgetInstance, WidgetRef};
 use crate::ConstraintLimit;
 
@@ -160,7 +158,7 @@ impl Container {
         self
     }
 
-    fn padding(&self, context: &GraphicsContext<'_, '_, '_, '_, '_>) -> Edges<Px> {
+    fn padding(&self, context: &GraphicsContext<'_, '_, '_, '_>) -> Edges<Px> {
         match &self.padding {
             Some(padding) => padding.get(),
             None => Edges::from(context.get(&IntrinsicPadding)),
@@ -168,7 +166,7 @@ impl Container {
         .map(|dim| dim.into_px(context.gfx.scale()).round())
     }
 
-    fn effective_background_color(&mut self, context: &WidgetContext<'_, '_>) -> kludgine::Color {
+    fn effective_background_color(&mut self, context: &WidgetContext<'_>) -> kludgine::Color {
         let background = match self.background.get() {
             ContainerBackground::Color(color) => EffectiveBackground::Color(color),
             ContainerBackground::Level(level) => EffectiveBackground::Level(level),
@@ -208,12 +206,16 @@ impl Widget for Container {
             .finish()
     }
 
+    fn unmounted(&mut self, context: &mut EventContext<'_>) {
+        self.child.unmount_in(context);
+    }
+
     fn full_control_redraw(&self) -> bool {
         true
     }
 
     #[allow(clippy::too_many_lines)]
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let opacity = context.get(&Opacity);
 
         let background = self.effective_background_color(context);
@@ -249,7 +251,7 @@ impl Widget for Container {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         let child = self.child.mounted(context);
 
@@ -306,7 +308,7 @@ impl Widget for Container {
 
     fn root_behavior(
         &mut self,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<(RootBehavior, WidgetInstance)> {
         let mut padding = self
             .padding
@@ -343,7 +345,7 @@ fn render_shadow(
     mut corner_radii: CornerRadii<Px>,
     shadow: &ContainerShadow<Px>,
     background: Color,
-    context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+    context: &mut GraphicsContext<'_, '_, '_, '_>,
 ) {
     let shadow_color = shadow.color.unwrap_or_else(|| context.theme_pair().shadow);
     let shadow_color =
@@ -586,35 +588,23 @@ fn shadow_arc(
     solid_color: Color,
     transparent_color: Color,
     start_angle: Angle,
-    context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+    context: &mut GraphicsContext<'_, '_, '_, '_>,
 ) {
     let full_radius = radius + gradient;
-    let mut current_outer_arc = rotate_point(
-        origin,
-        Point::new(origin.x + full_radius, origin.y),
-        start_angle,
-    );
-    let mut current_inner_arc =
-        rotate_point(origin, Point::new(origin.x + radius, origin.y), start_angle);
+    let mut current_outer_arc = origin + Point::new(full_radius, Px::ZERO).rotate_by(start_angle);
+
+    let mut current_inner_arc = origin + Point::new(radius, Px::ZERO).rotate_by(start_angle);
     let mut angle = Angle::degrees(0);
 
     while angle < Angle::degrees(90) {
         angle += Angle::degrees(5);
 
-        let outer_arc = rotate_point(
-            origin,
-            Point::new(origin.x + full_radius, origin.y),
-            start_angle + angle,
-        );
+        let outer_arc = origin + Point::new(full_radius, Px::ZERO).rotate_by(start_angle + angle);
         if outer_arc == current_outer_arc {
             continue;
         }
 
-        let inner_arc = rotate_point(
-            origin,
-            Point::new(origin.x + radius, origin.y),
-            start_angle + angle,
-        );
+        let inner_arc = origin + Point::new(radius, Px::ZERO).rotate_by(start_angle + angle);
 
         let mut path = PathBuilder::new((current_inner_arc, solid_color));
         path = path
@@ -638,13 +628,6 @@ fn shadow_arc(
         current_outer_arc = outer_arc;
         current_inner_arc = inner_arc;
     }
-}
-
-fn rotate_point(origin: Point<Px>, point: Point<Px>, angle: Angle) -> Point<Px> {
-    let cos = angle.into_raidans_f().cos();
-    let sin = angle.into_raidans_f().sin();
-    let d = point - origin;
-    origin + Point::new(d.x * cos - d.y * sin, d.y * cos + d.x * sin)
 }
 
 /// The selected background configuration of a [`Container`].
@@ -763,7 +746,7 @@ where
     type Px = ContainerShadow<Px>;
     type UPx = ContainerShadow<UPx>;
 
-    fn into_px(self, scale: kludgine::figures::Fraction) -> Self::Px {
+    fn into_px(self, scale: figures::Fraction) -> Self::Px {
         ContainerShadow {
             color: self.color,
             offset: self.offset.into_px(scale),
@@ -772,7 +755,7 @@ where
         }
     }
 
-    fn from_px(px: Self::Px, scale: kludgine::figures::Fraction) -> Self {
+    fn from_px(px: Self::Px, scale: figures::Fraction) -> Self {
         Self {
             color: px.color,
             offset: Point::from_px(px.offset, scale),
@@ -781,7 +764,7 @@ where
         }
     }
 
-    fn into_upx(self, scale: kludgine::figures::Fraction) -> Self::UPx {
+    fn into_upx(self, scale: figures::Fraction) -> Self::UPx {
         ContainerShadow {
             color: self.color,
             offset: self.offset.into_upx(scale),
@@ -790,7 +773,7 @@ where
         }
     }
 
-    fn from_upx(px: Self::UPx, scale: kludgine::figures::Fraction) -> Self {
+    fn from_upx(px: Self::UPx, scale: figures::Fraction) -> Self {
         Self {
             color: px.color,
             offset: Point::from_upx(px.offset, scale),
@@ -799,7 +782,7 @@ where
         }
     }
 
-    fn into_lp(self, scale: kludgine::figures::Fraction) -> Self::Lp {
+    fn into_lp(self, scale: figures::Fraction) -> Self::Lp {
         ContainerShadow {
             color: self.color,
             offset: self.offset.into_lp(scale),
@@ -808,7 +791,7 @@ where
         }
     }
 
-    fn from_lp(lp: Self::Lp, scale: kludgine::figures::Fraction) -> Self {
+    fn from_lp(lp: Self::Lp, scale: figures::Fraction) -> Self {
         Self {
             color: lp.color,
             offset: Point::from_lp(lp.offset, scale),

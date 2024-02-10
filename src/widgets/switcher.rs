@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
-use kludgine::figures::Size;
+use figures::Size;
 
-use crate::context::{AsEventContext, LayoutContext};
-use crate::value::{Dynamic, DynamicReader, IntoDynamic};
+use crate::context::LayoutContext;
+use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoReader, Source};
 use crate::widget::{WidgetInstance, WidgetRef, WrapperWidget};
 use crate::ConstraintLimit;
 
@@ -36,8 +36,8 @@ impl Switcher {
     /// Returns a new widget that replaces its contents with the result of
     /// `widget_factory` each time `value` changes.
     #[must_use]
-    pub fn new(source: impl IntoDynamic<WidgetInstance>) -> Self {
-        let mut source = source.into_dynamic().into_reader();
+    pub fn new(source: impl IntoReader<WidgetInstance>) -> Self {
+        let source = source.into_reader();
         let child = WidgetRef::new(source.get());
         Self { source, child }
     }
@@ -52,13 +52,11 @@ impl WrapperWidget for Switcher {
     fn adjust_child_constraints(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<ConstraintLimit> {
         if self.source.has_updated() {
-            let removed = std::mem::replace(&mut self.child, WidgetRef::new(self.source.get()));
-            if let WidgetRef::Mounted(removed) = removed {
-                context.remove_child(&removed);
-            }
+            self.child.unmount_in(context);
+            self.child = WidgetRef::new(self.source.get());
         }
         context.invalidate_when_changed(&self.source);
         available_space

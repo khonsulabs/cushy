@@ -1,24 +1,22 @@
-use gooey::value::{Dynamic, Validations};
-use gooey::widget::MakeWidget;
-use gooey::widgets::input::InputValue;
-use gooey::Run;
-use kludgine::figures::units::Lp;
+use cushy::value::{Destination, Dynamic, Validations};
+use cushy::widget::MakeWidget;
+use cushy::widgets::input::InputValue;
+use cushy::Run;
+use figures::units::Lp;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let text = Dynamic::default();
     let validations = Validations::default();
 
     "Hinted"
         .and(
-            text.clone()
-                .into_input()
+            text.to_input()
                 .validation(validations.validate(&text, validate_input))
                 .hint("* required"),
         )
         .and("Not Hinted")
         .and(
-            text.clone()
-                .into_input()
+            text.to_input()
                 .validation(validations.validate(&text, validate_input)),
         )
         .and(

@@ -1,17 +1,16 @@
-use gooey::value::Dynamic;
-use gooey::widget::MakeWidget;
-use gooey::widgets::checkbox::Checkable;
-use gooey::Run;
+use cushy::value::Dynamic;
+use cushy::widget::MakeWidget;
+use cushy::widgets::checkbox::Checkable;
+use cushy::Run;
 
 const EXPLANATION: &str =
     "The collapse widget allows showing and hiding another widget based on a Dynamic<bool>.";
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let collapse = Dynamic::new(false);
 
     collapse
-        .clone()
-        .into_checkbox("Collapse")
+        .to_checkbox("Collapse")
         .and(
             "Content Above"
                 .contain()

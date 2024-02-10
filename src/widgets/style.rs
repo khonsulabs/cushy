@@ -11,7 +11,7 @@ use crate::styles::components::{
 use crate::styles::{
     ComponentDefinition, IntoComponentValue, IntoDynamicComponentValue, StoredComponent, Styles,
 };
-use crate::value::{IntoValue, Value};
+use crate::value::{Destination, IntoValue, Mutable, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 
 /// A widget that applies a set of [`Styles`] to all contained widgets.
@@ -31,9 +31,9 @@ impl Style {
         }
     }
 
-    fn map_styles_mut<R>(&mut self, map: impl FnOnce(&mut Styles) -> R) -> R {
+    fn map_styles_mut<R>(&mut self, map: impl FnOnce(Mutable<'_, Styles>) -> R) -> R {
         match &mut self.styles {
-            Value::Constant(styles) => map(styles),
+            Value::Constant(styles) => map(Mutable::from(styles)),
             Value::Dynamic(dynamic) => dynamic.map_mut(map),
         }
     }
@@ -48,7 +48,7 @@ impl Style {
     where
         Value<C::ComponentType>: IntoComponentValue,
     {
-        self.map_styles_mut(|styles| {
+        self.map_styles_mut(|mut styles| {
             styles.insert(name, component.into_value());
         });
         self
@@ -64,7 +64,7 @@ impl Style {
     where
         Value<C::ComponentType>: IntoComponentValue,
     {
-        self.map_styles_mut(|styles| {
+        self.map_styles_mut(|mut styles| {
             styles.insert_named(
                 name.name().into_owned(),
                 StoredComponent::local(component.into_value()),
@@ -84,7 +84,7 @@ impl Style {
     where
         Value<C::ComponentType>: IntoComponentValue,
     {
-        self.map_styles_mut(|styles| {
+        self.map_styles_mut(|mut styles| {
             styles.insert_dynamic(name, dynamic);
         });
         self
@@ -206,7 +206,7 @@ impl WrapperWidget for Style {
         &mut self.child
     }
 
-    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn mounted(&mut self, context: &mut EventContext<'_>) {
         context.attach_styles(self.styles.clone());
     }
 }

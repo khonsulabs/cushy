@@ -1,12 +1,12 @@
 use std::ops::{Deref, DerefMut};
 
 use ahash::AHashSet;
-use kludgine::cosmic_text::FamilyOwned;
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{
+use figures::units::{Px, UPx};
+use figures::{
     self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
 };
-use kludgine::render::Renderer;
+use kludgine::cosmic_text::FamilyOwned;
+use kludgine::drawing::Renderer;
 use kludgine::shapes::Shape;
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{
@@ -66,6 +66,12 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         )
     }
 
+    /// Sets the current font family.
+    pub fn set_font_family(&mut self, family: cosmic_text::FamilyOwned) {
+        self.font_state.current_font_family = None;
+        self.renderer.set_font_family(family);
+    }
+
     /// Returns the first font family in `list` that is currently in the font
     /// system, or None if no font families match.
     pub fn find_available_font_family(&mut self, list: &FontFamilyList) -> Option<FamilyOwned> {
@@ -75,10 +81,10 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     /// Sets the font family to the first family in `list`.
     pub fn set_available_font_family(&mut self, list: &FontFamilyList) {
         if self.font_state.current_font_family.as_ref() != Some(list) {
-            self.font_state.current_font_family = Some(list.clone());
             if let Some(family) = self.find_available_font_family(list) {
                 self.set_font_family(family);
             }
+            self.font_state.current_font_family = Some(list.clone());
         }
     }
 
@@ -302,6 +308,19 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         );
         text.translation += Point::<Unit>::from_px(self.translation(), self.scale());
         self.renderer.draw_measured_text(text, origin);
+    }
+
+    /// Returns this renderer as a
+    /// [`DrawingArea`](plotters::drawing::DrawingArea) compatible with the
+    /// [plotters](https://github.com/plotters-rs/plotters) crate.
+    #[cfg(feature = "plotters")]
+    pub fn as_plot_area(
+        &mut self,
+    ) -> plotters::drawing::DrawingArea<
+        kludgine::drawing::PlotterBackend<'_, 'gfx, 'pass>,
+        plotters::coord::Shift,
+    > {
+        self.renderer.as_plot_area()
     }
 }
 

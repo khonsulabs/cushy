@@ -3,15 +3,14 @@ use std::sync::{Arc, Mutex, Weak};
 
 use ahash::AHashMap;
 use alot::{LotId, Lots};
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, Rect, Size};
+use figures::units::{Px, UPx};
+use figures::{Point, Rect, Size};
 
-use crate::context::sealed::WindowHandle;
 use crate::styles::{Styles, ThemePair, VisualOrder};
 use crate::utils::IgnorePoison;
 use crate::value::Value;
 use crate::widget::{MountedWidget, WidgetId, WidgetInstance};
-use crate::window::ThemeMode;
+use crate::window::{ThemeMode, WindowHandle};
 use crate::ConstraintLimit;
 
 #[derive(Clone, Default)]
@@ -84,15 +83,17 @@ impl Tree {
 
         let node = &mut data.nodes[widget];
         node.layout = Some(rect);
-        let mut children_to_offset = node.children.clone();
-        while let Some(child) = children_to_offset.pop() {
-            if let Some(layout) = data
-                .nodes
-                .get_mut(child)
-                .and_then(|child| child.layout.as_mut())
-            {
-                layout.origin += rect.origin;
-                children_to_offset.extend(data.nodes[child].children.iter().copied());
+        if !node.children.is_empty() {
+            let mut children_to_offset = node.children.clone();
+            while let Some(child) = children_to_offset.pop() {
+                if let Some(layout) = data
+                    .nodes
+                    .get_mut(child)
+                    .and_then(|child| child.layout.as_mut())
+                {
+                    layout.origin += rect.origin;
+                    children_to_offset.extend(data.nodes[child].children.iter().copied());
+                }
             }
         }
     }
@@ -175,9 +176,12 @@ impl Tree {
 
             let mut index = 0;
             while index < unordered.len() {
-                let Some(layout) = &data.nodes[unordered[index]].layout else {
-                    unordered.remove(index);
-                    continue;
+                let layout = match &data.nodes[unordered[index]].layout {
+                    Some(layout) if layout.size.width > 0 && layout.size.height > 0 => layout,
+                    _ => {
+                        unordered.remove(index);
+                        continue;
+                    }
                 };
                 let top = layout.origin.y;
                 let bottom = top + layout.size.height;
@@ -239,7 +243,7 @@ impl Tree {
                     // For any widgets that were shared, remove them, as they don't
                     // need to have their events fired again.
                     let mut new_index = 0;
-                    while !old_hovered.is_empty() && old_hovered.get(0) == hovered.get(new_index) {
+                    while !old_hovered.is_empty() && old_hovered.first() == hovered.get(new_index) {
                         old_hovered.remove(0);
                         new_index += 1;
                     }
@@ -394,6 +398,20 @@ impl Tree {
             .lock()
             .ignore_poison()
             .invalidate(id, include_hierarchy);
+    }
+}
+
+impl Eq for Tree {}
+
+impl PartialEq for Tree {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.data, &other.data)
+    }
+}
+
+impl PartialEq<WeakTree> for Tree {
+    fn eq(&self, other: &WeakTree) -> bool {
+        Arc::as_ptr(&self.data) == Weak::as_ptr(&other.0)
     }
 }
 

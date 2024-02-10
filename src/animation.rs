@@ -1,6 +1,6 @@
 //! Types for creating animations.
 //!
-//! Animations in Gooey are performed by transitioning a [`Dynamic`]'s contained
+//! Animations in Cushy are performed by transitioning a [`Dynamic`]'s contained
 //! value over time. This starts with [`Dynamic::transition_to()`], which
 //! returns a [`DynamicTransition`].
 //!
@@ -17,9 +17,9 @@
 //! ```rust
 //! use std::time::Duration;
 //!
-//! use gooey::animation::easings::EaseInOutElastic;
-//! use gooey::animation::{AnimationTarget, Spawn};
-//! use gooey::value::Dynamic;
+//! use cushy::animation::easings::EaseInOutElastic;
+//! use cushy::animation::{AnimationTarget, Spawn};
+//! use cushy::value::{Dynamic, Source};
 //!
 //! let value = Dynamic::new(0);
 //! let mut reader = value.create_reader();
@@ -48,16 +48,16 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use alot::{LotId, Lots};
+use figures::units::{Lp, Px, UPx};
+use figures::{Angle, Point, Ranged, Rect, Size, UnscaledUnit, Zero};
 use intentional::Cast;
 use kempt::Set;
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Angle, Ranged, UnscaledUnit, Zero};
 use kludgine::Color;
 
 use crate::animation::easings::Linear;
 use crate::styles::{Component, RequireInvalidation};
 use crate::utils::{run_in_bg, IgnorePoison};
-use crate::value::Dynamic;
+use crate::value::{Destination, Dynamic, Source};
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
 static NEW_ANIMATIONS: Condvar = Condvar::new();
@@ -344,6 +344,14 @@ pub trait IntoAnimate: Sized + Send + Sync {
 
     /// Return this change as a running animation.
     fn into_animate(self) -> Self::Animate;
+
+    /// Returns a clone of this change as a running animation.
+    fn to_animate(&self) -> Self::Animate
+    where
+        Self: Clone,
+    {
+        self.clone().into_animate()
+    }
 
     /// Returns an combined animation that performs `self` and `other` in
     /// sequence.
@@ -674,7 +682,7 @@ where
             }
 
             if self.keep_cycling() {
-                self.running = Some(self.animation.clone().into_animate());
+                self.running = Some(self.animation.to_animate());
             } else {
                 self.running = None;
                 return ControlFlow::Break(elapsed);
@@ -775,8 +783,8 @@ impl Animate for Duration {
 /// the wrappers [`BinaryLerp`] and [`ImmediateLerp`] can be used.
 ///
 /// ```
-/// use gooey::animation::{BinaryLerp, ImmediateLerp, LinearInterpolate};
-/// use gooey::kludgine::Color;
+/// use cushy::animation::{BinaryLerp, ImmediateLerp, LinearInterpolate};
+/// use cushy::kludgine::Color;
 ///
 /// #[derive(LinearInterpolate, PartialEq, Debug)]
 /// struct Struct(Color, BinaryLerp<&'static str>, ImmediateLerp<&'static str>);
@@ -811,7 +819,7 @@ pub trait LinearInterpolate: PartialEq {
 }
 
 /// Derives [`LinerarInterpolate`](trait@LinearInterpolate) for structs and fieldless enums.
-pub use gooey_macros::LinearInterpolate;
+pub use cushy_macros::LinearInterpolate;
 
 macro_rules! impl_lerp_for_int {
     ($type:ident, $unsigned:ident, $float:ident) => {
@@ -920,6 +928,42 @@ macro_rules! impl_unscaled_lerp {
 impl_unscaled_lerp!(Px);
 impl_unscaled_lerp!(Lp);
 impl_unscaled_lerp!(UPx);
+
+impl<Unit> LinearInterpolate for Point<Unit>
+where
+    Unit: LinearInterpolate,
+{
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        Self::new(
+            self.x.lerp(&target.x, percent),
+            self.y.lerp(&target.y, percent),
+        )
+    }
+}
+
+impl<Unit> LinearInterpolate for Size<Unit>
+where
+    Unit: LinearInterpolate,
+{
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        Self::new(
+            self.width.lerp(&target.width, percent),
+            self.height.lerp(&target.height, percent),
+        )
+    }
+}
+
+impl<Unit> LinearInterpolate for Rect<Unit>
+where
+    Unit: LinearInterpolate,
+{
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        Self::new(
+            self.origin.lerp(&target.origin, percent),
+            self.size.lerp(&target.size, percent),
+        )
+    }
+}
 
 #[test]
 fn integer_lerps() {
@@ -1146,6 +1190,21 @@ impl ZeroToOne {
     pub fn one_minus(self) -> Self {
         Self(1. - self.0)
     }
+
+    fn checked_div<Float: PossiblyNaN>(&mut self, rhs: Float) {
+        let rhs = rhs.into();
+        if Float::CAN_BE_NAN {
+            assert!(!rhs.is_nan());
+        }
+        if rhs > 0. {
+            self.0 = (self.0 / rhs).clamp(0., 1.);
+        } else if *self > 0. {
+            // The limit of f(x) -> x/0 is infinity, but the highest value we
+            // can represent is 1.0.
+            *self = Self::ONE;
+        }
+        // If both lhs and rhs are 0, this is a noop.
+    }
 }
 
 impl Zero for ZeroToOne {
@@ -1171,12 +1230,28 @@ impl FromStr for ZeroToOne {
 }
 
 impl From<f32> for ZeroToOne {
+    /// Returns a `ZeroToOne` clamped between 0.0 and 1.0.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `value` is not a number.
     fn from(value: f32) -> Self {
         Self::new(value)
     }
 }
 
+impl From<ZeroToOne> for f32 {
+    fn from(value: ZeroToOne) -> Self {
+        value.0
+    }
+}
+
 impl From<f64> for ZeroToOne {
+    /// Returns a `ZeroToOne` clamped between 0.0 and 1.0.
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `value` is not a number.
     fn from(value: f64) -> Self {
         Self::new(value.cast())
     }
@@ -1258,23 +1333,63 @@ impl MulAssign for ZeroToOne {
 impl Div for ZeroToOne {
     type Output = Self;
 
-    fn div(self, rhs: Self) -> Self::Output {
-        self / rhs.0
+    /// Divides `self` by `rhs`.
+    ///
+    /// If `rhs` is `0.`, the result will be [`ZeroToOne::ONE`].
+    fn div(mut self, rhs: Self) -> Self::Output {
+        self /= rhs;
+        self
     }
 }
 
 impl DivAssign for ZeroToOne {
+    /// Divides `self` by `rhs`.
+    ///
+    /// If `rhs` is `0.`, the result will be [`ZeroToOne::ONE`].
     fn div_assign(&mut self, rhs: Self) {
-        self.0 /= rhs.0;
+        self.checked_div(rhs);
     }
 }
 
 impl Div<f32> for ZeroToOne {
     type Output = Self;
 
-    fn div(self, rhs: f32) -> Self::Output {
-        Self(self.0 / rhs)
+    /// Divides `self` by `rhs`.
+    ///
+    /// If `rhs` is `0.`, the result will be [`ZeroToOne::ONE`].
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `rhs` is not a number.
+    fn div(mut self, rhs: f32) -> Self::Output {
+        self /= rhs;
+        self
     }
+}
+
+impl DivAssign<f32> for ZeroToOne {
+    /// Divides `self` by `rhs`.
+    ///
+    /// If `rhs` is `0.`, the result will be [`ZeroToOne::ONE`].
+    ///
+    /// # Panics
+    ///
+    /// This function panics if `rhs` is not a number.
+    fn div_assign(&mut self, rhs: f32) {
+        self.checked_div(rhs);
+    }
+}
+
+trait PossiblyNaN: Into<f32> {
+    const CAN_BE_NAN: bool;
+}
+
+impl PossiblyNaN for ZeroToOne {
+    const CAN_BE_NAN: bool = false;
+}
+
+impl PossiblyNaN for f32 {
+    const CAN_BE_NAN: bool = true;
 }
 
 impl Ranged for ZeroToOne {
@@ -1303,6 +1418,21 @@ impl From<ZeroToOne> for Component {
     fn from(value: ZeroToOne) -> Self {
         Component::Percent(value)
     }
+}
+
+#[test]
+fn zero_to_one_div() {
+    std::panic::catch_unwind(|| ZeroToOne::ONE / f32::NAN).expect_err("div by nan");
+    let mut value = ZeroToOne::ONE;
+    std::panic::catch_unwind(move || value /= f32::NAN).expect_err("div by nan");
+
+    assert_eq!(ZeroToOne::ZERO / ZeroToOne::ZERO, ZeroToOne::ZERO);
+    assert_eq!(ZeroToOne::new(0.5) / ZeroToOne::ZERO, ZeroToOne::ONE);
+    assert_eq!(ZeroToOne::ZERO / 0., ZeroToOne::ZERO);
+    assert_eq!(ZeroToOne::new(0.5) / 0., ZeroToOne::ONE);
+
+    assert_eq!(ZeroToOne::ONE / 0.5, ZeroToOne::ONE);
+    assert_eq!(ZeroToOne::ONE / -0.5, ZeroToOne::ONE);
 }
 
 /// An easing function for customizing animations.

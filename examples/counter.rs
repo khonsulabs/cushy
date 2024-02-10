@@ -1,15 +1,13 @@
-use std::string::ToString;
+use cushy::value::{Dynamic, IntoReader};
+use cushy::widget::MakeWidget;
+use cushy::Run;
+use figures::units::Lp;
 
-use gooey::value::Dynamic;
-use gooey::widget::MakeWidget;
-use gooey::Run;
-use kludgine::figures::units::Lp;
-
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let counter = Dynamic::new(0i32);
-    let label = counter.map_each(ToString::to_string);
 
-    label
+    counter
+        .to_label()
         .width(Lp::points(100))
         .and("+".into_button().on_click(counter.with_clone(|counter| {
             move |_| {

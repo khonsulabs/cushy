@@ -1,0 +1,14 @@
+[book]
+authors = ["Jonathan Johnson"]
+language = "en"
+multilingual = false
+src = "src"
+title = "Cushy User's Guide"
+
+[build]
+build-dir = "../target/guide"
+extra-watch-dirs = ["./guide-examples/"]
+
+[preprocessor.variables.variables]
+docs = "https://cushy.rs/main/docs/cushy"
+src = "https://github.com/khonsulabs/cushy/tree/main"

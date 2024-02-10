@@ -1,10 +1,10 @@
 //! A clickable, labeled button
 use std::time::Duration;
 
-use kludgine::app::winit::event::{DeviceId, ElementState, KeyEvent, MouseButton};
+use figures::units::{Lp, Px, UPx};
+use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size};
+use kludgine::app::winit::event::MouseButton;
 use kludgine::app::winit::window::CursorIcon;
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
 
@@ -13,13 +13,15 @@ use crate::context::{
     AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetCacheKey, WidgetContext,
 };
 use crate::styles::components::{
-    AutoFocusableControls, Easing, HighlightColor, IntrinsicPadding, OpaqueWidgetColor,
-    OutlineColor, SurfaceColor, TextColor,
+    AutoFocusableControls, DefaultActiveBackgroundColor, DefaultActiveForegroundColor,
+    DefaultBackgroundColor, DefaultDisabledBackgroundColor, DefaultDisabledForegroundColor,
+    DefaultForegroundColor, DefaultHoveredBackgroundColor, DefaultHoveredForegroundColor, Easing,
+    HighlightColor, IntrinsicPadding, OpaqueWidgetColor, OutlineColor, SurfaceColor, TextColor,
 };
 use crate::styles::{ColorExt, Styles};
-use crate::utils::ModifiersExt;
-use crate::value::{Dynamic, IntoValue, Value};
-use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
+use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
+use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED};
+use crate::window::{DeviceId, WindowLocal};
 use crate::FitMeasuredSize;
 
 /// A clickable button.
@@ -32,13 +34,18 @@ pub struct Button {
     /// The kind of button to draw.
     pub kind: Value<ButtonKind>,
     focusable: bool,
+    per_window: WindowLocal<PerWindow>,
+}
+
+#[derive(Debug, Default)]
+struct PerWindow {
     buttons_pressed: usize,
     cached_state: CacheState,
     active_colors: Option<Dynamic<ButtonColors>>,
     color_animation: AnimationHandle,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Default, Debug, Eq, PartialEq, Clone, Copy)]
 struct CacheState {
     key: WidgetCacheKey,
     kind: ButtonKind,
@@ -64,51 +71,51 @@ impl ButtonKind {
     pub fn colors_for_default(
         self,
         visual_state: VisualState,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
     ) -> ButtonColors {
         match self {
             ButtonKind::Solid => match visual_state {
                 VisualState::Normal => ButtonColors {
-                    background: context.theme().primary.color,
-                    foreground: context.theme().primary.on_color,
+                    background: context.get(&DefaultBackgroundColor),
+                    foreground: context.get(&DefaultForegroundColor),
                     outline: context.get(&ButtonOutline),
                 },
                 VisualState::Hovered => ButtonColors {
-                    background: context.theme().primary.color_bright,
-                    foreground: context.theme().primary.on_color,
+                    background: context.get(&DefaultHoveredBackgroundColor),
+                    foreground: context.get(&DefaultHoveredForegroundColor),
                     outline: context.get(&ButtonHoverOutline),
                 },
                 VisualState::Active => ButtonColors {
-                    background: context.theme().primary.color_dim,
-                    foreground: context.theme().primary.on_color,
+                    background: context.get(&DefaultActiveBackgroundColor),
+                    foreground: context.get(&DefaultActiveForegroundColor),
                     outline: context.get(&ButtonActiveOutline),
                 },
                 VisualState::Disabled => ButtonColors {
-                    background: context.theme().primary.color_dim,
-                    foreground: context.theme().primary.on_color,
+                    background: context.get(&DefaultDisabledBackgroundColor),
+                    foreground: context.get(&DefaultDisabledForegroundColor),
                     outline: context.get(&ButtonDisabledOutline),
                 },
             },
             ButtonKind::Outline | ButtonKind::Transparent => match visual_state {
                 VisualState::Normal => ButtonColors {
                     background: context.get(&ButtonOutline),
-                    foreground: context.theme().primary.color,
-                    outline: context.theme().primary.color,
+                    foreground: context.get(&DefaultBackgroundColor),
+                    outline: context.get(&DefaultBackgroundColor),
                 },
                 VisualState::Hovered => ButtonColors {
                     background: context.get(&ButtonHoverOutline),
-                    foreground: context.theme().primary.color,
-                    outline: context.theme().primary.color_bright,
+                    foreground: context.get(&DefaultHoveredBackgroundColor),
+                    outline: context.get(&DefaultHoveredBackgroundColor),
                 },
                 VisualState::Active => ButtonColors {
                     background: context.get(&ButtonActiveOutline),
-                    foreground: context.theme().primary.color,
-                    outline: context.theme().surface.color,
+                    foreground: context.get(&DefaultActiveBackgroundColor),
+                    outline: context.get(&DefaultActiveBackgroundColor),
                 },
                 VisualState::Disabled => ButtonColors {
                     background: context.get(&ButtonDisabledOutline),
-                    foreground: context.theme().primary.on_color,
-                    outline: context.theme().primary.color_dim,
+                    foreground: context.get(&DefaultDisabledBackgroundColor),
+                    outline: context.get(&DefaultDisabledBackgroundColor),
                 },
             },
         }
@@ -132,14 +139,8 @@ impl Button {
         Self {
             content: content.widget_ref(),
             on_click: None,
-            cached_state: CacheState {
-                key: WidgetCacheKey::default(),
-                kind: ButtonKind::default(),
-            },
-            buttons_pressed: 0,
-            active_colors: None,
+            per_window: WindowLocal::default(),
             kind: Value::Constant(ButtonKind::default()),
-            color_animation: AnimationHandle::default(),
             focusable: true,
         }
     }
@@ -170,7 +171,7 @@ impl Button {
         self
     }
 
-    fn invoke_on_click(&mut self, context: &WidgetContext<'_, '_>) {
+    fn invoke_on_click(&mut self, context: &WidgetContext<'_>) {
         if context.enabled() {
             if let Some(on_click) = self.on_click.as_mut() {
                 on_click.invoke(());
@@ -178,7 +179,7 @@ impl Button {
         }
     }
 
-    fn visual_style(context: &WidgetContext<'_, '_>) -> VisualState {
+    fn visual_style(context: &WidgetContext<'_>) -> VisualState {
         if !context.enabled() {
             VisualState::Disabled
         } else if context.active() {
@@ -194,7 +195,7 @@ impl Button {
     #[must_use]
     pub fn colors_for_transparent(
         visual_state: VisualState,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
     ) -> ButtonColors {
         match visual_state {
             VisualState::Normal => ButtonColors {
@@ -224,11 +225,13 @@ impl Button {
         }
     }
 
-    fn determine_stateful_colors(&mut self, context: &mut WidgetContext<'_, '_>) -> ButtonColors {
+    fn determine_stateful_colors(&mut self, context: &mut WidgetContext<'_>) -> ButtonColors {
         let kind = self.kind.get_tracking_redraw(context);
         let visual_state = Self::visual_style(context);
 
-        self.cached_state = CacheState {
+        let window_local = self.per_window.entry(context).or_default();
+
+        window_local.cached_state = CacheState {
             key: context.cache_key(),
             kind,
         };
@@ -244,35 +247,48 @@ impl Button {
         }
     }
 
-    fn update_colors(&mut self, context: &mut WidgetContext<'_, '_>, immediate: bool) {
+    fn update_colors(&mut self, context: &mut WidgetContext<'_>, immediate: bool) {
         let new_style = self.determine_stateful_colors(context);
+        let window_local = self.per_window.entry(context).or_default();
 
-        match (immediate, &self.active_colors) {
+        match (immediate, &window_local.active_colors) {
             (false, Some(style)) => {
-                self.color_animation = (style.transition_to(new_style))
+                window_local.color_animation = (style.transition_to(new_style))
                     .over(Duration::from_millis(150))
                     .with_easing(context.get(&Easing))
                     .spawn();
             }
             (true, Some(style)) => {
                 style.set(new_style);
-                self.color_animation.clear();
+                window_local.color_animation.clear();
             }
             _ => {
                 let new_style = Dynamic::new(new_style);
                 let foreground = new_style.map_each(|s| s.foreground);
-                self.active_colors = Some(new_style);
+                window_local.active_colors = Some(new_style);
                 context.attach_styles(Styles::new().with(&TextColor, foreground));
             }
         }
     }
 
-    fn current_style(&mut self, context: &mut WidgetContext<'_, '_>) -> ButtonColors {
-        if self.active_colors.is_none() {
+    fn current_style(&mut self, context: &mut WidgetContext<'_>) -> ButtonColors {
+        if self
+            .per_window
+            .entry(context)
+            .or_default()
+            .active_colors
+            .is_none()
+        {
             self.update_colors(context, false);
         }
 
-        let style = self.active_colors.as_ref().expect("always initialized");
+        let style = self
+            .per_window
+            .entry(context)
+            .or_default()
+            .active_colors
+            .as_ref()
+            .expect("always initialized");
         context.redraw_when_changed(style);
         style.get()
     }
@@ -302,7 +318,7 @@ impl VisualState {
     /// Returns the colors to apply to a [`ButtonKind::Solid`] [`Button`] or
     /// button-like widget.
     #[must_use]
-    pub fn solid_colors(self, context: &WidgetContext<'_, '_>) -> ButtonColors {
+    pub fn solid_colors(self, context: &WidgetContext<'_>) -> ButtonColors {
         match self {
             VisualState::Normal => ButtonColors {
                 background: context.get(&ButtonBackground),
@@ -330,7 +346,7 @@ impl VisualState {
     /// Returns the colors to apply to a [`ButtonKind::Outline`] [`Button`] or
     /// button-like widget.
     #[must_use]
-    pub fn outline_colors(self, context: &WidgetContext<'_, '_>) -> ButtonColors {
+    pub fn outline_colors(self, context: &WidgetContext<'_>) -> ButtonColors {
         let solid = self.solid_colors(context);
         ButtonColors {
             background: solid.outline,
@@ -348,11 +364,14 @@ impl Widget for Button {
             .finish()
     }
 
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         #![allow(clippy::similar_names)]
 
         let current_style = self.kind.get_tracking_redraw(context);
-        if self.cached_state.key != context.cache_key() || self.cached_state.kind != current_style {
+        let window_local = self.per_window.entry(context).or_default();
+        if window_local.cached_state.key != context.cache_key()
+            || window_local.cached_state.kind != current_style
+        {
             self.update_colors(context, false);
         }
 
@@ -370,7 +389,7 @@ impl Widget for Button {
                 // colors. most_contrasting from a 0-alpha color is not a
                 // meaningful measurement, so we only start measuring contrast
                 // once we reach 50% opacity. If we ever add solid background
-                // tracking (<https://github.com/khonsulabs/gooey/issues/73>),
+                // tracking (<https://github.com/khonsulabs/cushy/issues/73>),
                 // we should use that color for most_contrasting always.
                 let color = if style.background.alpha() > 128 {
                     style
@@ -398,11 +417,11 @@ impl Widget for Button {
         context.for_other(&content).redraw();
     }
 
-    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
         true
     }
 
-    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, context: &mut EventContext<'_>) -> bool {
         self.focusable && context.enabled() && context.get(&AutoFocusableControls).is_all()
     }
 
@@ -411,9 +430,9 @@ impl Widget for Button {
         _location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
-        self.buttons_pressed += 1;
+        self.per_window.entry(context).or_default().buttons_pressed += 1;
         context.activate();
         HANDLED
     }
@@ -423,7 +442,7 @@ impl Widget for Button {
         location: Point<Px>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         let changed = if Rect::from(context.last_layout().expect("must have been rendered").size)
             .contains(location)
@@ -443,10 +462,11 @@ impl Widget for Button {
         location: Option<Point<Px>>,
         _device_id: DeviceId,
         _button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
-        self.buttons_pressed -= 1;
-        if self.buttons_pressed == 0 {
+        let window_local = self.per_window.entry(context).or_default();
+        window_local.buttons_pressed -= 1;
+        if window_local.buttons_pressed == 0 {
             context.deactivate();
 
             if let (true, Some(location)) = (self.focusable, location) {
@@ -464,14 +484,14 @@ impl Widget for Button {
     fn layout(
         &mut self,
         available_space: Size<crate::ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         let padding = context
             .get(&IntrinsicPadding)
             .into_upx(context.gfx.scale())
             .round();
         let double_padding = padding * 2;
-        let mounted = self.content.mounted(&mut context.as_event_context());
+        let mounted = self.content.mounted(context);
         let available_space = available_space.map(|space| space - double_padding);
         let size = context.for_other(&mounted).layout(available_space);
         let size = available_space.fit_measured(size, context.gfx.scale());
@@ -482,42 +502,14 @@ impl Widget for Button {
         size + double_padding
     }
 
-    fn keyboard_input(
-        &mut self,
-        _device_id: DeviceId,
-        input: KeyEvent,
-        _is_synthetic: bool,
-        context: &mut EventContext<'_, '_>,
-    ) -> EventHandling {
-        if input.text.as_deref() == Some(" ") && !context.modifiers().possible_shortcut() {
-            let changed = match input.state {
-                ElementState::Pressed => {
-                    let changed = context.activate();
-                    if !changed {
-                        // The widget was already active. This is now a repeated keypress
-                        self.invoke_on_click(context);
-                    }
-                    changed
-                }
-                ElementState::Released => context.deactivate(),
-            };
-            if changed {
-                context.set_needs_redraw();
-            }
-            HANDLED
-        } else {
-            IGNORED
-        }
-    }
-
-    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unhover(&mut self, context: &mut EventContext<'_>) {
         self.update_colors(context, false);
     }
 
     fn hover(
         &mut self,
         _location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<CursorIcon> {
         self.update_colors(context, false);
 
@@ -528,25 +520,30 @@ impl Widget for Button {
         }
     }
 
-    fn focus(&mut self, context: &mut EventContext<'_, '_>) {
+    fn focus(&mut self, context: &mut EventContext<'_>) {
         context.set_needs_redraw();
     }
 
-    fn blur(&mut self, context: &mut EventContext<'_, '_>) {
+    fn blur(&mut self, context: &mut EventContext<'_>) {
         context.set_needs_redraw();
     }
 
-    fn activate(&mut self, context: &mut EventContext<'_, '_>) {
+    fn activate(&mut self, context: &mut EventContext<'_>) {
+        let window_local = self.per_window.entry(context).or_default();
         // If we have no buttons pressed, the event should fire on activate not
         // on deactivate.
-        if self.buttons_pressed == 0 {
+        if window_local.buttons_pressed == 0 {
             self.invoke_on_click(context);
         }
         self.update_colors(context, true);
     }
 
-    fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {
+    fn deactivate(&mut self, context: &mut EventContext<'_>) {
         self.update_colors(context, false);
+    }
+
+    fn unmounted(&mut self, context: &mut EventContext<'_>) {
+        self.content.unmount_in(context);
     }
 }
 

@@ -1,16 +1,16 @@
-use gooey::value::Dynamic;
-use gooey::widget::MakeWidget;
-use gooey::Run;
+use cushy::value::{Destination, Dynamic, IntoReader, Source};
+use cushy::widget::MakeWidget;
+use cushy::Run;
 
 // begin rustme snippet: readme
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     // Create a dynamic usize.
     let count = Dynamic::new(0_isize);
-    // Create a dynamic that contains `count.to_string()`
-    let count_label = count.map_each(ToString::to_string);
 
-    // Create a new button whose text is our dynamic string.
-    count_label
+    // Create a new label displaying `count`
+    count
+        .to_label()
+        // Use the label as the contents of a button
         .into_button()
         // Set the `on_click` callback to a closure that increments the counter.
         .on_click(move |_| count.set(count.get() + 1))

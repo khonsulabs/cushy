@@ -1,12 +1,12 @@
-use gooey::value::Dynamic;
-use gooey::widget::{MakeWidget, WidgetInstance};
-use gooey::widgets::container::ContainerShadow;
-use gooey::window::ThemeMode;
-use gooey::Run;
-use kludgine::figures::units::Lp;
-use kludgine::figures::Point;
+use cushy::value::{Destination, Dynamic};
+use cushy::widget::{MakeWidget, WidgetInstance};
+use cushy::widgets::container::ContainerShadow;
+use cushy::window::ThemeMode;
+use cushy::Run;
+use figures::units::Lp;
+use figures::{Point, Zero};
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let theme_mode = Dynamic::default();
     set_of_containers(3, theme_mode.clone())
         .centered()
@@ -22,7 +22,7 @@ fn set_of_containers(repeat: usize, theme_mode: Dynamic<ThemeMode>) -> WidgetIns
         "Toggle Theme Mode"
             .into_button()
             .on_click(move |_| {
-                theme_mode.map_mut(|mode| mode.toggle());
+                theme_mode.map_mut(|mut mode| mode.toggle());
             })
             .make_widget()
     };

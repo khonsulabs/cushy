@@ -1,7 +1,7 @@
 //! All style components supported by the built-in widgets.
 
+use figures::units::Lp;
 use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
-use kludgine::figures::units::Lp;
 use kludgine::shapes::CornerRadii;
 use kludgine::Color;
 
@@ -9,18 +9,18 @@ use crate::animation::easings::{EaseInOutQuadradic, EaseInQuadradic, EaseOutQuad
 use crate::animation::{EasingFunction, ZeroToOne};
 use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
 
-/// Defines a set of style components for Gooey.
+/// Defines a set of style components for Cushy.
 ///
 /// These macros implement [`NamedComponent`](crate::styles::NamedComponent) and
 /// [`ComponentDefinition`](crate::styles::ComponentDefinition) for each entry
 /// defined. The syntax is:
 ///
 /// ```rust
-/// use gooey::define_components;
-/// use gooey::styles::Dimension;
-/// use gooey::styles::components::{SurfaceColor, TextColor};
-/// use gooey::kludgine::Color;
-/// use gooey::kludgine::figures::Zero;
+/// use cushy::define_components;
+/// use cushy::styles::Dimension;
+/// use cushy::styles::components::{SurfaceColor, TextColor};
+/// use cushy::kludgine::Color;
+/// use cushy::figures::Zero;
 ///
 /// define_components! {
 ///     GroupName {
@@ -39,7 +39,7 @@ use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
 /// ```
 #[macro_export]
 macro_rules! define_components {
-    ($($widget:ident { $($(#$doc:tt)* $component:ident($type:ty, $name:expr, $($default:tt)*))* })*) => {$($(
+    ($($widget:ident { $($(#$doc:tt)* $component:ident($type:ty, $name:expr $(, $($default:tt)*)?))* })*) => {$($(
         $(#$doc)*
         #[derive(Clone, Copy, Eq, PartialEq, Debug)]
         pub struct $component;
@@ -60,7 +60,7 @@ macro_rules! define_components {
             impl ComponentDefinition for $component {
                 type ComponentType = $type;
 
-                define_components!($type, $($default)*);
+                define_components!($type, $($($default)*)?);
             }
         };
 
@@ -69,7 +69,7 @@ macro_rules! define_components {
         define_components!($type, |context| context.theme().$($path)*);
     };
     ($type:ty, |$context:ident| $($expr:tt)*) => {
-        fn default_value(&self, $context: &WidgetContext<'_, '_>) -> $type {
+        fn default_value(&self, $context: &WidgetContext<'_>) -> $type {
             $($expr)*
         }
     };
@@ -84,7 +84,10 @@ macro_rules! define_components {
             ])
         });
     };
-    ($type:ty, $($expr:tt)*) => {
+    ($type:ty, ) => {
+        define_components!($type, |_context| <$type>::default());
+    };
+    ($type:ty, $($expr:tt)+) => {
         define_components!($type, |_context| $($expr)*);
     };
 }
@@ -154,6 +157,32 @@ define_components! {
         TertiaryColor(Color, "tertiary_color", .tertiary.color)
         /// The error color from the current theme.
         ErrorColor(Color, "error_color", .error.color)
+        /// The foreground color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default).
+        DefaultForegroundColor(Color, "default_foreground_color", .primary.on_color)
+        /// The background color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default).
+        DefaultBackgroundColor(Color, "default_background_color", .primary.color)
+        /// The foreground color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is hovered by
+        /// the cursor.
+        DefaultHoveredForegroundColor(Color, "default_hovered_foreground_color", @DefaultForegroundColor)
+        /// The background color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is hovered by
+        /// the cursor.
+        DefaultHoveredBackgroundColor(Color, "default_hovered_background_color", .primary.color_bright)
+        /// The foreground color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is activated.
+        DefaultActiveForegroundColor(Color, "default_active_foreground_color", .primary.on_color)
+        /// The background color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is activated.
+        DefaultActiveBackgroundColor(Color, "default_active_background_color", .primary.color_dim)
+        /// The foreground color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is disabled.
+        DefaultDisabledForegroundColor(Color, "default_disabled_foreground_color", .primary.on_color)
+        /// The background color to use when drawing a [default
+        /// widget](crate::widget::MakeWidget::into_default) that is disabled.
+        DefaultDisabledBackgroundColor(Color, "default_disabled_background_color", .primary.color_dim)
         /// Intrinsic, uniform padding for a widget.
         ///
         /// This component is opt-in and does not automatically work for all widgets.

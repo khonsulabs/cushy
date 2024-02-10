@@ -4,23 +4,52 @@ on: [push]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ["stable", "1.70.0"]
+        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
 
       - name: Install x11 dependencies for Kludgine
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update -y -qq
-          sudo add-apt-repository ppa:oibaf/graphics-drivers -y
+
+          # vulkan sdk
+          wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list
+
+          # install dependencies
           sudo apt-get update
           sudo apt-get install -y \
-            libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+            libegl-mesa0 libgl1-mesa-dri libxcb-xfixes0-dev vulkan-sdk mesa-vulkan-drivers
+
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.version }}
 
       - name: Run clippy
+        if: matrix.version == 'stable'
         run: |
           cargo clippy --all-features --all-targets
 
-      - name: Run default features unit tests
+      - name: Compile with all features
         run: |
-          cargo test --all-features --all-targets
+          cargo build --all-features --all-targets
+
+      - name: Run all features unit tests
+        # for msrv, we only check build compatibility, as it's possible bugs are
+        # fixed purely by updating the rust version.
+        if: matrix.version == 'stable'
+        run: |
+          cargo test --all-features --all-targets -- --nocapture
+        env:
+          # When running on Mac OS CI, it's pretty common to not get an adapter
+          # returned. We don't want errors specifically caused by not being able
+          # to create a wgpu Adapter to cause unit test failures on CI. Long
+          # term it would be nice to have a reliable way to run Mac CI with a
+          # GPU adapter available.
+          NO_ADAPTER: ${{ matrix.os == 'macos-latest' && 'github-ci' || '' }}

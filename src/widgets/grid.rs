@@ -6,13 +6,11 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 
 use alot::{LotId, OrderedLots};
+use figures::units::{Lp, UPx};
+use figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use intentional::{Assert, Cast};
-use kludgine::figures::units::{Lp, UPx};
-use kludgine::figures::{
-    Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size,
-};
 
-use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::Dimension;
 use crate::value::{Generation, IntoValue, Value};
@@ -69,12 +67,12 @@ impl<const ELEMENTS: usize> Grid<ELEMENTS> {
         self
     }
 
-    fn synchronize_specs(&mut self, context: &mut EventContext<'_, '_>) {
+    fn synchronize_specs(&mut self, context: &mut EventContext<'_>) {
         let current_generation = self.columns.generation();
-        if current_generation.map_or_else(
-            || self.layout.children.len() != ELEMENTS,
-            |gen| Some(gen) != self.spec_generation,
-        ) {
+        let count_changed = self.layout.children.len() != ELEMENTS;
+        if count_changed
+            || current_generation.map_or_else(|| true, |gen| Some(gen) != self.spec_generation)
+        {
             self.spec_generation = current_generation;
             self.columns.map(|columns| {
                 self.layout.truncate(0);
@@ -86,7 +84,7 @@ impl<const ELEMENTS: usize> Grid<ELEMENTS> {
         }
     }
 
-    fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
+    fn synchronize_children(&mut self, context: &mut EventContext<'_>) {
         self.synchronize_specs(context);
         let current_generation = self.rows.generation();
         self.rows.invalidate_when_changed(context);
@@ -134,7 +132,7 @@ impl<const ELEMENTS: usize> Grid<ELEMENTS> {
 }
 
 impl<const COLUMNS: usize> Widget for Grid<COLUMNS> {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         for (row, widgets) in self.live_rows.iter_mut().enumerate() {
             if self.layout.others[row] > 0 {
                 for (column, cell) in widgets.iter().enumerate() {
@@ -149,7 +147,7 @@ impl<const COLUMNS: usize> Widget for Grid<COLUMNS> {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         self.synchronize_children(&mut context.as_event_context());
 
@@ -383,7 +381,7 @@ impl GridLayout {
         scale: Fraction,
         mut measure: impl FnMut(usize, usize, Size<ConstraintLimit>, bool) -> Size<UPx>,
     ) -> Size<UPx> {
-        let (space_constraint, other_constraint) = self.orientation.split_size(available);
+        let (space_constraint, mut other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
         let known_gutters = gutter.saturating_mul(UPx::new(
             (self.children.len() - self.fit_to_content.len())
@@ -393,6 +391,13 @@ impl GridLayout {
         let allocated_space =
             self.allocated_space.0 + self.allocated_space.1.into_upx(scale).ceil() + known_gutters;
         let mut remaining = available_space.saturating_sub(allocated_space);
+
+        if self.elements_per_child > 1 {
+            // When we are in multi-row mode, we force a size-to-fit mode for
+            // children. Trying to ask each row to fill will never work.
+            other_constraint = ConstraintLimit::SizeToFit(other_constraint.max());
+        }
+
         // If our `other_constraint` is not known, we will need to give child
         // widgets an opportunity to lay themselves out in the full area. This
         // requires one extra layout call, so we avoid persisting layouts during
@@ -577,8 +582,8 @@ impl Deref for GridLayout {
 mod tests {
     use std::cmp::Ordering;
 
-    use kludgine::figures::units::UPx;
-    use kludgine::figures::{Fraction, IntoSigned, Size};
+    use figures::units::UPx;
+    use figures::{Fraction, IntoSigned, Size, Zero};
 
     use super::{GridDimension, GridLayout, Orientation};
     use crate::styles::Dimension;
@@ -821,6 +826,15 @@ where
 {
     fn from(value: T) -> Self {
         Self(vec![value.into()])
+    }
+}
+
+impl<A, const N: usize> FromIterator<A> for GridWidgets<N>
+where
+    A: Into<GridSection<N>>,
+{
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        Self(iter.into_iter().map(A::into).collect())
     }
 }
 

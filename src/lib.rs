@@ -3,7 +3,7 @@
 #![allow(clippy::module_name_repetitions, clippy::missing_errors_doc)]
 
 // for proc-macros
-extern crate self as gooey;
+extern crate self as cushy;
 
 #[macro_use]
 mod utils;
@@ -15,21 +15,22 @@ mod names;
 #[macro_use]
 pub mod styles;
 mod app;
+pub mod debug;
 mod tick;
 mod tree;
 pub mod value;
 pub mod widget;
 pub mod widgets;
 pub mod window;
-use std::ops::Sub;
+use std::ops::{Add, AddAssign, Sub, SubAssign};
 
-pub use app::{App, Application, Gooey, Open, PendingApp, Run};
-pub use kludgine;
+pub use app::{App, Application, Cushy, Open, PendingApp, Run};
+use figures::units::UPx;
+use figures::{Fraction, ScreenUnit, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;
-use kludgine::figures::units::UPx;
-use kludgine::figures::{Fraction, ScreenUnit, Size};
 pub use names::Name;
 pub use utils::{Lazy, WithClone};
+pub use {figures, kludgine};
 
 pub use self::graphics::Graphics;
 pub use self::tick::{InputState, Tick};
@@ -102,14 +103,39 @@ impl FitMeasuredSize for Size<ConstraintLimit> {
     }
 }
 
+impl Add<UPx> for ConstraintLimit {
+    type Output = Self;
+
+    fn add(mut self, rhs: UPx) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl AddAssign<UPx> for ConstraintLimit {
+    fn add_assign(&mut self, rhs: UPx) {
+        *self = match *self {
+            ConstraintLimit::Fill(px) => ConstraintLimit::Fill(px.saturating_add(rhs)),
+            ConstraintLimit::SizeToFit(px) => ConstraintLimit::SizeToFit(px.saturating_add(rhs)),
+        };
+    }
+}
+
 impl Sub<UPx> for ConstraintLimit {
     type Output = Self;
 
-    fn sub(self, rhs: UPx) -> Self::Output {
-        match self {
+    fn sub(mut self, rhs: UPx) -> Self::Output {
+        self -= rhs;
+        self
+    }
+}
+
+impl SubAssign<UPx> for ConstraintLimit {
+    fn sub_assign(&mut self, rhs: UPx) {
+        *self = match *self {
             ConstraintLimit::Fill(px) => ConstraintLimit::Fill(px.saturating_sub(rhs)),
             ConstraintLimit::SizeToFit(px) => ConstraintLimit::SizeToFit(px.saturating_sub(rhs)),
-        }
+        };
     }
 }
 
@@ -119,7 +145,7 @@ pub type Result<T = (), E = EventLoopError> = std::result::Result<T, E>;
 
 /// Counts the number of expressions passed to it.
 ///
-/// This is used inside of Gooey macros to preallocate collections.
+/// This is used inside of Cushy macros to preallocate collections.
 #[macro_export]
 #[doc(hidden)]
 macro_rules! count {

@@ -1,24 +1,24 @@
-//! A widget that combines a collection of [`Children`] widgets into one.
+//! A widget that combines a collection of [`WidgetList`] widgets into one.
 
-use kludgine::figures::units::UPx;
-use kludgine::figures::{IntoSigned, Rect, Round, ScreenScale, Size};
+use figures::units::UPx;
+use figures::{IntoSigned, Rect, Round, ScreenScale, Size, Zero};
 
-use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::FlexibleDimension;
 use crate::value::{Generation, IntoValue, Value};
-use crate::widget::{Children, ChildrenSyncChange, MountedWidget, Widget, WidgetRef};
+use crate::widget::{ChildrenSyncChange, MountedWidget, Widget, WidgetList, WidgetRef};
 use crate::widgets::grid::{GridDimension, GridLayout, Orientation};
 use crate::widgets::{Expand, Resize};
 use crate::ConstraintLimit;
 
-/// A widget that displays a collection of [`Children`] widgets in a
+/// A widget that displays a collection of [`WidgetList`] widgets in a
 /// [orientation](Orientation).
 #[derive(Debug)]
 pub struct Stack {
     orientation: Orientation,
     /// The children widgets that belong to this array.
-    pub children: Value<Children>,
+    pub children: Value<WidgetList>,
     /// The amount of space to place between each widget.
     pub gutter: Value<FlexibleDimension>,
     layout: GridLayout,
@@ -28,7 +28,7 @@ pub struct Stack {
 
 impl Stack {
     /// Returns a new widget with the given orientation and widgets.
-    pub fn new(orientation: Orientation, widgets: impl IntoValue<Children>) -> Self {
+    pub fn new(orientation: Orientation, widgets: impl IntoValue<WidgetList>) -> Self {
         Self {
             orientation,
             children: widgets.into_value(),
@@ -40,12 +40,12 @@ impl Stack {
     }
 
     /// Returns a new instance that displays `widgets` in a series of columns.
-    pub fn columns(widgets: impl IntoValue<Children>) -> Self {
+    pub fn columns(widgets: impl IntoValue<WidgetList>) -> Self {
         Self::new(Orientation::Column, widgets)
     }
 
     /// Returns a new instance that displays `widgets` in a series of rows.
-    pub fn rows(widgets: impl IntoValue<Children>) -> Self {
+    pub fn rows(widgets: impl IntoValue<WidgetList>) -> Self {
         Self::new(Orientation::Row, widgets)
     }
 
@@ -56,11 +56,11 @@ impl Stack {
         self
     }
 
-    fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
+    fn synchronize_children(&mut self, context: &mut EventContext<'_>) {
         let current_generation = self.children.generation();
         self.children.invalidate_when_changed(context);
         if current_generation.map_or_else(
-            || self.children.map(Children::len) != self.layout.len(),
+            || self.children.map(WidgetList::len) != self.layout.len(),
             |gen| Some(gen) != self.layout_generation,
         ) {
             self.layout_generation = self.children.generation();
@@ -92,10 +92,7 @@ impl Stack {
                             {
                                 (child, size)
                             } else {
-                                (
-                                    WidgetRef::Unmounted(widget.clone()),
-                                    GridDimension::FitContent,
-                                )
+                                (WidgetRef::new(widget.clone()), GridDimension::FitContent)
                             };
                             drop(guard);
                             this.insert(index, widget.mounted(context));
@@ -121,7 +118,7 @@ impl Stack {
 }
 
 impl Widget for Stack {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         for (layout, child) in self.layout.iter().zip(&self.synced_children) {
             if layout.size > 0 {
                 context.for_other(child).redraw();
@@ -132,7 +129,7 @@ impl Widget for Stack {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         self.synchronize_children(&mut context.as_event_context());
 

@@ -3,14 +3,14 @@ use std::error::Error;
 use std::fmt::Display;
 use std::ops::Not;
 
-use kludgine::figures::units::{Lp, Px};
-use kludgine::figures::{Point, Rect, ScreenScale, Size};
+use figures::units::Lp;
+use figures::{Point, Rect, Round, ScreenScale, Size};
 use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{LineHeight, OutlineColor, TextColor, WidgetAccentColor};
 use crate::styles::Dimension;
-use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
+use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
@@ -175,7 +175,7 @@ struct CheckboxOrnament {
 }
 
 impl Widget for CheckboxOrnament {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let checkbox_size = context
             .gfx
             .region()
@@ -183,15 +183,19 @@ impl Widget for CheckboxOrnament {
             .width
             .min(context.gfx.region().size.height);
 
+        let stroke_options =
+            StrokeOptions::px_wide(Lp::points(2).into_px(context.gfx.scale()).round());
+
+        let half_line = stroke_options.line_width / 2;
+
         let checkbox_rect = Rect::new(
             Point::new(
-                Px::ZERO,
-                (context.gfx.region().size.height - checkbox_size) / 2,
+                half_line,
+                (context.gfx.region().size.height - checkbox_size) / 2 + half_line,
             ),
-            Size::squared(checkbox_size),
+            Size::squared(checkbox_size - stroke_options.line_width),
         );
 
-        let stroke_options = StrokeOptions::lp_wide(Lp::points(2)).into_px(context.gfx.scale());
         match self.value.get_tracking_redraw(context) {
             state @ (CheckboxState::Checked | CheckboxState::Indeterminant) => {
                 let color = context.get(&WidgetAccentColor);
@@ -240,8 +244,8 @@ impl Widget for CheckboxOrnament {
     fn layout(
         &mut self,
         _available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Size<kludgine::figures::units::UPx> {
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) -> Size<figures::units::UPx> {
         let checkbox_size = context.get(&CheckboxSize).into_upx(context.gfx.scale());
         Size::squared(checkbox_size)
     }
@@ -252,6 +256,14 @@ pub trait Checkable: IntoDynamic<CheckboxState> + Sized {
     /// Returns a new checkbox using `self` as the value and `label`.
     fn into_checkbox(self, label: impl MakeWidget) -> Checkbox {
         Checkbox::new(self.into_dynamic(), label)
+    }
+
+    /// Returns a new checkbox using `self` as the value and `label`.
+    fn to_checkbox(&self, label: impl MakeWidget) -> Checkbox
+    where
+        Self: Clone,
+    {
+        self.clone().into_checkbox(label)
     }
 }
 

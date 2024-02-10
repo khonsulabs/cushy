@@ -1,4 +1,4 @@
-use kludgine::figures::{IntoSigned, Size};
+use figures::{IntoSigned, Size};
 
 use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
@@ -9,7 +9,7 @@ use crate::ConstraintLimit;
 ///
 /// Some parent widgets support weighting children when there is more than one
 /// [`Expand`]ed widget.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Expand {
     kind: ExpandKind,
     child: WidgetRef,
@@ -98,14 +98,14 @@ impl WrapperWidget for Expand {
         &mut self.child
     }
 
-    fn root_behavior(&mut self, _context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+    fn root_behavior(&mut self, _context: &mut EventContext<'_>) -> Option<RootBehavior> {
         Some(RootBehavior::Expand)
     }
 
     fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         let available_space = available_space.map(|lim| ConstraintLimit::Fill(lim.max()));
         let child = self.child.mounted(&mut context.as_event_context());

@@ -3,8 +3,8 @@
 use std::ops::RangeInclusive;
 use std::time::Duration;
 
-use kludgine::figures::units::Px;
-use kludgine::figures::{Angle, Point, Ranged, ScreenScale, Size, Zero};
+use figures::units::Px;
+use figures::{Angle, Point, Ranged, ScreenScale, Size, Zero};
 use kludgine::shapes::{Path, StrokeOptions};
 use kludgine::Color;
 
@@ -12,7 +12,7 @@ use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::{
     AnimationHandle, AnimationTarget, IntoAnimate, PercentBetween, Spawn, ZeroToOne,
 };
-use crate::value::{Dynamic, IntoDynamic, IntoValue, MapEach, Value};
+use crate::value::{Destination, Dynamic, IntoReadOnly, IntoReader, MapEach, ReadOnly, Source};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::slider::{InactiveTrackColor, Slidable, TrackColor, TrackSize};
 use crate::widgets::Data;
@@ -20,7 +20,7 @@ use crate::widgets::Data;
 /// A bar-shaped progress indicator.
 #[derive(Debug)]
 pub struct ProgressBar {
-    progress: Value<Progress>,
+    progress: ReadOnly<Progress>,
     spinner: bool,
 }
 
@@ -29,16 +29,16 @@ impl ProgressBar {
     #[must_use]
     pub const fn indeterminant() -> Self {
         Self {
-            progress: Value::Constant(Progress::Indeterminant),
+            progress: ReadOnly::Constant(Progress::Indeterminant),
             spinner: false,
         }
     }
 
     /// Returns a new progress bar that displays `progress`.
     #[must_use]
-    pub fn new(progress: impl IntoDynamic<Progress>) -> Self {
+    pub fn new(progress: impl IntoReadOnly<Progress>) -> Self {
         Self {
-            progress: Value::Dynamic(progress.into_dynamic()),
+            progress: progress.into_read_only(),
             spinner: false,
         }
     }
@@ -100,7 +100,7 @@ impl MakeWidgetWithTag for ProgressBar {
         );
 
         match self.progress {
-            Value::Dynamic(progress) => {
+            ReadOnly::Reader(progress) => {
                 let callback = progress.for_each(move |progress| {
                     update_progress_bar(
                         *progress,
@@ -112,7 +112,9 @@ impl MakeWidgetWithTag for ProgressBar {
                 });
                 Data::new_wrapping((callback, progress), slider).make_widget()
             }
-            Value::Constant(_) => Data::new_wrapping(indeterminant_animation, slider).make_widget(),
+            ReadOnly::Constant(_) => {
+                Data::new_wrapping(indeterminant_animation, slider).make_widget()
+            }
         }
     }
 }
@@ -193,32 +195,28 @@ fn update_progress_bar(
 }
 
 /// A value that can be used in a progress indicator.
-pub trait Progressable<T>: IntoDynamic<T> + Sized
+pub trait Progressable<T>: IntoReader<T> + Sized
 where
     T: ProgressValue + Send,
 {
     /// Returns a new progress bar that displays progress from `T::MIN` to
     /// `T::MAX`.
     fn progress_bar(self) -> ProgressBar {
-        ProgressBar::new(
-            self.into_dynamic()
-                .map_each(|value| value.to_progress(None)),
-        )
+        ProgressBar::new(self.into_reader().map_each(|value| value.to_progress(None)))
     }
 
     /// Returns a new progress bar that displays progress from `T::MIN` to
     /// `max`. The maximum value can be either a `T` or an `Option<T>`. If
     /// `None` is the maximum value, an indeterminant progress bar will be
     /// displayed.
-    fn progress_bar_to(self, max: impl IntoValue<T::Value>) -> ProgressBar
+    fn progress_bar_to(self, max: impl IntoReadOnly<T::Value>) -> ProgressBar
     where
-        T: Send,
         T::Value: PartialEq + Ranged + Send + Clone,
     {
-        let max = max.into_value();
+        let max = max.into_read_only();
         match max {
-            Value::Constant(max) => self.progress_bar_between(<T::Value>::MIN..=max),
-            Value::Dynamic(max) => {
+            ReadOnly::Constant(max) => self.progress_bar_between(<T::Value>::MIN..=max),
+            ReadOnly::Reader(max) => {
                 self.progress_bar_between(max.map_each(|max| <T::Value>::MIN..=max.clone()))
             }
         }
@@ -230,26 +228,28 @@ where
     /// displayed.
     fn progress_bar_between<Range>(self, range: Range) -> ProgressBar
     where
-        T: Send,
         T::Value: Send,
-        Range: IntoValue<RangeInclusive<T::Value>>,
+        Range: IntoReadOnly<RangeInclusive<T::Value>>,
     {
-        let value = self.into_dynamic();
-        let range = range.into_value();
-        match range {
-            Value::Constant(range) => ProgressBar::new(
-                value.map_each(move |value| value.to_progress(Some(range.start()..=range.end()))),
-            ),
-            Value::Dynamic(range) => {
-                ProgressBar::new((&range, &value).map_each(|(range, value)| {
-                    value.to_progress(Some(range.start()..=range.end()))
-                }))
-            }
-        }
+        let value = self.into_reader();
+        let range = range.into_read_only();
+        ProgressBar::new(match range {
+            ReadOnly::Constant(range) => value
+                .map_each(move |value| value.to_progress(Some(range.start()..=range.end())))
+                .into_reader(),
+            ReadOnly::Reader(range) => (&range, &value)
+                .map_each(|(range, value)| value.to_progress(Some(range.start()..=range.end())))
+                .into_reader(),
+        })
     }
 }
 
-impl<U> Progressable<U> for Dynamic<U> where U: ProgressValue + Send {}
+impl<T, U> Progressable<U> for T
+where
+    T: IntoReader<U> + Send,
+    U: ProgressValue + Send,
+{
+}
 
 /// A value that can be used in a progress indicator.
 pub trait ProgressValue: 'static {
@@ -318,7 +318,7 @@ impl Spinner {
         start: ZeroToOne,
         sweep: ZeroToOne,
         color: Color,
-        context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>,
     ) {
         if sweep > 0. {
             context.gfx.draw_shape(
@@ -335,7 +335,7 @@ impl Spinner {
 }
 
 impl Widget for Spinner {
-    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         let track_size = context.get(&TrackSize).into_px(context.gfx.scale());
         let start = self.start.get_tracking_redraw(context);
         let end = self.end.get_tracking_redraw(context);
@@ -383,9 +383,9 @@ impl Widget for Spinner {
 
     fn layout(
         &mut self,
-        available_space: kludgine::figures::Size<crate::ConstraintLimit>,
-        context: &mut crate::context::LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> kludgine::figures::Size<kludgine::figures::units::UPx> {
+        available_space: figures::Size<crate::ConstraintLimit>,
+        context: &mut crate::context::LayoutContext<'_, '_, '_, '_>,
+    ) -> figures::Size<figures::units::UPx> {
         let track_size = context.get(&TrackSize).into_px(context.gfx.scale());
         let minimum_size = track_size * 4;
 

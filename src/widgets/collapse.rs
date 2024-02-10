@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-use kludgine::figures::units::Px;
-use kludgine::figures::Size;
+use figures::units::Px;
+use figures::{Size, Zero};
 
 use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::{AnimationHandle, AnimationTarget, EasingFunction, Spawn};
 use crate::context::LayoutContext;
-use crate::value::{Dynamic, IntoDynamic};
+use crate::value::{Dynamic, IntoDynamic, Source};
 use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
@@ -51,7 +51,7 @@ impl Collapse {
         }
     }
 
-    fn note_child_size(&mut self, size: Px, context: &mut LayoutContext<'_, '_, '_, '_, '_>) {
+    fn note_child_size(&mut self, size: Px, context: &mut LayoutContext<'_, '_, '_, '_>) {
         let (easing, target) = if self.collapse.get_tracking_invalidate(context) {
             (EasingFunction::from(EaseOutQuadradic), Px::ZERO)
         } else {
@@ -90,7 +90,7 @@ impl WrapperWidget for Collapse {
         &mut self,
         size: Size<Px>,
         _available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         let clip_size = self.size.get_tracking_invalidate(context);
         if self.vertical {

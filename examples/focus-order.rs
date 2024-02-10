@@ -1,17 +1,17 @@
 use std::process::exit;
 
-use gooey::value::{Dynamic, MapEach};
-use gooey::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
-use gooey::widgets::grid::{Grid, GridDimension, GridWidgets};
-use gooey::widgets::input::{InputValue, MaskedString};
-use gooey::widgets::Expand;
-use gooey::Run;
-use kludgine::figures::units::Lp;
+use cushy::value::{Dynamic, MapEach, Source};
+use cushy::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
+use cushy::widgets::grid::{Grid, GridDimension, GridWidgets};
+use cushy::widgets::input::{InputValue, MaskedString};
+use cushy::widgets::Expand;
+use cushy::Run;
+use figures::units::Lp;
 
 /// This example is the same as login, but it has an explicit tab order to
 /// change from the default order (username, password, cancel, log in) to
 /// username, password, log in, cancel.
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let username = Dynamic::default();
     let password = Dynamic::default();
 
@@ -22,15 +22,9 @@ fn main() -> gooey::Result {
     let (cancel_tag, cancel_id) = WidgetTag::new();
     let (username_tag, username_id) = WidgetTag::new();
 
-    let username_row = (
-        "Username",
-        username.clone().into_input().make_with_tag(username_tag),
-    );
+    let username_row = ("Username", username.to_input().make_with_tag(username_tag));
 
-    let password_row = (
-        "Password",
-        password.clone().into_input().with_next_focus(login_id),
-    );
+    let password_row = ("Password", password.to_input().with_next_focus(login_id));
 
     let buttons = "Cancel"
         .into_button()

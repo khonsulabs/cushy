@@ -34,20 +34,20 @@ Configuration(
             // "msrv": "1.70",
             "ref-name": (
                 default: "main",
-                release: "v0.1.3",
+                release: "v0.2.0",
             ),
             "docs": (
-                default: "https://gooey.rs/main/gooey/",
-                release: "https://docs.rs/gooey",
+                default: "https://cushy.rs/main/docs/cushy/",
+                release: "https://docs.rs/cushy",
             ),
             "widget": (
-                default: "https://gooey.rs/main/gooey/widget/trait.Widget.html",
-                release: "https://docs.rs/gooey/*/gooey/widget/trait.Widget.html",
+                default: "https://cushy.rs/main/docs/cushy/widget/trait.Widget.html",
+                release: "https://docs.rs/cushy/*/cushy/widget/trait.Widget.html",
                 for_docs: "crate::widget::Widget",
             ),
             "widgets": (
-                default: "https://gooey.rs/main/gooey/widgets/index.html",
-                release: "https://docs.rs/gooey/*/gooey/widgets/index.html",
+                default: "https://cushy.rs/main/docs/cushy/widgets/index.html",
+                release: "https://docs.rs/cushy/*/cushy/widgets/index.html",
                 for_docs: "mod@crate::widgets",
             ),
         },

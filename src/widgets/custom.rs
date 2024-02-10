@@ -1,11 +1,9 @@
 use std::fmt::Debug;
 
-use kludgine::app::winit::event::{
-    DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
-};
+use figures::units::Px;
+use figures::{Point, Size};
+use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
-use kludgine::figures::units::Px;
-use kludgine::figures::{Point, Size};
 use kludgine::Color;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
@@ -13,6 +11,7 @@ use crate::styles::VisualOrder;
 use crate::value::{IntoValue, Value};
 use crate::widget::{EventHandling, MakeWidget, WidgetRef, WrappedLayout, WrapperWidget, IGNORED};
 use crate::widgets::Space;
+use crate::window::{DeviceId, KeyEvent};
 use crate::ConstraintLimit;
 
 /// A callback-based custom widget.
@@ -121,8 +120,8 @@ impl Custom {
     where
         Redraw: Send
             + 'static
-            + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
-                &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
+            + for<'context, 'clip, 'gfx, 'pass> FnMut(
+                &mut GraphicsContext<'context, 'clip, 'gfx, 'pass>,
             ),
     {
         self.redraw_background = Some(Box::new(redraw));
@@ -143,8 +142,8 @@ impl Custom {
     where
         Redraw: Send
             + 'static
-            + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
-                &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
+            + for<'context, 'clip, 'gfx, 'pass> FnMut(
+                &mut GraphicsContext<'context, 'clip, 'gfx, 'pass>,
             ),
     {
         self.redraw_foreground = Some(Box::new(redraw));
@@ -156,8 +155,7 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::mounted`].
     pub fn on_mounted<Mounted>(mut self, mounted: Mounted) -> Self
     where
-        Mounted:
-            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Mounted: Send + 'static + for<'context> FnMut(&mut EventContext<'context>),
     {
         self.mounted = Some(Box::new(mounted));
         self
@@ -169,8 +167,7 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::unmounted`].
     pub fn on_unmounted<Mounted>(mut self, mounted: Mounted) -> Self
     where
-        Mounted:
-            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Mounted: Send + 'static + for<'context> FnMut(&mut EventContext<'context>),
     {
         self.unmounted = Some(Box::new(mounted));
         self
@@ -181,8 +178,7 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::unhover`].
     pub fn on_unhover<Unhover>(mut self, unhovered: Unhover) -> Self
     where
-        Unhover:
-            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Unhover: Send + 'static + for<'context> FnMut(&mut EventContext<'context>),
     {
         self.unhover = Some(Box::new(unhovered));
         self
@@ -193,8 +189,7 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::focus`].
     pub fn on_focus<Focused>(mut self, focus: Focused) -> Self
     where
-        Focused:
-            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Focused: Send + 'static + for<'context> FnMut(&mut EventContext<'context>),
     {
         self.focus = Some(Box::new(focus));
         self
@@ -205,7 +200,7 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::blur`].
     pub fn on_blur<Blur>(mut self, blur: Blur) -> Self
     where
-        Blur: Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Blur: Send + 'static + for<'context> FnMut(&mut EventContext<'context>),
     {
         self.blur = Some(Box::new(blur));
         self
@@ -216,8 +211,7 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::activate`].
     pub fn on_activate<Activated>(mut self, activated: Activated) -> Self
     where
-        Activated:
-            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Activated: Send + 'static + for<'context> FnMut(&mut EventContext<'context>),
     {
         self.activate = Some(Box::new(activated));
         self
@@ -228,8 +222,7 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::deactivate`].
     pub fn on_deactivate<Deactivated>(mut self, deactivated: Deactivated) -> Self
     where
-        Deactivated:
-            Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>),
+        Deactivated: Send + 'static + for<'context> FnMut(&mut EventContext<'context>),
     {
         self.deactivate = Some(Box::new(deactivated));
         self
@@ -241,9 +234,7 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::accept_focus`].
     pub fn on_accept_focus<AcceptFocus>(mut self, accept: AcceptFocus) -> Self
     where
-        AcceptFocus: Send
-            + 'static
-            + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>) -> bool,
+        AcceptFocus: Send + 'static + for<'context> FnMut(&mut EventContext<'context>) -> bool,
     {
         self.accept_focus = Some(Box::new(accept));
         self
@@ -256,9 +247,7 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::allow_blur`].
     pub fn on_allow_blur<AllowBlur>(mut self, allow_blur: AllowBlur) -> Self
     where
-        AllowBlur: Send
-            + 'static
-            + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>) -> bool,
+        AllowBlur: Send + 'static + for<'context> FnMut(&mut EventContext<'context>) -> bool,
     {
         self.allow_blur = Some(Box::new(allow_blur));
         self
@@ -266,7 +255,7 @@ impl Custom {
 
     /// Invokes `advance_focus` when this widget has focus and focus is
     /// requested to advance to another widget. Returning
-    /// [`HANDLED`](crate::widget::HANDLED) will signal to Gooey that the focus
+    /// [`HANDLED`](crate::widget::HANDLED) will signal to Cushy that the focus
     /// has moved and the request should not be processed any further.
     ///
     /// This callback corresponds to [`WrapperWidget::advance_focus`].
@@ -274,10 +263,7 @@ impl Custom {
     where
         AdvanceFocus: Send
             + 'static
-            + for<'context, 'window> FnMut(
-                VisualOrder,
-                &mut EventContext<'context, 'window>,
-            ) -> EventHandling,
+            + for<'context> FnMut(VisualOrder, &mut EventContext<'context>) -> EventHandling,
     {
         self.advance_focus = Some(Box::new(advance_focus));
         self
@@ -295,9 +281,9 @@ impl Custom {
     where
         AdjustChildConstraints: Send
             + 'static
-            + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
+            + for<'context, 'clip, 'gfx, 'pass> FnMut(
                 Size<ConstraintLimit>,
-                &mut LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>,
+                &mut LayoutContext<'context, 'clip, 'gfx, 'pass>,
             ) -> Size<ConstraintLimit>,
     {
         self.adjust_child = Some(Box::new(adjust_child_constraints));
@@ -311,10 +297,10 @@ impl Custom {
     where
         PositionChild: Send
             + 'static
-            + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
+            + for<'context, 'clip, 'gfx, 'pass> FnMut(
                 Size<Px>,
                 Size<ConstraintLimit>,
-                &mut LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>,
+                &mut LayoutContext<'context, 'clip, 'gfx, 'pass>,
             ) -> WrappedLayout,
     {
         self.position_child = Some(Box::new(position_child));
@@ -327,9 +313,8 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::hit_test`].
     pub fn on_hit_test<HitTest>(mut self, hit_test: HitTest) -> Self
     where
-        HitTest: Send
-            + 'static
-            + for<'context, 'window> FnMut(Point<Px>, &mut EventContext<'context, 'window>) -> bool,
+        HitTest:
+            Send + 'static + for<'context> FnMut(Point<Px>, &mut EventContext<'context>) -> bool,
     {
         self.hit_test = Some(Box::new(hit_test));
         self
@@ -342,10 +327,7 @@ impl Custom {
     where
         Hover: Send
             + 'static
-            + for<'context, 'window> FnMut(
-                Point<Px>,
-                &mut EventContext<'context, 'window>,
-            ) -> Option<CursorIcon>,
+            + for<'context> FnMut(Point<Px>, &mut EventContext<'context>) -> Option<CursorIcon>,
     {
         self.hover = Some(Box::new(hover));
         self
@@ -364,11 +346,11 @@ impl Custom {
     where
         MouseDown: Send
             + 'static
-            + for<'context, 'window> FnMut(
+            + for<'context> FnMut(
                 Point<Px>,
                 DeviceId,
                 MouseButton,
-                &mut EventContext<'context, 'window>,
+                &mut EventContext<'context>,
             ) -> EventHandling,
     {
         self.mouse_down = Some(Box::new(mouse_down));
@@ -383,12 +365,7 @@ impl Custom {
     where
         MouseDrag: Send
             + 'static
-            + for<'context, 'window> FnMut(
-                Point<Px>,
-                DeviceId,
-                MouseButton,
-                &mut EventContext<'context, 'window>,
-            ),
+            + for<'context> FnMut(Point<Px>, DeviceId, MouseButton, &mut EventContext<'context>),
     {
         self.mouse_drag = Some(Box::new(mouse_drag));
         self
@@ -401,11 +378,11 @@ impl Custom {
     where
         MouseUp: Send
             + 'static
-            + for<'context, 'window> FnMut(
+            + for<'context> FnMut(
                 Option<Point<Px>>,
                 DeviceId,
                 MouseButton,
-                &mut EventContext<'context, 'window>,
+                &mut EventContext<'context>,
             ),
     {
         self.mouse_up = Some(Box::new(mouse_up));
@@ -417,9 +394,8 @@ impl Custom {
     /// This callback corresponds to [`WrapperWidget::ime`].
     pub fn on_ime<OnIme>(mut self, ime: OnIme) -> Self
     where
-        OnIme: Send
-            + 'static
-            + for<'context, 'window> FnMut(Ime, &mut EventContext<'context, 'window>) -> EventHandling,
+        OnIme:
+            Send + 'static + for<'context> FnMut(Ime, &mut EventContext<'context>) -> EventHandling,
     {
         self.ime = Some(Box::new(ime));
         self
@@ -432,11 +408,11 @@ impl Custom {
     where
         KeyboardInput: Send
             + 'static
-            + for<'context, 'window> FnMut(
+            + for<'context> FnMut(
                 DeviceId,
                 KeyEvent,
                 bool,
-                &mut EventContext<'context, 'window>,
+                &mut EventContext<'context>,
             ) -> EventHandling,
     {
         self.keyboard_input = Some(Box::new(keyboard_input));
@@ -450,11 +426,11 @@ impl Custom {
     where
         MouseWheel: Send
             + 'static
-            + for<'context, 'window> FnMut(
+            + for<'context> FnMut(
                 DeviceId,
                 MouseScrollDelta,
                 TouchPhase,
-                &mut EventContext<'context, 'window>,
+                &mut EventContext<'context>,
             ) -> EventHandling,
     {
         self.mouse_wheel = Some(Box::new(mouse_wheel));
@@ -467,13 +443,13 @@ impl WrapperWidget for Custom {
         &mut self.child
     }
 
-    fn redraw_background(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw_background(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         if let Some(redraw) = &mut self.redraw_background {
             redraw.invoke(context);
         }
     }
 
-    fn redraw_foreground(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw_foreground(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         if let Some(redraw) = &mut self.redraw_foreground {
             redraw.invoke(context);
         }
@@ -482,7 +458,7 @@ impl WrapperWidget for Custom {
     fn adjust_child_constraints(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<ConstraintLimit> {
         if let Some(adjust_child) = &mut self.adjust_child {
             adjust_child.invoke(available_space, context)
@@ -495,7 +471,7 @@ impl WrapperWidget for Custom {
         &mut self,
         size: Size<Px>,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         if let Some(position_child) = &mut self.position_child {
             position_child.invoke(size, available_space, context)
@@ -512,25 +488,27 @@ impl WrapperWidget for Custom {
         }
     }
 
-    fn background_color(&mut self, context: &WidgetContext<'_, '_>) -> Option<Color> {
+    fn background_color(&mut self, context: &WidgetContext<'_>) -> Option<Color> {
         self.background
             .as_ref()
             .map(|bg| bg.get_tracking_redraw(context))
     }
 
-    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn mounted(&mut self, context: &mut EventContext<'_>) {
         if let Some(mounted) = &mut self.mounted {
             mounted.invoke(context);
         }
     }
 
-    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unmounted(&mut self, context: &mut EventContext<'_>) {
         if let Some(unmounted) = &mut self.unmounted {
             unmounted.invoke(context);
+        } else {
+            self.child_mut().unmount_in(context);
         }
     }
 
-    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> bool {
         if let Some(hit_test) = &mut self.hit_test {
             hit_test.invoke(location, context)
         } else {
@@ -538,22 +516,18 @@ impl WrapperWidget for Custom {
         }
     }
 
-    fn hover(
-        &mut self,
-        location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
-    ) -> Option<CursorIcon> {
+    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> Option<CursorIcon> {
         let hover = self.hover.as_mut()?;
         hover.invoke(location, context)
     }
 
-    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unhover(&mut self, context: &mut EventContext<'_>) {
         if let Some(unhover) = &mut self.unhover {
             unhover.invoke(context);
         }
     }
 
-    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, context: &mut EventContext<'_>) -> bool {
         if let Some(accept_focus) = &mut self.accept_focus {
             accept_focus.invoke(context)
         } else {
@@ -561,25 +535,25 @@ impl WrapperWidget for Custom {
         }
     }
 
-    fn focus(&mut self, context: &mut EventContext<'_, '_>) {
+    fn focus(&mut self, context: &mut EventContext<'_>) {
         if let Some(focus) = &mut self.focus {
             focus.invoke(context);
         }
     }
 
-    fn blur(&mut self, context: &mut EventContext<'_, '_>) {
+    fn blur(&mut self, context: &mut EventContext<'_>) {
         if let Some(blur) = &mut self.blur {
             blur.invoke(context);
         }
     }
 
-    fn activate(&mut self, context: &mut EventContext<'_, '_>) {
+    fn activate(&mut self, context: &mut EventContext<'_>) {
         if let Some(activate) = &mut self.activate {
             activate.invoke(context);
         }
     }
 
-    fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {
+    fn deactivate(&mut self, context: &mut EventContext<'_>) {
         if let Some(deactivate) = &mut self.deactivate {
             deactivate.invoke(context);
         }
@@ -590,7 +564,7 @@ impl WrapperWidget for Custom {
         location: Point<Px>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         if let Some(mouse_down) = &mut self.mouse_down {
             mouse_down.invoke(location, device_id, button, context)
@@ -604,7 +578,7 @@ impl WrapperWidget for Custom {
         location: Point<Px>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         if let Some(mouse_drag) = &mut self.mouse_drag {
             mouse_drag.invoke(location, device_id, button, context);
@@ -616,7 +590,7 @@ impl WrapperWidget for Custom {
         location: Option<Point<Px>>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         if let Some(mouse_up) = &mut self.mouse_up {
             mouse_up.invoke(location, device_id, button, context);
@@ -628,7 +602,7 @@ impl WrapperWidget for Custom {
         device_id: DeviceId,
         input: KeyEvent,
         is_synthetic: bool,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         if let Some(keyboard_input) = &mut self.keyboard_input {
             keyboard_input.invoke(device_id, input, is_synthetic, context)
@@ -637,7 +611,7 @@ impl WrapperWidget for Custom {
         }
     }
 
-    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_, '_>) -> EventHandling {
+    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_>) -> EventHandling {
         if let Some(f) = &mut self.ime {
             f.invoke(ime, context)
         } else {
@@ -650,7 +624,7 @@ impl WrapperWidget for Custom {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         if let Some(mouse_wheel) = &mut self.mouse_wheel {
             mouse_wheel.invoke(device_id, delta, phase, context)
@@ -662,7 +636,7 @@ impl WrapperWidget for Custom {
     fn advance_focus(
         &mut self,
         direction: VisualOrder,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         if let Some(advance_focus) = &mut self.advance_focus {
             advance_focus.invoke(direction, context)
@@ -671,7 +645,7 @@ impl WrapperWidget for Custom {
         }
     }
 
-    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn allow_blur(&mut self, context: &mut EventContext<'_>) -> bool {
         if let Some(allow_blur) = &mut self.allow_blur {
             allow_blur.invoke(context)
         } else {
@@ -681,18 +655,16 @@ impl WrapperWidget for Custom {
 }
 
 trait RedrawFunc: Send {
-    fn invoke(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
+    fn invoke(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>);
 }
 
 impl<Func> RedrawFunc for Func
 where
     Func: Send
         + 'static
-        + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
-            &mut GraphicsContext<'context, 'window, 'clip, 'gfx, 'pass>,
-        ),
+        + for<'context, 'clip, 'gfx, 'pass> FnMut(&mut GraphicsContext<'context, 'clip, 'gfx, 'pass>),
 {
-    fn invoke(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn invoke(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         self(context);
     }
 }
@@ -701,7 +673,7 @@ trait AdjustChildConstraintsFunc: Send {
     fn invoke(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<ConstraintLimit>;
 }
 
@@ -709,15 +681,15 @@ impl<Func> AdjustChildConstraintsFunc for Func
 where
     Func: Send
         + 'static
-        + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
+        + for<'context, 'clip, 'gfx, 'pass> FnMut(
             Size<ConstraintLimit>,
-            &mut LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>,
+            &mut LayoutContext<'context, 'clip, 'gfx, 'pass>,
         ) -> Size<ConstraintLimit>,
 {
     fn invoke(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<ConstraintLimit> {
         self(available_space, context)
     }
@@ -728,7 +700,7 @@ trait PositionChildFunc: Send {
         &mut self,
         size: Size<Px>,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout;
 }
 
@@ -736,45 +708,44 @@ impl<Func> PositionChildFunc for Func
 where
     Func: Send
         + 'static
-        + for<'context, 'window, 'clip, 'gfx, 'pass> FnMut(
+        + for<'context, 'clip, 'gfx, 'pass> FnMut(
             Size<Px>,
             Size<ConstraintLimit>,
-            &mut LayoutContext<'context, 'window, 'clip, 'gfx, 'pass>,
+            &mut LayoutContext<'context, 'clip, 'gfx, 'pass>,
         ) -> WrappedLayout,
 {
     fn invoke(
         &mut self,
         size: Size<Px>,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         self(size, available_space, context)
     }
 }
 
 trait EventFunc<R = ()>: Send {
-    fn invoke(&mut self, context: &mut EventContext<'_, '_>) -> R;
+    fn invoke(&mut self, context: &mut EventContext<'_>) -> R;
 }
 
 impl<R, Func> EventFunc<R> for Func
 where
-    Func: Send + 'static + for<'context, 'window> FnMut(&mut EventContext<'context, 'window>) -> R,
+    Func: Send + 'static + for<'context> FnMut(&mut EventContext<'context>) -> R,
 {
-    fn invoke(&mut self, context: &mut EventContext<'_, '_>) -> R {
+    fn invoke(&mut self, context: &mut EventContext<'_>) -> R {
         self(context)
     }
 }
 
 trait OneParamEventFunc<P, R = ()>: Send {
-    fn invoke(&mut self, param: P, context: &mut EventContext<'_, '_>) -> R;
+    fn invoke(&mut self, param: P, context: &mut EventContext<'_>) -> R;
 }
 
 impl<P, R, Func> OneParamEventFunc<P, R> for Func
 where
-    Func:
-        Send + 'static + for<'context, 'window> FnMut(P, &mut EventContext<'context, 'window>) -> R,
+    Func: Send + 'static + for<'context> FnMut(P, &mut EventContext<'context>) -> R,
 {
-    fn invoke(&mut self, location: P, context: &mut EventContext<'_, '_>) -> R {
+    fn invoke(&mut self, location: P, context: &mut EventContext<'_>) -> R {
         self(location, context)
     }
 }
@@ -785,7 +756,7 @@ trait ThreeParamEventFunc<P1, P2, P3, R = ()>: Send {
         location: P1,
         device_id: P2,
         button: P3,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> R;
 }
 
@@ -793,16 +764,14 @@ type MouseUpFunc = dyn ThreeParamEventFunc<Option<Point<Px>>, DeviceId, MouseBut
 
 impl<P1, P2, P3, R, Func> ThreeParamEventFunc<P1, P2, P3, R> for Func
 where
-    Func: Send
-        + 'static
-        + for<'context, 'window> FnMut(P1, P2, P3, &mut EventContext<'context, 'window>) -> R,
+    Func: Send + 'static + for<'context> FnMut(P1, P2, P3, &mut EventContext<'context>) -> R,
 {
     fn invoke(
         &mut self,
         location: P1,
         device_id: P2,
         button: P3,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> R {
         self(location, device_id, button, context)
     }

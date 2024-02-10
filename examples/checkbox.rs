@@ -1,15 +1,15 @@
-use gooey::value::Dynamic;
-use gooey::widget::MakeWidget;
-use gooey::widgets::checkbox::{Checkable, CheckboxState};
-use gooey::Run;
+use cushy::value::{Destination, Dynamic, Source};
+use cushy::widget::MakeWidget;
+use cushy::widgets::checkbox::{Checkable, CheckboxState};
+use cushy::Run;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let checkbox_state = Dynamic::new(CheckboxState::Checked);
     let label = checkbox_state.map_each(|state| format!("Check Me! Current: {state:?}"));
 
     checkbox_state
         .clone()
-        .into_checkbox(label)
+        .to_checkbox(label)
         .and("Maybe".into_button().on_click(move |()| {
             checkbox_state.set(CheckboxState::Indeterminant);
         }))

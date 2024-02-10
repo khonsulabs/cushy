@@ -11,18 +11,21 @@ use std::ops::{
 use std::sync::Arc;
 
 use ahash::AHashMap;
-use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size, Zero};
-use kludgine::shapes::CornerRadii;
-use kludgine::Color;
-use palette::{IntoColor, Okhsl, OklabHue, Srgb};
+use figures::units::{Lp, Px, UPx};
+use figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size, Zero};
+use intentional::Cast;
+pub use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
+pub use kludgine::shapes::CornerRadii;
+pub use kludgine::Color;
+pub use palette::OklabHue;
+use palette::{IntoColor, Okhsl, Srgb};
 
 use crate::animation::{EasingFunction, ZeroToOne};
-use crate::context::WidgetContext;
+use crate::context::{Trackable, WidgetContext};
 use crate::names::Name;
 use crate::utils::Lazy;
-use crate::value::{Dynamic, IntoValue, Value};
+use crate::value::{Dynamic, IntoValue, Source, Value};
+use crate::widgets::input::CowString;
 
 #[macro_use]
 pub mod components;
@@ -113,7 +116,7 @@ impl Styles {
         &self,
         component: &impl NamedComponent,
         fallback: &Fallback,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
     ) -> Fallback::ComponentType
     where
         Fallback: ComponentDefinition + ?Sized,
@@ -126,10 +129,7 @@ impl Styles {
             .unwrap_or_else(|| fallback.default_value(context))
     }
 
-    fn resolve_component<T>(
-        component: &Value<Component>,
-        context: &WidgetContext<'_, '_>,
-    ) -> Option<T>
+    fn resolve_component<T>(component: &Value<Component>, context: &WidgetContext<'_>) -> Option<T>
     where
         T: ComponentType,
     {
@@ -161,7 +161,7 @@ impl Styles {
     pub fn try_get<Named>(
         &self,
         component: &Named,
-        context: &WidgetContext<'_, '_>,
+        context: &WidgetContext<'_>,
     ) -> Option<Named::ComponentType>
     where
         Named: ComponentDefinition + ?Sized,
@@ -175,11 +175,7 @@ impl Styles {
     /// Returns the component associated with the given name, or if not found,
     /// returns the default value provided by the definition.
     #[must_use]
-    pub fn get<Named>(
-        &self,
-        component: &Named,
-        context: &WidgetContext<'_, '_>,
-    ) -> Named::ComponentType
+    pub fn get<Named>(&self, component: &Named, context: &WidgetContext<'_>) -> Named::ComponentType
     where
         Named: ComponentDefinition + ?Sized,
     {
@@ -415,6 +411,8 @@ pub enum Component {
     FontWeight(Weight),
     /// The style of a font.
     FontStyle(Style),
+    /// A string value.
+    String(CowString),
 
     /// A custom component type.
     Custom(CustomComponent),
@@ -439,10 +437,8 @@ impl Component {
     #[must_use]
     pub fn dynamic<T, Func>(resolve: Func) -> Self
     where
-        Func: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<T>
-            + Send
-            + Sync
-            + 'static,
+        Func:
+            for<'a, 'context> Fn(&'a WidgetContext<'context>) -> Option<T> + Send + Sync + 'static,
         T: ComponentType,
     {
         Self::Dynamic(DynamicComponent::new(move |context| {
@@ -450,6 +446,38 @@ impl Component {
         }))
     }
 }
+
+macro_rules! impl_component_from_string {
+    ($type:ty) => {
+        impl From<$type> for Component {
+            fn from(s: $type) -> Self {
+                Self::String(s.into())
+            }
+        }
+    };
+}
+
+impl_component_from_string!(String);
+impl_component_from_string!(CowString);
+impl_component_from_string!(&'_ str);
+
+macro_rules! impl_component_try_from_string {
+    ($type:ty) => {
+        impl TryFrom<Component> for $type {
+            type Error = Component;
+
+            fn try_from(s: Component) -> Result<Self, Self::Error> {
+                match s {
+                    Component::String(s) => Ok(s.into()),
+                    other => Err(other),
+                }
+            }
+        }
+    };
+}
+
+impl_component_try_from_string!(String);
+impl_component_try_from_string!(CowString);
 
 impl From<FamilyOwned> for Component {
     fn from(value: FamilyOwned) -> Self {
@@ -657,9 +685,15 @@ pub enum FlexibleDimension {
     Dimension(Dimension),
 }
 
-impl FlexibleDimension {
-    /// A dimension of 0 pixels.
-    pub const ZERO: Self = Self::Dimension(Dimension::ZERO);
+impl Zero for FlexibleDimension {
+    const ZERO: Self = Self::Dimension(Dimension::ZERO);
+
+    fn is_zero(&self) -> bool {
+        match self {
+            FlexibleDimension::Auto => false,
+            FlexibleDimension::Dimension(dim) => dim.is_zero(),
+        }
+    }
 }
 
 impl Debug for FlexibleDimension {
@@ -747,25 +781,25 @@ impl ScreenScale for Dimension {
     type Px = Px;
     type UPx = UPx;
 
-    fn into_px(self, scale: kludgine::figures::Fraction) -> Px {
+    fn into_px(self, scale: figures::Fraction) -> Px {
         match self {
             Dimension::Px(px) => px,
             Dimension::Lp(lp) => lp.into_px(scale),
         }
     }
 
-    fn from_px(px: Px, _scale: kludgine::figures::Fraction) -> Self {
+    fn from_px(px: Px, _scale: figures::Fraction) -> Self {
         Self::from(px)
     }
 
-    fn into_lp(self, scale: kludgine::figures::Fraction) -> Lp {
+    fn into_lp(self, scale: figures::Fraction) -> Lp {
         match self {
             Dimension::Px(px) => px.into_lp(scale),
             Dimension::Lp(lp) => lp,
         }
     }
 
-    fn from_lp(lp: Lp, _scale: kludgine::figures::Fraction) -> Self {
+    fn from_lp(lp: Lp, _scale: figures::Fraction) -> Self {
         Self::from(lp)
     }
 
@@ -1098,12 +1132,12 @@ pub trait ComponentDefinition: NamedComponent {
     type ComponentType: ComponentType;
 
     /// Returns the default value to use for this component.
-    fn default_value(&self, context: &WidgetContext<'_, '_>) -> Self::ComponentType;
+    fn default_value(&self, context: &WidgetContext<'_>) -> Self::ComponentType;
 }
 
 /// Describes whether a type should invalidate a widget.
 pub trait RequireInvalidation {
-    /// Gooey tracks two different states:
+    /// Cushy tracks two different states:
     ///
     /// - Whether to repaint the window
     /// - Whether to relayout a widget
@@ -1535,7 +1569,7 @@ impl Default for ThemePair {
     }
 }
 
-/// A Gooey Color theme.
+/// A Cushy Color theme.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Theme {
     /// The primary color theme.
@@ -1750,7 +1784,7 @@ impl FixedTheme {
 ///
 /// The goal of this type is to allow various tones of a given hue/saturation to
 /// be generated easily.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct ColorSource {
     /// A measurement of hue, in degees, from -180 to 180.
     ///
@@ -1766,6 +1800,13 @@ pub struct ColorSource {
     /// A saturation of 0.0 corresponds to shades of gray, while a saturation of
     /// 1.0 corresponds to fully saturated colors.
     pub saturation: ZeroToOne,
+}
+
+impl PartialEq for ColorSource {
+    fn eq(&self, other: &Self) -> bool {
+        (self.hue.into_degrees() - other.hue.into_degrees()).abs() < f32::EPSILON
+            && self.saturation == other.saturation
+    }
 }
 
 impl ColorSource {
@@ -1794,6 +1835,7 @@ impl ColorSource {
     #[must_use]
     pub fn contrast_between(self, other: Self) -> ZeroToOne {
         let saturation_delta = self.saturation.difference_between(other.saturation);
+        let average_saturation = ZeroToOne::new((*self.saturation + *other.saturation) / 2.);
 
         let self_hue = self.hue.into_positive_degrees();
         let other_hue = other.hue.into_positive_degrees();
@@ -1811,7 +1853,7 @@ impl ColorSource {
             } / 180.,
         );
 
-        saturation_delta.one_minus() * hue_delta
+        ZeroToOne::new((*saturation_delta + *hue_delta * *average_saturation) / 2.)
     }
 }
 
@@ -1846,18 +1888,18 @@ impl Lightness for u8 {
 
 /// Extra functionality added to the [`Color`] type from Kludgine.
 pub trait ColorExt: Copy {
-    /// Converts this color into its hue/saturation and lightness components.
-    fn into_source_and_lightness(self) -> (ColorSource, ZeroToOne);
+    /// Converts this color into its hue, saturation, and lightness components.
+    fn into_hsla(self) -> Hsla;
 
     /// Returns the hue and saturation of this color.
     fn source(self) -> ColorSource {
-        self.into_source_and_lightness().0
+        self.into_hsla().hsl.source
     }
 
     /// Returns the perceived lightness of this color.
     #[must_use]
     fn lightness(self) -> ZeroToOne {
-        self.into_source_and_lightness().1
+        self.into_hsla().hsl.lightness
     }
 
     /// Returns the contrast between this color and the components provided.
@@ -1888,16 +1930,28 @@ pub trait ColorExt: Copy {
 }
 
 impl ColorExt for Color {
-    fn into_source_and_lightness(self) -> (ColorSource, ZeroToOne) {
-        let hsl: palette::Okhsl =
+    fn into_hsla(self) -> Hsla {
+        let mut hsl: palette::Okhsl =
             Srgb::new(self.red_f32(), self.green_f32(), self.blue_f32()).into_color();
-        (
-            ColorSource {
-                hue: hsl.hue,
-                saturation: ZeroToOne::new(hsl.saturation),
+
+        if hsl.saturation.is_nan() && self.red() == 255 && self.green() == 255 && self.blue() == 255
+        {
+            // This works around a calculation causing NaN in the saturation
+            // field when pure white is converted:
+            // <https://github.com/Ogeon/palette/issues/368>
+            hsl.saturation = 0.0;
+        }
+
+        Hsla {
+            hsl: Hsl {
+                source: ColorSource {
+                    hue: hsl.hue,
+                    saturation: ZeroToOne::new(hsl.saturation),
+                },
+                lightness: ZeroToOne::new(hsl.lightness),
             },
-            ZeroToOne::new(hsl.lightness * self.alpha_f32()),
-        )
+            alpha: ZeroToOne::new(self.alpha_f32()),
+        }
     }
 
     fn contrast_between(
@@ -1906,38 +1960,32 @@ impl ColorExt for Color {
         check_lightness: ZeroToOne,
         check_alpha: ZeroToOne,
     ) -> ZeroToOne {
-        let (other_source, other_lightness) = self.into_source_and_lightness();
-        let lightness_delta = other_lightness.difference_between(check_lightness);
+        let other = self.into_hsla();
+        let lightness_delta = other.hsl.lightness.difference_between(check_lightness);
 
-        let average_lightness = ZeroToOne::new((*check_lightness + *other_lightness) / 2.);
+        let source_change = check_source.contrast_between(other.hsl.source);
 
-        let source_change = check_source.contrast_between(other_source);
+        let alpha_delta = check_alpha.difference_between(other.alpha);
 
-        let other_alpha = ZeroToOne::new(self.alpha_f32());
-        let alpha_delta = check_alpha.difference_between(other_alpha);
-
-        ZeroToOne::new(
-            (*lightness_delta
-                + *average_lightness * *source_change
-                + *average_lightness * *alpha_delta)
-                / 3.,
-        )
+        // The lightness amount is the most important factor in contrast
+        // calculations. Thus, we give a higher weight to it in our average
+        // calculation.
+        ZeroToOne::new((*lightness_delta * 3. + *source_change + *alpha_delta) / 5.)
     }
 
     fn most_contrasting(self, others: &[Self]) -> Self
     where
         Self: Copy,
     {
-        let (check_source, check_lightness) = self.into_source_and_lightness();
-        let check_alpha = ZeroToOne::new(self.alpha_f32());
+        let check = self.into_hsla();
 
         let mut others = others.iter().copied();
         let mut most_contrasting = others.next().expect("at least one comparison");
         let mut most_contrast_amount =
-            most_contrasting.contrast_between(check_source, check_lightness, check_alpha);
+            most_contrasting.contrast_between(check.hsl.source, check.hsl.lightness, check.alpha);
         for other in others {
             let contrast_amount =
-                other.contrast_between(check_source, check_lightness, check_alpha);
+                other.contrast_between(check.hsl.source, check.hsl.lightness, check.alpha);
             if contrast_amount > most_contrast_amount {
                 most_contrasting = other;
                 most_contrast_amount = contrast_amount;
@@ -1945,6 +1993,48 @@ impl ColorExt for Color {
         }
 
         most_contrasting
+    }
+}
+
+/// A color composed of hue, saturation, and lightness.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hsla {
+    /// The hue, saturation, and lightness of this color.
+    pub hsl: Hsl,
+    /// The alpha of this color.
+    pub alpha: ZeroToOne,
+}
+
+impl From<Color> for Hsla {
+    fn from(value: Color) -> Self {
+        value.into_hsla()
+    }
+}
+
+impl From<Hsla> for Color {
+    fn from(value: Hsla) -> Self {
+        Color::from(value.hsl).with_alpha_f32(*value.alpha)
+    }
+}
+
+/// A color composed of hue, saturation, and lightness.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hsl {
+    /// The hue and saturation of this color.
+    pub source: ColorSource,
+    /// The lightness of this color.
+    pub lightness: ZeroToOne,
+}
+
+impl From<Color> for Hsl {
+    fn from(value: Color) -> Self {
+        value.into_hsla().hsl
+    }
+}
+
+impl From<Hsl> for Color {
+    fn from(value: Hsl) -> Self {
+        value.source.color(value.lightness)
     }
 }
 
@@ -2229,11 +2319,15 @@ impl ColorSchemeBuilder {
 
     fn generate_error(&self, secondary: ColorSource, tertiary: ColorSource) -> ColorSource {
         let mut error = ColorSource::new(30., self.primary.saturation);
-        while [self.primary, secondary, tertiary]
-            .iter()
-            .any(|c| c.contrast_between(error) < 0.10)
+        let shift_degrees = self.hue_shift.into_positive_degrees().ceil().cast::<u32>();
+        let mut iters_left = (360 - (shift_degrees - 1)) / shift_degrees;
+        while iters_left > 0
+            && [self.primary, secondary, tertiary]
+                .iter()
+                .any(|c| c.contrast_between(error) < 0.20)
         {
             error.hue -= self.hue_shift;
+            iters_left -= 1;
         }
 
         error
@@ -2408,7 +2502,7 @@ where
     }
 }
 
-/// A color scheme for a Gooey application.
+/// A color scheme for a Cushy application.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ColorScheme {
     /// The primary accent color.
@@ -2489,6 +2583,18 @@ impl From<Vec<FamilyOwned>> for FontFamilyList {
     }
 }
 
+impl IntoValue<FontFamilyList> for FamilyOwned {
+    fn into_value(self) -> Value<FontFamilyList> {
+        FontFamilyList::from(self).into_value()
+    }
+}
+
+impl IntoValue<FontFamilyList> for Vec<FamilyOwned> {
+    fn into_value(self) -> Value<FontFamilyList> {
+        FontFamilyList::from(self).into_value()
+    }
+}
+
 impl From<FontFamilyList> for Component {
     fn from(list: FontFamilyList) -> Self {
         Component::custom(list)
@@ -2534,19 +2640,19 @@ impl PartialEq for DynamicComponent {
 /// A type that resolves to a [`Component`] at runtime.
 pub trait DynamicComponentResolver: Send + Sync + 'static {
     /// Returns the effective component, if one should be applied.
-    fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component>;
+    fn resolve_component(&self, context: &WidgetContext<'_>) -> Option<Component>;
 }
 
 struct DynamicFunctionWrapper<F>(F);
 
 impl<T> DynamicComponentResolver for DynamicFunctionWrapper<T>
 where
-    T: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<Component>
+    T: for<'a, 'context> Fn(&'a WidgetContext<'context>) -> Option<Component>
         + Send
         + Sync
         + 'static,
 {
-    fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component> {
+    fn resolve_component(&self, context: &WidgetContext<'_>) -> Option<Component> {
         self.0(context)
     }
 }
@@ -2555,7 +2661,7 @@ impl<T> DynamicComponentResolver for T
 where
     T: ComponentDefinition + Clone + Send + Sync + 'static,
 {
-    fn resolve_component(&self, context: &WidgetContext<'_, '_>) -> Option<Component> {
+    fn resolve_component(&self, context: &WidgetContext<'_>) -> Option<Component> {
         Some(context.get(self).into_component())
     }
 }
@@ -2575,7 +2681,7 @@ impl DynamicComponent {
     #[must_use]
     pub fn new<Func>(resolve: Func) -> Self
     where
-        Func: for<'a, 'context, 'widget> Fn(&'a WidgetContext<'context, 'widget>) -> Option<Component>
+        Func: for<'a, 'context> Fn(&'a WidgetContext<'context>) -> Option<Component>
             + Send
             + Sync
             + 'static,
@@ -2586,7 +2692,7 @@ impl DynamicComponent {
     /// Invokes the resolver function, optionally returning a resolved
     /// component.
     #[must_use]
-    pub fn resolve(&self, context: &WidgetContext<'_, '_>) -> Option<Component> {
+    pub fn resolve(&self, context: &WidgetContext<'_>) -> Option<Component> {
         self.0.resolve_component(context)
     }
 }

@@ -1,68 +1,84 @@
 //! A read-only text widget.
 
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{Point, Size};
-use kludgine::text::{MeasuredText, Text, TextOrigin};
-use kludgine::{Color, DrawableExt};
+use std::fmt::{Display, Write};
 
-use crate::context::{GraphicsContext, LayoutContext};
+use figures::units::{Px, UPx};
+use figures::{Point, Round, Size};
+use kludgine::text::{MeasuredText, Text, TextOrigin};
+use kludgine::{CanRenderTo, Color, DrawableExt};
+
+use super::input::CowString;
+use crate::context::{GraphicsContext, LayoutContext, Trackable, WidgetContext};
 use crate::styles::components::TextColor;
-use crate::value::{Dynamic, Generation, IntoValue, Value};
+use crate::value::{Dynamic, Generation, IntoReadOnly, ReadOnly, Value};
 use crate::widget::{Widget, WidgetInstance};
+use crate::window::WindowLocal;
 use crate::ConstraintLimit;
 
 /// A read-only text widget.
 #[derive(Debug)]
-pub struct Label {
+pub struct Label<T> {
     /// The contents of the label.
-    pub text: Value<String>,
-    prepared_text: Option<(MeasuredText<Px>, Option<Generation>, Px, Color)>,
+    pub display: ReadOnly<T>,
+    displayed: String,
+    prepared_text: WindowLocal<(MeasuredText<Px>, Option<Generation>, Px, Color)>,
 }
 
-impl Label {
+impl<T> Label<T>
+where
+    T: std::fmt::Debug + DynamicDisplay + Send + 'static,
+{
     /// Returns a new label that displays `text`.
-    pub fn new(text: impl IntoValue<String>) -> Self {
+    pub fn new(text: impl IntoReadOnly<T>) -> Self {
         Self {
-            text: text.into_value(),
-            prepared_text: None,
+            display: text.into_read_only(),
+            displayed: String::new(),
+            prepared_text: WindowLocal::default(),
         }
     }
 
     fn prepared_text(
         &mut self,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
+        context: &mut GraphicsContext<'_, '_, '_, '_>,
         color: Color,
         width: Px,
     ) -> &MeasuredText<Px> {
-        let check_generation = self.text.generation();
-        match &self.prepared_text {
+        let check_generation = self.display.generation();
+        match self.prepared_text.get(context) {
             Some((prepared, prepared_generation, prepared_width, prepared_color))
-                if *prepared_generation == check_generation
+                if prepared.can_render_to(&context.gfx)
+                    && *prepared_generation == check_generation
                     && *prepared_color == color
-                    && (*prepared_width == width
-                        || ((*prepared_width < width || prepared.size.width <= width)
-                            && prepared.line_height == prepared.size.height)) => {}
+                    && *prepared_width == width => {}
             _ => {
                 context.apply_current_font_settings();
-                let measured = self.text.map(|text| {
+                let measured = self.display.map(|text| {
+                    self.displayed.clear();
+                    if let Err(err) = write!(&mut self.displayed, "{}", text.as_display(context)) {
+                        tracing::error!("Error invoking Display: {err}");
+                    }
                     context
                         .gfx
-                        .measure_text(Text::new(text, color).wrap_at(width))
+                        .measure_text(Text::new(&self.displayed, color).wrap_at(width))
                 });
-                self.prepared_text = Some((measured, check_generation, width, color));
+                self.prepared_text
+                    .set(context, (measured, check_generation, width, color));
             }
         }
 
         self.prepared_text
-            .as_ref()
+            .get(context)
             .map(|(prepared, _, _, _)| prepared)
             .expect("always initialized")
     }
 }
 
-impl Widget for Label {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
-        self.text.invalidate_when_changed(context);
+impl<T> Widget for Label<T>
+where
+    T: std::fmt::Debug + DynamicDisplay + Send + 'static,
+{
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
+        self.display.invalidate_when_changed(context);
 
         let size = context.gfx.region().size;
         let center = Point::from(size) / 2;
@@ -70,42 +86,92 @@ impl Widget for Label {
 
         let prepared_text = self.prepared_text(context, text_color, size.width);
 
-        context
-            .gfx
-            .draw_measured_text(prepared_text.translate_by(center), TextOrigin::Center);
+        context.gfx.draw_measured_text(
+            prepared_text.translate_by(center.round()),
+            TextOrigin::Center,
+        );
     }
 
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         let color = context.get(&TextColor);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width);
 
-        prepared.size.try_cast().unwrap_or_default()
+        prepared.size.try_cast().unwrap_or_default().ceil()
     }
 
     fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fmt.debug_tuple("Label").field(&self.text).finish()
+        fmt.debug_tuple("Label").field(&self.display).finish()
+    }
+
+    fn unmounted(&mut self, context: &mut crate::context::EventContext<'_>) {
+        self.prepared_text.clear_for(context);
     }
 }
 
 macro_rules! impl_make_widget {
-    ($($type:ty),*) => {
+    ($($type:ty => $kind:ty),*) => {
         $(impl crate::widget::MakeWidgetWithTag for $type {
             fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
-                Label::new(self).make_with_tag(id)
+                Label::<$kind>::new(self).make_with_tag(id)
             }
         })*
     };
 }
 
 impl_make_widget!(
-    &'_ str,
-    String,
-    Value<String>,
-    Dynamic<String>,
-    Dynamic<&'static str>
+    &'_ str => String,
+    String => String,
+    CowString => CowString,
+    Dynamic<String> => String,
+    Dynamic<&'static str> => &'static str,
+    Value<String> => String,
+    ReadOnly<String> => String
 );
+
+/// A context-aware [`Display`] implementation.
+///
+/// This trait is automatically implemented for all types that implement
+/// [`Display`].
+pub trait DynamicDisplay {
+    /// Format `self` with any needed information from `context`.
+    fn fmt(&self, context: &WidgetContext<'_>, f: &mut std::fmt::Formatter<'_>)
+        -> std::fmt::Result;
+
+    /// Returns a type that implements [`Display`].
+    fn as_display<'display, 'ctx>(
+        &'display self,
+        context: &'display WidgetContext<'ctx>,
+    ) -> DynamicDisplayer<'display, 'ctx>
+    where
+        Self: Sized,
+    {
+        DynamicDisplayer(self, context)
+    }
+}
+
+impl<T> DynamicDisplay for T
+where
+    T: Display,
+{
+    fn fmt(
+        &self,
+        _context: &WidgetContext<'_>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        self.fmt(f)
+    }
+}
+
+/// A generic [`Display`] implementation for a [`DynamicDisplay`] implementor.
+pub struct DynamicDisplayer<'a, 'w>(&'a dyn DynamicDisplay, &'a WidgetContext<'w>);
+
+impl Display for DynamicDisplayer<'_, '_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(self.1, f)
+    }
+}

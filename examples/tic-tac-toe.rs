@@ -3,13 +3,13 @@ use std::iter;
 use std::ops::Not;
 use std::time::SystemTime;
 
-use gooey::value::Dynamic;
-use gooey::widget::MakeWidget;
-use gooey::widgets::button::ButtonKind;
-use gooey::{Run, WithClone};
-use kludgine::figures::units::Lp;
+use cushy::value::{Destination, Dynamic, Source};
+use cushy::widget::MakeWidget;
+use cushy::widgets::button::ButtonKind;
+use cushy::{Run, WithClone};
+use figures::units::Lp;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let app = Dynamic::default();
     app.map_each(app.with_clone(|app| {
         move |state: &AppState| match state {
@@ -194,7 +194,6 @@ fn square(row: usize, column: usize, game: &Dynamic<GameState>) -> impl MakeWidg
     });
 
     label
-        .clone()
         .into_button()
         .kind(ButtonKind::Outline)
         .on_click(move |_| game.lock().play(row, column))

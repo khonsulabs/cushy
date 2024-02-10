@@ -5,18 +5,18 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use alot::{LotId, OrderedLots};
-use gooey::widget::{RootBehavior, WidgetInstance};
+use cushy::widget::{RootBehavior, WidgetInstance};
+use figures::units::{Lp, Px, UPx};
+use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use intentional::Assert;
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 
 use crate::animation::easings::EaseOutQuadradic;
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
-use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::utils::IgnorePoison;
-use crate::value::{Dynamic, DynamicGuard, IntoValue, Value};
+use crate::value::{Destination, Dynamic, DynamicGuard, IntoValue, Source, Value};
 use crate::widget::{
-    Callback, Children, MakeWidget, MountedChildren, MountedWidget, Widget, WidgetId, WidgetRef,
+    Callback, MakeWidget, MountedChildren, MountedWidget, Widget, WidgetId, WidgetList, WidgetRef,
     WrapperWidget,
 };
 use crate::widgets::container::ContainerShadow;
@@ -26,27 +26,27 @@ use crate::ConstraintLimit;
 #[derive(Debug)]
 pub struct Layers {
     /// The children that are laid out as layers with index 0 being the lowest (bottom).
-    pub children: Value<Children>,
+    pub children: Value<WidgetList>,
     mounted: MountedChildren,
 }
 
 impl Layers {
     /// Returns a new instance that lays out `children` as layers.
-    pub fn new(children: impl IntoValue<Children>) -> Self {
+    pub fn new(children: impl IntoValue<WidgetList>) -> Self {
         Self {
             children: children.into_value(),
             mounted: MountedChildren::default(),
         }
     }
 
-    fn synchronize_children(&mut self, context: &mut EventContext<'_, '_>) {
+    fn synchronize_children(&mut self, context: &mut EventContext<'_>) {
         self.children.invalidate_when_changed(context);
         self.mounted.synchronize_with(&self.children, context);
     }
 }
 
 impl Widget for Layers {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         self.synchronize_children(&mut context.as_event_context());
 
         for mounted in self.mounted.children() {
@@ -68,7 +68,7 @@ impl Widget for Layers {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         self.synchronize_children(&mut context.as_event_context());
 
@@ -104,11 +104,11 @@ impl Widget for Layers {
         size
     }
 
-    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn mounted(&mut self, context: &mut EventContext<'_>) {
         self.synchronize_children(context);
     }
 
-    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unmounted(&mut self, context: &mut EventContext<'_>) {
         for child in self.mounted.drain() {
             context.remove_child(&child);
         }
@@ -116,7 +116,7 @@ impl Widget for Layers {
 
     fn root_behavior(
         &mut self,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<(RootBehavior, WidgetInstance)> {
         self.synchronize_children(context);
 
@@ -174,11 +174,11 @@ impl OverlayLayer {
 }
 
 impl Widget for OverlayLayer {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let state = self.state.lock();
 
         for child in &state.overlays {
-            let WidgetRef::Mounted(mounted) = &child.widget else {
+            let Some(mounted) = child.widget.as_mounted(context) else {
                 continue;
             };
 
@@ -192,7 +192,7 @@ impl Widget for OverlayLayer {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         let mut state = self.state.lock();
         state.prevent_notifications();
@@ -233,7 +233,7 @@ impl Widget for OverlayLayer {
         Size::ZERO
     }
 
-    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> bool {
         let state = self.state.lock();
         state.test_point(location, false, context).is_some()
     }
@@ -241,7 +241,7 @@ impl Widget for OverlayLayer {
     fn hover(
         &mut self,
         location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<kludgine::app::winit::window::CursorIcon> {
         let mut state = self.state.lock();
 
@@ -259,7 +259,7 @@ impl Widget for OverlayLayer {
         None
     }
 
-    fn unhover(&mut self, _context: &mut EventContext<'_, '_>) {
+    fn unhover(&mut self, _context: &mut EventContext<'_>) {
         let mut state = self.state.lock();
         state.hovering = None;
 
@@ -301,7 +301,7 @@ impl OverlayState {
         &self,
         location: Point<Px>,
         check_original_relative: bool,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<usize> {
         for (index, overlay) in self.overlays.iter().enumerate() {
             if overlay.requires_hover
@@ -326,7 +326,7 @@ impl OverlayState {
     fn point_is_in_root_relative(
         &self,
         location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> bool {
         if let Some(relative_to) = self
             .overlays
@@ -342,7 +342,7 @@ impl OverlayState {
         false
     }
 
-    fn process_new_overlays(&mut self, context: &mut EventContext<'_, '_>) {
+    fn process_new_overlays(&mut self, context: &mut EventContext<'_>) {
         while self.new_overlays > 0 {
             let new_index = self.overlays.len() - self.new_overlays;
             self.new_overlays -= 1;
@@ -378,7 +378,7 @@ impl OverlayState {
         index: usize,
         widget: &MountedWidget,
         available_space: Size<UPx>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
         relative_to: WidgetId,
     ) -> Option<Rect<Px>> {
         let direction = self.overlays[index].direction;
@@ -465,7 +465,7 @@ impl OverlayState {
         &self,
         checking_index: usize,
         layout: &Rect<Px>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> bool {
         for index in (0..self.overlays.len()).filter(|&i| i != checking_index) {
             if self.overlays[index]
@@ -497,7 +497,7 @@ impl OverlayState {
         index: usize,
         widget: &MountedWidget,
         available_space: Size<UPx>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Option<Rect<Px>> {
         if let Some(relative_to) = self.overlays[index].relative_to {
             self.layout_overlay_relative(index, widget, available_space, context, relative_to)
@@ -593,7 +593,7 @@ impl OverlayBuilder<'_> {
     #[must_use]
     pub fn show(self) -> OverlayHandle {
         self.fade_in();
-        self.overlay.state.map_mut(|state| {
+        self.overlay.state.map_mut(|mut state| {
             state.new_overlays += 1;
             OverlayHandle {
                 state: self.overlay.state.clone(),
@@ -747,7 +747,7 @@ impl WrapperWidget for Tooltipped {
     fn hover(
         &mut self,
         _location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<kludgine::app::winit::window::CursorIcon> {
         let background_color = context.theme().surface.highest_container;
 
@@ -779,7 +779,7 @@ impl WrapperWidget for Tooltipped {
         None
     }
 
-    fn unhover(&mut self, _context: &mut EventContext<'_, '_>) {
+    fn unhover(&mut self, _context: &mut EventContext<'_>) {
         self.show_animation = None;
         self.data.shown_tooltip.set(None);
     }

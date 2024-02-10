@@ -1,15 +1,15 @@
 //! A widget for laying out multiple widgets in a similar fashion as how words
 //! are wrapped in a paragraph.
 
+use figures::units::{Px, UPx};
+use figures::{IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use intentional::Cast;
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero};
 
-use crate::context::{AsEventContext, GraphicsContext, LayoutContext};
+use crate::context::{AsEventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::{IntrinsicPadding, LayoutOrder};
 use crate::styles::{FlexibleDimension, HorizontalOrder};
 use crate::value::{IntoValue, Value};
-use crate::widget::{Children, MountedChildren, Widget};
+use crate::widget::{MountedChildren, Widget, WidgetList};
 use crate::ConstraintLimit;
 
 /// A widget that lays its children out horizontally, wrapping into multiple
@@ -20,7 +20,7 @@ use crate::ConstraintLimit;
 #[derive(Debug)]
 pub struct Wrap {
     /// The children to wrap.
-    pub children: Value<Children>,
+    pub children: Value<WidgetList>,
     /// The horizontal alignment for widgets on the same row.
     pub align: Value<WrapAlign>,
     /// The vertical alignment for widgets on the same row.
@@ -34,7 +34,7 @@ pub struct Wrap {
 impl Wrap {
     /// Returns a new widget that wraps `children`.
     #[must_use]
-    pub fn new(children: impl IntoValue<Children>) -> Self {
+    pub fn new(children: impl IntoValue<WidgetList>) -> Self {
         Self {
             children: children.into_value(),
             align: Value::default(),
@@ -97,7 +97,7 @@ impl Wrap {
 }
 
 impl Widget for Wrap {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         for child in self.mounted.children() {
             context.for_other(child).redraw();
         }
@@ -107,7 +107,7 @@ impl Widget for Wrap {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         struct RowChild {
             index: usize,

@@ -8,32 +8,33 @@ use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+use figures::units::{Lp, Px, UPx};
+use figures::{
+    Abs, FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero,
+};
 use intentional::Cast;
-use kludgine::app::winit::event::{ElementState, Ime, KeyEvent};
+use kludgine::app::winit::event::{ElementState, Ime};
 use kludgine::app::winit::keyboard::{Key, NamedKey};
 use kludgine::app::winit::window::{CursorIcon, ImePurpose};
-use kludgine::figures::units::{Lp, Px, UPx};
-use kludgine::figures::{
-    Abs, FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size,
-};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
-use kludgine::{Color, DrawableExt};
+use kludgine::{CanRenderTo, Color, DrawableExt};
 use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 use zeroize::Zeroizing;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::{HighlightColor, IntrinsicPadding, OutlineColor, TextColor};
 use crate::utils::ModifiersExt;
-use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Value};
+use crate::value::{Destination, Dynamic, Generation, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
+use crate::window::KeyEvent;
 use crate::{ConstraintLimit, Lazy};
 
 const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
 
 /// A text input widget.
 #[must_use]
-pub struct Input<Storage> {
+pub struct Input<Storage = String> {
     /// The value of this widget.
     pub value: Dynamic<Storage>,
     /// The placeholder text to display when no value is present.
@@ -50,35 +51,23 @@ pub struct Input<Storage> {
     window_focused: bool,
 }
 
-struct CachedLayout {
-    bytes: usize,
-    color: Color,
+#[derive(Eq, PartialEq, Clone, Copy)]
+struct CacheKey {
     generation: Generation,
     mask_generation: Option<Generation>,
     placeholder_generation: Option<Generation>,
-    mask_bytes: usize,
     width: Option<Px>,
-    measured: MeasuredText<Px>,
-    placeholder: MeasuredText<Px>,
+    color: Color,
+    mask_bytes: usize,
+    cursor: Cursor,
+    selection: Option<Cursor>,
 }
 
-impl CachedLayout {
-    pub fn is_current(
-        &self,
-        generation: Generation,
-        mask_generation: Option<Generation>,
-        placeholder_generation: Option<Generation>,
-        width: Option<Px>,
-        color: Color,
-        mask_bytes: usize,
-    ) -> bool {
-        self.generation == generation
-            && self.mask_generation == mask_generation
-            && self.placeholder_generation == placeholder_generation
-            && self.width == width
-            && self.color == color
-            && self.mask_bytes == mask_bytes
-    }
+struct CachedLayout {
+    bytes: usize,
+    measured: MeasuredText<Px>,
+    placeholder: MeasuredText<Px>,
+    key: CacheKey,
 }
 
 /// The current selection of an [`Input`].
@@ -178,7 +167,7 @@ where
         });
     }
 
-    fn forward_delete(&mut self, context: &mut EventContext<'_, '_>) {
+    fn forward_delete(&mut self, context: &mut EventContext<'_>) {
         if !context.enabled() {
             return;
         }
@@ -201,7 +190,7 @@ where
     }
 
     fn replace_range(&mut self, start: Cursor, end: Cursor, new_text: &str) {
-        self.value.map_mut(|value| {
+        self.value.map_mut(|mut value| {
             let value = value.as_string_mut();
             let start = start.offset.min(value.len().saturating_sub(1));
             let end = end.offset.min(value.len());
@@ -212,7 +201,7 @@ where
         });
     }
 
-    fn delete(&mut self, context: &mut EventContext<'_, '_>) {
+    fn delete(&mut self, context: &mut EventContext<'_>) {
         if !context.enabled() {
             return;
         }
@@ -223,7 +212,8 @@ where
         } else if cursor.offset > 0 {
             let mut value = self.value.lock();
             let length = value.as_str().len();
-            if length == 0 || cursor.offset == 0 || cursor.offset > length {
+
+            if length == 0 || cursor.offset == 0 {
                 return;
             }
 
@@ -242,7 +232,7 @@ where
         &mut self,
         direction: Affinity,
         mode: CursorNavigationMode,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         if !matches!(mode, CursorNavigationMode::Line) {
             self.line_navigation_x_target = None;
@@ -326,17 +316,12 @@ where
         }
     }
 
-    fn move_cursor_by_line_extent(
-        &mut self,
-        affinity: Affinity,
-        context: &mut EventContext<'_, '_>,
-    ) {
+    fn move_cursor_by_line_extent(&mut self, affinity: Affinity, context: &mut EventContext<'_>) {
         let Some(cache) = self.cache.as_ref() else {
             return;
         };
 
-        let (mut position, _) =
-            Self::point_from_cursor(&cache.measured, self.selection.cursor, cache.bytes);
+        let (mut position, _) = self.point_from_cursor(cache, self.selection.cursor, cache.bytes);
         position.y += context
             .get(&IntrinsicPadding)
             .into_px(context.kludgine.scale())
@@ -351,13 +336,12 @@ where
         self.selection.cursor = self.cursor_from_point(position, context);
     }
 
-    fn move_cursor_by_line(&mut self, affinity: Affinity, context: &mut EventContext<'_, '_>) {
+    fn move_cursor_by_line(&mut self, affinity: Affinity, context: &mut EventContext<'_>) {
         let Some(cache) = self.cache.as_ref() else {
             return;
         };
 
-        let (mut position, _) =
-            Self::point_from_cursor(&cache.measured, self.selection.cursor, cache.bytes);
+        let (mut position, _) = self.point_from_cursor(cache, self.selection.cursor, cache.bytes);
         position += Point::squared(
             context
                 .get(&IntrinsicPadding)
@@ -379,7 +363,16 @@ where
         self.selection.cursor = self.cursor_from_point(position, context);
     }
 
+    fn constrain_selection(&mut self) {
+        let length = self.value.map_ref(|s| s.as_str().len());
+        self.selection.cursor.offset = self.selection.cursor.offset.min(length);
+        if let Some(start) = &mut self.selection.start {
+            start.offset = start.offset.min(length);
+        }
+    }
+
     fn selected_range(&mut self) -> (Cursor, Option<Cursor>) {
+        self.constrain_selection();
         match self.selection.start {
             Some(start) => match start.offset.cmp(&self.selection.cursor.offset) {
                 Ordering::Less => (start, Some(self.selection.cursor)),
@@ -410,13 +403,13 @@ where
         self.mask_symbol.map(|mask| !mask.is_empty())
     }
 
-    fn copy_selection_to_clipboard(&mut self, context: &mut EventContext<'_, '_>) {
+    fn copy_selection_to_clipboard(&mut self, context: &mut EventContext<'_>) {
         if self.is_masked() {
             return;
         }
 
         self.map_selected_text(|text| {
-            if let Some(mut clipboard) = context.clipboard_guard() {
+            if let Some(mut clipboard) = context.cushy().clipboard_guard() {
                 match clipboard.set_text(text) {
                     Ok(()) => {}
                     Err(err) => tracing::error!("error copying to clipboard: {err}"),
@@ -425,7 +418,7 @@ where
         });
     }
 
-    fn replace_selection(&mut self, new_text: &str, context: &mut EventContext<'_, '_>) {
+    fn replace_selection(&mut self, new_text: &str, context: &mut EventContext<'_>) {
         if !context.enabled() {
             return;
         }
@@ -448,12 +441,13 @@ where
         };
     }
 
-    fn paste_from_clipboard(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn paste_from_clipboard(&mut self, context: &mut EventContext<'_>) -> bool {
         if !context.enabled() {
             return false;
         }
 
         match context
+            .cushy()
             .clipboard_guard()
             .map(|mut clipboard| clipboard.get_text())
         {
@@ -469,7 +463,7 @@ where
         }
     }
 
-    fn handle_key(&mut self, input: KeyEvent, context: &mut EventContext<'_, '_>) -> EventHandling {
+    fn handle_key(&mut self, input: KeyEvent, context: &mut EventContext<'_>) -> EventHandling {
         match (input.state, input.logical_key, input.text.as_deref()) {
             (ElementState::Pressed,  Key::Named(key @ (NamedKey::Backspace| NamedKey::Delete)), _) => {
                 match key {
@@ -551,30 +545,29 @@ where
         }
     }
 
-    fn layout_text(
-        &mut self,
-        width: Option<Px>,
-        context: &mut GraphicsContext<'_, '_, '_, '_, '_>,
-    ) -> CacheInfo<'_> {
-        let (mut cursor, mut selection) = self.selected_range();
-        let generation = self.value.generation();
-        let mask_generation = self.mask_symbol.generation();
-        let placeholder_generation = self.placeholder.generation();
-        let mut mask_bytes = self
-            .mask_symbol
-            .map(|sym| sym.graphemes(true).next().map_or(0, str::len));
-        let color = context.get(&TextColor);
+    fn layout_text(&mut self, width: Option<Px>, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         context.invalidate_when_changed(&self.value);
+
+        let mut key = {
+            let (cursor, selection) = self.selected_range();
+            CacheKey {
+                generation: self.value.generation(),
+                mask_generation: self.mask_symbol.generation(),
+                placeholder_generation: self.placeholder.generation(),
+                width,
+                color: context.get(&TextColor),
+                mask_bytes: self
+                    .mask_symbol
+                    .map(|sym| sym.graphemes(true).next().map_or(0, str::len)),
+                cursor,
+                selection,
+            }
+        };
         match &mut self.cache {
             Some(cache)
-                if cache.is_current(
-                    generation,
-                    mask_generation,
-                    placeholder_generation,
-                    width,
-                    color,
-                    mask_bytes,
-                ) => {}
+                if cache.measured.can_render_to(&context.gfx)
+                    && cache.placeholder.can_render_to(&context.gfx)
+                    && cache.key == key => {}
             _ => {
                 let (bytes, measured, placeholder, ) = self.value.map_ref(|storage| {
                     let mut text = storage.as_str();
@@ -591,9 +584,9 @@ where
                             // Technically something more optimal than asking the
                             // layout system to lay out a repeated string should be
                             // doable, but it seems like a lot of code.
-                            mask_bytes = first_grapheme.len();
+                            key.mask_bytes = first_grapheme.len();
                             let char_count = text.graphemes(true).count();
-                            bytes = mask_bytes * char_count;
+                            bytes = key.mask_bytes * char_count;
                             self.mask.truncate(bytes);
 
                             while self.mask.len() < bytes {
@@ -601,12 +594,12 @@ where
                             }
                             text = &self.mask;
                         } else {
-                            mask_bytes = 0;
+                            key.mask_bytes = 0;
                         }
                     });
 
                     context.apply_current_font_settings();
-                    let mut text = Text::new(text, color);
+                    let mut text = Text::new(text, key.color);
                     if let Some(width) = width {
                         text = text.wrap_at(width);
                     }
@@ -617,39 +610,43 @@ where
                 });
                 self.cache = Some(CachedLayout {
                     bytes,
-                    color,
-                    generation,
-                    mask_generation,
-                    placeholder_generation,
-                    mask_bytes,
-                    width,
                     measured,
                     placeholder,
+                    key,
                 });
             }
         }
+    }
+
+    fn cache_info(&self) -> CacheInfo<'_> {
+        let cache = self
+            .cache
+            .as_ref()
+            .expect("always called after layout_text");
 
         // Adjust the selection cursors to accommodate the difference in unicode
         // widths of characters in the source string and the mask_char.
-        if mask_bytes > 0 {
+
+        let masked = cache.key.mask_bytes > 0;
+        let mut cursor = cache.key.cursor;
+        let mut selection = cache.key.selection;
+        if masked {
             self.value.map_ref(|value| {
                 let value = value.as_str();
-                assert!(cursor.offset <= value.len());
-                cursor.offset = value[..cursor.offset].graphemes(true).count() * mask_bytes;
+                assert!(cache.key.cursor.offset <= value.len());
+                cursor.offset =
+                    value[..cache.key.cursor.offset].graphemes(true).count() * cache.key.mask_bytes;
                 if let Some(selection) = &mut selection {
                     assert!(selection.offset <= value.len());
                     selection.offset =
-                        value[..selection.offset].graphemes(true).count() * mask_bytes;
+                        value[..selection.offset].graphemes(true).count() * cache.key.mask_bytes;
                 }
             });
         }
 
-        let cache = self.cache.as_ref().expect("always initialized");
         CacheInfo {
-            measured: &cache.measured,
-            placeholder: &cache.placeholder,
-            bytes: cache.bytes,
-            masked: mask_bytes > 0,
+            cache,
+            masked,
             cursor,
             selection,
         }
@@ -657,11 +654,13 @@ where
 
     #[allow(clippy::too_many_lines)] // it's text layout, c'mon
     fn point_from_cursor(
-        measured: &MeasuredText<Px>,
+        &self,
+        cache: &CachedLayout,
         cursor: Cursor,
         total_bytes: usize,
     ) -> (Point<Px>, Px) {
-        if measured.glyphs.is_empty() || (cursor.offset == 0 && cursor.affinity == Affinity::Before)
+        if cache.measured.glyphs.is_empty()
+            || (cursor.offset == 0 && cursor.affinity == Affinity::Before)
         {
             return (Point::default(), Px::ZERO);
         }
@@ -675,7 +674,7 @@ where
         let mut bottom_right_line = 0;
         let mut bottom_right_rect = Rect::default();
         let mut unrendered_offset = 0;
-        for (index, glyph) in measured.glyphs.iter().enumerate() {
+        for (index, glyph) in cache.measured.glyphs.iter().enumerate() {
             unrendered_offset = unrendered_offset.max(glyph.info.end);
             let rect = glyph.rect();
             if bottom_right_rect.size.width == 0
@@ -698,17 +697,30 @@ where
                     if glyph.info.start < cursor.offset {
                         let clustered_bytes = glyph.info.end - glyph.info.start;
                         if clustered_bytes > 1 {
-                            let cursor_offset = cursor.offset - glyph.info.start;
+                            let clustered_graphemes = if cache.key.mask_bytes > 0 {
+                                self.mask[glyph.info.start..glyph.info.end]
+                                    .graphemes(true)
+                                    .count()
+                            } else {
+                                self.value.map_ref(|value| {
+                                    value.as_str()[glyph.info.start..glyph.info.end]
+                                        .graphemes(true)
+                                        .count()
+                                })
+                            };
+                            if clustered_graphemes > 1 {
+                                let cursor_offset = cursor.offset - glyph.info.start;
 
-                            grapheme_offset = rect.size.width * cursor_offset.cast::<f32>()
-                                / clustered_bytes.cast::<f32>();
+                                grapheme_offset = rect.size.width * cursor_offset.cast::<f32>()
+                                    / clustered_graphemes.cast::<f32>();
+                            }
                         }
                     }
 
                     return (
                         Point::new(
                             rect.origin.x + grapheme_offset,
-                            measured.line_height.saturating_mul(Px::new(
+                            cache.measured.line_height.saturating_mul(Px::new(
                                 i32::try_from(glyph.info.line).unwrap_or(i32::MAX),
                             )),
                         ),
@@ -726,8 +738,8 @@ where
         }
 
         if closest_after_index == usize::MAX {
-            let bottom_right = &measured.glyphs[bottom_right_index];
-            let bottom_y = measured.line_height.saturating_mul(Px::new(
+            let bottom_right = &cache.measured.glyphs[bottom_right_index];
+            let bottom_y = cache.measured.line_height.saturating_mul(Px::new(
                 i32::try_from(bottom_right.info.line).unwrap_or(i32::MAX),
             ));
             // No glyph could be found that started/contained the cursors offset.
@@ -752,11 +764,12 @@ where
             // The cursor should be placed after the bottom_right glyph
             (bottom_right_cursor, Px::ZERO)
         } else {
-            let before = &measured.glyphs[closest_before_index];
-            let after = &measured.glyphs[closest_after_index];
+            let before = &cache.measured.glyphs[closest_before_index];
+            let after = &cache.measured.glyphs[closest_after_index];
             let before_rect = before.rect();
             let after_rect = after.rect();
-            let before_y = measured
+            let before_y = cache
+                .measured
                 .line_height
                 .saturating_mul(Px::new(i32::try_from(before.info.line).unwrap_or(i32::MAX)));
 
@@ -781,7 +794,7 @@ where
                         (origin, before_y)
                     }
                     Affinity::After => (
-                        Point::new(Px::ZERO, before_y + measured.line_height),
+                        Point::new(Px::ZERO, before_y + cache.measured.line_height),
                         Px::ZERO,
                     ),
                 }
@@ -789,11 +802,7 @@ where
         }
     }
 
-    fn cursor_from_point(
-        &mut self,
-        location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
-    ) -> Cursor {
+    fn cursor_from_point(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> Cursor {
         let mut cursor = self.cached_cursor_from_point(location, context);
         if let Some(symbol) = self.mask.graphemes(true).next() {
             let grapheme_offset = cursor.offset / symbol.len();
@@ -812,7 +821,7 @@ where
     fn cached_cursor_from_point(
         &mut self,
         location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Cursor {
         let Some(cache) = &self.cache else {
             return Cursor::default();
@@ -853,9 +862,9 @@ where
                 && relative.y <= cache.measured.line_height
             {
                 return if relative.x > rect.size.width / 2 {
-                    if glyph.info.start + 1 < cache.bytes {
+                    if glyph.info.end < cache.bytes {
                         Cursor {
-                            offset: glyph.info.start + 1,
+                            offset: glyph.info.end,
                             affinity: Affinity::Before,
                         }
                     } else {
@@ -922,9 +931,7 @@ where
 }
 
 struct CacheInfo<'a> {
-    measured: &'a MeasuredText<Px>,
-    placeholder: &'a MeasuredText<Px>,
-    bytes: usize,
+    cache: &'a CachedLayout,
     masked: bool,
     cursor: Cursor,
     selection: Option<Cursor>,
@@ -956,20 +963,20 @@ impl<Storage> Widget for Input<Storage>
 where
     Storage: InputStorage + Debug,
 {
-    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
         true
     }
 
-    fn accept_focus(&mut self, _context: &mut EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, _context: &mut EventContext<'_>) -> bool {
         true
     }
 
     fn mouse_down(
         &mut self,
         location: Point<Px>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: crate::window::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         self.mouse_buttons_down += 1;
         context.focus();
@@ -983,7 +990,7 @@ where
     fn hover(
         &mut self,
         _location: Point<Px>,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) -> Option<CursorIcon> {
         Some(CursorIcon::Text)
     }
@@ -991,9 +998,9 @@ where
     fn mouse_drag(
         &mut self,
         location: Point<Px>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: crate::window::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         let cursor_location = self.cursor_from_point(location, context);
         if self.selection.cursor != cursor_location {
@@ -1006,15 +1013,15 @@ where
     fn mouse_up(
         &mut self,
         _location: Option<Point<Px>>,
-        _device_id: kludgine::app::winit::event::DeviceId,
+        _device_id: crate::window::DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
-        _context: &mut EventContext<'_, '_>,
+        _context: &mut EventContext<'_>,
     ) {
         self.mouse_buttons_down -= 1;
     }
 
     #[allow(clippy::too_many_lines)]
-    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         if self.needs_to_select_all {
             self.needs_to_select_all = false;
             self.select_all();
@@ -1037,7 +1044,8 @@ where
             .round();
         let padding = Point::squared(padding);
 
-        let cache = self.layout_text(Some(size.width.into_signed()), context);
+        self.layout_text(Some(size.width.into_signed()), context);
+        let info = self.cache_info();
 
         let highlight = if context.focused(false) && window_focused {
             context.draw_focus_ring();
@@ -1050,30 +1058,34 @@ where
 
         if context.focused(false) {
             context.set_ime_allowed(true);
-            context.set_ime_purpose(if cache.masked {
+            context.set_ime_location(context.gfx.region());
+            context.set_ime_purpose(if info.masked {
                 ImePurpose::Password
             } else {
                 ImePurpose::Normal
             });
 
-            if let Some(selection) = cache.selection {
-                let (start, end) = if selection < cache.cursor {
-                    (selection, cache.cursor)
+            if let Some(selection) = info.selection {
+                let (start, end) = if selection < info.cursor {
+                    (selection, info.cursor)
                 } else {
-                    (cache.cursor, selection)
+                    (info.cursor, selection)
                 };
 
                 let (start_position, _) =
-                    Self::point_from_cursor(cache.measured, start, cache.bytes);
+                    self.point_from_cursor(info.cache, start, info.cache.bytes);
                 let (end_position, end_width) =
-                    Self::point_from_cursor(cache.measured, end, cache.bytes);
+                    self.point_from_cursor(info.cache, end, info.cache.bytes);
 
                 if start_position.y == end_position.y {
                     // Single line selection
                     let width = end_position.x - start_position.x;
                     context.gfx.draw_shape(
                         Shape::filled_rect(
-                            Rect::new(start_position, Size::new(width, cache.measured.line_height)),
+                            Rect::new(
+                                start_position,
+                                Size::new(width, info.cache.measured.line_height),
+                            ),
                             highlight,
                         )
                         .translate_by(padding),
@@ -1083,13 +1095,16 @@ where
                     let width = size.width.into_signed() - start_position.x;
                     context.gfx.draw_shape(
                         Shape::filled_rect(
-                            Rect::new(start_position, Size::new(width, cache.measured.line_height)),
+                            Rect::new(
+                                start_position,
+                                Size::new(width, info.cache.measured.line_height),
+                            ),
                             highlight,
                         )
                         .translate_by(padding),
                     );
                     // Fill region between
-                    let bottom_of_first_line = start_position.y + cache.measured.line_height;
+                    let bottom_of_first_line = start_position.y + info.cache.measured.line_height;
                     let distance_between = end_position.y - bottom_of_first_line;
                     if distance_between > 0 {
                         context.gfx.draw_shape(
@@ -1108,7 +1123,10 @@ where
                         Shape::filled_rect(
                             Rect::new(
                                 Point::new(Px::ZERO, end_position.y),
-                                Size::new(end_position.x + end_width, cache.measured.line_height),
+                                Size::new(
+                                    end_position.x + end_width,
+                                    info.cache.measured.line_height,
+                                ),
                             ),
                             highlight,
                         )
@@ -1117,14 +1135,14 @@ where
                 }
             } else if window_focused && context.enabled() {
                 let (location, _) =
-                    Self::point_from_cursor(cache.measured, cache.cursor, cache.bytes);
+                    self.point_from_cursor(info.cache, info.cursor, info.cache.bytes);
                 if cursor_state.visible {
                     let cursor_width = Lp::points(2).into_px(context.gfx.scale());
                     context.gfx.draw_shape(
                         Shape::filled_rect(
                             Rect::new(
                                 Point::new(location.x - cursor_width / 2, location.y),
-                                Size::new(cursor_width, cache.measured.line_height),
+                                Size::new(cursor_width, info.cache.measured.line_height),
                             ),
                             highlight,
                         )
@@ -1132,15 +1150,13 @@ where
                     );
                 }
                 context.redraw_in(cursor_state.remaining_until_blink);
-            } else {
-                context.redraw_when_changed(context.window().focused());
             }
         }
 
-        let text = if cache.bytes > 0 {
-            cache.measured
+        let text = if info.cache.bytes > 0 {
+            &info.cache.measured
         } else {
-            cache.placeholder
+            &info.cache.placeholder
         };
         context
             .gfx
@@ -1150,7 +1166,7 @@ where
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         let padding = context
             .get(&IntrinsicPadding)
@@ -1159,22 +1175,23 @@ where
 
         let width = available_space.width.max().saturating_sub(padding * 2);
 
-        let cache = self.layout_text(Some(width.into_signed()), &mut context.graphics);
+        self.layout_text(Some(width.into_signed()), &mut context.graphics);
+        let info = self.cache_info();
 
-        cache
+        info.cache
             .measured
             .size
-            .max(cache.placeholder.size)
+            .max(info.cache.placeholder.size)
             .into_unsigned()
             + Size::squared(padding * 2)
     }
 
     fn keyboard_input(
         &mut self,
-        _device_id: kludgine::app::winit::event::DeviceId,
-        input: kludgine::app::winit::event::KeyEvent,
+        _device_id: crate::window::DeviceId,
+        input: KeyEvent,
         _is_synthetic: bool,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         if let Some(on_key) = &mut self.on_key {
             on_key.invoke(input.clone())?;
@@ -1191,7 +1208,7 @@ where
         handled
     }
 
-    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_, '_>) -> EventHandling {
+    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_>) -> EventHandling {
         match ime {
             Ime::Enabled | Ime::Disabled => {}
             Ime::Preedit(text, cursor) => {
@@ -1206,7 +1223,7 @@ where
         HANDLED
     }
 
-    fn focus(&mut self, context: &mut EventContext<'_, '_>) {
+    fn focus(&mut self, context: &mut EventContext<'_>) {
         if self.mouse_buttons_down == 0 {
             self.needs_to_select_all = true;
         }
@@ -1220,7 +1237,7 @@ where
         context.set_needs_redraw();
     }
 
-    fn blur(&mut self, context: &mut EventContext<'_, '_>) {
+    fn blur(&mut self, context: &mut EventContext<'_>) {
         context.set_ime_allowed(false);
         context.set_needs_redraw();
     }
@@ -1323,6 +1340,13 @@ where
     fn into_input(self) -> Input<Storage> {
         Input::new(self.into_dynamic())
     }
+    /// Returns this string as a text input widget.
+    fn to_input(&self) -> Input<Storage>
+    where
+        Self: Clone,
+    {
+        self.clone().into_input()
+    }
 }
 
 impl<T> InputValue<String> for T where T: IntoDynamic<String> {}
@@ -1358,6 +1382,15 @@ where
 {
     fn partial_cmp(&self, other: &T) -> Option<Ordering> {
         other.partial_cmp(self.as_str()).map(Ordering::reverse)
+    }
+}
+
+impl From<CowString> for String {
+    fn from(s: CowString) -> Self {
+        match Arc::try_unwrap(s.0) {
+            Ok(s) => s,
+            Err(arc) => (*arc).clone(),
+        }
     }
 }
 

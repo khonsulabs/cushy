@@ -1,24 +1,24 @@
 use std::fmt::Write;
 
-use gooey::styles::components::{TextColor, WidgetBackground};
-use gooey::styles::{
+use cushy::styles::components::{TextColor, WidgetBackground};
+use cushy::styles::{
     ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme,
     ThemePair,
 };
-use gooey::value::{Dynamic, MapEachCloned};
-use gooey::widget::MakeWidget;
-use gooey::widgets::checkbox::Checkable;
-use gooey::widgets::color::ColorSourcePicker;
-use gooey::widgets::input::InputValue;
-use gooey::widgets::slider::Slidable;
-use gooey::widgets::Space;
-use gooey::window::ThemeMode;
-use gooey::{Open, PendingApp};
-use kludgine::figures::units::Lp;
+use cushy::value::{Destination, Dynamic, MapEachCloned, Source};
+use cushy::widget::MakeWidget;
+use cushy::widgets::checkbox::Checkable;
+use cushy::widgets::color::ColorSourcePicker;
+use cushy::widgets::input::InputValue;
+use cushy::widgets::slider::Slidable;
+use cushy::widgets::Space;
+use cushy::window::ThemeMode;
+use cushy::{Open, PendingApp};
+use figures::units::Lp;
 use kludgine::Color;
 use palette::OklabHue;
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let app = PendingApp::default();
 
     let (theme_mode, theme_switcher) = dark_mode_picker();
@@ -79,9 +79,9 @@ fn main() -> gooey::Result {
         .and(editors.neutral.1)
         .and(editors.neutral_variant.1)
         .and("Copy to Clipboard".into_button().on_click({
-            let gooey = app.gooey().clone();
+            let cushy = app.cushy().clone();
             move |()| {
-                if let Some(mut clipboard) = gooey.clipboard_guard() {
+                if let Some(mut clipboard) = cushy.clipboard_guard() {
                     let builder = color_scheme_builder.get();
                     let mut source = String::default();
                     builder.format_rust_into(&mut source);
@@ -206,15 +206,14 @@ fn optional_editor(label: &str, color: &Dynamic<ColorSource>) -> (Dynamic<bool>,
     (
         enabled.clone(),
         enabled
-            .clone()
-            .into_checkbox(swatch_label(label, color))
+            .to_checkbox(swatch_label(label, color))
             .and(color_editor(color).collapse_vertically(hide_editor))
             .into_rows(),
     )
 }
 
 fn color_editor(color: &Dynamic<ColorSource>) -> impl MakeWidget {
-    let hue = color.map_each(|color| color.hue.into_positive_degrees());
+    let hue = color.map_each_cloned(|color| color.hue.into_positive_degrees());
     hue.for_each_cloned({
         let color = color.clone();
         move |hue| {
@@ -226,7 +225,7 @@ fn color_editor(color: &Dynamic<ColorSource>) -> impl MakeWidget {
     .persist();
 
     let hue_text = hue.linked_string();
-    let saturation = color.map_each(|color| color.saturation);
+    let saturation = color.map_each_cloned(|color| color.saturation);
     saturation
         .for_each_cloned({
             let color = color.clone();

@@ -1,15 +1,15 @@
 //! A labeled widget with a circular indicator representing a value.
 use std::fmt::Debug;
 
-use kludgine::figures::units::Lp;
-use kludgine::figures::{Point, ScreenScale, Size};
+use figures::units::Lp;
+use figures::{Point, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::DrawableExt;
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::{LineHeight, OutlineColor, WidgetAccentColor};
 use crate::styles::Dimension;
-use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoValue, Value};
+use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
@@ -52,7 +52,7 @@ impl<T> Radio<T> {
 
 impl<T> MakeWidgetWithTag for Radio<T>
 where
-    T: Clone + Debug + Eq + Send + 'static,
+    T: Clone + Debug + PartialEq + Send + 'static,
 {
     fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
         RadioOrnament {
@@ -78,9 +78,9 @@ struct RadioOrnament<T> {
 
 impl<T> Widget for RadioOrnament<T>
 where
-    T: Debug + Eq + Send + 'static,
+    T: Debug + PartialEq + Send + 'static,
 {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let radio_size = context
             .gfx
             .region()
@@ -118,8 +118,8 @@ where
     fn layout(
         &mut self,
         _available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
-    ) -> Size<kludgine::figures::units::UPx> {
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) -> Size<figures::units::UPx> {
         let radio_size = context.get(&RadioSize).into_upx(context.gfx.scale());
         Size::squared(radio_size)
     }

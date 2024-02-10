@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use gooey::value::{Dynamic, MapEach};
-use gooey::widget::{Children, MakeWidget};
-use gooey::widgets::input::InputValue;
-use gooey::Run;
+use cushy::value::{Dynamic, MapEach, Source};
+use cushy::widget::{MakeWidget, WidgetList};
+use cushy::widgets::input::InputValue;
+use cushy::Run;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Contact {
@@ -13,7 +13,7 @@ pub struct Contact {
     pub title: String,
 }
 
-fn main() -> gooey::Result {
+fn main() -> cushy::Result {
     let initial_contacts = vec![
         Contact {
             id: 0,
@@ -50,7 +50,7 @@ fn main() -> gooey::Result {
                         .new_select(Some(id), format!("{first} {last}").align_left())
                         .make_widget()
                 })
-                .collect::<Children>()
+                .collect::<WidgetList>()
         }
     });
 
@@ -76,11 +76,11 @@ fn edit_contact_form(contact: &Contact, db: &Dynamic<HashMap<u64, Contact>>) -> 
     let title = Dynamic::new(contact.title.clone());
 
     "First Name"
-        .and(first.clone().into_input())
+        .and(first.to_input())
         .and("Last Name")
-        .and(last.clone().into_input())
+        .and(last.to_input())
         .and("Title")
-        .and(title.clone().into_input())
+        .and(title.to_input())
         .and(
             "Save"
                 .into_button()

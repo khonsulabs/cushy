@@ -9,18 +9,18 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::{slice, vec};
 
 use alot::LotId;
+use figures::units::{Px, UPx};
+use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use intentional::Assert;
-use kludgine::app::winit::event::{
-    DeviceId, Ime, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
-};
+use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
-use kludgine::figures::units::{Px, UPx};
-use kludgine::figures::{IntoSigned, IntoUnsigned, Point, Rect, Size};
 use kludgine::Color;
 
 use crate::app::{Application, Open, PendingApp, Run};
-use crate::context::sealed::WindowHandle;
-use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::context::sealed::Trackable as _;
+use crate::context::{
+    AsEventContext, EventContext, GraphicsContext, LayoutContext, ManageWidget, WidgetContext,
+};
 use crate::styles::components::{
     FontFamily, FontStyle, FontWeight, Heading1FontFamily, Heading1Style, Heading1Weight,
     Heading2FontFamily, Heading2Style, Heading2Weight, Heading3FontFamily, Heading3Style,
@@ -39,11 +39,16 @@ use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
+use crate::widgets::list::List;
 use crate::widgets::{
-    Align, Button, Checkbox, Collapse, Container, Expand, Layers, Resize, Scroll, Space, Stack,
-    Style, Themed, ThemedMode, Validated, Wrap,
+    Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Resize, Scroll, Space,
+    Stack, Style, Themed, ThemedMode, Validated, Wrap,
 };
-use crate::window::{RunningWindow, ThemeMode, Window, WindowBehavior};
+use crate::window::sealed::WindowCommand;
+use crate::window::{
+    CushyWindowBuilder, DeviceId, KeyEvent, Rgb8, RunningWindow, ThemeMode, VirtualRecorderBuilder,
+    Window, WindowBehavior, WindowHandle, WindowLocal,
+};
 use crate::ConstraintLimit;
 
 /// A type that makes up a graphical user interface.
@@ -53,13 +58,13 @@ use crate::ConstraintLimit;
 ///
 /// # Widgets are hierarchical
 ///
-/// Gooey's widgets are organized in a hierarchical structure: widgets can
-/// contain other widgets. A window in Gooey contains a single root widget,
+/// Cushy's widgets are organized in a hierarchical structure: widgets can
+/// contain other widgets. A window in Cushy contains a single root widget,
 /// which may contain one or more additional widgets.
 ///
 /// # How Widgets are created
 ///
-/// Gooey offers several approaches to creating widgets. The primary trait that
+/// Cushy offers several approaches to creating widgets. The primary trait that
 /// is used to instantiate a widget is [`MakeWidget`]. This trait is
 /// automatically implemented for all types that implement [`Widget`].
 ///
@@ -120,8 +125,8 @@ use crate::ConstraintLimit;
 ///
 /// Next, the window sets the root's layout. When a widget contains another
 /// widget, it must call [`LayoutContext::set_child_layout`] for the child to be
-/// able to be rendered. This tells Gooey the location to draw the widget. While
-/// it is possible to provide any rectangle, Gooey clips all widgets and their
+/// able to be rendered. This tells Cushy the location to draw the widget. While
+/// it is possible to provide any rectangle, Cushy clips all widgets and their
 /// children so that they cannot draw outside of their assigned bounds.
 ///
 /// Once the layout has been determined, the window will invoke the root
@@ -137,19 +142,20 @@ use crate::ConstraintLimit;
 ///
 /// # Controlling Invalidation and Redrawing
 ///
-/// Gooey only redraws window contents when requested by the operating system or
-/// a tracked [`Dynamic`] is updated. Similarly, Gooey caches the known layout
+/// Cushy only redraws window contents when requested by the operating system or
+/// a tracked [`Dynamic`] is updated. Similarly, Cushy caches the known layout
 /// sizes and locations for widgets unless they are *invalidated*. Invalidation
 /// is done automatically when the window size changes or a tracked [`Dynamic`]
 /// is updated.
 ///
-/// These systems require Gooey to track which [`Dynamic`] values a widget
+/// These systems require Cushy to track which [`Dynamic`] values a widget
 /// depends on for redrawing and invalidation. During a widget's redraw and
 /// layout functions, it needs to ensure that all depended upon [`Dynamic`]s are
 /// tracked using one of the various
 /// `*_tracking_redraw()`/`*_tracking_invalidate()` functions. For example,
-/// [`Dynamic::get_tracking_redraw()`] and
-/// [`Dynamic::get_tracking_invalidate()`].
+/// [`Source::get_tracking_redraw()`](crate::value::Source::get_tracking_redraw)
+/// and
+/// [`Source::get_tracking_invalidate()`](crate::value::Source::get_tracking_invalidate).
 ///
 /// # Hover State: Hit Testing
 ///
@@ -232,36 +238,36 @@ use crate::ConstraintLimit;
 ///
 /// # Styling
 ///
-/// Gooey allows widgets to receive styling information through the widget
-/// hierarchy using [`Styles`]. Gooey calculates the effectives styles for each
+/// Cushy allows widgets to receive styling information through the widget
+/// hierarchy using [`Styles`]. Cushy calculates the effectives styles for each
 /// widget by inheriting all inheritable styles from its parent.
 ///
 /// The [`Style`] widget allows assigining [`Styles`] to all of its children
-/// widget. It works by calling [`WidgetContext::attach_styles`], and Gooey
+/// widget. It works by calling [`WidgetContext::attach_styles`], and Cushy
 /// takes care of the rest.
 ///
-/// Styling in Gooey aims to be simple, easy-to-understand, and extensible.
+/// Styling in Cushy aims to be simple, easy-to-understand, and extensible.
 ///
 /// # Color Themes
 ///
-/// Gooey aims to make it easy for developers to customize the appearance of its
-/// applications. The way color themes work in Gooey begins with the
+/// Cushy aims to make it easy for developers to customize the appearance of its
+/// applications. The way color themes work in Cushy begins with the
 /// [`ColorScheme`](crate::styles::ColorScheme). A color scheme is a set of
 /// [`ColorSource`](crate::styles::ColorSource) that are used to generate a
 /// variety of shades of colors for various roles color plays in a user
-/// interface. In a way, coloring Gooey apps is a bit like paint-by-number,
+/// interface. In a way, coloring Cushy apps is a bit like paint-by-number,
 /// where the number is the name of the color role.
 ///
 /// A `ColorScheme` can be used to create a [`ThemePair`], which is theme
 /// definition that a theme for light and dark mode.
 ///
 /// In [the repository][repo], the `theme` example is a good way to explore how
-/// the color system works in Gooey.
+/// the color system works in Cushy.
 ///
-/// [repo]: https://github.com/khonsulabs/gooey
+/// [repo]: https://github.com/khonsulabs/cushy
 pub trait Widget: Send + Debug + 'static {
     /// Redraw the contents of this widget.
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>);
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>);
 
     /// Writes a summary of this widget into `fmt`.
     ///
@@ -294,50 +300,46 @@ pub trait Widget: Send + Debug + 'static {
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         available_space.map(ConstraintLimit::min)
     }
 
     /// The widget has been mounted into a parent widget.
     #[allow(unused_variables)]
-    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn mounted(&mut self, context: &mut EventContext<'_>) {}
 
     /// The widget has been removed from its parent widget.
     #[allow(unused_variables)]
-    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn unmounted(&mut self, context: &mut EventContext<'_>) {}
 
     /// Returns true if this widget should respond to mouse input at `location`.
     #[allow(unused_variables)]
-    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> bool {
         false
     }
 
     /// The widget is currently has a cursor hovering it at `location`.
     #[allow(unused_variables)]
-    fn hover(
-        &mut self,
-        location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
-    ) -> Option<CursorIcon> {
+    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> Option<CursorIcon> {
         None
     }
 
     /// The widget is no longer being hovered.
     #[allow(unused_variables)]
-    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn unhover(&mut self, context: &mut EventContext<'_>) {}
 
     /// This widget has been targeted to be focused. If this function returns
-    /// true, the widget will be focused. If false, Gooey will continue
+    /// true, the widget will be focused. If false, Cushy will continue
     /// searching for another focus target.
     #[allow(unused_variables)]
-    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, context: &mut EventContext<'_>) -> bool {
         false
     }
 
     /// The widget has received focus for user input.
     #[allow(unused_variables)]
-    fn focus(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn focus(&mut self, context: &mut EventContext<'_>) {}
 
     /// The widget should switch to the next focusable area within this widget,
     /// honoring `direction` in a consistent manner. Returning `HANDLED` will
@@ -346,7 +348,7 @@ pub trait Widget: Send + Debug + 'static {
     fn advance_focus(
         &mut self,
         direction: VisualOrder,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         IGNORED
     }
@@ -354,21 +356,21 @@ pub trait Widget: Send + Debug + 'static {
     /// The widget is about to lose focus. Returning true allows the focus to
     /// switch away from this widget.
     #[allow(unused_variables)]
-    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn allow_blur(&mut self, context: &mut EventContext<'_>) -> bool {
         true
     }
 
     /// The widget is no longer focused for user input.
     #[allow(unused_variables)]
-    fn blur(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn blur(&mut self, context: &mut EventContext<'_>) {}
 
     /// The widget has become the active widget.
     #[allow(unused_variables)]
-    fn activate(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn activate(&mut self, context: &mut EventContext<'_>) {}
 
     /// The widget is no longer active.
     #[allow(unused_variables)]
-    fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn deactivate(&mut self, context: &mut EventContext<'_>) {}
 
     /// A mouse button event has occurred at `location`. Returns whether the
     /// event has been handled or not.
@@ -381,7 +383,7 @@ pub trait Widget: Send + Debug + 'static {
         location: Point<Px>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         IGNORED
     }
@@ -394,7 +396,7 @@ pub trait Widget: Send + Debug + 'static {
         location: Point<Px>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
     }
 
@@ -405,7 +407,7 @@ pub trait Widget: Send + Debug + 'static {
         location: Option<Point<Px>>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
     }
 
@@ -417,7 +419,7 @@ pub trait Widget: Send + Debug + 'static {
         device_id: DeviceId,
         input: KeyEvent,
         is_synthetic: bool,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         IGNORED
     }
@@ -425,7 +427,7 @@ pub trait Widget: Send + Debug + 'static {
     /// An input manager event has been sent to this widget. Returns whether the
     /// event has been handled or not.
     #[allow(unused_variables)]
-    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_, '_>) -> EventHandling {
+    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_>) -> EventHandling {
         IGNORED
     }
 
@@ -437,7 +439,7 @@ pub trait Widget: Send + Debug + 'static {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         IGNORED
     }
@@ -448,28 +450,30 @@ pub trait Widget: Send + Debug + 'static {
     #[allow(unused_variables)]
     fn root_behavior(
         &mut self,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<(RootBehavior, WidgetInstance)> {
         None
     }
 }
 
+// ANCHOR: run
 impl<T> Run for T
 where
     T: MakeWidget,
 {
     fn run(self) -> crate::Result {
-        Window::<WidgetInstance>::new(self.make_widget()).run()
+        Window::for_widget(self).run()
     }
 }
+// ANCHOR_END: run
 
 impl<T> Open for T
 where
     T: MakeWidget,
 {
-    fn open<App>(self, app: &App) -> crate::Result
+    fn open<App>(self, app: &App) -> crate::Result<Option<crate::window::WindowHandle>>
     where
-        App: Application,
+        App: Application + ?Sized,
     {
         Window::<WidgetInstance>::new(self.make_widget()).open(app)
     }
@@ -488,7 +492,7 @@ pub enum RootBehavior {
     PassThrough,
     /// This widget will try to expand to fill the window.
     Expand,
-    /// This widget will measure its contents to fit its child, but Gooey should
+    /// This widget will measure its contents to fit its child, but Cushy should
     /// still stretch this widget to fill the window.
     Align,
     /// This widget adjusts its child layout with padding.
@@ -541,7 +545,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
     /// Returns the behavior this widget should apply when positioned at the
     /// root of the window.
     #[allow(unused_variables)]
-    fn root_behavior(&mut self, context: &mut EventContext<'_, '_>) -> Option<RootBehavior> {
+    fn root_behavior(&mut self, context: &mut EventContext<'_>) -> Option<RootBehavior> {
         None
     }
 
@@ -549,13 +553,13 @@ pub trait WrapperWidget: Debug + Send + 'static {
     ///
     /// This is invoked before the wrapped widget is drawn.
     #[allow(unused_variables)]
-    fn redraw_background(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {}
+    fn redraw_background(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {}
 
     /// Draws the foreground of the widget.
     ///
     /// This is invoked after the wrapped widget is drawn.
     #[allow(unused_variables)]
-    fn redraw_foreground(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {}
+    fn redraw_foreground(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {}
 
     /// Returns the rectangle that the child widget should occupy given
     /// `available_space`.
@@ -563,7 +567,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
     fn layout_child(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         let adjusted_space = self.adjust_child_constraints(available_space, context);
         let child = self.child_mut().mounted(&mut context.as_event_context());
@@ -581,7 +585,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
     fn adjust_child_constraints(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<ConstraintLimit> {
         available_space
     }
@@ -593,7 +597,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
         &mut self,
         size: Size<Px>,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         Size::new(
             available_space
@@ -609,7 +613,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
     /// Returns the background color to render behind the wrapped widget.
     #[allow(unused_variables)]
     #[must_use]
-    fn background_color(&mut self, context: &WidgetContext<'_, '_>) -> Option<Color> {
+    fn background_color(&mut self, context: &WidgetContext<'_>) -> Option<Color> {
         // WidgetBackground is already filled, so we don't need to do anything
         // else by default.
         None
@@ -617,37 +621,35 @@ pub trait WrapperWidget: Debug + Send + 'static {
 
     /// The widget has been mounted into a parent widget.
     #[allow(unused_variables)]
-    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn mounted(&mut self, context: &mut EventContext<'_>) {}
 
     /// The widget has been removed from its parent widget.
     #[allow(unused_variables)]
-    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn unmounted(&mut self, context: &mut EventContext<'_>) {
+        self.child_mut().unmount_in(context);
+    }
 
     /// Returns true if this widget should respond to mouse input at `location`.
     #[allow(unused_variables)]
-    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> bool {
         false
     }
 
     /// The widget is currently has a cursor hovering it at `location`.
     #[allow(unused_variables)]
-    fn hover(
-        &mut self,
-        location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
-    ) -> Option<CursorIcon> {
+    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> Option<CursorIcon> {
         None
     }
 
     /// The widget is no longer being hovered.
     #[allow(unused_variables)]
-    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn unhover(&mut self, context: &mut EventContext<'_>) {}
 
     /// This widget has been targeted to be focused. If this function returns
-    /// true, the widget will be focused. If false, Gooey will continue
+    /// true, the widget will be focused. If false, Cushy will continue
     /// searching for another focus target.
     #[allow(unused_variables)]
-    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, context: &mut EventContext<'_>) -> bool {
         false
     }
 
@@ -658,33 +660,33 @@ pub trait WrapperWidget: Debug + Send + 'static {
     fn advance_focus(
         &mut self,
         direction: VisualOrder,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         IGNORED
     }
 
     /// The widget has received focus for user input.
     #[allow(unused_variables)]
-    fn focus(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn focus(&mut self, context: &mut EventContext<'_>) {}
 
     /// The widget is about to lose focus. Returning true allows the focus to
     /// switch away from this widget.
     #[allow(unused_variables)]
-    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn allow_blur(&mut self, context: &mut EventContext<'_>) -> bool {
         true
     }
 
     /// The widget is no longer focused for user input.
     #[allow(unused_variables)]
-    fn blur(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn blur(&mut self, context: &mut EventContext<'_>) {}
 
     /// The widget has become the active widget.
     #[allow(unused_variables)]
-    fn activate(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn activate(&mut self, context: &mut EventContext<'_>) {}
 
     /// The widget is no longer active.
     #[allow(unused_variables)]
-    fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {}
+    fn deactivate(&mut self, context: &mut EventContext<'_>) {}
 
     /// A mouse button event has occurred at `location`. Returns whether the
     /// event has been handled or not.
@@ -697,7 +699,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
         location: Point<Px>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         IGNORED
     }
@@ -710,7 +712,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
         location: Point<Px>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
     }
 
@@ -721,7 +723,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
         location: Option<Point<Px>>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
     }
 
@@ -733,7 +735,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
         device_id: DeviceId,
         input: KeyEvent,
         is_synthetic: bool,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         IGNORED
     }
@@ -741,7 +743,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
     /// An input manager event has been sent to this widget. Returns whether the
     /// event has been handled or not.
     #[allow(unused_variables)]
-    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_, '_>) -> EventHandling {
+    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_>) -> EventHandling {
         IGNORED
     }
 
@@ -753,7 +755,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         IGNORED
     }
@@ -765,13 +767,13 @@ where
 {
     fn root_behavior(
         &mut self,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> Option<(RootBehavior, WidgetInstance)> {
         T::root_behavior(self, context)
             .map(|behavior| (behavior, T::child_mut(self).widget().clone()))
     }
 
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_, '_>) {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         let background_color = self.background_color(context);
         if let Some(color) = background_color {
             context.fill(color);
@@ -788,7 +790,7 @@ where
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,
-        context: &mut LayoutContext<'_, '_, '_, '_, '_>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         let layout = self.layout_child(available_space, context);
         let child = self.child_mut().mounted(&mut context.as_event_context());
@@ -796,47 +798,43 @@ where
         layout.size
     }
 
-    fn mounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn mounted(&mut self, context: &mut EventContext<'_>) {
         T::mounted(self, context);
     }
 
-    fn unmounted(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unmounted(&mut self, context: &mut EventContext<'_>) {
         T::unmounted(self, context);
     }
 
-    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_, '_>) -> bool {
+    fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> bool {
         T::hit_test(self, location, context)
     }
 
-    fn hover(
-        &mut self,
-        location: Point<Px>,
-        context: &mut EventContext<'_, '_>,
-    ) -> Option<CursorIcon> {
+    fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> Option<CursorIcon> {
         T::hover(self, location, context)
     }
 
-    fn unhover(&mut self, context: &mut EventContext<'_, '_>) {
+    fn unhover(&mut self, context: &mut EventContext<'_>) {
         T::unhover(self, context);
     }
 
-    fn accept_focus(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn accept_focus(&mut self, context: &mut EventContext<'_>) -> bool {
         T::accept_focus(self, context)
     }
 
-    fn focus(&mut self, context: &mut EventContext<'_, '_>) {
+    fn focus(&mut self, context: &mut EventContext<'_>) {
         T::focus(self, context);
     }
 
-    fn blur(&mut self, context: &mut EventContext<'_, '_>) {
+    fn blur(&mut self, context: &mut EventContext<'_>) {
         T::blur(self, context);
     }
 
-    fn activate(&mut self, context: &mut EventContext<'_, '_>) {
+    fn activate(&mut self, context: &mut EventContext<'_>) {
         T::activate(self, context);
     }
 
-    fn deactivate(&mut self, context: &mut EventContext<'_, '_>) {
+    fn deactivate(&mut self, context: &mut EventContext<'_>) {
         T::deactivate(self, context);
     }
 
@@ -845,7 +843,7 @@ where
         location: Point<Px>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         T::mouse_down(self, location, device_id, button, context)
     }
@@ -855,7 +853,7 @@ where
         location: Point<Px>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         T::mouse_drag(self, location, device_id, button, context);
     }
@@ -865,7 +863,7 @@ where
         location: Option<Point<Px>>,
         device_id: DeviceId,
         button: MouseButton,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) {
         T::mouse_up(self, location, device_id, button, context);
     }
@@ -875,12 +873,12 @@ where
         device_id: DeviceId,
         input: KeyEvent,
         is_synthetic: bool,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         T::keyboard_input(self, device_id, input, is_synthetic, context)
     }
 
-    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_, '_>) -> EventHandling {
+    fn ime(&mut self, ime: Ime, context: &mut EventContext<'_>) -> EventHandling {
         T::ime(self, ime, context)
     }
 
@@ -889,7 +887,7 @@ where
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         T::mouse_wheel(self, device_id, delta, phase, context)
     }
@@ -897,12 +895,12 @@ where
     fn advance_focus(
         &mut self,
         direction: VisualOrder,
-        context: &mut EventContext<'_, '_>,
+        context: &mut EventContext<'_>,
     ) -> EventHandling {
         T::advance_focus(self, direction, context)
     }
 
-    fn allow_blur(&mut self, context: &mut EventContext<'_, '_>) -> bool {
+    fn allow_blur(&mut self, context: &mut EventContext<'_>) -> bool {
         T::allow_blur(self, context)
     }
 
@@ -919,6 +917,16 @@ pub trait MakeWidget: Sized {
     /// Returns a new window containing `self` as the root widget.
     fn into_window(self) -> Window<WidgetInstance> {
         Window::new(self.make_widget())
+    }
+
+    /// Returns a builder for a [`VirtualWindow`](crate::window::VirtualWindow).
+    fn build_virtual_window(self) -> CushyWindowBuilder {
+        CushyWindowBuilder::new(self)
+    }
+
+    /// Returns a builder for a [`VirtualRecorder`](crate::window::VirtualRecorder)
+    fn build_recorder(self) -> VirtualRecorderBuilder<Rgb8> {
+        VirtualRecorderBuilder::new(self)
     }
 
     /// Associates `styles` with this widget.
@@ -1062,7 +1070,7 @@ pub trait MakeWidget: Sized {
 
     /// Sets the widget that should be focused next.
     ///
-    /// Gooey automatically determines reverse tab order by using this same
+    /// Cushy automatically determines reverse tab order by using this same
     /// relationship.
     fn with_next_focus(self, next_focus: impl IntoValue<Option<WidgetId>>) -> WidgetInstance {
         self.make_widget().with_next_focus(next_focus)
@@ -1110,8 +1118,8 @@ pub trait MakeWidget: Sized {
     }
 
     /// Returns a collection of widgets using `self` and `other`.
-    fn and(self, other: impl MakeWidget) -> Children {
-        let mut children = Children::new();
+    fn and(self, other: impl MakeWidget) -> WidgetList {
+        let mut children = WidgetList::new();
         children.push(self);
         children.push(other);
         children
@@ -1157,7 +1165,7 @@ pub trait MakeWidget: Sized {
     ///
     /// - [`Dimension`]
     /// - [`Px`]
-    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - [`Lp`](crate::figures::units::Lp)
     /// - A range of any fo the above.
     #[must_use]
     fn width(self, width: impl Into<DimensionRange>) -> Resize {
@@ -1170,7 +1178,7 @@ pub trait MakeWidget: Sized {
     ///
     /// - [`Dimension`]
     /// - [`Px`]
-    /// - [`Lp`](crate::kludgine::figures::units::Lp)
+    /// - [`Lp`](crate::figures::units::Lp)
     /// - A range of any fo the above.
     #[must_use]
     fn height(self, height: impl Into<DimensionRange>) -> Resize {
@@ -1297,6 +1305,11 @@ pub trait MakeWidget: Sized {
     /// revealed when the dynamic contains `false`.
     fn collapse_vertically(self, collapse_when: impl IntoDynamic<bool>) -> Collapse {
         Collapse::vertical(collapse_when, self)
+    }
+
+    /// Returns a new widget that allows hiding and showing `contents`.
+    fn disclose(self) -> Disclose {
+        Disclose::new(self)
     }
 
     /// Returns a widget that shows validation errors and/or hints.
@@ -1442,7 +1455,7 @@ impl WidgetInstance {
 
     /// Sets the widget that should be focused next.
     ///
-    /// Gooey automatically determines reverse tab order by using this same
+    /// Cushy automatically determines reverse tab order by using this same
     /// relationship.
     ///
     /// # Panics
@@ -1556,7 +1569,7 @@ impl WidgetInstance {
 
     pub(crate) fn enabled(&self, context: &WindowHandle) -> bool {
         if let Value::Dynamic(dynamic) = &self.data.enabled {
-            dynamic.redraw_when_changed(context.clone());
+            dynamic.inner_redraw_when_changed(context.clone());
         }
         self.data.enabled.get()
     }
@@ -1579,7 +1592,10 @@ impl PartialEq for WidgetInstance {
 impl WindowBehavior for WidgetInstance {
     type Context = Self;
 
-    fn initialize(_window: &mut RunningWindow<'_>, context: Self::Context) -> Self {
+    fn initialize(
+        _window: &mut RunningWindow<kludgine::app::Window<'_, WindowCommand>>,
+        context: Self::Context,
+    ) -> Self {
         context
     }
 
@@ -1907,14 +1923,25 @@ impl WidgetGuard<'_> {
     }
 }
 
-/// A list of [`Widget`]s.
+/// A list of [`Widget`]s without a layout strategy.
+///
+/// To use a `WidgetList` in a user interface, a choice must be made for how
+/// each child should be positioned. The built-in widgets that can layout a
+/// `WidgetList` are:
+///
+/// - As rows: [`Stack::rows`] / [`Self::into_rows`]
+/// - As columns: [`Stack::columns`] / [`Self::into_columns`]
+/// - Positioned on top of each other in the Z orientation: [`Layers::new`] /
+///   [`Self::into_layers`]
+/// - Layout horizontally, wrapping into multiple rows as needed: [`Wrap::new`]
+///   / [`Self::into_wrap`].
 #[derive(Default, Eq, PartialEq)]
 #[must_use]
-pub struct Children {
+pub struct WidgetList {
     ordered: Vec<WidgetInstance>,
 }
 
-impl Children {
+impl WidgetList {
     /// Returns an empty list.
     pub const fn new() -> Self {
         Self {
@@ -1944,6 +1971,15 @@ impl Children {
         W: MakeWidget,
     {
         self.ordered.insert(index, widget.make_widget());
+    }
+
+    /// Extends this collection with the contents of `iter`.
+    pub fn extend<T, Iter>(&mut self, iter: Iter)
+    where
+        Iter: IntoIterator<Item = T>,
+        T: MakeWidget,
+    {
+        self.ordered.extend(iter.into_iter().map(T::make_widget));
     }
 
     /// Adds `widget` to self and returns the updated list.
@@ -1997,8 +2033,14 @@ impl Children {
     /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
     /// into additional rows as needed.
     #[must_use]
-    pub fn wrap(self) -> Wrap {
+    pub fn into_wrap(self) -> Wrap {
         Wrap::new(self)
+    }
+
+    /// Returns `self` as an unordered [`List`].
+    #[must_use]
+    pub fn into_list(self) -> List {
+        List::new(self)
     }
 
     /// Synchronizes this list of children with another collection.
@@ -2042,23 +2084,35 @@ impl Children {
     }
 }
 
-impl Debug for Children {
+impl Debug for WidgetList {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Debug::fmt(&self.ordered, f)
     }
 }
 
-impl Dynamic<Children> {
+impl Dynamic<WidgetList> {
     /// Returns `self` as a vertical [`Stack`] of rows.
     #[must_use]
     pub fn into_rows(self) -> Stack {
         Stack::rows(self)
     }
 
+    /// Returns `self` as a vertical [`Stack`] of rows.
+    #[must_use]
+    pub fn to_rows(&self) -> Stack {
+        self.clone().into_rows()
+    }
+
     /// Returns `self` as a horizontal [`Stack`] of columns.
     #[must_use]
     pub fn into_columns(self) -> Stack {
         Stack::columns(self)
+    }
+
+    /// Returns `self` as a horizontal [`Stack`] of columns.
+    #[must_use]
+    pub fn to_columns(&self) -> Stack {
+        self.clone().into_columns()
     }
 
     /// Returns `self` as [`Layers`], with the widgets being stacked in the Z
@@ -2068,15 +2122,41 @@ impl Dynamic<Children> {
         Layers::new(self)
     }
 
+    /// Returns `self` as [`Layers`], with the widgets being stacked in the Z
+    /// direction.
+    #[must_use]
+    pub fn to_layers(&self) -> Layers {
+        self.clone().into_layers()
+    }
+
+    /// Returns `self` as an unordered [`List`].
+    #[must_use]
+    pub fn into_list(self) -> List {
+        List::new(self)
+    }
+
+    /// Returns `self` as an unordered [`List`].
+    #[must_use]
+    pub fn to_list(self) -> List {
+        self.clone().into_list()
+    }
+
     /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
     /// into additional rows as needed.
     #[must_use]
-    pub fn wrap(self) -> Wrap {
+    pub fn into_wrap(self) -> Wrap {
         Wrap::new(self)
+    }
+
+    /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
+    /// into additional rows as needed.
+    #[must_use]
+    pub fn to_wrap(&self) -> Wrap {
+        self.clone().into_wrap()
     }
 }
 
-impl<W> FromIterator<W> for Children
+impl<W> FromIterator<W> for WidgetList
 where
     W: MakeWidget,
 {
@@ -2087,7 +2167,7 @@ where
     }
 }
 
-impl Deref for Children {
+impl Deref for WidgetList {
     type Target = [WidgetInstance];
 
     fn deref(&self) -> &Self::Target {
@@ -2095,13 +2175,13 @@ impl Deref for Children {
     }
 }
 
-impl DerefMut for Children {
+impl DerefMut for WidgetList {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.ordered
     }
 }
 
-impl<'a> IntoIterator for &'a Children {
+impl<'a> IntoIterator for &'a WidgetList {
     type IntoIter = slice::Iter<'a, WidgetInstance>;
     type Item = &'a WidgetInstance;
 
@@ -2110,7 +2190,75 @@ impl<'a> IntoIterator for &'a Children {
     }
 }
 
-/// A change to perform during [`Children::synchronize_with`].
+impl<I: IntoIterator> MakeWidgetList for I
+where
+    I::Item: MakeWidget,
+{
+    fn make_widget_list(self) -> WidgetList {
+        self.into_iter().collect()
+    }
+}
+
+/// Allows to convert collections or iterators directly into [`Stack`], [`Layers`], etc.
+///
+/// ```
+/// use cushy::widget::{MakeWidget, MakeWidgetList};
+///
+/// vec!["hello", "label"].into_rows();
+///
+/// vec!["hello", "button"]
+///     .into_iter()
+///     .map(|l| l.into_button())
+///     .into_columns();
+/// ```
+pub trait MakeWidgetList: Sized {
+    /// Returns self as a `WidgetList`.
+    fn make_widget_list(self) -> WidgetList;
+
+    /// Adds `widget` to self and returns the updated list.
+    fn and<W>(self, widget: W) -> WidgetList
+    where
+        W: MakeWidget,
+    {
+        let mut list = self.make_widget_list();
+        list.push(widget);
+        list
+    }
+
+    /// Returns `self` as a vertical [`Stack`] of rows.
+    #[must_use]
+    fn into_rows(self) -> Stack {
+        Stack::rows(self.make_widget_list())
+    }
+
+    /// Returns `self` as a horizontal [`Stack`] of columns.
+    #[must_use]
+    fn into_columns(self) -> Stack {
+        Stack::columns(self.make_widget_list())
+    }
+
+    /// Returns `self` as [`Layers`], with the widgets being stacked in the Z
+    /// direction.
+    #[must_use]
+    fn into_layers(self) -> Layers {
+        Layers::new(self.make_widget_list())
+    }
+
+    /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
+    /// into additional rows as needed.
+    #[must_use]
+    fn into_wrap(self) -> Wrap {
+        Wrap::new(self.make_widget_list())
+    }
+
+    /// Returns `self` as an unordered [`List`].
+    #[must_use]
+    fn into_list(self) -> List {
+        List::new(self.make_widget_list())
+    }
+}
+
+/// A change to perform during [`WidgetList::synchronize_with`].
 pub enum ChildrenSyncChange {
     /// Insert a new widget at the given index.
     Insert(usize, WidgetInstance),
@@ -2124,7 +2272,7 @@ pub enum ChildrenSyncChange {
 ///
 /// This collection is a helper aimed at making it easier to build widgets that
 /// contain multiple children widgets. It is used in conjunction with a
-/// `Value<Children>`.
+/// `Value<WidgetList>`.
 #[derive(Debug)]
 pub struct MountedChildren<T = MountedWidget> {
     generation: Option<Generation>,
@@ -2138,12 +2286,12 @@ where
     /// Mounts and unmounts all children needed to be in sync with `children`.
     pub fn synchronize_with(
         &mut self,
-        children: &Value<Children>,
-        context: &mut EventContext<'_, '_>,
+        children: &Value<WidgetList>,
+        context: &mut EventContext<'_>,
     ) {
         let current_generation = children.generation();
         if current_generation.map_or_else(
-            || children.map(Children::len) != self.children.len(),
+            || children.map(WidgetList::len) != self.children.len(),
             |gen| Some(gen) != self.generation,
         ) {
             self.generation = current_generation;
@@ -2224,64 +2372,68 @@ impl MountableChild for MountedWidget {
 
 /// A child widget
 #[derive(Clone)]
-pub enum WidgetRef {
-    /// An unmounted child widget
-    Unmounted(WidgetInstance),
-    /// A mounted child widget
-    Mounted(MountedWidget),
+pub struct WidgetRef {
+    instance: WidgetInstance,
+    mounted: WindowLocal<MountedWidget>,
 }
 
 impl WidgetRef {
     /// Returns a new unmounted child
     pub fn new(widget: impl MakeWidget) -> Self {
-        Self::Unmounted(widget.make_widget())
-    }
-
-    /// Returns this child, mounting it in the process if necessary.
-    pub fn mount_if_needed<'window>(&mut self, context: &mut impl AsEventContext<'window>) {
-        if let WidgetRef::Unmounted(instance) = self {
-            *self = WidgetRef::Mounted(context.push_child(instance.clone()));
+        Self {
+            instance: widget.make_widget(),
+            mounted: WindowLocal::default(),
         }
     }
 
     /// Returns this child, mounting it in the process if necessary.
-    pub fn mounted<'window>(
-        &mut self,
-        context: &mut impl AsEventContext<'window>,
-    ) -> MountedWidget {
-        self.mount_if_needed(context);
+    fn mounted_for_context(&mut self, context: &mut impl AsEventContext) -> &MountedWidget {
+        let mut context = context.as_event_context();
+        self.mounted
+            .entry(&context)
+            .or_insert_with(|| context.push_child(self.instance.clone()))
+    }
 
-        let Self::Mounted(widget) = self else {
-            unreachable!("just initialized")
-        };
-        widget.clone()
+    /// Returns this child, mounting it in the process if necessary.
+    pub fn mount_if_needed(&mut self, context: &mut impl AsEventContext) {
+        self.mounted_for_context(context);
+    }
+
+    /// Returns this child, mounting it in the process if necessary.
+    pub fn mounted(&mut self, context: &mut impl AsEventContext) -> MountedWidget {
+        self.mounted_for_context(context).clone()
+    }
+
+    /// Returns this child, mounting it in the process if necessary.
+    #[must_use]
+    pub fn as_mounted(&self, context: &WidgetContext<'_>) -> Option<&MountedWidget> {
+        self.mounted.get(context)
     }
 
     /// Returns the a reference to the underlying widget instance.
     #[must_use]
-    pub fn widget(&self) -> &WidgetInstance {
-        match self {
-            WidgetRef::Unmounted(widget) => widget,
-            WidgetRef::Mounted(managed) => &managed.widget,
+    pub const fn widget(&self) -> &WidgetInstance {
+        &self.instance
+    }
+
+    /// Unmounts this widget from the window belonging to `context`, if needed.
+    pub fn unmount_in(&mut self, context: &mut impl AsEventContext) {
+        let mut context = context.as_event_context();
+        if let Some(mounted) = self.mounted.clear_for(&context) {
+            context.remove_child(&mounted);
         }
     }
 }
 
 impl AsRef<WidgetId> for WidgetRef {
     fn as_ref(&self) -> &WidgetId {
-        match self {
-            WidgetRef::Unmounted(widget) => widget.as_ref(),
-            WidgetRef::Mounted(widget) => widget.as_ref(),
-        }
+        self.instance.as_ref()
     }
 }
 
 impl Debug for WidgetRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Unmounted(arg0) => Debug::fmt(arg0, f),
-            Self::Mounted(arg0) => Debug::fmt(arg0, f),
-        }
+        Debug::fmt(&self.instance, f)
     }
 }
 
@@ -2289,11 +2441,18 @@ impl Eq for WidgetRef {}
 
 impl PartialEq for WidgetRef {
     fn eq(&self, other: &Self) -> bool {
-        if let (WidgetRef::Mounted(this), WidgetRef::Mounted(other)) = (self, other) {
-            this == other
-        } else {
-            self.widget() == other.widget()
-        }
+        self.instance == other.instance
+    }
+}
+
+impl ManageWidget for WidgetRef {
+    type Managed = Option<MountedWidget>;
+
+    fn manage(&self, context: &WidgetContext<'_>) -> Self::Managed {
+        self.mounted
+            .get(context)
+            .cloned()
+            .or_else(|| context.tree.widget(self.instance.id()))
     }
 }
 
@@ -2312,7 +2471,7 @@ impl WidgetId {
 
     /// Finds this widget mounted in this window, if present.
     #[must_use]
-    pub fn find_in(self, context: &WidgetContext<'_, '_>) -> Option<MountedWidget> {
+    pub fn find_in(self, context: &WidgetContext<'_>) -> Option<MountedWidget> {
         context.tree.widget(self)
     }
 }
