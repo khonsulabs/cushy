@@ -6,8 +6,8 @@ use std::sync::Arc;
 use nominals::{
     ArmenianLower, ArmenianUpper, Bengali, Cambodian, CjkDecimal, CjkEarthlyBranch,
     CjkHeavenlyStem, Decimal, Devanagari, DigitCollection, EasternArabic, Ethiopic, Georgian,
-    GreekLower, GreekUpper, Gujarati, Gurmukhi, HangeulFormal, HangeulInformal, HangeulJamo,
-    HangeulSyllable, HanjaFormal, Hebrew, HexLower, HexUpper, Hiragana, HiraganaIroha,
+    GreekLower, GreekUpper, Gujarati, Gurmukhi, HangeulFormal, HangeulJamo, HangeulSyllable,
+    HanjaFormal, HanjaInformal, Hebrew, HexLower, HexUpper, Hiragana, HiraganaIroha,
     JapaneseFormal, JapaneseInformal, Kannada, Katakana, KatakanaIroha, Lao, LetterLower,
     LetterUpper, Malayalam, Mongolian, Myanmar, NominalSystem, Oriya, Persian, RomanLower,
     RomanUpper, SimplifiedChineseFormal, SimplifiedChineseInformal, Tamil, Telugu, Thai, Tibetan,
@@ -99,7 +99,7 @@ pub enum ListStyle {
     /// Korean Hangeul numbering.
     HangeulFormal,
     /// Informal Korean Hangeul numbering.
-    HangeulInformal,
+    HanjaInformal,
     /// Formal Korean Hanja numbering.
     HanjaFormal,
     /// Formal Japanese Kanji numbering.
@@ -213,7 +213,7 @@ impl ListStyle {
             ListStyle::Gujarati,
             ListStyle::Gurmukhi,
             ListStyle::HangeulFormal,
-            ListStyle::HangeulInformal,
+            ListStyle::HanjaInformal,
             ListStyle::HangeulJamo,
             ListStyle::HangeulSyllable,
             ListStyle::HanjaFormal,
@@ -363,8 +363,8 @@ impl ListIndicator for ListStyle {
             ListStyle::HangeulFormal => Some(Indicator::delimited(String::from(
                 HangeulFormal.format_nominal(index),
             ))),
-            ListStyle::HangeulInformal => Some(Indicator::delimited(String::from(
-                HangeulInformal.format_nominal(index),
+            ListStyle::HanjaInformal => Some(Indicator::delimited(String::from(
+                HanjaInformal.format_nominal(index),
             ))),
             ListStyle::HanjaFormal => Some(Indicator::delimited(String::from(
                 HanjaFormal.format_nominal(index),

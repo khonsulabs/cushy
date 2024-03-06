@@ -64,6 +64,7 @@ fn main() -> cushy::Result {
         .run()
 }
 
+#[allow(clippy::ptr_arg)] // Changing &String to &str breaks type inference
 fn validate(username: &String, password: &MaskedString) -> bool {
     !username.is_empty() && !password.is_empty()
 }

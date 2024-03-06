@@ -39,6 +39,7 @@ fn main() -> cushy::Result {
         .run()
 }
 
+#[allow(clippy::ptr_arg)] // Changing &String to &str breaks type inference
 fn validate_input(input: &String) -> Result<(), &'static str> {
     if input.is_empty() {
         Err("This field cannot be empty")
