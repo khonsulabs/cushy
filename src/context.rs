@@ -811,11 +811,25 @@ pub trait AsEventContext {
     /// Removes a widget from the hierarchy.
     fn remove_child(&mut self, child: &MountedWidget) {
         let mut context = self.as_event_context();
-        child
-            .lock()
-            .as_widget()
-            .unmounted(&mut context.for_other(child));
-        context.tree.remove_child(child, &context.current_node);
+        if context.pending_state.unmounting {
+            context.pending_state.unmount_queue.push(child.id());
+        } else {
+            context.pending_state.unmounting = true;
+            context.pending_state.unmount_queue.push(child.id());
+            while let Some(to_unmount) = context.pending_state.unmount_queue.pop() {
+                let Some(mut unmount_context) = context.for_other(&to_unmount) else {
+                    continue;
+                };
+                child.lock().as_widget().unmounted(&mut unmount_context);
+                unmount_context.widget.tree.remove_child(
+                    child,
+                    &unmount_context.widget.current_node,
+                    &mut unmount_context.widget.pending_state.unmount_queue,
+                );
+            }
+
+            context.pending_state.unmounting = false;
+        }
     }
 }
 
@@ -865,6 +879,8 @@ impl<'context> WidgetContext<'context> {
                     .active_widget()
                     .and_then(|id| tree.widget_from_node(id).map(|w| w.id())),
                 focus_is_advancing: false,
+                unmount_queue: Vec::new(),
+                unmounting: false,
             }),
             tree,
             effective_styles: current_node.effective_styles(),
@@ -1215,6 +1231,8 @@ struct PendingWidgetState {
     focus_is_advancing: bool,
     focus: Option<WidgetId>,
     active: Option<WidgetId>,
+    unmounting: bool,
+    unmount_queue: Vec<WidgetId>,
 }
 
 impl PendingState<'_> {

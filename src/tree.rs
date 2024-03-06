@@ -66,9 +66,14 @@ impl Tree {
         }
     }
 
-    pub fn remove_child(&self, child: &MountedWidget, parent: &MountedWidget) {
+    pub fn remove_child(
+        &self,
+        child: &MountedWidget,
+        parent: &MountedWidget,
+        children_to_unmount: &mut Vec<WidgetId>,
+    ) {
         let mut data = self.data.lock().ignore_poison();
-        data.remove_child(child.node_id, parent.node_id);
+        data.remove_child(child.node_id, parent.node_id, children_to_unmount);
 
         if child.widget.is_default() {
             data.defaults.retain(|id| *id != child.node_id);
@@ -479,31 +484,36 @@ impl TreeData {
         }
     }
 
-    fn remove_child(&mut self, child: LotId, parent: LotId) {
-        let removed_node = self.nodes.remove(child).expect("widget already removed");
+    fn remove_child(
+        &mut self,
+        child: LotId,
+        parent: LotId,
+        children_to_unmount: &mut Vec<WidgetId>,
+    ) {
+        let Some(removed_node) = self.nodes.remove(child) else {
+            return;
+        };
         self.nodes_by_id.remove(&removed_node.widget.id());
 
-        let parent = &mut self.nodes[parent];
-        let index = parent
-            .children
-            .iter()
-            .enumerate()
-            .find_map(|(index, c)| (*c == child).then_some(index))
-            .expect("child not found in parent");
-        parent.children.remove(index);
-        let mut detached_nodes = removed_node.children;
+        if let Some(parent) = self.nodes.get_mut(parent) {
+            let index = parent
+                .children
+                .iter()
+                .enumerate()
+                .find_map(|(index, c)| (*c == child).then_some(index))
+                .expect("child not found in parent");
+            parent.children.remove(index);
+        }
+
+        children_to_unmount.extend(
+            removed_node
+                .children
+                .into_iter()
+                .map(|id| self.nodes[id].widget.id()),
+        );
 
         if let Some(next_focus) = removed_node.widget.next_focus() {
             self.previous_focuses.remove(&next_focus);
-        }
-
-        while let Some(node) = detached_nodes.pop() {
-            let mut node = self.nodes.remove(node).expect("detached node missing");
-            self.nodes_by_id.remove(&node.widget.id());
-            if let Some(next_focus) = node.widget.next_focus() {
-                self.previous_focuses.remove(&next_focus);
-            }
-            detached_nodes.append(&mut node.children);
         }
     }
 
@@ -540,7 +550,9 @@ impl TreeData {
     }
 
     fn invalidate(&mut self, id: LotId, include_hierarchy: bool) {
-        let mut node = &mut self.nodes[id];
+        let Some(mut node) = self.nodes.get_mut(id) else {
+            return;
+        };
         loop {
             node.layout = None;
             node.last_layout_query = None;
@@ -548,7 +560,10 @@ impl TreeData {
             let (true, Some(parent)) = (include_hierarchy, node.parent) else {
                 break;
             };
-            node = &mut self.nodes[parent];
+            let Some(parent_node) = self.nodes.get_mut(parent) else {
+                break;
+            };
+            node = parent_node;
         }
     }
 }
