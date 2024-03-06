@@ -13,6 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      -
+        name: Free disk space
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo docker rmi $(docker image ls -aq) || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc  || true
+
       - name: Install x11 dependencies for Kludgine
         if: matrix.os == 'ubuntu-latest'
         run: |
