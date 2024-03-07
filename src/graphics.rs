@@ -1,11 +1,11 @@
 use std::ops::{Deref, DerefMut};
 
-use ahash::AHashSet;
 use figures::units::{Px, UPx};
 use figures::{
     self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
 };
-use kludgine::cosmic_text::FamilyOwned;
+use kempt::{map, Map};
+use kludgine::cosmic_text::{fontdb, FamilyOwned, FontSystem};
 use kludgine::drawing::Renderer;
 use kludgine::shapes::Shape;
 use kludgine::text::{MeasuredText, Text, TextOrigin};
@@ -14,13 +14,14 @@ use kludgine::{
 };
 
 use crate::animation::ZeroToOne;
+use crate::fonts::{FontCollection, LoadedFontFace, LoadedFontId};
 use crate::styles::FontFamilyList;
+use crate::value::{DynamicRead, Generation, Source};
 
 /// A 2d graphics context
 pub struct Graphics<'clip, 'gfx, 'pass> {
     renderer: RenderContext<'clip, 'gfx, 'pass>,
     region: Rect<Px>,
-    font_state: &'clip mut FontState,
     pub(crate) opacity: ZeroToOne,
 }
 
@@ -32,11 +33,10 @@ enum RenderContext<'clip, 'gfx, 'pass> {
 impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     /// Returns a new graphics context for the given [`Renderer`].
     #[must_use]
-    pub fn new(renderer: Renderer<'gfx, 'pass>, font_state: &'clip mut FontState) -> Self {
+    pub fn new(renderer: Renderer<'gfx, 'pass>) -> Self {
         Self {
             region: renderer.clip_rect().into_signed(),
             renderer: RenderContext::Renderer(renderer),
-            font_state,
             opacity: ZeroToOne::ONE,
         }
     }
@@ -64,28 +64,6 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
                 clip_origin.y - self.region.origin.y
             },
         )
-    }
-
-    /// Sets the current font family.
-    pub fn set_font_family(&mut self, family: cosmic_text::FamilyOwned) {
-        self.font_state.current_font_family = None;
-        self.renderer.set_font_family(family);
-    }
-
-    /// Returns the first font family in `list` that is currently in the font
-    /// system, or None if no font families match.
-    pub fn find_available_font_family(&mut self, list: &FontFamilyList) -> Option<FamilyOwned> {
-        self.font_state.find_available_font_family(list)
-    }
-
-    /// Sets the font family to the first family in `list`.
-    pub fn set_available_font_family(&mut self, list: &FontFamilyList) {
-        if self.font_state.current_font_family.as_ref() != Some(list) {
-            if let Some(family) = self.find_available_font_family(list) {
-                self.set_font_family(family);
-            }
-            self.font_state.current_font_family = Some(list.clone());
-        }
     }
 
     /// Returns the underlying renderer.
@@ -120,7 +98,6 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         Graphics {
             renderer: RenderContext::Clipped(self.renderer.clipped_to(new_clip)),
             region,
-            font_state: &mut *self.font_state,
             opacity: self.opacity,
         }
     }
@@ -310,6 +287,11 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         self.renderer.draw_measured_text(text, origin);
     }
 
+    /// Returns a reference to the font system used to render.
+    pub fn font_system(&mut self) -> &mut FontSystem {
+        self.renderer.font_system()
+    }
+
     /// Returns this renderer as a
     /// [`DrawingArea`](plotters::drawing::DrawingArea) compatible with the
     /// [plotters](https://github.com/plotters-rs/plotters) crate.
@@ -358,26 +340,163 @@ impl<'gfx, 'pass> DerefMut for RenderContext<'_, 'gfx, 'pass> {
     }
 }
 
+pub(crate) struct LoadedFontIds {
+    generation: usize,
+    pub(crate) faces: Vec<LoadedFontFace>,
+}
+
 pub struct FontState {
-    fonts: AHashSet<String>,
-    current_font_family: Option<FontFamilyList>,
+    app_fonts: FontCollection,
+    app_font_generation: Generation,
+    window_fonts: FontCollection,
+    window_font_generation: Generation,
+    pub(crate) loaded_fonts: Map<LoadedFontId, LoadedFontIds>,
+    font_generation: usize,
+    fonts: Map<String, usize>,
+    pub(crate) current_font_family: Option<FontFamilyList>,
 }
 
 impl FontState {
-    pub fn new(db: &cosmic_text::fontdb::Database) -> Self {
-        let faces = db.faces();
-        let mut fonts = AHashSet::with_capacity(faces.size_hint().0);
-        for (family, _) in faces.filter_map(|f| f.families.first()) {
-            fonts.insert(family.clone());
-        }
-        Self {
+    pub fn new(
+        db: &mut cosmic_text::fontdb::Database,
+        window_fonts: FontCollection,
+        app_fonts: FontCollection,
+    ) -> Self {
+        let mut fonts = Map::new();
+        Self::gather_available_family_names(&mut fonts, 0, db);
+        let mut state = Self {
             fonts,
             current_font_family: None,
+            window_font_generation: window_fonts.0.generation(),
+            window_fonts,
+            app_font_generation: app_fonts.0.generation(),
+            app_fonts,
+            font_generation: 0,
+            loaded_fonts: Map::new(),
+        };
+
+        state.update_fonts(db);
+
+        state
+    }
+
+    fn gather_available_family_names(
+        families: &mut Map<String, usize>,
+        generation: usize,
+        db: &cosmic_text::fontdb::Database,
+    ) {
+        for (family, _) in db.faces().filter_map(|f| f.families.first()) {
+            families
+                .entry(family)
+                .and_modify(|gen| *gen = generation)
+                .or_insert(generation);
+        }
+
+        let mut i = 0;
+        while i < families.len() {
+            if families.field(i).expect("length checked").value == generation {
+                i += 1;
+            } else {
+                families.remove_by_index(i);
+            }
         }
     }
 
-    pub fn next_frame(&mut self) {
+    pub fn update_fonts(&mut self, db: &mut cosmic_text::fontdb::Database) -> bool {
+        let new_app_generation = self.app_fonts.0.generation();
+        let app_fonts_changed = if self.app_font_generation == new_app_generation {
+            false
+        } else {
+            self.app_font_generation = new_app_generation;
+            true
+        };
+        let new_window_generation = self.window_fonts.0.generation();
+        let window_fonts_changed = if self.window_font_generation == new_window_generation {
+            false
+        } else {
+            self.window_font_generation = new_window_generation;
+            true
+        };
+
+        let changed = app_fonts_changed || window_fonts_changed;
+        if changed {
+            self.font_generation += 1;
+
+            if app_fonts_changed {
+                Self::synchronize_font_list(
+                    &mut self.loaded_fonts,
+                    self.font_generation,
+                    &self.app_fonts,
+                    db,
+                );
+            }
+            if window_fonts_changed {
+                Self::synchronize_font_list(
+                    &mut self.loaded_fonts,
+                    self.font_generation,
+                    &self.window_fonts,
+                    db,
+                );
+            }
+
+            // Remove all fonts that didn't have their generation touched.
+            let mut i = 0;
+            while i < self.loaded_fonts.len() {
+                let field = self.loaded_fonts.field(i).expect("length checked");
+                let check_if_changed = (app_fonts_changed
+                    && self.app_fonts.0.as_ptr() == field.key().collection)
+                    || (window_fonts_changed
+                        && self.window_fonts.0.as_ptr() == field.key().collection);
+                if !check_if_changed || field.value.generation == self.font_generation {
+                    i += 1;
+                } else {
+                    for face in self.loaded_fonts.remove_by_index(i).value.faces {
+                        db.remove_face(face.id);
+                    }
+                }
+            }
+
+            Self::gather_available_family_names(&mut self.fonts, self.font_generation, db);
+        }
+
+        changed
+    }
+
+    fn synchronize_font_list(
+        loaded_fonts: &mut Map<LoadedFontId, LoadedFontIds>,
+        generation: usize,
+        collection: &FontCollection,
+        db: &mut cosmic_text::fontdb::Database,
+    ) {
+        for (font_id, data) in collection.0.read().fonts(collection) {
+            match loaded_fonts.entry(font_id) {
+                map::Entry::Occupied(mut entry) => {
+                    entry.generation = generation;
+                }
+                map::Entry::Vacant(entry) => {
+                    let faces = db
+                        .load_font_source(fontdb::Source::Binary(data.clone()))
+                        .into_iter()
+                        .filter_map(|id| {
+                            db.face(id).map(|face| LoadedFontFace {
+                                id,
+                                families: face.families.clone(),
+                                weight: face.weight,
+                                style: face.style,
+                                stretch: face.stretch,
+                            })
+                        })
+                        .collect();
+                    entry.insert(LoadedFontIds { generation, faces });
+                }
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn next_frame(&mut self, db: &mut cosmic_text::fontdb::Database) -> bool {
         self.current_font_family = None;
+        self.update_fonts(db)
     }
 
     pub fn find_available_font_family(&self, list: &FontFamilyList) -> Option<FamilyOwned> {

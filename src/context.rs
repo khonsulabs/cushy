@@ -6,16 +6,18 @@ use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
+use kludgine::cosmic_text::FamilyOwned;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine, KludgineId};
 
 use crate::animation::ZeroToOne;
-use crate::graphics::Graphics;
+use crate::fonts::{LoadedFont, LoadedFontFace};
+use crate::graphics::{FontState, Graphics};
 use crate::styles::components::{
     CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, LineHeight,
     Opacity, TextSize, WidgetBackground,
 };
-use crate::styles::{ComponentDefinition, Styles, Theme, ThemePair};
+use crate::styles::{ComponentDefinition, FontFamilyList, Styles, Theme, ThemePair};
 use crate::tree::Tree;
 use crate::value::{IntoValue, Source, Value};
 use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
@@ -563,6 +565,36 @@ impl<'context, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'clip, 'gfx, 'pass>
         })
     }
 
+    /// Sets the current font family.
+    pub fn set_font_family(&mut self, family: FamilyOwned) {
+        self.font_state.current_font_family = None;
+        self.gfx.set_font_family(family);
+    }
+
+    /// Returns the currently set font family list.
+    pub fn current_family_list(&mut self) -> FontFamilyList {
+        self.font_state
+            .current_font_family
+            .clone()
+            .unwrap_or_else(|| FontFamilyList::from(vec![FamilyOwned::new(self.gfx.font_family())]))
+    }
+
+    /// Returns the first font family in `list` that is currently in the font
+    /// system, or None if no font families match.
+    pub fn find_available_font_family(&mut self, list: &FontFamilyList) -> Option<FamilyOwned> {
+        self.font_state.find_available_font_family(list)
+    }
+
+    /// Sets the font family to the first family in `list`.
+    pub fn set_available_font_family(&mut self, list: &FontFamilyList) {
+        if self.font_state.current_font_family.as_ref() != Some(list) {
+            if let Some(family) = self.find_available_font_family(list) {
+                self.set_font_family(family);
+            }
+            self.font_state.current_font_family = Some(list.clone());
+        }
+    }
+
     /// Updates `self` to have `opacity`.
     ///
     /// This setting will be mixed with the current opacity value.
@@ -636,8 +668,7 @@ impl<'context, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'clip, 'gfx, 'pass>
     /// Applies the current style settings for font family, text size, font
     /// style, and font weight.
     pub fn apply_current_font_settings(&mut self) {
-        self.gfx
-            .set_available_font_family(&self.widget.get(&FontFamily));
+        self.set_available_font_family(&self.widget.get(&FontFamily));
         self.gfx.set_font_size(self.widget.get(&TextSize));
         self.gfx.set_line_height(self.widget.get(&LineHeight));
         self.gfx.set_font_style(self.widget.get(&FontStyle));
@@ -856,6 +887,7 @@ pub struct WidgetContext<'context> {
     theme: Cow<'context, ThemePair>,
     cursor: &'context mut CursorState,
     pending_state: PendingState<'context>,
+    font_state: &'context mut FontState,
     effective_styles: Styles,
     cache: WidgetCacheKey,
 }
@@ -865,6 +897,7 @@ impl<'context> WidgetContext<'context> {
         current_node: MountedWidget,
         theme: &'context ThemePair,
         window: &'context mut dyn PlatformWindow,
+        font_state: &'context mut FontState,
         theme_mode: ThemeMode,
         cursor: &'context mut CursorState,
     ) -> Self {
@@ -891,6 +924,7 @@ impl<'context> WidgetContext<'context> {
             },
             cursor,
             current_node,
+            font_state,
             theme: Cow::Borrowed(theme),
             window,
         }
@@ -902,6 +936,7 @@ impl<'context> WidgetContext<'context> {
             tree: self.tree.clone(),
             current_node: self.current_node.clone(),
             window: &mut *self.window,
+            font_state: &mut *self.font_state,
             theme: Cow::Borrowed(self.theme.as_ref()),
             pending_state: self.pending_state.borrowed(),
             cache: self.cache,
@@ -940,6 +975,7 @@ impl<'context> WidgetContext<'context> {
                 },
                 current_node,
                 tree: self.tree.clone(),
+                font_state: &mut *self.font_state,
                 window: &mut *self.window,
                 theme,
                 pending_state: self.pending_state.borrowed(),
@@ -1196,6 +1232,16 @@ impl<'context> WidgetContext<'context> {
     #[must_use]
     pub fn cache_key(&self) -> WidgetCacheKey {
         self.cache
+    }
+
+    /// Returns a list of faces that were loaded from `font`, or an empty slice
+    /// if no faces were loaded.
+    #[must_use]
+    pub fn loaded_font_faces(&self, font: &LoadedFont) -> &[LoadedFontFace] {
+        self.font_state
+            .loaded_fonts
+            .get(&font.id())
+            .map_or(&[], |ids| &ids.faces)
     }
 }
 

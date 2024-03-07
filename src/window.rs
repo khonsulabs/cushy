@@ -49,6 +49,7 @@ use crate::context::{
     AsEventContext, EventContext, Exclusive, GraphicsContext, LayoutContext, Trackable,
     WidgetContext,
 };
+use crate::fonts::FontCollection;
 use crate::graphics::{FontState, Graphics};
 use crate::styles::{Edges, FontFamilyList, ThemePair};
 use crate::tree::Tree;
@@ -472,9 +473,8 @@ where
     /// The list of font families to try to find when a [`FamilyOwned::Cursive`]
     /// font is requested.
     pub cursive_font_family: FontFamilyList,
-    /// A list of data buffers that contain font data to ensure are loaded
-    /// during drawing operations.
-    pub font_data_to_load: Vec<Vec<u8>>,
+    /// A collection of fonts that this window will load.
+    pub fonts: FontCollection,
 
     on_closed: Option<OnceCallback>,
     inner_size: Option<Dynamic<Size<UPx>>>,
@@ -572,8 +572,8 @@ impl Window<WidgetInstance> {
     /// rendering.
     ///
     /// All font families contained in `font_data` will be loaded.
-    pub fn loading_font(mut self, font_data: Vec<u8>) -> Self {
-        self.font_data_to_load.push(font_data);
+    pub fn loading_font(self, font_data: Vec<u8>) -> Self {
+        self.fonts.push(font_data);
         self
     }
 
@@ -636,10 +636,12 @@ where
             fantasy_font_family: FontFamilyList::default(),
             monospace_font_family: FontFamilyList::default(),
             cursive_font_family: FontFamilyList::default(),
-            font_data_to_load: vec![
+            fonts: {
+                let fonts = FontCollection::default();
                 #[cfg(feature = "roboto-flex")]
-                include_bytes!("../assets/RobotoFlex.ttf").to_vec(),
-            ],
+                fonts.push(include_bytes!("../assets/RobotoFlex.ttf").to_vec());
+                fonts
+            },
         }
     }
 }
@@ -681,7 +683,7 @@ where
                     inner_size: self.inner_size.unwrap_or_default(),
                     theme: Some(self.theme),
                     theme_mode: self.theme_mode,
-                    font_data_to_load: self.font_data_to_load,
+                    font_data_to_load: self.fonts,
                     serif_font_family: self.serif_font_family,
                     sans_serif_font_family: self.sans_serif_font_family,
                     fantasy_font_family: self.fantasy_font_family,
@@ -802,6 +804,7 @@ where
                             previously_active,
                             &self.current_theme,
                             window,
+                            &mut self.fonts,
                             self.theme_mode.get(),
                             &mut self.cursor,
                         ),
@@ -814,6 +817,7 @@ where
                         default.clone(),
                         &self.current_theme,
                         window,
+                        &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
                     ),
@@ -832,6 +836,7 @@ where
                     keyboard_activated,
                     &self.current_theme,
                     window,
+                    &mut self.fonts,
                     self.theme_mode.get(),
                     &mut self.cursor,
                 ),
@@ -864,6 +869,7 @@ where
                     managed,
                     &self.current_theme,
                     window,
+                    &mut self.fonts,
                     self.theme_mode.get(),
                     &mut self.cursor,
                 ),
@@ -938,13 +944,10 @@ where
 
     fn load_fonts(
         settings: &mut sealed::WindowSettings,
+        app_fonts: FontCollection,
         fontdb: &mut fontdb::Database,
     ) -> FontState {
-        for font_to_load in settings.font_data_to_load.drain(..) {
-            fontdb.load_font_data(font_to_load);
-        }
-
-        let fonts = FontState::new(fontdb);
+        let fonts = FontState::new(fontdb, settings.font_data_to_load.clone(), app_fonts);
         fonts.apply_font_family_list(
             &settings.serif_font_family,
             || default_family(Family::Serif),
@@ -1017,6 +1020,7 @@ where
                         target,
                         &self.current_theme,
                         window,
+                        &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
                     ),
@@ -1049,6 +1053,7 @@ where
                             target,
                             &self.current_theme,
                             window,
+                            &mut self.fonts,
                             self.theme_mode.get(),
                             &mut self.cursor,
                         ),
@@ -1122,7 +1127,11 @@ where
 
         inner_size.set(window.inner_size());
 
-        let fonts = Self::load_fonts(&mut settings, graphics.font_system().db_mut());
+        let fonts = Self::load_fonts(
+            &mut settings,
+            cushy.fonts.clone(),
+            graphics.font_system().db_mut(),
+        );
 
         let theme_mode = match settings.theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
@@ -1201,17 +1210,22 @@ where
         );
         let root_mode = self.constrain_window_resizing(resizable, &mut window, graphics);
 
-        self.fonts.next_frame();
+        let fonts_changed = self.fonts.next_frame(graphics.font_system().db_mut());
+        if fonts_changed {
+            println!("Rebuilding font system");
+            graphics.rebuild_font_system();
+        }
         let graphics = self.contents.new_frame(graphics);
         let mut context = GraphicsContext {
             widget: WidgetContext::new(
                 self.root.clone(),
                 &self.current_theme,
                 &mut window,
+                &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
             ),
-            gfx: Exclusive::Owned(Graphics::new(graphics, &mut self.fonts)),
+            gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
         if self.initial_frame {
             self.root
@@ -1342,6 +1356,7 @@ where
                 target,
                 &self.current_theme,
                 &mut window,
+                &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
             ),
@@ -1391,6 +1406,7 @@ where
                 widget,
                 &self.current_theme,
                 &mut window,
+                &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
             ),
@@ -1430,6 +1446,7 @@ where
                 widget,
                 &self.current_theme,
                 &mut window,
+                &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
             ),
@@ -1470,6 +1487,7 @@ where
                 self.root.clone(),
                 &self.current_theme,
                 &mut window,
+                &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
             ),
@@ -1488,6 +1506,7 @@ where
                         handler.clone(),
                         &self.current_theme,
                         &mut window,
+                        &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
                     ),
@@ -1521,6 +1540,7 @@ where
                     self.root.clone(),
                     &self.current_theme,
                     &mut window,
+                    &mut self.fonts,
                     self.theme_mode.get(),
                     &mut self.cursor,
                 ),
@@ -1557,6 +1577,7 @@ where
                         self.root.clone(),
                         &self.current_theme,
                         &mut window,
+                        &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
                     ),
@@ -1575,6 +1596,7 @@ where
                                 hovered.clone(),
                                 &self.current_theme,
                                 &mut window,
+                                &mut self.fonts,
                                 self.theme_mode.get(),
                                 &mut self.cursor,
                             ),
@@ -1616,6 +1638,7 @@ where
                         handler,
                         &self.current_theme,
                         &mut window,
+                        &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
                     ),
@@ -1934,6 +1957,7 @@ pub(crate) mod sealed {
 
     use crate::app::Cushy;
     use crate::context::sealed::InvalidationStatus;
+    use crate::fonts::FontCollection;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
     use crate::widget::OnceCallback;
@@ -1960,7 +1984,7 @@ pub(crate) mod sealed {
         pub fantasy_font_family: FontFamilyList,
         pub monospace_font_family: FontFamilyList,
         pub cursive_font_family: FontFamilyList,
-        pub font_data_to_load: Vec<Vec<u8>>,
+        pub font_data_to_load: FontCollection,
         pub on_closed: Option<OnceCallback>,
     }
 
@@ -2488,7 +2512,7 @@ impl CushyWindowBuilder {
                 fantasy_font_family: FontFamilyList::default(),
                 monospace_font_family: FontFamilyList::default(),
                 cursive_font_family: FontFamilyList::default(),
-                font_data_to_load: Vec::default(),
+                font_data_to_load: FontCollection::default(),
                 on_closed: None,
             },
         );

@@ -53,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ColorExt::into_source_and_lightness` has been renamed to
   `ColorExt::into_hsl`, and its return type is now `Hsl` instead of the
   individual components.
+- `Window::font_data_to_load` has been renamed to `fonts`, and now has the
+  `FontCollection` type.
+- Several font-related functions have been moved from `GraphicsContext` to
+  `WidgetContext`:
+
+  - `GraphicsContext::set_font_family()`
+  - `GraphicsContext::find_available_font_family()`
+  - `GraphicsContext::set_available_font_family()`
 
 ### Fixed
 
@@ -218,6 +226,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `List` is a new widget that creates lists similar to HTML's `ol` and `ul`
   tags.
 - `Dynamic::try_lock()` is a panic-free version of `Dynamic::lock()`.
+- `FontCollection` is a new type that can be used to load fonts at app/window
+  startup or at runtime.
+- `Cushy::fonts()`returns a `FontCollection` that is loaded into all windows.
+- `WidgetContext::loaded_font_faces()` returns a list of fonts that were loaded
+  for a given `LoadedFont`.
+- `Graphics::font_system()` returns a reference to the underlying Cosmic Text
+  `FontSystem`.
 
 [plotters]: https://github.com/plotters-rs/plotters
 

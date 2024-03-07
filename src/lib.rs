@@ -16,6 +16,7 @@ mod names;
 pub mod styles;
 mod app;
 pub mod debug;
+pub mod fonts;
 mod tick;
 mod tree;
 pub mod value;

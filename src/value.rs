@@ -892,6 +892,10 @@ impl<T> Dynamic<T> {
         }))
     }
 
+    pub(crate) fn as_ptr(&self) -> *const () {
+        Arc::as_ptr(&self.0).cast()
+    }
+
     /// Returns a weak reference to this dynamic.
     ///
     /// This is powered by [`Arc`]/[`Weak`] and follows the same semantics for

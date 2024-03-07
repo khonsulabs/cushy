@@ -10,6 +10,7 @@ use kludgine::{CanRenderTo, Color, DrawableExt};
 use super::input::CowString;
 use crate::context::{GraphicsContext, LayoutContext, Trackable, WidgetContext};
 use crate::styles::components::TextColor;
+use crate::styles::FontFamilyList;
 use crate::value::{Dynamic, Generation, IntoReadOnly, ReadOnly, Value};
 use crate::widget::{Widget, WidgetInstance};
 use crate::window::WindowLocal;
@@ -21,7 +22,7 @@ pub struct Label<T> {
     /// The contents of the label.
     pub display: ReadOnly<T>,
     displayed: String,
-    prepared_text: WindowLocal<(MeasuredText<Px>, Option<Generation>, Px, Color)>,
+    prepared_text: WindowLocal<LabelCacheKey>,
 }
 
 impl<T> Label<T>
@@ -44,14 +45,16 @@ where
         width: Px,
     ) -> &MeasuredText<Px> {
         let check_generation = self.display.generation();
+        context.apply_current_font_settings();
+        let current_families = context.current_family_list();
         match self.prepared_text.get(context) {
-            Some((prepared, prepared_generation, prepared_width, prepared_color))
-                if prepared.can_render_to(&context.gfx)
-                    && *prepared_generation == check_generation
-                    && *prepared_color == color
-                    && *prepared_width == width => {}
+            Some(cache)
+                if cache.text.can_render_to(&context.gfx)
+                    && cache.generation == check_generation
+                    && cache.color == color
+                    && cache.width == width
+                    && cache.families == current_families => {}
             _ => {
-                context.apply_current_font_settings();
                 let measured = self.display.map(|text| {
                     self.displayed.clear();
                     if let Err(err) = write!(&mut self.displayed, "{}", text.as_display(context)) {
@@ -61,14 +64,22 @@ where
                         .gfx
                         .measure_text(Text::new(&self.displayed, color).wrap_at(width))
                 });
-                self.prepared_text
-                    .set(context, (measured, check_generation, width, color));
+                self.prepared_text.set(
+                    context,
+                    LabelCacheKey {
+                        text: measured,
+                        generation: check_generation,
+                        width,
+                        color,
+                        families: current_families,
+                    },
+                );
             }
         }
 
         self.prepared_text
             .get(context)
-            .map(|(prepared, _, _, _)| prepared)
+            .map(|cache| &cache.text)
             .expect("always initialized")
     }
 }
@@ -132,6 +143,15 @@ impl_make_widget!(
     Value<String> => String,
     ReadOnly<String> => String
 );
+
+#[derive(Debug)]
+struct LabelCacheKey {
+    text: MeasuredText<Px>,
+    generation: Option<Generation>,
+    width: Px,
+    color: Color,
+    families: FontFamilyList,
+}
 
 /// A context-aware [`Display`] implementation.
 ///

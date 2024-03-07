@@ -48,7 +48,7 @@ nominals = "0.3.0"
 
 
 # [patch.crates-io]
-# kludgine = { path = "../kludgine" }
+# cosmic-text = { path = "../cosmic-text" }
 # appit = { path = "../appit" }
 # figures = { path = "../figures" }
 # alot = { git = "https://github.com/khonsulabs/alot" }

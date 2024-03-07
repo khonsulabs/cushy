@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use arboard::Clipboard;
 use kludgine::app::{AppEvent, AsApplication};
 
+use crate::fonts::FontCollection;
 use crate::utils::IgnorePoison;
 use crate::window::sealed::WindowCommand;
 use crate::window::WindowHandle;
@@ -46,6 +47,7 @@ impl AsApplication<AppEvent<WindowCommand>> for PendingApp {
 #[derive(Clone)]
 pub struct Cushy {
     pub(crate) clipboard: Option<Arc<Mutex<Clipboard>>>,
+    pub(crate) fonts: FontCollection,
 }
 
 impl Cushy {
@@ -54,6 +56,7 @@ impl Cushy {
             clipboard: Clipboard::new()
                 .ok()
                 .map(|clipboard| Arc::new(Mutex::new(clipboard))),
+            fonts: FontCollection::default(),
         }
     }
 
@@ -64,6 +67,12 @@ impl Cushy {
         self.clipboard
             .as_ref()
             .map(|mutex| mutex.lock().ignore_poison())
+    }
+
+    /// Returns the font collection that will be loaded in all Cushy windows.
+    #[must_use]
+    pub fn fonts(&self) -> &FontCollection {
+        &self.fonts
     }
 }
 
