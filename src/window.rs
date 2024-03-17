@@ -475,6 +475,13 @@ where
     pub cursive_font_family: FontFamilyList,
     /// A collection of fonts that this window will load.
     pub fonts: FontCollection,
+    /// When true, Cushy will try to use "vertical sync" to try to eliminate
+    /// graphical tearing that can occur if the graphics card has a new frame
+    /// presented while the monitor is currently rendering another frame.
+    ///
+    /// Under the hood, Cushy uses `wgpu::PresentMode::AutoVsync` when true and
+    /// `wgpu::PresentMode::AutoNoVsync` when false.
+    pub vsync: bool,
 
     on_closed: Option<OnceCallback>,
     inner_size: Option<Dynamic<Size<UPx>>>,
@@ -642,6 +649,7 @@ where
                 fonts.push(include_bytes!("../assets/RobotoFlex.ttf").to_vec());
                 fonts
             },
+            vsync: true,
         }
     }
 }
@@ -689,6 +697,7 @@ where
                     fantasy_font_family: self.fantasy_font_family,
                     monospace_font_family: self.monospace_font_family,
                     cursive_font_family: self.cursive_font_family,
+                    vsync: self.vsync,
                 }),
             },
         )?;
@@ -767,6 +776,7 @@ struct OpenWindow<T> {
     fonts: FontState,
     cushy: Cushy,
     on_closed: Option<OnceCallback>,
+    vsync: bool,
 }
 
 impl<T> OpenWindow<T>
@@ -1124,6 +1134,7 @@ where
         let theme = settings.theme.take().unwrap_or_default();
         let inner_size = settings.inner_size.clone();
         let on_closed = settings.on_closed.take();
+        let vsync = settings.vsync;
 
         inner_size.set(window.inner_size());
 
@@ -1179,6 +1190,7 @@ where
             fonts,
             cushy,
             on_closed,
+            vsync,
         }
     }
 
@@ -1212,7 +1224,6 @@ where
 
         let fonts_changed = self.fonts.next_frame(graphics.font_system().db_mut());
         if fonts_changed {
-            println!("Rebuilding font system");
             graphics.rebuild_font_system();
         }
         let graphics = self.contents.new_frame(graphics);
@@ -1707,6 +1718,14 @@ where
         self.prepare(window, graphics);
     }
 
+    fn present_mode(&self) -> wgpu::PresentMode {
+        if self.vsync {
+            wgpu::PresentMode::AutoVsync
+        } else {
+            wgpu::PresentMode::AutoNoVsync
+        }
+    }
+
     fn focus_changed(
         &mut self,
         window: kludgine::app::Window<'_, WindowCommand>,
@@ -1986,6 +2005,7 @@ pub(crate) mod sealed {
         pub cursive_font_family: FontFamilyList,
         pub font_data_to_load: FontCollection,
         pub on_closed: Option<OnceCallback>,
+        pub vsync: bool,
     }
 
     #[derive(Debug, Clone)]
@@ -2514,6 +2534,7 @@ impl CushyWindowBuilder {
                 cursive_font_family: FontFamilyList::default(),
                 font_data_to_load: FontCollection::default(),
                 on_closed: None,
+                vsync: false,
             },
         );
 

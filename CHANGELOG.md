@@ -233,6 +233,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for a given `LoadedFont`.
 - `Graphics::font_system()` returns a reference to the underlying Cosmic Text
   `FontSystem`.
+- `Window::vsync` is a new setting that allows disabling VSync for that window.
 
 [plotters]: https://github.com/plotters-rs/plotters
 
