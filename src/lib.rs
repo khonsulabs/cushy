@@ -30,7 +30,7 @@ use figures::units::UPx;
 use figures::{Fraction, ScreenUnit, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;
 pub use names::Name;
-pub use utils::{Lazy, WithClone};
+pub use utils::{Lazy, ModifiersExt, WithClone};
 pub use {figures, kludgine};
 
 pub use self::graphics::Graphics;

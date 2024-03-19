@@ -70,10 +70,30 @@ where
 
 impl_all_tuples!(impl_with_clone);
 
+/// Helper functions for [`Modifiers`] and [`ModifiersState`].
 pub trait ModifiersExt {
+    /// Returns true if the current state includes the platform's primary
+    /// shortcut key.
+    ///
+    /// For Apple based platforms, this returns true if a "super" modifier is
+    /// pressed. This corresponds to the Apple/Command key.
+    ///
+    /// For all other platforms, this returns true if a control key is pressed.
     fn primary(&self) -> bool;
+
+    /// Returns true if the platform-specific modifier for word-selection is
+    /// pressed.
+    ///
+    /// For Apple-based platforms, this returns true if an "alt" key is pressed.
+    /// This corresponds to the Option key.
+    ///
+    /// For all other platforms, this returns true if a control key is pressed.
     fn word_select(&self) -> bool;
 
+    /// Returns true if the current modifier state might be a shortcut key.
+    ///
+    /// This returns true if either the control key, alt key, or super key are
+    /// pressed.
     fn possible_shortcut(&self) -> bool;
 }
 

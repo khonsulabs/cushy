@@ -234,6 +234,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Graphics::font_system()` returns a reference to the underlying Cosmic Text
   `FontSystem`.
 - `Window::vsync` is a new setting that allows disabling VSync for that window.
+- `ModifiersExt` is an extension trait for winit's `Modifiers` and
+  `ModifiersState` types. This trait adds helpers for dealing with
+  platform-specific meanings for keyboard modifiers.
 
 [plotters]: https://github.com/plotters-rs/plotters
 
