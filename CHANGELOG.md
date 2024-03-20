@@ -237,6 +237,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ModifiersExt` is an extension trait for winit's `Modifiers` and
   `ModifiersState` types. This trait adds helpers for dealing with
   platform-specific meanings for keyboard modifiers.
+- `OverlayLayer::dismiss_all()` dismisses all overlays immediately.
 
 [plotters]: https://github.com/plotters-rs/plotters
 

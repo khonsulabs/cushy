@@ -171,6 +171,20 @@ impl OverlayLayer {
             show_animation: None,
         }
     }
+
+    /// Dismisses all currently presented overlays.
+    pub fn dismiss_all(&self) {
+        let mut state = self.state.lock();
+        state.hovering = None;
+        let removed = state.overlays.drain().collect::<Vec<_>>();
+        state.new_overlays = 0;
+        drop(state);
+
+        // Since overlays contain references back to this structure, we need to
+        // ensure their drop implementations happen after we've dropped our
+        // lock.
+        drop(removed);
+    }
 }
 
 impl Widget for OverlayLayer {
