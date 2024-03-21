@@ -721,8 +721,8 @@ impl Drop for OverlayHandle {
                 return;
             };
 
-            while state.overlays.len() > index {
-                let _removed = state.overlays.pop();
+            while state.overlays.len() - state.new_overlays > index {
+                let _removed = state.overlays.remove_by_index(index);
             }
         }
     }
