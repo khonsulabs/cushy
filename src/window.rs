@@ -7,7 +7,7 @@ use std::ffi::OsStr;
 use std::hash::Hash;
 use std::io;
 use std::marker::PhantomData;
-use std::num::TryFromIntError;
+use std::num::{NonZeroU32, TryFromIntError};
 use std::ops::{Deref, DerefMut, Not};
 use std::path::Path;
 use std::string::ToString;
@@ -482,6 +482,9 @@ where
     /// Under the hood, Cushy uses `wgpu::PresentMode::AutoVsync` when true and
     /// `wgpu::PresentMode::AutoNoVsync` when false.
     pub vsync: bool,
+    /// The number of samples to perform for each pixel rendered to the screen.
+    /// When 1, multisampling is disabled.
+    pub multisample_count: NonZeroU32,
 
     on_closed: Option<OnceCallback>,
     inner_size: Option<Dynamic<Size<UPx>>>,
@@ -649,6 +652,7 @@ where
                 fonts.push(include_bytes!("../assets/RobotoFlex.ttf").to_vec());
                 fonts
             },
+            multisample_count: NonZeroU32::new(4).assert("not 0"),
             vsync: true,
         }
     }
@@ -698,6 +702,7 @@ where
                     monospace_font_family: self.monospace_font_family,
                     cursive_font_family: self.cursive_font_family,
                     vsync: self.vsync,
+                    multisample_count: self.multisample_count,
                 }),
             },
         )?;
@@ -1726,6 +1731,10 @@ where
         }
     }
 
+    fn multisample_count(context: &Self::Context) -> std::num::NonZeroU32 {
+        context.settings.borrow().multisample_count
+    }
+
     fn focus_changed(
         &mut self,
         window: kludgine::app::Window<'_, WindowCommand>,
@@ -1968,6 +1977,7 @@ pub(crate) struct CursorState {
 
 pub(crate) mod sealed {
     use std::cell::RefCell;
+    use std::num::NonZeroU32;
 
     use figures::units::UPx;
     use figures::{Point, Size};
@@ -2006,6 +2016,7 @@ pub(crate) mod sealed {
         pub font_data_to_load: FontCollection,
         pub on_closed: Option<OnceCallback>,
         pub vsync: bool,
+        pub multisample_count: NonZeroU32,
     }
 
     #[derive(Debug, Clone)]
@@ -2442,7 +2453,7 @@ impl PlatformWindowImplementation for &mut VirtualState {
 /// A builder for a [`VirtualWindow`].
 pub struct CushyWindowBuilder {
     widget: WidgetInstance,
-    multisample_count: u32,
+    multisample_count: NonZeroU32,
     initial_size: Size<UPx>,
     scale: f32,
     transparent: bool,
@@ -2454,7 +2465,7 @@ impl CushyWindowBuilder {
     pub fn new(contents: impl MakeWidget) -> Self {
         Self {
             widget: contents.make_widget(),
-            multisample_count: 4,
+            multisample_count: NonZeroU32::new(4).assert("not 0"),
             initial_size: Size::new(UPx::new(800), UPx::new(600)),
             scale: 1.,
             transparent: false,
@@ -2466,7 +2477,7 @@ impl CushyWindowBuilder {
     /// By default, 4 samples are taken. When 1 sample is used, multisampling is
     /// fully disabled.
     #[must_use]
-    pub fn multisample_count(mut self, count: u32) -> Self {
+    pub fn multisample_count(mut self, count: NonZeroU32) -> Self {
         self.multisample_count = count;
         self
     }
@@ -2506,7 +2517,7 @@ impl CushyWindowBuilder {
             queue,
             wgpu::TextureFormat::Rgba8UnormSrgb,
             wgpu::MultisampleState {
-                count: self.multisample_count,
+                count: self.multisample_count.get(),
                 ..Default::default()
             },
             self.initial_size,
@@ -2535,6 +2546,7 @@ impl CushyWindowBuilder {
                 font_data_to_load: FontCollection::default(),
                 on_closed: None,
                 vsync: false,
+                multisample_count: self.multisample_count,
             },
         );
 
