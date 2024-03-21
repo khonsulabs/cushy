@@ -81,6 +81,19 @@ pub trait ModifiersExt {
     /// For all other platforms, this returns true if a control key is pressed.
     fn primary(&self) -> bool;
 
+    /// Returns true if only the [primary](Self::primary()) modifier key is
+    /// pressed.
+    fn only_primary(&self) -> bool;
+
+    /// Returns true if only a shift modifier key is pressed.
+    fn only_shift(&self) -> bool;
+    /// Returns true if only a control modifier key is pressed.
+    fn only_control(&self) -> bool;
+    /// Returns true if only an alt modifier key is pressed.
+    fn only_alt(&self) -> bool;
+    /// Returns true if only a super modifier key is pressed.
+    fn only_super(&self) -> bool;
+
     /// Returns true if the platform-specific modifier for word-selection is
     /// pressed.
     ///
@@ -121,6 +134,32 @@ impl ModifiersExt for ModifiersState {
     fn possible_shortcut(&self) -> bool {
         self.control_key() || self.alt_key() || self.super_key()
     }
+
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    fn only_primary(&self) -> bool {
+        self.super_key() && !self.shift_key() && !self.control_key() && !self.alt_key()
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+    fn only_primary(&self) -> bool {
+        self.control_key() && !self.shift_key() && !self.super_key() && !self.alt_key()
+    }
+
+    fn only_shift(&self) -> bool {
+        self.shift_key() && !self.control_key() && !self.super_key() && !self.alt_key()
+    }
+
+    fn only_control(&self) -> bool {
+        self.control_key() && !self.shift_key() && !self.super_key() && !self.alt_key()
+    }
+
+    fn only_alt(&self) -> bool {
+        self.alt_key() && !self.control_key() && !self.shift_key() && !self.super_key()
+    }
+
+    fn only_super(&self) -> bool {
+        self.super_key() && !self.control_key() && !self.shift_key() && !self.alt_key()
+    }
 }
 
 impl ModifiersExt for Modifiers {
@@ -134,6 +173,26 @@ impl ModifiersExt for Modifiers {
 
     fn possible_shortcut(&self) -> bool {
         self.state().word_select()
+    }
+
+    fn only_primary(&self) -> bool {
+        self.state().only_primary()
+    }
+
+    fn only_shift(&self) -> bool {
+        self.state().only_shift()
+    }
+
+    fn only_control(&self) -> bool {
+        self.state().only_control()
+    }
+
+    fn only_alt(&self) -> bool {
+        self.state().only_alt()
+    }
+
+    fn only_super(&self) -> bool {
+        self.state().only_super()
     }
 }
 
