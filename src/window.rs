@@ -245,6 +245,9 @@ pub trait PlatformWindow {
     fn set_min_inner_size(&self, min_size: Option<Size<UPx>>);
     /// Sets the window's maximum inner size.
     fn set_max_inner_size(&self, max_size: Option<Size<UPx>>);
+
+    /// Returns a handle to the underlying winit window, if available.
+    fn winit(&self) -> Option<&winit::window::Window>;
 }
 
 /// A currently running Cushy window.
@@ -435,6 +438,10 @@ where
 
     fn set_ime_location(&self, location: Rect<Px>) {
         self.window.set_ime_location(location);
+    }
+
+    fn winit(&self) -> Option<&winit::window::Window> {
+        self.window.winit()
     }
 }
 

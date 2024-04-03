@@ -428,9 +428,6 @@ where
     }
 }
 
-/// A [`Animate`] implementor that has been boxed as a trait object.
-pub struct BoxedAnimation(Box<dyn Animate>);
-
 /// An animation that can be spawned.
 pub trait Spawn {
     /// Spawns the animation, returning a handle that tracks the animation.
