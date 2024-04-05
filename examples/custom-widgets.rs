@@ -14,11 +14,7 @@ fn main() -> cushy::Result {
     "Inline Widgets"
         .and(callback_widget())
         .into_rows()
-        .and(
-            "impl MakeWidget"
-                .and(ToggleMakeWidget::default())
-                .into_rows(),
-        )
+        .and("impl MakeWidget".and(ToggleMakeWidget).into_rows())
         .and("impl Widget".and(impl_widget()).into_rows())
         .into_columns()
         .centered()
@@ -59,7 +55,7 @@ fn callback_widget() -> impl MakeWidgetWithTag {
 /// widget or any of its children aren't focusable, implementing [`MakeWidget`]
 /// directly will make more sense.
 #[derive(Default)]
-struct ToggleMakeWidget(Toggle);
+struct ToggleMakeWidget;
 
 impl MakeWidgetWithTag for ToggleMakeWidget {
     fn make_with_tag(self, id: WidgetTag) -> WidgetInstance {

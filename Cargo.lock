@@ -639,6 +639,7 @@ dependencies = [
  "kludgine",
  "nominals",
  "palette",
+ "parking_lot",
  "plotters",
  "png",
  "pollster",

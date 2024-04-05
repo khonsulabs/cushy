@@ -5,7 +5,7 @@ use std::clone::Clone;
 use std::fmt::{self, Debug};
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::sync::atomic::{self, AtomicU64};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
 use std::{slice, vec};
 
 use alot::LotId;
@@ -15,6 +15,7 @@ use intentional::Assert;
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
+use parking_lot::{Mutex, MutexGuard};
 
 use crate::app::{Application, Open, PendingApp, Run};
 use crate::context::sealed::Trackable as _;
@@ -35,7 +36,6 @@ use crate::styles::{
     IntoDynamicComponentValue, Styles, ThemePair, VisualOrder,
 };
 use crate::tree::{Tree, WeakTree};
-use crate::utils::IgnorePoison;
 use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
@@ -1404,8 +1404,8 @@ pub struct WidgetInstance {
 impl Debug for WidgetInstance {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.data.widget.try_lock() {
-            Ok(widget) => widget.summarize(f),
-            Err(_) => f.debug_struct("WidgetInstance").finish_non_exhaustive(),
+            Some(widget) => widget.summarize(f),
+            None => f.debug_struct("WidgetInstance").finish_non_exhaustive(),
         }
     }
 }
@@ -1539,7 +1539,7 @@ impl WidgetInstance {
     /// occur due to other widget locks being held.
     #[must_use]
     pub fn lock(&self) -> WidgetGuard<'_> {
-        WidgetGuard(self.data.widget.lock().ignore_poison())
+        WidgetGuard(self.data.widget.lock())
     }
 
     /// Returns the id of the widget that should receive focus after this

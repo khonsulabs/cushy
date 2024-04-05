@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ahash::AHashSet;
@@ -8,9 +8,9 @@ use figures::Point;
 use intentional::Assert;
 use kludgine::app::winit::event::{ElementState, MouseButton};
 use kludgine::app::winit::keyboard::Key;
+use parking_lot::{Condvar, Mutex, MutexGuard};
 
 use crate::context::WidgetContext;
-use crate::utils::IgnorePoison;
 use crate::value::{Destination, Dynamic};
 use crate::widget::{EventHandling, HANDLED, IGNORED};
 use crate::window::KeyEvent;
@@ -170,7 +170,7 @@ struct TickData {
 
 impl TickData {
     fn state(&self) -> MutexGuard<'_, TickState> {
-        self.state.lock().ignore_poison()
+        self.state.lock()
     }
 }
 
@@ -218,7 +218,7 @@ where
         while state.keep_running {
             let current_frame = data.rendered_frame.load(Ordering::Acquire);
             if state.frame == current_frame {
-                state = data.sync.wait(state).ignore_poison();
+                data.sync.wait(&mut state);
             } else {
                 break;
             }

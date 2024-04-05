@@ -144,9 +144,7 @@ where
 
     fn hover(&mut self, local: Point<Px>, context: &mut EventContext<'_>) -> Option<CursorIcon> {
         if let Some(tick) = &self.tick {
-            let Some(size) = context.last_layout().map(|rect| rect.size) else {
-                return None;
-            };
+            let size = context.last_layout().map(|rect| rect.size)?;
 
             let world =
                 tilemap::translate_coordinates(local, context.kludgine.scale(), self.zoom, size);

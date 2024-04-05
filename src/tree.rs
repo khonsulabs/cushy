@@ -1,13 +1,13 @@
 use std::mem;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Weak};
 
 use ahash::AHashMap;
 use alot::{LotId, Lots};
 use figures::units::{Px, UPx};
 use figures::{Point, Rect, Size};
+use parking_lot::Mutex;
 
 use crate::styles::{Styles, ThemePair, VisualOrder};
-use crate::utils::IgnorePoison;
 use crate::value::Value;
 use crate::widget::{MountedWidget, WidgetId, WidgetInstance};
 use crate::window::{ThemeMode, WindowHandle};
@@ -24,7 +24,7 @@ impl Tree {
         widget: WidgetInstance,
         parent: Option<&MountedWidget>,
     ) -> MountedWidget {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         let id = widget.id();
         let (effective_styles, parent_id) = if let Some(parent) = parent {
             (
@@ -72,7 +72,7 @@ impl Tree {
         parent: &MountedWidget,
         children_to_unmount: &mut Vec<WidgetId>,
     ) {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         data.remove_child(child.node_id, parent.node_id, children_to_unmount);
 
         if child.widget.is_default() {
@@ -84,7 +84,7 @@ impl Tree {
     }
 
     pub(crate) fn set_layout(&self, widget: LotId, rect: Rect<Px>) {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
 
         let node = &mut data.nodes[widget];
         node.layout = Some(rect);
@@ -104,12 +104,12 @@ impl Tree {
     }
 
     pub(crate) fn layout(&self, widget: LotId) -> Option<Rect<Px>> {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         data.nodes.get(widget).and_then(|widget| widget.layout)
     }
 
     pub(crate) fn new_frame(&self, invalidations: impl IntoIterator<Item = WidgetId>) {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         data.render_info.clear();
 
         for id in invalidations {
@@ -122,7 +122,7 @@ impl Tree {
     }
 
     pub(crate) fn note_widget_rendered(&self, widget: LotId) {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         let Some(layout) = data.nodes.get(widget).and_then(|node| node.layout) else {
             return;
         };
@@ -134,7 +134,7 @@ impl Tree {
         parent: LotId,
         constraints: Size<ConstraintLimit>,
     ) -> Option<Size<UPx>> {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
 
         let node = &mut data.nodes[parent];
         if let Some(cached_layout) = &node.last_layout_query {
@@ -161,7 +161,7 @@ impl Tree {
         constraints: Size<ConstraintLimit>,
         size: Size<UPx>,
     ) {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         data.nodes[id].last_layout_query = Some(CachedLayoutQuery { constraints, size });
     }
 
@@ -170,7 +170,7 @@ impl Tree {
         parent: LotId,
         order: VisualOrder,
     ) -> Vec<MountedWidget> {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         let node = &data.nodes[parent];
         let mut unordered = node.children.clone();
         let mut ordered = Vec::<MountedWidget>::with_capacity(unordered.len());
@@ -230,12 +230,12 @@ impl Tree {
     }
 
     pub(crate) fn effective_styles(&self, id: LotId) -> Styles {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         data.nodes[id].effective_styles.clone()
     }
 
     pub(crate) fn hover(&self, new_hover: Option<&MountedWidget>) -> HoverResults {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         let hovered = new_hover
             .map(|new_hover| data.widget_hierarchy(new_hover.node_id, self))
             .unwrap_or_default();
@@ -260,12 +260,12 @@ impl Tree {
     }
 
     pub fn focus(&self, new_focus: Option<WidgetId>) -> Result<Option<MountedWidget>, ()> {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         data.update_tracked_widget(new_focus, self, |data| &mut data.focus)
     }
 
     pub fn previous_focus(&self, focus: WidgetId) -> Option<MountedWidget> {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         let previous = *data.previous_focuses.get(&focus)?;
         data.widget_from_id(previous, self)
     }
@@ -274,24 +274,24 @@ impl Tree {
         &self,
         new_active: Option<&MountedWidget>,
     ) -> Result<Option<MountedWidget>, ()> {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         data.update_tracked_widget(new_active.map(MountedWidget::id), self, |data| {
             &mut data.active
         })
     }
 
     pub fn widget(&self, id: WidgetId) -> Option<MountedWidget> {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         data.widget_from_id(id, self)
     }
 
     pub(crate) fn widget_from_node(&self, id: LotId) -> Option<MountedWidget> {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         data.widget_from_node(id, self)
     }
 
     pub(crate) fn is_enabled(&self, mut id: LotId, context: &WindowHandle) -> bool {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         loop {
             let Some(node) = data.nodes.get(id) else {
                 return false;
@@ -310,23 +310,23 @@ impl Tree {
     }
 
     pub(crate) fn active_widget(&self) -> Option<LotId> {
-        self.data.lock().ignore_poison().active
+        self.data.lock().active
     }
 
     pub(crate) fn hovered_widget(&self) -> Option<LotId> {
-        self.data.lock().ignore_poison().hover
+        self.data.lock().hover
     }
 
     pub(crate) fn default_widget(&self) -> Option<LotId> {
-        self.data.lock().ignore_poison().defaults.last().copied()
+        self.data.lock().defaults.last().copied()
     }
 
     pub(crate) fn escape_widget(&self) -> Option<LotId> {
-        self.data.lock().ignore_poison().escapes.last().copied()
+        self.data.lock().escapes.last().copied()
     }
 
     pub(crate) fn is_hovered(&self, id: LotId) -> bool {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         let mut search = data.hover;
         while let Some(hovered) = search {
             if hovered == id {
@@ -339,21 +339,21 @@ impl Tree {
     }
 
     pub(crate) fn focused_widget(&self) -> Option<LotId> {
-        self.data.lock().ignore_poison().focus
+        self.data.lock().focus
     }
 
     pub(crate) fn widgets_under_point(&self, point: Point<Px>) -> Vec<MountedWidget> {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         data.render_info.widgets_under_point(point, &data, self)
     }
 
     pub(crate) fn parent(&self, id: LotId) -> Option<LotId> {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         data.nodes.get(id).expect("missing widget").parent
     }
 
     pub(crate) fn is_child(&self, mut id: LotId, possible_parent: &WidgetInstance) -> bool {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         while let Some(node) = data.nodes.get(id) {
             if &node.widget == possible_parent {
                 return true;
@@ -371,17 +371,17 @@ impl Tree {
     }
 
     pub(crate) fn attach_styles(&self, id: LotId, styles: Value<Styles>) {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         data.attach_styles(id, styles);
     }
 
     pub(crate) fn attach_theme(&self, id: LotId, theme: Value<ThemePair>) {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         data.nodes.get_mut(id).expect("missing widget").theme = Some(theme);
     }
 
     pub(crate) fn attach_theme_mode(&self, id: LotId, theme: Value<ThemeMode>) {
-        let mut data = self.data.lock().ignore_poison();
+        let mut data = self.data.lock();
         data.nodes.get_mut(id).expect("missing widget").theme_mode = Some(theme);
     }
 
@@ -389,7 +389,7 @@ impl Tree {
         &self,
         id: LotId,
     ) -> (Styles, Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {
-        let data = self.data.lock().ignore_poison();
+        let data = self.data.lock();
         let node = data.nodes.get(id).expect("missing widget");
         (
             node.effective_styles.clone(),
@@ -399,10 +399,7 @@ impl Tree {
     }
 
     pub fn invalidate(&self, id: LotId, include_hierarchy: bool) {
-        self.data
-            .lock()
-            .ignore_poison()
-            .invalidate(id, include_hierarchy);
+        self.data.lock().invalidate(id, include_hierarchy);
     }
 }
 

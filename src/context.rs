@@ -1414,11 +1414,11 @@ impl<T> Trackable for T where T: sealed::Trackable {}
 
 pub(crate) mod sealed {
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::{Arc, Mutex, MutexGuard};
+    use std::sync::Arc;
 
     use kempt::Set;
+    use parking_lot::{Mutex, MutexGuard};
 
-    use crate::utils::IgnorePoison;
     use crate::widget::WidgetId;
     use crate::window::WindowHandle;
 
@@ -1445,12 +1445,12 @@ pub(crate) mod sealed {
         }
 
         pub fn invalidate(&self, widget: WidgetId) -> bool {
-            let mut invalidated = self.invalidated.lock().ignore_poison();
+            let mut invalidated = self.invalidated.lock();
             invalidated.insert(widget)
         }
 
         pub fn invalidations(&self) -> MutexGuard<'_, Set<WidgetId>> {
-            self.invalidated.lock().ignore_poison()
+            self.invalidated.lock()
         }
     }
 

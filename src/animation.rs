@@ -43,7 +43,7 @@ use std::cmp::Ordering;
 use std::fmt::{Debug, Display};
 use std::ops::{ControlFlow, Deref, Div, DivAssign, Mul, MulAssign, Sub};
 use std::str::FromStr;
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -53,10 +53,11 @@ use figures::{Angle, Point, Ranged, Rect, Size, UnscaledUnit, Zero};
 use intentional::Cast;
 use kempt::Set;
 use kludgine::Color;
+use parking_lot::{Condvar, Mutex, MutexGuard};
 
 use crate::animation::easings::Linear;
 use crate::styles::{Component, RequireInvalidation};
-use crate::utils::{run_in_bg, IgnorePoison};
+use crate::utils::run_in_bg;
 use crate::value::{Destination, Dynamic, Source};
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
@@ -67,7 +68,7 @@ fn thread_state() -> MutexGuard<'static, Animating> {
     THREAD.get_or_init(|| {
         thread::spawn(animation_thread);
     });
-    ANIMATIONS.lock().ignore_poison()
+    ANIMATIONS.lock()
 }
 
 fn animation_thread() {
@@ -75,7 +76,7 @@ fn animation_thread() {
     loop {
         if state.running.is_empty() {
             state.last_updated = None;
-            state = NEW_ANIMATIONS.wait(state).ignore_poison();
+            NEW_ANIMATIONS.wait(&mut state);
         } else {
             let start = Instant::now();
             let last_tick = state.last_updated.unwrap_or(start);

@@ -11,7 +11,7 @@ use std::num::{NonZeroU32, TryFromIntError};
 use std::ops::{Deref, DerefMut, Not};
 use std::path::Path;
 use std::string::ToString;
-use std::sync::{mpsc, Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{mpsc, Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use ahash::AHashMap;
@@ -37,6 +37,7 @@ use kludgine::drawing::Drawing;
 use kludgine::shapes::Shape;
 use kludgine::wgpu::{self, CompositeAlphaMode, COPY_BYTES_PER_ROW_ALIGNMENT};
 use kludgine::{Color, DrawableExt, Kludgine, KludgineId, Origin, Texture};
+use parking_lot::{Mutex, MutexGuard};
 use tracing::Level;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -2216,11 +2217,7 @@ impl InnerWindowHandle {
                 if let Some(handle) = pending.handle.get() {
                     let _result = handle.send(message);
                 } else {
-                    pending
-                        .commands
-                        .lock()
-                        .expect("lock poisoned")
-                        .push(message);
+                    pending.commands.lock().push(message);
                 }
             }
             InnerWindowHandle::Known(handle) => {
@@ -2287,7 +2284,7 @@ impl PendingWindow {
         let initialized = pending.handle.set(handle.clone());
         assert!(initialized.is_ok());
 
-        for command in pending.commands.lock().expect("poisoned").drain(..) {
+        for command in pending.commands.lock().drain(..) {
             let _result = handle.send(command);
         }
 
@@ -3170,7 +3167,7 @@ impl Capture {
         slice.map_async(wgpu::MapMode::Read, {
             let map_result = map_result.clone();
             move |result| {
-                *map_result.lock().assert("thread panicked") = Some(result);
+                *map_result.lock() = Some(result);
             }
         });
 
@@ -3179,7 +3176,7 @@ impl Capture {
 
         loop {
             device.poll(wgpu::Maintain::Poll);
-            let mut result = map_result.lock().assert("thread panicked");
+            let mut result = map_result.lock();
             if let Some(result) = result.take() {
                 result?;
                 break;

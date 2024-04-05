@@ -1,10 +1,10 @@
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
 
 use arboard::Clipboard;
 use kludgine::app::{AppEvent, AsApplication};
+use parking_lot::{Mutex, MutexGuard};
 
 use crate::fonts::FontCollection;
-use crate::utils::IgnorePoison;
 use crate::window::sealed::WindowCommand;
 use crate::window::WindowHandle;
 
@@ -64,9 +64,7 @@ impl Cushy {
     /// initialized when the window opened.
     #[must_use]
     pub fn clipboard_guard(&self) -> Option<MutexGuard<'_, Clipboard>> {
-        self.clipboard
-            .as_ref()
-            .map(|mutex| mutex.lock().ignore_poison())
+        self.clipboard.as_ref().map(|mutex| mutex.lock())
     }
 
     /// Returns the font collection that will be loaded in all Cushy windows.

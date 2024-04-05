@@ -1,7 +1,7 @@
 //! Widgets that stack in the Z-direction.
 
 use std::fmt::{self, Debug};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use alot::{LotId, OrderedLots};
@@ -9,11 +9,11 @@ use cushy::widget::{RootBehavior, WidgetInstance};
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use intentional::Assert;
+use parking_lot::Mutex;
 
 use crate::animation::easings::EaseOutQuadradic;
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
-use crate::utils::IgnorePoison;
 use crate::value::{Destination, Dynamic, DynamicGuard, IntoValue, Source, Value};
 use crate::widget::{
     Callback, MakeWidget, MountedChildren, MountedWidget, Widget, WidgetId, WidgetList, WidgetRef,
@@ -641,7 +641,7 @@ struct OverlayLayout {
 impl Drop for OverlayLayout {
     fn drop(&mut self) {
         if let Some(on_dismiss) = &self.on_dismiss {
-            let mut on_dismiss = on_dismiss.lock().ignore_poison();
+            let mut on_dismiss = on_dismiss.lock();
             on_dismiss.invoke(());
         }
     }
