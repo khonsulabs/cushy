@@ -52,7 +52,8 @@ where
                 if cache.text.can_render_to(&context.gfx)
                     && cache.generation == check_generation
                     && cache.color == color
-                    && cache.width == width
+                    && width <= cache.width
+                    && cache.text.size.width <= width
                     && cache.families == current_families => {}
             _ => {
                 let measured = self.display.map(|text| {
