@@ -9,7 +9,7 @@ use kludgine::LazyTexture;
 fn main() -> cushy::Result {
     // To open multiple applications, we need a handle to the application. This
     // starts with the `PendingApp` type.
-    let app = PendingApp::default();
+    let mut app = PendingApp::default();
     // Cushy ensures it's easy to share resources between windows.
     let texture = include_texture!("assets/ferris-happy.png").expect("valid image");
 
@@ -30,11 +30,11 @@ fn main() -> cushy::Result {
         .centered()
         // The other examples call run() on the widget/window. Since we're
         // opening two windows at the app's startup,
-        .open(&app)?;
+        .open(&mut app)?;
 
     // And now let's open our first "clone" window -- the window that clicking
     // the open button on any of the windows will create.
-    open_another_window(&app, &open_windows, &counter, &texture);
+    open_another_window(&mut app, &open_windows, &counter, &texture);
 
     // Run the application
     app.run()
@@ -47,18 +47,18 @@ fn open_window_button(
     counter: &Dynamic<usize>,
     texture: &LazyTexture,
 ) -> impl MakeWidget {
-    let app = app.as_app();
+    let mut app = app.as_app();
     let open_windows = open_windows.clone();
     let counter = counter.clone();
     let texture = texture.clone();
     "Open Another Window".into_button().on_click(move |()| {
-        open_another_window(&app, &open_windows, &counter, &texture);
+        open_another_window(&mut app, &open_windows, &counter, &texture);
     })
 }
 
 /// Opens another window that contains a button that opens another window.
 fn open_another_window(
-    app: &impl Application,
+    app: &mut impl Application,
     open_windows: &Dynamic<usize>,
     counter: &Dynamic<usize>,
     texture: &LazyTexture,

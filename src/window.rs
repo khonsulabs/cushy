@@ -30,7 +30,7 @@ use kludgine::app::winit::event::{
 use kludgine::app::winit::keyboard::{
     Key, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
 };
-use kludgine::app::winit::window::{self, CursorIcon};
+use kludgine::app::winit::window::{self, Cursor};
 use kludgine::app::{winit, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::drawing::Drawing;
@@ -82,7 +82,7 @@ pub trait PlatformWindowImplementation {
     /// Returns the amount of time that has elapsed since the last redraw.
     fn elapsed(&self) -> Duration;
     /// Sets the current cursor icon to `cursor`.
-    fn set_cursor_icon(&mut self, cursor: CursorIcon);
+    fn set_cursor(&mut self, cursor: Cursor);
     /// Returns a handle for the window.
     fn handle(&self, redraw_status: InvalidationStatus) -> WindowHandle;
     /// Returns the current inner size of the window.
@@ -162,8 +162,8 @@ pub trait PlatformWindowImplementation {
 }
 
 impl PlatformWindowImplementation for kludgine::app::Window<'_, WindowCommand> {
-    fn set_cursor_icon(&mut self, cursor: CursorIcon) {
-        self.winit().set_cursor_icon(cursor);
+    fn set_cursor(&mut self, cursor: Cursor) {
+        self.winit().set_cursor(cursor);
     }
 
     fn inner_size(&self) -> Size<UPx> {
@@ -231,7 +231,7 @@ pub trait PlatformWindow {
     /// Returns the amount of time that has elapsed since the last redraw.
     fn elapsed(&self) -> Duration;
     /// Sets the current cursor icon to `cursor`.
-    fn set_cursor_icon(&mut self, cursor: CursorIcon);
+    fn set_cursor(&mut self, cursor: Cursor);
 
     /// Sets the location of the cursor.
     fn set_ime_location(&self, location: Rect<Px>);
@@ -421,8 +421,8 @@ where
         self.window.set_ime_purpose(purpose);
     }
 
-    fn set_cursor_icon(&mut self, cursor: CursorIcon) {
-        self.window.set_cursor_icon(cursor);
+    fn set_cursor(&mut self, cursor: Cursor) {
+        self.window.set_cursor(cursor);
     }
 
     fn set_min_inner_size(&self, min_size: Option<Size<UPx>>) {
@@ -672,8 +672,8 @@ where
 {
     fn run(self) -> crate::Result {
         initialize_tracing();
-        let app = PendingApp::default();
-        self.open(&app)?;
+        let mut app = PendingApp::default();
+        self.open(&mut app)?;
         app.run()
     }
 }
@@ -682,7 +682,7 @@ impl<Behavior> Open for Window<Behavior>
 where
     Behavior: WindowBehavior,
 {
-    fn open<App>(self, app: &App) -> crate::Result<Option<WindowHandle>>
+    fn open<App>(self, app: &mut App) -> crate::Result<Option<WindowHandle>>
     where
         App: Application + ?Sized,
     {
@@ -718,8 +718,8 @@ where
         Ok(handle.map(|handle| self.pending.opened(handle)))
     }
 
-    fn run_in(self, app: PendingApp) -> crate::Result {
-        self.open(&app)?;
+    fn run_in(self, mut app: PendingApp) -> crate::Result {
+        self.open(&mut app)?;
         app.run()
     }
 }
@@ -2351,8 +2351,8 @@ pub struct VirtualState {
     pub modifiers: Modifiers,
     /// The amount of time elapsed since the last redraw call.
     pub elapsed: Duration,
-    /// The currently set cursor icon.
-    pub cursor: CursorIcon,
+    /// The currently set cursor.
+    pub cursor: Cursor,
     /// The inner size of the virtual window.
     pub size: Size<UPx>,
 }
@@ -2364,7 +2364,7 @@ impl VirtualState {
             closed: false,
             modifiers: Modifiers::default(),
             elapsed: Duration::ZERO,
-            cursor: CursorIcon::default(),
+            cursor: Cursor::default(),
             size: Size::new(UPx::new(800), UPx::new(600)),
         }
     }
@@ -2440,7 +2440,7 @@ impl PlatformWindowImplementation for &mut VirtualState {
         self.elapsed
     }
 
-    fn set_cursor_icon(&mut self, cursor: CursorIcon) {
+    fn set_cursor(&mut self, cursor: Cursor) {
         self.cursor = cursor;
     }
 

@@ -41,6 +41,13 @@ impl AsApplication<AppEvent<WindowCommand>> for PendingApp {
     fn as_application(&self) -> &dyn kludgine::app::Application<AppEvent<WindowCommand>> {
         self.app.as_application()
     }
+
+    fn as_application_mut(&mut self) -> &mut dyn kludgine::app::Application<AppEvent<WindowCommand>>
+    where
+        AppEvent<WindowCommand>: kludgine::app::Message,
+    {
+        self.app.as_application_mut()
+    }
 }
 
 /// Shared resources for a GUI application.
@@ -119,6 +126,16 @@ impl AsApplication<AppEvent<WindowCommand>> for App {
             .map(AsApplication::as_application)
             .expect("no app")
     }
+
+    fn as_application_mut(&mut self) -> &mut dyn kludgine::app::Application<AppEvent<WindowCommand>>
+    where
+        AppEvent<WindowCommand>: kludgine::app::Message,
+    {
+        self.app
+            .as_mut()
+            .map(AsApplication::as_application_mut)
+            .expect("no app")
+    }
 }
 
 /// A type that can be run as an application.
@@ -132,7 +149,7 @@ pub trait Run: Sized {
 /// A type that can be opened as a window in an application.
 pub trait Open: Sized {
     /// Opens the provided type as a window inside of `app`.
-    fn open<App>(self, app: &App) -> crate::Result<Option<WindowHandle>>
+    fn open<App>(self, app: &mut App) -> crate::Result<Option<WindowHandle>>
     where
         App: Application + ?Sized;
 

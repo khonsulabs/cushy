@@ -7,7 +7,7 @@ use cushy::{Application, Open, PendingApp};
 const INTRO: &str = "This example demonstrates the DebugContext, which allows observing values easily throughout GUI";
 
 fn main() -> cushy::Result {
-    let app = PendingApp::default();
+    let mut app = PendingApp::default();
     let info = DebugContext::default();
 
     let window_count = Dynamic::new(0_usize);
@@ -15,11 +15,11 @@ fn main() -> cushy::Result {
     let open_window_button = "Open a Window"
         .into_button()
         .on_click({
-            let app = app.as_app();
+            let mut app = app.as_app();
             let info = info.clone();
             let window_count = window_count.clone();
             let total_windows = total_windows.clone();
-            move |()| open_a_window(&window_count, &total_windows, &info, &app)
+            move |()| open_a_window(&window_count, &total_windows, &info, &mut app)
         })
         .make_widget();
 
@@ -30,7 +30,7 @@ fn main() -> cushy::Result {
             .into_columns()
     });
 
-    info.clone().open(&app)?;
+    info.clone().open(&mut app)?;
 
     INTRO
         .and(open_window_button)
@@ -43,7 +43,7 @@ fn open_a_window(
     window_count: &Dynamic<usize>,
     total_windows: &Dynamic<usize>,
     info: &DebugContext,
-    app: &dyn Application,
+    app: &mut dyn Application,
 ) {
     *window_count.lock() += 1;
     let window_number = total_windows.map_mut(|mut total| {

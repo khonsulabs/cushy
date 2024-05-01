@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
-use kludgine::app::winit::window::CursorIcon;
+use kludgine::app::winit::window::Cursor;
 use kludgine::cosmic_text::FamilyOwned;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine, KludgineId};
@@ -175,7 +175,7 @@ impl<'context> EventContext<'context> {
             }
         }
         self.window_mut()
-            .set_cursor_icon(cursor.unwrap_or_default());
+            .set_cursor(cursor.unwrap_or_default().into());
     }
 
     pub(crate) fn clear_hover(&mut self) {
@@ -187,7 +187,7 @@ impl<'context> EventContext<'context> {
             old_hover.lock().as_widget().unhover(&mut old_hover_context);
         }
 
-        self.window_mut().set_cursor_icon(CursorIcon::Default);
+        self.window_mut().set_cursor(Cursor::default());
     }
 
     fn apply_pending_activation(&mut self) {

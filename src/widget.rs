@@ -471,15 +471,15 @@ impl<T> Open for T
 where
     T: MakeWidget,
 {
-    fn open<App>(self, app: &App) -> crate::Result<Option<crate::window::WindowHandle>>
+    fn open<App>(self, app: &mut App) -> crate::Result<Option<crate::window::WindowHandle>>
     where
         App: Application + ?Sized,
     {
         Window::<WidgetInstance>::new(self.make_widget()).open(app)
     }
 
-    fn run_in(self, app: PendingApp) -> crate::Result {
-        Window::<WidgetInstance>::new(self.make_widget()).open(&app)?;
+    fn run_in(self, mut app: PendingApp) -> crate::Result {
+        Window::<WidgetInstance>::new(self.make_widget()).open(&mut app)?;
         app.run()
     }
 }

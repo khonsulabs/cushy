@@ -115,7 +115,7 @@ impl DebugContext {
 }
 
 impl Open for DebugContext {
-    fn open<App>(self, app: &App) -> crate::Result<Option<crate::window::WindowHandle>>
+    fn open<App>(self, app: &mut App) -> crate::Result<Option<crate::window::WindowHandle>>
     where
         App: crate::Application + ?Sized,
     {
