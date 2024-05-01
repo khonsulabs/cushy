@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
+- `wgpu` has been updated to `0.20`.
+- `winit` has been updated to `0.30`.
 - All context types no longer accept a `'window` lifetime. For most end-user
   code, it means removing one elided lifetime from these types:
   - `WidgetContext`
@@ -61,6 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `GraphicsContext::set_font_family()`
   - `GraphicsContext::find_available_font_family()`
   - `GraphicsContext::set_available_font_family()`
+- `Open::open` now require exclusive references to the application.
+- `PlatformWindowImplementation::set_cursor_icon` and
+  `PlatformWindow::set_cursor_icon` have been renamed to `set_cursor` and accept
+  `winit` 0.30's new `Cursor` type.
 
 ### Fixed
 
