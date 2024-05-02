@@ -11,7 +11,7 @@ license = "MIT OR Apache-2.0"
 keywords = ["gui", "ui", "widgets", "reactive"]
 categories = ["gui"]
 readme = "./README.md"
-rust-version = "1.70.0"
+rust-version = "1.74.1"
 
 [features]
 default = ["tracing-output", "roboto-flex"]

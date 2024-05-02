@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
+- This crate's MSRV is now `1.74.1`, required by updating `wgpu`.
 - `wgpu` has been updated to `0.20`.
 - `winit` has been updated to `0.30`.
 - All context types no longer accept a `'window` lifetime. For most end-user
@@ -87,8 +88,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed a possible deadlock when using `DynamicReader::block_until_updated`.
 - Removed an edge case ensuring `Waker`s are signaled for `DynamicReader`s that
   are waiting for value when the last `Dynamic` is dropped.
-- Compatibility with Rust v1.70.0 has been restored, and continuous integration
-  testing the MSRV has been added.
 - `Progress` now utilizes `IntoSource<Progress>` instead of
   `IntoDynamic<Progress>`. In general, this should not cause any code breakages
   unless the traits were being used in generics.
