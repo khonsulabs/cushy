@@ -64,7 +64,7 @@ fn main() -> cushy::Result {
         .and(
             "Log In"
                 .into_button()
-                .on_click(validations.when_valid(move |()| {
+                .on_click(validations.when_valid(move |_| {
                     println!("Welcome, {}", username.get());
                     exit(0);
                 }))

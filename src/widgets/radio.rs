@@ -62,7 +62,7 @@ where
         .and(self.label)
         .into_columns()
         .into_button()
-        .on_click(move |()| {
+        .on_click(move |_| {
             self.state.set(self.value.clone());
         })
         .kind(self.kind)

@@ -87,7 +87,7 @@ fn edit_contact_form(contact: &Contact, db: &Dynamic<HashMap<u64, Contact>>) -> 
                 .on_click({
                     let contact_id = contact.id;
                     let db = db.clone();
-                    move |()| {
+                    move |_| {
                         let mut db = db.lock();
                         let contact = db.get_mut(&contact_id).expect("missing contact");
                         contact.first_name = first.get();

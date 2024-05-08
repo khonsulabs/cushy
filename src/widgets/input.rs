@@ -1243,9 +1243,6 @@ where
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-struct NotVisible(Point<Px>, usize);
-
 #[derive(Clone, Copy)]
 struct BlinkState {
     visible: bool,

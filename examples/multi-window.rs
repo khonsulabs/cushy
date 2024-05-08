@@ -51,7 +51,7 @@ fn open_window_button(
     let open_windows = open_windows.clone();
     let counter = counter.clone();
     let texture = texture.clone();
-    "Open Another Window".into_button().on_click(move |()| {
+    "Open Another Window".into_button().on_click(move |_| {
         open_another_window(&mut app, &open_windows, &counter, &texture);
     })
 }
@@ -82,7 +82,7 @@ fn open_another_window(
                 .and(
                     "Close"
                         .into_button()
-                        .on_click(move |()| handle.request_close()),
+                        .on_click(move |_| handle.request_close()),
                 )
                 .into_rows()
                 .centered(),

@@ -29,7 +29,7 @@ fn main() -> cushy::Result {
         .into_button()
         .on_click({
             let clicked_button = clicked_button.clone();
-            move |()| clicked_button.set("inner button clicked")
+            move |_| clicked_button.set("inner button clicked")
         })
         .with(&ButtonHoverBackground, Color::RED)
         .with(&ButtonHoverForeground, Color::WHITE);
@@ -40,7 +40,7 @@ fn main() -> cushy::Result {
         .into_button()
         .on_click({
             let clicked_button = clicked_button.clone();
-            move |()| clicked_button.set("middle button clicked")
+            move |_| clicked_button.set("middle button clicked")
         });
 
     let outer_button = "Yo dawg!"
@@ -49,7 +49,7 @@ fn main() -> cushy::Result {
         .into_button()
         .on_click({
             let clicked_button = clicked_button.clone();
-            move |()| clicked_button.set("outer button clicked")
+            move |_| clicked_button.set("outer button clicked")
         });
 
     outer_button

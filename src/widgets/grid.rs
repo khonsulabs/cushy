@@ -856,6 +856,12 @@ impl<const N: usize> DerefMut for GridWidgets<N> {
 #[derive(Debug, Eq, PartialEq)]
 pub struct GridSection<const N: usize>([WidgetInstance; N]);
 
+impl Default for GridSection<0> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GridSection<0> {
     /// Returns an empty section.
     #[must_use]

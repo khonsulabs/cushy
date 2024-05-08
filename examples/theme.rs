@@ -80,7 +80,7 @@ fn main() -> cushy::Result {
         .and(editors.neutral_variant.1)
         .and("Copy to Clipboard".into_button().on_click({
             let cushy = app.cushy().clone();
-            move |()| {
+            move |_| {
                 if let Some(mut clipboard) = cushy.clipboard_guard() {
                     let builder = color_scheme_builder.get();
                     let mut source = String::default();

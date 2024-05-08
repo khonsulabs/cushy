@@ -73,7 +73,7 @@ where
         });
         self.label
             .into_button()
-            .on_click(move |()| {
+            .on_click(move |_| {
                 self.state.set(self.value.clone());
             })
             .kind(kind)

@@ -68,6 +68,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `PlatformWindowImplementation::set_cursor_icon` and
   `PlatformWindow::set_cursor_icon` have been renamed to `set_cursor` and accept
   `winit` 0.30's new `Cursor` type.
+- `Button::on_click` now takes a `Option<ButtonClick>` structure. When this
+  value is provided, information about the mouse click that caused the event is
+  provided.
 
 ### Fixed
 

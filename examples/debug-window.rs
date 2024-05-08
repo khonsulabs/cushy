@@ -19,7 +19,7 @@ fn main() -> cushy::Result {
             let info = info.clone();
             let window_count = window_count.clone();
             let total_windows = total_windows.clone();
-            move |()| open_a_window(&window_count, &total_windows, &info, &mut app)
+            move |_| open_a_window(&window_count, &total_windows, &info, &mut app)
         })
         .make_widget();
 

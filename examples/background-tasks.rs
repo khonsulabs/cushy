@@ -27,7 +27,7 @@ fn main() -> cushy::Result {
                 .into_button()
                 .on_click({
                     let task = dynamic.clone();
-                    move |()| {
+                    move |_| {
                         let background_task = Task::default();
                         spawn_background_thread(&background_task.progress, &task);
                         task.set(Some(background_task));

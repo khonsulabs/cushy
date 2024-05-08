@@ -22,13 +22,13 @@ fn main() -> cushy::Result {
         .and(
             "Submit"
                 .into_button()
-                .on_click(validations.clone().when_valid(move |()| {
+                .on_click(validations.clone().when_valid(move |_| {
                     println!(
                     "Success! This callback only happens when all associated validations are valid"
                 );
                 })),
         )
-        .and("Reset".into_button().on_click(move |()| {
+        .and("Reset".into_button().on_click(move |_| {
             let _value = text.take();
             validations.reset();
         }))

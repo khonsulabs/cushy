@@ -3,6 +3,7 @@ use std::time::Duration;
 use cushy::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn};
 use cushy::value::{Destination, Dynamic};
 use cushy::widget::MakeWidget;
+use cushy::widgets::button::ButtonClick;
 use cushy::widgets::progress::Progressable;
 use cushy::{Run, WithClone};
 use figures::units::Lp;
@@ -41,7 +42,7 @@ fn animate_to(
     animation: &Dynamic<AnimationHandle>,
     value: &Dynamic<u8>,
     target: u8,
-) -> impl FnMut(()) {
+) -> impl FnMut(Option<ButtonClick>) {
     (animation, value).with_clone(|(animation, value)| {
         move |_| {
             // Here we use spawn to schedule the animation, which returns an

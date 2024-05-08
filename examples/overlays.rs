@@ -4,6 +4,7 @@ use cushy::widgets::layers::{OverlayBuilder, OverlayLayer};
 use cushy::Run;
 use figures::units::Lp;
 use figures::{Point, Zero};
+use kludgine::app::winit::event::MouseButton;
 use kludgine::Color;
 use rand::{thread_rng, Rng};
 
@@ -55,10 +56,20 @@ fn show_overlay_button(
     direction_func: impl for<'a> Fn(OverlayBuilder<'a>) -> OverlayBuilder<'a> + Send + 'static,
 ) -> impl MakeWidget {
     let overlay = overlay.clone();
-    label.into_button().on_click(move |()| {
-        direction_func(overlay.build_overlay(test_widget(&overlay, false)))
-            .hide_on_unhover()
-            .show()
-            .forget();
-    })
+    let button_tag = WidgetTag::unique();
+    let button_id = button_tag.id();
+    label
+        .into_button()
+        .on_click(move |click| {
+            let overlay = overlay.build_overlay(test_widget(&overlay, false));
+            let overlay = match click {
+                Some(click) if click.mouse_button == MouseButton::Right => {
+                    overlay.above(button_id).at(click.window_location)
+                }
+                _ => direction_func(overlay),
+            };
+
+            overlay.hide_on_unhover().show().forget();
+        })
+        .make_with_tag(button_tag)
 }

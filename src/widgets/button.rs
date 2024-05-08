@@ -30,7 +30,7 @@ pub struct Button {
     /// The label to display on the button.
     pub content: WidgetRef,
     /// The callback that is invoked when the button is clicked.
-    pub on_click: Option<Callback<()>>,
+    pub on_click: Option<Callback<Option<ButtonClick>>>,
     /// The kind of button to draw.
     pub kind: Value<ButtonKind>,
     focusable: bool,
@@ -158,7 +158,7 @@ impl Button {
     #[must_use]
     pub fn on_click<F>(mut self, callback: F) -> Self
     where
-        F: FnMut(()) + Send + 'static,
+        F: FnMut(Option<ButtonClick>) + Send + 'static,
     {
         self.on_click = Some(Callback::new(callback));
         self
@@ -171,10 +171,10 @@ impl Button {
         self
     }
 
-    fn invoke_on_click(&mut self, context: &WidgetContext<'_>) {
+    fn invoke_on_click(&mut self, button: Option<ButtonClick>, context: &WidgetContext<'_>) {
         if context.enabled() {
             if let Some(on_click) = self.on_click.as_mut() {
-                on_click.invoke(());
+                on_click.invoke(button);
             }
         }
     }
@@ -461,7 +461,7 @@ impl Widget for Button {
         &mut self,
         location: Option<Point<Px>>,
         _device_id: DeviceId,
-        _button: MouseButton,
+        button: MouseButton,
         context: &mut EventContext<'_>,
     ) {
         let window_local = self.per_window.entry(context).or_default();
@@ -470,12 +470,19 @@ impl Widget for Button {
             context.deactivate();
 
             if let (true, Some(location)) = (self.focusable, location) {
-                if Rect::from(context.last_layout().expect("must have been rendered").size)
-                    .contains(location)
-                {
+                let last_layout = context.last_layout().expect("must have been rendered");
+                // let button_relative
+                if Rect::from(last_layout.size).contains(location) {
                     context.focus();
 
-                    self.invoke_on_click(context);
+                    self.invoke_on_click(
+                        Some(ButtonClick {
+                            mouse_button: button,
+                            location,
+                            window_location: location + last_layout.origin,
+                        }),
+                        context,
+                    );
                 }
             }
         }
@@ -533,7 +540,7 @@ impl Widget for Button {
         // If we have no buttons pressed, the event should fire on activate not
         // on deactivate.
         if window_local.buttons_pressed == 0 {
-            self.invoke_on_click(context);
+            self.invoke_on_click(None, context);
         }
         self.update_colors(context, true);
     }
@@ -580,4 +587,15 @@ define_components! {
         /// it.
         ButtonDisabledOutline(Color, "disabled_outline_color", Color::CLEAR_BLACK)
     }
+}
+
+/// A mouse click in a [`Button`].
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct ButtonClick {
+    /// The mouse button that caused the event.
+    pub mouse_button: MouseButton,
+    /// The location relative to the button of the click.
+    pub location: Point<Px>,
+    /// The location relative to the window of the click.
+    pub window_location: Point<Px>,
 }

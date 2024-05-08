@@ -59,7 +59,7 @@ impl MakeWidgetWithTag for Checkbox {
         .and(self.label)
         .into_columns()
         .into_button()
-        .on_click(move |()| {
+        .on_click(move |_| {
             let mut value = self.state.lock();
             *value = !*value;
         })

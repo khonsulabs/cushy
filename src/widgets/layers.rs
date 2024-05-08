@@ -149,7 +149,7 @@ impl OverlayLayer {
             layout: OverlayLayout {
                 widget: WidgetRef::new(overlay),
                 relative_to: None,
-                direction: Direction::Right,
+                positioning: Position::Relative(Direction::Right),
                 requires_hover: false,
                 on_dismiss: None,
                 layout: None,
@@ -395,26 +395,26 @@ impl OverlayState {
         context: &mut LayoutContext<'_, '_, '_, '_>,
         relative_to: WidgetId,
     ) -> Option<Rect<Px>> {
-        let direction = self.overlays[index].direction;
+        let positioning = self.overlays[index].positioning;
         let relative_to = relative_to.find_in(context)?.last_layout()?;
         let relative_to_unsigned = relative_to.into_unsigned();
 
-        let constraints = match direction {
-            Direction::Up => Size::new(
+        let constraints = match positioning {
+            Position::Relative(Direction::Up) => Size::new(
                 relative_to_unsigned.size.width,
                 relative_to_unsigned.origin.y,
             ),
-            Direction::Down => Size::new(
+            Position::Relative(Direction::Down) => Size::new(
                 relative_to_unsigned.size.width,
                 available_space.height
                     - relative_to_unsigned.origin.y
                     - relative_to_unsigned.size.height,
             ),
-            Direction::Left => Size::new(
+            Position::Relative(Direction::Left) => Size::new(
                 relative_to_unsigned.origin.x,
                 relative_to_unsigned.size.height,
             ),
-            Direction::Right => Size::new(
+            Position::Relative(Direction::Right) => Size::new(
                 available_space.width.saturating_sub(
                     relative_to_unsigned
                         .origin
@@ -423,6 +423,7 @@ impl OverlayState {
                 ),
                 relative_to_unsigned.size.height,
             ),
+            Position::At(_) => available_space,
         };
 
         let size = context
@@ -430,26 +431,39 @@ impl OverlayState {
             .layout(constraints.map(ConstraintLimit::SizeToFit))
             .into_signed();
 
-        let mut layout_direction = direction;
+        let mut layout_direction = positioning;
         let mut layout;
         loop {
-            let origin = match layout_direction {
-                Direction::Up => Point::new(
-                    relative_to.origin.x + relative_to.size.width / 2 - size.width / 2,
-                    relative_to.origin.y - size.height,
+            let (origin, intersection_matters) = match layout_direction {
+                Position::Relative(Direction::Up) => (
+                    Point::new(
+                        relative_to.origin.x + relative_to.size.width / 2 - size.width / 2,
+                        relative_to.origin.y - size.height,
+                    ),
+                    true,
                 ),
-                Direction::Down => Point::new(
-                    relative_to.origin.x + relative_to.size.width / 2 - size.width / 2,
-                    relative_to.origin.y + relative_to.size.height,
+                Position::Relative(Direction::Down) => (
+                    Point::new(
+                        relative_to.origin.x + relative_to.size.width / 2 - size.width / 2,
+                        relative_to.origin.y + relative_to.size.height,
+                    ),
+                    true,
                 ),
-                Direction::Left => Point::new(
-                    relative_to.origin.x - size.width,
-                    relative_to.origin.y + relative_to.size.height / 2 - size.height / 2,
+                Position::Relative(Direction::Left) => (
+                    Point::new(
+                        relative_to.origin.x - size.width,
+                        relative_to.origin.y + relative_to.size.height / 2 - size.height / 2,
+                    ),
+                    true,
                 ),
-                Direction::Right => Point::new(
-                    relative_to.origin.x + relative_to.size.width,
-                    relative_to.origin.y + relative_to.size.height / 2 - size.height / 2,
+                Position::Relative(Direction::Right) => (
+                    Point::new(
+                        relative_to.origin.x + relative_to.size.width,
+                        relative_to.origin.y + relative_to.size.height / 2 - size.height / 2,
+                    ),
+                    true,
                 ),
+                Position::At(pt) => (pt, false),
             };
 
             layout = Rect::new(origin.max(Point::ZERO), size);
@@ -462,16 +476,27 @@ impl OverlayState {
                 layout.origin.y -= bottom_right.y - available_space.height.into_signed();
             }
 
-            if layout.intersects(&relative_to) || self.layout_intersects(index, &layout, context) {
-                layout_direction = layout_direction.next_clockwise();
-                if layout_direction == direction {
-                    // No layout worked optimally.
+            if intersection_matters
+                && (layout.intersects(&relative_to)
+                    || self.layout_intersects(index, &layout, context))
+            {
+                if let Some(next_direction) = layout_direction.next_clockwise() {
+                    if layout_direction == positioning {
+                        // No layout worked optimally.
+                        break;
+                    }
+                    layout_direction = next_direction;
+                } else {
                     break;
                 }
             } else {
                 break;
             }
         }
+
+        // TODO check to ensure the widget is fully on-window, otherwise attempt
+        // to shift it to become visible.
+
         Some(layout)
     }
 
@@ -516,7 +541,7 @@ impl OverlayState {
         if let Some(relative_to) = self.overlays[index].relative_to {
             self.layout_overlay_relative(index, widget, available_space, context, relative_to)
         } else {
-            let direction = self.overlays[index].direction;
+            let direction = self.overlays[index].positioning;
             let size = context
                 .for_other(widget)
                 .layout(available_space.map(ConstraintLimit::SizeToFit))
@@ -525,22 +550,23 @@ impl OverlayState {
             let available_space = available_space.into_signed();
 
             let origin = match direction {
-                Direction::Up => Point::new(
+                Position::Relative(Direction::Up) => Point::new(
                     available_space.width / 2,
                     (available_space.height - size.height) / 2,
                 ),
-                Direction::Down => Point::new(
+                Position::Relative(Direction::Down) => Point::new(
                     available_space.width / 2,
                     available_space.height / 2 + size.height / 2,
                 ),
-                Direction::Right => Point::new(
+                Position::Relative(Direction::Right) => Point::new(
                     available_space.width / 2 + size.width / 2,
                     available_space.height / 2,
                 ),
-                Direction::Left => Point::new(
+                Position::Relative(Direction::Left) => Point::new(
                     (available_space.width - size.width) / 2,
                     available_space.height / 2,
                 ),
+                Position::At(pt) => pt,
             };
 
             Some(Rect::new(origin, size))
@@ -592,7 +618,14 @@ impl OverlayBuilder<'_> {
     #[must_use]
     pub fn near(mut self, id: WidgetId, direction: Direction) -> Self {
         self.layout.relative_to = Some(id);
-        self.layout.direction = direction;
+        self.layout.positioning = Position::Relative(direction);
+        self
+    }
+
+    /// Shows this overlay at a specified window `location`.
+    #[must_use]
+    pub fn at(mut self, location: Point<Px>) -> Self {
+        self.layout.positioning = Position::At(location);
         self
     }
 
@@ -632,7 +665,7 @@ struct OverlayLayout {
     widget: WidgetRef,
     opacity: Dynamic<ZeroToOne>,
     relative_to: Option<WidgetId>,
-    direction: Direction,
+    positioning: Position<Px>,
     requires_hover: bool,
     layout: Option<Rect<Px>>,
     on_dismiss: Option<Arc<Mutex<Callback>>>,
@@ -654,7 +687,7 @@ impl PartialEq for OverlayLayout {
         self.widget == other.widget
             && self.opacity == other.opacity
             && self.relative_to == other.relative_to
-            && self.direction == other.direction
+            && self.positioning == other.positioning
             && self.requires_hover == other.requires_hover
             && self.layout == other.layout
             && match (&self.on_dismiss, &other.on_dismiss) {
@@ -662,6 +695,26 @@ impl PartialEq for OverlayLayout {
                 (None, None) => true,
                 _ => false,
             }
+    }
+}
+
+/// An overlay position.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Position<T> {
+    /// Relative to the parent in a given direction.
+    Relative(Direction),
+    /// At a window coordinate.
+    At(Point<T>),
+}
+
+impl<T> Position<T> {
+    /// Returns the next direction when rotating clockwise.
+    #[must_use]
+    pub fn next_clockwise(&self) -> Option<Self> {
+        match self {
+            Self::Relative(direction) => Some(Self::Relative(direction.next_clockwise())),
+            Self::At(_) => None,
+        }
     }
 }
 
@@ -674,7 +727,7 @@ pub enum Direction {
     Right,
     /// Positive along the Y axis.
     Down,
-    /// Legative along the X axis.
+    /// Negative along the X axis.
     Left,
 }
 

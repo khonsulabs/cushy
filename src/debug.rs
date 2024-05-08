@@ -52,7 +52,7 @@ impl DebugContext {
         let id = self.section.map_ref(|section| {
             section.values.lock().push(Box::new(RegisteredValue {
                 label: label.into(),
-                value: reader.clone(),
+                _value: reader.clone(),
                 widget: make_observer(value.weak_clone()).make_widget(),
             }))
         });
@@ -145,13 +145,13 @@ impl Drop for DebugContext {
 
 trait Observable: Send {
     fn label(&self) -> &str;
-    fn alive(&self) -> bool;
+    // fn alive(&self) -> bool;
     fn widget(&self) -> &WidgetInstance;
 }
 
 struct RegisteredValue<T> {
     label: String,
-    value: DynamicReader<T>,
+    _value: DynamicReader<T>,
     widget: WidgetInstance,
 }
 
@@ -163,9 +163,9 @@ where
         &self.label
     }
 
-    fn alive(&self) -> bool {
-        self.value.connected()
-    }
+    // fn alive(&self) -> bool {
+    //     self.value.connected()
+    // }
 
     fn widget(&self) -> &WidgetInstance {
         &self.widget
