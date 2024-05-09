@@ -574,6 +574,48 @@ impl OverlayState {
     }
 }
 
+/// A type that is being prepared to be shown in an [`OverlayLayer`].
+pub trait Overlayable: Sized {
+    /// The resulting handle type when this overlay is shown.
+    type Handle;
+
+    /// Sets this overlay to hide automatically when it or its relative widget
+    /// are no longer hovered by the mouse cursor.
+    #[must_use]
+    fn hide_on_unhover(self) -> Self;
+
+    /// Show this overlay to the left of the specified widget.
+    #[must_use]
+    fn left_of(self, id: WidgetId) -> Self;
+
+    /// Show this overlay to the right of the specified widget.
+    #[must_use]
+    fn right_of(self, id: WidgetId) -> Self;
+
+    /// Show this overlay to show below the specified widget.
+    #[must_use]
+    fn below(self, id: WidgetId) -> Self;
+
+    /// Show this overlay to show above the specified widget.
+    #[must_use]
+    fn above(self, id: WidgetId) -> Self;
+
+    /// Shows this overlay near `id` off to the `direction` side.
+    #[must_use]
+    fn near(self, id: WidgetId, direction: Direction) -> Self;
+
+    /// Shows this overlay at a specified window `location`.
+    #[must_use]
+    fn at(self, location: Point<Px>) -> Self;
+
+    /// Sets `callback` to be invoked once this overlay is dismissed.
+    #[must_use]
+    fn on_dismiss(self, callback: Callback) -> Self;
+
+    /// Shows this overlay, returning a handle that to the displayed overlay.
+    fn show(self) -> Self::Handle;
+}
+
 /// A builder for overlaying a widget on an [`OverlayLayer`].
 #[derive(Debug, Clone)]
 pub struct OverlayBuilder<'a> {
@@ -581,64 +623,47 @@ pub struct OverlayBuilder<'a> {
     layout: OverlayLayout,
 }
 
-impl OverlayBuilder<'_> {
-    /// Sets this overlay to hide automatically when it or its relative widget
-    /// are no longer hovered by the mouse cursor.
-    #[must_use]
-    pub fn hide_on_unhover(mut self) -> Self {
+impl Overlayable for OverlayBuilder<'_> {
+    type Handle = OverlayHandle;
+
+    fn hide_on_unhover(mut self) -> Self {
         self.layout.requires_hover = true;
         self
     }
 
-    /// Show this overlay to the left of the specified widget.
-    #[must_use]
-    pub fn left_of(self, id: WidgetId) -> Self {
+    fn left_of(self, id: WidgetId) -> Self {
         self.near(id, Direction::Left)
     }
 
-    /// Show this overlay to the right of the specified widget.
-    #[must_use]
-    pub fn right_of(self, id: WidgetId) -> Self {
+    fn right_of(self, id: WidgetId) -> Self {
         self.near(id, Direction::Right)
     }
 
-    /// Show this overlay to show below the specified widget.
-    #[must_use]
-    pub fn below(self, id: WidgetId) -> Self {
+    fn below(self, id: WidgetId) -> Self {
         self.near(id, Direction::Down)
     }
 
-    /// Show this overlay to show above the specified widget.
-    #[must_use]
-    pub fn above(self, id: WidgetId) -> Self {
+    fn above(self, id: WidgetId) -> Self {
         self.near(id, Direction::Up)
     }
 
-    /// Shows this overlay near `id` off to the `direction` side.
-    #[must_use]
-    pub fn near(mut self, id: WidgetId, direction: Direction) -> Self {
+    fn near(mut self, id: WidgetId, direction: Direction) -> Self {
         self.layout.relative_to = Some(id);
         self.layout.positioning = Position::Relative(direction);
         self
     }
 
-    /// Shows this overlay at a specified window `location`.
-    #[must_use]
-    pub fn at(mut self, location: Point<Px>) -> Self {
+    fn at(mut self, location: Point<Px>) -> Self {
         self.layout.positioning = Position::At(location);
         self
     }
 
-    /// Sets `callback` to be invoked once this overlay is dismissed.
-    #[must_use]
-    pub fn on_dismiss(mut self, callback: Callback) -> Self {
+    fn on_dismiss(mut self, callback: Callback) -> Self {
         self.layout.on_dismiss = Some(Arc::new(Mutex::new(callback)));
         self
     }
 
-    /// Shows this overlay, returning a handle that to the displayed overlay.
-    #[must_use]
-    pub fn show(self) -> OverlayHandle {
+    fn show(self) -> Self::Handle {
         self.fade_in();
         self.overlay.state.map_mut(|mut state| {
             state.new_overlays += 1;
@@ -649,7 +674,9 @@ impl OverlayBuilder<'_> {
             }
         })
     }
+}
 
+impl OverlayBuilder<'_> {
     fn fade_in(&self) {
         self.layout
             .opacity
@@ -746,6 +773,7 @@ impl Direction {
 
 /// A handle to an overlay that was shown in an [`OverlayLayer`].
 #[derive(PartialEq, Eq)]
+#[must_use = "Overlay handles will dismiss the shown overlay when dropped."]
 pub struct OverlayHandle {
     state: Dynamic<OverlayState>,
     id: LotId,

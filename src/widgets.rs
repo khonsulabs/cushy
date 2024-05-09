@@ -18,6 +18,7 @@ pub mod input;
 pub mod label;
 pub mod layers;
 pub mod list;
+pub mod menu;
 mod mode_switch;
 pub mod progress;
 pub mod radio;

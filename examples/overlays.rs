@@ -1,6 +1,6 @@
 use cushy::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
 use cushy::widgets::container::ContainerShadow;
-use cushy::widgets::layers::{OverlayBuilder, OverlayLayer};
+use cushy::widgets::layers::{OverlayBuilder, OverlayLayer, Overlayable};
 use cushy::Run;
 use figures::units::Lp;
 use figures::{Point, Zero};

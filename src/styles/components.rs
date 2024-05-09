@@ -220,7 +220,7 @@ define_components! {
         OpaqueWidgetColor(Color, "opaque_color", .surface.opaque_widget)
         /// A set of radius descriptions for how much roundness to apply to the
         /// shapes of widgets.
-        CornerRadius(CornerRadii<Dimension>, "corner_radius", CornerRadii::from(Dimension::Lp(Lp::points(10))))
+        CornerRadius(CornerRadii<Dimension>, "corner_radius", CornerRadii::from(Dimension::Lp(Lp::points(6))))
         /// The font family to render text using.
         FontFamily(FontFamilyList, "font_family", FontFamilyList::from(FamilyOwned::SansSerif))
         /// The font (boldness) weight to apply to text rendering.
