@@ -12,7 +12,7 @@ use kludgine::DrawableExt;
 use parking_lot::Mutex;
 
 use self::sealed::{SharedMenuState, SubmenuFactory};
-use super::button::{ButtonClick, ButtonColors, ButtonKind, VisualState};
+use super::button::{ButtonColors, ButtonKind, VisualState};
 use super::container::{self, ContainerShadow};
 use super::disclose::IndicatorSize;
 use super::layers::{OverlayBuilder, OverlayHandle, OverlayLayer, Overlayable};
@@ -74,7 +74,7 @@ where
     #[must_use]
     pub fn on_selected<F>(self, selected: F) -> Menu<T>
     where
-        F: FnMut(ChosenMenuItem<T>) + Send + 'static,
+        F: FnMut(T) + Send + 'static,
     {
         Menu {
             items: self.items,
@@ -232,16 +232,6 @@ impl OpenMenuHandle {
     pub fn dismiss(&self) {
         *self.0.lock() = None;
     }
-}
-
-/// The selected item of a shown [`Menu<T>`].
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct ChosenMenuItem<T> {
-    /// The item that was chosen.
-    pub item: T,
-    /// Information about the button click that caused this item to be chosen,
-    /// if present.
-    pub click: Option<ButtonClick>,
 }
 
 /// A builder of a [`MenuItem<T>`].
@@ -458,9 +448,9 @@ where
     }
 }
 
-/// A handler for a [`ChosenMenuItem<T>`].
+/// A handler for a selected [`MenuItem<T>`].
 #[derive(Debug, Clone)]
-pub struct MenuHandler<T>(Arc<Mutex<Callback<ChosenMenuItem<T>>>>);
+pub struct MenuHandler<T>(Arc<Mutex<Callback<T>>>);
 
 #[derive(Debug)]
 struct OpenMenu<T> {
@@ -769,10 +759,7 @@ where
             let ItemKind::Item(item) = &self.items[index].item else {
                 return;
             };
-            self.on_click.0.lock().invoke(ChosenMenuItem {
-                item: item.value.clone(),
-                click: None,
-            });
+            self.on_click.0.lock().invoke(item.value.clone());
             let mut shared = self.shared.lock();
             for handle in shared.open_menus.drain() {
                 handle.dismiss();

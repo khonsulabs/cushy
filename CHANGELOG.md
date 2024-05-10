@@ -71,6 +71,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Button::on_click` now takes a `Option<ButtonClick>` structure. When this
   value is provided, information about the mouse click that caused the event is
   provided.
+- `OverlayBuilder` has hade many of its functions moved into a new trait,
+  `Overlayable`. This is to ensure common API surfaces across all overlayable
+  widgets including the new `Menu` widget.
 
 ### Fixed
 
@@ -246,6 +249,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ModifiersState` types. This trait adds helpers for dealing with
   platform-specific meanings for keyboard modifiers.
 - `OverlayLayer::dismiss_all()` dismisses all overlays immediately.
+- `Menu` is a new widget type that can be shown in an `OverlayLayer` to create
+  contextual menus or other popup menus.
 
 [plotters]: https://github.com/plotters-rs/plotters
 
