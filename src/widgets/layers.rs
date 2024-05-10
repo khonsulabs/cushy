@@ -584,6 +584,10 @@ pub trait Overlayable: Sized {
     #[must_use]
     fn hide_on_unhover(self) -> Self;
 
+    /// Show this overlay with a relationship to another widget.
+    #[must_use]
+    fn parent(self, id: WidgetId) -> Self;
+
     /// Show this overlay to the left of the specified widget.
     #[must_use]
     fn left_of(self, id: WidgetId) -> Self;
@@ -628,6 +632,11 @@ impl Overlayable for OverlayBuilder<'_> {
 
     fn hide_on_unhover(mut self) -> Self {
         self.layout.requires_hover = true;
+        self
+    }
+
+    fn parent(mut self, id: WidgetId) -> Self {
+        self.layout.relative_to = Some(id);
         self
     }
 

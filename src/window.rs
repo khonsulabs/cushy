@@ -1596,19 +1596,6 @@ where
         );
         match state {
             ElementState::Pressed => {
-                EventContext::new(
-                    WidgetContext::new(
-                        self.root.clone(),
-                        &self.current_theme,
-                        &mut window,
-                        &mut self.fonts,
-                        self.theme_mode.get(),
-                        &mut self.cursor,
-                    ),
-                    kludgine,
-                )
-                .clear_focus();
-
                 if let (ElementState::Pressed, Some(location), Some(hovered)) = (
                     state,
                     self.cursor.location,
@@ -1640,6 +1627,19 @@ where
                             .insert(button, handler.id());
                         return HANDLED;
                     }
+                } else {
+                    EventContext::new(
+                        WidgetContext::new(
+                            self.root.clone(),
+                            &self.current_theme,
+                            &mut window,
+                            &mut self.fonts,
+                            self.theme_mode.get(),
+                            &mut self.cursor,
+                        ),
+                        kludgine,
+                    )
+                    .clear_focus();
                 }
                 IGNORED
             }

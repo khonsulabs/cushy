@@ -154,10 +154,6 @@ impl<'context> EventContext<'context> {
 
     pub(crate) fn hover(&mut self, location: Point<Px>) {
         let changes = self.tree.hover(Some(&self.current_node));
-        for unhovered in changes.unhovered {
-            let mut context = self.for_other(&unhovered);
-            unhovered.lock().as_widget().unhover(&mut context);
-        }
 
         let mut cursor = None;
         for hover in changes.hovered.into_iter().rev() {
@@ -176,6 +172,11 @@ impl<'context> EventContext<'context> {
         }
         self.window_mut()
             .set_cursor(cursor.unwrap_or_default().into());
+
+        for unhovered in changes.unhovered {
+            let mut context = self.for_other(&unhovered);
+            unhovered.lock().as_widget().unhover(&mut context);
+        }
     }
 
     pub(crate) fn clear_hover(&mut self) {

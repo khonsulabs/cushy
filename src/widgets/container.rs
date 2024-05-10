@@ -340,7 +340,7 @@ impl Widget for Container {
 }
 
 #[allow(clippy::too_many_lines)]
-fn render_shadow(
+pub(crate) fn render_shadow(
     child_area: &Rect<Px>,
     mut corner_radii: CornerRadii<Px>,
     shadow: &ContainerShadow<Px>,

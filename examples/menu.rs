@@ -19,13 +19,7 @@ fn main() -> cushy::Result {
             let overlay = overlay.clone();
             move |click| {
                 if let Some(click) = click {
-                    Menu::new()
-                        .with(MenuItem::new(MenuOptions::First, "First"))
-                        .with(MenuItem::new(MenuOptions::Second, "Second"))
-                        .with(MenuItem::new(MenuOptions::Third, "Third"))
-                        .on_selected(|selected| {
-                            println!("Selected item: {selected:?}");
-                        })
+                    menu(true)
                         .overlay_in(&overlay)
                         .at(click.window_location)
                         .show();
@@ -37,4 +31,18 @@ fn main() -> cushy::Result {
         .and(overlay)
         .into_layers()
         .run()
+}
+
+fn menu(top: bool) -> Menu<MenuOptions> {
+    let mut third = MenuItem::build(MenuOptions::Third).text("Third");
+    if top {
+        third = third.submenu(menu(false));
+    }
+    Menu::new()
+        .on_selected(|selected| {
+            println!("Selected item: {selected:?}");
+        })
+        .with(MenuItem::new(MenuOptions::First, "First"))
+        .with(MenuItem::new(MenuOptions::Second, "Second"))
+        .with(third)
 }
