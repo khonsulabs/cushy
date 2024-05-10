@@ -7,7 +7,7 @@ use std::time::Duration;
 use alot::LotId;
 use figures::units::{Px, UPx};
 use figures::{Angle, IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
-use kludgine::shapes::{PathBuilder, Shape};
+use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 use kludgine::DrawableExt;
 use parking_lot::Mutex;
 
@@ -30,6 +30,12 @@ use crate::widget::{
 };
 use crate::ConstraintLimit;
 
+#[derive(Debug, Clone)]
+enum ItemKind<T> {
+    Item(T),
+    Separator,
+}
+
 /// An overlayable menu of selectable items.
 ///
 /// This widget is designed to implement Cushy's contextual menu system. When
@@ -37,7 +43,7 @@ use crate::ConstraintLimit;
 /// or at a specific location.
 #[derive(Debug, Clone)]
 pub struct Menu<T, Handler = MenuHandler<T>> {
-    items: Vec<MenuItem<T>>,
+    items: Vec<ItemKind<MenuItem<T>>>,
     on_click: Handler,
 }
 
@@ -84,7 +90,14 @@ where
     /// Adds another menu `item` that is displayed using `widget`.
     #[must_use]
     pub fn with(mut self, item: impl Into<MenuItem<T>>) -> Self {
-        self.items.push(item.into());
+        self.items.push(ItemKind::Item(item.into()));
+        self
+    }
+
+    /// Adds a separator after the last item and returns self.
+    #[must_use]
+    pub fn with_separator(mut self) -> Self {
+        self.items.push(ItemKind::Separator);
         self
     }
 }
@@ -109,22 +122,24 @@ where
         let handle = OpenMenuHandle(Dynamic::new(None));
         let items = items
             .iter()
-            .map(|item| {
-                let MenuItem {
-                    value,
-                    widget,
-                    submenu,
-                } = item;
-                OpenItem {
-                    value: value.clone(),
-                    contents: WidgetRef::new(widget.clone().align_left()),
-                    y: UPx::ZERO,
-                    height: UPx::ZERO,
-                    submenu: submenu.clone(),
-                    colors: None,
-                    color_animation: AnimationHandle::default(),
-                    state: VisualState::Normal,
-                }
+            .map(|item| RenderedItem {
+                y: UPx::ZERO,
+                height: UPx::ZERO,
+                item: match item {
+                    ItemKind::Item(MenuItem {
+                        value,
+                        widget,
+                        submenu,
+                    }) => ItemKind::Item(OpenItem {
+                        value: value.clone(),
+                        contents: WidgetRef::new(widget.clone().align_left()),
+                        submenu: submenu.clone(),
+                        colors: None,
+                        color_animation: AnimationHandle::default(),
+                        state: VisualState::Normal,
+                    }),
+                    ItemKind::Separator => ItemKind::Separator,
+                },
             })
             .collect();
 
@@ -408,7 +423,7 @@ pub struct MenuHandler<T>(Arc<Mutex<Callback<ChosenMenuItem<T>>>>);
 
 #[derive(Debug)]
 struct OpenMenu<T> {
-    items: Vec<OpenItem<T>>,
+    items: Vec<RenderedItem<T>>,
     on_click: MenuHandler<T>,
     open_id: LotId,
     padding: UPx,
@@ -423,57 +438,59 @@ struct OpenMenu<T> {
 impl<T> OpenMenu<T> {
     fn handle_mouse_movement(&mut self, location: Point<Px>, context: &mut EventContext<'_>) {
         self.selecting = None;
-        for (index, item) in self.items.iter_mut().enumerate() {
-            let hovered = location.y >= item.y - self.padding
-                && location.y < item.y + item.height + self.padding;
-            let new_state = if hovered {
-                self.selecting = Some(index);
-                if let Some((submenu_index, handle)) = &self.open_submenu {
-                    if *submenu_index != index {
-                        context.focus();
-                        handle.dismiss();
-                        self.open_submenu = None;
+        for (index, rendered) in self.items.iter_mut().enumerate() {
+            let hovered = location.y >= rendered.y - self.padding
+                && location.y < rendered.y + rendered.height + self.padding;
+            if let ItemKind::Item(item) = &mut rendered.item {
+                let new_state = if hovered {
+                    self.selecting = Some(index);
+                    if let Some((submenu_index, handle)) = &self.open_submenu {
+                        if *submenu_index != index {
+                            context.focus();
+                            handle.dismiss();
+                            self.open_submenu = None;
+                        }
+                    } else if let Some(factory) = &item.submenu {
+                        let last_layout = context.last_layout().expect("must have rendered");
+                        let menu_location = Point::new(
+                            last_layout.origin.x + last_layout.size.width
+                                - self.padding.into_signed() * 2,
+                            last_layout.origin.y + (rendered.y - self.padding).into_signed(),
+                        );
+                        self.open_submenu = Some((
+                            index,
+                            factory
+                                .overlay_submenu_in(&self.layer, self.shared.clone())
+                                .parent(self.menu_id)
+                                .at(menu_location)
+                                .show(),
+                        ));
                     }
-                } else if let Some(factory) = &item.submenu {
-                    let last_layout = context.last_layout().expect("must have rendered");
-                    let menu_location = Point::new(
-                        last_layout.origin.x + last_layout.size.width
-                            - self.padding.into_signed() * 2,
-                        last_layout.origin.y + (item.y - self.padding).into_signed(),
-                    );
-                    self.open_submenu = Some((
-                        index,
-                        factory
-                            .overlay_submenu_in(&self.layer, self.shared.clone())
-                            .parent(self.menu_id)
-                            .at(menu_location)
-                            .show(),
-                    ));
-                }
-                if self.mouse_down {
-                    VisualState::Active
+                    if self.mouse_down {
+                        VisualState::Active
+                    } else {
+                        VisualState::Hovered
+                    }
                 } else {
-                    VisualState::Hovered
-                }
-            } else {
-                VisualState::Normal
-            };
-            if item.state != new_state {
-                item.state = new_state;
-                let new_colors = if hovered {
-                    ButtonKind::Solid.colors_for_default(new_state, context)
-                } else {
-                    Button::colors_for_transparent(new_state, context)
+                    VisualState::Normal
                 };
-                if let Some(colors) = &item.colors {
-                    item.color_animation = colors
-                        .transition_to(new_colors)
-                        .over(Duration::from_millis(150))
-                        .with_easing(context.get(&Easing))
-                        .spawn();
-                } else {
-                    item.colors = Some(Dynamic::new(new_colors));
-                    context.set_needs_redraw();
+                if item.state != new_state {
+                    item.state = new_state;
+                    let new_colors = if hovered {
+                        ButtonKind::Solid.colors_for_default(new_state, context)
+                    } else {
+                        Button::colors_for_transparent(new_state, context)
+                    };
+                    if let Some(colors) = &item.colors {
+                        item.color_animation = colors
+                            .transition_to(new_colors)
+                            .over(Duration::from_millis(150))
+                            .with_easing(context.get(&Easing))
+                            .spawn();
+                    } else {
+                        item.colors = Some(Dynamic::new(new_colors));
+                        context.set_needs_redraw();
+                    }
                 }
             }
         }
@@ -518,43 +535,62 @@ where
         let pt3 = Point::new(disclosure_size, Px::ZERO).rotate_by(Angle::degrees(240));
 
         let submenu = PathBuilder::new(pt1).line_to(pt2).line_to(pt3).close();
-        for item in &mut self.items {
-            let mounted = item.contents.mounted(context);
 
-            if let Some(colors) = &item.colors {
-                let colors = colors.get_tracking_redraw(context);
-                let child_rect = Rect::new(
-                    Point::new(self.padding, item.y - self.padding),
-                    Size::new(
-                        full_size.width - self.padding * 2,
-                        item.height + self.padding * 2,
-                    ),
-                )
-                .into_signed();
+        let separator = PathBuilder::new(Point::new(self.padding * 2, UPx::ZERO))
+            .line_to(Point::new(full_size.width - self.padding * 2, UPx::ZERO))
+            .close()
+            .stroke(
+                StrokeOptions::mm_wide(1)
+                    .into_upx(context.gfx.scale())
+                    .colored(context.theme().surface.color),
+            );
+        for rendered in &mut self.items {
+            match &mut rendered.item {
+                ItemKind::Item(item) => {
+                    let mounted = item.contents.mounted(context);
 
-                let bg_shape = if radii.is_zero() {
-                    Shape::filled_rect(child_rect, colors.background)
-                } else {
-                    Shape::filled_round_rect(child_rect, radii, colors.background)
-                };
-                context.gfx.draw_shape(&bg_shape);
+                    if let Some(colors) = &item.colors {
+                        let colors = colors.get_tracking_redraw(context);
+                        let child_rect = Rect::new(
+                            Point::new(self.padding, rendered.y - self.padding),
+                            Size::new(
+                                full_size.width - self.padding * 2,
+                                rendered.height + self.padding * 2,
+                            ),
+                        )
+                        .into_signed();
 
-                if item.submenu.is_some() {
-                    let disclosure_offset = Point::new(
-                        full_size.width - self.disclosure_size / 2 - self.padding * 2,
-                        item.y + item.height / 2,
-                    )
-                    .into_signed();
+                        let bg_shape = if radii.is_zero() {
+                            Shape::filled_rect(child_rect, colors.background)
+                        } else {
+                            Shape::filled_round_rect(child_rect, radii, colors.background)
+                        };
+                        context.gfx.draw_shape(&bg_shape);
+
+                        if item.submenu.is_some() {
+                            let disclosure_offset = Point::new(
+                                full_size.width - self.disclosure_size / 2 - self.padding * 2,
+                                rendered.y + rendered.height / 2,
+                            )
+                            .into_signed();
+                            context.gfx.draw_shape(
+                                submenu
+                                    .fill(colors.foreground)
+                                    .translate_by(disclosure_offset),
+                            );
+                        }
+
+                        let mut context = context.for_other(&mounted);
+                        context.attach_styles(Styles::new().with(&TextColor, colors.foreground));
+                        context.redraw();
+                    }
+                }
+                ItemKind::Separator => {
                     context.gfx.draw_shape(
-                        submenu
-                            .fill(colors.foreground)
-                            .translate_by(disclosure_offset),
+                        separator
+                            .translate_by(Point::new(UPx::ZERO, rendered.y - self.padding / 2)),
                     );
                 }
-
-                let mut context = context.for_other(&mounted);
-                context.attach_styles(Styles::new().with(&TextColor, colors.foreground));
-                context.redraw();
             }
         }
     }
@@ -570,7 +606,7 @@ where
         self.disclosure_size =
             (context.get(&IndicatorSize).into_upx(context.gfx.scale()) / 2).round();
         let double_padding = self.padding * 2;
-        let submenu_space = if self.items.iter().any(|i| i.submenu.is_some()) {
+        let submenu_space = if self.items.iter().any(|i| i.submenu().is_some()) {
             self.padding + self.disclosure_size
         } else {
             UPx::ZERO
@@ -578,29 +614,38 @@ where
         let available_width = available_space.width.max() - double_padding;
 
         let mut y = self.padding;
-        for item in &mut self.items {
-            let mounted = item.contents.mounted(context);
-            let available_width = available_width - submenu_space;
-            let size = context.for_other(&mounted).layout(Size::new(
-                ConstraintLimit::SizeToFit(available_width),
-                ConstraintLimit::SizeToFit(remaining_height),
-            ));
-            item.y = y;
-            item.height = size.height;
-            let full_height = size.height + double_padding;
+        for rendered in &mut self.items {
+            let (height, full_height) = match &mut rendered.item {
+                ItemKind::Item(item) => {
+                    let mounted = item.contents.mounted(context);
+                    let available_width = available_width - submenu_space;
+                    let size = context.for_other(&mounted).layout(Size::new(
+                        ConstraintLimit::SizeToFit(available_width),
+                        ConstraintLimit::SizeToFit(remaining_height),
+                    ));
+                    maximum_item_width = maximum_item_width.max(size.width);
+                    (size.height, size.height + double_padding)
+                }
+                ItemKind::Separator => (UPx::ZERO, self.padding),
+            };
+
+            rendered.y = y;
+            rendered.height = height;
             y += full_height;
 
             remaining_height = remaining_height.saturating_sub(full_height);
-            maximum_item_width = maximum_item_width.max(size.width);
         }
 
-        for item in &mut self.items {
+        for rendered in &mut self.items {
+            let ItemKind::Item(item) = &mut rendered.item else {
+                continue;
+            };
             let mounted = item.contents.mounted(context);
             context.set_child_layout(
                 &mounted,
                 Rect::new(
-                    Point::new(double_padding, item.y),
-                    Size::new(maximum_item_width, item.height),
+                    Point::new(double_padding, rendered.y),
+                    Size::new(maximum_item_width, rendered.height),
                 )
                 .into_signed(),
             );
@@ -667,8 +712,11 @@ where
         _context: &mut crate::context::EventContext<'_>,
     ) {
         if let Some(index) = self.selecting {
+            let ItemKind::Item(item) = &self.items[index].item else {
+                return;
+            };
             self.on_click.0.lock().invoke(ChosenMenuItem {
-                item: self.items[index].value.clone(),
+                item: item.value.clone(),
                 click: None,
             });
             let mut shared = self.shared.lock();
@@ -688,6 +736,9 @@ where
 
         let colors = Button::colors_for_transparent(VisualState::Normal, context);
         for item in &mut self.items {
+            let ItemKind::Item(item) = &mut item.item else {
+                continue;
+            };
             item.colors = Some(Dynamic::new(colors));
         }
     }
@@ -707,12 +758,26 @@ where
     }
 }
 
+#[derive(Debug)]
+struct RenderedItem<T> {
+    item: ItemKind<OpenItem<T>>,
+    y: UPx,
+    height: UPx,
+}
+
+impl<T> RenderedItem<T> {
+    fn submenu(&self) -> Option<&Arc<dyn SubmenuFactory>> {
+        match &self.item {
+            ItemKind::Item(item) => item.submenu.as_ref(),
+            ItemKind::Separator => None,
+        }
+    }
+}
+
 struct OpenItem<T> {
     value: T,
     contents: WidgetRef,
     submenu: Option<Arc<dyn SubmenuFactory>>,
-    y: UPx,
-    height: UPx,
     colors: Option<Dynamic<ButtonColors>>,
     color_animation: AnimationHandle,
     state: VisualState,
@@ -727,7 +792,6 @@ where
             .field("value", &self.value)
             .field("contents", &self.contents)
             .field("submenu", &self.submenu.is_some())
-            .field("height", &self.height)
             .finish_non_exhaustive()
     }
 }
