@@ -45,5 +45,11 @@ fn menu(top: bool) -> Menu<MenuOptions> {
         .with(MenuItem::new(MenuOptions::First, "First"))
         .with(MenuItem::new(MenuOptions::Second, "Second"))
         .with_separator()
+        .with(
+            MenuItem::build(MenuOptions::Second)
+                .text("Disabled")
+                .disabled(),
+        )
+        .with_separator()
         .with(third)
 }

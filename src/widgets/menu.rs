@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use alot::LotId;
-use figures::units::{Px, UPx};
+use figures::units::{Lp, Px, UPx};
 use figures::{Angle, IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 use kludgine::DrawableExt;
@@ -18,12 +18,12 @@ use super::disclose::IndicatorSize;
 use super::layers::{OverlayBuilder, OverlayHandle, OverlayLayer, Overlayable};
 use super::Button;
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
-use crate::context::{EventContext, GraphicsContext, LayoutContext};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::{
     CornerRadius, Easing, IntrinsicPadding, OpaqueWidgetColor, TextColor,
 };
 use crate::styles::Styles;
-use crate::value::{Dynamic, Source};
+use crate::value::{Dynamic, IntoValue, Source, Value};
 use crate::widget::{
     Callback, EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetId, WidgetInstance,
     WidgetRef, WidgetTag, HANDLED,
@@ -130,13 +130,17 @@ where
                         value,
                         widget,
                         submenu,
+                        enabled,
                     }) => ItemKind::Item(OpenItem {
                         value: value.clone(),
-                        contents: WidgetRef::new(widget.clone().align_left()),
+                        contents: WidgetRef::new(
+                            widget.clone().align_left().with_enabled(enabled.clone()),
+                        ),
                         submenu: submenu.clone(),
                         colors: None,
                         color_animation: AnimationHandle::default(),
                         state: VisualState::Normal,
+                        enabled: enabled.clone(),
                     }),
                     ItemKind::Separator => ItemKind::Separator,
                 },
@@ -154,6 +158,7 @@ where
                     open_id: root_menu,
                     padding: UPx::ZERO,
                     selecting: None,
+                    hover_location: None,
                     mouse_down: false,
                     layer: overlay.clone(),
                     open_submenu: None,
@@ -244,6 +249,7 @@ pub struct MenuItemBuilder<T, Contents = ()> {
     value: T,
     submenu: Option<Arc<dyn SubmenuFactory>>,
     contents: Contents,
+    enabled: Value<bool>,
 }
 
 impl<T> MenuItemBuilder<T, ()> {
@@ -252,12 +258,14 @@ impl<T> MenuItemBuilder<T, ()> {
         let Self {
             value,
             submenu,
+            enabled,
             contents: (),
         } = self;
 
         MenuItemBuilder {
             value,
             submenu,
+            enabled,
             contents: text.into(),
         }
     }
@@ -267,12 +275,14 @@ impl<T> MenuItemBuilder<T, ()> {
         let Self {
             value,
             submenu,
+            enabled,
             contents: (),
         } = self;
 
         MenuItemBuilder {
             value,
             submenu,
+            enabled,
             contents: widget.make_widget(),
         }
     }
@@ -289,7 +299,7 @@ mod sealed {
     use kempt::Set;
 
     use super::{MenuOverlay, OpenMenuHandle};
-    use crate::value::Dynamic;
+    use crate::value::{Dynamic, Value};
     use crate::widget::WidgetId;
     use crate::widgets::layers::OverlayLayer;
 
@@ -306,6 +316,7 @@ mod sealed {
             self,
             value: T,
             submenu: Option<Arc<dyn SubmenuFactory>>,
+            enabled: Value<bool>,
         ) -> super::MenuItem<T>;
     }
 
@@ -319,21 +330,33 @@ mod sealed {
 impl<T> MenuItemContents<T> for String {}
 impl<T> MenuItemContents<T> for WidgetInstance {}
 impl<T> sealed::MenuItemContentsSealed<T> for String {
-    fn make_item(self, value: T, submenu: Option<Arc<dyn SubmenuFactory>>) -> MenuItem<T> {
+    fn make_item(
+        self,
+        value: T,
+        submenu: Option<Arc<dyn SubmenuFactory>>,
+        enabled: Value<bool>,
+    ) -> MenuItem<T> {
         MenuItem {
             value,
             widget: self.make_widget(),
             submenu,
+            enabled,
         }
     }
 }
 
 impl<T> sealed::MenuItemContentsSealed<T> for WidgetInstance {
-    fn make_item(self, value: T, submenu: Option<Arc<dyn SubmenuFactory>>) -> MenuItem<T> {
+    fn make_item(
+        self,
+        value: T,
+        submenu: Option<Arc<dyn SubmenuFactory>>,
+        enabled: Value<bool>,
+    ) -> MenuItem<T> {
         MenuItem {
             value,
             widget: self,
             submenu,
+            enabled,
         }
     }
 }
@@ -365,9 +388,24 @@ where
         self
     }
 
+    /// Sets whether this menu item should be enabled, and returns self.
+    #[must_use]
+    pub fn enabled(mut self, enabled: impl IntoValue<bool>) -> Self {
+        self.enabled = enabled.into_value();
+        self
+    }
+
+    /// Disables this menu item, and returns self.
+    #[must_use]
+    pub fn disabled(mut self) -> Self {
+        self.enabled = Value::Constant(false);
+        self
+    }
+
     /// Returns the finished menu item.
     pub fn finish(self) -> MenuItem<T> {
-        self.contents.make_item(self.value, self.submenu)
+        self.contents
+            .make_item(self.value, self.submenu, self.enabled)
     }
 }
 
@@ -385,6 +423,7 @@ where
 pub struct MenuItem<T> {
     value: T,
     widget: WidgetInstance,
+    enabled: Value<bool>,
     submenu: Option<Arc<dyn SubmenuFactory>>,
 }
 
@@ -398,6 +437,7 @@ impl<T> MenuItem<T> {
     pub fn build(value: T) -> MenuItemBuilder<T, ()> {
         MenuItemBuilder {
             value,
+            enabled: Value::Constant(true),
             submenu: None,
             contents: (),
         }
@@ -413,6 +453,7 @@ where
             .field("value", &self.value)
             .field("widget", &self.widget)
             .field("submenu", &self.submenu.is_some())
+            .field("enabled", &self.enabled)
             .finish()
     }
 }
@@ -428,6 +469,7 @@ struct OpenMenu<T> {
     open_id: LotId,
     padding: UPx,
     selecting: Option<usize>,
+    hover_location: Option<Point<Px>>,
     mouse_down: bool,
     layer: OverlayLayer,
     open_submenu: Option<(usize, OpenMenuHandle)>,
@@ -436,43 +478,49 @@ struct OpenMenu<T> {
     shared: Dynamic<SharedMenuState>,
 }
 impl<T> OpenMenu<T> {
-    fn handle_mouse_movement(&mut self, location: Point<Px>, context: &mut EventContext<'_>) {
+    fn update_visual_state(&mut self, context: &mut EventContext<'_>) {
+        let location = self.hover_location.unwrap_or(Point::squared(Px::new(-1)));
         self.selecting = None;
         for (index, rendered) in self.items.iter_mut().enumerate() {
             let hovered = location.y >= rendered.y - self.padding
                 && location.y < rendered.y + rendered.height + self.padding;
             if let ItemKind::Item(item) = &mut rendered.item {
-                let new_state = if hovered {
-                    self.selecting = Some(index);
-                    if let Some((submenu_index, handle)) = &self.open_submenu {
-                        if *submenu_index != index {
-                            context.focus();
-                            handle.dismiss();
-                            self.open_submenu = None;
+                let enabled = item.enabled.get_tracking_redraw(context);
+                let new_state = if enabled {
+                    if hovered {
+                        self.selecting = Some(index);
+                        if let Some((submenu_index, handle)) = &self.open_submenu {
+                            if *submenu_index != index {
+                                context.focus();
+                                handle.dismiss();
+                                self.open_submenu = None;
+                            }
+                        } else if let Some(factory) = &item.submenu {
+                            let last_layout = context.last_layout().expect("must have rendered");
+                            let menu_location = Point::new(
+                                last_layout.origin.x + last_layout.size.width
+                                    - self.padding.into_signed() * 2,
+                                last_layout.origin.y + (rendered.y - self.padding).into_signed(),
+                            );
+                            self.open_submenu = Some((
+                                index,
+                                factory
+                                    .overlay_submenu_in(&self.layer, self.shared.clone())
+                                    .parent(self.menu_id)
+                                    .at(menu_location)
+                                    .show(),
+                            ));
                         }
-                    } else if let Some(factory) = &item.submenu {
-                        let last_layout = context.last_layout().expect("must have rendered");
-                        let menu_location = Point::new(
-                            last_layout.origin.x + last_layout.size.width
-                                - self.padding.into_signed() * 2,
-                            last_layout.origin.y + (rendered.y - self.padding).into_signed(),
-                        );
-                        self.open_submenu = Some((
-                            index,
-                            factory
-                                .overlay_submenu_in(&self.layer, self.shared.clone())
-                                .parent(self.menu_id)
-                                .at(menu_location)
-                                .show(),
-                        ));
-                    }
-                    if self.mouse_down {
-                        VisualState::Active
+                        if self.mouse_down {
+                            VisualState::Active
+                        } else {
+                            VisualState::Hovered
+                        }
                     } else {
-                        VisualState::Hovered
+                        VisualState::Normal
                     }
                 } else {
-                    VisualState::Normal
+                    VisualState::Disabled
                 };
                 if item.state != new_state {
                     item.state = new_state;
@@ -502,6 +550,8 @@ where
     T: Clone + Debug + Send + 'static,
 {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
+        self.update_visual_state(&mut context.as_event_context());
+
         let radii = context.get(&CornerRadius);
         let radii = radii.map(|r| r.into_px(context.gfx.scale()));
         let bg = context.get(&OpaqueWidgetColor);
@@ -540,7 +590,7 @@ where
             .line_to(Point::new(full_size.width - self.padding * 2, UPx::ZERO))
             .close()
             .stroke(
-                StrokeOptions::mm_wide(1)
+                StrokeOptions::lp_wide(Lp::points(2))
                     .into_upx(context.gfx.scale())
                     .colored(context.theme().surface.color),
             );
@@ -667,17 +717,19 @@ where
         location: Point<Px>,
         context: &mut crate::context::EventContext<'_>,
     ) -> Option<kludgine::app::winit::window::CursorIcon> {
-        self.handle_mouse_movement(location, context);
+        self.hover_location = Some(location);
+        self.update_visual_state(context);
         self.shared.lock().hovering.insert(context.widget().id());
         None
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_>) {
+        self.hover_location = None;
         let mut shared = self.shared.lock();
         shared.hovering.remove(&context.widget().id());
         if shared.hovering.is_empty() {
             drop(shared);
-            self.handle_mouse_movement(Point::squared(Px::new(-1)), context);
+            self.update_visual_state(context);
         }
     }
 
@@ -689,7 +741,8 @@ where
         context: &mut crate::context::EventContext<'_>,
     ) -> EventHandling {
         self.mouse_down = true;
-        self.handle_mouse_movement(location, context);
+        self.hover_location = Some(location);
+        self.update_visual_state(context);
 
         HANDLED
     }
@@ -701,7 +754,8 @@ where
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut crate::context::EventContext<'_>,
     ) {
-        self.handle_mouse_movement(location, context);
+        self.hover_location = Some(location);
+        self.update_visual_state(context);
     }
 
     fn mouse_up(
@@ -724,6 +778,7 @@ where
                 handle.dismiss();
             }
         }
+        self.hover_location = None;
         self.mouse_down = false;
     }
 
@@ -776,6 +831,7 @@ impl<T> RenderedItem<T> {
 
 struct OpenItem<T> {
     value: T,
+    enabled: Value<bool>,
     contents: WidgetRef,
     submenu: Option<Arc<dyn SubmenuFactory>>,
     colors: Option<Dynamic<ButtonColors>>,
@@ -792,6 +848,7 @@ where
             .field("value", &self.value)
             .field("contents", &self.contents)
             .field("submenu", &self.submenu.is_some())
+            .field("enabled", &self.enabled)
             .finish_non_exhaustive()
     }
 }
