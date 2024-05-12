@@ -51,6 +51,7 @@ pub use self::image::Image;
 pub use self::input::Input;
 pub use self::label::Label;
 pub use self::layers::Layers;
+pub use self::menu::Menu;
 pub use self::mode_switch::ThemedMode;
 pub use self::progress::ProgressBar;
 pub use self::radio::Radio;
