@@ -870,7 +870,7 @@ impl WrapperWidget for Tooltipped {
                                         .clone()
                                         .contain()
                                         .background_color(background_color)
-                                        .shadow(ContainerShadow::drop(Lp::mm(1), Lp::mm(2))),
+                                        .shadow(ContainerShadow::drop(Lp::mm(1))),
                                 )
                                 .hide_on_unhover()
                                 .near(my_id, data.direction)

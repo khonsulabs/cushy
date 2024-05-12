@@ -72,7 +72,7 @@ impl BookExample {
             name,
             recorder: interface
                 .contain()
-                .shadow(ContainerShadow::drop(Px::new(16), Px::new(32)))
+                .shadow(ContainerShadow::drop(Px::new(16)))
                 .width(Px::new(750))
                 .build_recorder()
                 .with_alpha()

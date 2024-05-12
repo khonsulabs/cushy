@@ -704,16 +704,14 @@ impl<Unit> ContainerShadow<Unit> {
         }
     }
 
-    /// Returns a drop shadow placed `distance` below with a combined
-    /// blur/spread radius of `blur`.
-    pub fn drop(distance: Unit, blur: Unit) -> Self
+    /// Returns a drop shadow placed `distance` below.
+    pub fn drop(distance: Unit) -> Self
     where
         Unit: Zero + Div<i32, Output = Unit> + Default + Copy,
     {
-        let half_blur = blur / 2;
         Self::new(Point::new(Unit::ZERO, distance))
-            .blur_radius(half_blur)
-            .spread(half_blur)
+            .blur_radius(distance)
+            .spread(distance / 2)
     }
 
     /// Sets the shadow color and returns self.
