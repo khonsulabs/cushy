@@ -1,8 +1,11 @@
+use std::time::Duration;
+
 use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::Canvas;
 use cushy::Run;
+use kludgine::app::winit::keyboard::{Key, NamedKey};
 use plotters::prelude::*;
 
 // This is copied from the sierpinski.rs example in the plotters repository.
@@ -30,9 +33,8 @@ where
     Ok(())
 }
 
-fn main() -> cushy::Result<()> {
+fn plotters() -> impl MakeWidget {
     let depth = Dynamic::new(1);
-
     "Depth"
         .and(depth.clone().slider_between(1, 5))
         .and(
@@ -45,5 +47,51 @@ fn main() -> cushy::Result<()> {
             .expand(),
         )
         .into_rows()
-        .run()
+}
+
+fn main() -> cushy::Result<()> {
+    plotters().run()
+}
+
+#[test]
+fn runs() {
+    cushy::example!(plotters).animated(|r| {
+        r.wait_for(Duration::from_millis(500)).unwrap();
+        r.animate_keypress(
+            kludgine::app::winit::keyboard::PhysicalKey::Code(
+                kludgine::app::winit::keyboard::KeyCode::ArrowRight,
+            ),
+            Key::Named(NamedKey::ArrowRight),
+            None,
+            Duration::from_millis(250),
+        )
+        .unwrap();
+        r.animate_keypress(
+            kludgine::app::winit::keyboard::PhysicalKey::Code(
+                kludgine::app::winit::keyboard::KeyCode::ArrowRight,
+            ),
+            Key::Named(NamedKey::ArrowRight),
+            None,
+            Duration::from_millis(250),
+        )
+        .unwrap();
+        r.animate_keypress(
+            kludgine::app::winit::keyboard::PhysicalKey::Code(
+                kludgine::app::winit::keyboard::KeyCode::ArrowRight,
+            ),
+            Key::Named(NamedKey::ArrowRight),
+            None,
+            Duration::from_millis(250),
+        )
+        .unwrap();
+        r.animate_keypress(
+            kludgine::app::winit::keyboard::PhysicalKey::Code(
+                kludgine::app::winit::keyboard::KeyCode::ArrowRight,
+            ),
+            Key::Named(NamedKey::ArrowRight),
+            None,
+            Duration::from_secs(1),
+        )
+        .unwrap();
+    });
 }

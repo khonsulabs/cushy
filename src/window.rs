@@ -2581,6 +2581,7 @@ impl CushyWindowBuilder {
     #[must_use]
     pub fn finish_virtual(self, device: &wgpu::Device, queue: &wgpu::Queue) -> VirtualWindow {
         let mut state = VirtualState::new();
+        state.size = self.initial_size;
         let mut cushy = self.finish(&mut state, device, queue);
         cushy.set_focused(true);
 
@@ -3497,6 +3498,36 @@ where
             .with_easing(easing)
             .launch();
         self.wait_for(over)
+    }
+
+    /// Simulates a key down and key up event with the given information.
+    pub fn animate_keypress(
+        &mut self,
+        physical_key: PhysicalKey,
+        logical_key: Key,
+        text: Option<&str>,
+        duration: Duration,
+    ) -> Result<(), VirtualRecorderError> {
+        let text = text.map(SmolStr::new);
+        let half_duration = duration / 2;
+        let mut event = KeyEvent {
+            physical_key,
+            logical_key,
+            text,
+            state: ElementState::Pressed,
+            repeat: false,
+            location: KeyLocation::Standard,
+        };
+        self.recorder
+            .window
+            .keyboard_input(DeviceId::Virtual(0), event.clone(), true);
+        self.wait_for(half_duration)?;
+        event.state = ElementState::Released;
+        self.recorder
+            .window
+            .keyboard_input(DeviceId::Virtual(0), event.clone(), true);
+
+        self.wait_for(half_duration)
     }
 
     /// Animates entering the graphemes from `text` over `duration`.
