@@ -39,7 +39,7 @@ fn book() {
         name_input.and(greeting).into_rows()
     }
 
-    guide_examples::book_example!(intro).animated(|animation| {
+    cushy::example!(intro).animated(|animation| {
         animation.wait_for(Duration::from_secs(1)).unwrap();
         animation
             .animate_text_input("Ferris 🦀", Duration::from_secs(1))

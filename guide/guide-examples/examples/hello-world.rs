@@ -12,5 +12,5 @@ fn book() {
         "Hello, World!"
     }
 
-    guide_examples::book_example!(hello_world).untested_still_frame();
+    cushy::example!(hello_world).untested_still_frame();
 }

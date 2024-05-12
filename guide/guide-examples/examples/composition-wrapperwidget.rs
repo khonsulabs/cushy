@@ -117,7 +117,7 @@ fn composition_wrapperwidget() -> impl cushy::widget::MakeWidget {
 }
 
 fn main() {
-    guide_examples::book_example!(composition_wrapperwidget).untested_still_frame();
+    cushy::example!(composition_wrapperwidget).untested_still_frame();
 }
 
 #[test]

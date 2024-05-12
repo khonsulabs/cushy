@@ -23,6 +23,9 @@ pub mod value;
 pub mod widget;
 pub mod widgets;
 pub mod window;
+
+#[doc(hidden)]
+pub mod example;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 #[cfg(feature = "tokio")]

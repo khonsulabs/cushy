@@ -58,6 +58,10 @@ jobs:
 
       - name: Regenerate Example Images
         run: |
+          CAPTURE=1 cargo test -p cushy --examples
+
+      - name: Regenerate Guide Example Images
+        run: |
           CAPTURE=1 cargo test -p guide-examples --examples
 
       - name: Build Guide

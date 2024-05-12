@@ -110,7 +110,7 @@ fn composition_widget() -> impl cushy::widget::MakeWidget {
 }
 
 fn main() {
-    guide_examples::book_example!(composition_widget).untested_still_frame();
+    cushy::example!(composition_widget).untested_still_frame();
 }
 
 #[test]

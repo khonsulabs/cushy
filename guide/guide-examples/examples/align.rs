@@ -6,7 +6,6 @@ use cushy::styles::ThemePair;
 use cushy::widget::MakeWidget;
 use cushy::widgets::grid::{GridDimension, GridWidgets};
 use cushy::widgets::{Grid, Space};
-use guide_examples::book_example;
 
 // ANCHOR: content
 fn content() -> impl MakeWidget {
@@ -84,7 +83,7 @@ fn main() {
     let theme = ThemePair::default();
     let container_color = theme.dark.surface.low_container;
     let primary = theme.dark.primary.color;
-    book_example!(align).still_frame(|recorder| {
+    cushy::example!(align).still_frame(|recorder| {
         const LEFT: u32 = 145;
         const RIGHT: u32 = 705;
         const H_CENTER: u32 = (RIGHT + LEFT) / 2;

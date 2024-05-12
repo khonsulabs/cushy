@@ -41,7 +41,7 @@ fn composition_makewidget() -> impl cushy::widget::MakeWidget {
 }
 
 fn main() {
-    guide_examples::book_example!(composition_makewidget).untested_still_frame();
+    cushy::example!(composition_makewidget).untested_still_frame();
 }
 
 #[test]

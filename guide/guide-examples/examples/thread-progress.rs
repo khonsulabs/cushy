@@ -3,7 +3,6 @@ use std::time::Duration;
 use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::progress::Progressable;
-use guide_examples::book_example;
 
 fn thread_progress() -> impl MakeWidget {
     // ANCHOR: example
@@ -23,7 +22,7 @@ fn thread_progress() -> impl MakeWidget {
 }
 
 fn main() {
-    book_example!(thread_progress).animated(|recorder| {
+    cushy::example!(thread_progress).animated(|recorder| {
         recorder.wait_for(Duration::from_secs(2)).unwrap();
     });
 }

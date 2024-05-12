@@ -1,9 +1,9 @@
 use std::fmt::Write;
 
-use cushy::styles::components::{TextColor, WidgetBackground};
+use cushy::styles::components::{TextColor, TextSize, WidgetBackground};
 use cushy::styles::{
-    ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, FixedTheme, SurfaceTheme, Theme,
-    ThemePair,
+    ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, Dimension, FixedTheme, SurfaceTheme,
+    Theme, ThemePair,
 };
 use cushy::value::{Destination, Dynamic, MapEachCloned, Source};
 use cushy::widget::MakeWidget;
@@ -13,14 +13,17 @@ use cushy::widgets::input::InputValue;
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::Space;
 use cushy::window::ThemeMode;
-use cushy::{Open, PendingApp};
+use cushy::{Cushy, Open, PendingApp};
 use figures::units::Lp;
 use kludgine::Color;
 use palette::OklabHue;
 
 fn main() -> cushy::Result {
     let app = PendingApp::default();
+    theme_editor(app.cushy().clone()).into_window().run_in(app)
+}
 
+fn theme_editor(cushy: Cushy) -> impl MakeWidget {
     let (theme_mode, theme_switcher) = dark_mode_picker();
 
     let scheme = Scheme::from(ColorScheme::default());
@@ -79,7 +82,6 @@ fn main() -> cushy::Result {
         .and(editors.neutral.1)
         .and(editors.neutral_variant.1)
         .and("Copy to Clipboard".into_button().on_click({
-            let cushy = app.cushy().clone();
             move |_| {
                 if let Some(mut clipboard) = cushy.clipboard_guard() {
                     let builder = color_scheme_builder.get();
@@ -115,9 +117,7 @@ fn main() -> cushy::Result {
         .themed(theme)
         .pad()
         .expand()
-        .into_window()
         .themed_mode(theme_mode)
-        .run_in(app)
 }
 
 struct Scheme<Primary, Other = Primary> {
@@ -436,6 +436,7 @@ fn color_theme(theme: Dynamic<ColorTheme>, label: &str) -> impl MakeWidget {
 fn swatch(background: Dynamic<Color>, label: &str, text: Dynamic<Color>) -> impl MakeWidget {
     label
         .with(&TextColor, text)
+        .with(&TextSize, Dimension::Lp(Lp::points(8)))
         .with(&WidgetBackground, background)
         .fit_horizontally()
         .fit_vertically()
@@ -491,4 +492,10 @@ impl FormatRust for ColorSchemeBuilder {
             source.push_str("build()");
         }
     }
+}
+
+#[test]
+fn runs() {
+    let theme_editor = || theme_editor(Cushy::default());
+    cushy::example!(theme_editor, 1600, 900).untested_still_frame();
 }
