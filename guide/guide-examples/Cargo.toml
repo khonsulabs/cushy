@@ -5,4 +5,4 @@ edition = "2021"
 publish = false
 
 [dependencies]
-cushy = { version = "0.2.0", path = "../../" }
+cushy = { version = "0.3.0", path = "../../" }
