@@ -40,6 +40,14 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Install x11 dependencies for Kludgine
+        run: |
+          sudo apt-get update -y -qq
+          sudo add-apt-repository ppa:oibaf/graphics-drivers -y
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+
       - name: Download mdbook
         run: |
           curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.36/mdbook-v0.4.36-x86_64-unknown-linux-gnu.tar.gz | tar -xz
