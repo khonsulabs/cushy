@@ -59,20 +59,26 @@ use crate::animation::easings::Linear;
 use crate::styles::{Component, RequireInvalidation};
 use crate::utils::run_in_bg;
 use crate::value::{Destination, Dynamic, Source};
+use crate::Cushy;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
 static NEW_ANIMATIONS: Condvar = Condvar::new();
 
-fn thread_state() -> MutexGuard<'static, Animating> {
+pub(crate) fn spawn(app: Cushy) {
+    let _ignored = thread_state(Some(app));
+}
+
+fn thread_state(app: Option<Cushy>) -> MutexGuard<'static, Animating> {
     static THREAD: OnceLock<()> = OnceLock::new();
-    THREAD.get_or_init(|| {
-        thread::spawn(animation_thread);
+    THREAD.get_or_init(move || {
+        thread::spawn(move || animation_thread(app.as_ref()));
     });
     ANIMATIONS.lock()
 }
 
-fn animation_thread() {
-    let mut state = thread_state();
+fn animation_thread(app: Option<&Cushy>) {
+    let _guard = app.as_ref().map(|app| app.enter_runtime());
+    let mut state = thread_state(None);
     loop {
         if state.running.is_empty() {
             state.last_updated = None;
@@ -104,7 +110,7 @@ fn animation_thread() {
                     .checked_duration_since(Instant::now())
                     .unwrap_or(Duration::from_millis(16)),
             );
-            state = thread_state();
+            state = thread_state(None);
         }
     }
 }
@@ -456,7 +462,7 @@ where
 
 impl Spawn for Box<dyn Animate> {
     fn spawn(self) -> AnimationHandle {
-        thread_state().spawn(self)
+        thread_state(None).spawn(self)
     }
 }
 
@@ -512,7 +518,7 @@ impl AnimationHandle {
     /// This has the same effect as dropping the handle.
     pub fn clear(&mut self) {
         if let Some(id) = self.0.take() {
-            thread_state().remove_animation(id);
+            thread_state(None).remove_animation(id);
         }
     }
 
@@ -524,7 +530,7 @@ impl AnimationHandle {
     /// through completion without needing to hold onto the handle.
     pub fn detach(mut self) {
         if let Some(id) = self.0.take() {
-            thread_state().run_unattached(id);
+            thread_state(None).run_unattached(id);
         }
     }
 
@@ -533,7 +539,7 @@ impl AnimationHandle {
     pub fn is_running(&self) -> bool {
         let Some(id) = self.0 else { return false };
 
-        thread_state().running.contains(&id)
+        thread_state(None).running.contains(&id)
     }
 
     /// Returns true if this animation is complete.

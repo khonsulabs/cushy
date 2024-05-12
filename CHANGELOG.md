@@ -251,6 +251,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `OverlayLayer::dismiss_all()` dismisses all overlays immediately.
 - `Menu` is a new widget type that can be shown in an `OverlayLayer` to create
   contextual menus or other popup menus.
+- `PendingApp::new` is a new function that accepts an `AppRuntime` implementor.
+  This abstraction is how Cushy provides the optional integration for `tokio`.
+- Features `tokio` and `tokio-multi-thread` enable the tokio integration for
+  this crate and expose a new type `TokioRuntime`. The `DefaultRuntime`
+  automatically will use the `TokioRuntime` if either feature is enabled.
+
+  When the `tokio` integration is enabled, `tokio::spawn` is able to be invoked
+  from all Cushy code safely.
 
 [plotters]: https://github.com/plotters-rs/plotters
 

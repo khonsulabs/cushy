@@ -25,7 +25,9 @@ pub mod widgets;
 pub mod window;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
-pub use app::{App, Application, Cushy, Open, PendingApp, Run};
+#[cfg(feature = "tokio")]
+pub use app::TokioRuntime;
+pub use app::{App, AppRuntime, Application, Cushy, DefaultRuntime, Open, PendingApp, Run};
 use figures::units::UPx;
 use figures::{Fraction, ScreenUnit, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;

@@ -8,7 +8,7 @@ use crate::value::{Dynamic, DynamicReader, ForEach, Source, WeakDynamic};
 use crate::widget::{MakeWidget, WidgetInstance, WidgetList};
 use crate::widgets::grid::{Grid, GridWidgets};
 use crate::window::Window;
-use crate::{Open, PendingApp};
+use crate::{Application, Open, PendingApp};
 
 /// A widget that can provide extra information when debugging.
 #[derive(Clone, Default)]
@@ -117,7 +117,7 @@ impl DebugContext {
 impl Open for DebugContext {
     fn open<App>(self, app: &mut App) -> crate::Result<Option<crate::window::WindowHandle>>
     where
-        App: crate::Application + ?Sized,
+        App: Application + ?Sized,
     {
         self.into_window().open(app)
     }

@@ -1211,6 +1211,8 @@ where
     where
         W: PlatformWindowImplementation,
     {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
         if let Some(theme) = &mut self.theme {
             if theme.has_updated() {
                 self.current_theme = theme.get();
@@ -1320,6 +1322,8 @@ where
     where
         W: PlatformWindowImplementation,
     {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
         if self.behavior.close_requested(&mut RunningWindow::new(
             window,
             kludgine.id(),
@@ -1362,6 +1366,8 @@ where
     where
         W: PlatformWindowImplementation,
     {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             kludgine.id(),
@@ -1410,6 +1416,8 @@ where
     where
         W: PlatformWindowImplementation,
     {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             kludgine.id(),
@@ -1451,6 +1459,8 @@ where
     where
         W: PlatformWindowImplementation,
     {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             kludgine.id(),
@@ -1493,6 +1503,8 @@ where
     ) where
         W: PlatformWindowImplementation,
     {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             kludgine.id(),
@@ -1548,6 +1560,8 @@ where
     where
         W: PlatformWindowImplementation,
     {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
         if self.cursor.widget.take().is_some() {
             let mut window = RunningWindow::new(
                 window,
@@ -1585,6 +1599,8 @@ where
     where
         W: PlatformWindowImplementation,
     {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             kludgine.id(),
@@ -1703,6 +1719,8 @@ where
         context: Self::Context,
     ) -> Self {
         let settings = context.settings.borrow_mut();
+        let cushy = settings.cushy.clone();
+        let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             graphics.id(),
@@ -1784,6 +1802,8 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
     ) -> bool {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
         Self::request_close(
             &mut self.should_close,
             &mut self.behavior,
@@ -2532,7 +2552,7 @@ impl CushyWindowBuilder {
             window,
             &mut kludgine::Graphics::new(&mut kludgine, device, queue),
             sealed::WindowSettings {
-                cushy: Cushy::new(),
+                cushy: Cushy::default(),
                 redraw_status: InvalidationStatus::default(),
                 title: Value::default(),
                 attributes: None,
