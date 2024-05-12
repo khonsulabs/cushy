@@ -116,6 +116,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   within whatever bounds it is given.
 - `Widget::unmounted` is now invoked for all widgets in the hierarchy.
   Previously, only the parent widget was having its unmounted event invoked.
+- Resizing windows should no longer be out of sync with the resize operation.
+  Previously, the window background would sometimes paint in newly revealed
+  areas before the UI was redrawn.
 
 ### Changed
 
