@@ -44,11 +44,11 @@ initially tested by creating an example. Many are focused on demonstrating a
 single feature, but there are some complex example such as a theme
 editor/previewer:
 
-  [![Theme Editor Example](https://cushy.rs/main/guide/examples/theme_editor.png)][theme-example]
+  [![Theme Editor Example](https://cushy.rs/$ref-name$/guide/examples/theme_editor.png)][theme-example]
 - Browse the [user's guide][guide]. The user guide is a work in progress, but
   features CI-generated screenshots and animations for its examples:
 
-  [![Hello, World User Guide Example](https://cushy.rs/main/guide/examples/intro.png)][guide]
+  [![Hello, World User Guide Example](https://cushy.rs/$ref-name$/guide/examples/intro.png)][guide]
 - Ask questions [in Discussions][discussions] or [on Discord][discord].
 
 ## Project Status
