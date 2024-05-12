@@ -3,7 +3,7 @@ members = ["cushy-macros", "guide/guide-examples"]
 
 [package]
 name = "cushy"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "A wgpu-powered graphical user interface (GUI) library with a reactive data model"
 repository = "https://github.com/khonsulabs/cushy"
@@ -22,11 +22,8 @@ tokio = ["dep:tokio"]
 tokio-multi-thread = ["tokio", "tokio/rt-multi-thread"]
 
 [dependencies]
-# kludgine = { version = "0.7.0", features = ["app"] }
-kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
-    "app",
-] }
-figures = { version = "0.2.1", git = "https://github.com/khonsulabs/figures" }
+kludgine = { version = "0.8.0", features = ["app"] }
+figures = { version = "0.3.0" }
 alot = "0.3"
 interner = "0.2.1"
 kempt = "0.2.1"
