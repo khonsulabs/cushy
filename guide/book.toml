@@ -10,5 +10,5 @@ build-dir = "../target/guide"
 extra-watch-dirs = ["./guide-examples/"]
 
 [preprocessor.variables.variables]
-docs = "https://cushy.rs/main/docs/cushy"
-src = "https://github.com/khonsulabs/cushy/tree/main"
+docs = "https://docs.rs/cushy/latest/cushy"
+src = "https://github.com/khonsulabs/cushy/tree/v0.3.0"
