@@ -55,7 +55,11 @@ fn main() -> cushy::Result {
 Here are some ways to learn more about Cushy:
 
 - Explore the [examples directory][examples]. Nearly every feature in Cushy was
-initially tested by creating an example.
+initially tested by creating an example. Many are focused on demonstrating a
+single feature, but there are some complex example such as a theme
+editor/previewer:
+
+  [![Theme Editor Example](https://cushy.rs/main/guide/examples/theme_editor.png)][theme-example]
 - Browse the [user's guide][guide]. The user guide is a work in progress, but
   features CI-generated screenshots and animations for its examples:
 
@@ -79,6 +83,7 @@ Cushy.
 [widgets]: https://cushy.rs/main/docs/cushy/widgets/index.html
 [button-example]: https://github.com/khonsulabs/cushy/tree/main/examples/basic-button.rs
 [examples]: https://github.com/khonsulabs/cushy/tree/main/examples/
+[theme-example]: https://github.com/khonsulabs/cushy/tree/main/examples/theme.rs
 [kludgine]: https://github.com/khonsulabs/kludgine
 [figures]: https://github.com/khonsulabs/figures
 [wgpu]: https://github.com/gfx-rs/wgpu
