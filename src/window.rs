@@ -3500,6 +3500,26 @@ where
         self.wait_for(over)
     }
 
+    /// Animates pressing and releasing a mouse button at the current cursor
+    /// location.
+    pub fn animate_mouse_button(
+        &mut self,
+        button: MouseButton,
+        duration: Duration,
+    ) -> Result<(), VirtualRecorderError> {
+        let _ =
+            self.recorder
+                .window
+                .mouse_input(DeviceId::Virtual(0), ElementState::Pressed, button);
+
+        self.wait_for(duration)?;
+        let _ =
+            self.recorder
+                .window
+                .mouse_input(DeviceId::Virtual(0), ElementState::Released, button);
+        Ok(())
+    }
+
     /// Simulates a key down and key up event with the given information.
     pub fn animate_keypress(
         &mut self,

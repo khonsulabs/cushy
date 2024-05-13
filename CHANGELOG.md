@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `AnimationRecorder::animate_keypress` is a new helper that animates a single
   key press.
+- `AnimationRecorder::animate_mouse_button` is a new helper that animates a
+  single mouse button press and release.
 
 ## v0.3.0 (2024-05-12)
 

@@ -10,7 +10,7 @@ enum MenuOptions {
     Third,
 }
 
-fn main() -> cushy::Result {
+fn menu_example() -> impl MakeWidget {
     let overlay = OverlayLayer::default();
 
     "Click Me"
@@ -30,7 +30,10 @@ fn main() -> cushy::Result {
         .expand()
         .and(overlay)
         .into_layers()
-        .run()
+}
+
+fn main() -> cushy::Result {
+    menu_example().run()
 }
 
 fn menu(top: bool) -> Menu<MenuOptions> {
@@ -52,4 +55,67 @@ fn menu(top: bool) -> Menu<MenuOptions> {
         )
         .with_separator()
         .with(third)
+}
+
+#[test]
+fn runs() {
+    use std::time::Duration;
+
+    use cushy::animation::easings::{EaseInCircular, EaseInOutSine, EaseOutCircular};
+    use figures::units::Px;
+    use figures::Point;
+    use kludgine::app::winit::event::MouseButton;
+
+    cushy::example!(menu_example, 800, 600)
+        .prepare_with(|r| {
+            r.set_cursor_position(Point::new(Px::new(420), Px::new(270)));
+            r.set_cursor_visible(true);
+            r.refresh().unwrap();
+        })
+        .animated(|r| {
+            r.animate_cursor_to(
+                Point::new(Px::new(410), Px::new(300)),
+                Duration::from_millis(500),
+                EaseInOutSine,
+            )
+            .unwrap();
+            r.animate_mouse_button(MouseButton::Left, Duration::from_millis(250))
+                .unwrap();
+            r.wait_for(Duration::from_millis(500)).unwrap();
+            r.animate_cursor_to(
+                Point::new(Px::new(430), Px::new(325)),
+                Duration::from_millis(200),
+                EaseInCircular,
+            )
+            .unwrap();
+            r.animate_cursor_to(
+                Point::new(Px::new(480), Px::new(480)),
+                Duration::from_millis(400),
+                EaseOutCircular,
+            )
+            .unwrap();
+            r.wait_for(Duration::from_millis(300)).unwrap();
+            r.animate_cursor_to(
+                Point::new(Px::new(620), Px::new(460)),
+                Duration::from_millis(600),
+                EaseInOutSine,
+            )
+            .unwrap();
+            r.animate_cursor_to(
+                Point::new(Px::new(460), Px::new(340)),
+                Duration::from_millis(800),
+                EaseInOutSine,
+            )
+            .unwrap();
+            r.animate_mouse_button(MouseButton::Left, Duration::from_millis(250))
+                .unwrap();
+            r.wait_for(Duration::from_millis(500)).unwrap();
+            r.animate_cursor_to(
+                Point::new(Px::new(420), Px::new(270)),
+                Duration::from_millis(500),
+                EaseInOutSine,
+            )
+            .unwrap();
+            r.wait_for(Duration::from_millis(500)).unwrap();
+        });
 }
