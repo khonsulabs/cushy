@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Fixed a panic that could occur when removing some deeply nested hierarchies
+  from a window.
+
 ### Added
 
 - `AnimationRecorder::animate_keypress` is a new helper that animates a single
