@@ -919,7 +919,8 @@ pub trait MakeWidget: Sized {
         Window::new(self.make_widget())
     }
 
-    /// Returns a builder for a [`VirtualWindow`](crate::window::VirtualWindow).
+    /// Returns a builder for a [`VirtualWindow`](crate::window::VirtualWindow)
+    /// or a [`CushyWindow`](crate::window::CushyWindow).
     fn build_virtual_window(self) -> CushyWindowBuilder {
         CushyWindowBuilder::new(self)
     }

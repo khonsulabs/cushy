@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed a panic that could occur when removing some deeply nested hierarchies
-  from a window.
+- Fixed a panic that could occur when removing certain nested hierarchies from a
+  window.
 
 ### Added
 

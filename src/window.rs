@@ -2474,7 +2474,7 @@ impl PlatformWindowImplementation for &mut VirtualState {
     }
 }
 
-/// A builder for a [`VirtualWindow`].
+/// A builder for a [`VirtualWindow`] or a [`CushyWindow`].
 pub struct CushyWindowBuilder {
     widget: WidgetInstance,
     multisample_count: NonZeroU32,
@@ -2484,7 +2484,7 @@ pub struct CushyWindowBuilder {
 }
 
 impl CushyWindowBuilder {
-    /// Returns a new builder for a Cushy window that contains `contents`.
+    /// Returns a new builder for a standalone window that contains `contents`.
     #[must_use]
     pub fn new(contents: impl MakeWidget) -> Self {
         Self {
