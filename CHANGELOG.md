@@ -9,10 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Breaking Changes
+
+- `Source::for_each_*` now invoke the callback with the current contents of of
+  the source before attaching the callback. New functions beginning with
+  `for_each_subsequent_` have been added with the original behavior.
+
 ### Fixed
 
 - Fixed a panic that could occur when removing certain nested hierarchies from a
   window.
+- `CallbackHandle` now has a `must_use` hint that might help users discover the
+  persist function.
 
 ### Added
 
