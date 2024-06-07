@@ -58,8 +58,8 @@ impl DebugContext {
         });
         let this = self.clone();
         reader.on_disconnect(move || {
-            this.section
-                .map_ref(|section| section.values.lock().remove(id));
+            let values = this.section.map_ref(|section| section.values.clone());
+            values.lock().remove(id);
         });
     }
 
