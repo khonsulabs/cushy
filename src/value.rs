@@ -2981,8 +2981,17 @@ pub trait ForEach<T> {
     /// The borrowed representation of T to pass into the `for_each` function.
     type Ref<'a>;
 
-    /// Apply `for_each` to each value contained within `self`.
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
     fn for_each<F>(&self, for_each: F) -> CallbackHandle
+    where
+        F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static;
+
+    /// Attaches `for_each` to this value so that it is invoked each time the
+    /// source's contents are updated.
+    ///
+    /// `for_each` will not be invoked with the currently stored value.
+    fn for_each_subsequent<F>(&self, for_each: F) -> CallbackHandle
     where
         F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static;
 }
@@ -3000,6 +3009,18 @@ macro_rules! impl_tuple_for_each {
 
             #[allow(unused_mut)]
             fn for_each<F>(&self, mut for_each: F) -> CallbackHandle
+            where
+                F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static,
+            {
+                {
+                    $(let $var = self.$field.read();)+
+                    for_each(($(&$var,)+));
+                };
+                self.for_each_subsequent(for_each)
+            }
+
+            #[allow(unused_mut)]
+            fn for_each_subsequent<F>(&self, mut for_each: F) -> CallbackHandle
             where
                 F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static,
             {
@@ -3070,7 +3091,7 @@ macro_rules! impl_tuple_for_each {
         // The list of tuple fields excluding the one being invoked.
         [$($rtype:ident $rfield:tt $rvar:ident),+]
     ) => {
-        $handles += $var.for_each((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
+        $handles += $var.for_each_subsequent((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
             move |$var: &$type| {
                 $(let $rvar = $rvar.read();)+
                 let mut for_each =

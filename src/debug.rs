@@ -211,7 +211,7 @@ impl DebugSection {
         if let Some(parent) = parent.clone() {
             let label = label.clone();
             (&children, &values)
-                .for_each({
+                .for_each_subsequent({
                     move |(children, values)| {
                         if children.is_empty() && values.is_empty() {
                             Self::remove_child_section(&parent, &label);
