@@ -1437,11 +1437,10 @@ where
 
 impl<'a, T> DynamicMutexGuard<'a, T> {
     fn unlocked(&mut self, while_unlocked: impl FnOnce()) {
-        MutexGuard::unlocked(&mut self.guard, || {
-            let current_state = self.dynamic.during_callback_state.lock().take();
-            while_unlocked();
-            *self.dynamic.during_callback_state.lock() = current_state;
-        });
+        let previous_state = self.dynamic.during_callback_state.lock().take();
+        MutexGuard::unlocked(&mut self.guard, while_unlocked);
+
+        *self.dynamic.during_callback_state.lock() = previous_state;
     }
 }
 

@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   window.
 - `CallbackHandle` now has a `must_use` hint that might help users discover the
   persist function.
+- Fixed a deadlock that could occur when multiple threads were attempting to
+  execute change callbacks for the same dynamic at the same time.
 
 ### Added
 
