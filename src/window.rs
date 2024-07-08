@@ -59,8 +59,8 @@ use crate::value::{
     Destination, Dynamic, DynamicReader, Generation, IntoDynamic, IntoValue, Source, Value,
 };
 use crate::widget::{
-    EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, WidgetId, WidgetInstance,
-    HANDLED, IGNORED,
+    Callback, EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, WidgetId,
+    WidgetInstance, HANDLED, IGNORED,
 };
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit};
@@ -260,6 +260,7 @@ pub struct RunningWindow<W> {
     focused: Dynamic<bool>,
     occluded: Dynamic<bool>,
     inner_size: Dynamic<Size<UPx>>,
+    close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
 }
 
 impl<W> RunningWindow<W>
@@ -274,6 +275,7 @@ where
         focused: &Dynamic<bool>,
         occluded: &Dynamic<bool>,
         inner_size: &Dynamic<Size<UPx>>,
+        close_requested: &Option<Arc<Mutex<Callback<(), bool>>>>,
     ) -> Self {
         Self {
             window,
@@ -283,6 +285,7 @@ where
             focused: focused.clone(),
             occluded: occluded.clone(),
             inner_size: inner_size.clone(),
+            close_requested: close_requested.clone(),
         }
     }
 
@@ -499,6 +502,7 @@ where
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
     theme_mode: Option<Value<ThemeMode>>,
+    close_requested: Option<Callback<(), bool>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -518,6 +522,62 @@ impl Window<WidgetInstance> {
         W: MakeWidget,
     {
         Self::new(widget.make_widget())
+    }
+}
+
+impl<Behavior> Window<Behavior>
+where
+    Behavior: WindowBehavior,
+{
+    /// Returns a new instance using `context` to initialize the window upon
+    /// opening.
+    pub fn new(context: Behavior::Context) -> Self {
+        Self::new_with_pending(context, PendingWindow::default())
+    }
+
+    fn new_with_pending(context: Behavior::Context, pending: PendingWindow) -> Self {
+        static EXECUTABLE_NAME: OnceLock<String> = OnceLock::new();
+
+        let title = EXECUTABLE_NAME
+            .get_or_init(|| {
+                std::env::args_os()
+                    .next()
+                    .and_then(|path| {
+                        Path::new(&path)
+                            .file_name()
+                            .and_then(OsStr::to_str)
+                            .map(ToString::to_string)
+                    })
+                    .unwrap_or_else(|| String::from("Cushy App"))
+            })
+            .clone();
+        Self {
+            pending,
+            title: Value::Constant(title),
+            attributes: WindowAttributes::default(),
+            on_closed: None,
+            context,
+            load_system_fonts: true,
+            theme: Value::default(),
+            occluded: None,
+            focused: None,
+            theme_mode: None,
+            inner_size: None,
+            serif_font_family: FontFamilyList::default(),
+            sans_serif_font_family: FontFamilyList::default(),
+            fantasy_font_family: FontFamilyList::default(),
+            monospace_font_family: FontFamilyList::default(),
+            cursive_font_family: FontFamilyList::default(),
+            fonts: {
+                let fonts = FontCollection::default();
+                #[cfg(feature = "roboto-flex")]
+                fonts.push(include_bytes!("../assets/RobotoFlex.ttf").to_vec());
+                fonts
+            },
+            multisample_count: NonZeroU32::new(4).assert("not 0"),
+            vsync: true,
+            close_requested: None,
+        }
     }
 
     /// Sets `focused` to be the dynamic updated when this window's focus status
@@ -604,65 +664,22 @@ impl Window<WidgetInstance> {
         self
     }
 
+    /// Invokes `on_close_requested` when the window is requested to be closed.
+    ///
+    /// If the function returns true, the window is allowed to be closed,
+    /// otherwise the window remains open.
+    pub fn on_close_requested<Function>(mut self, on_close_requested: Function) -> Self
+    where
+        Function: FnMut(()) -> bool + Send + 'static,
+    {
+        self.close_requested = Some(Callback::new(on_close_requested));
+        self
+    }
+
     /// Sets the window's title.
     pub fn titled(mut self, title: impl IntoValue<String>) -> Self {
         self.title = title.into_value();
         self
-    }
-}
-
-impl<Behavior> Window<Behavior>
-where
-    Behavior: WindowBehavior,
-{
-    /// Returns a new instance using `context` to initialize the window upon
-    /// opening.
-    pub fn new(context: Behavior::Context) -> Self {
-        Self::new_with_pending(context, PendingWindow::default())
-    }
-
-    fn new_with_pending(context: Behavior::Context, pending: PendingWindow) -> Self {
-        static EXECUTABLE_NAME: OnceLock<String> = OnceLock::new();
-
-        let title = EXECUTABLE_NAME
-            .get_or_init(|| {
-                std::env::args_os()
-                    .next()
-                    .and_then(|path| {
-                        Path::new(&path)
-                            .file_name()
-                            .and_then(OsStr::to_str)
-                            .map(ToString::to_string)
-                    })
-                    .unwrap_or_else(|| String::from("Cushy App"))
-            })
-            .clone();
-        Self {
-            pending,
-            title: Value::Constant(title),
-            attributes: WindowAttributes::default(),
-            on_closed: None,
-            context,
-            load_system_fonts: true,
-            theme: Value::default(),
-            occluded: None,
-            focused: None,
-            theme_mode: None,
-            inner_size: None,
-            serif_font_family: FontFamilyList::default(),
-            sans_serif_font_family: FontFamilyList::default(),
-            fantasy_font_family: FontFamilyList::default(),
-            monospace_font_family: FontFamilyList::default(),
-            cursive_font_family: FontFamilyList::default(),
-            fonts: {
-                let fonts = FontCollection::default();
-                #[cfg(feature = "roboto-flex")]
-                fonts.push(include_bytes!("../assets/RobotoFlex.ttf").to_vec());
-                fonts
-            },
-            multisample_count: NonZeroU32::new(4).assert("not 0"),
-            vsync: true,
-        }
     }
 }
 
@@ -711,6 +728,7 @@ where
                     cursive_font_family: self.cursive_font_family,
                     vsync: self.vsync,
                     multisample_count: self.multisample_count,
+                    close_requested: self.close_requested.map(|cb| Arc::new(Mutex::new(cb))),
                 }),
             },
         )?;
@@ -790,6 +808,7 @@ struct OpenWindow<T> {
     cushy: Cushy,
     on_closed: Option<OnceCallback>,
     vsync: bool,
+    close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
 }
 
 impl<T> OpenWindow<T>
@@ -801,7 +820,11 @@ where
         behavior: &mut T,
         window: &mut RunningWindow<kludgine::app::Window<'_, WindowCommand>>,
     ) -> bool {
-        *should_close |= behavior.close_requested(window);
+        *should_close |= behavior.close_requested(window)
+            && window
+                .close_requested
+                .as_mut()
+                .map_or(false, |close| close.lock().invoke(()));
 
         *should_close
     }
@@ -1147,6 +1170,7 @@ where
         let theme = settings.theme.take().unwrap_or_default();
         let inner_size = settings.inner_size.clone();
         let on_closed = settings.on_closed.take();
+        let close_requested = settings.close_requested.take();
         let vsync = settings.vsync;
 
         inner_size.set(window.inner_size());
@@ -1204,6 +1228,7 @@ where
             cushy,
             on_closed,
             vsync,
+            close_requested,
         }
     }
 
@@ -1234,6 +1259,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
         let root_mode = self.constrain_window_resizing(resizable, &mut window, graphics);
 
@@ -1332,6 +1358,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         )) {
             self.should_close = true;
             true
@@ -1376,6 +1403,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
         let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
         let Some(target) = self.tree.widget_from_node(target) else {
@@ -1426,6 +1454,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
         let widget = self
             .tree
@@ -1469,6 +1498,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
         let widget = self
             .tree
@@ -1513,6 +1543,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
 
         let location = position.into();
@@ -1571,6 +1602,7 @@ where
                 &self.focused,
                 &self.occluded,
                 &self.inner_size,
+                &self.close_requested,
             );
 
             let mut context = EventContext::new(
@@ -1609,6 +1641,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
         match state {
             ElementState::Pressed => {
@@ -1729,6 +1762,7 @@ where
             &settings.focused,
             &settings.occluded,
             &settings.inner_size,
+            &settings.close_requested,
         );
         drop(settings);
 
@@ -1815,6 +1849,7 @@ where
                 &self.focused,
                 &self.occluded,
                 &self.inner_size,
+                &self.close_requested,
             ),
         )
     }
@@ -1965,6 +2000,7 @@ where
                     &self.focused,
                     &self.occluded,
                     &self.inner_size,
+                    &self.close_requested,
                 );
                 if self.behavior.close_requested(&mut window) {
                     window.close();
@@ -2006,18 +2042,20 @@ pub(crate) struct CursorState {
 pub(crate) mod sealed {
     use std::cell::RefCell;
     use std::num::NonZeroU32;
+    use std::sync::Arc;
 
     use figures::units::UPx;
     use figures::{Point, Size};
     use image::DynamicImage;
     use kludgine::Color;
+    use parking_lot::Mutex;
 
     use crate::app::Cushy;
     use crate::context::sealed::InvalidationStatus;
     use crate::fonts::FontCollection;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
-    use crate::widget::OnceCallback;
+    use crate::widget::{Callback, OnceCallback};
     use crate::window::{ThemeMode, WindowAttributes};
 
     pub struct Context<C> {
@@ -2045,6 +2083,7 @@ pub(crate) mod sealed {
         pub on_closed: Option<OnceCallback>,
         pub vsync: bool,
         pub multisample_count: NonZeroU32,
+        pub close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
     }
 
     #[derive(Debug, Clone)]
@@ -2571,6 +2610,7 @@ impl CushyWindowBuilder {
                 on_closed: None,
                 vsync: false,
                 multisample_count: self.multisample_count,
+                close_requested: None,
             },
         );
 

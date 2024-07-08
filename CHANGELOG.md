@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   key press.
 - `AnimationRecorder::animate_mouse_button` is a new helper that animates a
   single mouse button press and release.
+- `Window::on_close_requested` is a new function that allows providing a
+  callback that is invoked before the window is closed when the user or
+  operating system requests that a window is closed. If the callback returns
+  true, the window is allowed to be closed. If false is returned, the window
+  will remain open. This feature is most commonly used to prevent losing unsaved
+  changes.
 
 ## v0.3.0 (2024-05-12)
 
