@@ -824,7 +824,7 @@ where
             && window
                 .close_requested
                 .as_mut()
-                .map_or(false, |close| close.lock().invoke(()));
+                .map_or(true, |close| close.lock().invoke(()));
 
         *should_close
     }
