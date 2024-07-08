@@ -1828,6 +1828,12 @@ where
             attrs.preferred_theme = Some((*theme_mode).into());
         }
         attrs.title = settings.title.get();
+        if attrs.inner_size.is_none() {
+            let dynamic_inner = settings.inner_size.get();
+            if !dynamic_inner.is_zero() {
+                attrs.inner_size = Some(winit::dpi::Size::Physical(dynamic_inner.into()));
+            }
+        }
         attrs
     }
 

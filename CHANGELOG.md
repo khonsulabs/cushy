@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   persist function.
 - Fixed a deadlock that could occur when multiple threads were attempting to
   execute change callbacks for the same dynamic at the same time.
+- The initial `inner_size` of a `Window` is now used if it is non-zero and
+  `WindowAttributes::inner_size` is `None`.
 
 ### Added
 
