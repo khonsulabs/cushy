@@ -1795,6 +1795,10 @@ where
         context.settings.borrow().multisample_count
     }
 
+    fn memory_hints(_context: &Self::Context) -> wgpu::MemoryHints {
+        wgpu::MemoryHints::MemoryUsage
+    }
+
     fn focus_changed(
         &mut self,
         window: kludgine::app::Window<'_, WindowCommand>,
@@ -2667,7 +2671,7 @@ impl CushyWindow {
     /// commands were submitted.
     pub fn render(
         &mut self,
-        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        pass: &wgpu::RenderPassDescriptor<'_>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<wgpu::SubmissionIndex> {
@@ -2680,7 +2684,7 @@ impl CushyWindow {
     /// commands were submitted.
     pub fn render_with(
         &mut self,
-        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        pass: &wgpu::RenderPassDescriptor<'_>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         additional_drawing: Option<&Drawing>,
@@ -2876,7 +2880,7 @@ impl VirtualWindow {
     /// commands were submitted.
     pub fn render(
         &mut self,
-        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        pass: &wgpu::RenderPassDescriptor<'_>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<wgpu::SubmissionIndex> {
@@ -2889,7 +2893,7 @@ impl VirtualWindow {
     /// commands were submitted.
     pub fn render_with(
         &mut self,
-        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        pass: &wgpu::RenderPassDescriptor<'_>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         additional_drawing: Option<&Drawing>,
@@ -3298,6 +3302,7 @@ where
                 label: None,
                 required_features: Kludgine::REQURED_FEATURES,
                 required_limits: Kludgine::adjust_limits(wgpu::Limits::downlevel_webgl2_defaults()),
+                memory_hints: wgpu::MemoryHints::MemoryUsage,
             },
             None,
         ))?;

@@ -22,8 +22,10 @@ tokio = ["dep:tokio"]
 tokio-multi-thread = ["tokio", "tokio/rt-multi-thread"]
 
 [dependencies]
-kludgine = { version = "0.8.0", features = ["app"] }
-figures = { version = "0.3.0" }
+kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
+    "app",
+] }
+figures = { git = "https://github.com/khonsulabs/figures" }
 alot = "0.3"
 interner = "0.2.1"
 kempt = "0.2.1"
