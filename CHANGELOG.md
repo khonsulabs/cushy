@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking Changes
 
+- Dependency `kludgine` has been updated to `v0.9.0`, which updates Cushy to
+  `wgpu` v22.0.0. This change has raised Cushy's minimum supported Rust version
+  (MSRV) to `1.79.0`.
 - `Source::for_each_*` now invoke the callback with the current contents of of
   the source before attaching the callback. New functions beginning with
   `for_each_subsequent_` have been added with the original behavior.
