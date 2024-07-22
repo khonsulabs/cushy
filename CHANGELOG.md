@@ -12,8 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Breaking Changes
 
 - Dependency `kludgine` has been updated to `v0.9.0`, which updates Cushy to
-  `wgpu` v22.0.0. This change has raised Cushy's minimum supported Rust version
-  (MSRV) to `1.79.0`.
+  `wgpu v22.0.0` and `cosmic-text v0.12.0`.
+- At some point, a dependency of the current `image` dependency has been updated
+  with a minimum supported Rust version (MSRV) of `1.79.0`. This is Cushy's new
+  MSRV to reflect this requirement.
 - `Source::for_each_*` now invoke the callback with the current contents of of
   the source before attaching the callback. New functions beginning with
   `for_each_subsequent_` have been added with the original behavior.
