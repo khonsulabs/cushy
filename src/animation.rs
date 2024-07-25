@@ -49,7 +49,7 @@ use std::time::{Duration, Instant};
 
 use alot::{LotId, Lots};
 use figures::units::{Lp, Px, UPx};
-use figures::{Angle, Point, Ranged, Rect, Size, UnscaledUnit, Zero};
+use figures::{Angle, Fraction, Point, Ranged, Rect, Size, UnscaledUnit, Zero};
 use intentional::Cast;
 use kempt::Set;
 use kludgine::Color;
@@ -883,6 +883,11 @@ impl LinearInterpolate for f64 {
         *self + delta * f64::from(percent)
     }
 }
+impl LinearInterpolate for Fraction {
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        Fraction::from(self.into_f32().lerp(&target.into_f32(), percent))
+    }
+}
 
 impl LinearInterpolate for Angle {
     fn lerp(&self, target: &Self, percent: f32) -> Self {
@@ -1127,6 +1132,13 @@ impl PercentBetween for Color {
         } else {
             ZeroToOne::ZERO
         }
+    }
+}
+
+impl PercentBetween for Fraction {
+    fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+        self.into_f32()
+            .percent_between(&min.into_f32(), &max.into_f32())
     }
 }
 

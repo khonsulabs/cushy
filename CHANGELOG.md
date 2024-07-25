@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   true, the window is allowed to be closed. If false is returned, the window
   will remain open. This feature is most commonly used to prevent losing unsaved
   changes.
+- `Fraction` now has `LinearInterpolation` and `PercentBetween` implementations.
+- `Window::zoom` allows setting a `Dynamic<Fraction>` that scales all DPI-scaled
+  operations by an additional scaling factor.
 
 ## v0.3.0 (2024-05-12)
 

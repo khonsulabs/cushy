@@ -56,7 +56,8 @@ use crate::styles::{Edges, FontFamilyList, ThemePair};
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{
-    Destination, Dynamic, DynamicReader, Generation, IntoDynamic, IntoValue, Source, Value,
+    Destination, Dynamic, DynamicRead, DynamicReader, Generation, IntoDynamic, IntoValue, Source,
+    Value,
 };
 use crate::widget::{
     Callback, EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, WidgetId,
@@ -499,6 +500,7 @@ where
 
     on_closed: Option<OnceCallback>,
     inner_size: Option<Dynamic<Size<UPx>>>,
+    zoom: Option<Dynamic<Fraction>>,
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
     theme_mode: Option<Value<ThemeMode>>,
@@ -577,6 +579,7 @@ where
             multisample_count: NonZeroU32::new(4).assert("not 0"),
             vsync: true,
             close_requested: None,
+            zoom: None,
         }
     }
 
@@ -610,7 +613,7 @@ where
         self
     }
 
-    /// Sets `inner_size` to be the dynamic syncrhonized with this window's
+    /// Sets `inner_size` to be the dynamic synchronized with this window's
     /// inner size.
     ///
     /// When the window is resized, the dynamic will contain its new size. When
@@ -619,6 +622,15 @@ where
     pub fn inner_size(mut self, inner_size: impl IntoDynamic<Size<UPx>>) -> Self {
         let inner_size = inner_size.into_dynamic();
         self.inner_size = Some(inner_size);
+        self
+    }
+
+    /// Sets this window's `zoom` factor.
+    ///
+    /// The zoom factor is multiplied with the DPI scaling from the window
+    /// server to allow an additional scaling factor to be applied.
+    pub fn zoom(mut self, zoom: impl IntoDynamic<Fraction>) -> Self {
+        self.zoom = Some(zoom.into_dynamic().map_each_into());
         self
     }
 
@@ -729,6 +741,7 @@ where
                     vsync: self.vsync,
                     multisample_count: self.multisample_count,
                     close_requested: self.close_requested.map(|cb| Arc::new(Mutex::new(cb))),
+                    zoom: self.zoom.unwrap_or_else(|| Dynamic::new(Fraction::ONE)),
                 }),
             },
         )?;
@@ -808,6 +821,9 @@ struct OpenWindow<T> {
     cushy: Cushy,
     on_closed: Option<OnceCallback>,
     vsync: bool,
+    dpi_scale: Dynamic<Fraction>,
+    zoom: Dynamic<Fraction>,
+    zoom_generation: Generation,
     close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
 }
 
@@ -1172,6 +1188,8 @@ where
         let on_closed = settings.on_closed.take();
         let close_requested = settings.close_requested.take();
         let vsync = settings.vsync;
+        let zoom = settings.zoom.clone();
+        let dpi_scale = Dynamic::new(graphics.dpi_scale());
 
         inner_size.set(window.inner_size());
 
@@ -1229,6 +1247,9 @@ where
             on_closed,
             vsync,
             close_requested,
+            dpi_scale,
+            zoom_generation: zoom.generation(),
+            zoom,
         }
     }
 
@@ -1247,8 +1268,16 @@ where
 
         self.redraw_status.refresh_received();
         graphics.reset_text_attributes();
+        let zoom = self.zoom.read();
+        if zoom.generation() != self.zoom_generation {
+            graphics.set_zoom(*zoom);
+            self.redraw_status.invalidate(self.root.id());
+        }
+
         self.tree
             .new_frame(self.redraw_status.invalidations().drain());
+
+        drop(zoom);
 
         let resizable = window.is_resizable() || self.resize_to_fit;
         let mut window = RunningWindow::new(
@@ -1892,7 +1921,14 @@ where
 
     // fn occlusion_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 
-    // fn scale_factor_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
+    fn scale_factor_changed(
+        &mut self,
+        mut window: kludgine::app::Window<'_, WindowCommand>,
+        kludgine: &mut Kludgine,
+    ) {
+        self.dpi_scale.set(kludgine.dpi_scale());
+        window.set_needs_redraw();
+    }
 
     fn resized(
         &mut self,
@@ -2055,7 +2091,7 @@ pub(crate) mod sealed {
     use std::sync::Arc;
 
     use figures::units::UPx;
-    use figures::{Point, Size};
+    use figures::{Fraction, Point, Size};
     use image::DynamicImage;
     use kludgine::Color;
     use parking_lot::Mutex;
@@ -2081,6 +2117,7 @@ pub(crate) mod sealed {
         pub occluded: Dynamic<bool>,
         pub focused: Dynamic<bool>,
         pub inner_size: Dynamic<Size<UPx>>,
+        pub zoom: Dynamic<Fraction>,
         pub theme: Option<Value<ThemePair>>,
         pub theme_mode: Option<Value<ThemeMode>>,
         pub transparent: bool,
@@ -2441,7 +2478,7 @@ impl VirtualState {
 
 /// Window state that is able to be updated outside of event handling,
 /// potentially via other threads depending on the application.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct WindowDynamicState {
     /// The target of the next frame to draw.
     pub redraw_target: Dynamic<RedrawTarget>,
@@ -2451,6 +2488,16 @@ pub struct WindowDynamicState {
     pub close_requested: Dynamic<bool>,
     /// The current title of the window.
     pub title: Dynamic<String>,
+}
+
+impl Default for WindowDynamicState {
+    fn default() -> Self {
+        Self {
+            redraw_target: Default::default(),
+            close_requested: Default::default(),
+            title: Default::default(),
+        }
+    }
 }
 
 /// A target for the next redraw of a window.
@@ -2530,6 +2577,7 @@ pub struct CushyWindowBuilder {
     initial_size: Size<UPx>,
     scale: f32,
     transparent: bool,
+    zoom: Dynamic<Fraction>,
 }
 
 impl CushyWindowBuilder {
@@ -2541,6 +2589,7 @@ impl CushyWindowBuilder {
             multisample_count: NonZeroU32::new(4).assert("not 0"),
             initial_size: Size::new(UPx::new(800), UPx::new(600)),
             scale: 1.,
+            zoom: Dynamic::new(Fraction::ONE),
             transparent: false,
         }
     }
@@ -2621,6 +2670,7 @@ impl CushyWindowBuilder {
                 vsync: false,
                 multisample_count: self.multisample_count,
                 close_requested: None,
+                zoom: self.zoom,
             },
         );
 
@@ -2757,13 +2807,24 @@ impl CushyWindow {
     }
 
     /// Returns the current DPI scale of the window.
-    pub const fn scale(&self) -> Fraction {
+    pub const fn dpi_scale(&self) -> Fraction {
+        self.kludgine.dpi_scale()
+    }
+
+    /// Returns the effective scale of the window.
+    pub fn effective_scale(&self) -> Fraction {
         self.kludgine.scale()
     }
 
     /// Updates the dimensions and DPI scaling of the window.
-    pub fn resize(&mut self, new_size: Size<UPx>, new_scale: impl Into<f32>, queue: &wgpu::Queue) {
-        self.kludgine.resize(new_size, new_scale.into(), queue);
+    pub fn resize(
+        &mut self,
+        new_size: Size<UPx>,
+        new_scale: impl Into<Fraction>,
+        new_zoom: impl Into<Fraction>,
+        queue: &wgpu::Queue,
+    ) {
+        self.kludgine.resize(new_size, new_scale, new_zoom, queue);
         self.window.resized(new_size);
     }
 
@@ -2971,13 +3032,19 @@ impl VirtualWindow {
     }
 
     /// Returns the current DPI scale of the window.
-    pub const fn scale(&self) -> Fraction {
-        self.cushy.scale()
+    pub const fn dpi_scale(&self) -> Fraction {
+        self.cushy.dpi_scale()
     }
 
     /// Updates the dimensions and DPI scaling of the window.
-    pub fn resize(&mut self, new_size: Size<UPx>, new_scale: impl Into<f32>, queue: &wgpu::Queue) {
-        self.cushy.resize(new_size, new_scale.into(), queue);
+    pub fn resize(
+        &mut self,
+        new_size: Size<UPx>,
+        new_scale: impl Into<Fraction>,
+        queue: &wgpu::Queue,
+    ) {
+        self.cushy
+            .resize(new_size, new_scale, self.cushy.kludgine.zoom(), queue);
     }
 
     /// Provide keyboard input to this virtual window.
@@ -3431,7 +3498,7 @@ where
     fn redraw(&mut self) {
         let mut render_size = self.window.size().ceil();
         if self.window.state.size != render_size {
-            let current_scale = self.window.scale();
+            let current_scale = self.window.dpi_scale();
             self.window
                 .resize(self.window.state.size, current_scale, &self.queue);
             render_size = self.window.state.size;
