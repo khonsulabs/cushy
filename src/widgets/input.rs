@@ -881,9 +881,6 @@ where
                 };
             }
 
-            // Make relative be relative to the center of the glyph for a nearest search.
-            let relative = relative + rect.size / 2;
-
             let line_height = cache.measured.line_height.get();
             if relative.y < 0 || relative.y >= line_height {
                 continue;
@@ -897,7 +894,7 @@ where
                 )
                 .saturating_abs();
             let cursor = Cursor {
-                offset: if relative.x <= rect.size.width / 3 {
+                offset: if dbg!(relative.x) <= rect.size.width / 3 {
                     glyph.info.start
                 } else {
                     glyph.info.end
