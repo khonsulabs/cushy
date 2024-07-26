@@ -1,8 +1,8 @@
+use cushy::figures::Fraction;
 use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::slider::Slidable;
 use cushy::Run;
-use figures::Fraction;
 
 fn main() -> cushy::Result<()> {
     let zoom = Dynamic::new(Fraction::ONE);

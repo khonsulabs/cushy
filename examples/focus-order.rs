@@ -1,12 +1,12 @@
 use std::process::exit;
 
+use cushy::figures::units::Lp;
 use cushy::value::{Dynamic, MapEach, Source};
 use cushy::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
 use cushy::widgets::grid::{Grid, GridDimension, GridWidgets};
 use cushy::widgets::input::{InputValue, MaskedString};
 use cushy::widgets::Expand;
 use cushy::Run;
-use figures::units::Lp;
 
 /// This example is the same as login, but it has an explicit tab order to
 /// change from the default order (username, password, cancel, log in) to

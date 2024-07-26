@@ -1,5 +1,7 @@
 use std::fmt::Write;
 
+use cushy::figures::units::Lp;
+use cushy::kludgine::Color;
 use cushy::styles::components::{TextColor, TextSize, WidgetBackground};
 use cushy::styles::{
     ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, Dimension, FixedTheme, SurfaceTheme,
@@ -14,8 +16,6 @@ use cushy::widgets::slider::Slidable;
 use cushy::widgets::Space;
 use cushy::window::ThemeMode;
 use cushy::{Cushy, Open, PendingApp};
-use figures::units::Lp;
-use kludgine::Color;
 use palette::OklabHue;
 
 fn main() -> cushy::Result {

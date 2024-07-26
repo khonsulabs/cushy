@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use cushy::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn};
+use cushy::figures::units::Lp;
 use cushy::value::{Destination, Dynamic};
 use cushy::widget::MakeWidget;
 use cushy::widgets::button::ButtonClick;
 use cushy::widgets::progress::Progressable;
 use cushy::{Run, WithClone};
-use figures::units::Lp;
 
 fn main() -> cushy::Result {
     let animation = Dynamic::new(AnimationHandle::new());

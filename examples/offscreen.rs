@@ -1,6 +1,6 @@
+use cushy::figures::Size;
 use cushy::widget::MakeWidget;
 use cushy::window::VirtualRecorderError;
-use figures::Size;
 
 #[macro_use]
 mod shared;

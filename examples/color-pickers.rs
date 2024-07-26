@@ -1,11 +1,11 @@
+use cushy::figures::units::Lp;
+use cushy::figures::Size;
 use cushy::styles::Hsla;
 use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::color::{HslaPicker, RgbaPicker};
 use cushy::widgets::Space;
 use cushy::Run;
-use figures::units::Lp;
-use figures::Size;
 use kludgine::Color;
 
 fn main() -> cushy::Result {

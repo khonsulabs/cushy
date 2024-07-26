@@ -1,8 +1,8 @@
+use cushy::figures::units::Lp;
 use cushy::value::{Destination, Dynamic, Validations};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::Run;
-use figures::units::Lp;
 
 fn main() -> cushy::Result {
     let text = Dynamic::default();

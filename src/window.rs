@@ -19,7 +19,7 @@ use alot::LotId;
 use arboard::Clipboard;
 use figures::units::{Px, UPx};
 use figures::{
-    Fraction, IntoSigned, IntoUnsigned, Point, Ranged, Rect, Round, ScreenScale, Size, Zero,
+    Fraction, IntoSigned, IntoUnsigned, Point, Ranged, Rect, Round, ScreenScale, Size, UPx2D, Zero,
 };
 use image::{DynamicImage, RgbImage, RgbaImage};
 use intentional::{Assert, Cast};
@@ -2471,7 +2471,7 @@ impl VirtualState {
             modifiers: Modifiers::default(),
             elapsed: Duration::ZERO,
             cursor: Cursor::default(),
-            size: Size::new(UPx::new(800), UPx::new(600)),
+            size: Size::upx(800, 600),
         }
     }
 }
@@ -2587,7 +2587,7 @@ impl StandaloneWindowBuilder {
         Self {
             widget: contents.make_widget(),
             multisample_count: NonZeroU32::new(4).assert("not 0"),
-            initial_size: Size::new(UPx::new(800), UPx::new(600)),
+            initial_size: Size::upx(800, 600),
             scale: 1.,
             zoom: Dynamic::new(Fraction::ONE),
             transparent: false,
@@ -3206,7 +3206,7 @@ impl VirtualRecorderBuilder<Rgb8> {
     pub fn new(contents: impl MakeWidget) -> Self {
         Self {
             contents: contents.make_widget(),
-            size: Size::new(UPx::new(800), UPx::new(600)),
+            size: Size::upx(800, 600),
             scale: 1.0,
             format: PhantomData,
             resize_to_fit: false,

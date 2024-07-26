@@ -1,10 +1,10 @@
+use cushy::figures::units::Lp;
+use cushy::kludgine::Color;
 use cushy::styles::components::{TextColor, TextSize};
 use cushy::widget::MakeWidget;
 use cushy::widgets::stack::Stack;
 use cushy::widgets::Style;
 use cushy::Run;
-use figures::units::Lp;
-use kludgine::Color;
 
 fn main() -> cushy::Result {
     Stack::rows("Green".and(red_text("Red")))

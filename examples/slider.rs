@@ -1,12 +1,12 @@
 use cushy::animation::{LinearInterpolate, PercentBetween};
+use cushy::figures::units::Lp;
+use cushy::figures::Ranged;
 use cushy::value::{Destination, Dynamic, ForEach, IntoReader, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::checkbox::Checkable;
 use cushy::widgets::input::InputValue;
 use cushy::widgets::slider::Slidable;
 use cushy::Run;
-use figures::units::Lp;
-use figures::Ranged;
 
 fn main() -> cushy::Result {
     let enabled = Dynamic::new(true);

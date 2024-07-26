@@ -1,10 +1,10 @@
+use cushy::figures::units::Lp;
 use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::Custom;
 use cushy::Run;
-use figures::units::Lp;
 
 fn main() -> cushy::Result {
     let allow_blur = Dynamic::new(true);
