@@ -224,13 +224,17 @@ impl Widget for Container {
             let shadow = self
                 .shadow
                 .get_tracking_invalidate(context)
-                .into_px(context.gfx.scale());
+                .into_px(context.gfx.scale())
+                .ceil();
 
-            let child_shadow_offset = shadow.offset.min(Point::ZERO).abs();
+            let child_shadow_offset = shadow.offset.min(Point::ZERO).abs().ceil();
             let child_size = context.gfx.region().size - shadow.spread * 2 - shadow.offset.abs();
             let child_area = Rect::new(child_shadow_offset + shadow.spread, child_size);
 
-            let corner_radii = context.get(&CornerRadius).into_px(context.gfx.scale());
+            let corner_radii = context
+                .get(&CornerRadius)
+                .into_px(context.gfx.scale())
+                .ceil();
 
             // check if the shadow would be obscured before we try to draw it.
             if child_area.origin != Point::ZERO || child_size != context.gfx.region().size {
@@ -255,15 +259,18 @@ impl Widget for Container {
     ) -> Size<UPx> {
         let child = self.child.mounted(context);
 
-        let corner_radii = context.get(&CornerRadius).into_upx(context.gfx.scale());
+        let corner_radii = context
+            .get(&CornerRadius)
+            .into_upx(context.gfx.scale())
+            .ceil();
 
         let max_space = available_space.map(ConstraintLimit::max);
         let min_dimension = max_space.width.min(max_space.height);
-        let max_corner_radii = min_dimension / 2;
+        let max_corner_radii = (min_dimension / 2).floor();
 
         let corner_radii = corner_radii.map(|r| r.min(max_corner_radii));
 
-        let mut padding = self.padding(context).into_upx(context.gfx.scale());
+        let mut padding = self.padding(context).into_upx(context.gfx.scale()).ceil();
         padding.left = padding
             .left
             .max(corner_radii.top_left / std::f32::consts::PI)
@@ -285,7 +292,8 @@ impl Widget for Container {
         let shadow = self
             .shadow
             .get_tracking_invalidate(context)
-            .into_px(context.gfx.scale());
+            .into_px(context.gfx.scale())
+            .ceil();
         let shadow_spread = shadow.spread.into_unsigned();
 
         let child_shadow_offset_amount = shadow.offset.abs().into_unsigned();
@@ -733,6 +741,38 @@ impl<Unit> ContainerShadow<Unit> {
     pub fn spread(mut self, spread: Unit) -> Self {
         self.spread = spread;
         self
+    }
+}
+
+impl<Unit> Round for ContainerShadow<Unit>
+where
+    Unit: Round,
+{
+    fn round(self) -> Self {
+        Self {
+            color: self.color,
+            offset: self.offset.round(),
+            blur_radius: self.blur_radius.round(),
+            spread: self.spread.round(),
+        }
+    }
+
+    fn ceil(self) -> Self {
+        Self {
+            color: self.color,
+            offset: self.offset.ceil(),
+            blur_radius: self.blur_radius.ceil(),
+            spread: self.spread.ceil(),
+        }
+    }
+
+    fn floor(self) -> Self {
+        Self {
+            color: self.color,
+            offset: self.offset.floor(),
+            blur_radius: self.blur_radius.floor(),
+            spread: self.spread.floor(),
+        }
     }
 }
 

@@ -1290,7 +1290,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.9.0"
-source = "git+https://github.com/khonsulabs/kludgine#eca1ac5d3a9dead20c9c94fb849a4e2bf7719654"
+source = "git+https://github.com/khonsulabs/kludgine#3a33c18c2875146371c5f483dcb80e2b4ca5a7da"
 dependencies = [
  "ahash",
  "alot",
@@ -3126,9 +3126,9 @@ checksum = "852e951cb7832cb45cb1169900d19760cfa39b82bc0ea9c0e5a14ae88411c98b"
 
 [[package]]
 name = "version_check"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "walkdir"

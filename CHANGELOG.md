@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   execute change callbacks for the same dynamic at the same time.
 - The initial `inner_size` of a `Window` is now used if it is non-zero and
   `WindowAttributes::inner_size` is `None`.
+- Container's layout and drawing functions now properly round up/down the
+  measurements to ensure accurate rendering. Fixes [#158][158].
+
+[158]: https://github.com/khonsulabs/cushy/issues/158
 
 ### Added
 
@@ -46,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Fraction` now has `LinearInterpolation` and `PercentBetween` implementations.
 - `Window::zoom` allows setting a `Dynamic<Fraction>` that scales all DPI-scaled
   operations by an additional scaling factor.
+- `Edges` and `ContainerShadow` now implement `figures::Round`.
 
 ## v0.3.0 (2024-05-12)
 
