@@ -181,7 +181,7 @@ impl Tree {
 
             let mut index = 0;
             while index < unordered.len() {
-                let layout = match &data.nodes[unordered[index]].layout {
+                let layout = match data.nodes.get(unordered[index]).and_then(|n| n.layout) {
                     Some(layout) if layout.size.width > 0 && layout.size.height > 0 => layout,
                     _ => {
                         unordered.remove(index);
