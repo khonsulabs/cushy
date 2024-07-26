@@ -833,7 +833,7 @@ where
             .round();
         let mut location = location - padding;
         if location.y < 0 {
-            location.y = Px::ZERO;
+            return Cursor::default();
         }
         if location.x < 0 {
             location.x = Px::ZERO;
@@ -885,6 +885,9 @@ where
             let relative = relative + rect.size / 2;
 
             let line_height = cache.measured.line_height.get();
+            if relative.y >= line_height {
+                continue;
+            }
             let xy = relative
                 .x
                 .get()

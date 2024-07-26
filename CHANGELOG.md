@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `WindowAttributes::inner_size` is `None`.
 - Container's layout and drawing functions now properly round up/down the
   measurements to ensure accurate rendering. Fixes [#158][158].
+- `Input` selection handling when dragging below or above the text field is now
+  handled correctly.
 
 [158]: https://github.com/khonsulabs/cushy/issues/158
 
