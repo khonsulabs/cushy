@@ -894,7 +894,7 @@ where
                 )
                 .saturating_abs();
             let cursor = Cursor {
-                offset: if dbg!(relative.x) <= rect.size.width / 3 {
+                offset: if relative.x <= rect.size.width / 3 {
                     glyph.info.start
                 } else {
                     glyph.info.end
