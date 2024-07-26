@@ -885,7 +885,7 @@ where
             let relative = relative + rect.size / 2;
 
             let line_height = cache.measured.line_height.get();
-            if relative.y >= line_height {
+            if relative.y < 0 || relative.y >= line_height {
                 continue;
             }
             let xy = relative
@@ -897,7 +897,7 @@ where
                 )
                 .saturating_abs();
             let cursor = Cursor {
-                offset: if relative.x < 0 || relative.y < 0 {
+                offset: if relative.x <= 0 {
                     glyph.info.start
                 } else {
                     glyph.info.end
