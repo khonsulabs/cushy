@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Source::for_each_*` now invoke the callback with the current contents of of
   the source before attaching the callback. New functions beginning with
   `for_each_subsequent_` have been added with the original behavior.
+- `CushyWindowBuilder` has been renamed to `StandaloneWindowBuilder` and
+  `MakeWidget::build_virtual_window` has been renamed to
+  `build_standalone_window`.
 
 ### Fixed
 

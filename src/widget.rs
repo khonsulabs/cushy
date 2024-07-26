@@ -46,8 +46,8 @@ use crate::widgets::{
 };
 use crate::window::sealed::WindowCommand;
 use crate::window::{
-    CushyWindowBuilder, DeviceId, KeyEvent, Rgb8, RunningWindow, ThemeMode, VirtualRecorderBuilder,
-    Window, WindowBehavior, WindowHandle, WindowLocal,
+    DeviceId, KeyEvent, Rgb8, RunningWindow, StandaloneWindowBuilder, ThemeMode,
+    VirtualRecorderBuilder, Window, WindowBehavior, WindowHandle, WindowLocal,
 };
 use crate::ConstraintLimit;
 
@@ -919,10 +919,13 @@ pub trait MakeWidget: Sized {
         Window::new(self.make_widget())
     }
 
-    /// Returns a builder for a [`VirtualWindow`](crate::window::VirtualWindow)
-    /// or a [`CushyWindow`](crate::window::CushyWindow).
-    fn build_virtual_window(self) -> CushyWindowBuilder {
-        CushyWindowBuilder::new(self)
+    /// Returns a builder for a standalone window.
+    ///
+    /// A standalone window can be either a
+    /// [`VirtualWindow`](crate::window::VirtualWindow) or a
+    /// [`CushyWindow`](crate::window::CushyWindow).
+    fn build_standalone_window(self) -> StandaloneWindowBuilder {
+        StandaloneWindowBuilder::new(self)
     }
 
     /// Returns a builder for a [`VirtualRecorder`](crate::window::VirtualRecorder)

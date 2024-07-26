@@ -2570,8 +2570,8 @@ impl PlatformWindowImplementation for &mut VirtualState {
     }
 }
 
-/// A builder for a [`VirtualWindow`] or a [`CushyWindow`].
-pub struct CushyWindowBuilder {
+/// A builder that creates either a [`VirtualWindow`] or a [`CushyWindow`].
+pub struct StandaloneWindowBuilder {
     widget: WidgetInstance,
     multisample_count: NonZeroU32,
     initial_size: Size<UPx>,
@@ -2580,7 +2580,7 @@ pub struct CushyWindowBuilder {
     zoom: Dynamic<Fraction>,
 }
 
-impl CushyWindowBuilder {
+impl StandaloneWindowBuilder {
     /// Returns a new builder for a standalone window that contains `contents`.
     #[must_use]
     pub fn new(contents: impl MakeWidget) -> Self {
@@ -3375,7 +3375,7 @@ where
         ))?;
 
         let window = contents
-            .build_virtual_window()
+            .build_standalone_window()
             .size(size)
             .scale(scale)
             .transparent()
