@@ -21,8 +21,7 @@ fn runs() {
     use std::time::Duration;
 
     use cushy::animation::easings::EaseInOutSine;
-    use cushy::figures::units::Px;
-    use cushy::figures::Point;
+    use cushy::figures::{Point, Px2D};
     use kludgine::app::winit::event::MouseButton;
 
     cushy::example!(disclose, 600, 300)
