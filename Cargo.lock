@@ -762,7 +762,8 @@ checksum = "f25c0e292a7ca6d6498557ff1df68f32c99850012b6ea401cf8daf771f22ff53"
 [[package]]
 name = "easing-function"
 version = "0.1.0"
-source = "git+https://github.com/khonsulabs/easing-function#12a233464b0142d86c68d474598befa1d0298031"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5699e572f2ece3d6ea49a528341097d26117751ea0a8ed3adab747bb6e96c480"
 
 [[package]]
 name = "either"
