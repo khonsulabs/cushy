@@ -37,17 +37,16 @@
 //! assert_eq!(reader.get(), 100);
 //! ```
 
-pub mod easings;
-
 use std::cmp::Ordering;
 use std::fmt::{Debug, Display};
 use std::ops::{ControlFlow, Deref, Div, DivAssign, Mul, MulAssign, Sub};
 use std::str::FromStr;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use alot::{LotId, Lots};
+pub use easing_function::*;
 use figures::units::{Lp, Px, UPx};
 use figures::{Angle, Fraction, Point, Ranged, Rect, Size, UnscaledUnit, Zero};
 use intentional::Cast;
@@ -478,9 +477,9 @@ where
             self.target.finish();
             ControlFlow::Break(remaining_elapsed)
         } else {
-            let progress = self.easing.ease(ZeroToOne::new(
-                self.elapsed.as_secs_f32() / self.duration.as_secs_f32(),
-            ));
+            let progress = self
+                .easing
+                .ease(self.elapsed.as_secs_f32() / self.duration.as_secs_f32());
             self.target.update(progress);
             ControlFlow::Continue(())
         }
@@ -828,6 +827,12 @@ pub use cushy_macros::LinearInterpolate;
 macro_rules! impl_lerp_for_int {
     ($type:ident, $unsigned:ident, $float:ident) => {
         impl LinearInterpolate for $type {
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                clippy::cast_precision_loss,
+                clippy::cast_lossless
+            )]
             fn lerp(&self, target: &Self, percent: f32) -> Self {
                 let percent = $float::from(percent);
                 let delta = target.abs_diff(*self);
@@ -845,6 +850,12 @@ macro_rules! impl_lerp_for_int {
 macro_rules! impl_lerp_for_uint {
     ($type:ident, $float:ident) => {
         impl LinearInterpolate for $type {
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                clippy::cast_precision_loss,
+                clippy::cast_lossless
+            )]
             fn lerp(&self, target: &Self, percent: f32) -> Self {
                 let percent = $float::from(percent);
                 if let Some(delta) = target.checked_sub(*self) {
@@ -1070,6 +1081,12 @@ pub trait PercentBetween {
 macro_rules! impl_percent_between {
     ($type:ident, $float:ident, $sub:ident) => {
         impl PercentBetween for $type {
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                clippy::cast_precision_loss,
+                clippy::cast_lossless
+            )]
             fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
                 assert!(min <= max, "percent_between requires min <= max");
                 assert!(
@@ -1451,24 +1468,6 @@ fn zero_to_one_div() {
     assert_eq!(ZeroToOne::ONE / -0.5, ZeroToOne::ONE);
 }
 
-/// An easing function for customizing animations.
-#[derive(Debug, Clone)]
-pub enum EasingFunction {
-    /// A function pointer to use as an easing function.
-    Fn(fn(ZeroToOne) -> f32),
-    /// A custom easing implementation.
-    Custom(Arc<dyn Easing>),
-}
-
-impl Easing for EasingFunction {
-    fn ease(&self, progress: ZeroToOne) -> f32 {
-        match self {
-            EasingFunction::Fn(func) => func(progress),
-            EasingFunction::Custom(func) => func.ease(progress),
-        }
-    }
-}
-
 impl From<EasingFunction> for Component {
     fn from(value: EasingFunction) -> Self {
         Component::Easing(value)
@@ -1490,21 +1489,4 @@ impl RequireInvalidation for EasingFunction {
     fn requires_invalidation(&self) -> bool {
         false
     }
-}
-
-impl PartialEq for EasingFunction {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Fn(l0), Self::Fn(r0)) => l0 == r0,
-            (Self::Custom(l0), Self::Custom(r0)) => Arc::ptr_eq(l0, r0),
-            _ => false,
-        }
-    }
-}
-
-/// Performs easing for value interpolation.
-pub trait Easing: Debug + Send + Sync + 'static {
-    /// Eases a value ranging between zero and one. The resulting value does not
-    /// need to be bounded between zero and one.
-    fn ease(&self, progress: ZeroToOne) -> f32;
 }

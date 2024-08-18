@@ -48,6 +48,7 @@ image = { version = "0.25.0", features = ["png"] }
 plotters = { version = "0.3.5", default-features = false, optional = true }
 nominals = "0.3.0"
 parking_lot = "0.12.1"
+easing-function = { git = "https://github.com/khonsulabs/easing-function" }
 
 
 # [patch.crates-io]

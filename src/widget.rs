@@ -1129,6 +1129,15 @@ pub trait MakeWidget: Sized {
         children
     }
 
+    /// Chains `self` and `others` into a [`WidgetList`].
+    fn chain<W: MakeWidget>(self, others: impl IntoIterator<Item = W>) -> WidgetList {
+        let others = others.into_iter();
+        let mut widgets = WidgetList::with_capacity(others.size_hint().0 + 1);
+        widgets.push(self);
+        widgets.extend(others);
+        widgets
+    }
+
     /// Expands `self` to grow to fill its parent.
     #[must_use]
     fn expand(self) -> Expand {
@@ -1616,7 +1625,7 @@ pub struct Callback<T = (), R = ()>(Box<dyn CallbackFunction<T, R>>);
 impl<T, R> Debug for Callback<T, R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Callback")
-            .field(&(self as *const Self))
+            .field(&std::ptr::from_ref::<Self>(self))
             .finish()
     }
 }
@@ -1666,7 +1675,7 @@ pub struct OnceCallback<T = (), R = ()>(Box<dyn OnceCallbackFunction<T, R>>);
 impl<T, R> Debug for OnceCallback<T, R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("OnceCallback")
-            .field(&(self as *const Self))
+            .field(&std::ptr::from_ref::<Self>(self))
             .finish()
     }
 }
@@ -1992,6 +2001,16 @@ impl WidgetList {
         W: MakeWidget,
     {
         self.push(widget);
+        self
+    }
+
+    /// Chains `self` and `others` into a [`WidgetList`].
+    pub fn chain<T, Iter>(mut self, iter: Iter) -> Self
+    where
+        Iter: IntoIterator<Item = T>,
+        T: MakeWidget,
+    {
+        self.extend(iter);
         self
     }
 

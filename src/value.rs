@@ -432,9 +432,9 @@ pub trait Destination<T> {
     /// # Errors
     ///
     /// - [`ReplaceError::NoChange`]: Returned when `new_value` is equal to the
-    /// currently stored value.
+    ///     currently stored value.
     /// - [`ReplaceError::Deadlock`]: Returned when the current thread already
-    ///       has exclusive access to the contents of this dynamic.
+    ///     has exclusive access to the contents of this dynamic.
     fn try_replace(&self, new_value: T) -> Result<T, ReplaceError<T>>
     where
         T: PartialEq,

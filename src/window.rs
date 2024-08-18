@@ -268,6 +268,7 @@ impl<W> RunningWindow<W>
 where
     W: PlatformWindowImplementation,
 {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         window: W,
         kludgine_id: KludgineId,
@@ -1253,12 +1254,7 @@ where
         }
     }
 
-    fn prepare<W>(&mut self, window: W, graphics: &mut kludgine::Graphics<'_>)
-    where
-        W: PlatformWindowImplementation,
-    {
-        let cushy = self.cushy.clone();
-        let _guard = cushy.enter_runtime();
+    fn new_frame(&mut self, graphics: &mut kludgine::Graphics<'_>) {
         if let Some(theme) = &mut self.theme {
             if theme.has_updated() {
                 self.current_theme = theme.get();
@@ -1278,6 +1274,16 @@ where
             .new_frame(self.redraw_status.invalidations().drain());
 
         drop(zoom);
+    }
+
+    fn prepare<W>(&mut self, window: W, graphics: &mut kludgine::Graphics<'_>)
+    where
+        W: PlatformWindowImplementation,
+    {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
+
+        self.new_frame(graphics);
 
         let resizable = window.is_resizable() || self.resize_to_fit;
         let mut window = RunningWindow::new(
@@ -2478,7 +2484,7 @@ impl VirtualState {
 
 /// Window state that is able to be updated outside of event handling,
 /// potentially via other threads depending on the application.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct WindowDynamicState {
     /// The target of the next frame to draw.
     pub redraw_target: Dynamic<RedrawTarget>,
@@ -2488,16 +2494,6 @@ pub struct WindowDynamicState {
     pub close_requested: Dynamic<bool>,
     /// The current title of the window.
     pub title: Dynamic<String>,
-}
-
-impl Default for WindowDynamicState {
-    fn default() -> Self {
-        Self {
-            redraw_target: Default::default(),
-            close_requested: Default::default(),
-            title: Default::default(),
-        }
-    }
 }
 
 /// A target for the next redraw of a window.

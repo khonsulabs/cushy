@@ -10,7 +10,7 @@ fn main() -> cushy::Result {
 
     // Create our label by using `map_each` to format the name, first checking
     // if it is empty.
-    let greeting: Dynamic<String> = name.map_each(|name| {
+    let greeting = name.map_each(|name| {
         let name = if name.is_empty() { "World" } else { name };
         format!("Hello, {name}!")
     });

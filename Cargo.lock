@@ -659,6 +659,7 @@ dependencies = [
  "alot",
  "arboard",
  "cushy-macros",
+ "easing-function",
  "figures",
  "image",
  "intentional",
@@ -750,6 +751,11 @@ name = "dpi"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f25c0e292a7ca6d6498557ff1df68f32c99850012b6ea401cf8daf771f22ff53"
+
+[[package]]
+name = "easing-function"
+version = "0.1.0"
+source = "git+https://github.com/khonsulabs/easing-function#ecaf4c9615dcb155019ebee8f553531ea725bda5"
 
 [[package]]
 name = "either"

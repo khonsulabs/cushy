@@ -1,11 +1,8 @@
-use std::time::Duration;
-
 use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::Canvas;
 use cushy::Run;
-use kludgine::app::winit::keyboard::{Key, NamedKey};
 use plotters::prelude::*;
 
 // This is copied from the sierpinski.rs example in the plotters repository.
@@ -55,6 +52,9 @@ fn main() -> cushy::Result<()> {
 
 #[test]
 fn runs() {
+    use std::time::Duration;
+
+    use kludgine::app::winit::keyboard::{Key, NamedKey};
     cushy::example!(plotters).animated(|r| {
         r.wait_for(Duration::from_millis(500)).unwrap();
         r.animate_keypress(
