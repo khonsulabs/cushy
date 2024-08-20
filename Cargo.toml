@@ -3,7 +3,7 @@ members = ["cushy-macros", "guide/guide-examples"]
 
 [package]
 name = "cushy"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "A wgpu-powered graphical user interface (GUI) library with a reactive data model"
 repository = "https://github.com/khonsulabs/cushy"
@@ -36,7 +36,7 @@ tracing-subscriber = { version = "0.3", optional = true, features = [
 ] }
 palette = "0.7.3"
 ahash = "0.8.6"
-cushy-macros = { version = "0.3.0", path = "cushy-macros" }
+cushy-macros = { version = "0.4.0", path = "cushy-macros" }
 arboard = "3.2.1"
 zeroize = "1.6.1"
 unicode-segmentation = "1.10.1"
