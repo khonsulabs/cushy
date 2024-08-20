@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `CushyWindowBuilder` has been renamed to `StandaloneWindowBuilder` and
   `MakeWidget::build_virtual_window` has been renamed to
   `build_standalone_window`.
+- All animation easing related functionality has been reactored into a separate
+  crate: `easing-function`. Most code will remain unaffected due to re-exports,
+  but the `Easing` trait no longer accepts a `ZeroToOne` parameter, instead
+  accepting an `f32` value.
 
 ### Fixed
 
@@ -44,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   This fix not only fixes underlying issues with how unmounting was occuring,
   but also fixes `Stack`, `Grid`, and `WidgetRef` to automatically remount as
   needed.
+
 
 [158]: https://github.com/khonsulabs/cushy/issues/158
 
