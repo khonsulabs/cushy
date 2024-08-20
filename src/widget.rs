@@ -306,6 +306,9 @@ pub trait Widget: Send + Debug + 'static {
     }
 
     /// The widget has been mounted into a parent widget.
+    ///
+    /// Widgets that contain [`MountedWidget`] references should call
+    /// [`MountedWidget::remount_if_needed`] in this function.
     #[allow(unused_variables)]
     fn mounted(&mut self, context: &mut EventContext<'_>) {}
 
@@ -1718,6 +1721,11 @@ where
 }
 
 /// A [`Widget`] that has been attached to a widget hierarchy.
+///
+/// Because [`WidgetInstance`]s can be reused, a mounted widget can be unmounted
+/// and eventually remounted. To ensure the widget is in a consistent state, all
+/// types that own `MountedWidget`s should call
+/// [`MountedWidget::remount_if_needed`] during their `mount()` functions.
 #[derive(Clone)]
 pub struct MountedWidget {
     pub(crate) node_id: LotId,
@@ -1734,6 +1742,22 @@ impl Debug for MountedWidget {
 impl MountedWidget {
     pub(crate) fn tree(&self) -> Tree {
         self.tree.upgrade().expect("tree missing")
+    }
+
+    /// Remounts this widget, if it was previously unmounted.
+    pub fn remount_if_needed(&mut self, context: &mut EventContext<'_>) {
+        if !self.is_mounted() {
+            *self = context.push_child(self.widget.clone());
+        }
+    }
+
+    /// Returns true if this widget is still mounted in a window.
+    #[must_use]
+    pub fn is_mounted(&self) -> bool {
+        let Some(tree) = self.tree.upgrade() else {
+            return false;
+        };
+        tree.widget_is_valid(self.node_id)
     }
 
     /// Locks the widget for exclusive access. Locking widgets should only be
@@ -2414,6 +2438,9 @@ impl WidgetRef {
         let mut context = context.as_event_context();
         self.mounted
             .entry(&context)
+            .and_modify(|w| {
+                w.remount_if_needed(&mut context.as_event_context());
+            })
             .or_insert_with(|| context.push_child(self.instance.clone()))
     }
 

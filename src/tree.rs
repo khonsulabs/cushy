@@ -66,21 +66,9 @@ impl Tree {
         }
     }
 
-    pub fn remove_child(
-        &self,
-        child: &MountedWidget,
-        parent: &MountedWidget,
-        children_to_unmount: &mut Vec<WidgetId>,
-    ) {
+    pub fn remove_child(&self, child: &MountedWidget, children_to_unmount: &mut Vec<WidgetId>) {
         let mut data = self.data.lock();
-        data.remove_child(child.node_id, parent.node_id, children_to_unmount);
-
-        if child.widget.is_default() {
-            data.defaults.retain(|id| *id != child.node_id);
-        }
-        if child.widget.is_escape() {
-            data.escapes.retain(|id| *id != child.node_id);
-        }
+        data.remove_child(child.node_id, children_to_unmount);
     }
 
     pub(crate) fn set_layout(&self, widget: LotId, rect: Rect<Px>) {
@@ -285,6 +273,11 @@ impl Tree {
         data.widget_from_id(id, self)
     }
 
+    pub(crate) fn widget_is_valid(&self, id: LotId) -> bool {
+        let data = self.data.lock();
+        data.nodes.get(id).is_some()
+    }
+
     pub(crate) fn widget_from_node(&self, id: LotId) -> Option<MountedWidget> {
         let data = self.data.lock();
         data.widget_from_node(id, self)
@@ -390,7 +383,9 @@ impl Tree {
         id: LotId,
     ) -> (Styles, Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {
         let data = self.data.lock();
-        let node = data.nodes.get(id).expect("missing widget");
+        let Some(node) = data.nodes.get(id) else {
+            return Default::default();
+        };
         (
             node.effective_styles.clone(),
             node.theme.clone(),
@@ -481,36 +476,41 @@ impl TreeData {
         }
     }
 
-    fn remove_child(
-        &mut self,
-        child: LotId,
-        parent: LotId,
-        children_to_unmount: &mut Vec<WidgetId>,
-    ) {
+    fn remove_child(&mut self, child: LotId, children_to_unmount: &mut Vec<WidgetId>) {
         let Some(removed_node) = self.nodes.remove(child) else {
             return;
         };
         self.nodes_by_id.remove(&removed_node.widget.id());
 
-        if let Some(parent) = self.nodes.get_mut(parent) {
-            let index = parent
-                .children
-                .iter()
-                .enumerate()
-                .find_map(|(index, c)| (*c == child).then_some(index))
-                .expect("child not found in parent");
-            parent.children.remove(index);
+        if let Some(parent) = removed_node.parent {
+            if let Some(parent_node) = self.nodes.get_mut(parent) {
+                if let Some(index) = parent_node
+                    .children
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, c)| (*c == child).then_some(index))
+                {
+                    parent_node.children.remove(index);
+                }
+            }
         }
 
         children_to_unmount.extend(
             removed_node
                 .children
                 .into_iter()
-                .filter_map(|id| self.nodes.get(id).map(|node| node.widget.id())),
+                .filter_map(|id| dbg!(self.nodes.get(id).map(|node| node.widget.id()))),
         );
 
         if let Some(next_focus) = removed_node.widget.next_focus() {
             self.previous_focuses.remove(&next_focus);
+        }
+        self.render_info.order.retain(|info| info.node != child);
+        if removed_node.widget.is_default() {
+            self.defaults.retain(|id| *id != child);
+        }
+        if removed_node.widget.is_escape() {
+            self.escapes.retain(|id| *id != child);
         }
     }
 

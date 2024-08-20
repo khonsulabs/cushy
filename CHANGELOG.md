@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   measurements to ensure accurate rendering. Fixes [#158][158].
 - `Input` selection handling when dragging below or above the text field is now
   handled correctly.
+- Nested hierarchies of widgets stored in a reused `WidgetInstance` are now
+  properly unmounted and remounted. For widgets that store `MountedWidget`s, in
+  their `mounted` events the widgets should remount their children if needed.
+
+  This fix not only fixes underlying issues with how unmounting was occuring,
+  but also fixes `Stack`, `Grid`, and `WidgetRef` to automatically remount as
+  needed.
 
 [158]: https://github.com/khonsulabs/cushy/issues/158
 
