@@ -499,7 +499,7 @@ impl TreeData {
             removed_node
                 .children
                 .into_iter()
-                .filter_map(|id| dbg!(self.nodes.get(id).map(|node| node.widget.id()))),
+                .filter_map(|id| self.nodes.get(id).map(|node| node.widget.id())),
         );
 
         if let Some(next_focus) = removed_node.widget.next_focus() {
