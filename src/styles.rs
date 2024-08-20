@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use ahash::AHashMap;
 use figures::units::{Lp, Px, UPx};
-use figures::{Fraction, IntoSigned, IntoUnsigned, Rect, ScreenScale, Size, Zero};
+use figures::{Fraction, IntoSigned, IntoUnsigned, Rect, Round, ScreenScale, Size, Zero};
 use intentional::Cast;
 pub use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
 pub use kludgine::shapes::CornerRadii;
@@ -1242,6 +1242,23 @@ where
             top: T::default(),
             bottom: Default::default(),
         }
+    }
+}
+
+impl<T> Round for Edges<T>
+where
+    T: Round,
+{
+    fn round(self) -> Self {
+        self.map(Round::round)
+    }
+
+    fn ceil(self) -> Self {
+        self.map(Round::ceil)
+    }
+
+    fn floor(self) -> Self {
+        self.map(Round::floor)
     }
 }
 

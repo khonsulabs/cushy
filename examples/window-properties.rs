@@ -1,7 +1,7 @@
+use cushy::figures::Size;
 use cushy::value::{Dynamic, Source};
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::Run;
-use figures::Size;
 
 fn main() -> cushy::Result {
     let focused = Dynamic::new(false);

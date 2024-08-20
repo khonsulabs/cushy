@@ -144,6 +144,14 @@ impl<const COLUMNS: usize> Widget for Grid<COLUMNS> {
         }
     }
 
+    fn mounted(&mut self, context: &mut EventContext<'_>) {
+        for row in &mut self.live_rows {
+            for col in row {
+                col.remount_if_needed(context);
+            }
+        }
+    }
+
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,

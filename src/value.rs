@@ -132,19 +132,83 @@ pub trait Source<T> {
     }
 
     /// Attaches `for_each` to this value so that it is invoked each time the
-    /// value's contents are updated.
+    /// source's contents are updated.
+    ///
+    /// `for_each` will not be invoked with the currently stored value.
     ///
     /// Returning `Err(CallbackDisconnected)` will prevent the callback from
     /// being invoked again.
-    fn for_each_generational_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
         F: for<'a> FnMut(DynamicGuard<'_, T, true>) -> Result<(), CallbackDisconnected>
             + Send
             + 'static;
 
-    /// Attaches `for_each` to this value and its [`Generation`] so that it is
-    /// invoked each time the value's contents are updated.
+    /// Attaches `for_each` to this value so that it is invoked each time the
+    /// source's contents are updated.
+    ///
+    /// `for_each` will not be invoked with the currently stored value.
+    fn for_each_subsequent_generational<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: for<'a> FnMut(DynamicGuard<'_, T, true>) + Send + 'static,
+    {
+        self.for_each_subsequent_generational_try(move |value| {
+            for_each(value);
+            Ok(())
+        })
+    }
+
+    /// Attaches `for_each` to this value so that it is invoked each time the
+    /// source's contents are updated.
+    ///
+    /// `for_each` will not be invoked with the currently stored value.
+    ///
+    /// Returning `Err(CallbackDisconnected)` will prevent the callback from
+    /// being invoked again.
+    fn for_each_subsequent_try<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: for<'a> FnMut(&'a T) -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.for_each_subsequent_generational_try(move |gen| for_each(&*gen))
+    }
+
+    /// Attaches `for_each` to this value so that it is invoked each time the
+    /// source's contents are updated.
+    ///
+    /// `for_each` will not be invoked with the currently stored value.
+    fn for_each_subsequent<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: for<'a> FnMut(&'a T) + Send + 'static,
+    {
+        self.for_each_subsequent_try(move |value| {
+            for_each(value);
+            Ok(())
+        })
+    }
+
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
+    ///
+    /// Returning `Err(CallbackDisconnected)` will prevent the callback from
+    /// being invoked again.
+    fn for_each_generational_try<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: for<'a> FnMut(DynamicGuard<'_, T, true>) -> Result<(), CallbackDisconnected>
+            + Send
+            + 'static,
+    {
+        self.map_generational(&mut for_each)
+            .expect("initial for_each invocation failed");
+        self.for_each_subsequent_generational_try(for_each)
+    }
+
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
     fn for_each_generational<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
@@ -156,8 +220,8 @@ pub trait Source<T> {
         })
     }
 
-    /// Attaches `for_each` to this value so that it is invoked each time the
-    /// value's contents are updated.
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
     ///
     /// Returning `Err(CallbackDisconnected)` will prevent the callback from
     /// being invoked again.
@@ -169,8 +233,8 @@ pub trait Source<T> {
         self.for_each_generational_try(move |gen| for_each(&*gen))
     }
 
-    /// Attaches `for_each` to this value so that it is invoked each time the
-    /// value's contents are updated.
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
     fn for_each<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
@@ -182,8 +246,8 @@ pub trait Source<T> {
         })
     }
 
-    /// Attaches `for_each` to this value so that it is invoked each time the
-    /// value's contents are updated.
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
     ///
     /// Returning `Err(CallbackDisconnected)` will prevent the callback from
     /// being invoked again.
@@ -192,8 +256,8 @@ pub trait Source<T> {
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static;
 
-    /// Attaches `for_each` to this value so that it is invoked each time the
-    /// value's contents are updated.
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
     fn for_each_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
@@ -202,8 +266,8 @@ pub trait Source<T> {
         self.for_each_generational_cloned_try(move |gen| for_each(gen.value))
     }
 
-    /// Attaches `for_each` to this value so that it is invoked each time the
-    /// value's contents are updated.
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
     fn for_each_cloned<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
@@ -368,9 +432,9 @@ pub trait Destination<T> {
     /// # Errors
     ///
     /// - [`ReplaceError::NoChange`]: Returned when `new_value` is equal to the
-    /// currently stored value.
+    ///     currently stored value.
     /// - [`ReplaceError::Deadlock`]: Returned when the current thread already
-    ///       has exclusive access to the contents of this dynamic.
+    ///     has exclusive access to the contents of this dynamic.
     fn try_replace(&self, new_value: T) -> Result<T, ReplaceError<T>>
     where
         T: PartialEq,
@@ -531,7 +595,7 @@ impl<T> Source<T> for Arc<DynamicData<T>> {
         }))
     }
 
-    fn for_each_generational_try<F>(&self, mut for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_try<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
         F: for<'a> FnMut(DynamicGuard<'a, T, true>) -> Result<(), CallbackDisconnected>
@@ -572,14 +636,14 @@ impl<T> Source<T> for Dynamic<T> {
         self.0.try_map_generational(map)
     }
 
-    fn for_each_generational_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
         F: for<'a> FnMut(DynamicGuard<'_, T, true>) -> Result<(), CallbackDisconnected>
             + Send
             + 'static,
     {
-        self.0.for_each_generational_try(for_each)
+        self.0.for_each_subsequent_generational_try(for_each)
     }
 
     fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
@@ -602,14 +666,14 @@ impl<T> Source<T> for DynamicReader<T> {
         })
     }
 
-    fn for_each_generational_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
         F: for<'a> FnMut(DynamicGuard<'_, T, true>) -> Result<(), CallbackDisconnected>
             + Send
             + 'static,
     {
-        self.source.for_each_generational_try(for_each)
+        self.source.for_each_subsequent_generational_try(for_each)
     }
 
     fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
@@ -749,7 +813,7 @@ impl<T> Source<T> for Owned<T> {
         }))
     }
 
-    fn for_each_generational_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
         F: for<'a> FnMut(DynamicGuard<'a, T, true>) -> Result<(), CallbackDisconnected>
@@ -1373,11 +1437,10 @@ where
 
 impl<'a, T> DynamicMutexGuard<'a, T> {
     fn unlocked(&mut self, while_unlocked: impl FnOnce()) {
-        MutexGuard::unlocked(&mut self.guard, || {
-            let current_state = self.dynamic.during_callback_state.lock().take();
-            while_unlocked();
-            *self.dynamic.during_callback_state.lock() = current_state;
-        });
+        let previous_state = self.dynamic.during_callback_state.lock().take();
+        MutexGuard::unlocked(&mut self.guard, while_unlocked);
+
+        *self.dynamic.during_callback_state.lock() = previous_state;
     }
 }
 
@@ -1537,7 +1600,7 @@ trait CallbackCollection: Send + Sync + 'static {
 ///
 /// To prevent the callback from ever being uninstalled, use
 /// [`Self::persist()`].
-#[must_use]
+#[must_use = "Callbacks are disconnected once the associated CallbackHandle is dropped. Consider using `CallbackHandle::persist()` to prevent the callback from being disconnected."]
 pub struct CallbackHandle(CallbackHandleInner);
 
 impl Default for CallbackHandle {
@@ -2917,8 +2980,17 @@ pub trait ForEach<T> {
     /// The borrowed representation of T to pass into the `for_each` function.
     type Ref<'a>;
 
-    /// Apply `for_each` to each value contained within `self`.
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
     fn for_each<F>(&self, for_each: F) -> CallbackHandle
+    where
+        F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static;
+
+    /// Attaches `for_each` to this value so that it is invoked each time the
+    /// source's contents are updated.
+    ///
+    /// `for_each` will not be invoked with the currently stored value.
+    fn for_each_subsequent<F>(&self, for_each: F) -> CallbackHandle
     where
         F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static;
 }
@@ -2936,6 +3008,18 @@ macro_rules! impl_tuple_for_each {
 
             #[allow(unused_mut)]
             fn for_each<F>(&self, mut for_each: F) -> CallbackHandle
+            where
+                F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static,
+            {
+                {
+                    $(let $var = self.$field.read();)+
+                    for_each(($(&$var,)+));
+                };
+                self.for_each_subsequent(for_each)
+            }
+
+            #[allow(unused_mut)]
+            fn for_each_subsequent<F>(&self, mut for_each: F) -> CallbackHandle
             where
                 F: for<'a> FnMut(Self::Ref<'a>) + Send + 'static,
             {
@@ -3006,7 +3090,7 @@ macro_rules! impl_tuple_for_each {
         // The list of tuple fields excluding the one being invoked.
         [$($rtype:ident $rfield:tt $rvar:ident),+]
     ) => {
-        $handles += $var.for_each((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
+        $handles += $var.for_each_subsequent((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
             move |$var: &$type| {
                 $(let $rvar = $rvar.read();)+
                 let mut for_each =

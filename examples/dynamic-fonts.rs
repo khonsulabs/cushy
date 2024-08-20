@@ -1,3 +1,4 @@
+use cushy::figures::units::Px;
 use cushy::fonts::FontCollection;
 use cushy::styles::components::{FontFamily, FontWeight, LineHeight, TextSize};
 use cushy::styles::{Component, DynamicComponent, FamilyOwned, FontFamilyList};
@@ -5,7 +6,6 @@ use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::Run;
-use figures::units::Px;
 
 fn main() -> cushy::Result<()> {
     let file_path = Dynamic::<String>::default();

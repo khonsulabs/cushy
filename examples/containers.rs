@@ -1,10 +1,10 @@
+use cushy::figures::units::Lp;
+use cushy::figures::{Lp2D, Point};
 use cushy::value::{Destination, Dynamic};
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::container::ContainerShadow;
 use cushy::window::ThemeMode;
 use cushy::Run;
-use figures::units::Lp;
-use figures::{Point, Zero};
 
 fn main() -> cushy::Result {
     let theme_mode = Dynamic::default();
@@ -59,5 +59,5 @@ fn set_of_containers(repeat: usize, theme_mode: Dynamic<ThemeMode>) -> WidgetIns
 }
 
 fn drop_shadow() -> ContainerShadow<Lp> {
-    ContainerShadow::new(Point::new(Lp::ZERO, Lp::mm(1))).spread(Lp::mm(1))
+    ContainerShadow::new(Point::mm(0, 1)).spread(Lp::mm(1))
 }

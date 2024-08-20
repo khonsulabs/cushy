@@ -852,10 +852,10 @@ pub trait AsEventContext {
                 let Some(mut unmount_context) = context.for_other(&to_unmount) else {
                     continue;
                 };
+                let child = unmount_context.widget.widget().clone();
                 child.lock().as_widget().unmounted(&mut unmount_context);
                 unmount_context.widget.tree.remove_child(
-                    child,
-                    &unmount_context.widget.current_node,
+                    &child,
                     &mut unmount_context.widget.pending_state.unmount_queue,
                 );
             }

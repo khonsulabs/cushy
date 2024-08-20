@@ -19,7 +19,7 @@ use alot::LotId;
 use arboard::Clipboard;
 use figures::units::{Px, UPx};
 use figures::{
-    Fraction, IntoSigned, IntoUnsigned, Point, Ranged, Rect, Round, ScreenScale, Size, Zero,
+    Fraction, IntoSigned, IntoUnsigned, Point, Ranged, Rect, Round, ScreenScale, Size, UPx2D, Zero,
 };
 use image::{DynamicImage, RgbImage, RgbaImage};
 use intentional::{Assert, Cast};
@@ -56,11 +56,12 @@ use crate::styles::{Edges, FontFamilyList, ThemePair};
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{
-    Destination, Dynamic, DynamicReader, Generation, IntoDynamic, IntoValue, Source, Value,
+    Destination, Dynamic, DynamicRead, DynamicReader, Generation, IntoDynamic, IntoValue, Source,
+    Value,
 };
 use crate::widget::{
-    EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, WidgetId, WidgetInstance,
-    HANDLED, IGNORED,
+    Callback, EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, WidgetId,
+    WidgetInstance, HANDLED, IGNORED,
 };
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, ConstraintLimit};
@@ -260,12 +261,14 @@ pub struct RunningWindow<W> {
     focused: Dynamic<bool>,
     occluded: Dynamic<bool>,
     inner_size: Dynamic<Size<UPx>>,
+    close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
 }
 
 impl<W> RunningWindow<W>
 where
     W: PlatformWindowImplementation,
 {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         window: W,
         kludgine_id: KludgineId,
@@ -274,6 +277,7 @@ where
         focused: &Dynamic<bool>,
         occluded: &Dynamic<bool>,
         inner_size: &Dynamic<Size<UPx>>,
+        close_requested: &Option<Arc<Mutex<Callback<(), bool>>>>,
     ) -> Self {
         Self {
             window,
@@ -283,6 +287,7 @@ where
             focused: focused.clone(),
             occluded: occluded.clone(),
             inner_size: inner_size.clone(),
+            close_requested: close_requested.clone(),
         }
     }
 
@@ -496,9 +501,11 @@ where
 
     on_closed: Option<OnceCallback>,
     inner_size: Option<Dynamic<Size<UPx>>>,
+    zoom: Option<Dynamic<Fraction>>,
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
     theme_mode: Option<Value<ThemeMode>>,
+    close_requested: Option<Callback<(), bool>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -518,96 +525,6 @@ impl Window<WidgetInstance> {
         W: MakeWidget,
     {
         Self::new(widget.make_widget())
-    }
-
-    /// Sets `focused` to be the dynamic updated when this window's focus status
-    /// is changed.
-    ///
-    /// When the window is focused for user input, the dynamic will contain
-    /// `true`.
-    ///
-    /// `focused` will be initialized with an initial state
-    /// of `false`.
-    pub fn focused(mut self, focused: impl IntoDynamic<bool>) -> Self {
-        let focused = focused.into_dynamic();
-        focused.set(false);
-        self.focused = Some(focused);
-        self
-    }
-
-    /// Sets `occluded` to be the dynamic updated when this window's occlusion
-    /// status is changed.
-    ///
-    /// When the window is occluded (completely hidden/offscreen/minimized), the
-    /// dynamic will contain `true`. If the window is at least partially
-    /// visible, this value will contain `true`.
-    ///
-    /// `occluded` will be initialized with an initial state of `false`.
-    pub fn occluded(mut self, occluded: impl IntoDynamic<bool>) -> Self {
-        let occluded = occluded.into_dynamic();
-        occluded.set(false);
-        self.occluded = Some(occluded);
-        self
-    }
-
-    /// Sets `inner_size` to be the dynamic syncrhonized with this window's
-    /// inner size.
-    ///
-    /// When the window is resized, the dynamic will contain its new size. When
-    /// the dynamic is updated with a new value, a resize request will be made
-    /// with the new inner size.
-    pub fn inner_size(mut self, inner_size: impl IntoDynamic<Size<UPx>>) -> Self {
-        let inner_size = inner_size.into_dynamic();
-        self.inner_size = Some(inner_size);
-        self
-    }
-
-    /// Sets the [`ThemeMode`] for this window.
-    ///
-    /// If a [`ThemeMode`] is provided, the window will be set to this theme
-    /// mode upon creation and will not be updated while the window is running.
-    ///
-    /// If a [`Dynamic`] is provided, the initial value will be ignored and the
-    /// dynamic will be updated when the window opens with the user's current
-    /// theme mode. The dynamic will also be updated any time the user's theme
-    /// mode changes.
-    ///
-    /// Setting the [`Dynamic`]'s value will also update the window with the new
-    /// mode until a mode change is detected, upon which the new mode will be
-    /// stored.
-    pub fn themed_mode(mut self, theme_mode: impl IntoValue<ThemeMode>) -> Self {
-        self.theme_mode = Some(theme_mode.into_value());
-        self
-    }
-
-    /// Applies `theme` to the widgets in this window.
-    pub fn themed(mut self, theme: impl IntoValue<ThemePair>) -> Self {
-        self.theme = theme.into_value();
-        self
-    }
-
-    /// Adds `font_data` to the list of fonts to load for availability when
-    /// rendering.
-    ///
-    /// All font families contained in `font_data` will be loaded.
-    pub fn loading_font(self, font_data: Vec<u8>) -> Self {
-        self.fonts.push(font_data);
-        self
-    }
-
-    /// Invokes `on_close` when this window is closed.
-    pub fn on_close<Function>(mut self, on_close: Function) -> Self
-    where
-        Function: FnOnce() + Send + 'static,
-    {
-        self.on_closed = Some(OnceCallback::new(|()| on_close()));
-        self
-    }
-
-    /// Sets the window's title.
-    pub fn titled(mut self, title: impl IntoValue<String>) -> Self {
-        self.title = title.into_value();
-        self
     }
 }
 
@@ -662,7 +579,120 @@ where
             },
             multisample_count: NonZeroU32::new(4).assert("not 0"),
             vsync: true,
+            close_requested: None,
+            zoom: None,
         }
+    }
+
+    /// Sets `focused` to be the dynamic updated when this window's focus status
+    /// is changed.
+    ///
+    /// When the window is focused for user input, the dynamic will contain
+    /// `true`.
+    ///
+    /// `focused` will be initialized with an initial state
+    /// of `false`.
+    pub fn focused(mut self, focused: impl IntoDynamic<bool>) -> Self {
+        let focused = focused.into_dynamic();
+        focused.set(false);
+        self.focused = Some(focused);
+        self
+    }
+
+    /// Sets `occluded` to be the dynamic updated when this window's occlusion
+    /// status is changed.
+    ///
+    /// When the window is occluded (completely hidden/offscreen/minimized), the
+    /// dynamic will contain `true`. If the window is at least partially
+    /// visible, this value will contain `true`.
+    ///
+    /// `occluded` will be initialized with an initial state of `false`.
+    pub fn occluded(mut self, occluded: impl IntoDynamic<bool>) -> Self {
+        let occluded = occluded.into_dynamic();
+        occluded.set(false);
+        self.occluded = Some(occluded);
+        self
+    }
+
+    /// Sets `inner_size` to be the dynamic synchronized with this window's
+    /// inner size.
+    ///
+    /// When the window is resized, the dynamic will contain its new size. When
+    /// the dynamic is updated with a new value, a resize request will be made
+    /// with the new inner size.
+    pub fn inner_size(mut self, inner_size: impl IntoDynamic<Size<UPx>>) -> Self {
+        let inner_size = inner_size.into_dynamic();
+        self.inner_size = Some(inner_size);
+        self
+    }
+
+    /// Sets this window's `zoom` factor.
+    ///
+    /// The zoom factor is multiplied with the DPI scaling from the window
+    /// server to allow an additional scaling factor to be applied.
+    pub fn zoom(mut self, zoom: impl IntoDynamic<Fraction>) -> Self {
+        self.zoom = Some(zoom.into_dynamic().map_each_into());
+        self
+    }
+
+    /// Sets the [`ThemeMode`] for this window.
+    ///
+    /// If a [`ThemeMode`] is provided, the window will be set to this theme
+    /// mode upon creation and will not be updated while the window is running.
+    ///
+    /// If a [`Dynamic`] is provided, the initial value will be ignored and the
+    /// dynamic will be updated when the window opens with the user's current
+    /// theme mode. The dynamic will also be updated any time the user's theme
+    /// mode changes.
+    ///
+    /// Setting the [`Dynamic`]'s value will also update the window with the new
+    /// mode until a mode change is detected, upon which the new mode will be
+    /// stored.
+    pub fn themed_mode(mut self, theme_mode: impl IntoValue<ThemeMode>) -> Self {
+        self.theme_mode = Some(theme_mode.into_value());
+        self
+    }
+
+    /// Applies `theme` to the widgets in this window.
+    pub fn themed(mut self, theme: impl IntoValue<ThemePair>) -> Self {
+        self.theme = theme.into_value();
+        self
+    }
+
+    /// Adds `font_data` to the list of fonts to load for availability when
+    /// rendering.
+    ///
+    /// All font families contained in `font_data` will be loaded.
+    pub fn loading_font(self, font_data: Vec<u8>) -> Self {
+        self.fonts.push(font_data);
+        self
+    }
+
+    /// Invokes `on_close` when this window is closed.
+    pub fn on_close<Function>(mut self, on_close: Function) -> Self
+    where
+        Function: FnOnce() + Send + 'static,
+    {
+        self.on_closed = Some(OnceCallback::new(|()| on_close()));
+        self
+    }
+
+    /// Invokes `on_close_requested` when the window is requested to be closed.
+    ///
+    /// If the function returns true, the window is allowed to be closed,
+    /// otherwise the window remains open.
+    pub fn on_close_requested<Function>(mut self, on_close_requested: Function) -> Self
+    where
+        Function: FnMut(()) -> bool + Send + 'static,
+    {
+        self.close_requested = Some(Callback::new(on_close_requested));
+        self
+    }
+
+    /// Sets the window's title.
+    pub fn titled(mut self, title: impl IntoValue<String>) -> Self {
+        self.title = title.into_value();
+        self
     }
 }
 
@@ -711,6 +741,8 @@ where
                     cursive_font_family: self.cursive_font_family,
                     vsync: self.vsync,
                     multisample_count: self.multisample_count,
+                    close_requested: self.close_requested.map(|cb| Arc::new(Mutex::new(cb))),
+                    zoom: self.zoom.unwrap_or_else(|| Dynamic::new(Fraction::ONE)),
                 }),
             },
         )?;
@@ -790,6 +822,10 @@ struct OpenWindow<T> {
     cushy: Cushy,
     on_closed: Option<OnceCallback>,
     vsync: bool,
+    dpi_scale: Dynamic<Fraction>,
+    zoom: Dynamic<Fraction>,
+    zoom_generation: Generation,
+    close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
 }
 
 impl<T> OpenWindow<T>
@@ -801,7 +837,11 @@ where
         behavior: &mut T,
         window: &mut RunningWindow<kludgine::app::Window<'_, WindowCommand>>,
     ) -> bool {
-        *should_close |= behavior.close_requested(window);
+        *should_close |= behavior.close_requested(window)
+            && window
+                .close_requested
+                .as_mut()
+                .map_or(true, |close| close.lock().invoke(()));
 
         *should_close
     }
@@ -1147,7 +1187,10 @@ where
         let theme = settings.theme.take().unwrap_or_default();
         let inner_size = settings.inner_size.clone();
         let on_closed = settings.on_closed.take();
+        let close_requested = settings.close_requested.take();
         let vsync = settings.vsync;
+        let zoom = settings.zoom.clone();
+        let dpi_scale = Dynamic::new(graphics.dpi_scale());
 
         inner_size.set(window.inner_size());
 
@@ -1204,15 +1247,14 @@ where
             cushy,
             on_closed,
             vsync,
+            close_requested,
+            dpi_scale,
+            zoom_generation: zoom.generation(),
+            zoom,
         }
     }
 
-    fn prepare<W>(&mut self, window: W, graphics: &mut kludgine::Graphics<'_>)
-    where
-        W: PlatformWindowImplementation,
-    {
-        let cushy = self.cushy.clone();
-        let _guard = cushy.enter_runtime();
+    fn new_frame(&mut self, graphics: &mut kludgine::Graphics<'_>) {
         if let Some(theme) = &mut self.theme {
             if theme.has_updated() {
                 self.current_theme = theme.get();
@@ -1222,8 +1264,26 @@ where
 
         self.redraw_status.refresh_received();
         graphics.reset_text_attributes();
+        let zoom = self.zoom.read();
+        if zoom.generation() != self.zoom_generation {
+            graphics.set_zoom(*zoom);
+            self.redraw_status.invalidate(self.root.id());
+        }
+
         self.tree
             .new_frame(self.redraw_status.invalidations().drain());
+
+        drop(zoom);
+    }
+
+    fn prepare<W>(&mut self, window: W, graphics: &mut kludgine::Graphics<'_>)
+    where
+        W: PlatformWindowImplementation,
+    {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
+
+        self.new_frame(graphics);
 
         let resizable = window.is_resizable() || self.resize_to_fit;
         let mut window = RunningWindow::new(
@@ -1234,6 +1294,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
         let root_mode = self.constrain_window_resizing(resizable, &mut window, graphics);
 
@@ -1332,6 +1393,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         )) {
             self.should_close = true;
             true
@@ -1376,6 +1438,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
         let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
         let Some(target) = self.tree.widget_from_node(target) else {
@@ -1426,6 +1489,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
         let widget = self
             .tree
@@ -1469,6 +1533,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
         let widget = self
             .tree
@@ -1513,6 +1578,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
 
         let location = position.into();
@@ -1571,6 +1637,7 @@ where
                 &self.focused,
                 &self.occluded,
                 &self.inner_size,
+                &self.close_requested,
             );
 
             let mut context = EventContext::new(
@@ -1609,6 +1676,7 @@ where
             &self.focused,
             &self.occluded,
             &self.inner_size,
+            &self.close_requested,
         );
         match state {
             ElementState::Pressed => {
@@ -1729,6 +1797,7 @@ where
             &settings.focused,
             &settings.occluded,
             &settings.inner_size,
+            &settings.close_requested,
         );
         drop(settings);
 
@@ -1759,6 +1828,10 @@ where
 
     fn multisample_count(context: &Self::Context) -> std::num::NonZeroU32 {
         context.settings.borrow().multisample_count
+    }
+
+    fn memory_hints(_context: &Self::Context) -> wgpu::MemoryHints {
+        wgpu::MemoryHints::MemoryUsage
     }
 
     fn focus_changed(
@@ -1794,6 +1867,12 @@ where
             attrs.preferred_theme = Some((*theme_mode).into());
         }
         attrs.title = settings.title.get();
+        if attrs.inner_size.is_none() {
+            let dynamic_inner = settings.inner_size.get();
+            if !dynamic_inner.is_zero() {
+                attrs.inner_size = Some(winit::dpi::Size::Physical(dynamic_inner.into()));
+            }
+        }
         attrs
     }
 
@@ -1815,6 +1894,7 @@ where
                 &self.focused,
                 &self.occluded,
                 &self.inner_size,
+                &self.close_requested,
             ),
         )
     }
@@ -1847,7 +1927,14 @@ where
 
     // fn occlusion_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
 
-    // fn scale_factor_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
+    fn scale_factor_changed(
+        &mut self,
+        mut window: kludgine::app::Window<'_, WindowCommand>,
+        kludgine: &mut Kludgine,
+    ) {
+        self.dpi_scale.set(kludgine.dpi_scale());
+        window.set_needs_redraw();
+    }
 
     fn resized(
         &mut self,
@@ -1965,6 +2052,7 @@ where
                     &self.focused,
                     &self.occluded,
                     &self.inner_size,
+                    &self.close_requested,
                 );
                 if self.behavior.close_requested(&mut window) {
                     window.close();
@@ -2006,18 +2094,20 @@ pub(crate) struct CursorState {
 pub(crate) mod sealed {
     use std::cell::RefCell;
     use std::num::NonZeroU32;
+    use std::sync::Arc;
 
     use figures::units::UPx;
-    use figures::{Point, Size};
+    use figures::{Fraction, Point, Size};
     use image::DynamicImage;
     use kludgine::Color;
+    use parking_lot::Mutex;
 
     use crate::app::Cushy;
     use crate::context::sealed::InvalidationStatus;
     use crate::fonts::FontCollection;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
-    use crate::widget::OnceCallback;
+    use crate::widget::{Callback, OnceCallback};
     use crate::window::{ThemeMode, WindowAttributes};
 
     pub struct Context<C> {
@@ -2033,6 +2123,7 @@ pub(crate) mod sealed {
         pub occluded: Dynamic<bool>,
         pub focused: Dynamic<bool>,
         pub inner_size: Dynamic<Size<UPx>>,
+        pub zoom: Dynamic<Fraction>,
         pub theme: Option<Value<ThemePair>>,
         pub theme_mode: Option<Value<ThemeMode>>,
         pub transparent: bool,
@@ -2045,6 +2136,7 @@ pub(crate) mod sealed {
         pub on_closed: Option<OnceCallback>,
         pub vsync: bool,
         pub multisample_count: NonZeroU32,
+        pub close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
     }
 
     #[derive(Debug, Clone)]
@@ -2385,7 +2477,7 @@ impl VirtualState {
             modifiers: Modifiers::default(),
             elapsed: Duration::ZERO,
             cursor: Cursor::default(),
-            size: Size::new(UPx::new(800), UPx::new(600)),
+            size: Size::upx(800, 600),
         }
     }
 }
@@ -2474,24 +2566,26 @@ impl PlatformWindowImplementation for &mut VirtualState {
     }
 }
 
-/// A builder for a [`VirtualWindow`].
-pub struct CushyWindowBuilder {
+/// A builder that creates either a [`VirtualWindow`] or a [`CushyWindow`].
+pub struct StandaloneWindowBuilder {
     widget: WidgetInstance,
     multisample_count: NonZeroU32,
     initial_size: Size<UPx>,
     scale: f32,
     transparent: bool,
+    zoom: Dynamic<Fraction>,
 }
 
-impl CushyWindowBuilder {
-    /// Returns a new builder for a Cushy window that contains `contents`.
+impl StandaloneWindowBuilder {
+    /// Returns a new builder for a standalone window that contains `contents`.
     #[must_use]
     pub fn new(contents: impl MakeWidget) -> Self {
         Self {
             widget: contents.make_widget(),
             multisample_count: NonZeroU32::new(4).assert("not 0"),
-            initial_size: Size::new(UPx::new(800), UPx::new(600)),
+            initial_size: Size::upx(800, 600),
             scale: 1.,
+            zoom: Dynamic::new(Fraction::ONE),
             transparent: false,
         }
     }
@@ -2571,6 +2665,8 @@ impl CushyWindowBuilder {
                 on_closed: None,
                 vsync: false,
                 multisample_count: self.multisample_count,
+                close_requested: None,
+                zoom: self.zoom,
             },
         );
 
@@ -2581,6 +2677,7 @@ impl CushyWindowBuilder {
     #[must_use]
     pub fn finish_virtual(self, device: &wgpu::Device, queue: &wgpu::Queue) -> VirtualWindow {
         let mut state = VirtualState::new();
+        state.size = self.initial_size;
         let mut cushy = self.finish(&mut state, device, queue);
         cushy.set_focused(true);
 
@@ -2620,7 +2717,7 @@ impl CushyWindow {
     /// commands were submitted.
     pub fn render(
         &mut self,
-        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        pass: &wgpu::RenderPassDescriptor<'_>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<wgpu::SubmissionIndex> {
@@ -2633,7 +2730,7 @@ impl CushyWindow {
     /// commands were submitted.
     pub fn render_with(
         &mut self,
-        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        pass: &wgpu::RenderPassDescriptor<'_>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         additional_drawing: Option<&Drawing>,
@@ -2706,13 +2803,24 @@ impl CushyWindow {
     }
 
     /// Returns the current DPI scale of the window.
-    pub const fn scale(&self) -> Fraction {
+    pub const fn dpi_scale(&self) -> Fraction {
+        self.kludgine.dpi_scale()
+    }
+
+    /// Returns the effective scale of the window.
+    pub fn effective_scale(&self) -> Fraction {
         self.kludgine.scale()
     }
 
     /// Updates the dimensions and DPI scaling of the window.
-    pub fn resize(&mut self, new_size: Size<UPx>, new_scale: impl Into<f32>, queue: &wgpu::Queue) {
-        self.kludgine.resize(new_size, new_scale.into(), queue);
+    pub fn resize(
+        &mut self,
+        new_size: Size<UPx>,
+        new_scale: impl Into<Fraction>,
+        new_zoom: impl Into<Fraction>,
+        queue: &wgpu::Queue,
+    ) {
+        self.kludgine.resize(new_size, new_scale, new_zoom, queue);
         self.window.resized(new_size);
     }
 
@@ -2829,7 +2937,7 @@ impl VirtualWindow {
     /// commands were submitted.
     pub fn render(
         &mut self,
-        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        pass: &wgpu::RenderPassDescriptor<'_>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<wgpu::SubmissionIndex> {
@@ -2842,7 +2950,7 @@ impl VirtualWindow {
     /// commands were submitted.
     pub fn render_with(
         &mut self,
-        pass: &wgpu::RenderPassDescriptor<'_, '_>,
+        pass: &wgpu::RenderPassDescriptor<'_>,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         additional_drawing: Option<&Drawing>,
@@ -2920,13 +3028,19 @@ impl VirtualWindow {
     }
 
     /// Returns the current DPI scale of the window.
-    pub const fn scale(&self) -> Fraction {
-        self.cushy.scale()
+    pub const fn dpi_scale(&self) -> Fraction {
+        self.cushy.dpi_scale()
     }
 
     /// Updates the dimensions and DPI scaling of the window.
-    pub fn resize(&mut self, new_size: Size<UPx>, new_scale: impl Into<f32>, queue: &wgpu::Queue) {
-        self.cushy.resize(new_size, new_scale.into(), queue);
+    pub fn resize(
+        &mut self,
+        new_size: Size<UPx>,
+        new_scale: impl Into<Fraction>,
+        queue: &wgpu::Queue,
+    ) {
+        self.cushy
+            .resize(new_size, new_scale, self.cushy.kludgine.zoom(), queue);
     }
 
     /// Provide keyboard input to this virtual window.
@@ -3088,7 +3202,7 @@ impl VirtualRecorderBuilder<Rgb8> {
     pub fn new(contents: impl MakeWidget) -> Self {
         Self {
             contents: contents.make_widget(),
-            size: Size::new(UPx::new(800), UPx::new(600)),
+            size: Size::upx(800, 600),
             scale: 1.0,
             format: PhantomData,
             resize_to_fit: false,
@@ -3251,12 +3365,13 @@ where
                 label: None,
                 required_features: Kludgine::REQURED_FEATURES,
                 required_limits: Kludgine::adjust_limits(wgpu::Limits::downlevel_webgl2_defaults()),
+                memory_hints: wgpu::MemoryHints::MemoryUsage,
             },
             None,
         ))?;
 
         let window = contents
-            .build_virtual_window()
+            .build_standalone_window()
             .size(size)
             .scale(scale)
             .transparent()
@@ -3379,7 +3494,7 @@ where
     fn redraw(&mut self) {
         let mut render_size = self.window.size().ceil();
         if self.window.state.size != render_size {
-            let current_scale = self.window.scale();
+            let current_scale = self.window.dpi_scale();
             self.window
                 .resize(self.window.state.size, current_scale, &self.queue);
             render_size = self.window.state.size;
@@ -3497,6 +3612,56 @@ where
             .with_easing(easing)
             .launch();
         self.wait_for(over)
+    }
+
+    /// Animates pressing and releasing a mouse button at the current cursor
+    /// location.
+    pub fn animate_mouse_button(
+        &mut self,
+        button: MouseButton,
+        duration: Duration,
+    ) -> Result<(), VirtualRecorderError> {
+        let _ =
+            self.recorder
+                .window
+                .mouse_input(DeviceId::Virtual(0), ElementState::Pressed, button);
+
+        self.wait_for(duration)?;
+        let _ =
+            self.recorder
+                .window
+                .mouse_input(DeviceId::Virtual(0), ElementState::Released, button);
+        Ok(())
+    }
+
+    /// Simulates a key down and key up event with the given information.
+    pub fn animate_keypress(
+        &mut self,
+        physical_key: PhysicalKey,
+        logical_key: Key,
+        text: Option<&str>,
+        duration: Duration,
+    ) -> Result<(), VirtualRecorderError> {
+        let text = text.map(SmolStr::new);
+        let half_duration = duration / 2;
+        let mut event = KeyEvent {
+            physical_key,
+            logical_key,
+            text,
+            state: ElementState::Pressed,
+            repeat: false,
+            location: KeyLocation::Standard,
+        };
+        self.recorder
+            .window
+            .keyboard_input(DeviceId::Virtual(0), event.clone(), true);
+        self.wait_for(half_duration)?;
+        event.state = ElementState::Released;
+        self.recorder
+            .window
+            .keyboard_input(DeviceId::Virtual(0), event.clone(), true);
+
+        self.wait_for(half_duration)
     }
 
     /// Animates entering the graphemes from `text` over `duration`.

@@ -46,8 +46,8 @@ use crate::widgets::{
 };
 use crate::window::sealed::WindowCommand;
 use crate::window::{
-    CushyWindowBuilder, DeviceId, KeyEvent, Rgb8, RunningWindow, ThemeMode, VirtualRecorderBuilder,
-    Window, WindowBehavior, WindowHandle, WindowLocal,
+    DeviceId, KeyEvent, Rgb8, RunningWindow, StandaloneWindowBuilder, ThemeMode,
+    VirtualRecorderBuilder, Window, WindowBehavior, WindowHandle, WindowLocal,
 };
 use crate::ConstraintLimit;
 
@@ -306,6 +306,9 @@ pub trait Widget: Send + Debug + 'static {
     }
 
     /// The widget has been mounted into a parent widget.
+    ///
+    /// Widgets that contain [`MountedWidget`] references should call
+    /// [`MountedWidget::remount_if_needed`] in this function.
     #[allow(unused_variables)]
     fn mounted(&mut self, context: &mut EventContext<'_>) {}
 
@@ -919,9 +922,13 @@ pub trait MakeWidget: Sized {
         Window::new(self.make_widget())
     }
 
-    /// Returns a builder for a [`VirtualWindow`](crate::window::VirtualWindow).
-    fn build_virtual_window(self) -> CushyWindowBuilder {
-        CushyWindowBuilder::new(self)
+    /// Returns a builder for a standalone window.
+    ///
+    /// A standalone window can be either a
+    /// [`VirtualWindow`](crate::window::VirtualWindow) or a
+    /// [`CushyWindow`](crate::window::CushyWindow).
+    fn build_standalone_window(self) -> StandaloneWindowBuilder {
+        StandaloneWindowBuilder::new(self)
     }
 
     /// Returns a builder for a [`VirtualRecorder`](crate::window::VirtualRecorder)
@@ -1123,6 +1130,15 @@ pub trait MakeWidget: Sized {
         children.push(self);
         children.push(other);
         children
+    }
+
+    /// Chains `self` and `others` into a [`WidgetList`].
+    fn chain<W: MakeWidget>(self, others: impl IntoIterator<Item = W>) -> WidgetList {
+        let others = others.into_iter();
+        let mut widgets = WidgetList::with_capacity(others.size_hint().0 + 1);
+        widgets.push(self);
+        widgets.extend(others);
+        widgets
     }
 
     /// Expands `self` to grow to fill its parent.
@@ -1612,7 +1628,7 @@ pub struct Callback<T = (), R = ()>(Box<dyn CallbackFunction<T, R>>);
 impl<T, R> Debug for Callback<T, R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Callback")
-            .field(&(self as *const Self))
+            .field(&std::ptr::from_ref::<Self>(self))
             .finish()
     }
 }
@@ -1662,7 +1678,7 @@ pub struct OnceCallback<T = (), R = ()>(Box<dyn OnceCallbackFunction<T, R>>);
 impl<T, R> Debug for OnceCallback<T, R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("OnceCallback")
-            .field(&(self as *const Self))
+            .field(&std::ptr::from_ref::<Self>(self))
             .finish()
     }
 }
@@ -1705,6 +1721,11 @@ where
 }
 
 /// A [`Widget`] that has been attached to a widget hierarchy.
+///
+/// Because [`WidgetInstance`]s can be reused, a mounted widget can be unmounted
+/// and eventually remounted. To ensure the widget is in a consistent state, all
+/// types that own `MountedWidget`s should call
+/// [`MountedWidget::remount_if_needed`] during their `mount()` functions.
 #[derive(Clone)]
 pub struct MountedWidget {
     pub(crate) node_id: LotId,
@@ -1721,6 +1742,22 @@ impl Debug for MountedWidget {
 impl MountedWidget {
     pub(crate) fn tree(&self) -> Tree {
         self.tree.upgrade().expect("tree missing")
+    }
+
+    /// Remounts this widget, if it was previously unmounted.
+    pub fn remount_if_needed(&mut self, context: &mut EventContext<'_>) {
+        if !self.is_mounted() {
+            *self = context.push_child(self.widget.clone());
+        }
+    }
+
+    /// Returns true if this widget is still mounted in a window.
+    #[must_use]
+    pub fn is_mounted(&self) -> bool {
+        let Some(tree) = self.tree.upgrade() else {
+            return false;
+        };
+        tree.widget_is_valid(self.node_id)
     }
 
     /// Locks the widget for exclusive access. Locking widgets should only be
@@ -1988,6 +2025,16 @@ impl WidgetList {
         W: MakeWidget,
     {
         self.push(widget);
+        self
+    }
+
+    /// Chains `self` and `others` into a [`WidgetList`].
+    pub fn chain<T, Iter>(mut self, iter: Iter) -> Self
+    where
+        Iter: IntoIterator<Item = T>,
+        T: MakeWidget,
+    {
+        self.extend(iter);
         self
     }
 
@@ -2391,6 +2438,9 @@ impl WidgetRef {
         let mut context = context.as_event_context();
         self.mounted
             .entry(&context)
+            .and_modify(|w| {
+                w.remount_if_needed(&mut context.as_event_context());
+            })
             .or_insert_with(|| context.push_child(self.instance.clone()))
     }
 

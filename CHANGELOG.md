@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- markdownlint-disable no-duplicate-heading -->
 
+## Unreleased
+
+### Breaking Changes
+
+- Dependency `kludgine` has been updated to `v0.10.0`, which updates Cushy to
+  `wgpu v22.0.0` and `cosmic-text v0.12.0`.
+- At some point, a dependency of the `image` crate has been updated with a
+  minimum supported Rust version (MSRV) of `1.80.0`. This is Cushy's new MSRV to
+  reflect this requirement.
+- `Source::for_each_*` now invoke the callback with the current contents of of
+  the source before attaching the callback. New functions beginning with
+  `for_each_subsequent_` have been added with the original behavior.
+- `CushyWindowBuilder` has been renamed to `StandaloneWindowBuilder` and
+  `MakeWidget::build_virtual_window` has been renamed to
+  `build_standalone_window`.
+- All animation easing related functionality has been reactored into a separate
+  crate: `easing-function`. Most code will remain unaffected due to re-exports,
+  but the `Easing` trait no longer accepts a `ZeroToOne` parameter, instead
+  accepting an `f32` value.
+
+### Fixed
+
+- Fixed a panic that could occur when removing certain nested hierarchies from a
+  window.
+- `CallbackHandle` now has a `must_use` hint that might help users discover the
+  persist function.
+- Fixed a deadlock that could occur when multiple threads were attempting to
+  execute change callbacks for the same dynamic at the same time.
+- The initial `inner_size` of a `Window` is now used if it is non-zero and
+  `WindowAttributes::inner_size` is `None`.
+- Container's layout and drawing functions now properly round up/down the
+  measurements to ensure accurate rendering. Fixes [#158][158].
+- `Input` selection handling when dragging below or above the text field is now
+  handled correctly.
+- Nested hierarchies of widgets stored in a reused `WidgetInstance` are now
+  properly unmounted and remounted. For widgets that store `MountedWidget`s, in
+  their `mounted` events the widgets should remount their children if needed.
+
+  This fix not only fixes underlying issues with how unmounting was occuring,
+  but also fixes `Stack`, `Grid`, and `WidgetRef` to automatically remount as
+  needed.
+
+
+[158]: https://github.com/khonsulabs/cushy/issues/158
+
+### Added
+
+- `AnimationRecorder::animate_keypress` is a new helper that animates a single
+  key press.
+- `AnimationRecorder::animate_mouse_button` is a new helper that animates a
+  single mouse button press and release.
+- `Window::on_close_requested` is a new function that allows providing a
+  callback that is invoked before the window is closed when the user or
+  operating system requests that a window is closed. If the callback returns
+  true, the window is allowed to be closed. If false is returned, the window
+  will remain open. This feature is most commonly used to prevent losing unsaved
+  changes.
+- `Fraction` now has `LinearInterpolation` and `PercentBetween` implementations.
+- `Window::zoom` allows setting a `Dynamic<Fraction>` that scales all DPI-scaled
+  operations by an additional scaling factor.
+- `Edges` and `ContainerShadow` now implement `figures::Round`.
+
 ## v0.3.0 (2024-05-12)
 
 ### Breaking Changes

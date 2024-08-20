@@ -34,7 +34,7 @@ Configuration(
             // "msrv": "1.70",
             "ref-name": (
                 default: "main",
-                release: "v0.3.0",
+                release: "v0.4.0",
             ),
             "docs": (
                 default: "https://cushy.rs/main/docs/cushy/",

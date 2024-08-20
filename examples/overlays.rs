@@ -1,9 +1,9 @@
+use cushy::figures::units::Lp;
+use cushy::figures::{Lp2D, Point};
 use cushy::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
 use cushy::widgets::container::ContainerShadow;
 use cushy::widgets::layers::{OverlayBuilder, OverlayLayer, Overlayable};
 use cushy::Run;
-use figures::units::Lp;
-use figures::{Point, Zero};
 use kludgine::app::winit::event::MouseButton;
 use kludgine::Color;
 use rand::{thread_rng, Rng};
@@ -41,7 +41,7 @@ fn test_widget(overlay: &OverlayLayer, is_root: bool) -> impl MakeWidget {
                 255,
             ))
             .shadow(
-                ContainerShadow::new(Point::new(Lp::ZERO, Lp::mm(2)))
+                ContainerShadow::new(Point::mm(0, 2))
                     .blur_radius(Lp::mm(1))
                     .spread(Lp::mm(1)),
             );

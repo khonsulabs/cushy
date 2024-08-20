@@ -30,9 +30,8 @@ where
     Ok(())
 }
 
-fn main() -> cushy::Result<()> {
+fn plotters() -> impl MakeWidget {
     let depth = Dynamic::new(1);
-
     "Depth"
         .and(depth.clone().slider_between(1, 5))
         .and(
@@ -45,5 +44,54 @@ fn main() -> cushy::Result<()> {
             .expand(),
         )
         .into_rows()
-        .run()
+}
+
+fn main() -> cushy::Result<()> {
+    plotters().run()
+}
+
+#[test]
+fn runs() {
+    use std::time::Duration;
+
+    use kludgine::app::winit::keyboard::{Key, NamedKey};
+    cushy::example!(plotters).animated(|r| {
+        r.wait_for(Duration::from_millis(500)).unwrap();
+        r.animate_keypress(
+            kludgine::app::winit::keyboard::PhysicalKey::Code(
+                kludgine::app::winit::keyboard::KeyCode::ArrowRight,
+            ),
+            Key::Named(NamedKey::ArrowRight),
+            None,
+            Duration::from_millis(250),
+        )
+        .unwrap();
+        r.animate_keypress(
+            kludgine::app::winit::keyboard::PhysicalKey::Code(
+                kludgine::app::winit::keyboard::KeyCode::ArrowRight,
+            ),
+            Key::Named(NamedKey::ArrowRight),
+            None,
+            Duration::from_millis(250),
+        )
+        .unwrap();
+        r.animate_keypress(
+            kludgine::app::winit::keyboard::PhysicalKey::Code(
+                kludgine::app::winit::keyboard::KeyCode::ArrowRight,
+            ),
+            Key::Named(NamedKey::ArrowRight),
+            None,
+            Duration::from_millis(250),
+        )
+        .unwrap();
+        r.animate_keypress(
+            kludgine::app::winit::keyboard::PhysicalKey::Code(
+                kludgine::app::winit::keyboard::KeyCode::ArrowRight,
+            ),
+            Key::Named(NamedKey::ArrowRight),
+            None,
+            Duration::from_secs(1),
+        )
+        .unwrap();
+    });
 }

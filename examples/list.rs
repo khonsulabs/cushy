@@ -3,7 +3,7 @@ use cushy::widget::{MakeWidget, WidgetList};
 use cushy::widgets::list::ListStyle;
 use cushy::Run;
 
-fn main() -> cushy::Result {
+fn list() -> impl MakeWidget {
     let current_style: Dynamic<ListStyle> = Dynamic::default();
     let options = ListStyle::provided()
         .into_iter()
@@ -24,5 +24,13 @@ fn main() -> cushy::Result {
         .into_columns()
         .expand()
         .pad()
-        .run()
+}
+
+fn main() -> cushy::Result {
+    list().run()
+}
+
+#[test]
+fn runs() {
+    cushy::example!(list).untested_still_frame();
 }

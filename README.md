@@ -5,8 +5,8 @@
 
 ![Cushy is considered alpha and unsupported](https://img.shields.io/badge/status-alpha-orange)
 [![crate version](https://img.shields.io/crates/v/cushy.svg)](https://crates.io/crates/cushy)
-[![Documentation for `v0.3.0`](https://img.shields.io/badge/docs-v0.3.0-informational)](https://docs.rs/cushy)
-[![Cushy User's Guide](https://img.shields.io/badge/user%27s%20guide-v0.3.0-informational)][guide]
+[![Documentation for `v0.4.0`](https://img.shields.io/badge/docs-v0.4.0-informational)](https://docs.rs/cushy)
+[![Cushy User's Guide](https://img.shields.io/badge/user%27s%20guide-v0.4.0-informational)][guide]
 
 Cushy is an experimental Graphical User Interface (GUI) crate for the Rust
 programming language. It features a reactive data model and aims to enable
@@ -59,11 +59,11 @@ initially tested by creating an example. Many are focused on demonstrating a
 single feature, but there are some complex example such as a theme
 editor/previewer:
 
-  [![Theme Editor Example](https://cushy.rs/v0.3.0/guide/examples/theme_editor.png)][theme-example]
+  [![Theme Editor Example](https://cushy.rs/v0.4.0/guide/examples/theme_editor.png)][theme-example]
 - Browse the [user's guide][guide]. The user guide is a work in progress, but
   features CI-generated screenshots and animations for its examples:
 
-  [![Hello, World User Guide Example](https://cushy.rs/v0.3.0/guide/examples/intro.png)][guide]
+  [![Hello, World User Guide Example](https://cushy.rs/v0.4.0/guide/examples/intro.png)][guide]
 - Ask questions [in Discussions][discussions] or [on Discord][discord].
 
 ## Project Status
@@ -81,9 +81,9 @@ Cushy.
 
 [widget]: https://docs.rs/cushy/*/cushy/widget/trait.Widget.html
 [widgets]: https://docs.rs/cushy/*/cushy/widgets/index.html
-[button-example]: https://github.com/khonsulabs/cushy/tree/v0.3.0/examples/basic-button.rs
-[examples]: https://github.com/khonsulabs/cushy/tree/v0.3.0/examples/
-[theme-example]: https://github.com/khonsulabs/cushy/tree/v0.3.0/examples/theme.rs
+[button-example]: https://github.com/khonsulabs/cushy/tree/v0.4.0/examples/basic-button.rs
+[examples]: https://github.com/khonsulabs/cushy/tree/v0.4.0/examples/
+[theme-example]: https://github.com/khonsulabs/cushy/tree/v0.4.0/examples/theme.rs
 [kludgine]: https://github.com/khonsulabs/kludgine
 [figures]: https://github.com/khonsulabs/figures
 [wgpu]: https://github.com/gfx-rs/wgpu
@@ -93,7 +93,7 @@ Cushy.
 [arboard]: https://github.com/1Password/arboard
 [ecton]: https://github.com/khonsulabs/ecton
 [issues]: https://github.com/khonsulabs/cushy/issues
-[guide]: https://cushy.rs/v0.3.0/guide/
+[guide]: https://cushy.rs/v0.4.0/guide/
 [discussions]: https://github.com/khonsulabs/cushy/discussions
 [discord]: https://discord.khonsulabs.com/
 

@@ -1,6 +1,10 @@
 #![doc = include_str!("../.crate-docs.md")]
 #![warn(clippy::pedantic, missing_docs)]
-#![allow(clippy::module_name_repetitions, clippy::missing_errors_doc)]
+#![allow(
+    clippy::module_name_repetitions,
+    clippy::missing_errors_doc,
+    clippy::doc_lazy_continuation
+)]
 
 // for proc-macros
 extern crate self as cushy;

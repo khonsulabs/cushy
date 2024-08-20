@@ -1,6 +1,6 @@
+use cushy::figures::{Angle, IntoSigned, Point, Px2D, Rect, Size};
 use cushy::widgets::Canvas;
 use cushy::{Run, Tick};
-use figures::{Angle, IntoSigned, Point, Px2D, Rect, Size};
 use kludgine::shapes::Shape;
 use kludgine::text::{Text, TextOrigin};
 use kludgine::{Color, DrawableExt};

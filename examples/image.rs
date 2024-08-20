@@ -1,11 +1,11 @@
 use cushy::animation::ZeroToOne;
+use cushy::figures::Size;
 use cushy::value::{Dynamic, MapEachCloned, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::image::{Aspect, ImageScaling};
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::Image;
 use cushy::Run;
-use figures::Size;
 use kludgine::include_texture;
 
 fn main() -> cushy::Result {

@@ -1,10 +1,9 @@
 use std::time::Duration;
 
 use cushy::animation::easings::EaseInOutSine;
+use cushy::figures::{Point, Px2D, Size};
 use cushy::widget::MakeWidget;
 use cushy::window::VirtualRecorderError;
-use figures::units::Px;
-use figures::{Point, Size};
 
 #[macro_use]
 mod shared;
@@ -15,13 +14,13 @@ fn ui() -> impl MakeWidget {
 
 fn main() -> Result<(), VirtualRecorderError> {
     let mut recorder = ui().build_recorder().size(Size::new(320, 240)).finish()?;
-    let initial_point = Point::new(Px::new(140), Px::new(150));
+    let initial_point = Point::px(140, 150);
     recorder.set_cursor_position(initial_point);
     recorder.set_cursor_visible(true);
     recorder.refresh()?;
     let mut animation = recorder.record_animated_png(60);
     animation.animate_cursor_to(
-        Point::new(Px::new(160), Px::new(120)),
+        Point::px(160, 120),
         Duration::from_millis(250),
         EaseInOutSine,
     )?;

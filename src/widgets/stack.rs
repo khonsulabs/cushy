@@ -126,6 +126,12 @@ impl Widget for Stack {
         }
     }
 
+    fn mounted(&mut self, context: &mut EventContext<'_>) {
+        for child in &mut self.synced_children {
+            child.remount_if_needed(context);
+        }
+    }
+
     fn layout(
         &mut self,
         available_space: Size<ConstraintLimit>,

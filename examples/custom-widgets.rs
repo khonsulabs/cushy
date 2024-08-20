@@ -1,14 +1,14 @@
 //! This example shows two approaches to writing custom widgets: implementing
 //! traits or using the [`Custom`] widget with callbacks.
 
+use cushy::figures::units::{Lp, UPx};
+use cushy::figures::{ScreenScale, Size};
+use cushy::kludgine::Color;
 use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag, HANDLED};
 use cushy::widgets::Custom;
 use cushy::window::DeviceId;
 use cushy::Run;
-use figures::units::{Lp, UPx};
-use figures::{ScreenScale, Size};
-use kludgine::Color;
 
 fn main() -> cushy::Result {
     "Inline Widgets"

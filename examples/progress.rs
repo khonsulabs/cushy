@@ -1,10 +1,10 @@
+use cushy::figures::units::Lp;
+use cushy::figures::Size;
 use cushy::value::{Dynamic, MapEach};
 use cushy::widget::MakeWidget;
 use cushy::widgets::progress::Progressable;
 use cushy::widgets::slider::Slidable;
 use cushy::Run;
-use figures::units::Lp;
-use figures::Size;
 
 fn main() -> cushy::Result {
     let indeterminant = Dynamic::new(false);

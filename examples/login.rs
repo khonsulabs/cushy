@@ -1,12 +1,12 @@
 use std::process::exit;
 
+use cushy::figures::units::Lp;
 use cushy::value::{Dynamic, Source, Validations};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::{InputValue, MaskedString};
 use cushy::widgets::layers::OverlayLayer;
 use cushy::widgets::Expand;
 use cushy::Run;
-use figures::units::Lp;
 
 fn main() -> cushy::Result {
     let tooltips = OverlayLayer::default();

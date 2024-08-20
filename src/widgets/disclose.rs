@@ -333,7 +333,7 @@ impl Widget for DiscloseIndicator {
 
     fn mouse_up(
         &mut self,
-        _location: Option<Point<Px>>,
+        location: Option<Point<Px>>,
         _device_id: DeviceId,
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_>,
@@ -342,6 +342,11 @@ impl Widget for DiscloseIndicator {
         if self.mouse_buttons_pressed == 0 {
             self.deactivate(context);
             self.collapsed.toggle();
+        }
+        let hovering = location.map_or(false, |location| self.hit_test(location, context));
+        if hovering != self.hovering_indicator {
+            self.hovering_indicator = hovering;
+            context.set_needs_redraw();
         }
     }
 
