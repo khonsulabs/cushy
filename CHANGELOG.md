@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Collapse`, `OverlayLayer`, and `Progress` all honor the theme components
   `EasingIn` and `EasingOut` rather than hard-coded easing functions.
+- `Collapse` widgets now apply child size changes immediately rather than
+  animating the transition. The previous behavior caused nested collapsed
+  widgets to grow and shrink in an accordian-like fashion rather than animating
+  together.
 
 ### Added
 
