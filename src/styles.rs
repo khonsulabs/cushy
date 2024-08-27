@@ -25,7 +25,9 @@ use crate::context::{Trackable, WidgetContext};
 use crate::names::Name;
 use crate::utils::Lazy;
 use crate::value::{Dynamic, IntoValue, Source, Value};
+use crate::widget::MakeWidget;
 use crate::widgets::input::CowString;
+use crate::widgets::ComponentProbe;
 
 #[macro_use]
 pub mod components;
@@ -1133,6 +1135,25 @@ pub trait ComponentDefinition: NamedComponent {
 
     /// Returns the default value to use for this component.
     fn default_value(&self, context: &WidgetContext<'_>) -> Self::ComponentType;
+}
+
+/// A [`ComponentDefinition`] that can provide a default value without access to
+/// a runtime context.
+pub trait ContextFreeComponent: ComponentDefinition {
+    /// Returns the default value for this component.
+    fn default(&self) -> Self::ComponentType;
+
+    /// Returns a new probe that provides access to the runtime value of this
+    /// component.
+    fn probe(self) -> ComponentProbe<Self> {
+        ComponentProbe::default_for(self)
+    }
+
+    /// Returns a new probe wrapping `child` that provides access to the runtime
+    /// value of this component.
+    fn probe_wrapping(self, child: impl MakeWidget) -> ComponentProbe<Self> {
+        ComponentProbe::default_wrapping(self, child)
+    }
 }
 
 /// Describes whether a type should invalidate a widget.

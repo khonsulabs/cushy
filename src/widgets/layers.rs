@@ -6,14 +6,15 @@ use std::time::Duration;
 
 use alot::{LotId, OrderedLots};
 use cushy::widget::{RootBehavior, WidgetInstance};
+use easing_function::EasingFunction;
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use intentional::Assert;
 use parking_lot::Mutex;
 
-use crate::animation::easings::EaseOutQuadradic;
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
+use crate::styles::components::EasingIn;
 use crate::value::{Destination, Dynamic, DynamicGuard, IntoValue, Source, Value};
 use crate::widget::{
     Callback, MakeWidget, MountedChildren, MountedWidget, Widget, WidgetId, WidgetList, WidgetRef,
@@ -139,6 +140,7 @@ impl Widget for Layers {
 #[derive(Debug, Clone, Default)]
 pub struct OverlayLayer {
     state: Dynamic<OverlayState>,
+    easing: Dynamic<EasingFunction>,
 }
 
 impl OverlayLayer {
@@ -189,6 +191,7 @@ impl OverlayLayer {
 
 impl Widget for OverlayLayer {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
+        self.easing.set(context.get(&EasingIn));
         let state = self.state.lock();
 
         for child in &state.overlays {
@@ -691,7 +694,7 @@ impl OverlayBuilder<'_> {
             .opacity
             .transition_to(ZeroToOne::ONE)
             .over(Duration::from_millis(250))
-            .with_easing(EaseOutQuadradic)
+            .with_easing(self.overlay.easing.get())
             .launch();
     }
 }

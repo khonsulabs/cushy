@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- markdownlint-disable no-duplicate-heading -->
 
+## Unreleased
+
+### Fixed
+
+- `Collapse`, `OverlayLayer`, and `Progress` all honor the theme components
+  `EasingIn` and `EasingOut` rather than hard-coded easing functions.
+
+### Added
+
+- `ComponentProbe<T>` is a new widget that allows reading a
+  `ComponentDefinition` value from the theme at runtime through a
+  `Dynamic<T::ComponentType>`. For example, a `ComponentProbe<TextSize>` will
+  provide access to a `Dynamic<Dimension>`. Previously this required creating a
+  custom widget to access the runtime theme information.
+
+  `ContextFreeComponent::probe()` and `ContextFreeComponent::probe_wrapping()`
+  provide an easy interface for creating probes from components.
+
 ## v0.4.0 (2024-08-20)
 
 ### Breaking Changes

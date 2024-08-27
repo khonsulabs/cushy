@@ -62,6 +62,8 @@ macro_rules! define_components {
 
                 define_components!($type, $($($default)*)?);
             }
+
+            define_components!(default $component $type, $($($default)*)?);
         };
 
     )*)*};
@@ -89,6 +91,29 @@ macro_rules! define_components {
     };
     ($type:ty, $($expr:tt)+) => {
         define_components!($type, |_context| $($expr)*);
+    };
+    (default $component:ident $type:ty, . $($path:tt)*) => {
+
+    };
+    (default $component:ident $type:ty, |$context:ident| $($expr:tt)*) => {
+    };
+    (default $component:ident $type:ty, @$path:path) => {
+    };
+    (default $component:ident $type:ty, contrasting!($bg:ident, $($fg:ident),+ $(,)?)) => {
+    };
+    (default $component:ident $type:ty, ) => {
+        impl $crate::styles::ContextFreeComponent for $component {
+            fn default(&self) -> Self::ComponentType {
+                <$type>::default()
+            }
+        }
+    };
+    (default $component:ident $type:ty, $($expr:tt)+) => {
+        impl $crate::styles::ContextFreeComponent for $component {
+            fn default(&self) -> Self::ComponentType {
+                $($expr)*
+            }
+        }
     };
 }
 
@@ -204,7 +229,7 @@ define_components! {
         LayoutOrder(VisualOrder, "visual_order", VisualOrder::left_to_right())
         /// The set of controls to allow focusing via tab key and initial focus
         /// selection.
-        AutoFocusableControls(FocusableWidgets, "focus", FocusableWidgets::default())
+        AutoFocusableControls(FocusableWidgets, "focus")
         /// A [`Color`] to be used as the background color of a widget.
         WidgetBackground(Color, "widget_backgrond_color", Color::CLEAR_WHITE)
         /// A [`Color`] to be used to accent a widget.

@@ -3,9 +3,9 @@ use std::time::Duration;
 use figures::units::Px;
 use figures::{Size, Zero};
 
-use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
-use crate::animation::{AnimationHandle, AnimationTarget, EasingFunction, Spawn};
+use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::LayoutContext;
+use crate::styles::components::{EasingIn, EasingOut};
 use crate::value::{Dynamic, IntoDynamic, Source};
 use crate::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
@@ -53,9 +53,9 @@ impl Collapse {
 
     fn note_child_size(&mut self, size: Px, context: &mut LayoutContext<'_, '_, '_, '_>) {
         let (easing, target) = if self.collapse.get_tracking_invalidate(context) {
-            (EasingFunction::from(EaseOutQuadradic), Px::ZERO)
+            (context.get(&EasingOut), Px::ZERO)
         } else {
-            (EasingFunction::from(EaseInQuadradic), size)
+            (context.get(&EasingIn), size)
         };
         match &self.collapse_animation {
             Some(state) if state.target == target => {}

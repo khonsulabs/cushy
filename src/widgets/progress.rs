@@ -3,15 +3,17 @@
 use std::ops::RangeInclusive;
 use std::time::Duration;
 
+use easing_function::EasingFunction;
 use figures::units::Px;
 use figures::{Angle, Point, Ranged, ScreenScale, Size, Zero};
 use kludgine::shapes::{Path, StrokeOptions};
 use kludgine::Color;
 
-use crate::animation::easings::{EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::{
     AnimationHandle, AnimationTarget, IntoAnimate, PercentBetween, Spawn, ZeroToOne,
 };
+use crate::styles::components::{EasingIn, EasingOut};
+use crate::styles::ContextFreeComponent;
 use crate::value::{Destination, Dynamic, IntoReadOnly, IntoReader, MapEach, ReadOnly, Source};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::slider::{InactiveTrackColor, Slidable, TrackColor, TrackSize};
@@ -91,29 +93,41 @@ impl MakeWidgetWithTag for ProgressBar {
             )
         };
 
+        let ease_in_probe = EasingIn.probe_wrapping(slider);
+        let ease_in = ease_in_probe.value().clone();
+        let ease_out_probe = EasingOut.probe_wrapping(ease_in_probe);
+        let ease_out = ease_out_probe.value().clone();
         update_progress_bar(
             self.progress.get(),
             &mut indeterminant_animation,
             &start,
             &end,
             degree_offset.as_ref(),
+            &ease_in,
+            &ease_out,
         );
 
         match self.progress {
             ReadOnly::Reader(progress) => {
-                let callback = progress.for_each(move |progress| {
-                    update_progress_bar(
-                        *progress,
-                        &mut indeterminant_animation,
-                        &start,
-                        &end,
-                        degree_offset.as_ref(),
-                    );
+                let callback = progress.for_each({
+                    let ease_in = ease_in.clone();
+                    let ease_out = ease_out.clone();
+                    move |progress| {
+                        update_progress_bar(
+                            *progress,
+                            &mut indeterminant_animation,
+                            &start,
+                            &end,
+                            degree_offset.as_ref(),
+                            &ease_in,
+                            &ease_out,
+                        );
+                    }
                 });
-                Data::new_wrapping((callback, progress), slider).make_widget()
+                Data::new_wrapping((callback, progress), ease_out_probe).make_widget()
             }
             ReadOnly::Constant(_) => {
-                Data::new_wrapping(indeterminant_animation, slider).make_widget()
+                Data::new_wrapping(indeterminant_animation, ease_out_probe).make_widget()
             }
         }
     }
@@ -131,10 +145,14 @@ fn update_progress_bar(
     start: &Dynamic<ZeroToOne>,
     end: &Dynamic<ZeroToOne>,
     degree_offset: Option<&Dynamic<Angle>>,
+    ease_in: &Dynamic<EasingFunction>,
+    ease_out: &Dynamic<EasingFunction>,
 ) {
     match progress {
         Progress::Indeterminant => {
             if indeterminant_animation.is_none() {
+                let ease_in = ease_in.get();
+                let ease_out = ease_out.get();
                 *indeterminant_animation = Some(IndeterminantAnimations {
                     _primary: (
                         start
@@ -145,25 +163,25 @@ fn update_progress_bar(
                                 start
                                     .transition_to(ZeroToOne::new(0.33))
                                     .over(Duration::from_millis(500))
-                                    .with_easing(EaseInQuadradic),
+                                    .with_easing(ease_in.clone()),
                             )
                             .and_then(
                                 start
                                     .transition_to(ZeroToOne::new(1.0))
                                     .over(Duration::from_millis(500))
-                                    .with_easing(EaseOutQuadradic),
+                                    .with_easing(ease_out.clone()),
                             ),
                         end.transition_to(ZeroToOne::ZERO)
                             .immediately()
                             .and_then(
                                 end.transition_to(ZeroToOne::new(0.75))
                                     .over(Duration::from_millis(500))
-                                    .with_easing(EaseInQuadradic),
+                                    .with_easing(ease_in),
                             )
                             .and_then(
                                 end.transition_to(ZeroToOne::ONE)
                                     .over(Duration::from_millis(250))
-                                    .with_easing(EaseOutQuadradic),
+                                    .with_easing(ease_out.clone()),
                             ),
                     )
                         .cycle()
