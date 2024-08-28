@@ -1,10 +1,14 @@
 use std::fmt::Debug;
+use std::mem;
 
+use ahash::HashMap;
 use figures::Size;
+use kludgine::KludgineId;
 
-use crate::context::LayoutContext;
+use crate::context::{AsEventContext, LayoutContext};
 use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoReader, Source};
-use crate::widget::{WidgetInstance, WidgetRef, WrapperWidget};
+use crate::widget::{MountedWidget, WidgetInstance, WidgetRef, WrapperWidget};
+use crate::window::WindowLocal;
 use crate::ConstraintLimit;
 
 /// A widget that switches its contents based on a value of `T`.
@@ -12,6 +16,7 @@ use crate::ConstraintLimit;
 pub struct Switcher {
     source: DynamicReader<WidgetInstance>,
     child: WidgetRef,
+    pending_unmount: HashMap<KludgineId, MountedWidget>,
 }
 
 impl Switcher {
@@ -39,7 +44,11 @@ impl Switcher {
     pub fn new(source: impl IntoReader<WidgetInstance>) -> Self {
         let source = source.into_reader();
         let child = WidgetRef::new(source.get());
-        Self { source, child }
+        Self {
+            source,
+            child,
+            pending_unmount: HashMap::default(),
+        }
     }
 }
 
@@ -54,12 +63,32 @@ impl WrapperWidget for Switcher {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<ConstraintLimit> {
+        if let Some(pending_unmount) = self.pending_unmount.remove(&context.kludgine_id()) {
+            context.remove_child(&pending_unmount);
+        }
+
         let current_source = self.source.get_tracking_invalidate(context);
         if &current_source != self.child.widget() {
+            // immediately unmount in the current context.
             self.child.unmount_in(context);
-            self.child = WidgetRef::new(current_source);
+            let old_mounts = <WindowLocal<MountedWidget>>::from(mem::replace(
+                &mut self.child,
+                WidgetRef::new(current_source),
+            ));
+
+            // For all other contexts, we have to wait until this callback to
+            // try unmounting.
+            for (id, mounted) in old_mounts {
+                let existing = self.pending_unmount.insert(id, mounted);
+                debug_assert!(
+                    existing.is_none(),
+                    "Existing unmount found, but should have already been unmounted"
+                );
+            }
         }
+
         context.invalidate_when_changed(&self.source);
+
         available_space
     }
 }

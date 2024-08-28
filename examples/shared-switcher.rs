@@ -1,0 +1,53 @@
+//! Shows the ability to share widgets between multiple windows.
+//!
+//! This example was created to test a fix for
+//! <https://github.com/khonsulabs/cushy/issues/139>. The issue was that if the
+//! same Switcher widget was shown on two separate windows, only one window
+//! would unmount the existing widget.
+//!
+//! When running this example after the bug has been fixed, unmounted messages
+//! should be printed twice: once per each window.
+use cushy::value::{Dynamic, Switchable};
+use cushy::widget::MakeWidget;
+use cushy::widgets::Custom;
+use cushy::{Open, PendingApp, Run};
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum Contents {
+    A,
+    B,
+}
+
+fn main() -> cushy::Result {
+    let mut app = PendingApp::default();
+
+    let selected = Dynamic::new(Contents::A);
+
+    // Open up another window containing our controls
+    selected
+        .new_radio(Contents::A, "A")
+        .and(selected.new_radio(Contents::B, "B"))
+        .into_rows()
+        .open(&mut app)?;
+
+    let display = selected
+        .switcher(|contents, _| match contents {
+            Contents::A => Custom::new("A")
+                .on_unmounted(|_| {
+                    println!("A unmounted");
+                })
+                .make_widget(),
+            Contents::B => Custom::new("B")
+                .on_unmounted(|_| {
+                    println!("B unmounted");
+                })
+                .make_widget(),
+        })
+        .make_widget();
+
+    // Open two windows with the same switcher instance
+    display.to_window().open(&mut app)?;
+    display.to_window().open(&mut app)?;
+
+    app.run()
+}

@@ -2499,6 +2499,12 @@ impl WidgetRef {
     }
 }
 
+impl From<WidgetRef> for WindowLocal<MountedWidget> {
+    fn from(value: WidgetRef) -> Self {
+        value.mounted
+    }
+}
+
 impl AsRef<WidgetId> for WidgetRef {
     fn as_ref(&self) -> &WidgetId {
         self.instance.as_ref()

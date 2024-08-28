@@ -2439,9 +2439,25 @@ impl<T> WindowLocal<T> {
         self.by_window.get(&context.kludgine_id())
     }
 
+    /// Looks up an exclusive reference to the value for this window, returning
+    /// None if not found.
+    ///
+    /// Internally this API uses [`HashMap::get`](hash_map::HashMap::get).
+    #[must_use]
+    pub fn get_mut(&mut self, context: &WidgetContext<'_>) -> Option<&mut T> {
+        self.by_window.get_mut(&context.kludgine_id())
+    }
+
     /// Removes any stored value for this window.
     pub fn clear_for(&mut self, context: &WidgetContext<'_>) -> Option<T> {
         self.by_window.remove(&context.kludgine_id())
+    }
+
+    /// Returns an iterator over the per-window values stored in this
+    /// collection.
+    #[must_use]
+    pub fn iter(&self) -> hash_map::Iter<'_, KludgineId, T> {
+        self.into_iter()
     }
 }
 
@@ -2450,6 +2466,24 @@ impl<T> Default for WindowLocal<T> {
         Self {
             by_window: AHashMap::default(),
         }
+    }
+}
+
+impl<T> IntoIterator for WindowLocal<T> {
+    type IntoIter = hash_map::IntoIter<KludgineId, T>;
+    type Item = (KludgineId, T);
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.by_window.into_iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a WindowLocal<T> {
+    type IntoIter = hash_map::Iter<'a, KludgineId, T>;
+    type Item = (&'a KludgineId, &'a T);
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.by_window.iter()
     }
 }
 

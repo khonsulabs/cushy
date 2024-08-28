@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   animating the transition. The previous behavior caused nested collapsed
   widgets to grow and shrink in an accordian-like fashion rather than animating
   together.
+- `Switcher` now unmounts child widgets in all windows it is mounted in. Fixes
+  [#139][139].
 
 ### Added
 
@@ -34,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `MakeWidget::to_button()`
   - `MakeWidget::to_checkbox()`
   - `WidgetInstance::to_window()`
+
+[139]: https://github.com/khonsulabs/cushy/issues/139
 
 ## v0.4.0 (2024-08-20)
 
