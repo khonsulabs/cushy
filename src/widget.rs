@@ -1206,9 +1206,25 @@ pub trait MakeWidget: Sized {
         Button::new(self)
     }
 
+    /// Returns this widget as the contents of a clickable button.
+    fn to_button(&self) -> Button
+    where
+        Self: Clone,
+    {
+        self.clone().into_button()
+    }
+
     /// Returns this widget as the label of a Checkbox.
     fn into_checkbox(self, value: impl IntoDynamic<CheckboxState>) -> Checkbox {
         value.into_checkbox(self)
+    }
+
+    /// Returns this widget as the label of a Checkbox.
+    fn to_checkbox(&self, value: impl IntoDynamic<CheckboxState>) -> Checkbox
+    where
+        Self: Clone,
+    {
+        self.clone().into_checkbox(value)
     }
 
     /// Aligns `self` to the center vertically and horizontally.
@@ -1588,6 +1604,14 @@ impl WidgetInstance {
             dynamic.inner_redraw_when_changed(context.clone());
         }
         self.data.enabled.get()
+    }
+
+    /// Returns a new window containing `self` as the root widget.
+    pub fn to_window(&self) -> Window<Self>
+    where
+        Self: Clone,
+    {
+        self.clone().into_window()
     }
 }
 

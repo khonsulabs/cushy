@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   `ContextFreeComponent::probe()` and `ContextFreeComponent::probe_wrapping()`
   provide an easy interface for creating probes from components.
+- These `to_*` variations of existing `into_*` functions have been added to
+  avoid some cases where cloning might be needed.
+
+  - `MakeWidget::to_button()`
+  - `MakeWidget::to_checkbox()`
+  - `WidgetInstance::to_window()`
 
 ## v0.4.0 (2024-08-20)
 
