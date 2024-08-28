@@ -6,7 +6,7 @@ use figures::{Size, Zero};
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::LayoutContext;
 use crate::styles::components::{EasingIn, EasingOut};
-use crate::value::{Destination, Dynamic, Generation, IntoDynamic, Source};
+use crate::value::{Dynamic, Generation, IntoDynamic, Source};
 use crate::widget::{MakeWidget, WidgetInstance, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
@@ -65,7 +65,6 @@ impl Collapse {
         } else {
             (context.get(&EasingIn), size)
         };
-        if generation == self.collapse_generation {}
         match &self.collapse_animation {
             Some(state) if state.target == target => {}
             Some(_) if generation == self.collapse_generation => {
