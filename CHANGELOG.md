@@ -36,6 +36,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `MakeWidget::to_button()`
   - `MakeWidget::to_checkbox()`
   - `WidgetInstance::to_window()`
+- `Watcher` is a new type that executes callbacks when one or more sources
+  changes. This can simplify some data flows such as regenerating a value when
+  many one of many UI elements are changed.
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
 

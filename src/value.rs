@@ -3794,6 +3794,52 @@ impl InvalidationBatch<'_> {
     }
 }
 
+/// Watches one or more [`Source`]s and invokes associated callbacks when
+/// changed.
+///
+/// This type is useful when needing to ensure logic is executed or a value is
+/// regenerated each time one of many sources are changed.
+#[derive(Debug, Clone, Default)]
+pub struct Watcher(Dynamic<usize>);
+
+impl Watcher {
+    /// Ensures all callbacks attached to this watcher are invoked when `other`
+    /// is changed.
+    pub fn watch<T>(&self, other: &impl Source<T>)
+    where
+        T: Send + 'static,
+    {
+        let counter = self.0.clone();
+        self.0
+            .set_source(other.for_each_subsequent_generational(move |guard| {
+                // We want to drop our guard before changing the counter to
+                // ensure all callbacks associated with our counter are executed
+                // without this type holding any source locks.
+                drop(guard);
+                let mut counter = counter.lock();
+                *counter = counter.wrapping_add(1);
+            }));
+    }
+
+    /// Returns a new dynamic populated by invoking `when_changed` each time any
+    /// watched source is updated.
+    pub fn map_changed<F, T>(&self, mut when_changed: F) -> Dynamic<T>
+    where
+        F: FnMut() -> T + Send + 'static,
+        T: PartialEq + Send + 'static,
+    {
+        self.0.map_each(move |_| when_changed())
+    }
+
+    /// Invokes `when_changed` each time any watched source is updated.
+    pub fn when_changed<F>(&self, mut when_changed: F) -> CallbackHandle
+    where
+        F: FnMut() + Send + 'static,
+    {
+        self.0.for_each(move |_| when_changed())
+    }
+}
+
 #[test]
 fn map_cycle_is_finite() {
     crate::initialize_tracing();
