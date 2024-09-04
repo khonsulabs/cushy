@@ -498,6 +498,8 @@ where
     /// The number of samples to perform for each pixel rendered to the screen.
     /// When 1, multisampling is disabled.
     pub multisample_count: NonZeroU32,
+    /// Resizes the window to fit the contents if true.
+    pub resize_to_fit: Value<bool>,
 
     on_closed: Option<OnceCallback>,
     inner_size: Option<Dynamic<Size<UPx>>>,
@@ -581,6 +583,7 @@ where
             vsync: true,
             close_requested: None,
             zoom: None,
+            resize_to_fit: Value::Constant(false),
         }
     }
 
@@ -623,6 +626,12 @@ where
     pub fn inner_size(mut self, inner_size: impl IntoDynamic<Size<UPx>>) -> Self {
         let inner_size = inner_size.into_dynamic();
         self.inner_size = Some(inner_size);
+        self
+    }
+
+    /// Resizes this window to fit the contents when `resize_to_fit` is true.
+    pub fn resize_to_fit(mut self, resize_to_fit: impl IntoValue<bool>) -> Self {
+        self.resize_to_fit = resize_to_fit.into_value();
         self
     }
 
@@ -712,12 +721,13 @@ impl<Behavior> Open for Window<Behavior>
 where
     Behavior: WindowBehavior,
 {
-    fn open<App>(self, app: &mut App) -> crate::Result<Option<WindowHandle>>
+    fn open<App>(self, app: &mut App) -> crate::Result<WindowHandle>
     where
         App: Application + ?Sized,
     {
         let cushy = app.cushy().clone();
-        let handle = OpenWindow::<Behavior>::open_with(
+        let handle = self.pending.handle();
+        OpenWindow::<Behavior>::open_with(
             app,
             sealed::Context {
                 user: self.context,
@@ -743,11 +753,13 @@ where
                     multisample_count: self.multisample_count,
                     close_requested: self.close_requested.map(|cb| Arc::new(Mutex::new(cb))),
                     zoom: self.zoom.unwrap_or_else(|| Dynamic::new(Fraction::ONE)),
+                    resize_to_fit: self.resize_to_fit,
                 }),
+                pending: self.pending,
             },
         )?;
 
-        Ok(handle.map(|handle| self.pending.opened(handle)))
+        Ok(handle)
     }
 
     fn run_in(self, mut app: PendingApp) -> crate::Result {
@@ -813,7 +825,7 @@ struct OpenWindow<T> {
     keyboard_activated: Option<WidgetId>,
     min_inner_size: Option<Size<UPx>>,
     max_inner_size: Option<Size<UPx>>,
-    resize_to_fit: bool,
+    resize_to_fit: Value<bool>,
     theme: Option<DynamicReader<ThemePair>>,
     current_theme: ThemePair,
     theme_mode: Value<ThemeMode>,
@@ -1181,24 +1193,25 @@ where
                 })
                 .persist();
         }
+
         let cushy = settings.cushy.clone();
-        let occluded = settings.occluded.clone();
-        let focused = settings.focused.clone();
-        let theme = settings.theme.take().unwrap_or_default();
-        let inner_size = settings.inner_size.clone();
-        let on_closed = settings.on_closed.take();
-        let close_requested = settings.close_requested.take();
-        let vsync = settings.vsync;
-        let zoom = settings.zoom.clone();
-        let dpi_scale = Dynamic::new(graphics.dpi_scale());
-
-        inner_size.set(window.inner_size());
-
         let fonts = Self::load_fonts(
             &mut settings,
             cushy.fonts.clone(),
             graphics.font_system().db_mut(),
         );
+        let occluded = settings.occluded;
+        let focused = settings.focused;
+        let theme = settings.theme.unwrap_or_default();
+        let inner_size = settings.inner_size;
+        let on_closed = settings.on_closed;
+        let close_requested = settings.close_requested;
+        let vsync = settings.vsync;
+        let zoom = settings.zoom;
+        let resize_to_fit = settings.resize_to_fit;
+        let dpi_scale = Dynamic::new(graphics.dpi_scale());
+
+        inner_size.set(window.inner_size());
 
         let theme_mode = match settings.theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
@@ -1238,7 +1251,7 @@ where
             keyboard_activated: None,
             min_inner_size: None,
             max_inner_size: None,
-            resize_to_fit: false,
+            resize_to_fit,
             current_theme,
             theme,
             theme_mode,
@@ -1285,7 +1298,8 @@ where
 
         self.new_frame(graphics);
 
-        let resizable = window.is_resizable() || self.resize_to_fit;
+        let resize_to_fit = self.resize_to_fit.get();
+        let resizable = window.is_resizable() || resize_to_fit;
         let mut window = RunningWindow::new(
             window,
             graphics.id(),
@@ -1342,6 +1356,7 @@ where
         };
         let render_size = actual_size.min(window_size);
         layout_context.redraw_when_changed(&self.inner_size);
+        layout_context.invalidate_when_changed(&self.resize_to_fit);
         let inner_size_generation = self.inner_size.generation();
         if self.inner_size_generation != inner_size_generation {
             layout_context.request_inner_size(self.inner_size.get());
@@ -1355,7 +1370,7 @@ where
                 new_size = new_size.min(max_size);
             }
             layout_context.request_inner_size(new_size);
-        } else if self.resize_to_fit && window_size != layout_size {
+        } else if resize_to_fit && window_size != layout_size {
             layout_context.request_inner_size(layout_size);
         }
         self.root.set_layout(Rect::from(render_size.into_signed()));
@@ -1786,6 +1801,7 @@ where
         graphics: &mut kludgine::Graphics<'_>,
         context: Self::Context,
     ) -> Self {
+        context.pending.opened(window.handle());
         let settings = context.settings.borrow_mut();
         let cushy = settings.cushy.clone();
         let _guard = cushy.enter_runtime();
@@ -2102,6 +2118,7 @@ pub(crate) mod sealed {
     use kludgine::Color;
     use parking_lot::Mutex;
 
+    use super::PendingWindow;
     use crate::app::Cushy;
     use crate::context::sealed::InvalidationStatus;
     use crate::fonts::FontCollection;
@@ -2112,6 +2129,7 @@ pub(crate) mod sealed {
 
     pub struct Context<C> {
         pub user: C,
+        pub pending: PendingWindow,
         pub settings: RefCell<WindowSettings>,
     }
 
@@ -2136,6 +2154,7 @@ pub(crate) mod sealed {
         pub on_closed: Option<OnceCallback>,
         pub vsync: bool,
         pub multisample_count: NonZeroU32,
+        pub resize_to_fit: Value<bool>,
         pub close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
     }
 
@@ -2608,6 +2627,7 @@ pub struct StandaloneWindowBuilder {
     scale: f32,
     transparent: bool,
     zoom: Dynamic<Fraction>,
+    resize_to_fit: Value<bool>,
 }
 
 impl StandaloneWindowBuilder {
@@ -2621,6 +2641,7 @@ impl StandaloneWindowBuilder {
             scale: 1.,
             zoom: Dynamic::new(Fraction::ONE),
             transparent: false,
+            resize_to_fit: Value::Constant(false),
         }
     }
 
@@ -2655,6 +2676,13 @@ impl StandaloneWindowBuilder {
     #[must_use]
     pub fn transparent(mut self) -> Self {
         self.transparent = true;
+        self
+    }
+
+    /// Resizes this window to fit the contents when `resize_to_fit` is true.
+    #[must_use]
+    pub fn resize_to_fit(mut self, resize_to_fit: impl IntoValue<bool>) -> Self {
+        self.resize_to_fit = resize_to_fit.into_value();
         self
     }
 
@@ -2701,6 +2729,7 @@ impl StandaloneWindowBuilder {
                 multisample_count: self.multisample_count,
                 close_requested: None,
                 zoom: self.zoom,
+                resize_to_fit: self.resize_to_fit,
             },
         );
 
@@ -3409,6 +3438,7 @@ where
             .size(size)
             .scale(scale)
             .transparent()
+            .resize_to_fit(resize_to_fit)
             .finish_virtual(&device, &queue);
 
         let mut recorder = Self {
@@ -3423,7 +3453,6 @@ where
             data_size: Size::ZERO,
             format: PhantomData,
         };
-        recorder.window.cushy.window.resize_to_fit = resize_to_fit;
         recorder.refresh()?;
 
         if resize_to_fit && recorder.window.state.size != recorder.window.size() {

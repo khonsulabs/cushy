@@ -474,7 +474,7 @@ impl<T> Open for T
 where
     T: MakeWidget,
 {
-    fn open<App>(self, app: &mut App) -> crate::Result<Option<crate::window::WindowHandle>>
+    fn open<App>(self, app: &mut App) -> crate::Result<crate::window::WindowHandle>
     where
         App: Application + ?Sized,
     {

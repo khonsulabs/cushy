@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Breaking Changes
+
+- `PendingWindow`s opened into a `PendingApp` now have working `WindowHandle`s.
+  As a result of this fix, `Open::open()` now returns a `WindowHandle` instead
+  of an `Option<WindowHandle>`.
+
+
 ### Fixed
 
 - `Collapse`, `OverlayLayer`, and `Progress` all honor the theme components
@@ -39,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Watcher` is a new type that executes callbacks when one or more sources
   changes. This can simplify some data flows such as regenerating a value when
   many one of many UI elements are changed.
+- The `resize_to_fit` setting has been added to all window types and is no
+  longer limited to `VirtualRecorder`s. This setting can be changed using:
+
+  - `Window::resize_to_fit`
+  - `StandaloneWindowBuilder::resize_to_fit`
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
 

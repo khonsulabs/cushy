@@ -333,7 +333,7 @@ pub trait Run: Sized {
 /// A type that can be opened as a window in an application.
 pub trait Open: Sized {
     /// Opens the provided type as a window inside of `app`.
-    fn open<App>(self, app: &mut App) -> crate::Result<Option<WindowHandle>>
+    fn open<App>(self, app: &mut App) -> crate::Result<WindowHandle>
     where
         App: Application + ?Sized;
 
