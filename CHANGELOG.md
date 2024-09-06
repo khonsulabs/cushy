@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `PendingWindow`s opened into a `PendingApp` now have working `WindowHandle`s.
   As a result of this fix, `Open::open()` now returns a `WindowHandle` instead
   of an `Option<WindowHandle>`.
+- `CushyWindow::set_occluded` and `CushyWindow::resize now require a
+  `PlatformWindowImplementation` parameter.
 
 
 ### Fixed
@@ -51,6 +53,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   - `Window::resize_to_fit`
   - `StandaloneWindowBuilder::resize_to_fit`
+- `Tracked<Source>` is a new type that can store a `Dynamic<T>` or `Value<T>`
+  and provide easy ways to track whether the value has been updated.
+- Many new functions have been added to `Window` to expose more functionality
+  supported by winit:
+
+  - `Window::content_protected`
+  - `Window::cursor_hittest`
+  - `Window::cursor_visible`
+  - `Window::cursor_position`
+  - `Window::decorated`
+  - `Window::window_level`
+  - `Window::minimized`
+  - `Window::maximized`
+  - `Window::resized`
+  - `Window::resize_increments`
+  - `Window::transparent`
+  - `Window::visible`
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
 

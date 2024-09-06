@@ -12,7 +12,7 @@ use std::task::{Poll, Waker};
 use std::thread::{self, ThreadId};
 use std::time::{Duration, Instant};
 
-use ahash::AHashSet;
+use ahash::{AHashMap, AHashSet};
 use alot::{LotId, Lots};
 use intentional::Assert;
 use kempt::{Map, Sort};
@@ -1352,6 +1352,10 @@ impl<T> context::sealed::Trackable for Dynamic<T> {
         self.0.redraw_when_changed(handle);
     }
 
+    fn inner_sync_when_changed(&self, handle: WindowHandle) {
+        self.0.sync_when_changed(handle);
+    }
+
     fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
         self.0.invalidate_when_changed(handle, id);
     }
@@ -1509,7 +1513,12 @@ impl<T> DynamicData<T> {
 
     pub fn redraw_when_changed(&self, window: WindowHandle) {
         let mut state = self.state().expect("deadlocked");
-        state.invalidation.windows.insert(window);
+        state.invalidation.windows.insert(window, true);
+    }
+
+    pub fn sync_when_changed(&self, window: WindowHandle) {
+        let mut state = self.state().expect("deadlocked");
+        state.invalidation.windows.entry(window).or_insert(false);
     }
 
     pub fn invalidate_when_changed(&self, window: WindowHandle, widget: WidgetId) {
@@ -1775,7 +1784,7 @@ impl AddAssign for CallbackHandle {
 
 #[derive(Default)]
 struct InvalidationState {
-    windows: AHashSet<WindowHandle>,
+    windows: AHashMap<WindowHandle, bool>,
     widgets: AHashSet<(WindowHandle, WidgetId)>,
     wakers: Vec<Waker>,
 }
@@ -1785,8 +1794,12 @@ impl InvalidationState {
         for (window, widget) in self.widgets.drain() {
             window.invalidate(widget);
         }
-        for window in self.windows.drain() {
-            window.redraw();
+        for (window, redraw) in self.windows.drain() {
+            if redraw {
+                window.redraw();
+            } else {
+                window.sync();
+            }
         }
         for waker in self.wakers.drain(..) {
             waker.wake();
@@ -1827,7 +1840,7 @@ impl<T> State<T> {
             },
             callbacks: Arc::default(),
             invalidation: InvalidationState {
-                windows: AHashSet::new(),
+                windows: AHashMap::new(),
                 wakers: Vec::new(),
                 widgets: AHashSet::new(),
             },
@@ -2339,6 +2352,10 @@ impl<T> DynamicReader<T> {
 impl<T> context::sealed::Trackable for DynamicReader<T> {
     fn inner_redraw_when_changed(&self, handle: WindowHandle) {
         self.source.redraw_when_changed(handle);
+    }
+
+    fn inner_sync_when_changed(&self, handle: WindowHandle) {
+        self.source.sync_when_changed(handle);
     }
 
     fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
@@ -2858,6 +2875,12 @@ impl<T> crate::context::sealed::Trackable for ReadOnly<T> {
         }
     }
 
+    fn inner_sync_when_changed(&self, handle: WindowHandle) {
+        if let ReadOnly::Reader(dynamic) = self {
+            dynamic.inner_sync_when_changed(handle);
+        }
+    }
+
     fn inner_redraw_when_changed(&self, handle: WindowHandle) {
         if let ReadOnly::Reader(dynamic) = self {
             dynamic.inner_redraw_when_changed(handle);
@@ -2869,6 +2892,12 @@ impl<T> crate::context::sealed::Trackable for Value<T> {
     fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
         if let Value::Dynamic(dynamic) = self {
             dynamic.inner_invalidate_when_changed(handle, id);
+        }
+    }
+
+    fn inner_sync_when_changed(&self, handle: WindowHandle) {
+        if let Value::Dynamic(dynamic) = self {
+            dynamic.inner_sync_when_changed(handle);
         }
     }
 
@@ -3837,6 +3866,242 @@ impl Watcher {
         F: FnMut() + Send + 'static,
     {
         self.0.for_each(move |_| when_changed())
+    }
+}
+
+/// A value that has its read and updated states tracked.
+pub struct Tracked<Source>
+where
+    Source: TrackedSource,
+{
+    current: Source::Value,
+    source: Source,
+    current_generation: Generation,
+    unread: bool,
+}
+
+impl<Source> Tracked<Source>
+where
+    Source: TrackedSource,
+{
+    /// Returns a new tracked instance.
+    pub fn new(source: Source) -> Self {
+        let (current, current_generation) = source.read();
+        Self {
+            current,
+            current_generation,
+            source,
+            unread: true,
+        }
+    }
+
+    /// Updates this tracked instance's cached value from the source.
+    ///
+    /// Returns true if a value hasn't been read yet.
+    pub fn update(&mut self) -> bool {
+        if let Some((updated, updated_generation)) =
+            self.source.read_if_needed(self.current_generation)
+        {
+            self.current = updated;
+            self.current_generation = updated_generation;
+            self.unread = true;
+            true
+        } else {
+            self.unread
+        }
+    }
+
+    /// Returns the current value from the source, if it hasn't been read
+    /// before.
+    pub fn updated(&mut self) -> Option<&Source::Value> {
+        if self.update() {
+            self.unread = false;
+            Some(&self.current)
+        } else {
+            None
+        }
+    }
+
+    /// Returns true if the currently cached value hasn't been read.
+    pub const fn unread(&self) -> bool {
+        self.unread
+    }
+
+    /// Reads the current value from the source.
+    pub fn read(&mut self) -> &Source::Value {
+        self.update();
+        self.read_cached()
+    }
+
+    /// Reads the current cached value.
+    ///
+    /// This function does not check if an updated value exists in the source.
+    pub fn read_cached(&mut self) -> &Source::Value {
+        self.unread = false;
+        self.peek()
+    }
+
+    /// Returns the current cached value without changing the unread state.
+    pub const fn peek(&self) -> &Source::Value {
+        &self.current
+    }
+
+    /// Returns the source being tracked.
+    pub const fn source(&self) -> &Source {
+        &self.source
+    }
+
+    /// Marks the current value in the source as being read.
+    pub fn mark_read(&mut self) {
+        self.unread = false;
+        self.current_generation = self.source.generation();
+    }
+
+    /// Updates the value stored in the source, and marks it as being read.
+    pub fn set_and_read(&mut self, new_value: Source::Value)
+    where
+        Source::Value: PartialEq + Clone,
+    {
+        self.current = new_value;
+        self.unread = false;
+        if self.source.set(self.current.clone()) {
+            self.current_generation = self.source.generation();
+        }
+    }
+}
+
+/// A [`Source`] that can be used in a [`Tracked`] instance.
+pub trait TrackedSource: sealed::TrackedSource {}
+
+mod sealed {
+    use super::Generation;
+    pub trait TrackedSource {
+        type Value;
+        fn read(&self) -> (Self::Value, Generation);
+        fn read_if_needed(&self, read_generation: Generation) -> Option<(Self::Value, Generation)>;
+        fn generation(&self) -> Generation;
+        fn set(&self, new_value: Self::Value) -> bool;
+    }
+}
+
+impl<T> TrackedSource for Dynamic<T> where T: Clone + PartialEq {}
+
+impl<T> sealed::TrackedSource for Dynamic<T>
+where
+    T: Clone + PartialEq,
+{
+    type Value = T;
+
+    fn read(&self) -> (Self::Value, Generation) {
+        self.map_generational(|g| (g.clone(), g.generation()))
+    }
+
+    fn read_if_needed(&self, read_generation: Generation) -> Option<(Self::Value, Generation)> {
+        self.map_generational(|g| {
+            if g.generation() == read_generation {
+                None
+            } else {
+                Some((g.clone(), g.generation()))
+            }
+        })
+    }
+
+    fn generation(&self) -> Generation {
+        Source::generation(self)
+    }
+
+    fn set(&self, new_value: Self::Value) -> bool {
+        let mut value = self.lock();
+        if *value == new_value {
+            false
+        } else {
+            *value = new_value;
+            true
+        }
+    }
+}
+
+impl<T> TrackedSource for Value<T> where T: Clone + PartialEq {}
+
+impl<T> sealed::TrackedSource for Value<T>
+where
+    T: Clone + PartialEq,
+{
+    type Value = T;
+
+    fn read(&self) -> (Self::Value, Generation) {
+        match self {
+            Value::Constant(value) => (value.clone(), Generation::default()),
+            Value::Dynamic(value) => sealed::TrackedSource::read(value),
+        }
+    }
+
+    fn read_if_needed(&self, read_generation: Generation) -> Option<(Self::Value, Generation)> {
+        match self {
+            Value::Constant(_) => None,
+            Value::Dynamic(value) => sealed::TrackedSource::read_if_needed(value, read_generation),
+        }
+    }
+
+    fn generation(&self) -> Generation {
+        match self {
+            Value::Constant(_) => Generation::default(),
+            Value::Dynamic(value) => Source::generation(value),
+        }
+    }
+
+    fn set(&self, new_value: Self::Value) -> bool {
+        match self {
+            Value::Constant(_) => false,
+            Value::Dynamic(value) => sealed::TrackedSource::set(value, new_value),
+        }
+    }
+}
+
+impl<S> Destination<S::Value> for Tracked<S>
+where
+    S: TrackedSource + Destination<S::Value>,
+{
+    fn try_map_mut<R>(
+        &self,
+        map: impl FnOnce(Mutable<'_, S::Value>) -> R,
+    ) -> Result<R, DeadlockError> {
+        self.source.try_map_mut(map)
+    }
+}
+
+impl<T> From<Dynamic<T>> for Tracked<Dynamic<T>>
+where
+    T: Clone + PartialEq,
+{
+    fn from(source: Dynamic<T>) -> Self {
+        Self::new(source)
+    }
+}
+
+impl<T> From<Value<T>> for Tracked<Value<T>>
+where
+    T: Clone + PartialEq,
+{
+    fn from(source: Value<T>) -> Self {
+        Self::new(source)
+    }
+}
+
+impl<Source> context::sealed::Trackable for Tracked<Source>
+where
+    Source: Trackable + TrackedSource,
+{
+    fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
+        self.source.inner_invalidate_when_changed(handle, id);
+    }
+
+    fn inner_sync_when_changed(&self, handle: WindowHandle) {
+        self.source.inner_sync_when_changed(handle);
+    }
+
+    fn inner_redraw_when_changed(&self, handle: WindowHandle) {
+        self.source.inner_redraw_when_changed(handle);
     }
 }
 

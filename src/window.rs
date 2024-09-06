@@ -19,7 +19,8 @@ use alot::LotId;
 use arboard::Clipboard;
 use figures::units::{Px, UPx};
 use figures::{
-    Fraction, IntoSigned, IntoUnsigned, Point, Ranged, Rect, Round, ScreenScale, Size, UPx2D, Zero,
+    FloatConversion, Fraction, IntoSigned, IntoUnsigned, Point, Ranged, Rect, Round, ScreenScale,
+    Size, UPx2D, Zero,
 };
 use image::{DynamicImage, RgbImage, RgbaImage};
 use intentional::{Assert, Cast};
@@ -30,7 +31,7 @@ use kludgine::app::winit::event::{
 use kludgine::app::winit::keyboard::{
     Key, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
 };
-use kludgine::app::winit::window::{self, Cursor};
+use kludgine::app::winit::window::{self, Cursor, WindowLevel};
 use kludgine::app::{winit, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::drawing::Drawing;
@@ -38,6 +39,7 @@ use kludgine::shapes::Shape;
 use kludgine::wgpu::{self, CompositeAlphaMode, COPY_BYTES_PER_ROW_ALIGNMENT};
 use kludgine::{Color, DrawableExt, Kludgine, KludgineId, Origin, Texture};
 use parking_lot::{Mutex, MutexGuard};
+use sealed::Ize;
 use tracing::Level;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -45,7 +47,7 @@ use crate::animation::{
     AnimationTarget, Easing, LinearInterpolate, PercentBetween, Spawn, ZeroToOne,
 };
 use crate::app::{Application, Cushy, Open, PendingApp, Run};
-use crate::context::sealed::InvalidationStatus;
+use crate::context::sealed::{InvalidationStatus, Trackable as _};
 use crate::context::{
     AsEventContext, EventContext, Exclusive, GraphicsContext, LayoutContext, Trackable,
     WidgetContext,
@@ -56,8 +58,7 @@ use crate::styles::{Edges, FontFamilyList, ThemePair};
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
 use crate::value::{
-    Destination, Dynamic, DynamicRead, DynamicReader, Generation, IntoDynamic, IntoValue, Source,
-    Value,
+    Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Tracked, Value,
 };
 use crate::widget::{
     Callback, EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, WidgetId,
@@ -159,6 +160,14 @@ pub trait PlatformWindowImplementation {
         if let Some(winit) = self.winit() {
             winit.set_max_inner_size::<PhysicalSize<u32>>(max_size.map(Into::into));
         }
+    }
+
+    /// Ensures that this window will be redrawn when `value` has been updated.
+    fn redraw_when_changed(&self, value: &impl Trackable, invalidation_status: &InvalidationStatus)
+    where
+        Self: Sized,
+    {
+        value.inner_redraw_when_changed(self.handle(invalidation_status.clone()));
     }
 }
 
@@ -507,6 +516,17 @@ where
     occluded: Option<Dynamic<bool>>,
     focused: Option<Dynamic<bool>>,
     theme_mode: Option<Value<ThemeMode>>,
+    content_protected: Option<Value<bool>>,
+    cursor_hittest: Option<Value<bool>>,
+    cursor_visible: Option<Value<bool>>,
+    cursor_position: Option<Dynamic<Point<Px>>>,
+    window_level: Option<Value<WindowLevel>>,
+    decorated: Option<Value<bool>>,
+    maximized: Option<Dynamic<bool>>,
+    minimized: Option<Dynamic<bool>>,
+    resizable: Option<Value<bool>>,
+    resize_increments: Option<Value<Size<UPx>>>,
+    visible: Option<Dynamic<bool>>,
     close_requested: Option<Callback<(), bool>>,
 }
 
@@ -584,6 +604,17 @@ where
             close_requested: None,
             zoom: None,
             resize_to_fit: Value::Constant(false),
+            content_protected: None,
+            cursor_hittest: None,
+            cursor_visible: None,
+            cursor_position: None,
+            window_level: None,
+            decorated: None,
+            maximized: None,
+            minimized: None,
+            resizable: None,
+            resize_increments: None,
+            visible: None,
         }
     }
 
@@ -632,6 +663,84 @@ where
     /// Resizes this window to fit the contents when `resize_to_fit` is true.
     pub fn resize_to_fit(mut self, resize_to_fit: impl IntoValue<bool>) -> Self {
         self.resize_to_fit = resize_to_fit.into_value();
+        self
+    }
+
+    /// Prevents the window contents from being captured by other apps.
+    pub fn content_protected(mut self, protected: impl IntoValue<bool>) -> Self {
+        self.content_protected = Some(protected.into_value());
+        self
+    }
+
+    /// Controls whether the cursor should interact with this window or not.
+    pub fn cursor_hittest(mut self, hittest: impl IntoValue<bool>) -> Self {
+        self.cursor_hittest = Some(hittest.into_value());
+        self
+    }
+
+    /// Sets whether the cursor is visible when above this window.
+    pub fn cursor_visible(mut self, visible: impl IntoValue<bool>) -> Self {
+        self.cursor_visible = Some(visible.into_value());
+        self
+    }
+
+    /// A dynamic providing access to the window coordinate of the cursor, or
+    /// -1, -1 if the cursor is not currently hovering the window.
+    ///
+    /// In the future, this dynamic will also support setting the position of
+    /// the cursor within the window.
+    pub fn cursor_position(mut self, window_position: impl IntoDynamic<Point<Px>>) -> Self {
+        self.cursor_position = Some(window_position.into_dynamic());
+        self
+    }
+
+    /// Controls whether window decorations are shown around this window.
+    pub fn decorated(mut self, decorated: impl IntoValue<bool>) -> Self {
+        self.decorated = Some(decorated.into_value());
+        self
+    }
+
+    /// Controls the level of this window.
+    pub fn window_level(mut self, window_level: impl IntoValue<WindowLevel>) -> Self {
+        self.window_level = Some(window_level.into_value());
+        self
+    }
+
+    /// Provides a dynamic that is updated with the minimized status of this
+    /// window.
+    pub fn minimized(mut self, minimized: impl IntoDynamic<bool>) -> Self {
+        self.minimized = Some(minimized.into_dynamic());
+        self
+    }
+
+    /// Provides a dynamic that is updated with the maximized status of this
+    /// window.
+    pub fn maximized(mut self, maximized: impl IntoDynamic<bool>) -> Self {
+        self.maximized = Some(maximized.into_dynamic());
+        self
+    }
+
+    /// Controls whether the window is resizable by the user or not.
+    pub fn resizable(mut self, resizable: impl IntoValue<bool>) -> Self {
+        self.resizable = Some(resizable.into_value());
+        self
+    }
+
+    /// Controls the increments in which the window can be resized.
+    pub fn resize_increments(mut self, resize_increments: impl IntoValue<Size<UPx>>) -> Self {
+        self.resize_increments = Some(resize_increments.into_value());
+        self
+    }
+
+    /// Sets this window to render with a transparent background.
+    pub fn transparent(mut self) -> Self {
+        self.attributes.transparent = true;
+        self
+    }
+
+    /// Controls the visibility of this window.
+    pub fn visible(mut self, visible: impl IntoDynamic<bool>) -> Self {
+        self.visible = Some(visible.into_dynamic());
         self
     }
 
@@ -754,6 +863,17 @@ where
                     close_requested: self.close_requested.map(|cb| Arc::new(Mutex::new(cb))),
                     zoom: self.zoom.unwrap_or_else(|| Dynamic::new(Fraction::ONE)),
                     resize_to_fit: self.resize_to_fit,
+                    content_protected: self.content_protected.unwrap_or_default(),
+                    cursor_hittest: self.cursor_hittest.unwrap_or_else(|| Value::Constant(true)),
+                    cursor_visible: self.cursor_visible.unwrap_or_else(|| Value::Constant(true)),
+                    cursor_position: self.cursor_position.unwrap_or_default(),
+                    window_level: self.window_level.unwrap_or_default(),
+                    decorated: self.decorated.unwrap_or_else(|| Value::Constant(true)),
+                    maximized: self.maximized.unwrap_or_default(),
+                    minimized: self.minimized.unwrap_or_default(),
+                    resizable: self.resizable.unwrap_or_else(|| Value::Constant(true)),
+                    resize_increments: self.resize_increments.unwrap_or_default(),
+                    visible: self.visible.unwrap_or_default(),
                 }),
                 pending: self.pending,
             },
@@ -820,8 +940,7 @@ struct OpenWindow<T> {
     initial_frame: bool,
     occluded: Dynamic<bool>,
     focused: Dynamic<bool>,
-    inner_size: Dynamic<Size<UPx>>,
-    inner_size_generation: Generation,
+    inner_size: Tracked<Dynamic<Size<UPx>>>,
     keyboard_activated: Option<WidgetId>,
     min_inner_size: Option<Size<UPx>>,
     max_inner_size: Option<Size<UPx>>,
@@ -835,9 +954,19 @@ struct OpenWindow<T> {
     on_closed: Option<OnceCallback>,
     vsync: bool,
     dpi_scale: Dynamic<Fraction>,
-    zoom: Dynamic<Fraction>,
-    zoom_generation: Generation,
+    zoom: Tracked<Dynamic<Fraction>>,
     close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
+    content_protected: Tracked<Value<bool>>,
+    cursor_hittest: Tracked<Value<bool>>,
+    cursor_visible: Tracked<Value<bool>>,
+    cursor_position: Tracked<Dynamic<Point<Px>>>,
+    window_level: Tracked<Value<WindowLevel>>,
+    decorated: Tracked<Value<bool>>,
+    maximized: Tracked<Dynamic<bool>>,
+    minimized: Tracked<Dynamic<bool>>,
+    resizable: Tracked<Value<bool>>,
+    resize_increments: Tracked<Value<Size<UPx>>>,
+    visible: Tracked<Dynamic<bool>>,
 }
 
 impl<T> OpenWindow<T>
@@ -1200,18 +1329,11 @@ where
             cushy.fonts.clone(),
             graphics.font_system().db_mut(),
         );
-        let occluded = settings.occluded;
-        let focused = settings.focused;
-        let theme = settings.theme.unwrap_or_default();
         let inner_size = settings.inner_size;
-        let on_closed = settings.on_closed;
-        let close_requested = settings.close_requested;
-        let vsync = settings.vsync;
-        let zoom = settings.zoom;
-        let resize_to_fit = settings.resize_to_fit;
-        let dpi_scale = Dynamic::new(graphics.dpi_scale());
 
         inner_size.set(window.inner_size());
+
+        let dpi_scale = Dynamic::new(graphics.dpi_scale());
 
         let theme_mode = match settings.theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
@@ -1221,11 +1343,11 @@ where
             Some(Value::Constant(mode)) => Value::Constant(mode),
             None => Value::dynamic(window.theme().into()),
         };
-        let transparent = settings.transparent;
 
         let tree = Tree::default();
         let root = tree.push_boxed(behavior.make_root(), None);
 
+        let theme = settings.theme.unwrap_or_default();
         let (current_theme, theme) = match theme {
             Value::Constant(theme) => (theme, None),
             Value::Dynamic(dynamic) => (dynamic.get(), Some(dynamic.into_reader())),
@@ -1244,26 +1366,35 @@ where
             mouse_buttons: AHashMap::default(),
             redraw_status,
             initial_frame: true,
-            occluded,
-            focused,
-            inner_size_generation: inner_size.generation(),
-            inner_size,
+            occluded: settings.occluded,
+            focused: settings.focused,
+            inner_size: Tracked::from(inner_size),
             keyboard_activated: None,
             min_inner_size: None,
             max_inner_size: None,
-            resize_to_fit,
+            resize_to_fit: settings.resize_to_fit,
             current_theme,
             theme,
             theme_mode,
-            transparent,
+            transparent: settings.transparent,
             fonts,
             cushy,
-            on_closed,
-            vsync,
-            close_requested,
+            on_closed: settings.on_closed,
+            vsync: settings.vsync,
+            close_requested: settings.close_requested,
             dpi_scale,
-            zoom_generation: zoom.generation(),
-            zoom,
+            zoom: Tracked::from(settings.zoom),
+            content_protected: Tracked::from(settings.content_protected),
+            cursor_hittest: Tracked::from(settings.cursor_hittest),
+            cursor_visible: Tracked::from(settings.cursor_visible),
+            cursor_position: Tracked::from(settings.cursor_position),
+            window_level: Tracked::from(settings.window_level),
+            decorated: Tracked::from(settings.decorated),
+            maximized: Tracked::from(settings.maximized),
+            minimized: Tracked::from(settings.minimized),
+            resizable: Tracked::from(settings.resizable),
+            resize_increments: Tracked::from(settings.resize_increments),
+            visible: Tracked::from(settings.visible),
         }
     }
 
@@ -1277,25 +1408,23 @@ where
 
         self.redraw_status.refresh_received();
         graphics.reset_text_attributes();
-        let zoom = self.zoom.read();
-        if zoom.generation() != self.zoom_generation {
+        if let Some(zoom) = self.zoom.updated() {
             graphics.set_zoom(*zoom);
             self.redraw_status.invalidate(self.root.id());
         }
 
         self.tree
             .new_frame(self.redraw_status.invalidations().drain());
-
-        drop(zoom);
     }
 
-    fn prepare<W>(&mut self, window: W, graphics: &mut kludgine::Graphics<'_>)
+    fn prepare<W>(&mut self, mut window: W, graphics: &mut kludgine::Graphics<'_>)
     where
         W: PlatformWindowImplementation,
     {
         let cushy = self.cushy.clone();
         let _guard = cushy.enter_runtime();
 
+        self.synchronize_platform_window(&mut window);
         self.new_frame(graphics);
 
         let resize_to_fit = self.resize_to_fit.get();
@@ -1307,7 +1436,7 @@ where
             &self.cushy,
             &self.focused,
             &self.occluded,
-            &self.inner_size,
+            self.inner_size.source(),
             &self.close_requested,
         );
         let root_mode = self.constrain_window_resizing(resizable, &mut window, graphics);
@@ -1357,10 +1486,8 @@ where
         let render_size = actual_size.min(window_size);
         layout_context.redraw_when_changed(&self.inner_size);
         layout_context.invalidate_when_changed(&self.resize_to_fit);
-        let inner_size_generation = self.inner_size.generation();
-        if self.inner_size_generation != inner_size_generation {
-            layout_context.request_inner_size(self.inner_size.get());
-            self.inner_size_generation = inner_size_generation;
+        if let Some(new_size) = self.inner_size.updated() {
+            layout_context.request_inner_size(*new_size);
         } else if actual_size != window_size && !resizable {
             let mut new_size = actual_size;
             if let Some(min_size) = self.min_inner_size {
@@ -1407,7 +1534,7 @@ where
             &self.cushy,
             &self.focused,
             &self.occluded,
-            &self.inner_size,
+            self.inner_size.source(),
             &self.close_requested,
         )) {
             self.should_close = true;
@@ -1417,19 +1544,101 @@ where
         }
     }
 
-    fn resized(&mut self, new_size: Size<UPx>) {
+    fn resized<W>(&mut self, new_size: Size<UPx>, window: &W)
+    where
+        W: PlatformWindowImplementation,
+    {
         self.inner_size.set(new_size);
         // We want to prevent a resize request for this resized event.
-        self.inner_size_generation = self.inner_size.generation();
+        self.inner_size.mark_read();
+        self.update_ized(window);
         self.root.invalidate();
+    }
+
+    fn update_ized<W>(&mut self, window: &W)
+    where
+        W: PlatformWindowImplementation,
+    {
+        if let Some(winit) = window.winit() {
+            // TODO should these be supported outside of winit? Put in a feature
+            // request if you read this and need them.
+            self.maximized.set_and_read(winit.is_maximized());
+            if let Some(minimized) = winit.is_minimized() {
+                self.minimized.set_and_read(minimized);
+            }
+            self.decorated.set_and_read(winit.is_decorated());
+        }
+    }
+
+    fn synchronize_platform_window<W>(&mut self, window: &mut W)
+    where
+        W: PlatformWindowImplementation,
+    {
+        self.update_ized(window);
+        if let Some(winit) = window.winit() {
+            self.content_protected
+                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            if let Some(protected) = self.content_protected.updated() {
+                winit.set_content_protected(*protected);
+            }
+            self.cursor_hittest
+                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            if let Some(hit) = self.cursor_hittest.updated() {
+                let _ = winit.set_cursor_hittest(*hit);
+            }
+            self.cursor_visible
+                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            if let Some(visible) = self.cursor_visible.updated() {
+                winit.set_cursor_visible(*visible);
+            }
+            self.window_level
+                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            if let Some(window_level) = self.window_level.updated() {
+                winit.set_window_level(*window_level);
+            }
+            self.decorated
+                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            if let Some(decorated) = self.decorated.updated() {
+                winit.set_decorations(*decorated);
+            }
+            self.resize_increments
+                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            if let Some(resize_increments) = self.resize_increments.updated() {
+                let increments: Option<PhysicalSize<f32>> =
+                    if resize_increments.width > 0 || resize_increments.height > 0 {
+                        Some(PhysicalSize::new(
+                            resize_increments.width.into_float(),
+                            resize_increments.height.into_float(),
+                        ))
+                    } else {
+                        None
+                    };
+                winit.set_resize_increments(increments);
+            }
+            self.visible
+                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            if let Some(visible) = self.visible.updated() {
+                winit.set_visible(*visible);
+            }
+            self.resizable
+                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            if let Some(resizable) = self.resizable.updated() {
+                winit.set_resizable(*resizable);
+                window.set_needs_redraw();
+            }
+        }
     }
 
     pub fn set_focused(&mut self, focused: bool) {
         self.focused.set(focused);
     }
 
-    pub fn set_occluded(&mut self, occluded: bool) {
+    pub fn set_occluded<W>(&mut self, window: &W, occluded: bool)
+    where
+        W: PlatformWindowImplementation,
+    {
         self.occluded.set(occluded);
+        self.update_ized(window);
     }
 
     pub fn keyboard_input<W>(
@@ -1452,7 +1661,7 @@ where
             &self.cushy,
             &self.focused,
             &self.occluded,
-            &self.inner_size,
+            self.inner_size.source(),
             &self.close_requested,
         );
         let target = self.tree.focused_widget().unwrap_or(self.root.node_id);
@@ -1503,7 +1712,7 @@ where
             &self.cushy,
             &self.focused,
             &self.occluded,
-            &self.inner_size,
+            self.inner_size.source(),
             &self.close_requested,
         );
         let widget = self
@@ -1547,7 +1756,7 @@ where
             &self.cushy,
             &self.focused,
             &self.occluded,
-            &self.inner_size,
+            self.inner_size.source(),
             &self.close_requested,
         );
         let widget = self
@@ -1592,12 +1801,13 @@ where
             &self.cushy,
             &self.focused,
             &self.occluded,
-            &self.inner_size,
+            self.inner_size.source(),
             &self.close_requested,
         );
 
         let location = position.into();
         self.cursor.location = Some(location);
+        self.cursor_position.set_and_read(location);
 
         EventContext::new(
             WidgetContext::new(
@@ -1643,6 +1853,9 @@ where
     {
         let cushy = self.cushy.clone();
         let _guard = cushy.enter_runtime();
+        self.cursor.location = None;
+        self.cursor_position
+            .set_and_read(Point::squared(Px::new(-1)));
         if self.cursor.widget.take().is_some() {
             let mut window = RunningWindow::new(
                 window,
@@ -1651,7 +1864,7 @@ where
                 &self.cushy,
                 &self.focused,
                 &self.occluded,
-                &self.inner_size,
+                self.inner_size.source(),
                 &self.close_requested,
             );
 
@@ -1690,7 +1903,7 @@ where
             &self.cushy,
             &self.focused,
             &self.occluded,
-            &self.inner_size,
+            self.inner_size.source(),
             &self.close_requested,
         );
         match state {
@@ -1863,7 +2076,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.set_occluded(window.ocluded());
+        self.set_occluded(&window, window.ocluded());
     }
 
     fn render<'pass>(
@@ -1909,7 +2122,7 @@ where
                 &self.cushy,
                 &self.focused,
                 &self.occluded,
-                &self.inner_size,
+                self.inner_size.source(),
                 &self.close_requested,
             ),
         )
@@ -1957,7 +2170,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.resized(window.inner_size());
+        self.resized(window.inner_size(), &window);
     }
 
     // fn theme_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
@@ -2059,6 +2272,10 @@ where
             WindowCommand::Redraw => {
                 window.set_needs_redraw();
             }
+            WindowCommand::Sync => {
+                self.synchronize_platform_window(&mut window);
+                self.redraw_status.sync_received();
+            }
             WindowCommand::RequestClose => {
                 let mut window = RunningWindow::new(
                     window,
@@ -2067,7 +2284,7 @@ where
                     &self.cushy,
                     &self.focused,
                     &self.occluded,
-                    &self.inner_size,
+                    self.inner_size.source(),
                     &self.close_requested,
                 );
                 if self.behavior.close_requested(&mut window) {
@@ -2077,8 +2294,72 @@ where
             WindowCommand::SetTitle(new_title) => {
                 window.set_title(&new_title);
             }
+            WindowCommand::ResetDeadKeys => {
+                window.winit().reset_dead_keys();
+            }
+            WindowCommand::RequestUserAttention(request_type) => {
+                window.winit().request_user_attention(request_type);
+            }
+            WindowCommand::Focus => {
+                window.winit().focus_window();
+            }
+            WindowCommand::Ize(ize) => {
+                let (minimize, maximize) = match ize {
+                    Some(Ize::Maximize) => (false, true),
+                    Some(Ize::Minimize) => (true, false),
+                    None => (false, false),
+                };
+                if window
+                    .winit()
+                    .is_minimized()
+                    .map_or(true, |minimized| minimized != minimize)
+                {
+                    window.winit().set_minimized(minimize);
+                }
+                if window.winit().is_maximized() != maximize {
+                    window.winit().set_maximized(maximize);
+                }
+            }
         }
     }
+
+    // fn dropped_file(
+    //     &mut self,
+    //     window: kludgine::app::Window<'_, WindowCommand>,
+    //     kludgine: &mut Kludgine,
+    //     path: std::path::PathBuf,
+    // ) {
+    // }
+
+    // fn hovered_file(
+    //     &mut self,
+    //     window: kludgine::app::Window<'_, WindowCommand>,
+    //     kludgine: &mut Kludgine,
+    //     path: std::path::PathBuf,
+    // ) {
+    // }
+
+    // fn hovered_file_cancelled(
+    //     &mut self,
+    //     window: kludgine::app::Window<'_, WindowCommand>,
+    //     kludgine: &mut Kludgine,
+    // ) {
+    // }
+
+    // fn received_character(
+    //     &mut self,
+    //     window: kludgine::app::Window<'_, WindowCommand>,
+    //     kludgine: &mut Kludgine,
+    //     char: char,
+    // ) {
+    // }
+
+    // fn modifiers_changed(
+    //     &mut self,
+    //     window: kludgine::app::Window<'_, WindowCommand>,
+    //     kludgine: &mut Kludgine,
+    // ) {
+    // }
 }
 
 impl<Behavior> Drop for OpenWindow<Behavior> {
@@ -2112,9 +2393,10 @@ pub(crate) mod sealed {
     use std::num::NonZeroU32;
     use std::sync::Arc;
 
-    use figures::units::UPx;
+    use figures::units::{Px, UPx};
     use figures::{Fraction, Point, Size};
     use image::DynamicImage;
+    use kludgine::app::winit::window::{UserAttentionType, WindowLevel};
     use kludgine::Color;
     use parking_lot::Mutex;
 
@@ -2156,13 +2438,35 @@ pub(crate) mod sealed {
         pub multisample_count: NonZeroU32,
         pub resize_to_fit: Value<bool>,
         pub close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
+        pub content_protected: Value<bool>,
+        pub cursor_hittest: Value<bool>,
+        pub cursor_visible: Value<bool>,
+        pub cursor_position: Dynamic<Point<Px>>,
+        pub window_level: Value<WindowLevel>,
+        pub decorated: Value<bool>,
+        pub maximized: Dynamic<bool>,
+        pub minimized: Dynamic<bool>,
+        pub resizable: Value<bool>,
+        pub resize_increments: Value<Size<UPx>>,
+        pub visible: Dynamic<bool>,
     }
 
     #[derive(Debug, Clone)]
     pub enum WindowCommand {
         Redraw,
+        Sync,
         RequestClose,
+        ResetDeadKeys,
+        RequestUserAttention(Option<UserAttentionType>),
+        Focus,
+        Ize(Option<Ize>),
         SetTitle(String),
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum Ize {
+        Maximize,
+        Minimize,
     }
 
     pub trait CaptureFormat {
@@ -2312,6 +2616,12 @@ impl WindowHandle {
         }
     }
 
+    pub(crate) fn sync(&self) {
+        if self.redraw_status.should_send_sync() {
+            self.inner.send(WindowCommand::Sync);
+        }
+    }
+
     /// Marks `widget` as invalidated, and if needed, refreshes the window.
     pub fn invalidate(&self, widget: WidgetId) {
         if self.redraw_status.invalidate(widget) {
@@ -2358,6 +2668,11 @@ impl InnerWindowHandle {
                 WindowCommand::Redraw => state.redraw_target.set(RedrawTarget::Now),
                 WindowCommand::RequestClose => state.close_requested.set(true),
                 WindowCommand::SetTitle(title) => state.title.set(title),
+                WindowCommand::ResetDeadKeys
+                | WindowCommand::RequestUserAttention(_)
+                | WindowCommand::Focus
+                | WindowCommand::Ize(_)
+                | WindowCommand::Sync => {}
             },
         };
     }
@@ -2730,6 +3045,17 @@ impl StandaloneWindowBuilder {
                 close_requested: None,
                 zoom: self.zoom,
                 resize_to_fit: self.resize_to_fit,
+                content_protected: Value::Constant(false),
+                cursor_hittest: Value::Constant(true),
+                cursor_visible: Value::Constant(true),
+                cursor_position: Dynamic::default(),
+                window_level: Value::default(),
+                decorated: Value::Constant(true),
+                maximized: Dynamic::new(false),
+                minimized: Dynamic::new(false),
+                resizable: Value::Constant(true),
+                resize_increments: Value::default(),
+                visible: Dynamic::new(true),
             },
         );
 
@@ -2846,8 +3172,11 @@ impl CushyWindow {
     /// This should only be set to true if the window is not visible at all to
     /// the end user due to being offscreen, minimized, or fully hidden behind
     /// other windows.
-    pub fn set_occluded(&mut self, occluded: bool) {
-        self.window.set_occluded(occluded);
+    pub fn set_occluded<W>(&mut self, window: &W, occluded: bool)
+    where
+        W: PlatformWindowImplementation,
+    {
+        self.window.set_occluded(window, occluded);
     }
 
     /// Requests that the window close.
@@ -2876,15 +3205,18 @@ impl CushyWindow {
     }
 
     /// Updates the dimensions and DPI scaling of the window.
-    pub fn resize(
+    pub fn resize<W>(
         &mut self,
+        window: &W,
         new_size: Size<UPx>,
         new_scale: impl Into<Fraction>,
         new_zoom: impl Into<Fraction>,
         queue: &wgpu::Queue,
-    ) {
+    ) where
+        W: PlatformWindowImplementation,
+    {
         self.kludgine.resize(new_size, new_scale, new_zoom, queue);
-        self.window.resized(new_size);
+        self.window.resized(new_size, window);
     }
 
     /// Provide keyboard input to this virtual window.
@@ -3070,7 +3402,7 @@ impl VirtualWindow {
     /// the end user due to being offscreen, minimized, or fully hidden behind
     /// other windows.
     pub fn set_occluded(&mut self, occluded: bool) {
-        self.cushy.set_occluded(occluded);
+        self.cushy.set_occluded(&&mut self.state, occluded);
     }
 
     /// Returns true if this window should no longer be open.
@@ -3102,8 +3434,13 @@ impl VirtualWindow {
         new_scale: impl Into<Fraction>,
         queue: &wgpu::Queue,
     ) {
-        self.cushy
-            .resize(new_size, new_scale, self.cushy.kludgine.zoom(), queue);
+        self.cushy.resize(
+            &&mut self.state,
+            new_size,
+            new_scale,
+            self.cushy.kludgine.zoom(),
+            queue,
+        );
     }
 
     /// Provide keyboard input to this virtual window.

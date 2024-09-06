@@ -1425,12 +1425,14 @@ pub(crate) mod sealed {
 
     pub trait Trackable {
         fn inner_redraw_when_changed(&self, handle: WindowHandle);
+        fn inner_sync_when_changed(&self, handle: WindowHandle);
         fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId);
     }
 
     #[derive(Debug, Default, Clone)]
     pub struct InvalidationStatus {
         refresh_sent: Arc<AtomicBool>,
+        sync_sent: Arc<AtomicBool>,
         invalidated: Arc<Mutex<Set<WidgetId>>>,
     }
 
@@ -1441,8 +1443,18 @@ pub(crate) mod sealed {
                 .is_ok()
         }
 
+        pub fn should_send_sync(&self) -> bool {
+            self.sync_sent
+                .compare_exchange(false, true, Ordering::Release, Ordering::Acquire)
+                .is_ok()
+        }
+
         pub fn refresh_received(&self) {
             self.refresh_sent.store(false, Ordering::Release);
+        }
+
+        pub fn sync_received(&self) {
+            self.sync_sent.store(false, Ordering::Release);
         }
 
         pub fn invalidate(&self, widget: WidgetId) -> bool {
