@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::thread;
 
 use arboard::Clipboard;
-use kludgine::app::{AppEvent, AsApplication};
+use kludgine::app::{AppEvent, AsApplication, Monitors};
 use parking_lot::{Mutex, MutexGuard};
 
 use crate::animation;
@@ -29,6 +30,30 @@ impl PendingApp {
     #[must_use]
     pub const fn cushy(&self) -> &Cushy {
         &self.cushy
+    }
+
+    /// Executes `on_startup` once the application event loop has begun.
+    ///
+    /// Some APIs are not available until after the application has started
+    /// running. For example, `App::monitors` requires the event loop to have
+    /// been started.
+    pub fn on_startup<F>(&mut self, on_startup: F)
+    where
+        F: FnOnce(&mut App) + Send + 'static,
+    {
+        let mut app = self.as_app();
+        self.app.on_startup(move |_app| {
+            // Accessing some information from this closure needs to use `_app`
+            // instead of `App`. For example, accessing monitor information
+            // requires the window thread to respond to a message. Trying to do
+            // that in this closure would cause the thread to block. So, we
+            // execute our on_startup callbacks in their own thread.
+            thread::spawn(move || {
+                let cushy = app.cushy.clone();
+                let _guard = cushy.enter_runtime();
+                on_startup(&mut app);
+            });
+        });
     }
 }
 
@@ -291,6 +316,17 @@ impl Application for PendingApp {
 pub struct App {
     app: Option<kludgine::app::App<WindowCommand>>,
     cushy: Cushy,
+}
+
+impl App {
+    /// Returns a snapshot of information about the monitors connected to this
+    /// device.
+    ///
+    /// Returns None if the app is not currently running.
+    #[must_use]
+    pub fn monitors(&self) -> Option<Monitors> {
+        self.app.as_ref().and_then(kludgine::app::App::monitors)
+    }
 }
 
 impl Application for App {

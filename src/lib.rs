@@ -45,6 +45,17 @@ pub use {figures, kludgine};
 pub use self::graphics::Graphics;
 pub use self::tick::{InputState, Tick};
 
+/// Starts running a Cushy application, invoking `app_init` after the event loop
+/// has started.
+pub fn run<F>(app_init: F) -> Result
+where
+    F: FnOnce(&mut App) + Send + 'static,
+{
+    let mut app = PendingApp::default();
+    app.on_startup(app_init);
+    app.run()
+}
+
 /// A limit used when measuring a widget.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum ConstraintLimit {

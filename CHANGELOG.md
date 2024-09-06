@@ -70,6 +70,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Window::resize_increments`
   - `Window::transparent`
   - `Window::visible`
+- `run(&mut App)` is a new function that can provide a more concise way of
+  executing applications that would normally require using `PendingApp`.
+- `PendingApp::on_startup` allows executing a function once the application's
+  event loop has begun.
+- `App::monitors()` returns a snapshot of the currently configured monitors
+  attached to the device. A new example demonstrating this API is available at
+  `examples/monitors.rs`.
+
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
 
