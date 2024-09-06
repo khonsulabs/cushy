@@ -135,6 +135,7 @@ impl Example {
     where
         Test: FnOnce(&mut AnimationRecorder<'_, Rgba8>),
     {
+        self.recorder.refresh().expect("error refreshing recorder");
         let mut animation = self.recorder.record_animated_png(60);
         let capture = std::env::var("CAPTURE").is_ok();
         let errored = std::panic::catch_unwind(AssertUnwindSafe(|| test(&mut animation))).is_err();
