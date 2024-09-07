@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of an `Option<WindowHandle>`.
 - `CushyWindow::set_occluded` and `CushyWindow::resize now require a
   `PlatformWindowImplementation` parameter.
-
+- `PlatformWindowImplementation::position` has been renamed to
+  `PlatformWindowImplementation::outer_position`.
 
 ### Fixed
 
@@ -66,6 +67,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Window::window_level`
   - `Window::minimized`
   - `Window::maximized`
+  - `Window::outer_size`
+  - `Window::inner_position`
+  - `Window::outer_position`
   - `Window::resized`
   - `Window::resize_increments`
   - `Window::transparent`
@@ -77,6 +81,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `App::monitors()` returns a snapshot of the currently configured monitors
   attached to the device. A new example demonstrating this API is available at
   `examples/monitors.rs`.
+- `PlatformWindowImplementation` has several new functions with provided
+  implementations for winit users:
+
+  - `inner_position`
+  - `outer_size`
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

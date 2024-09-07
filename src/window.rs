@@ -87,8 +87,25 @@ pub trait PlatformWindowImplementation {
     fn set_cursor(&mut self, cursor: Cursor);
     /// Returns a handle for the window.
     fn handle(&self, redraw_status: InvalidationStatus) -> WindowHandle;
+    /// Returns the current outer position of the window.
+    fn outer_position(&self) -> Point<Px> {
+        self.winit().map_or_else(Point::default, |w| {
+            w.outer_position().unwrap_or_default().into()
+        })
+    }
+    /// Returns the current inner position of the window.
+    fn inner_position(&self) -> Point<Px> {
+        self.winit().map_or_else(Point::default, |w| {
+            w.inner_position().unwrap_or_default().into()
+        })
+    }
     /// Returns the current inner size of the window.
     fn inner_size(&self) -> Size<UPx>;
+    /// Returns the current outer size of the window.
+    fn outer_size(&self) -> Size<UPx> {
+        self.winit()
+            .map_or_else(|| self.inner_size(), |w| w.outer_size().into())
+    }
 
     /// Returns true if the window can have its size changed.
     ///
@@ -527,6 +544,9 @@ where
     resizable: Option<Value<bool>>,
     resize_increments: Option<Value<Size<UPx>>>,
     visible: Option<Dynamic<bool>>,
+    outer_size: Option<Dynamic<Size<UPx>>>,
+    inner_position: Option<Dynamic<Point<Px>>>,
+    outer_position: Option<Dynamic<Point<Px>>>,
     close_requested: Option<Callback<(), bool>>,
 }
 
@@ -615,6 +635,9 @@ where
             resizable: None,
             resize_increments: None,
             visible: None,
+            outer_size: None,
+            inner_position: None,
+            outer_position: None,
         }
     }
 
@@ -655,8 +678,40 @@ where
     /// the dynamic is updated with a new value, a resize request will be made
     /// with the new inner size.
     pub fn inner_size(mut self, inner_size: impl IntoDynamic<Size<UPx>>) -> Self {
-        let inner_size = inner_size.into_dynamic();
-        self.inner_size = Some(inner_size);
+        self.inner_size = Some(inner_size.into_dynamic());
+        self
+    }
+
+    /// Sets `outer_size` to be a dynamic synchronized with this window's size,
+    /// including decorations.
+    ///
+    /// When the window is resized, the dynamic will contain its new size.
+    /// Setting this dynamic with a new value does not change the window in any
+    /// way. To resize the window, use [`inner_size`](Self::inner_size).
+    pub fn outer_size(mut self, outer_size: impl IntoDynamic<Size<UPx>>) -> Self {
+        self.outer_size = Some(outer_size.into_dynamic());
+        self
+    }
+
+    /// Sets `position`  to be a dynamic synchronized with this window's outer
+    /// position.
+    ///
+    /// When the window is moved, this dynamic will contain its new position.
+    /// Setting this dynamic will attempt to move the window to the provided
+    /// location.
+    pub fn outer_position(mut self, position: impl IntoDynamic<Point<Px>>) -> Self {
+        self.outer_position = Some(position.into_dynamic());
+        self
+    }
+
+    /// Sets `position`  to be a dynamic synchronized with this window's inner
+    /// position.
+    ///
+    /// When the window is moved, this dynamic will contain its new position.
+    /// Setting this dynamic to a new value has no effect. To move a window, use
+    /// [`outer_position`](Self::outer_position).
+    pub fn inner_position(mut self, position: impl IntoDynamic<Point<Px>>) -> Self {
+        self.inner_position = Some(position.into_dynamic());
         self
     }
 
@@ -874,6 +929,9 @@ where
                     resizable: self.resizable.unwrap_or_else(|| Value::Constant(true)),
                     resize_increments: self.resize_increments.unwrap_or_default(),
                     visible: self.visible.unwrap_or_default(),
+                    inner_position: self.inner_position.unwrap_or_default(),
+                    outer_position: self.outer_position.unwrap_or_default(),
+                    outer_size: self.outer_size.unwrap_or_default(),
                 }),
                 pending: self.pending,
             },
@@ -941,6 +999,7 @@ struct OpenWindow<T> {
     occluded: Dynamic<bool>,
     focused: Dynamic<bool>,
     inner_size: Tracked<Dynamic<Size<UPx>>>,
+    outer_size: Dynamic<Size<UPx>>,
     keyboard_activated: Option<WidgetId>,
     min_inner_size: Option<Size<UPx>>,
     max_inner_size: Option<Size<UPx>>,
@@ -967,6 +1026,8 @@ struct OpenWindow<T> {
     resizable: Tracked<Value<bool>>,
     resize_increments: Tracked<Value<Size<UPx>>>,
     visible: Tracked<Dynamic<bool>>,
+    outer_position: Tracked<Dynamic<Point<Px>>>,
+    inner_position: Dynamic<Point<Px>>,
 }
 
 impl<T> OpenWindow<T>
@@ -1329,9 +1390,11 @@ where
             cushy.fonts.clone(),
             graphics.font_system().db_mut(),
         );
-        let inner_size = settings.inner_size;
 
-        inner_size.set(window.inner_size());
+        settings.inner_position.set(window.inner_position());
+        settings.outer_position.set(window.outer_position());
+        settings.inner_size.set(window.inner_size());
+        settings.outer_size.set(window.outer_size());
 
         let dpi_scale = Dynamic::new(graphics.dpi_scale());
 
@@ -1368,7 +1431,7 @@ where
             initial_frame: true,
             occluded: settings.occluded,
             focused: settings.focused,
-            inner_size: Tracked::from(inner_size),
+            inner_size: Tracked::from(settings.inner_size),
             keyboard_activated: None,
             min_inner_size: None,
             max_inner_size: None,
@@ -1395,6 +1458,9 @@ where
             resizable: Tracked::from(settings.resizable),
             resize_increments: Tracked::from(settings.resize_increments),
             visible: Tracked::from(settings.visible),
+            outer_size: settings.outer_size,
+            inner_position: settings.inner_position,
+            outer_position: Tracked::from(settings.outer_position),
         }
     }
 
@@ -1548,11 +1614,15 @@ where
     where
         W: PlatformWindowImplementation,
     {
-        self.inner_size.set(new_size);
-        // We want to prevent a resize request for this resized event.
-        self.inner_size.mark_read();
+        self.inner_size.set_and_read(new_size);
+        self.outer_size.set(window.outer_size());
         self.update_ized(window);
         self.root.invalidate();
+    }
+
+    fn moved(&mut self, new_inner_position: Point<Px>, new_outer_position: Point<Px>) {
+        self.outer_position.set_and_read(new_outer_position);
+        self.inner_position.set(new_inner_position);
     }
 
     fn update_ized<W>(&mut self, window: &W)
@@ -1576,33 +1646,34 @@ where
     {
         self.update_ized(window);
         if let Some(winit) = window.winit() {
+            let handle = window.handle(self.redraw_status.clone());
+            self.outer_position.inner_sync_when_changed(handle.clone());
+            if let Some(position) = self.outer_position.updated() {
+                winit.set_outer_position(PhysicalPosition::<i32>::from(*position));
+            }
             self.content_protected
-                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+                .inner_sync_when_changed(handle.clone());
             if let Some(protected) = self.content_protected.updated() {
                 winit.set_content_protected(*protected);
             }
-            self.cursor_hittest
-                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            self.cursor_hittest.inner_sync_when_changed(handle.clone());
             if let Some(hit) = self.cursor_hittest.updated() {
                 let _ = winit.set_cursor_hittest(*hit);
             }
-            self.cursor_visible
-                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            self.cursor_visible.inner_sync_when_changed(handle.clone());
             if let Some(visible) = self.cursor_visible.updated() {
                 winit.set_cursor_visible(*visible);
             }
-            self.window_level
-                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            self.window_level.inner_sync_when_changed(handle.clone());
             if let Some(window_level) = self.window_level.updated() {
                 winit.set_window_level(*window_level);
             }
-            self.decorated
-                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            self.decorated.inner_sync_when_changed(handle.clone());
             if let Some(decorated) = self.decorated.updated() {
                 winit.set_decorations(*decorated);
             }
             self.resize_increments
-                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+                .inner_sync_when_changed(handle.clone());
             if let Some(resize_increments) = self.resize_increments.updated() {
                 let increments: Option<PhysicalSize<f32>> =
                     if resize_increments.width > 0 || resize_increments.height > 0 {
@@ -1615,13 +1686,11 @@ where
                     };
                 winit.set_resize_increments(increments);
             }
-            self.visible
-                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            self.visible.inner_sync_when_changed(handle.clone());
             if let Some(visible) = self.visible.updated() {
                 winit.set_visible(*visible);
             }
-            self.resizable
-                .inner_sync_when_changed(window.handle(self.redraw_status.clone()));
+            self.resizable.inner_sync_when_changed(handle.clone());
             if let Some(resizable) = self.resizable.updated() {
                 winit.set_resizable(*resizable);
                 window.set_needs_redraw();
@@ -2076,7 +2145,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         _kludgine: &mut Kludgine,
     ) {
-        self.set_occluded(&window, window.ocluded());
+        self.set_occluded(&window, window.occluded());
     }
 
     fn render<'pass>(
@@ -2171,6 +2240,14 @@ where
         _kludgine: &mut Kludgine,
     ) {
         self.resized(window.inner_size(), &window);
+    }
+
+    fn moved(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+    ) {
+        self.moved(window.inner_position(), window.outer_position());
     }
 
     // fn theme_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
@@ -2449,6 +2526,9 @@ pub(crate) mod sealed {
         pub resizable: Value<bool>,
         pub resize_increments: Value<Size<UPx>>,
         pub visible: Dynamic<bool>,
+        pub inner_position: Dynamic<Point<Px>>,
+        pub outer_position: Dynamic<Point<Px>>,
+        pub outer_size: Dynamic<Size<UPx>>,
     }
 
     #[derive(Debug, Clone)]
@@ -3056,6 +3136,9 @@ impl StandaloneWindowBuilder {
                 resizable: Value::Constant(true),
                 resize_increments: Value::default(),
                 visible: Dynamic::new(true),
+                inner_position: Dynamic::default(),
+                outer_position: Dynamic::default(),
+                outer_size: Dynamic::default(),
             },
         );
 
@@ -3217,6 +3300,11 @@ impl CushyWindow {
     {
         self.kludgine.resize(new_size, new_scale, new_zoom, queue);
         self.window.resized(new_size, window);
+    }
+
+    /// Sets the window's position.
+    pub fn set_position(&mut self, new_position: Point<Px>) {
+        self.window.moved(new_position, new_position);
     }
 
     /// Provide keyboard input to this virtual window.
@@ -3441,6 +3529,11 @@ impl VirtualWindow {
             self.cushy.kludgine.zoom(),
             queue,
         );
+    }
+
+    /// Sets the window's position.
+    pub fn set_position(&mut self, new_position: Point<Px>) {
+        self.cushy.set_position(new_position);
     }
 
     /// Provide keyboard input to this virtual window.
