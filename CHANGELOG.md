@@ -61,19 +61,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   - `Window::content_protected`
   - `Window::cursor_hittest`
-  - `Window::cursor_visible`
   - `Window::cursor_position`
+  - `Window::cursor_visible`
   - `Window::decorated`
-  - `Window::window_level`
-  - `Window::minimized`
-  - `Window::maximized`
-  - `Window::outer_size`
+  - `Window::icon`
   - `Window::inner_position`
+  - `Window::maximized`
+  - `Window::minimized`
   - `Window::outer_position`
-  - `Window::resized`
+  - `Window::outer_size`
   - `Window::resize_increments`
+  - `Window::resized`
   - `Window::transparent`
   - `Window::visible`
+  - `Window::window_level`
 - `run(&mut App)` is a new function that can provide a more concise way of
   executing applications that would normally require using `PendingApp`.
 - `PendingApp::on_startup` allows executing a function once the application's

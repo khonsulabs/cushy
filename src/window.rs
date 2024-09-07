@@ -31,7 +31,7 @@ use kludgine::app::winit::event::{
 use kludgine::app::winit::keyboard::{
     Key, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
 };
-use kludgine::app::winit::window::{self, Cursor, WindowLevel};
+use kludgine::app::winit::window::{self, Cursor, Icon, WindowLevel};
 use kludgine::app::{winit, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::drawing::Drawing;
@@ -548,6 +548,7 @@ where
     inner_position: Option<Dynamic<Point<Px>>>,
     outer_position: Option<Dynamic<Point<Px>>>,
     close_requested: Option<Callback<(), bool>>,
+    icon: Option<Value<Option<RgbaImage>>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -638,6 +639,7 @@ where
             outer_size: None,
             inner_position: None,
             outer_position: None,
+            icon: None,
         }
     }
 
@@ -867,6 +869,12 @@ where
         self.title = title.into_value();
         self
     }
+
+    /// Sets the window's icon.
+    pub fn icon(mut self, icon: impl IntoValue<Option<RgbaImage>>) -> Self {
+        self.icon = Some(icon.into_value());
+        self
+    }
 }
 
 impl<Behavior> Run for Window<Behavior>
@@ -932,6 +940,7 @@ where
                     inner_position: self.inner_position.unwrap_or_default(),
                     outer_position: self.outer_position.unwrap_or_default(),
                     outer_size: self.outer_size.unwrap_or_default(),
+                    window_icon: self.icon.unwrap_or_default(),
                 }),
                 pending: self.pending,
             },
@@ -1028,6 +1037,7 @@ struct OpenWindow<T> {
     visible: Tracked<Dynamic<bool>>,
     outer_position: Tracked<Dynamic<Point<Px>>>,
     inner_position: Dynamic<Point<Px>>,
+    window_icon: Tracked<Value<Option<RgbaImage>>>,
 }
 
 impl<T> OpenWindow<T>
@@ -1461,6 +1471,7 @@ where
             outer_size: settings.outer_size,
             inner_position: settings.inner_position,
             outer_position: Tracked::from(settings.outer_position),
+            window_icon: Tracked::from(settings.window_icon),
         }
     }
 
@@ -1646,6 +1657,7 @@ where
     {
         self.update_ized(window);
         if let Some(winit) = window.winit() {
+            let mut redraw = false;
             let handle = window.handle(self.redraw_status.clone());
             self.outer_position.inner_sync_when_changed(handle.clone());
             if let Some(position) = self.outer_position.updated() {
@@ -1693,6 +1705,18 @@ where
             self.resizable.inner_sync_when_changed(handle.clone());
             if let Some(resizable) = self.resizable.updated() {
                 winit.set_resizable(*resizable);
+                redraw = true;
+            }
+            self.window_icon.inner_sync_when_changed(handle.clone());
+            if let Some(icon) = self.window_icon.updated() {
+                let icon = icon.as_ref().map(|icon| {
+                    Icon::from_rgba(icon.as_raw().clone(), icon.width(), icon.height())
+                        .expect("valid image")
+                });
+                winit.set_window_icon(icon);
+            }
+
+            if redraw {
                 window.set_needs_redraw();
             }
         }
@@ -2472,7 +2496,7 @@ pub(crate) mod sealed {
 
     use figures::units::{Px, UPx};
     use figures::{Fraction, Point, Size};
-    use image::DynamicImage;
+    use image::{DynamicImage, RgbaImage};
     use kludgine::app::winit::window::{UserAttentionType, WindowLevel};
     use kludgine::Color;
     use parking_lot::Mutex;
@@ -2529,6 +2553,7 @@ pub(crate) mod sealed {
         pub inner_position: Dynamic<Point<Px>>,
         pub outer_position: Dynamic<Point<Px>>,
         pub outer_size: Dynamic<Size<UPx>>,
+        pub window_icon: Value<Option<RgbaImage>>,
     }
 
     #[derive(Debug, Clone)]
@@ -3139,6 +3164,7 @@ impl StandaloneWindowBuilder {
                 inner_position: Dynamic::default(),
                 outer_position: Dynamic::default(),
                 outer_size: Dynamic::default(),
+                window_icon: Value::Constant(None),
             },
         );
 

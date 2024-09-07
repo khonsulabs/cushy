@@ -15,6 +15,8 @@ fn main() -> cushy::Result {
         let outer_size = Dynamic::new(Size::upx(0, 0));
         let inner_position = Dynamic::new(Point::px(0, 0));
         let outer_position = Dynamic::new(Point::px(0, 0));
+        let icon = image::load_from_memory(include_bytes!("assets/ferris-happy.png"))
+            .expect("valid image");
 
         let widgets = focused
             .map_each(|v| format!("focused: {:?}", v))
@@ -39,6 +41,7 @@ fn main() -> cushy::Result {
             .outer_position(outer_position)
             .maximized(maximized)
             .minimized(minimized)
+            .icon(Some(icon.into_rgba8()))
             .open(app)
             .expect("app running");
     })
