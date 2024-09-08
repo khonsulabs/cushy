@@ -65,7 +65,7 @@ use crate::widget::{
     WidgetInstance, HANDLED, IGNORED,
 };
 use crate::window::sealed::WindowCommand;
-use crate::{initialize_tracing, ConstraintLimit};
+use crate::{initialize_tracing, App, ConstraintLimit};
 
 /// A platform-dependent window implementation.
 pub trait PlatformWindowImplementation {
@@ -650,12 +650,7 @@ where
         &self.pending.0
     }
 
-    /// Opens `self` in the center of the monitor the window initially appears
-    /// on.
-    pub fn open_centered<App>(mut self, app: &mut App) -> crate::Result<WindowHandle>
-    where
-        App: Application + ?Sized,
-    {
+    fn center_on_open(&mut self, app: App) {
         // We want to ensure that if the user has customized any of these
         // properties that we keep their dynamic.
         let outer_position = self.outer_position.clone().unwrap_or_else(|| {
@@ -678,7 +673,6 @@ where
         let callback_handle = Dynamic::new(None);
         callback_handle.set(Some(outer_size.for_each_subsequent({
             let visible = visible.clone();
-            let app = app.as_app();
             let callback_handle = callback_handle.clone();
             move |new_size| {
                 if let Some(monitor) = app.monitors().and_then(|monitors| {
@@ -698,6 +692,15 @@ where
                 let _ = callback_handle.take();
             }
         })));
+    }
+
+    /// Opens `self` in the center of the monitor the window initially appears
+    /// on.
+    pub fn open_centered<App>(mut self, app: &mut App) -> crate::Result<WindowHandle>
+    where
+        App: Application + ?Sized,
+    {
+        self.center_on_open(app.as_app());
 
         self.open(app)
     }
