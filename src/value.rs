@@ -550,7 +550,6 @@ pub trait Destination<T> {
     ///
     /// This function panics if this value is already locked by the current
     /// thread.
-    #[must_use]
     fn take(&self) -> T
     where
         Self: Source<T>,
@@ -1920,16 +1919,28 @@ where
 }
 
 #[derive(Default)]
+struct ChangeCallbacksExecutor {
+    thread: Option<ThreadId>,
+    callbacks_to_remove: Vec<LotId>,
+}
+
+#[derive(Default)]
 struct ChangeCallbacksData {
     callbacks: Mutex<CallbacksList>,
-    currently_executing: Mutex<Option<ThreadId>>,
+    currently_executing: Mutex<ChangeCallbacksExecutor>,
     sync: Condvar,
 }
 
 impl CallbackCollection for ChangeCallbacksData {
     fn remove(&self, id: LotId) {
-        let mut data = self.callbacks.lock();
-        data.callbacks.remove(id);
+        let mut currently_executing = self.currently_executing.lock();
+        if currently_executing.thread == Some(thread::current().id()) {
+            currently_executing.callbacks_to_remove.push(id);
+        } else {
+            drop(currently_executing);
+            let mut data = self.callbacks.lock();
+            data.callbacks.remove(id);
+        }
     }
 }
 
@@ -1957,12 +1968,12 @@ impl Drop for ChangeCallbacks {
         let mut currently_executing = self.data.currently_executing.lock();
         let current_thread = thread::current().id();
         loop {
-            match &*currently_executing {
+            match &currently_executing.thread {
                 None => {
                     // No other thread is executing these callbacks. Set this
                     // thread as the current executor so that we can prevent
                     // infinite cycles.
-                    *currently_executing = Some(current_thread);
+                    currently_executing.thread = Some(current_thread);
                     drop(currently_executing);
 
                     // Invoke the callbacks
@@ -1978,12 +1989,15 @@ impl Drop for ChangeCallbacks {
                             .callbacks
                             .drain_filter(|callback| callback.changed().is_err());
                     }
-                    drop(state);
 
                     // Remove ourselves as the current executor, notifying any
                     // other threads that are waiting.
                     currently_executing = self.data.currently_executing.lock();
-                    *currently_executing = None;
+                    currently_executing.thread = None;
+                    for callback in currently_executing.callbacks_to_remove.drain(..) {
+                        state.callbacks.remove(callback);
+                    }
+                    drop(state);
                     drop(currently_executing);
                     self.data.sync.notify_all();
 

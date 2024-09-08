@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   initial value of the dynamic or whether to let the operating system perform
   the initial positioning.
 
+### Changed
+
+- `Open` is now implemented for most types via a blanket implementation for a
+  new trait, `MakeWindow`. `MakeWindow` splits the process of creating a
+  `Window<Behavior>` from the process of opening a window.
+
+  The new `MakeWindow` trait adds some new functionality:
+  `open_centered`/`run_centered`/`run_centered_in`. These functions present a
+  window centered on the screen where the window initially is shown.
+
 ### Fixed
 
 - `Collapse`, `OverlayLayer`, and `Progress` all honor the theme components

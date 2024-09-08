@@ -17,7 +17,7 @@ use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
 use parking_lot::{Mutex, MutexGuard};
 
-use crate::app::{Application, Open, PendingApp, Run};
+use crate::app::Run;
 use crate::context::sealed::Trackable as _;
 use crate::context::{
     AsEventContext, EventContext, GraphicsContext, LayoutContext, ManageWidget, WidgetContext,
@@ -46,7 +46,7 @@ use crate::widgets::{
 };
 use crate::window::sealed::WindowCommand;
 use crate::window::{
-    DeviceId, KeyEvent, Rgb8, RunningWindow, StandaloneWindowBuilder, ThemeMode,
+    DeviceId, KeyEvent, MakeWindow, Rgb8, RunningWindow, StandaloneWindowBuilder, ThemeMode,
     VirtualRecorderBuilder, Window, WindowBehavior, WindowHandle, WindowLocal,
 };
 use crate::ConstraintLimit;
@@ -469,23 +469,6 @@ where
     }
 }
 // ANCHOR_END: run
-
-impl<T> Open for T
-where
-    T: MakeWidget,
-{
-    fn open<App>(self, app: &mut App) -> crate::Result<crate::window::WindowHandle>
-    where
-        App: Application + ?Sized,
-    {
-        Window::<WidgetInstance>::new(self.make_widget()).open(app)
-    }
-
-    fn run_in(self, mut app: PendingApp) -> crate::Result {
-        Window::<WidgetInstance>::new(self.make_widget()).open(&mut app)?;
-        app.run()
-    }
-}
 
 /// A behavior that should be applied to a root widget.
 #[derive(Debug, Clone, Copy)]
@@ -918,8 +901,8 @@ pub trait MakeWidget: Sized {
     fn make_widget(self) -> WidgetInstance;
 
     /// Returns a new window containing `self` as the root widget.
-    fn into_window(self) -> Window<WidgetInstance> {
-        Window::new(self.make_widget())
+    fn into_window(self) -> Window {
+        self.make_window()
     }
 
     /// Returns a builder for a standalone window.
@@ -1611,7 +1594,7 @@ impl WidgetInstance {
     where
         Self: Clone,
     {
-        self.clone().into_window()
+        self.clone().make_window()
     }
 }
 

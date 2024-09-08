@@ -7,8 +7,7 @@ use alot::OrderedLots;
 use crate::value::{Dynamic, DynamicReader, ForEach, Source, WeakDynamic};
 use crate::widget::{MakeWidget, WidgetInstance, WidgetList};
 use crate::widgets::grid::{Grid, GridWidgets};
-use crate::window::Window;
-use crate::{Application, Open, PendingApp};
+use crate::window::{MakeWindow, Window};
 
 /// A widget that can provide extra information when debugging.
 #[derive(Clone, Default)]
@@ -96,14 +95,6 @@ impl DebugContext {
         Self { section }
     }
 
-    fn into_window(self) -> Window {
-        self.section
-            .map_ref(|section| section.widget.clone())
-            // .vertical_scroll()
-            .into_window()
-            .titled("Cushy Debugger")
-    }
-
     /// Returns true if this debug context has no child sections or observed
     /// values.
     #[must_use]
@@ -114,16 +105,15 @@ impl DebugContext {
     }
 }
 
-impl Open for DebugContext {
-    fn open<App>(self, app: &mut App) -> crate::Result<crate::window::WindowHandle>
-    where
-        App: Application + ?Sized,
-    {
-        self.into_window().open(app)
-    }
+impl MakeWindow for DebugContext {
+    type Behavior = WidgetInstance;
 
-    fn run_in(self, app: PendingApp) -> crate::Result {
-        self.into_window().run_in(app)
+    fn make_window(self) -> Window<Self::Behavior> {
+        self.section
+            .map_ref(|section| section.widget.clone())
+            // .vertical_scroll()
+            .make_window()
+            .titled("Cushy Debugger")
     }
 }
 

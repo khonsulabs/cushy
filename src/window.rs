@@ -562,7 +562,7 @@ where
     }
 }
 
-impl Window<WidgetInstance> {
+impl Window {
     /// Returns a new instance using `widget` as its contents.
     pub fn for_widget<W>(widget: W) -> Self
     where
@@ -643,6 +643,63 @@ where
             outer_position: None,
             icon: None,
         }
+    }
+
+    /// Returns the handle to this window.
+    pub const fn handle(&self) -> &WindowHandle {
+        &self.pending.0
+    }
+
+    /// Opens `self` in the center of the monitor the window initially appears
+    /// on.
+    pub fn open_centered<App>(mut self, app: &mut App) -> crate::Result<WindowHandle>
+    where
+        App: Application + ?Sized,
+    {
+        // We want to ensure that if the user has customized any of these
+        // properties that we keep their dynamic.
+        let outer_position = self.outer_position.clone().unwrap_or_else(|| {
+            let outer_position = Dynamic::new(Point::default());
+            self.outer_position = Some(outer_position.clone());
+            outer_position
+        });
+        let outer_size = self.outer_size.clone().unwrap_or_else(|| {
+            let outer_size = Dynamic::new(Size::default());
+            self.outer_size = Some(outer_size.clone());
+            outer_size
+        });
+        let visible = self.visible.clone().unwrap_or_else(|| {
+            let visible = Dynamic::new(false);
+            self.visible = Some(visible.clone());
+            visible
+        });
+        visible.set(false);
+
+        let callback_handle = Dynamic::new(None);
+        callback_handle.set(Some(outer_size.for_each_subsequent({
+            let visible = visible.clone();
+            let app = app.as_app();
+            let callback_handle = callback_handle.clone();
+            move |new_size| {
+                if let Some(monitor) = app.monitors().and_then(|monitors| {
+                    let initial_position = outer_position.get();
+                    monitors
+                        .available
+                        .into_iter()
+                        .find(|m| m.region().contains(initial_position))
+                        .or(monitors.primary)
+                }) {
+                    let region = monitor.region();
+                    let margin = region.size - new_size.into_signed();
+                    outer_position.set(region.origin + margin / 2);
+                }
+                visible.set(true);
+                // Uninstall this callback to ensure it doesn't fire again.
+                let _ = callback_handle.take();
+            }
+        })));
+
+        self.open(app)
     }
 
     /// Sets `focused` to be the dynamic updated when this window's focus status
@@ -936,61 +993,62 @@ where
     }
 }
 
-impl<Behavior> Open for Window<Behavior>
+impl<T> Open for T
 where
-    Behavior: WindowBehavior,
+    T: MakeWindow,
 {
     fn open<App>(self, app: &mut App) -> crate::Result<WindowHandle>
     where
         App: Application + ?Sized,
     {
+        let this = self.make_window();
         let cushy = app.cushy().clone();
-        let handle = self.pending.handle();
-        OpenWindow::<Behavior>::open_with(
+        let handle = this.pending.handle();
+        OpenWindow::<T::Behavior>::open_with(
             app,
             sealed::Context {
-                user: self.context,
+                user: this.context,
                 settings: RefCell::new(sealed::WindowSettings {
                     cushy,
-                    title: self.title,
-                    redraw_status: self.pending.0.redraw_status.clone(),
-                    on_open: self.on_open,
-                    on_closed: self.on_closed,
-                    transparent: self.attributes.transparent,
-                    attributes: Some(self.attributes),
-                    occluded: self.occluded.unwrap_or_default(),
-                    focused: self.focused.unwrap_or_default(),
-                    inner_size: self.inner_size.unwrap_or_default(),
-                    theme: Some(self.theme),
-                    theme_mode: self.theme_mode,
-                    font_data_to_load: self.fonts,
-                    serif_font_family: self.serif_font_family,
-                    sans_serif_font_family: self.sans_serif_font_family,
-                    fantasy_font_family: self.fantasy_font_family,
-                    monospace_font_family: self.monospace_font_family,
-                    cursive_font_family: self.cursive_font_family,
-                    vsync: self.vsync,
-                    multisample_count: self.multisample_count,
-                    close_requested: self.close_requested.map(|cb| Arc::new(Mutex::new(cb))),
-                    zoom: self.zoom.unwrap_or_else(|| Dynamic::new(Fraction::ONE)),
-                    resize_to_fit: self.resize_to_fit,
-                    content_protected: self.content_protected.unwrap_or_default(),
-                    cursor_hittest: self.cursor_hittest.unwrap_or_else(|| Value::Constant(true)),
-                    cursor_visible: self.cursor_visible.unwrap_or_else(|| Value::Constant(true)),
-                    cursor_position: self.cursor_position.unwrap_or_default(),
-                    window_level: self.window_level.unwrap_or_default(),
-                    decorated: self.decorated.unwrap_or_else(|| Value::Constant(true)),
-                    maximized: self.maximized.unwrap_or_default(),
-                    minimized: self.minimized.unwrap_or_default(),
-                    resizable: self.resizable.unwrap_or_else(|| Value::Constant(true)),
-                    resize_increments: self.resize_increments.unwrap_or_default(),
-                    visible: self.visible.unwrap_or_default(),
-                    inner_position: self.inner_position.unwrap_or_default(),
-                    outer_position: self.outer_position.unwrap_or_default(),
-                    outer_size: self.outer_size.unwrap_or_default(),
-                    window_icon: self.icon.unwrap_or_default(),
+                    title: this.title,
+                    redraw_status: this.pending.0.redraw_status.clone(),
+                    on_open: this.on_open,
+                    on_closed: this.on_closed,
+                    transparent: this.attributes.transparent,
+                    attributes: Some(this.attributes),
+                    occluded: this.occluded.unwrap_or_default(),
+                    focused: this.focused.unwrap_or_default(),
+                    inner_size: this.inner_size.unwrap_or_default(),
+                    theme: Some(this.theme),
+                    theme_mode: this.theme_mode,
+                    font_data_to_load: this.fonts,
+                    serif_font_family: this.serif_font_family,
+                    sans_serif_font_family: this.sans_serif_font_family,
+                    fantasy_font_family: this.fantasy_font_family,
+                    monospace_font_family: this.monospace_font_family,
+                    cursive_font_family: this.cursive_font_family,
+                    vsync: this.vsync,
+                    multisample_count: this.multisample_count,
+                    close_requested: this.close_requested.map(|cb| Arc::new(Mutex::new(cb))),
+                    zoom: this.zoom.unwrap_or_else(|| Dynamic::new(Fraction::ONE)),
+                    resize_to_fit: this.resize_to_fit,
+                    content_protected: this.content_protected.unwrap_or_default(),
+                    cursor_hittest: this.cursor_hittest.unwrap_or_else(|| Value::Constant(true)),
+                    cursor_visible: this.cursor_visible.unwrap_or_else(|| Value::Constant(true)),
+                    cursor_position: this.cursor_position.unwrap_or_default(),
+                    window_level: this.window_level.unwrap_or_default(),
+                    decorated: this.decorated.unwrap_or_else(|| Value::Constant(true)),
+                    maximized: this.maximized.unwrap_or_default(),
+                    minimized: this.minimized.unwrap_or_default(),
+                    resizable: this.resizable.unwrap_or_else(|| Value::Constant(true)),
+                    resize_increments: this.resize_increments.unwrap_or_default(),
+                    visible: this.visible.unwrap_or_default(),
+                    inner_position: this.inner_position.unwrap_or_default(),
+                    outer_position: this.outer_position.unwrap_or_default(),
+                    outer_size: this.outer_size.unwrap_or_default(),
+                    window_icon: this.icon.unwrap_or_default(),
                 }),
-                pending: self.pending,
+                pending: this.pending,
             },
         )?;
 
@@ -1000,6 +1058,66 @@ where
     fn run_in(self, mut app: PendingApp) -> crate::Result {
         self.open(&mut app)?;
         app.run()
+    }
+}
+
+/// A type that can be made into a [`Window`].
+pub trait MakeWindow {
+    /// The behavior associated with this window.
+    type Behavior: WindowBehavior;
+
+    /// Returns a new window from `self`.
+    fn make_window(self) -> Window<Self::Behavior>;
+
+    /// Opens `self` in the center of the monitor the window initially appears
+    /// on.
+    fn open_centered<App>(self, app: &mut App) -> crate::Result<WindowHandle>
+    where
+        Self: Sized,
+        App: Application + ?Sized,
+    {
+        self.make_window().open_centered(app)
+    }
+
+    /// Runs `self` in the center of the monitor the window
+    /// initially appears on.
+    fn run_centered(self) -> crate::Result
+    where
+        Self: Sized,
+    {
+        self.make_window().run()
+    }
+
+    /// Runs `app` after opening `self` in the center of the monitor the window
+    /// initially appears on.
+    fn run_centered_in(self, mut app: PendingApp) -> crate::Result
+    where
+        Self: Sized,
+    {
+        self.make_window().open_centered(&mut app)?;
+        app.run()
+    }
+}
+
+impl<Behavior> MakeWindow for Window<Behavior>
+where
+    Behavior: WindowBehavior,
+{
+    type Behavior = Behavior;
+
+    fn make_window(self) -> Window<Self::Behavior> {
+        self
+    }
+}
+
+impl<T> MakeWindow for T
+where
+    T: MakeWidget,
+{
+    type Behavior = WidgetInstance;
+
+    fn make_window(self) -> Window<Self::Behavior> {
+        Window::for_widget(self.make_widget())
     }
 }
 
@@ -2863,7 +2981,7 @@ impl PendingWindow {
     }
 
     /// Returns a [`Window`] containing `root`.
-    pub fn with_root(self, root: impl MakeWidget) -> Window<WidgetInstance> {
+    pub fn with_root(self, root: impl MakeWidget) -> Window {
         Window::new_with_pending(root.make_widget(), self)
     }
 
