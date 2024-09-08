@@ -3895,6 +3895,13 @@ where
         }
     }
 
+    /// Marks the initial value as read and returns self.
+    #[must_use]
+    pub fn ignoring_first(mut self) -> Self {
+        self.unread = false;
+        self
+    }
+
     /// Updates this tracked instance's cached value from the source.
     ///
     /// Returns true if a value hasn't been read yet.

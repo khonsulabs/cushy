@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PlatformWindowImplementation` parameter.
 - `PlatformWindowImplementation::position` has been renamed to
   `PlatformWindowImplementation::outer_position`.
+- `Window::position` has been renamed to `Window::outer_position` and takes an
+  additional parameter controlling whether to position the window with the
+  initial value of the dynamic or whether to let the operating system perform
+  the initial positioning.
 
 ### Fixed
 
@@ -29,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   together.
 - `Switcher` now unmounts child widgets in all windows it is mounted in. Fixes
   [#139][139].
+- `inner_size` and `outer_size` are now initialized after the first layout is
+  performed. This ensures that when `resize_to_fit` is used, the first observed
+  values will be the resized values.
 
 ### Added
 
@@ -89,6 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `outer_size`
 - `#[cushy::main]` is a new attribute proc-macro that simplifies initializing
   and running multi-window applications.
+- `Window::on_open` executes a callback when the window is initially opened.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

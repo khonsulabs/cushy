@@ -38,7 +38,7 @@ fn main(app: &mut App) {
         .inner_size(inner_size)
         .outer_size(outer_size)
         .inner_position(inner_position)
-        .outer_position(outer_position)
+        .outer_position(outer_position, true)
         .maximized(maximized)
         .minimized(minimized)
         .icon(Some(icon.into_rgba8()))

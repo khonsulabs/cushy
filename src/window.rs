@@ -528,6 +528,7 @@ where
     pub resize_to_fit: Value<bool>,
 
     on_closed: Option<OnceCallback>,
+    on_open: Option<OnceCallback<WindowHandle>>,
     inner_size: Option<Dynamic<Size<UPx>>>,
     zoom: Option<Dynamic<Fraction>>,
     occluded: Option<Dynamic<bool>>,
@@ -601,6 +602,7 @@ where
             pending,
             title: Value::Constant(title),
             attributes: WindowAttributes::default(),
+            on_open: None,
             on_closed: None,
             context,
             load_system_fonts: true,
@@ -680,7 +682,12 @@ where
     /// the dynamic is updated with a new value, a resize request will be made
     /// with the new inner size.
     pub fn inner_size(mut self, inner_size: impl IntoDynamic<Size<UPx>>) -> Self {
-        self.inner_size = Some(inner_size.into_dynamic());
+        let inner_size = inner_size.into_dynamic();
+        let initial_size = inner_size.get();
+        if initial_size.width > 0 && initial_size.height > 0 {
+            self.attributes.inner_size = Some(winit::dpi::Size::Physical(initial_size.into()));
+        }
+        self.inner_size = Some(inner_size);
         self
     }
 
@@ -698,11 +705,29 @@ where
     /// Sets `position`  to be a dynamic synchronized with this window's outer
     /// position.
     ///
+    /// If `automatic_layout` is true, the initial value of `position` will be
+    /// ignored and the window server will control the window's initial
+    /// position.
+    ///
     /// When the window is moved, this dynamic will contain its new position.
     /// Setting this dynamic will attempt to move the window to the provided
     /// location.
-    pub fn outer_position(mut self, position: impl IntoDynamic<Point<Px>>) -> Self {
-        self.outer_position = Some(position.into_dynamic());
+    pub fn outer_position(
+        mut self,
+        position: impl IntoValue<Point<Px>>,
+        automatic_layout: bool,
+    ) -> Self {
+        let position = position.into_value();
+
+        if let Some(initial_position) = automatic_layout.then(|| position.get()) {
+            self.attributes.position =
+                Some(winit::dpi::Position::Physical(initial_position.into()));
+        }
+
+        if let Value::Dynamic(position) = position {
+            self.outer_position = Some(position);
+        }
+
         self
     }
 
@@ -725,7 +750,9 @@ where
 
     /// Prevents the window contents from being captured by other apps.
     pub fn content_protected(mut self, protected: impl IntoValue<bool>) -> Self {
-        self.content_protected = Some(protected.into_value());
+        let protected = protected.into_value();
+        self.attributes.content_protected = protected.get();
+        self.content_protected = Some(protected);
         self
     }
 
@@ -753,13 +780,17 @@ where
 
     /// Controls whether window decorations are shown around this window.
     pub fn decorated(mut self, decorated: impl IntoValue<bool>) -> Self {
-        self.decorated = Some(decorated.into_value());
+        let decorated = decorated.into_value();
+        self.attributes.decorations = decorated.get();
+        self.decorated = Some(decorated);
         self
     }
 
     /// Controls the level of this window.
     pub fn window_level(mut self, window_level: impl IntoValue<WindowLevel>) -> Self {
-        self.window_level = Some(window_level.into_value());
+        let window_level = window_level.into_value();
+        self.attributes.window_level = window_level.get();
+        self.window_level = Some(window_level);
         self
     }
 
@@ -773,13 +804,17 @@ where
     /// Provides a dynamic that is updated with the maximized status of this
     /// window.
     pub fn maximized(mut self, maximized: impl IntoDynamic<bool>) -> Self {
-        self.maximized = Some(maximized.into_dynamic());
+        let maximized = maximized.into_dynamic();
+        self.attributes.maximized = maximized.get();
+        self.maximized = Some(maximized);
         self
     }
 
     /// Controls whether the window is resizable by the user or not.
     pub fn resizable(mut self, resizable: impl IntoValue<bool>) -> Self {
-        self.resizable = Some(resizable.into_value());
+        let resizable = resizable.into_value();
+        self.attributes.resizable = resizable.get();
+        self.resizable = Some(resizable);
         self
     }
 
@@ -797,7 +832,9 @@ where
 
     /// Controls the visibility of this window.
     pub fn visible(mut self, visible: impl IntoDynamic<bool>) -> Self {
-        self.visible = Some(visible.into_dynamic());
+        let visible = visible.into_dynamic();
+        self.attributes.visible = visible.get();
+        self.visible = Some(visible);
         self
     }
 
@@ -840,6 +877,16 @@ where
     /// All font families contained in `font_data` will be loaded.
     pub fn loading_font(self, font_data: Vec<u8>) -> Self {
         self.fonts.push(font_data);
+        self
+    }
+
+    /// Invokes `on_open` when this window is first opened, even if it is not
+    /// visible.
+    pub fn on_open<Function>(mut self, on_open: Function) -> Self
+    where
+        Function: FnOnce(WindowHandle) + Send + 'static,
+    {
+        self.on_open = Some(OnceCallback::new(on_open));
         self
     }
 
@@ -907,6 +954,7 @@ where
                     cushy,
                     title: self.title,
                     redraw_status: self.pending.0.redraw_status.clone(),
+                    on_open: self.on_open,
                     on_closed: self.on_closed,
                     transparent: self.attributes.transparent,
                     attributes: Some(self.attributes),
@@ -1377,7 +1425,7 @@ where
     #[allow(clippy::needless_pass_by_value)]
     fn new<W>(
         mut behavior: T,
-        window: W,
+        mut window: W,
         graphics: &mut kludgine::Graphics<'_>,
         mut settings: sealed::WindowSettings,
     ) -> Self
@@ -1401,12 +1449,9 @@ where
             graphics.font_system().db_mut(),
         );
 
+        let dpi_scale = Dynamic::new(graphics.dpi_scale());
         settings.inner_position.set(window.inner_position());
         settings.outer_position.set(window.outer_position());
-        settings.inner_size.set(window.inner_size());
-        settings.outer_size.set(window.outer_size());
-
-        let dpi_scale = Dynamic::new(graphics.dpi_scale());
 
         let theme_mode = match settings.theme_mode.take() {
             Some(Value::Dynamic(dynamic)) => {
@@ -1426,7 +1471,12 @@ where
             Value::Dynamic(dynamic) => (dynamic.get(), Some(dynamic.into_reader())),
         };
 
-        Self {
+        if let Some(on_open) = settings.on_open {
+            let handle = window.handle(redraw_status.clone());
+            on_open.invoke(handle);
+        }
+
+        let mut this = Self {
             behavior,
             root,
             tree,
@@ -1441,7 +1491,7 @@ where
             initial_frame: true,
             occluded: settings.occluded,
             focused: settings.focused,
-            inner_size: Tracked::from(settings.inner_size),
+            inner_size: Tracked::from(settings.inner_size).ignoring_first(),
             keyboard_activated: None,
             min_inner_size: None,
             max_inner_size: None,
@@ -1457,22 +1507,27 @@ where
             close_requested: settings.close_requested,
             dpi_scale,
             zoom: Tracked::from(settings.zoom),
-            content_protected: Tracked::from(settings.content_protected),
+            content_protected: Tracked::from(settings.content_protected).ignoring_first(),
             cursor_hittest: Tracked::from(settings.cursor_hittest),
             cursor_visible: Tracked::from(settings.cursor_visible),
             cursor_position: Tracked::from(settings.cursor_position),
-            window_level: Tracked::from(settings.window_level),
-            decorated: Tracked::from(settings.decorated),
+            window_level: Tracked::from(settings.window_level).ignoring_first(),
+            decorated: Tracked::from(settings.decorated).ignoring_first(),
             maximized: Tracked::from(settings.maximized),
             minimized: Tracked::from(settings.minimized),
-            resizable: Tracked::from(settings.resizable),
+            resizable: Tracked::from(settings.resizable).ignoring_first(),
             resize_increments: Tracked::from(settings.resize_increments),
-            visible: Tracked::from(settings.visible),
+            visible: Tracked::from(settings.visible).ignoring_first(),
             outer_size: settings.outer_size,
             inner_position: settings.inner_position,
-            outer_position: Tracked::from(settings.outer_position),
+            outer_position: Tracked::from(settings.outer_position).ignoring_first(),
             window_icon: Tracked::from(settings.window_icon),
-        }
+        };
+
+        this.synchronize_platform_window(&mut window);
+        this.prepare(window, graphics);
+
+        this
     }
 
     fn new_frame(&mut self, graphics: &mut kludgine::Graphics<'_>) {
@@ -1561,7 +1616,7 @@ where
             layout_size
         };
         let render_size = actual_size.min(window_size);
-        layout_context.redraw_when_changed(&self.inner_size);
+        layout_context.invalidate_when_changed(&self.inner_size);
         layout_context.invalidate_when_changed(&self.resize_to_fit);
         if let Some(new_size) = self.inner_size.updated() {
             layout_context.request_inner_size(*new_size);
@@ -1655,6 +1710,7 @@ where
     where
         W: PlatformWindowImplementation,
     {
+        self.redraw_status.sync_received();
         self.update_ized(window);
         if let Some(winit) = window.winit() {
             let mut redraw = false;
@@ -2375,7 +2431,6 @@ where
             }
             WindowCommand::Sync => {
                 self.synchronize_platform_window(&mut window);
-                self.redraw_status.sync_received();
             }
             WindowCommand::RequestClose => {
                 let mut window = RunningWindow::new(
@@ -2501,7 +2556,7 @@ pub(crate) mod sealed {
     use kludgine::Color;
     use parking_lot::Mutex;
 
-    use super::PendingWindow;
+    use super::{PendingWindow, WindowHandle};
     use crate::app::Cushy;
     use crate::context::sealed::InvalidationStatus;
     use crate::fonts::FontCollection;
@@ -2534,6 +2589,7 @@ pub(crate) mod sealed {
         pub monospace_font_family: FontFamilyList,
         pub cursive_font_family: FontFamilyList,
         pub font_data_to_load: FontCollection,
+        pub on_open: Option<OnceCallback<WindowHandle>>,
         pub on_closed: Option<OnceCallback>,
         pub vsync: bool,
         pub multisample_count: NonZeroU32,
@@ -3144,6 +3200,7 @@ impl StandaloneWindowBuilder {
                 monospace_font_family: FontFamilyList::default(),
                 cursive_font_family: FontFamilyList::default(),
                 font_data_to_load: FontCollection::default(),
+                on_open: None,
                 on_closed: None,
                 vsync: false,
                 multisample_count: self.multisample_count,
