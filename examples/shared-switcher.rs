@@ -10,7 +10,7 @@
 use cushy::value::{Dynamic, Switchable};
 use cushy::widget::MakeWidget;
 use cushy::widgets::Custom;
-use cushy::{Open, PendingApp, Run};
+use cushy::{Open, PendingApp};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum Contents {
@@ -18,9 +18,8 @@ enum Contents {
     B,
 }
 
-fn main() -> cushy::Result {
-    let mut app = PendingApp::default();
-
+#[cushy::main]
+fn main(app: &mut PendingApp) -> cushy::Result {
     let selected = Dynamic::new(Contents::A);
 
     // Open up another window containing our controls
@@ -28,7 +27,7 @@ fn main() -> cushy::Result {
         .new_radio(Contents::A, "A")
         .and(selected.new_radio(Contents::B, "B"))
         .into_rows()
-        .open(&mut app)?;
+        .open(app)?;
 
     let display = selected
         .switcher(|contents, _| match contents {
@@ -46,8 +45,8 @@ fn main() -> cushy::Result {
         .make_widget();
 
     // Open two windows with the same switcher instance
-    display.to_window().open(&mut app)?;
-    display.to_window().open(&mut app)?;
+    display.to_window().open(app)?;
+    display.to_window().open(app)?;
 
-    app.run()
+    Ok(())
 }

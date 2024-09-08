@@ -35,6 +35,98 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 #[cfg(feature = "tokio")]
 pub use app::TokioRuntime;
 pub use app::{App, AppRuntime, Application, Cushy, DefaultRuntime, Open, PendingApp, Run};
+/// A macro to create a `main()` function with less boilerplate.
+///
+/// When creating applications that support multiple windows, this attribute
+/// macro can be used to remove a few lines of code.
+///
+/// The function body is executed during application startup, and the app will
+/// continue running until the last window is closed.
+///
+/// This attribute must be attached to a `main(&mut PendingApp)` or `main(&mut
+/// App)` function. Either form supports a return type or no return type.
+///
+/// ## `&mut PendingApp`
+///
+/// When using a [`PendingApp`], the function body is invoked before the app is
+/// run. While the example shown below does not require the runtime
+/// initialization, some programs do and using the macro means the developer
+/// will never forget to add the extra code.
+///
+/// These two example programs are functionally identical:
+///
+/// ### Without Macro
+///
+/// ```rust
+/// # fn test() {
+/// use cushy::{Open, PendingApp, Run};
+///
+/// fn main() -> cushy::Result {
+///     let mut app = PendingApp::default();
+///     let cushy = app.cushy().clone();
+///     let _guard = cushy.enter_runtime();
+///
+///     "Hello World".open(&mut app)?;
+///
+///     app.run()
+/// }
+/// # }
+/// ```
+///
+/// ### With Macro
+///
+/// ```rust
+/// # fn test() {
+/// use cushy::{Open, PendingApp};
+///
+/// #[cushy::main]
+/// fn main(app: &mut PendingApp) -> cushy::Result {
+///     "Hello World".open(app)?;
+///     Ok(())
+/// }
+/// # }
+/// ```
+///
+/// ## `&mut App`
+///
+/// When using an [`App`], the function body is invoked after the app's event
+/// loop has begun executing. This is important if the application wants to
+/// access monitor information to either position windows precisely or use a
+/// full screen video mode.
+///
+/// These two example programs are functionally identical:
+///
+/// ### Without Macro
+///
+/// ```rust
+/// # fn test() {
+/// use cushy::{App, Open, PendingApp, Run};
+///
+/// fn main() -> cushy::Result {
+///     let mut app = PendingApp::default();
+///     app.on_startup(|app| -> cushy::Result {
+///         "Hello World".open(app)?;
+///         Ok(())
+///     });
+///     app.run()
+/// }
+/// # }
+/// ```
+///
+/// ### With Macro
+///
+/// ```rust
+/// # fn test() {
+/// use cushy::{App, Open};
+///
+/// #[cushy::main]
+/// fn main(app: &mut App) -> cushy::Result {
+///     "Hello World".open(app)?;
+///     Ok(())
+/// }
+/// # }
+/// ```
+pub use cushy_macros::main;
 use figures::units::UPx;
 use figures::{Fraction, ScreenUnit, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;

@@ -1,8 +1,10 @@
 use std::marker::PhantomData;
+use std::process::exit;
 use std::sync::Arc;
 use std::thread;
 
 use arboard::Clipboard;
+use kludgine::app::winit::error::EventLoopError;
 use kludgine::app::{AppEvent, AsApplication, Monitors};
 use parking_lot::{Mutex, MutexGuard};
 
@@ -37,9 +39,10 @@ impl PendingApp {
     /// Some APIs are not available until after the application has started
     /// running. For example, `App::monitors` requires the event loop to have
     /// been started.
-    pub fn on_startup<F>(&mut self, on_startup: F)
+    pub fn on_startup<F, R>(&mut self, on_startup: F)
     where
-        F: FnOnce(&mut App) + Send + 'static,
+        F: FnOnce(&mut App) -> R + Send + 'static,
+        R: StartupResult,
     {
         let mut app = self.as_app();
         self.app.on_startup(move |_app| {
@@ -51,7 +54,10 @@ impl PendingApp {
             thread::spawn(move || {
                 let cushy = app.cushy.clone();
                 let _guard = cushy.enter_runtime();
-                on_startup(&mut app);
+                if let Err(err) = on_startup(&mut app).into_result() {
+                    eprintln!("error in on_startup: {err}");
+                    exit(-1);
+                }
             });
         });
     }
@@ -81,6 +87,25 @@ impl AsApplication<AppEvent<WindowCommand>> for PendingApp {
         AppEvent<WindowCommand>: kludgine::app::Message,
     {
         self.app.as_application_mut()
+    }
+}
+
+pub trait StartupResult {
+    fn into_result(self) -> cushy::Result;
+}
+
+impl StartupResult for () {
+    fn into_result(self) -> crate::Result {
+        Ok(())
+    }
+}
+
+impl<E> StartupResult for Result<(), E>
+where
+    E: Into<EventLoopError>,
+{
+    fn into_result(self) -> crate::Result {
+        self.map_err(Into::into)
     }
 }
 

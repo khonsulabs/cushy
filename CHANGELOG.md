@@ -87,6 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   - `inner_position`
   - `outer_size`
+- `#[cushy::main]` is a new attribute proc-macro that simplifies initializing
+  and running multi-window applications.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

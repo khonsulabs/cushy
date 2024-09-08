@@ -24,6 +24,9 @@ macro_rules! expansion_snapshot {
 }
 
 mod animation;
+mod cushy_main;
 
 #[manyhow(proc_macro_derive(LinearInterpolate))]
 pub use animation::linear_interpolate;
+#[manyhow(proc_macro_attribute)]
+pub use cushy_main::main;

@@ -1,50 +1,49 @@
 use cushy::figures::Size;
 use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
-use cushy::{run, App, Open};
+use cushy::{App, Open};
 use figures::units::{Px, UPx};
 use figures::{IntoSigned, Point, Px2D, UPx2D};
 
-fn main() -> cushy::Result {
-    run(|app| {
-        let focused = Dynamic::new(false);
-        let occluded = Dynamic::new(false);
-        let maximized = Dynamic::new(false);
-        let minimized = Dynamic::new(false);
-        let inner_size = Dynamic::new(Size::upx(0, 0));
-        let outer_size = Dynamic::new(Size::upx(0, 0));
-        let inner_position = Dynamic::new(Point::px(0, 0));
-        let outer_position = Dynamic::new(Point::px(0, 0));
-        let icon = image::load_from_memory(include_bytes!("assets/ferris-happy.png"))
-            .expect("valid image");
+#[cushy::main]
+fn main(app: &mut App) {
+    let focused = Dynamic::new(false);
+    let occluded = Dynamic::new(false);
+    let maximized = Dynamic::new(false);
+    let minimized = Dynamic::new(false);
+    let inner_size = Dynamic::new(Size::upx(0, 0));
+    let outer_size = Dynamic::new(Size::upx(0, 0));
+    let inner_position = Dynamic::new(Point::px(0, 0));
+    let outer_position = Dynamic::new(Point::px(0, 0));
+    let icon =
+        image::load_from_memory(include_bytes!("assets/ferris-happy.png")).expect("valid image");
 
-        let widgets = focused
-            .map_each(|v| format!("focused: {:?}", v))
-            .and(occluded.map_each(|v| format!("occluded: {:?}", v)))
-            .and(maximized.map_each(|v| format!("maximized: {:?}", v)))
-            .and(minimized.map_each(|v| format!("minimized: {:?}", v)))
-            .and(inner_position.map_each(|v| format!("inner_position: {:?}", v)))
-            .and(outer_position.map_each(|v| format!("outer_position: {:?}", v)))
-            .and(inner_size.map_each(|v| format!("inner_size: {:?}", v)))
-            .and(outer_size.map_each(|v| format!("outer_size: {:?}", v)))
-            .and(center_window_button(app, &outer_position, &outer_size))
-            .into_rows()
-            .centered();
+    let widgets = focused
+        .map_each(|v| format!("focused: {:?}", v))
+        .and(occluded.map_each(|v| format!("occluded: {:?}", v)))
+        .and(maximized.map_each(|v| format!("maximized: {:?}", v)))
+        .and(minimized.map_each(|v| format!("minimized: {:?}", v)))
+        .and(inner_position.map_each(|v| format!("inner_position: {:?}", v)))
+        .and(outer_position.map_each(|v| format!("outer_position: {:?}", v)))
+        .and(inner_size.map_each(|v| format!("inner_size: {:?}", v)))
+        .and(outer_size.map_each(|v| format!("outer_size: {:?}", v)))
+        .and(center_window_button(app, &outer_position, &outer_size))
+        .into_rows()
+        .centered();
 
-        widgets
-            .into_window()
-            .focused(focused)
-            .occluded(occluded)
-            .inner_size(inner_size)
-            .outer_size(outer_size)
-            .inner_position(inner_position)
-            .outer_position(outer_position)
-            .maximized(maximized)
-            .minimized(minimized)
-            .icon(Some(icon.into_rgba8()))
-            .open(app)
-            .expect("app running");
-    })
+    widgets
+        .into_window()
+        .focused(focused)
+        .occluded(occluded)
+        .inner_size(inner_size)
+        .outer_size(outer_size)
+        .inner_position(inner_position)
+        .outer_position(outer_position)
+        .maximized(maximized)
+        .minimized(minimized)
+        .icon(Some(icon.into_rgba8()))
+        .open(app)
+        .expect("app running");
 }
 
 fn center_window_button(
