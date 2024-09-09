@@ -550,6 +550,7 @@ where
     outer_position: Option<Dynamic<Point<Px>>>,
     close_requested: Option<Callback<(), bool>>,
     icon: Option<Value<Option<RgbaImage>>>,
+    modifiers: Option<Dynamic<Modifiers>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -642,6 +643,7 @@ where
             inner_position: None,
             outer_position: None,
             icon: None,
+            modifiers: None,
         }
     }
 
@@ -982,6 +984,13 @@ where
         self.icon = Some(icon.into_value());
         self
     }
+
+    /// Sets `modifiers` to contain the state of the keyboard modifiers when
+    /// this window has keyboard focus.
+    pub fn modifiers(mut self, modifiers: impl IntoDynamic<Modifiers>) -> Self {
+        self.modifiers = Some(modifiers.into_dynamic());
+        self
+    }
 }
 
 impl<Behavior> Run for Window<Behavior>
@@ -1050,6 +1059,7 @@ where
                     outer_position: this.outer_position.unwrap_or_default(),
                     outer_size: this.outer_size.unwrap_or_default(),
                     window_icon: this.icon.unwrap_or_default(),
+                    modifiers: this.modifiers.unwrap_or_default(),
                 }),
                 pending: this.pending,
             },
@@ -1207,6 +1217,7 @@ struct OpenWindow<T> {
     outer_position: Tracked<Dynamic<Point<Px>>>,
     inner_position: Dynamic<Point<Px>>,
     window_icon: Tracked<Value<Option<RgbaImage>>>,
+    modifiers: Dynamic<Modifiers>,
 }
 
 impl<T> OpenWindow<T>
@@ -1643,6 +1654,7 @@ where
             inner_position: settings.inner_position,
             outer_position: Tracked::from(settings.outer_position).ignoring_first(),
             window_icon: Tracked::from(settings.window_icon),
+            modifiers: settings.modifiers,
         };
 
         this.synchronize_platform_window(&mut window);
@@ -2469,13 +2481,8 @@ where
         input: winit::event::KeyEvent,
         is_synthetic: bool,
     ) {
-        self.keyboard_input(
-            window,
-            kludgine,
-            device_id.into(),
-            input.into(),
-            is_synthetic,
-        );
+        let event = KeyEvent::from_winit(input, window.modifiers());
+        self.keyboard_input(window, kludgine, device_id.into(), event, is_synthetic);
     }
 
     fn mouse_wheel(
@@ -2489,7 +2496,13 @@ where
         self.mouse_wheel(window, kludgine, device_id.into(), delta, phase);
     }
 
-    // fn modifiers_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
+    fn modifiers_changed(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+    ) {
+        self.modifiers.set(window.modifiers());
+    }
 
     fn ime(
         &mut self,
@@ -2673,6 +2686,7 @@ pub(crate) mod sealed {
     use figures::units::{Px, UPx};
     use figures::{Fraction, Point, Size};
     use image::{DynamicImage, RgbaImage};
+    use kludgine::app::winit::event::Modifiers;
     use kludgine::app::winit::window::{UserAttentionType, WindowLevel};
     use kludgine::Color;
     use parking_lot::Mutex;
@@ -2731,6 +2745,7 @@ pub(crate) mod sealed {
         pub outer_position: Dynamic<Point<Px>>,
         pub outer_size: Dynamic<Size<UPx>>,
         pub window_icon: Value<Option<RgbaImage>>,
+        pub modifiers: Dynamic<Modifiers>,
     }
 
     #[derive(Debug, Clone)]
@@ -3343,6 +3358,7 @@ impl StandaloneWindowBuilder {
                 outer_position: Dynamic::default(),
                 outer_size: Dynamic::default(),
                 window_icon: Value::Constant(None),
+                modifiers: Dynamic::default(),
             },
         );
 
@@ -4348,6 +4364,7 @@ where
             state: ElementState::Pressed,
             repeat: false,
             location: KeyLocation::Standard,
+            modifiers: Modifiers::default(),
         };
         self.recorder
             .window
@@ -4379,6 +4396,7 @@ where
                 location: KeyLocation::Standard,
                 state: ElementState::Pressed,
                 repeat: false,
+                modifiers: Modifiers::default(),
             };
             let _handled =
                 self.recorder
@@ -4661,7 +4679,7 @@ impl FrameAssembler {
 }
 
 /// Describes a keyboard input targeting a window.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct KeyEvent {
     /// The logical key that is interpretted from the `physical_key`.
     ///
@@ -4697,10 +4715,15 @@ pub struct KeyEvent {
     /// See [`KeyEvent::logical_key`](winit::event::KeyEvent::logical_key) for
     /// more information.
     pub repeat: bool,
+
+    /// The modifiers state active for this event.
+    pub modifiers: Modifiers,
 }
 
-impl From<winit::event::KeyEvent> for KeyEvent {
-    fn from(event: winit::event::KeyEvent) -> Self {
+impl KeyEvent {
+    /// Returns a new key event from a winit key event and modifiers.
+    #[must_use]
+    pub fn from_winit(event: winit::event::KeyEvent, modifiers: Modifiers) -> Self {
         Self {
             physical_key: event.physical_key,
             logical_key: event.logical_key,
@@ -4708,6 +4731,7 @@ impl From<winit::event::KeyEvent> for KeyEvent {
             location: event.location,
             state: event.state,
             repeat: event.repeat,
+            modifiers,
         }
     }
 }

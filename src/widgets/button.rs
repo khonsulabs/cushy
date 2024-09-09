@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size};
-use kludgine::app::winit::event::MouseButton;
+use kludgine::app::winit::event::{Modifiers, MouseButton};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
@@ -40,6 +40,7 @@ pub struct Button {
 #[derive(Debug, Default)]
 struct PerWindow {
     buttons_pressed: usize,
+    modifiers: Modifiers,
     cached_state: CacheState,
     active_colors: Option<Dynamic<ButtonColors>>,
     color_animation: AnimationHandle,
@@ -432,7 +433,9 @@ impl Widget for Button {
         _button: MouseButton,
         context: &mut EventContext<'_>,
     ) -> EventHandling {
-        self.per_window.entry(context).or_default().buttons_pressed += 1;
+        let per_window = self.per_window.entry(context).or_default();
+        per_window.buttons_pressed += 1;
+        per_window.modifiers = context.modifiers();
         context.activate();
         HANDLED
     }
@@ -475,11 +478,13 @@ impl Widget for Button {
                 if Rect::from(last_layout.size).contains(location) {
                     context.focus();
 
+                    let modifiers = window_local.modifiers;
                     self.invoke_on_click(
                         Some(ButtonClick {
                             mouse_button: button,
                             location,
                             window_location: location + last_layout.origin,
+                            modifiers,
                         }),
                         context,
                     );
@@ -598,4 +603,7 @@ pub struct ButtonClick {
     pub location: Point<Px>,
     /// The location relative to the window of the click.
     pub window_location: Point<Px>,
+
+    /// The keyboard modifiers state when this click began.
+    pub modifiers: Modifiers,
 }

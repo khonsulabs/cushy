@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   additional parameter controlling whether to position the window with the
   initial value of the dynamic or whether to let the operating system perform
   the initial positioning.
+- Keyboard modifiers have been added to two event structures: `ButtonClick` and
+  `KeyboardEvent`. Because of this change, `KeyboardEvent` no longer implements
+  `From<winit::event::KeyEvent>`. Instead, a new api `KeyEvent::from_winit`
+  allows constructing from both the modifiers and key event.
 
 ### Changed
 
@@ -85,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Window::inner_position`
   - `Window::maximized`
   - `Window::minimized`
+  - `Window::modifiers`
   - `Window::outer_position`
   - `Window::outer_size`
   - `Window::resize_increments`
