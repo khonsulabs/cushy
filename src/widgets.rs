@@ -26,6 +26,7 @@ pub mod radio;
 mod resize;
 pub mod scroll;
 pub mod select;
+pub mod shortcuts;
 pub mod slider;
 mod space;
 pub mod stack;

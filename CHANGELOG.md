@@ -123,6 +123,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `#[cushy::main]` is a new attribute proc-macro that simplifies initializing
   and running multi-window applications.
 - `Window::on_open` executes a callback when the window is initially opened.
+- `Shortcuts` is a new widget that simplifies attaching logic to keyboard
+  shortcuts. Any widget can be wrapped with keyboard shortcut handling by using
+  `MakeWidget::with_shortcut`/`MakeWidget::with_repeating_shortcut`.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

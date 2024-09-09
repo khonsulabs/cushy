@@ -13,6 +13,7 @@ use figures::units::{Px, UPx};
 use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use intentional::Assert;
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
+use kludgine::app::winit::keyboard::ModifiersState;
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
 use parking_lot::{Mutex, MutexGuard};
@@ -40,6 +41,7 @@ use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Validation, Valu
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::list::List;
+use crate::widgets::shortcuts::{ShortcutKey, Shortcuts};
 use crate::widgets::{
     Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Resize, Scroll, Space,
     Stack, Style, Themed, ThemedMode, Validated, Wrap,
@@ -954,6 +956,43 @@ pub trait MakeWidget: Sized {
         Style::new(Styles::new().with_dynamic(name, dynamic), self)
     }
 
+    /// Invokes `callback` when `key` is pressed while `modifiers` are pressed.
+    ///
+    /// This shortcut will only be invoked if focus is within `self` or a child
+    /// of `self`, or if the returned widget becomes the root widget of a
+    /// window.
+    #[must_use]
+    fn with_shortcut<F>(
+        self,
+        key: impl Into<ShortcutKey>,
+        modifiers: ModifiersState,
+        callback: F,
+    ) -> Shortcuts
+    where
+        F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
+    {
+        Shortcuts::new(self).with_shortcut(key, modifiers, callback)
+    }
+
+    /// Invokes `callback` when `key` is pressed while `modifiers` are pressed.
+    /// If the shortcut is held, the callback will be invoked on repeat events.
+    ///
+    /// This shortcut will only be invoked if focus is within `self` or a child
+    /// of `self`, or if the returned widget becomes the root widget of a
+    /// window.
+    #[must_use]
+    fn with_repeating_shortcut<F>(
+        self,
+        key: impl Into<ShortcutKey>,
+        modifiers: ModifiersState,
+        callback: F,
+    ) -> Shortcuts
+    where
+        F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
+    {
+        Shortcuts::new(self).with_repeating_shortcut(key, modifiers, callback)
+    }
+
     /// Styles `self` with the largest of 6 heading styles.
     fn h1(self) -> Style {
         self.xxxx_large()
@@ -1674,6 +1713,49 @@ where
 {
     fn invoke(&mut self, value: T) -> R {
         self(value)
+    }
+}
+
+/// A [`Callback`] that can be cloned.
+///
+/// Only one thread can be invoking a shared callback at any given time.
+pub struct SharedCallback<T = (), R = ()>(Arc<Mutex<Callback<T, R>>>);
+
+impl<T, R> SharedCallback<T, R> {
+    /// Returns a new instance that calls `function` each time the callback is
+    /// invoked.
+    pub fn new<F>(function: F) -> Self
+    where
+        F: FnMut(T) -> R + Send + 'static,
+    {
+        Self(Arc::new(Mutex::new(Callback::new(function))))
+    }
+
+    /// Invokes the wrapped function and returns the produced value.
+    pub fn invoke(&self, value: T) -> R {
+        self.0.lock().invoke(value)
+    }
+}
+
+impl<T, R> Debug for SharedCallback<T, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("SharedCallback")
+            .field(&Arc::as_ptr(&self.0))
+            .finish()
+    }
+}
+
+impl<T, R> Eq for SharedCallback<T, R> {}
+
+impl<T, R> PartialEq for SharedCallback<T, R> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl<T, R> Clone for SharedCallback<T, R> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
