@@ -26,6 +26,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `KeyboardEvent`. Because of this change, `KeyboardEvent` no longer implements
   `From<winit::event::KeyEvent>`. Instead, a new api `KeyEvent::from_winit`
   allows constructing from both the modifiers and key event.
+- The type alias `WindowAttributes` has been removed. This type is no longer
+  used in Cushy's public API.
+- `Window::attributes` has been made private. All functionality available from
+  this field should be available directly via functions on `Window`, and when
+  possible, the attributes are be able to be dynamically updated as well.
+- `Window::focused` now accepts an `IntoValue` implementor instead of
+  `IntoDynamic`. Additionally, the initial value is now used to control whether
+  the OS should initially activate the window when it is opened.
 
 ### Changed
 
@@ -85,6 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Window::cursor_position`
   - `Window::cursor_visible`
   - `Window::decorated`
+  - `Window::enabled_buttons`
   - `Window::icon`
   - `Window::inner_position`
   - `Window::maximized`

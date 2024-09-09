@@ -31,8 +31,8 @@ use kludgine::app::winit::event::{
 use kludgine::app::winit::keyboard::{
     Key, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
 };
-use kludgine::app::winit::window::{self, Cursor, Icon, WindowLevel};
-use kludgine::app::{winit, WindowBehavior as _};
+use kludgine::app::winit::window::{self, Cursor, Fullscreen, Icon, WindowButtons, WindowLevel};
+use kludgine::app::{winit, WindowAttributes, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::drawing::Drawing;
 use kludgine::shapes::Shape;
@@ -477,19 +477,12 @@ where
     }
 }
 
-/// The attributes of a Cushy window.
-pub type WindowAttributes = kludgine::app::WindowAttributes;
-
 /// A Cushy window that is not yet running.
 #[must_use]
 pub struct Window<Behavior = WidgetInstance>
 where
     Behavior: WindowBehavior,
 {
-    context: Behavior::Context,
-    pending: PendingWindow,
-    /// The attributes of this window.
-    pub attributes: WindowAttributes,
     /// The title to display in the title bar of the window.
     pub title: Value<String>,
     /// The colors to use to theme the user interface.
@@ -527,6 +520,9 @@ where
     /// Resizes the window to fit the contents if true.
     pub resize_to_fit: Value<bool>,
 
+    context: Behavior::Context,
+    pending: PendingWindow,
+    attributes: WindowAttributes,
     on_closed: Option<OnceCallback>,
     on_open: Option<OnceCallback<WindowHandle>>,
     inner_size: Option<Dynamic<Size<UPx>>>,
@@ -551,6 +547,8 @@ where
     close_requested: Option<Callback<(), bool>>,
     icon: Option<Value<Option<RgbaImage>>>,
     modifiers: Option<Dynamic<Modifiers>>,
+    enabled_buttons: Option<Value<WindowButtons>>,
+    fullscreen: Option<Value<Option<Fullscreen>>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -644,6 +642,8 @@ where
             outer_position: None,
             icon: None,
             modifiers: None,
+            enabled_buttons: None,
+            fullscreen: None,
         }
     }
 
@@ -713,12 +713,17 @@ where
     /// When the window is focused for user input, the dynamic will contain
     /// `true`.
     ///
-    /// `focused` will be initialized with an initial state
-    /// of `false`.
-    pub fn focused(mut self, focused: impl IntoDynamic<bool>) -> Self {
-        let focused = focused.into_dynamic();
-        focused.set(false);
-        self.focused = Some(focused);
+    /// The current value of `focused` will inform the OS whether the window
+    /// should be activated upon opening. To prevent state mismatches, if
+    /// `focused` is a dynamic, it will be initialized with `false` so that the
+    /// transition to focused can be observed.
+    pub fn focused(mut self, focused: impl IntoValue<bool>) -> Self {
+        let focused = focused.into_value();
+        self.attributes.active = focused.get();
+        if let Value::Dynamic(focused) = focused {
+            focused.set(false);
+            self.focused = Some(focused);
+        }
         self
     }
 
@@ -734,6 +739,14 @@ where
         let occluded = occluded.into_dynamic();
         occluded.set(false);
         self.occluded = Some(occluded);
+        self
+    }
+
+    /// Sets the full screen mode for this window.
+    pub fn fullscreen(mut self, fullscreen: impl IntoValue<Option<Fullscreen>>) -> Self {
+        let fullscreen = fullscreen.into_value();
+        self.attributes.fullscreen = fullscreen.get();
+        self.fullscreen = Some(fullscreen);
         self
     }
 
@@ -845,6 +858,14 @@ where
         let decorated = decorated.into_value();
         self.attributes.decorations = decorated.get();
         self.decorated = Some(decorated);
+        self
+    }
+
+    /// Sets the enabled buttons for this window.
+    pub fn enabled_buttons(mut self, buttons: impl IntoValue<WindowButtons>) -> Self {
+        let buttons = buttons.into_value();
+        self.attributes.enabled_buttons = buttons.get();
+        self.enabled_buttons = Some(buttons);
         self
     }
 
@@ -991,6 +1012,16 @@ where
         self.modifiers = Some(modifiers.into_dynamic());
         self
     }
+
+    /// Sets the name of the application.
+    ///
+    /// - `WM_CLASS` on X11
+    /// - application ID on wayland
+    /// - class name on windows
+    pub fn app_name(mut self, name: String) -> Self {
+        self.attributes.app_name = Some(name);
+        self
+    }
 }
 
 impl<Behavior> Run for Window<Behavior>
@@ -1060,6 +1091,10 @@ where
                     outer_size: this.outer_size.unwrap_or_default(),
                     window_icon: this.icon.unwrap_or_default(),
                     modifiers: this.modifiers.unwrap_or_default(),
+                    enabled_buttons: this
+                        .enabled_buttons
+                        .unwrap_or(Value::Constant(WindowButtons::all())),
+                    fullscreen: this.fullscreen.unwrap_or_default(),
                 }),
                 pending: this.pending,
             },
@@ -1217,6 +1252,8 @@ struct OpenWindow<T> {
     outer_position: Tracked<Dynamic<Point<Px>>>,
     inner_position: Dynamic<Point<Px>>,
     window_icon: Tracked<Value<Option<RgbaImage>>>,
+    enabled_buttons: Tracked<Value<WindowButtons>>,
+    fullscreen: Tracked<Value<Option<Fullscreen>>>,
     modifiers: Dynamic<Modifiers>,
 }
 
@@ -1655,6 +1692,8 @@ where
             outer_position: Tracked::from(settings.outer_position).ignoring_first(),
             window_icon: Tracked::from(settings.window_icon),
             modifiers: settings.modifiers,
+            enabled_buttons: Tracked::from(settings.enabled_buttons).ignoring_first(),
+            fullscreen: Tracked::from(settings.fullscreen).ignoring_first(),
         };
 
         this.synchronize_platform_window(&mut window);
@@ -1843,39 +1882,39 @@ where
     where
         W: PlatformWindowImplementation,
     {
+        macro_rules! when_updated {
+            ($prop:ident, $handle:ident, $block:expr) => {
+                self.$prop.inner_sync_when_changed($handle.clone());
+                if let Some($prop) = self.$prop.updated() {
+                    $block
+                }
+            };
+        }
         self.redraw_status.sync_received();
         self.update_ized(window);
         if let Some(winit) = window.winit() {
             let mut redraw = false;
             let handle = window.handle(self.redraw_status.clone());
-            self.outer_position.inner_sync_when_changed(handle.clone());
-            if let Some(position) = self.outer_position.updated() {
-                winit.set_outer_position(PhysicalPosition::<i32>::from(*position));
-            }
-            self.content_protected
-                .inner_sync_when_changed(handle.clone());
-            if let Some(protected) = self.content_protected.updated() {
-                winit.set_content_protected(*protected);
-            }
-            self.cursor_hittest.inner_sync_when_changed(handle.clone());
-            if let Some(hit) = self.cursor_hittest.updated() {
-                let _ = winit.set_cursor_hittest(*hit);
-            }
-            self.cursor_visible.inner_sync_when_changed(handle.clone());
-            if let Some(visible) = self.cursor_visible.updated() {
-                winit.set_cursor_visible(*visible);
-            }
-            self.window_level.inner_sync_when_changed(handle.clone());
-            if let Some(window_level) = self.window_level.updated() {
+
+            when_updated!(outer_position, handle, {
+                winit.set_outer_position(PhysicalPosition::<i32>::from(*outer_position));
+            });
+            when_updated!(content_protected, handle, {
+                winit.set_content_protected(*content_protected);
+            });
+            when_updated!(cursor_hittest, handle, {
+                let _ = winit.set_cursor_hittest(*cursor_hittest);
+            });
+            when_updated!(cursor_visible, handle, {
+                winit.set_cursor_visible(*cursor_visible);
+            });
+            when_updated!(window_level, handle, {
                 winit.set_window_level(*window_level);
-            }
-            self.decorated.inner_sync_when_changed(handle.clone());
-            if let Some(decorated) = self.decorated.updated() {
+            });
+            when_updated!(decorated, handle, {
                 winit.set_decorations(*decorated);
-            }
-            self.resize_increments
-                .inner_sync_when_changed(handle.clone());
-            if let Some(resize_increments) = self.resize_increments.updated() {
+            });
+            when_updated!(resize_increments, handle, {
                 let increments: Option<PhysicalSize<f32>> =
                     if resize_increments.width > 0 || resize_increments.height > 0 {
                         Some(PhysicalSize::new(
@@ -1886,24 +1925,27 @@ where
                         None
                     };
                 winit.set_resize_increments(increments);
-            }
-            self.visible.inner_sync_when_changed(handle.clone());
-            if let Some(visible) = self.visible.updated() {
+            });
+            when_updated!(visible, handle, {
                 winit.set_visible(*visible);
-            }
-            self.resizable.inner_sync_when_changed(handle.clone());
-            if let Some(resizable) = self.resizable.updated() {
+            });
+            when_updated!(resizable, handle, {
                 winit.set_resizable(*resizable);
                 redraw = true;
-            }
-            self.window_icon.inner_sync_when_changed(handle.clone());
-            if let Some(icon) = self.window_icon.updated() {
-                let icon = icon.as_ref().map(|icon| {
+            });
+            when_updated!(window_icon, handle, {
+                let icon = window_icon.as_ref().map(|icon| {
                     Icon::from_rgba(icon.as_raw().clone(), icon.width(), icon.height())
                         .expect("valid image")
                 });
                 winit.set_window_icon(icon);
-            }
+            });
+            when_updated!(enabled_buttons, handle, {
+                winit.set_enabled_buttons(*enabled_buttons);
+            });
+            when_updated!(fullscreen, handle, {
+                winit.set_fullscreen(fullscreen.clone());
+            });
 
             if redraw {
                 window.set_needs_redraw();
@@ -2687,7 +2729,7 @@ pub(crate) mod sealed {
     use figures::{Fraction, Point, Size};
     use image::{DynamicImage, RgbaImage};
     use kludgine::app::winit::event::Modifiers;
-    use kludgine::app::winit::window::{UserAttentionType, WindowLevel};
+    use kludgine::app::winit::window::{Fullscreen, UserAttentionType, WindowButtons, WindowLevel};
     use kludgine::Color;
     use parking_lot::Mutex;
 
@@ -2746,6 +2788,8 @@ pub(crate) mod sealed {
         pub outer_size: Dynamic<Size<UPx>>,
         pub window_icon: Value<Option<RgbaImage>>,
         pub modifiers: Dynamic<Modifiers>,
+        pub enabled_buttons: Value<WindowButtons>,
+        pub fullscreen: Value<Option<Fullscreen>>,
     }
 
     #[derive(Debug, Clone)]
@@ -3359,6 +3403,8 @@ impl StandaloneWindowBuilder {
                 outer_size: Dynamic::default(),
                 window_icon: Value::Constant(None),
                 modifiers: Dynamic::default(),
+                enabled_buttons: Value::dynamic(WindowButtons::all()),
+                fullscreen: Value::default(),
             },
         );
 
