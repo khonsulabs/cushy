@@ -2210,6 +2210,19 @@ impl Dynamic<WidgetList> {
     }
 }
 
+impl FromIterator<WidgetList> for WidgetList {
+    fn from_iter<T: IntoIterator<Item = WidgetList>>(iter: T) -> Self {
+        let mut iter = iter.into_iter();
+        let Some(mut dest) = iter.next() else {
+            return Self::new();
+        };
+        for other in iter {
+            dest.extend(other);
+        }
+        dest
+    }
+}
+
 impl<W> FromIterator<W> for WidgetList
 where
     W: MakeWidget,
@@ -2232,6 +2245,15 @@ impl Deref for WidgetList {
 impl DerefMut for WidgetList {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.ordered
+    }
+}
+
+impl IntoIterator for WidgetList {
+    type IntoIter = std::vec::IntoIter<WidgetInstance>;
+    type Item = WidgetInstance;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.ordered.into_iter()
     }
 }
 

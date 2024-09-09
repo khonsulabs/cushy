@@ -88,12 +88,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Many new functions have been added to `Window` to expose more functionality
   supported by winit:
 
+  - `Window::app_name`
   - `Window::content_protected`
   - `Window::cursor_hittest`
   - `Window::cursor_position`
   - `Window::cursor_visible`
   - `Window::decorated`
   - `Window::enabled_buttons`
+  - `Window::fullscreen`
   - `Window::icon`
   - `Window::inner_position`
   - `Window::maximized`
