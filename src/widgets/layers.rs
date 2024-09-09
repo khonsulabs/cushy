@@ -1,7 +1,6 @@
 //! Widgets that stack in the Z-direction.
 
 use std::fmt::{self, Debug};
-use std::sync::Arc;
 use std::time::Duration;
 
 use alot::{LotId, OrderedLots};
@@ -10,15 +9,14 @@ use easing_function::EasingFunction;
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use intentional::Assert;
-use parking_lot::Mutex;
 
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::EasingIn;
 use crate::value::{Destination, Dynamic, DynamicGuard, IntoValue, Source, Value};
 use crate::widget::{
-    Callback, MakeWidget, MountedChildren, MountedWidget, Widget, WidgetId, WidgetList, WidgetRef,
-    WrapperWidget,
+    Callback, MakeWidget, MountedChildren, MountedWidget, SharedCallback, Widget, WidgetId,
+    WidgetList, WidgetRef, WrapperWidget,
 };
 use crate::widgets::container::ContainerShadow;
 use crate::ConstraintLimit;
@@ -671,7 +669,7 @@ impl Overlayable for OverlayBuilder<'_> {
     }
 
     fn on_dismiss(mut self, callback: Callback) -> Self {
-        self.layout.on_dismiss = Some(Arc::new(Mutex::new(callback)));
+        self.layout.on_dismiss = Some(SharedCallback::from(callback));
         self
     }
 
@@ -707,13 +705,12 @@ struct OverlayLayout {
     positioning: Position<Px>,
     requires_hover: bool,
     layout: Option<Rect<Px>>,
-    on_dismiss: Option<Arc<Mutex<Callback>>>,
+    on_dismiss: Option<SharedCallback>,
 }
 
 impl Drop for OverlayLayout {
     fn drop(&mut self) {
         if let Some(on_dismiss) = &self.on_dismiss {
-            let mut on_dismiss = on_dismiss.lock();
             on_dismiss.invoke(());
         }
     }
@@ -729,11 +726,7 @@ impl PartialEq for OverlayLayout {
             && self.positioning == other.positioning
             && self.requires_hover == other.requires_hover
             && self.layout == other.layout
-            && match (&self.on_dismiss, &other.on_dismiss) {
-                (Some(this), Some(other)) => Arc::ptr_eq(this, other),
-                (None, None) => true,
-                _ => false,
-            }
+            && self.on_dismiss == other.on_dismiss
     }
 }
 

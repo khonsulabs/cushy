@@ -9,7 +9,6 @@ use figures::units::{Lp, Px, UPx};
 use figures::{Angle, IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 use kludgine::DrawableExt;
-use parking_lot::Mutex;
 
 use self::sealed::{SharedMenuState, SubmenuFactory};
 use super::button::{ButtonColors, ButtonKind, VisualState};
@@ -25,8 +24,8 @@ use crate::styles::components::{
 use crate::styles::Styles;
 use crate::value::{Dynamic, IntoValue, Source, Value};
 use crate::widget::{
-    Callback, EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetId, WidgetInstance,
-    WidgetRef, WidgetTag, HANDLED,
+    Callback, EventHandling, MakeWidget, MakeWidgetWithTag, SharedCallback, Widget, WidgetId,
+    WidgetInstance, WidgetRef, WidgetTag, HANDLED,
 };
 use crate::ConstraintLimit;
 
@@ -78,7 +77,7 @@ where
     {
         Menu {
             items: self.items,
-            on_click: MenuHandler(Arc::new(Mutex::new(Callback::new(selected)))),
+            on_click: MenuHandler(SharedCallback::new(selected)),
         }
     }
 }
@@ -450,7 +449,7 @@ where
 
 /// A handler for a selected [`MenuItem<T>`].
 #[derive(Debug, Clone)]
-pub struct MenuHandler<T>(Arc<Mutex<Callback<T>>>);
+pub struct MenuHandler<T>(SharedCallback<T>);
 
 #[derive(Debug)]
 struct OpenMenu<T> {
@@ -759,7 +758,7 @@ where
             let ItemKind::Item(item) = &self.items[index].item else {
                 return;
             };
-            self.on_click.0.lock().invoke(item.value.clone());
+            self.on_click.0.invoke(item.value.clone());
             let mut shared = self.shared.lock();
             for handle in shared.open_menus.drain() {
                 handle.dismiss();

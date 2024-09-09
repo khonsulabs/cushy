@@ -1728,7 +1728,7 @@ impl<T, R> SharedCallback<T, R> {
     where
         F: FnMut(T) -> R + Send + 'static,
     {
-        Self(Arc::new(Mutex::new(Callback::new(function))))
+        Self::from(Callback::new(function))
     }
 
     /// Invokes the wrapped function and returns the produced value.
@@ -1756,6 +1756,12 @@ impl<T, R> PartialEq for SharedCallback<T, R> {
 impl<T, R> Clone for SharedCallback<T, R> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
+    }
+}
+
+impl<T, R> From<Callback<T, R>> for SharedCallback<T, R> {
+    fn from(callback: Callback<T, R>) -> Self {
+        Self(Arc::new(Mutex::new(callback)))
     }
 }
 

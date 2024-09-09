@@ -61,7 +61,7 @@ use crate::value::{
     Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Tracked, Value,
 };
 use crate::widget::{
-    Callback, EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, WidgetId,
+    EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, SharedCallback, WidgetId,
     WidgetInstance, HANDLED, IGNORED,
 };
 use crate::window::sealed::WindowCommand;
@@ -287,7 +287,7 @@ pub struct RunningWindow<W> {
     focused: Dynamic<bool>,
     occluded: Dynamic<bool>,
     inner_size: Dynamic<Size<UPx>>,
-    close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
+    close_requested: Option<SharedCallback<(), bool>>,
 }
 
 impl<W> RunningWindow<W>
@@ -303,7 +303,7 @@ where
         focused: &Dynamic<bool>,
         occluded: &Dynamic<bool>,
         inner_size: &Dynamic<Size<UPx>>,
-        close_requested: &Option<Arc<Mutex<Callback<(), bool>>>>,
+        close_requested: &Option<SharedCallback<(), bool>>,
     ) -> Self {
         Self {
             window,
@@ -544,7 +544,7 @@ where
     outer_size: Option<Dynamic<Size<UPx>>>,
     inner_position: Option<Dynamic<Point<Px>>>,
     outer_position: Option<Dynamic<Point<Px>>>,
-    close_requested: Option<Callback<(), bool>>,
+    close_requested: Option<SharedCallback<(), bool>>,
     icon: Option<Value<Option<RgbaImage>>>,
     modifiers: Option<Dynamic<Modifiers>>,
     enabled_buttons: Option<Value<WindowButtons>>,
@@ -990,7 +990,7 @@ where
     where
         Function: FnMut(()) -> bool + Send + 'static,
     {
-        self.close_requested = Some(Callback::new(on_close_requested));
+        self.close_requested = Some(SharedCallback::new(on_close_requested));
         self
     }
 
@@ -1072,7 +1072,7 @@ where
                     cursive_font_family: this.cursive_font_family,
                     vsync: this.vsync,
                     multisample_count: this.multisample_count,
-                    close_requested: this.close_requested.map(|cb| Arc::new(Mutex::new(cb))),
+                    close_requested: this.close_requested,
                     zoom: this.zoom.unwrap_or_else(|| Dynamic::new(Fraction::ONE)),
                     resize_to_fit: this.resize_to_fit,
                     content_protected: this.content_protected.unwrap_or_default(),
@@ -1237,7 +1237,7 @@ struct OpenWindow<T> {
     vsync: bool,
     dpi_scale: Dynamic<Fraction>,
     zoom: Tracked<Dynamic<Fraction>>,
-    close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
+    close_requested: Option<SharedCallback<(), bool>>,
     content_protected: Tracked<Value<bool>>,
     cursor_hittest: Tracked<Value<bool>>,
     cursor_visible: Tracked<Value<bool>>,
@@ -1269,8 +1269,8 @@ where
         *should_close |= behavior.close_requested(window)
             && window
                 .close_requested
-                .as_mut()
-                .map_or(true, |close| close.lock().invoke(()));
+                .as_ref()
+                .map_or(true, |close| close.invoke(()));
 
         *should_close
     }
@@ -2723,7 +2723,6 @@ pub(crate) struct CursorState {
 pub(crate) mod sealed {
     use std::cell::RefCell;
     use std::num::NonZeroU32;
-    use std::sync::Arc;
 
     use figures::units::{Px, UPx};
     use figures::{Fraction, Point, Size};
@@ -2731,7 +2730,6 @@ pub(crate) mod sealed {
     use kludgine::app::winit::event::Modifiers;
     use kludgine::app::winit::window::{Fullscreen, UserAttentionType, WindowButtons, WindowLevel};
     use kludgine::Color;
-    use parking_lot::Mutex;
 
     use super::{PendingWindow, WindowHandle};
     use crate::app::Cushy;
@@ -2739,7 +2737,7 @@ pub(crate) mod sealed {
     use crate::fonts::FontCollection;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
-    use crate::widget::{Callback, OnceCallback};
+    use crate::widget::{OnceCallback, SharedCallback};
     use crate::window::{ThemeMode, WindowAttributes};
 
     pub struct Context<C> {
@@ -2771,7 +2769,7 @@ pub(crate) mod sealed {
         pub vsync: bool,
         pub multisample_count: NonZeroU32,
         pub resize_to_fit: Value<bool>,
-        pub close_requested: Option<Arc<Mutex<Callback<(), bool>>>>,
+        pub close_requested: Option<SharedCallback<(), bool>>,
         pub content_protected: Value<bool>,
         pub cursor_hittest: Value<bool>,
         pub cursor_visible: Value<bool>,
