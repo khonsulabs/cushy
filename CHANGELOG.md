@@ -126,6 +126,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Shortcuts` is a new widget that simplifies attaching logic to keyboard
   shortcuts. Any widget can be wrapped with keyboard shortcut handling by using
   `MakeWidget::with_shortcut`/`MakeWidget::with_repeating_shortcut`.
+- `ModifiersStateExt` is a new trait that adds functionality to winit's
+  `ModifiersState` type. Specifically, this trait adds an associated `PRIMARY`
+  constant that resolves to the primary shortcut modifier on the target
+  platform.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

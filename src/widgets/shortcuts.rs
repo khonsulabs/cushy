@@ -9,11 +9,150 @@ use crate::widget::{
     EventHandling, MakeWidget, SharedCallback, WidgetRef, WrapperWidget, HANDLED, IGNORED,
 };
 use crate::window::KeyEvent;
+use crate::{ModifiersExt, ModifiersStateExt};
+
+/// A collection of keyboard shortcut handlers.
+#[derive(Default, Debug, Clone)]
+pub struct ShortcutMap(AHashMap<Shortcut, ShortcutConfig>);
+
+impl ShortcutMap {
+    /// Inserts a handler that invokes `callback` once when `key` is pressed
+    /// with `modifiers`.
+    #[must_use]
+    pub fn with_shortcut<F>(
+        mut self,
+        key: impl Into<ShortcutKey>,
+        modifiers: ModifiersState,
+        callback: F,
+    ) -> Self
+    where
+        F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
+    {
+        self.insert(key.into(), modifiers, callback);
+        self
+    }
+
+    /// Inserts a handler that invokes `callback` once when `key` is pressed
+    /// with `modifiers`.
+    pub fn insert<F>(&mut self, key: impl Into<ShortcutKey>, modifiers: ModifiersState, callback: F)
+    where
+        F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
+    {
+        self.insert_shortcut_inner(key.into(), modifiers, false, SharedCallback::new(callback));
+    }
+
+    /// Inserts a handler that invokes `callback` when `key` is pressed with
+    /// `modifiers`. This callback will be invoked for repeated key events.
+    #[must_use]
+    pub fn with_repeating_shortcut<F>(
+        mut self,
+        key: impl Into<ShortcutKey>,
+        modifiers: ModifiersState,
+        callback: F,
+    ) -> Self
+    where
+        F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
+    {
+        self.insert_repeating(key.into(), modifiers, callback);
+        self
+    }
+
+    /// Inserts a handler that invokes `callback` when `key` is pressed with
+    /// `modifiers`. This callback will be invoked for repeated key events.
+    pub fn insert_repeating<F>(
+        &mut self,
+        key: impl Into<ShortcutKey>,
+        modifiers: ModifiersState,
+        callback: F,
+    ) where
+        F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
+    {
+        self.insert_shortcut_inner(key.into(), modifiers, true, SharedCallback::new(callback));
+    }
+
+    fn insert_shortcut_inner(
+        &mut self,
+        key: ShortcutKey,
+        modifiers: ModifiersState,
+        repeat: bool,
+        callback: SharedCallback<KeyEvent, EventHandling>,
+    ) {
+        let (first, second) = Shortcut { key, modifiers }.into_variations();
+        let config = ShortcutConfig { repeat, callback };
+
+        if let Some(second) = second {
+            self.0.insert(second, config.clone());
+        }
+
+        self.0.insert(first, config);
+    }
+
+    /// Invokes any associated handlers for `input`.
+    ///
+    /// Returns whether the event has been handled or not.
+    pub fn input(&mut self, input: KeyEvent) -> EventHandling {
+        for modifiers in FuzzyModifiers(input.modifiers.state()) {
+            let physical_match = self.0.get(&Shortcut {
+                key: ShortcutKey::Physical(input.physical_key),
+                modifiers,
+            });
+            let logical_match = self.0.get(&Shortcut {
+                key: ShortcutKey::Logical(input.logical_key.clone()),
+                modifiers,
+            });
+            match (physical_match, logical_match) {
+                (Some(physical), Some(logical)) if physical.callback != logical.callback => {
+                    if input.state.is_pressed() && (!input.repeat || physical.repeat) {
+                        physical.callback.invoke(input.clone());
+                    }
+                    if input.state.is_pressed() && (!input.repeat || logical.repeat) {
+                        logical.callback.invoke(input);
+                    }
+                    return HANDLED;
+                }
+                (Some(callback), _) | (_, Some(callback)) => {
+                    if input.state.is_pressed() && (!input.repeat || callback.repeat) {
+                        callback.callback.invoke(input);
+                    }
+                    return HANDLED;
+                }
+                _ => {}
+            }
+        }
+
+        IGNORED
+    }
+}
+
+/// An iterator that attempts one fallback towards a common shortcut modifier.
+///
+/// The precedence for the fallback is: Primary, Control, Super.
+struct FuzzyModifiers(ModifiersState);
+
+impl Iterator for FuzzyModifiers {
+    type Item = ModifiersState;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let modifiers = self.0;
+        if modifiers.is_empty() {
+            return None;
+        } else if modifiers.primary() && !modifiers.only_primary() {
+            self.0 = ModifiersState::PRIMARY;
+        } else if modifiers.control_key() && !modifiers.only_control() {
+            self.0 = ModifiersState::CONTROL;
+        } else if modifiers.super_key() && !modifiers.only_super() {
+            self.0 = ModifiersState::SUPER;
+        } else {
+            self.0 = ModifiersState::empty();
+        }
+        Some(modifiers)
+    }
+}
 
 /// A widget that handles keyboard shortcuts.
 #[derive(Debug)]
 pub struct Shortcuts {
-    shortcuts: AHashMap<Shortcut, ShortcutConfig>,
+    shortcuts: ShortcutMap,
     child: WidgetRef,
 }
 
@@ -22,7 +161,7 @@ impl Shortcuts {
     #[must_use]
     pub fn new(child: impl MakeWidget) -> Self {
         Self {
-            shortcuts: AHashMap::new(),
+            shortcuts: ShortcutMap::default(),
             child: WidgetRef::new(child),
         }
     }
@@ -41,7 +180,7 @@ impl Shortcuts {
     where
         F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
     {
-        self.insert_shortcut(key.into(), modifiers, false, SharedCallback::new(callback));
+        self.shortcuts.insert(key, modifiers, callback);
         self
     }
 
@@ -60,25 +199,8 @@ impl Shortcuts {
     where
         F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
     {
-        self.insert_shortcut(key.into(), modifiers, true, SharedCallback::new(callback));
+        self.shortcuts.insert_repeating(key, modifiers, callback);
         self
-    }
-
-    fn insert_shortcut(
-        &mut self,
-        key: ShortcutKey,
-        modifiers: ModifiersState,
-        repeat: bool,
-        callback: SharedCallback<KeyEvent, EventHandling>,
-    ) {
-        let (first, second) = Shortcut { key, modifiers }.into_variations();
-        let config = ShortcutConfig { repeat, callback };
-
-        if let Some(second) = second {
-            self.shortcuts.insert(second, config.clone());
-        }
-
-        self.shortcuts.insert(first, config);
     }
 }
 
@@ -194,31 +316,6 @@ impl WrapperWidget for Shortcuts {
         _is_synthetic: bool,
         _context: &mut crate::context::EventContext<'_>,
     ) -> EventHandling {
-        let physical_match = self.shortcuts.get(&Shortcut {
-            key: ShortcutKey::Physical(input.physical_key),
-            modifiers: input.modifiers.state(),
-        });
-        let logical_match = self.shortcuts.get(&Shortcut {
-            key: ShortcutKey::Logical(input.logical_key.clone()),
-            modifiers: input.modifiers.state(),
-        });
-        match (physical_match, logical_match) {
-            (Some(physical), Some(logical)) if physical.callback != logical.callback => {
-                if input.state.is_pressed() && (!input.repeat || physical.repeat) {
-                    physical.callback.invoke(input.clone());
-                }
-                if input.state.is_pressed() && (!input.repeat || logical.repeat) {
-                    logical.callback.invoke(input);
-                }
-                HANDLED
-            }
-            (Some(callback), _) | (_, Some(callback)) => {
-                if input.state.is_pressed() && (!input.repeat || callback.repeat) {
-                    callback.callback.invoke(input);
-                }
-                HANDLED
-            }
-            _ => IGNORED,
-        }
+        self.shortcuts.input(input)
     }
 }

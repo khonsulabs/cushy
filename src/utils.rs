@@ -70,6 +70,24 @@ where
 
 impl_all_tuples!(impl_with_clone);
 
+/// Helper constants for [`ModifiersState`]
+pub trait ModifiersStateExt {
+    /// The modifier key used for shortcuts.
+    ///
+    /// For Apple based platforms, this is [`ModifierState::SUPER`]. This
+    /// corresponds to the Apple/Command key.
+    ///
+    /// For all other platforms, this is [`ModifiersState::CONTROL`].
+    const PRIMARY: Self;
+}
+
+impl ModifiersStateExt for ModifiersState {
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    const PRIMARY: Self = Self::SUPER;
+    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+    const PRIMARY: Self = Self::CONTROL;
+}
+
 /// Helper functions for [`Modifiers`] and [`ModifiersState`].
 pub trait ModifiersExt {
     /// Returns true if the current state includes the platform's primary
@@ -137,12 +155,12 @@ impl ModifiersExt for ModifiersState {
 
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     fn only_primary(&self) -> bool {
-        self.super_key() && !self.shift_key() && !self.control_key() && !self.alt_key()
+        self.super_key() && !self.control_key() && !self.shift_key() && !self.alt_key()
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "ios")))]
     fn only_primary(&self) -> bool {
-        self.control_key() && !self.shift_key() && !self.super_key() && !self.alt_key()
+        self.control_key() && !self.super_key() && !self.shift_key() && !self.alt_key()
     }
 
     fn only_shift(&self) -> bool {
@@ -150,7 +168,7 @@ impl ModifiersExt for ModifiersState {
     }
 
     fn only_control(&self) -> bool {
-        self.control_key() && !self.shift_key() && !self.super_key() && !self.alt_key()
+        self.control_key() && !self.super_key() && !self.shift_key() && !self.alt_key()
     }
 
     fn only_alt(&self) -> bool {
