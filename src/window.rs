@@ -39,7 +39,7 @@ use kludgine::shapes::Shape;
 use kludgine::wgpu::{self, CompositeAlphaMode, COPY_BYTES_PER_ROW_ALIGNMENT};
 use kludgine::{Color, DrawableExt, Kludgine, KludgineId, Origin, Texture};
 use parking_lot::{Mutex, MutexGuard};
-use sealed::Ize;
+use sealed::{Ize, WindowExecute};
 use tracing::Level;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -2652,6 +2652,30 @@ where
                     window.winit().set_maximized(maximize);
                 }
             }
+            WindowCommand::Execute(func) => {
+                let mut window = RunningWindow::new(
+                    window,
+                    kludgine.id(),
+                    &self.redraw_status,
+                    &self.cushy,
+                    &self.focused,
+                    &self.occluded,
+                    self.inner_size.source(),
+                    &self.close_requested,
+                );
+                let mut context = EventContext::new(
+                    WidgetContext::new(
+                        self.root.clone(),
+                        &self.current_theme,
+                        &mut window,
+                        &mut self.fonts,
+                        self.theme_mode.get(),
+                        &mut self.cursor,
+                    ),
+                    kludgine,
+                );
+                func.execute(&mut context);
+            }
         }
     }
 
@@ -2722,6 +2746,7 @@ pub(crate) struct CursorState {
 
 pub(crate) mod sealed {
     use std::cell::RefCell;
+    use std::fmt::Debug;
     use std::num::NonZeroU32;
 
     use figures::units::{Px, UPx};
@@ -2734,6 +2759,7 @@ pub(crate) mod sealed {
     use super::{PendingWindow, WindowHandle};
     use crate::app::Cushy;
     use crate::context::sealed::InvalidationStatus;
+    use crate::context::EventContext;
     use crate::fonts::FontCollection;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
@@ -2790,7 +2816,42 @@ pub(crate) mod sealed {
         pub fullscreen: Value<Option<Fullscreen>>,
     }
 
-    #[derive(Debug, Clone)]
+    pub struct WindowExecute(Box<dyn ExecuteFunc>);
+
+    impl WindowExecute {
+        pub fn new<F>(func: F) -> Self
+        where
+            F: FnOnce(&mut EventContext<'_>) + Send + 'static,
+        {
+            Self(Box::new(Some(func)))
+        }
+
+        pub fn execute(mut self, context: &mut EventContext<'_>) {
+            self.0.execute(context);
+        }
+    }
+
+    impl Debug for WindowExecute {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("WindowExecute").finish_non_exhaustive()
+        }
+    }
+
+    pub trait ExecuteFunc: Send + 'static {
+        fn execute(&mut self, context: &mut EventContext<'_>);
+    }
+
+    impl<F> ExecuteFunc for Option<F>
+    where
+        F: FnOnce(&mut EventContext<'_>) + Send + 'static,
+    {
+        fn execute(&mut self, context: &mut EventContext<'_>) {
+            let func = self.take().expect("not executed");
+            func(context);
+        }
+    }
+
+    #[derive(Debug)]
     pub enum WindowCommand {
         Redraw,
         Sync,
@@ -2800,6 +2861,7 @@ pub(crate) mod sealed {
         Focus,
         Ize(Option<Ize>),
         SetTitle(String),
+        Execute(WindowExecute),
     }
 
     #[derive(Debug, Clone)]
@@ -2967,6 +3029,15 @@ impl WindowHandle {
             self.redraw();
         }
     }
+
+    /// Executes `func` on the window thread.
+    pub fn execute<F>(&self, func: F)
+    where
+        F: FnOnce(&mut EventContext<'_>) + Send + 'static,
+    {
+        self.inner
+            .send(WindowCommand::Execute(WindowExecute::new(func)));
+    }
 }
 
 impl Eq for WindowHandle {}
@@ -3007,6 +3078,9 @@ impl InnerWindowHandle {
                 WindowCommand::Redraw => state.redraw_target.set(RedrawTarget::Now),
                 WindowCommand::RequestClose => state.close_requested.set(true),
                 WindowCommand::SetTitle(title) => state.title.set(title),
+                WindowCommand::Execute(_func) => {
+                    tracing::error!("ignoring execution of window function on virtual window");
+                }
                 WindowCommand::ResetDeadKeys
                 | WindowCommand::RequestUserAttention(_)
                 | WindowCommand::Focus
