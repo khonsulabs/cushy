@@ -532,9 +532,13 @@ pub trait WrapperWidget: Debug + Send + 'static {
 
     /// Returns the behavior this widget should apply when positioned at the
     /// root of the window.
+    ///
+    /// The provided implementation for `WrapperWidget` returns
+    /// [`RootBehavior::PassThrough`]. This is different from the provided
+    /// implementation for [`Widget`].
     #[allow(unused_variables)]
     fn root_behavior(&mut self, context: &mut EventContext<'_>) -> Option<RootBehavior> {
-        None
+        Some(RootBehavior::PassThrough)
     }
 
     /// Draws the background of the widget.

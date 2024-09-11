@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Window::focused` now accepts an `IntoValue` implementor instead of
   `IntoDynamic`. Additionally, the initial value is now used to control whether
   the OS should initially activate the window when it is opened.
+- `WrapperWidget::root_behavior`'s provided implementation now returns
+  `Some(RootBehavior::PassThrough)` to reflect the general intention of what
+  `WrapperWidget` implementors are generally doing. Previously, `None` was
+  returned.
 
 ### Changed
 
