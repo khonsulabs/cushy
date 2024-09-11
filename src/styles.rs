@@ -121,7 +121,7 @@ impl Styles {
         context: &WidgetContext<'_>,
     ) -> Fallback::ComponentType
     where
-        Fallback: ComponentDefinition + ?Sized,
+        Fallback: ComponentDefinition,
     {
         self.0
             .components
@@ -166,7 +166,7 @@ impl Styles {
         context: &WidgetContext<'_>,
     ) -> Option<Named::ComponentType>
     where
-        Named: ComponentDefinition + ?Sized,
+        Named: ComponentDefinition,
     {
         self.0
             .components
@@ -179,7 +179,7 @@ impl Styles {
     #[must_use]
     pub fn get<Named>(&self, component: &Named, context: &WidgetContext<'_>) -> Named::ComponentType
     where
-        Named: ComponentDefinition + ?Sized,
+        Named: ComponentDefinition,
     {
         self.try_get(component, context)
             .unwrap_or_else(|| component.default_value(context))
@@ -680,6 +680,7 @@ impl TryFrom<Component> for CornerRadii<Dimension> {
 
 /// A 1-dimensional measurement that may be automatically calculated.
 #[derive(Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FlexibleDimension {
     /// Automatically calculate this dimension.
     Auto,
@@ -733,6 +734,7 @@ impl From<Lp> for FlexibleDimension {
 
 /// A 1-dimensional measurement.
 #[derive(Clone, Copy, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Dimension {
     /// Physical Pixels
     Px(Px),
@@ -863,6 +865,7 @@ impl Div<f32> for Dimension {
 
 /// A range of [`Dimension`]s.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DimensionRange {
     /// The start bound of the range.
     pub start: Bound<Dimension>,
@@ -2078,6 +2081,7 @@ impl From<Hsl> for Color {
 
 /// A 2d ordering configuration.
 #[derive(Copy, Debug, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct VisualOrder {
     /// The ordering to apply horizontally.
     pub horizontal: HorizontalOrder,
@@ -2139,6 +2143,7 @@ impl RequireInvalidation for VisualOrder {
 
 /// A horizontal direction.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum HorizontalOrder {
     /// Describes an order starting at the left and proceeding to the right.
     LeftToRight,
@@ -2166,6 +2171,7 @@ impl HorizontalOrder {
 
 /// A vertical direction.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum VerticalOrder {
     /// Describes an order starting at the top and proceeding to the bottom.
     TopToBottom,
@@ -2201,6 +2207,7 @@ impl VerticalOrder {
 /// A configuration option to control which controls should be able to receive
 /// focus through keyboard focus handling or initial focus handling.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FocusableWidgets {
     /// Allow all widgets that can respond to keyboard input to accept focus.
     #[default]
@@ -2249,6 +2256,7 @@ impl RequireInvalidation for FocusableWidgets {
 /// A description of the level of depth a
 /// [`Container`](crate::widgets::Container) is nested at.
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ContainerLevel {
     /// The lowest container level.
     #[default]

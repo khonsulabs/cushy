@@ -1188,6 +1188,8 @@ fn color_lerp() {
 ///
 /// Because of these restrictions, this type implements `Ord` and `Eq`.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
 pub struct ZeroToOne(f32);
 
 impl ZeroToOne {

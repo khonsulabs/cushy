@@ -130,6 +130,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ModifiersState` type. Specifically, this trait adds an associated `PRIMARY`
   constant that resolves to the primary shortcut modifier on the target
   platform.
+- New feature flag `serde` enables serialization support for some types.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

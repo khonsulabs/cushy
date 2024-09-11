@@ -1018,8 +1018,8 @@ where
     /// - `WM_CLASS` on X11
     /// - application ID on wayland
     /// - class name on windows
-    pub fn app_name(mut self, name: String) -> Self {
-        self.attributes.app_name = Some(name);
+    pub fn app_name(mut self, name: impl Into<String>) -> Self {
+        self.attributes.app_name = Some(name.into());
         self
     }
 }
