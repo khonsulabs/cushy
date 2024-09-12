@@ -1,6 +1,7 @@
 //! Widgets that stack in the Z-direction.
 
 use std::fmt::{self, Debug};
+use std::marker::PhantomData;
 use std::time::Duration;
 
 use alot::{LotId, OrderedLots};
@@ -908,6 +909,19 @@ impl Modal {
         self.modal.set(Some(contents.make_widget()));
     }
 
+    /// Presents a modal dialog containing `message` with a default button that
+    /// dismisses the dialog.
+    pub fn message(&self, message: impl MakeWidget, button_caption: impl MakeWidget) {
+        self.build_dialog(message)
+            .with_default_button(button_caption, || {})
+            .show();
+    }
+
+    /// Returns a builder for a modal dialog that displays `message`.
+    pub fn build_dialog(&self, message: impl MakeWidget) -> DialogBuilder {
+        DialogBuilder::new(self, message)
+    }
+
     /// Dismisses the modal session.
     pub fn dismiss(&self) {
         self.modal.set(None);
@@ -917,6 +931,18 @@ impl Modal {
     #[must_use]
     pub fn visible(&self) -> bool {
         self.modal.map_ref(Option::is_some)
+    }
+
+    /// Returns a function that dismisses the modal when invoked.
+    ///
+    /// The input to the function is ignored. This function takes a single
+    /// argument so that it is compatible with widgets that use a [`Callback`]
+    /// for their events.
+    pub fn dismiss_callback<T>(&self) -> impl FnMut(T) + Send + 'static {
+        let modal = self.clone();
+        move |_| {
+            modal.dismiss();
+        }
     }
 }
 
@@ -982,4 +1008,147 @@ impl Widget for ModalLayer {
     fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
         self.presented.is_some()
     }
+}
+
+/// A marker type indicating a special [`DialogBuilder`] button type is not
+/// present.
+pub enum No {}
+
+/// A marker type indicating a special [`DialogBuilder`] button type is present.
+pub enum Yes {}
+
+/// A modal dialog builder.
+#[must_use = "DialogBuilder::show must be called for the dialog to be shown"]
+pub struct DialogBuilder<HasDefault = No, HasCancel = No> {
+    modal: Modal,
+    message: WidgetInstance,
+    buttons: WidgetList,
+    _state: PhantomData<(HasDefault, HasCancel)>,
+}
+
+impl DialogBuilder<No, No> {
+    fn new(modal: &Modal, message: impl MakeWidget) -> Self {
+        Self {
+            modal: modal.clone(),
+            message: message.make_widget(),
+            buttons: WidgetList::new(),
+            _state: PhantomData,
+        }
+    }
+}
+
+impl<HasDefault, HasCancel> DialogBuilder<HasDefault, HasCancel> {
+    /// Adds a button with `caption` that invokes `on_click` when activated.
+    /// Returns self.
+    pub fn with_button(
+        mut self,
+        caption: impl MakeWidget,
+        on_click: impl FnOnce() + Send + 'static,
+    ) -> Self {
+        self.push_button(caption, on_click);
+        self
+    }
+
+    /// Pushes a button with `caption` that invokes `on_click` when activated.
+    pub fn push_button(
+        &mut self,
+        caption: impl MakeWidget,
+        on_click: impl FnOnce() + Send + 'static,
+    ) {
+        self.inner_push_button(caption, DialogButtonKind::Plain, on_click);
+    }
+
+    fn inner_push_button(
+        &mut self,
+        caption: impl MakeWidget,
+        kind: DialogButtonKind,
+        on_click: impl FnOnce() + Send + 'static,
+    ) {
+        let mut on_click = Some(on_click);
+        let modal = self.modal.clone();
+        let mut button = caption
+            .into_button()
+            .on_click(move |_| {
+                let Some(on_click) = on_click.take() else {
+                    return;
+                };
+                modal.dismiss();
+                on_click();
+            })
+            .make_widget();
+        match kind {
+            DialogButtonKind::Plain => {}
+            DialogButtonKind::Default => button = button.into_default(),
+            DialogButtonKind::Cancel => button = button.into_escape(),
+        }
+        self.buttons.push(button.fit_horizontally().make_widget());
+    }
+
+    /// Shows the modal dialog.
+    pub fn show(mut self) {
+        if self.buttons.is_empty() {
+            self.inner_push_button("OK", DialogButtonKind::Default, || {});
+        }
+        self.modal.present(
+            self.message
+                .and(self.buttons.into_columns().centered())
+                .into_rows()
+                .contain(),
+        );
+    }
+}
+
+impl<HasCancel> DialogBuilder<No, HasCancel> {
+    /// Adds a default button with `caption` that invokes `on_click` when
+    /// activated.
+    pub fn with_default_button(
+        mut self,
+        caption: impl MakeWidget,
+        on_click: impl FnOnce() + Send + 'static,
+    ) -> DialogBuilder<Yes, HasCancel> {
+        self.inner_push_button(caption, DialogButtonKind::Default, on_click);
+        let Self {
+            modal,
+            message,
+            buttons,
+            _state,
+        } = self;
+        DialogBuilder {
+            modal,
+            message,
+            buttons,
+            _state: PhantomData,
+        }
+    }
+}
+
+impl<HasDefault> DialogBuilder<HasDefault, No> {
+    /// Adds a cancel button with `caption` that invokes `on_click` when
+    /// activated.
+    pub fn with_cancel_button(
+        mut self,
+        caption: impl MakeWidget,
+        on_click: impl FnOnce() + Send + 'static,
+    ) -> DialogBuilder<HasDefault, Yes> {
+        self.inner_push_button(caption, DialogButtonKind::Cancel, on_click);
+        let Self {
+            modal,
+            message,
+            buttons,
+            _state,
+        } = self;
+        DialogBuilder {
+            modal,
+            message,
+            buttons,
+            _state: PhantomData,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum DialogButtonKind {
+    Plain,
+    Default,
+    Cancel,
 }
