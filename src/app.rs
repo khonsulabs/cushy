@@ -352,7 +352,24 @@ impl App {
     pub fn monitors(&self) -> Option<Monitors> {
         self.app.as_ref().and_then(kludgine::app::App::monitors)
     }
+
+    /// Creates a guard that prevents this app from shutting down.
+    ///
+    /// If the app is not currently running, this function returns None.
+    ///
+    /// Once a guard is allocated the app will not be closed automatically when
+    /// the final window is closed. If the final shutdown guard is dropped while
+    /// no windows are open, the app will be closed.
+    #[allow(clippy::missing_panics_doc, clippy::must_use_candidate)]
+    pub fn prevent_shutdown(&self) -> Option<ShutdownGuard> {
+        self.app
+            .as_ref()
+            .and_then(kludgine::app::App::prevent_shutdown)
+    }
 }
+
+/// A guard preventing an [`App`] from shutting down.
+pub type ShutdownGuard = kludgine::app::ShutdownGuard<WindowCommand>;
 
 impl Application for App {
     fn cushy(&self) -> &Cushy {

@@ -34,7 +34,9 @@ use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 #[cfg(feature = "tokio")]
 pub use app::TokioRuntime;
-pub use app::{App, AppRuntime, Application, Cushy, DefaultRuntime, Open, PendingApp, Run};
+pub use app::{
+    App, AppRuntime, Application, Cushy, DefaultRuntime, Open, PendingApp, Run, ShutdownGuard,
+};
 /// A macro to create a `main()` function with less boilerplate.
 ///
 /// When creating applications that support multiple windows, this attribute

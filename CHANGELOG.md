@@ -140,6 +140,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   directly, including getting a reference to the underlying winit Window.
 - `Modal` is a new layer widget that presents a single widget as a modal
   session.
+- `App::prevent_shutdown()` returns a guard that prevents the application from
+  closing automatically when the final window is closed.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
