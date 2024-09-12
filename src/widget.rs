@@ -2575,7 +2575,7 @@ impl WidgetRef {
         self.mounted_for_context(context).clone()
     }
 
-    /// Returns this child, mounting it in the process if necessary.
+    /// Returns this child, if it has been mounted.
     #[must_use]
     pub fn as_mounted(&self, context: &WidgetContext<'_>) -> Option<&MountedWidget> {
         self.mounted.get(context)

@@ -7,16 +7,17 @@ use alot::{LotId, OrderedLots};
 use cushy::widget::{RootBehavior, WidgetInstance};
 use easing_function::EasingFunction;
 use figures::units::{Lp, Px, UPx};
-use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
+use figures::{IntoComponents, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero};
 use intentional::Assert;
 
+use super::super::widget::MountedWidget;
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
-use crate::styles::components::EasingIn;
+use crate::styles::components::{EasingIn, IntrinsicPadding, ScrimColor};
 use crate::value::{Destination, Dynamic, DynamicGuard, IntoValue, Source, Value};
 use crate::widget::{
-    Callback, MakeWidget, MountedChildren, MountedWidget, SharedCallback, Widget, WidgetId,
-    WidgetList, WidgetRef, WrapperWidget,
+    Callback, MakeWidget, MountedChildren, SharedCallback, Widget, WidgetId, WidgetList, WidgetRef,
+    WrapperWidget,
 };
 use crate::widgets::container::ContainerShadow;
 use crate::ConstraintLimit;
@@ -882,5 +883,103 @@ impl WrapperWidget for Tooltipped {
     fn unhover(&mut self, _context: &mut EventContext<'_>) {
         self.show_animation = None;
         self.data.shown_tooltip.set(None);
+    }
+}
+
+/// A layer to present a widget in a modal session.
+///
+/// Designed to be used in a [`Layers`] widget.
+#[derive(Debug, Clone, Default)]
+pub struct Modal {
+    modal: Dynamic<Option<WidgetInstance>>,
+}
+
+impl Modal {
+    /// Returns a new modal layer.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            modal: Dynamic::default(),
+        }
+    }
+
+    /// Presents `contents` as the modal session.
+    pub fn present(&self, contents: impl MakeWidget) {
+        self.modal.set(Some(contents.make_widget()));
+    }
+
+    /// Dismisses the modal session.
+    pub fn dismiss(&self) {
+        self.modal.set(None);
+    }
+
+    /// Returns true if this layer is currently presenting a modal session.
+    #[must_use]
+    pub fn visible(&self) -> bool {
+        self.modal.map_ref(Option::is_some)
+    }
+}
+
+impl MakeWidget for Modal {
+    fn make_widget(self) -> WidgetInstance {
+        ModalLayer {
+            presented: None,
+            modal: self.modal,
+        }
+        .make_widget()
+    }
+}
+
+#[derive(Debug)]
+struct ModalLayer {
+    presented: Option<MountedWidget>,
+    modal: Dynamic<Option<WidgetInstance>>,
+}
+
+impl Widget for ModalLayer {
+    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
+        if let Some(presented) = &self.presented {
+            let bg = context.get(&ScrimColor);
+            context.fill(bg);
+            context.for_other(presented).redraw();
+        }
+    }
+
+    fn layout(
+        &mut self,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) -> Size<UPx> {
+        let modal = self.modal.get_tracking_invalidate(context);
+        if self.presented.as_ref().map(MountedWidget::instance) != modal.as_ref() {
+            if let Some(presented) = self.presented.take() {
+                context.remove_child(&presented);
+            }
+            self.presented = modal.map(|modal| {
+                let mounted = context.push_child(modal);
+                context.for_other(&mounted).focus();
+                mounted
+            });
+        }
+        let full_area = available_space.map(ConstraintLimit::max);
+        if let Some(child) = &self.presented {
+            let padding = context.get(&IntrinsicPadding);
+            let layout_size = full_area - Size::squared(padding.into_upx(context.gfx.scale()));
+            let child_size = context
+                .for_other(child)
+                .layout(layout_size.map(ConstraintLimit::SizeToFit))
+                .into_signed();
+            let margin = full_area.into_signed() - child_size;
+            context.set_child_layout(
+                child,
+                Rect::new(margin.to_vec::<Point<Px>>() / 2, child_size),
+            );
+        }
+
+        full_area
+    }
+
+    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
+        self.presented.is_some()
     }
 }

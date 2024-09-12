@@ -243,6 +243,8 @@ define_components! {
         /// A [`Color`] to be used as a background color for widgets that render an
         /// opaque background.
         OpaqueWidgetColor(Color, "opaque_color", .surface.opaque_widget)
+        /// A [`Color`] to be use for the transparent surface behind an overlay.
+        ScrimColor(Color, "scrim_color", |context| context.theme_pair().scrim.with_alpha(50))
         /// A set of radius descriptions for how much roundness to apply to the
         /// shapes of widgets.
         CornerRadius(CornerRadii<Dimension>, "corner_radius", CornerRadii::from(Dimension::Lp(Lp::points(6))))

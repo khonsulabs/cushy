@@ -138,6 +138,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WindowHandle::execute` executes a function on the window's thread providing
   access to an `EventContext`. This can be used to gain access to the window
   directly, including getting a reference to the underlying winit Window.
+- `Modal` is a new layer widget that presents a single widget as a modal
+  session.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
