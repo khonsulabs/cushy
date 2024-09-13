@@ -124,7 +124,7 @@ checksum = "4e1496f8fb1fbf272686b8d37f523dab3e4a7443300055e74cdaa449f3114356"
 [[package]]
 name = "appit"
 version = "0.3.2"
-source = "git+https://github.com/khonsulabs/appit#331bfdd3534a2f6a7c44f24017b4d52aee40da5b"
+source = "git+https://github.com/khonsulabs/appit#57acfd2e15523a160fbfd0db4c91d2407ed8d4c5"
 dependencies = [
  "winit",
 ]
@@ -1311,7 +1311,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.10.0"
-source = "git+https://github.com/khonsulabs/kludgine#eb700333d12b201b0e6af2396898839b2f7a04a8"
+source = "git+https://github.com/khonsulabs/kludgine#236c9773a323ee63dc38bdfa78476ff336547640"
 dependencies = [
  "ahash",
  "alot",
@@ -1523,9 +1523,9 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
 name = "memmap2"
-version = "0.9.4"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe751422e4a8caa417e13c3ea66452215d7d63e19e604f4980461212f3ae1322"
+checksum = "fd3f7eed9d3848f8b98834af67102b720745c4ec028fcd0aa0239277e7de374f"
 dependencies = [
  "libc",
 ]
@@ -3089,9 +3089,9 @@ checksum = "ad8d71f5726e5f285a935e9fe8edfd53f0491eb6e9a5774097fdabee7cd8c9cd"
 
 [[package]]
 name = "unicode-segmentation"
-version = "1.11.0"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4c87d22b6e3f4a18d4d40ef354e97c90fcb14dd91d7dc0aa9d8a1172ebf7202"
+checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
 
 [[package]]
 name = "unicode-width"

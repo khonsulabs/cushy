@@ -7,7 +7,7 @@ use figures::{IntoSigned, Point, Px2D, UPx2D};
 
 #[cushy::main]
 fn main(app: &mut App) {
-    let focused = Dynamic::new(false);
+    let focused = Dynamic::new(true);
     let occluded = Dynamic::new(false);
     let maximized = Dynamic::new(false);
     let minimized = Dynamic::new(false);

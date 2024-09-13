@@ -714,14 +714,11 @@ where
     /// `true`.
     ///
     /// The current value of `focused` will inform the OS whether the window
-    /// should be activated upon opening. To prevent state mismatches, if
-    /// `focused` is a dynamic, it will be initialized with `false` so that the
-    /// transition to focused can be observed.
+    /// should be activated upon opening.
     pub fn focused(mut self, focused: impl IntoValue<bool>) -> Self {
         let focused = focused.into_value();
         self.attributes.active = focused.get();
         if let Value::Dynamic(focused) = focused {
-            focused.set(false);
             self.focused = Some(focused);
         }
         self
@@ -733,11 +730,8 @@ where
     /// When the window is occluded (completely hidden/offscreen/minimized), the
     /// dynamic will contain `true`. If the window is at least partially
     /// visible, this value will contain `true`.
-    ///
-    /// `occluded` will be initialized with an initial state of `false`.
     pub fn occluded(mut self, occluded: impl IntoDynamic<bool>) -> Self {
         let occluded = occluded.into_dynamic();
-        occluded.set(false);
         self.occluded = Some(occluded);
         self
     }
@@ -794,7 +788,7 @@ where
     ) -> Self {
         let position = position.into_value();
 
-        if let Some(initial_position) = automatic_layout.then(|| position.get()) {
+        if let Some(initial_position) = (!automatic_layout).then(|| position.get()) {
             self.attributes.position =
                 Some(winit::dpi::Position::Physical(initial_position.into()));
         }
@@ -1182,6 +1176,14 @@ pub trait WindowBehavior: Sized + 'static {
 
     /// Create the window's root widget. This function is only invoked once.
     fn make_root(&mut self) -> WidgetInstance;
+
+    /// Invoked once the window has been fully initialized.
+    #[allow(unused_variables)]
+    fn initialized<W>(&mut self, window: &mut W)
+    where
+        W: PlatformWindow,
+    {
+    }
 
     /// The window has been requested to close. If this function returns true,
     /// the window will be closed. Returning false prevents the window from
@@ -2361,6 +2363,30 @@ where
             graphics,
             context.settings.into_inner(),
         )
+    }
+
+    fn initialized(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        kludgine: &mut Kludgine,
+    ) {
+        let cushy = self.cushy.clone();
+        let _guard = cushy.enter_runtime();
+        self.focused.set(window.focused());
+        self.occluded.set(window.occluded());
+        let inner_size = window.inner_size();
+        self.resized(inner_size, &window);
+
+        self.behavior.initialized(&mut RunningWindow::new(
+            window,
+            kludgine.id(),
+            &self.redraw_status,
+            &self.cushy,
+            &self.focused,
+            &self.occluded,
+            self.inner_size.source(),
+            &self.close_requested,
+        ));
     }
 
     fn prepare(
