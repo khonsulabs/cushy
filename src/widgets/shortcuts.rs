@@ -90,7 +90,8 @@ impl ShortcutMap {
     /// Invokes any associated handlers for `input`.
     ///
     /// Returns whether the event has been handled or not.
-    pub fn input(&mut self, input: KeyEvent) -> EventHandling {
+    #[must_use]
+    pub fn input(&self, input: KeyEvent) -> EventHandling {
         for modifiers in FuzzyModifiers(input.modifiers.state()) {
             let physical_match = self.0.get(&Shortcut {
                 key: ShortcutKey::Physical(input.physical_key),
@@ -102,19 +103,26 @@ impl ShortcutMap {
             });
             match (physical_match, logical_match) {
                 (Some(physical), Some(logical)) if physical.callback != logical.callback => {
-                    if input.state.is_pressed() && (!input.repeat || physical.repeat) {
-                        physical.callback.invoke(input.clone());
+                    // Prefer an exact physical key match.
+                    if input.state.is_pressed()
+                        && (!input.repeat || physical.repeat)
+                        && physical.callback.invoke(input.clone()).is_break()
+                    {
+                        return HANDLED;
                     }
-                    if input.state.is_pressed() && (!input.repeat || logical.repeat) {
-                        logical.callback.invoke(input);
-                    }
-                    return HANDLED;
+
+                    return if input.state.is_pressed() && (!input.repeat || logical.repeat) {
+                        logical.callback.invoke(input)
+                    } else {
+                        IGNORED
+                    };
                 }
                 (Some(callback), _) | (_, Some(callback)) => {
-                    if input.state.is_pressed() && (!input.repeat || callback.repeat) {
-                        callback.callback.invoke(input);
-                    }
-                    return HANDLED;
+                    return if input.state.is_pressed() && (!input.repeat || callback.repeat) {
+                        callback.callback.invoke(input)
+                    } else {
+                        IGNORED
+                    };
                 }
                 _ => {}
             }

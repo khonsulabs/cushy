@@ -29,7 +29,7 @@ use kludgine::app::winit::event::{
     ElementState, Ime, Modifiers, MouseButton, MouseScrollDelta, TouchPhase,
 };
 use kludgine::app::winit::keyboard::{
-    Key, KeyLocation, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
+    Key, KeyLocation, ModifiersState, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
 };
 use kludgine::app::winit::window::{self, Cursor, Fullscreen, Icon, WindowButtons, WindowLevel};
 use kludgine::app::{winit, WindowAttributes, WindowBehavior as _};
@@ -64,6 +64,7 @@ use crate::widget::{
     EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, SharedCallback, WidgetId,
     WidgetInstance, HANDLED, IGNORED,
 };
+use crate::widgets::shortcuts::{ShortcutKey, ShortcutMap};
 use crate::window::sealed::WindowCommand;
 use crate::{initialize_tracing, App, ConstraintLimit};
 
@@ -549,6 +550,7 @@ where
     modifiers: Option<Dynamic<Modifiers>>,
     enabled_buttons: Option<Value<WindowButtons>>,
     fullscreen: Option<Value<Option<Fullscreen>>>,
+    shortcuts: Value<ShortcutMap>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -644,6 +646,7 @@ where
             modifiers: None,
             enabled_buttons: None,
             fullscreen: None,
+            shortcuts: Value::default(),
         }
     }
 
@@ -1016,6 +1019,47 @@ where
         self.attributes.app_name = Some(name.into());
         self
     }
+
+    /// Invokes `callback` when `key` is pressed while `modifiers` are pressed.
+    ///
+    /// Widgets have a chance to handle keyboard input before the Window.
+    pub fn with_shortcut<F>(
+        mut self,
+        key: impl Into<ShortcutKey>,
+        modifiers: ModifiersState,
+        callback: F,
+    ) -> Self
+    where
+        F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
+    {
+        self.shortcuts
+            .map_mut(|mut shortcuts| shortcuts.insert(key, modifiers, callback));
+        self
+    }
+
+    /// Invokes `shortcuts` when keyboard input is unhandled in this window.
+    pub fn with_shortcuts(mut self, shortcuts: impl IntoValue<ShortcutMap>) -> Self {
+        self.shortcuts = shortcuts.into_value();
+        self
+    }
+
+    /// Invokes `callback` when `key` is pressed while `modifiers` are pressed.
+    /// If the shortcut is held, the callback will be invoked on repeat events.
+    ///
+    /// Widgets have a chance to handle keyboard input before the Window.
+    pub fn with_repeating_shortcut<F>(
+        mut self,
+        key: impl Into<ShortcutKey>,
+        modifiers: ModifiersState,
+        callback: F,
+    ) -> Self
+    where
+        F: FnMut(KeyEvent) -> EventHandling + Send + 'static,
+    {
+        self.shortcuts
+            .map_mut(|mut shortcuts| shortcuts.insert_repeating(key, modifiers, callback));
+        self
+    }
 }
 
 impl<Behavior> Run for Window<Behavior>
@@ -1089,6 +1133,7 @@ where
                         .enabled_buttons
                         .unwrap_or(Value::Constant(WindowButtons::all())),
                     fullscreen: this.fullscreen.unwrap_or_default(),
+                    shortcuts: this.shortcuts,
                 }),
                 pending: this.pending,
             },
@@ -1257,6 +1302,7 @@ struct OpenWindow<T> {
     enabled_buttons: Tracked<Value<WindowButtons>>,
     fullscreen: Tracked<Value<Option<Fullscreen>>>,
     modifiers: Dynamic<Modifiers>,
+    shortcuts: Value<ShortcutMap>,
 }
 
 impl<T> OpenWindow<T>
@@ -1696,6 +1742,7 @@ where
             modifiers: settings.modifiers,
             enabled_buttons: Tracked::from(settings.enabled_buttons).ignoring_first(),
             fullscreen: Tracked::from(settings.fullscreen).ignoring_first(),
+            shortcuts: settings.shortcuts,
         };
 
         this.synchronize_platform_window(&mut window);
@@ -2013,6 +2060,14 @@ where
         {
             return HANDLED;
         }
+        if self
+            .shortcuts
+            .map(|shortcuts| shortcuts.input(input.clone()))
+            .is_break()
+        {
+            return HANDLED;
+        }
+
         drop(target);
 
         self.handle_window_keyboard_input(&mut window, kludgine, input)
@@ -2790,6 +2845,7 @@ pub(crate) mod sealed {
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
     use crate::widget::{OnceCallback, SharedCallback};
+    use crate::widgets::shortcuts::ShortcutMap;
     use crate::window::{ThemeMode, WindowAttributes};
 
     pub struct Context<C> {
@@ -2840,6 +2896,7 @@ pub(crate) mod sealed {
         pub modifiers: Dynamic<Modifiers>,
         pub enabled_buttons: Value<WindowButtons>,
         pub fullscreen: Value<Option<Fullscreen>>,
+        pub shortcuts: Value<ShortcutMap>,
     }
 
     pub struct WindowExecute(Box<dyn ExecuteFunc>);
@@ -3503,6 +3560,7 @@ impl StandaloneWindowBuilder {
                 modifiers: Dynamic::default(),
                 enabled_buttons: Value::dynamic(WindowButtons::all()),
                 fullscreen: Value::default(),
+                shortcuts: Value::default(),
             },
         );
 
