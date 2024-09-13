@@ -855,6 +855,32 @@ where
     }
 }
 
+#[cfg(feature = "serde")]
+impl<T> serde::Serialize for Owned<T>
+where
+    T: serde::Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.map_ref(|this| this.serialize(serializer))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T> serde::Deserialize<'de> for Owned<T>
+where
+    T: serde::Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        T::deserialize(deserializer).map(Self::new)
+    }
+}
+
 /// A read-only reference to the value in an [`Owned`].
 pub struct OwnedRef<'a, T>(Ref<'a, GenerationalValue<T>>)
 where
@@ -1274,6 +1300,32 @@ impl<T> Dynamic<T> {
         });
         validation.set_source(callback);
         validation
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<T> serde::Serialize for Dynamic<T>
+where
+    T: serde::Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.map_ref(|this| this.serialize(serializer))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de, T> serde::Deserialize<'de> for Dynamic<T>
+where
+    T: serde::Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        T::deserialize(deserializer).map(Self::new)
     }
 }
 
