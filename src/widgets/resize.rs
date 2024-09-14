@@ -99,17 +99,32 @@ impl WrapperWidget for Resize {
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         let child = self.child.mounted(&mut context.as_event_context());
-        let size = if let (Some(width), Some(height)) =
+        let (size, fill_layout) = if let (Some(width), Some(height)) =
             (self.width.exact_dimension(), self.height.exact_dimension())
         {
-            Size::new(width, height).map(|i| i.into_upx(context.gfx.scale()))
+            (
+                Size::new(width, height).map(|i| i.into_upx(context.gfx.scale())),
+                true,
+            )
         } else {
             let available_space = Size::new(
                 override_constraint(available_space.width, self.width, context.gfx.scale()),
                 override_constraint(available_space.height, self.height, context.gfx.scale()),
             );
-            context.for_other(&child).layout(available_space)
+            (
+                context.for_other(&child).layout(available_space),
+                matches!(available_space.width, ConstraintLimit::SizeToFit(_))
+                    || matches!(available_space.height, ConstraintLimit::SizeToFit(_)),
+            )
         };
+        if fill_layout {
+            // Now that we have our known dimension, give the child an opportunity
+            // to lay out with Fill semantics.
+            context
+                .for_other(&child)
+                .layout(size.map(ConstraintLimit::Fill));
+        }
+
         Size::new(
             self.width.clamp(size.width, context.gfx.scale()),
             self.height.clamp(size.height, context.gfx.scale()),
