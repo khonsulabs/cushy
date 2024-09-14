@@ -117,6 +117,10 @@ impl WrapperWidget for Resize {
                     || matches!(available_space.height, ConstraintLimit::SizeToFit(_)),
             )
         };
+        let size = Size::new(
+            self.width.clamp(size.width, context.gfx.scale()),
+            self.height.clamp(size.height, context.gfx.scale()),
+        );
         if fill_layout {
             // Now that we have our known dimension, give the child an opportunity
             // to lay out with Fill semantics.
@@ -125,12 +129,7 @@ impl WrapperWidget for Resize {
                 .layout(size.map(ConstraintLimit::Fill));
         }
 
-        Size::new(
-            self.width.clamp(size.width, context.gfx.scale()),
-            self.height.clamp(size.height, context.gfx.scale()),
-        )
-        .into_signed()
-        .into()
+        size.into_signed().into()
     }
 }
 
