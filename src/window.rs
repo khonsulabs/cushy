@@ -39,7 +39,7 @@ use kludgine::shapes::Shape;
 use kludgine::wgpu::{self, CompositeAlphaMode, COPY_BYTES_PER_ROW_ALIGNMENT};
 use kludgine::{Color, DrawableExt, Kludgine, KludgineId, Origin, Texture};
 use parking_lot::{Mutex, MutexGuard};
-use sealed::{Ize, WindowExecute};
+use sealed::{Ize, PreShowCallback, WindowExecute};
 use tracing::Level;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -525,6 +525,7 @@ where
     pending: PendingWindow,
     attributes: WindowAttributes,
     on_closed: Option<OnceCallback>,
+    on_init: Option<PreShowCallback>,
     on_open: Option<OnceCallback<WindowHandle>>,
     inner_size: Option<Dynamic<Size<UPx>>>,
     zoom: Option<Dynamic<Fraction>>,
@@ -647,6 +648,7 @@ where
             enabled_buttons: None,
             fullscreen: None,
             shortcuts: Value::default(),
+            on_init: None,
         }
     }
 
@@ -970,6 +972,15 @@ where
         self
     }
 
+    /// Invokes `on_init` before the window initialization begins.
+    pub fn on_init<Function>(mut self, on_init: Function) -> Self
+    where
+        Function: FnOnce(&winit::window::Window) + Send + 'static,
+    {
+        self.on_init = Some(PreShowCallback(Box::new(Some(on_init))));
+        self
+    }
+
     /// Invokes `on_close` when this window is closed.
     pub fn on_close<Function>(mut self, on_close: Function) -> Self
     where
@@ -1094,6 +1105,7 @@ where
                     title: this.title,
                     redraw_status: this.pending.0.redraw_status.clone(),
                     on_open: this.on_open,
+                    on_init: this.on_init,
                     on_closed: this.on_closed,
                     transparent: this.attributes.transparent,
                     attributes: Some(this.attributes),
@@ -2390,13 +2402,20 @@ where
 {
     type Context = sealed::Context<T::Context>;
 
+    fn pre_initialize(context: &Self::Context, winit: &winit::window::Window) {
+        let Some(mut on_init) = context.settings.borrow_mut().on_init.take() else {
+            return;
+        };
+        on_init.0.pre_show(winit);
+    }
+
     fn initialize(
         window: kludgine::app::Window<'_, WindowCommand>,
         graphics: &mut kludgine::Graphics<'_>,
         context: Self::Context,
     ) -> Self {
         context.pending.opened(window.handle());
-        let settings = context.settings.borrow_mut();
+        let settings = context.settings.borrow();
         let cushy = settings.cushy.clone();
         let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
@@ -2833,6 +2852,7 @@ pub(crate) mod sealed {
     use figures::units::{Px, UPx};
     use figures::{Fraction, Point, Size};
     use image::{DynamicImage, RgbaImage};
+    use kludgine::app::winit;
     use kludgine::app::winit::event::Modifiers;
     use kludgine::app::winit::window::{Fullscreen, UserAttentionType, WindowButtons, WindowLevel};
     use kludgine::Color;
@@ -2873,6 +2893,7 @@ pub(crate) mod sealed {
         pub cursive_font_family: FontFamilyList,
         pub font_data_to_load: FontCollection,
         pub on_open: Option<OnceCallback<WindowHandle>>,
+        pub on_init: Option<PreShowCallback>,
         pub on_closed: Option<OnceCallback>,
         pub vsync: bool,
         pub multisample_count: NonZeroU32,
@@ -2959,6 +2980,22 @@ pub(crate) mod sealed {
         fn convert_rgba(data: &mut Vec<u8>, width: u32, bytes_per_row: u32);
         fn load_image(data: &[u8], size: Size<UPx>) -> DynamicImage;
         fn pixel_color(location: Point<UPx>, data: &[u8], size: Size<UPx>) -> Color;
+    }
+
+    pub struct PreShowCallback(pub Box<dyn PreShowFn>);
+
+    pub trait PreShowFn: Send + 'static {
+        fn pre_show(&mut self, winit: &winit::window::Window);
+    }
+
+    impl<F> PreShowFn for Option<F>
+    where
+        F: FnOnce(&winit::window::Window) + Send + 'static,
+    {
+        fn pre_show(&mut self, winit: &winit::window::Window) {
+            let Some(this) = self.take() else { return };
+            this(winit);
+        }
     }
 }
 
@@ -3561,6 +3598,7 @@ impl StandaloneWindowBuilder {
                 enabled_buttons: Value::dynamic(WindowButtons::all()),
                 fullscreen: Value::default(),
                 shortcuts: Value::default(),
+                on_init: None,
             },
         );
 

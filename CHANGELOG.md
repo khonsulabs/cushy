@@ -150,6 +150,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   closing automatically when the final window is closed.
 - `WindowBehavior::initialized` is invoked once the window has been fully
   initialized.
+- `Window::on_init` is a new callback that is invoked before the winit window is
+  initialized.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

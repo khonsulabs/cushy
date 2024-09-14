@@ -123,8 +123,9 @@ checksum = "4e1496f8fb1fbf272686b8d37f523dab3e4a7443300055e74cdaa449f3114356"
 
 [[package]]
 name = "appit"
-version = "0.3.2"
-source = "git+https://github.com/khonsulabs/appit#57acfd2e15523a160fbfd0db4c91d2407ed8d4c5"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75ed795976c3816aeceb52f1971d3e27f5403d58b16531edea7fe97f63e75f08"
 dependencies = [
  "winit",
 ]
@@ -175,9 +176,9 @@ dependencies = [
 
 [[package]]
 name = "arrayref"
-version = "0.3.8"
+version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d151e35f61089500b617991b791fc8bfd237ae50cd5950803758a179b41e67a"
+checksum = "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
 
 [[package]]
 name = "arrayvec"
@@ -1311,7 +1312,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.10.0"
-source = "git+https://github.com/khonsulabs/kludgine#236c9773a323ee63dc38bdfa78476ff336547640"
+source = "git+https://github.com/khonsulabs/kludgine#aa0d2fe77a92a034f7481a239e4f223a651a8c2a"
 dependencies = [
  "ahash",
  "alot",
@@ -1963,9 +1964,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.19.0"
+version = "1.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
+checksum = "33ea5043e58958ee56f3e15a90aee535795cd7dfd319846288d93c5b57d85cbe"
 
 [[package]]
 name = "orbclient"
