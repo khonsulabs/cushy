@@ -62,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `inner_size` and `outer_size` are now initialized after the first layout is
   performed. This ensures that when `resize_to_fit` is used, the first observed
   values will be the resized values.
+- `Resize` now performs a second layout pass, if necessary, to ensure that
+  children widgets have an opportunity to fill the resized area. Additionally,
+  the first SizeToFit measurement will be performed with the minimum dimension.
 
 ### Added
 

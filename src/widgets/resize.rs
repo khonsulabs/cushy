@@ -142,7 +142,10 @@ fn override_constraint(
         ConstraintLimit::Fill(size) => ConstraintLimit::Fill(range.clamp(size, scale)),
         ConstraintLimit::SizeToFit(clipped_after) => match (range.minimum(), range.maximum()) {
             (Some(min), Some(max)) if min == max => ConstraintLimit::Fill(min.into_upx(scale)),
-            _ => ConstraintLimit::SizeToFit(range.clamp(clipped_after, scale)),
+            _ => ConstraintLimit::SizeToFit(range.minimum().map_or_else(
+                || range.clamp(clipped_after, scale),
+                |min| min.into_upx(scale),
+            )),
         },
     }
 }
