@@ -45,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   resize event.
 - `PlatformWindow::outer_size` is a new function that returns the window's
   current outer size.
+- `Graphics::draw_texture` and `Graphics::draw_textured_shape` now both accept
+  an opactiy parameter controlling how opaque the texture should be rendered at.
 
 ### Changed
 
@@ -161,6 +163,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   initialized.
 - `Window::on_file_drop` is a new callback that is invoked when file drop events
   occur for the window.
+- `Image::opacity` allows rendering the image with a given opacity.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

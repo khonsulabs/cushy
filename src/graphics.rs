@@ -170,14 +170,18 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     }
 
     /// Draws `texture` at `destination`, scaling as necessary.
-    pub fn draw_texture<Unit>(&mut self, texture: &impl TextureSource, destination: Rect<Unit>)
-    where
+    pub fn draw_texture<Unit>(
+        &mut self,
+        texture: &impl TextureSource,
+        destination: Rect<Unit>,
+        opacity: ZeroToOne,
+    ) where
         Unit: figures::ScreenUnit + ShaderScalable,
         i32: From<<Unit as IntoSigned>::Signed>,
     {
         let translate = Point::<Unit>::from_px(self.translation(), self.scale());
         self.renderer
-            .draw_texture(texture, destination + translate, *self.opacity);
+            .draw_texture(texture, destination + translate, *(self.opacity * opacity));
     }
 
     /// Draws a shape that was created with texture coordinates, applying the
@@ -186,16 +190,18 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         &mut self,
         shape: impl Into<Drawable<&'shape Shape, Unit>>,
         texture: &impl TextureSource,
+        opacity: ZeroToOne,
     ) where
         Unit: Zero + ShaderScalable + figures::ScreenUnit + Copy,
         i32: From<<Unit as IntoSigned>::Signed>,
         Shape: ShapeSource<Unit, true> + 'shape,
     {
         let mut shape = shape.into();
+        let effective_opacity = self.opacity * opacity;
         shape.opacity = Some(
             shape
                 .opacity
-                .map_or(*self.opacity, |opacity| opacity * *self.opacity),
+                .map_or(*effective_opacity, |opacity| opacity * *effective_opacity),
         );
         shape.translation += Point::<Unit>::from_px(self.translation(), self.scale());
         self.renderer.draw_textured_shape(shape, texture);

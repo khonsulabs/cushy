@@ -5,7 +5,7 @@ use figures::{FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Size, Zero
 use kludgine::{AnyTexture, CollectedTexture, LazyTexture, SharedTexture, Texture, TextureRegion};
 
 use crate::animation::ZeroToOne;
-use crate::context::LayoutContext;
+use crate::context::{LayoutContext, Trackable};
 use crate::value::{IntoValue, Source, Value};
 use crate::widget::Widget;
 use crate::ConstraintLimit;
@@ -17,6 +17,8 @@ pub struct Image {
     pub contents: Value<AnyTexture>,
     /// The scaling strategy to apply.
     pub scaling: Value<ImageScaling>,
+    /// The opacity to render the image with.
+    pub opacity: Value<ZeroToOne>,
 }
 
 impl Image {
@@ -26,6 +28,7 @@ impl Image {
         Self {
             contents: contents.into_value(),
             scaling: Value::default(),
+            opacity: Value::Constant(ZeroToOne::ONE),
         }
     }
 
@@ -33,6 +36,13 @@ impl Image {
     #[must_use]
     pub fn scaling(mut self, scaling: impl IntoValue<ImageScaling>) -> Self {
         self.scaling = scaling.into_value();
+        self
+    }
+
+    /// Applies `opacity` when drawing the image, returns self.
+    #[must_use]
+    pub fn opacity(mut self, opacity: impl IntoValue<ZeroToOne>) -> Self {
+        self.opacity = opacity.into_value();
         self
     }
 
@@ -145,9 +155,11 @@ impl Image {
 
 impl Widget for Image {
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
+        self.contents.invalidate_when_changed(context);
+        let opacity = self.opacity.get_tracking_redraw(context);
         self.contents.map(|texture| {
             let rect = self.calculate_image_rect(texture, context.gfx.size(), context);
-            context.gfx.draw_texture(texture, rect);
+            context.gfx.draw_texture(texture, rect, opacity);
         });
     }
 
