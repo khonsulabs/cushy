@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Some(RootBehavior::PassThrough)` to reflect the general intention of what
   `WrapperWidget` implementors are generally doing. Previously, `None` was
   returned.
+- `PlatformWindowImplementation::request_inner_size` and
+  `PlatformWindow::request_inner_size` now both return `Option<Size<UPx>>`. When
+  the function returns a value, Cushy is expected to apply the new size to the
+  state immediately rather than waiting for the platform to notify it of a
+  resize event.
+- `PlatformWindow::outer_size` is a new function that returns the window's
+  current outer size.
 
 ### Changed
 

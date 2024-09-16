@@ -132,9 +132,15 @@ pub trait PlatformWindowImplementation {
     ///
     /// The provided implementation forwards the request onto the winit window,
     /// if present.
-    fn request_inner_size(&mut self, inner_size: Size<UPx>) {
+    ///
+    /// The result is the same [`winit::window::Window::request_inner_size`] --
+    /// if a size is returned, the change was made before the call returns, and
+    /// no resized event will be emitted.
+    #[must_use]
+    fn request_inner_size(&mut self, inner_size: Size<UPx>) -> Option<Size<UPx>> {
         self.winit()
-            .map(|winit| winit.request_inner_size(PhysicalSize::from(inner_size)));
+            .and_then(|winit| winit.request_inner_size(PhysicalSize::from(inner_size)))
+            .map(Size::from)
     }
 
     /// Sets whether [`Ime`] events should be enabled.
@@ -246,6 +252,8 @@ pub trait PlatformWindow {
     fn occluded(&self) -> &Dynamic<bool>;
     /// Returns the current inner size of the window.
     fn inner_size(&self) -> &Dynamic<Size<UPx>>;
+    /// Returns the current outer size of the window.
+    fn outer_size(&self) -> Size<UPx>;
     /// Returns the shared application resources.
     fn cushy(&self) -> &Cushy;
     /// Sets the window to redraw as soon as possible.
@@ -269,7 +277,8 @@ pub trait PlatformWindow {
     fn set_ime_purpose(&self, purpose: winit::window::ImePurpose);
 
     /// Requests that the window change its inner size.
-    fn request_inner_size(&mut self, inner_size: Size<UPx>);
+    #[must_use]
+    fn request_inner_size(&mut self, inner_size: Size<UPx>) -> Option<Size<UPx>>;
     /// Sets the window's minimum inner size.
     fn set_min_inner_size(&self, min_size: Option<Size<UPx>>);
     /// Sets the window's maximum inner size.
@@ -421,6 +430,10 @@ where
         &self.inner_size
     }
 
+    fn outer_size(&self) -> Size<UPx> {
+        self.window.outer_size()
+    }
+
     fn cushy(&self) -> &Cushy {
         &self.cushy
     }
@@ -465,8 +478,8 @@ where
         self.window.set_max_inner_size(max_size);
     }
 
-    fn request_inner_size(&mut self, inner_size: Size<UPx>) {
-        self.window.request_inner_size(inner_size);
+    fn request_inner_size(&mut self, inner_size: Size<UPx>) -> Option<Size<UPx>> {
+        self.window.request_inner_size(inner_size)
     }
 
     fn set_ime_location(&self, location: Rect<Px>) {
@@ -1851,8 +1864,8 @@ where
         let render_size = actual_size.min(window_size);
         layout_context.invalidate_when_changed(&self.inner_size);
         layout_context.invalidate_when_changed(&self.resize_to_fit);
-        if let Some(new_size) = self.inner_size.updated() {
-            layout_context.request_inner_size(*new_size);
+        let new_size = if let Some(new_size) = self.inner_size.updated() {
+            layout_context.request_inner_size(*new_size)
         } else if actual_size != window_size && !resizable {
             let mut new_size = actual_size;
             if let Some(min_size) = self.min_inner_size {
@@ -1861,9 +1874,16 @@ where
             if let Some(max_size) = self.max_inner_size {
                 new_size = new_size.min(max_size);
             }
-            layout_context.request_inner_size(new_size);
+            layout_context.request_inner_size(new_size)
         } else if resize_to_fit && window_size != layout_size {
-            layout_context.request_inner_size(layout_size);
+            layout_context.request_inner_size(layout_size)
+        } else {
+            None
+        };
+
+        if let Some(new_size) = new_size {
+            self.inner_size.set_and_read(new_size);
+            self.outer_size.set(layout_context.window().outer_size());
         }
         self.root.set_layout(Rect::from(render_size.into_signed()));
 
@@ -3461,9 +3481,10 @@ impl PlatformWindowImplementation for &mut VirtualState {
         self.size
     }
 
-    fn request_inner_size(&mut self, inner_size: Size<UPx>) {
+    fn request_inner_size(&mut self, inner_size: Size<UPx>) -> Option<Size<UPx>> {
         self.size = inner_size;
         self.set_needs_redraw();
+        Some(inner_size)
     }
 }
 
