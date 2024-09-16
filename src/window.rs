@@ -9,7 +9,7 @@ use std::io;
 use std::marker::PhantomData;
 use std::num::{NonZeroU32, TryFromIntError};
 use std::ops::{Deref, DerefMut, Not};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::string::ToString;
 use std::sync::{mpsc, Arc, OnceLock};
 use std::time::{Duration, Instant};
@@ -61,8 +61,8 @@ use crate::value::{
     Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Tracked, Value,
 };
 use crate::widget::{
-    EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, SharedCallback, WidgetId,
-    WidgetInstance, HANDLED, IGNORED,
+    Callback, EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, SharedCallback,
+    WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
 use crate::widgets::shortcuts::{ShortcutKey, ShortcutMap};
 use crate::window::sealed::WindowCommand;
@@ -565,6 +565,7 @@ where
     enabled_buttons: Option<Value<WindowButtons>>,
     fullscreen: Option<Value<Option<Fullscreen>>>,
     shortcuts: Value<ShortcutMap>,
+    on_file_drop: Option<Callback<FileDrop>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -662,6 +663,7 @@ where
             fullscreen: None,
             shortcuts: Value::default(),
             on_init: None,
+            on_file_drop: None,
         }
     }
 
@@ -1015,6 +1017,15 @@ where
         self
     }
 
+    /// Invokes `on_file_drop` when a file is hovered or dropped on this window.
+    pub fn on_file_drop<Function>(mut self, on_file_drop: Function) -> Self
+    where
+        Function: FnMut(FileDrop) + Send + 'static,
+    {
+        self.on_file_drop = Some(Callback::new(on_file_drop));
+        self
+    }
+
     /// Sets the window's title.
     pub fn titled(mut self, title: impl IntoValue<String>) -> Self {
         self.title = title.into_value();
@@ -1159,6 +1170,7 @@ where
                         .unwrap_or(Value::Constant(WindowButtons::all())),
                     fullscreen: this.fullscreen.unwrap_or_default(),
                     shortcuts: this.shortcuts,
+                    on_file_drop: this.on_file_drop,
                 }),
                 pending: this.pending,
             },
@@ -1230,6 +1242,35 @@ where
 
     fn make_window(self) -> Window<Self::Behavior> {
         Window::for_widget(self.make_widget())
+    }
+}
+
+/// A file drop event for a window.
+pub struct FileDrop {
+    /// The handle to the window the file drop event is for.
+    pub window: WindowHandle,
+    /// The file drop event.
+    pub drop: DropEvent<PathBuf>,
+}
+
+/// A drop event.
+pub enum DropEvent<T> {
+    /// The payload is being hovered over the container.
+    Hover(T),
+    /// The payload has been dropped on the container.
+    Dropped(T),
+    /// The payload previously hovered has been cancelled.
+    Cancelled,
+}
+
+impl<T> DropEvent<T> {
+    /// Returns the payload of this event.
+    #[must_use]
+    pub fn payload(&self) -> Option<&T> {
+        match self {
+            Self::Hover(t) | Self::Dropped(t) => Some(t),
+            Self::Cancelled => None,
+        }
     }
 }
 
@@ -1328,6 +1369,7 @@ struct OpenWindow<T> {
     fullscreen: Tracked<Value<Option<Fullscreen>>>,
     modifiers: Dynamic<Modifiers>,
     shortcuts: Value<ShortcutMap>,
+    on_file_drop: Option<Callback<FileDrop>>,
 }
 
 impl<T> OpenWindow<T>
@@ -1768,6 +1810,7 @@ where
             enabled_buttons: Tracked::from(settings.enabled_buttons).ignoring_first(),
             fullscreen: Tracked::from(settings.fullscreen).ignoring_first(),
             shortcuts: settings.shortcuts,
+            on_file_drop: settings.on_file_drop,
         };
 
         this.synchronize_platform_window(&mut window);
@@ -2416,6 +2459,19 @@ where
             }
         }
     }
+
+    fn handle_drop(
+        &mut self,
+        drop: DropEvent<PathBuf>,
+        window: &kludgine::app::Window<'_, WindowCommand>,
+    ) {
+        if let Some(on_file_drop) = &mut self.on_file_drop {
+            on_file_drop.invoke(FileDrop {
+                window: WindowHandle::new(window.handle(), self.redraw_status.clone()),
+                drop,
+            });
+        }
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -2634,13 +2690,31 @@ where
         self.moved(window.inner_position(), window.outer_position());
     }
 
-    // fn theme_changed(&mut self, window: kludgine::app::Window<'_, ()>) {}
+    fn dropped_file(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+        path: PathBuf,
+    ) {
+        self.handle_drop(DropEvent::Dropped(path), &window);
+    }
 
-    // fn dropped_file(&mut self, window: kludgine::app::Window<'_, ()>, path: std::path::PathBuf) {}
+    fn hovered_file(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+        path: PathBuf,
+    ) {
+        self.handle_drop(DropEvent::Hover(path), &window);
+    }
 
-    // fn hovered_file(&mut self, window: kludgine::app::Window<'_, ()>, path: std::path::PathBuf) {}
-
-    // fn hovered_file_cancelled(&mut self, window: kludgine::app::Window<'_, ()>) {}
+    fn hovered_file_cancelled(
+        &mut self,
+        window: kludgine::app::Window<'_, WindowCommand>,
+        _kludgine: &mut Kludgine,
+    ) {
+        self.handle_drop(DropEvent::Cancelled, &window);
+    }
 
     // fn received_character(&mut self, window: kludgine::app::Window<'_, ()>, char: char) {}
 
@@ -2886,16 +2960,15 @@ pub(crate) mod sealed {
     use kludgine::app::winit::window::{Fullscreen, UserAttentionType, WindowButtons, WindowLevel};
     use kludgine::Color;
 
-    use super::{PendingWindow, WindowHandle};
     use crate::app::Cushy;
     use crate::context::sealed::InvalidationStatus;
     use crate::context::EventContext;
     use crate::fonts::FontCollection;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
-    use crate::widget::{OnceCallback, SharedCallback};
+    use crate::widget::{Callback, OnceCallback, SharedCallback};
     use crate::widgets::shortcuts::ShortcutMap;
-    use crate::window::{ThemeMode, WindowAttributes};
+    use crate::window::{FileDrop, PendingWindow, ThemeMode, WindowAttributes, WindowHandle};
 
     pub struct Context<C> {
         pub user: C,
@@ -2947,6 +3020,7 @@ pub(crate) mod sealed {
         pub enabled_buttons: Value<WindowButtons>,
         pub fullscreen: Value<Option<Fullscreen>>,
         pub shortcuts: Value<ShortcutMap>,
+        pub on_file_drop: Option<Callback<FileDrop>>,
     }
 
     pub struct WindowExecute(Box<dyn ExecuteFunc>);
@@ -3629,6 +3703,7 @@ impl StandaloneWindowBuilder {
                 fullscreen: Value::default(),
                 shortcuts: Value::default(),
                 on_init: None,
+                on_file_drop: None,
             },
         );
 

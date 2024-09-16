@@ -159,6 +159,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   initialized.
 - `Window::on_init` is a new callback that is invoked before the winit window is
   initialized.
+- `Window::on_file_drop` is a new callback that is invoked when file drop events
+  occur for the window.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
