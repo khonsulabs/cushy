@@ -23,7 +23,9 @@ tokio-multi-thread = ["tokio", "tokio/rt-multi-thread"]
 serde = ["dep:serde", "figures/serde"]
 
 [dependencies]
-kludgine = { version = "0.11.0", features = ["app"] }
+kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
+    "app",
+] }
 figures = { version = "0.4.0" }
 alot = "0.3"
 interner = "0.2.1"
