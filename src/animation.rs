@@ -384,7 +384,7 @@ pub trait IntoAnimate: Sized + Send + Sync {
     /// Invokes `on_complete` after this animation finishes.
     fn on_complete<F>(self, on_complete: F) -> OnCompleteAnimation<Self>
     where
-        F: FnMut() + Send + Sync + 'static,
+        F: FnOnce() + Send + Sync + 'static,
     {
         OnCompleteAnimation::new(self, on_complete)
     }

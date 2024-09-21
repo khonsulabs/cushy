@@ -14,7 +14,7 @@ jobs:
           sudo add-apt-repository ppa:oibaf/graphics-drivers -y
           sudo apt-get update
           sudo apt-get install -y \
-            libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+            libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers libdbus-1-dev pkg-config
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -46,7 +46,7 @@ jobs:
           sudo add-apt-repository ppa:oibaf/graphics-drivers -y
           sudo apt-get update
           sudo apt-get install -y \
-            libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+            libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers libdbus-1-dev pkg-config
 
       - name: Download mdbook
         run: |

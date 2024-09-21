@@ -66,7 +66,7 @@ use crate::widget::{
 };
 use crate::widgets::shortcuts::{ShortcutKey, ShortcutMap};
 use crate::window::sealed::WindowCommand;
-use crate::{initialize_tracing, App, ConstraintLimit};
+use crate::{App, ConstraintLimit};
 
 /// A platform-dependent window implementation.
 pub trait PlatformWindowImplementation {
@@ -1102,7 +1102,6 @@ where
     Behavior: WindowBehavior,
 {
     fn run(self) -> crate::Result {
-        initialize_tracing();
         let mut app = PendingApp::default();
         self.open(&mut app)?;
         app.run()

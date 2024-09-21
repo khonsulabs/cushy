@@ -8,10 +8,10 @@ use kludgine::app::winit::error::EventLoopError;
 use kludgine::app::{AppEvent, AsApplication, Monitors};
 use parking_lot::{Mutex, MutexGuard};
 
-use crate::animation;
 use crate::fonts::FontCollection;
 use crate::window::sealed::WindowCommand;
 use crate::window::WindowHandle;
+use crate::{animation, initialize_tracing};
 
 /// A Cushy application that has not started running yet.
 pub struct PendingApp {
@@ -73,6 +73,7 @@ impl Run for PendingApp {
 
 impl Default for PendingApp {
     fn default() -> Self {
+        initialize_tracing();
         Self::new(DefaultRuntime::default())
     }
 }
