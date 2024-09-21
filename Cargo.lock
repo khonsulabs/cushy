@@ -124,7 +124,7 @@ checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
 [[package]]
 name = "appit"
 version = "0.4.0"
-source = "git+https://github.com/khonsulabs/appit#6869fcf3be4a425fb5bd54e14862adc8016e743b"
+source = "git+https://github.com/khonsulabs/appit#b95df0cc5403e148bed15f95935f294be89afd86"
 dependencies = [
  "darkmode",
  "winit",
