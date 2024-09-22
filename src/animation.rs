@@ -58,6 +58,7 @@ use crate::animation::easings::Linear;
 use crate::styles::{Component, RequireInvalidation};
 use crate::utils::run_in_bg;
 use crate::value::{Destination, Dynamic, Source};
+use crate::widget::SharedCallback;
 use crate::Cushy;
 
 static ANIMATIONS: Mutex<Animating> = Mutex::new(Animating::new());
@@ -775,6 +776,48 @@ impl Animate for Duration {
         } else {
             ControlFlow::Break(elapsed - *self)
         }
+    }
+}
+
+impl IntoAnimate for SharedCallback {
+    type Animate = Self;
+
+    /// Invokes this callback when the animation progresses. Consumes no
+    /// animation time.
+    fn into_animate(self) -> Self::Animate {
+        self
+    }
+}
+
+impl Animate for SharedCallback {
+    /// Invokes the callback and consumes no animation time.
+    fn animate(&mut self, elapsed: Duration) -> ControlFlow<Duration> {
+        self.invoke(());
+        ControlFlow::Break(elapsed)
+    }
+}
+
+impl IntoAnimate for SharedCallback<Duration, ControlFlow<Duration>> {
+    type Animate = Self;
+
+    /// Invokes this callback to implement a custom animation.
+    ///
+    /// Returning `ControlFlow::Continue` consumes the entire elapsed duration.
+    /// Returning `ControlFlow::Break` completes the animation and yields the
+    /// provided duration to the next animation.
+    fn into_animate(self) -> Self::Animate {
+        self
+    }
+}
+
+impl Animate for SharedCallback<Duration, ControlFlow<Duration>> {
+    /// Invokes this callback to implement a custom animation.
+    ///
+    /// Returning `ControlFlow::Continue` consumes the entire elapsed duration.
+    /// Returning `ControlFlow::Break` completes the animation and yields the
+    /// provided duration to the next animation.
+    fn animate(&mut self, elapsed: Duration) -> ControlFlow<Duration> {
+        self.invoke(elapsed)
     }
 }
 
