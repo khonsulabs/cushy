@@ -57,6 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The new `MakeWindow` trait adds some new functionality:
   `open_centered`/`run_centered`/`run_centered_in`. These functions present a
   window centered on the screen where the window initially is shown.
+- `IntoAnimate::on_complete` now takes an `FnOnce` instead of an `FnMut`. Since
+  this widens the types of functions this accepts, this is not a breaking
+  change. This matches the documented behavior.
+- `tracing_subscriber` initialization has been moved to `PendingApp::default()`
+  from `Window::run`. This ensures logging is always initialized for all Cushy
+  apps.
 
 ### Fixed
 
