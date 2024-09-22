@@ -1430,7 +1430,7 @@ where
                     kludgine,
                 )
                 .activate();
-                self.keyboard_activated = Some(default.id());
+                self.keyboard_activated = self.tree.active_widget_id();
             }
         } else if let Some(keyboard_activated) = self
             .keyboard_activated

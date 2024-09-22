@@ -674,7 +674,10 @@ pub trait WrapperWidget: Debug + Send + 'static {
 
     /// The widget has become the active widget.
     #[allow(unused_variables)]
-    fn activate(&mut self, context: &mut EventContext<'_>) {}
+    fn activate(&mut self, context: &mut EventContext<'_>) {
+        let child = self.child_mut().mounted(context);
+        context.for_other(&child).activate();
+    }
 
     /// The widget is no longer active.
     #[allow(unused_variables)]

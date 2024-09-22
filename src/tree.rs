@@ -306,6 +306,12 @@ impl Tree {
         self.data.lock().active
     }
 
+    pub(crate) fn active_widget_id(&self) -> Option<WidgetId> {
+        let data = self.data.lock();
+
+        data.active.map(|node| data.nodes[node].widget.id())
+    }
+
     pub(crate) fn hovered_widget(&self) -> Option<LotId> {
         self.data.lock().hover
     }

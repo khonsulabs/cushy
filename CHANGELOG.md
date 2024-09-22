@@ -65,6 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   apps.
 - The default logging output has been trimmed to only show errors for wgpu,
   winit, and naga. Thanks to @bluenote10 for the feedback!
+- `WrapperWidget::activate`'s default implementation now activates the wrapped
+  widget.
 
 ### Fixed
 
@@ -82,6 +84,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Resize` now performs a second layout pass, if necessary, to ensure that
   children widgets have an opportunity to fill the resized area. Additionally,
   the first SizeToFit measurement will be performed with the minimum dimension.
+- When a keyboard-activated widget activates another widget during its callback,
+  the key-up event now sends the deactivate event to the finally-activated
+  widget.
 
 ### Added
 
