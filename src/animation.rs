@@ -821,6 +821,31 @@ impl Animate for SharedCallback<Duration, ControlFlow<Duration>> {
     }
 }
 
+impl<F> IntoAnimate for F
+where
+    F: FnMut(Duration) -> ControlFlow<Duration> + Send + Sync + 'static,
+{
+    type Animate = Self;
+
+    fn into_animate(self) -> Self::Animate {
+        self
+    }
+}
+
+impl<F> Animate for F
+where
+    F: FnMut(Duration) -> ControlFlow<Duration> + Send + Sync + 'static,
+{
+    /// Invokes this callback to implement a custom animation.
+    ///
+    /// Returning `ControlFlow::Continue` consumes the entire elapsed duration.
+    /// Returning `ControlFlow::Break` completes the animation and yields the
+    /// provided duration to the next animation.
+    fn animate(&mut self, elapsed: Duration) -> ControlFlow<Duration> {
+        self(elapsed)
+    }
+}
+
 /// Performs a linear interpolation between two values.
 ///
 /// This trait can be derived for structs and fieldless enums.

@@ -180,6 +180,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `PendingApp::with_tracing` and `PendingApp::initialize_tracing` install
   Cushy's tracing Subscriber. The default `PendingApp` has tracing initialized,
   but `PendingApp::new` does not.
+- `Animate` and `IntoAnimate` are now implemented for:
+
+  - `impl FnMut(Duration) -> ControlFlow<Duration> + Send + Sync + 'static`
+  - `SharedCallback<Duration, ControlFlow<Duration>>`
+  - `SharedCallback`
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
