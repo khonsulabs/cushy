@@ -1912,6 +1912,27 @@ where
         let render_size = actual_size.min(window_size);
         layout_context.invalidate_when_changed(&self.inner_size);
         layout_context.invalidate_when_changed(&self.resize_to_fit);
+
+        self.root.set_layout(Rect::from(render_size.into_signed()));
+
+        if self.initial_frame {
+            self.initial_frame = false;
+            self.root
+                .lock()
+                .as_widget()
+                .mounted(&mut layout_context.as_event_context());
+            layout_context.focus();
+            layout_context.as_event_context().apply_pending_state();
+        }
+
+        if render_size.width < window_size.width || render_size.height < window_size.height {
+            layout_context
+                .clipped_to(Rect::from(render_size.into_signed()))
+                .redraw();
+        } else {
+            layout_context.redraw();
+        }
+
         let new_size = if let Some(new_size) = self.inner_size.updated() {
             layout_context.request_inner_size(*new_size)
         } else if actual_size != window_size && !resizable {
@@ -1933,25 +1954,6 @@ where
             self.inner_size.set_and_read(new_size);
             self.outer_size.set(layout_context.window().outer_size());
             self.root.invalidate();
-        }
-        self.root.set_layout(Rect::from(render_size.into_signed()));
-
-        if self.initial_frame {
-            self.initial_frame = false;
-            self.root
-                .lock()
-                .as_widget()
-                .mounted(&mut layout_context.as_event_context());
-            layout_context.focus();
-            layout_context.as_event_context().apply_pending_state();
-        }
-
-        if render_size.width < window_size.width || render_size.height < window_size.height {
-            layout_context
-                .clipped_to(Rect::from(render_size.into_signed()))
-                .redraw();
-        } else {
-            layout_context.redraw();
         }
     }
 
