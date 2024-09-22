@@ -32,7 +32,7 @@ use kludgine::app::winit::keyboard::{
     Key, KeyLocation, ModifiersState, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
 };
 use kludgine::app::winit::window::{self, Cursor, Fullscreen, Icon, WindowButtons, WindowLevel};
-use kludgine::app::{winit, Resized, WindowAttributes, WindowBehavior as _};
+use kludgine::app::{winit, WindowAttributes, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::drawing::Drawing;
 use kludgine::shapes::Shape;
@@ -1843,11 +1843,7 @@ where
             .new_frame(self.redraw_status.invalidations().drain());
     }
 
-    fn prepare<W>(
-        &mut self,
-        mut window: W,
-        graphics: &mut kludgine::Graphics<'_>,
-    ) -> Result<(), Resized>
+    fn prepare<W>(&mut self, mut window: W, graphics: &mut kludgine::Graphics<'_>)
     where
         W: PlatformWindowImplementation,
     {
@@ -1937,7 +1933,6 @@ where
             self.inner_size.set_and_read(new_size);
             self.outer_size.set(layout_context.window().outer_size());
             self.root.invalidate();
-            return Err(Resized);
         }
         self.root.set_layout(Rect::from(render_size.into_signed()));
 
@@ -1958,7 +1953,6 @@ where
         } else {
             layout_context.redraw();
         }
-        Ok(())
     }
 
     fn close_requested<W>(&mut self, window: W, kludgine: &mut Kludgine) -> bool
@@ -2555,8 +2549,8 @@ where
         &mut self,
         window: kludgine::app::Window<'_, WindowCommand>,
         graphics: &mut kludgine::Graphics<'_>,
-    ) -> Result<(), Resized> {
-        self.prepare(window, graphics)
+    ) {
+        self.prepare(window, graphics);
     }
 
     fn present_mode(&self) -> wgpu::PresentMode {
@@ -3741,25 +3735,14 @@ pub struct CushyWindow {
 impl CushyWindow {
     /// Prepares all necessary resources and operations necessary to render the
     /// next frame.
-    ///
-    /// # Errors
-    ///
-    /// If during the preparation of rendering, the window is resized,
-    /// `Err(Resized)` is returned and Cushy will immediately resize the
-    /// graphics context and begin rendering again.
-    pub fn prepare<W>(
-        &mut self,
-        window: W,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-    ) -> Result<(), Resized>
+    pub fn prepare<W>(&mut self, window: W, device: &wgpu::Device, queue: &wgpu::Queue)
     where
         W: PlatformWindowImplementation,
     {
         self.window.prepare(
             window,
             &mut kludgine::Graphics::new(&mut self.kludgine, device, queue),
-        )
+        );
     }
 
     /// Renders this window in a wgpu render pass created from `pass`.
@@ -3988,7 +3971,7 @@ impl VirtualWindow {
     /// If during the preparation of rendering, the window is resized,
     /// `Err(Resized)` is returned and Cushy will immediately resize the
     /// graphics context and begin rendering again.
-    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) -> Result<(), Resized> {
+    pub fn prepare(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         let now = Instant::now();
         self.state.elapsed = self
             .last_rendered_at
@@ -3996,7 +3979,7 @@ impl VirtualWindow {
             .unwrap_or_default();
         self.last_rendered_at = Some(now);
         self.state.dynamic.redraw_target.set(RedrawTarget::Never);
-        self.cushy.prepare(&mut self.state, device, queue)
+        self.cushy.prepare(&mut self.state, device, queue);
     }
 
     /// Renders this window in a wgpu render pass created from `pass`.
@@ -4570,55 +4553,50 @@ where
     }
 
     fn redraw(&mut self) {
-        loop {
-            let mut render_size = self.window.size().ceil();
-            if self.window.state.size != render_size {
-                let current_scale = self.window.dpi_scale();
-                self.window
-                    .resize(self.window.state.size, current_scale, &self.queue);
-                render_size = self.window.state.size;
-            }
-            let bytes_per_row = copy_buffer_aligned_bytes_per_row(render_size.width.get() * 4);
-            let size = u64::from(bytes_per_row) * u64::from(render_size.height.get());
-            self.recreate_buffers_if_needed(render_size, size, bytes_per_row);
-
-            let capture = self.capture.as_ref().assert("always initialized above");
-
-            if self.cursor_visible {
-                let mut gfx = self.window.graphics(&self.device, &self.queue);
-                let mut frame = self.cursor_graphic.new_frame(&mut gfx);
-                frame.draw_shape(
-                    Shape::filled_circle(Px::new(4), Color::WHITE, Origin::Center)
-                        .translate_by(self.cursor.get()),
-                );
-                drop(frame);
-            }
-
-            if let Err(Resized) = self.window.prepare(&self.device, &self.queue) {
-                continue;
-            }
-
-            self.window.render_with(
-                &wgpu::RenderPassDescriptor {
-                    label: None,
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: capture.multisample.view(),
-                        resolve_target: Some(capture.texture.view()),
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(Color::CLEAR_BLACK.into()),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                },
-                &self.device,
-                &self.queue,
-                self.cursor_visible.then_some(&self.cursor_graphic),
-            );
-            return;
+        let mut render_size = self.window.size().ceil();
+        if self.window.state.size != render_size {
+            let current_scale = self.window.dpi_scale();
+            self.window
+                .resize(self.window.state.size, current_scale, &self.queue);
+            render_size = self.window.state.size;
         }
+        let bytes_per_row = copy_buffer_aligned_bytes_per_row(render_size.width.get() * 4);
+        let size = u64::from(bytes_per_row) * u64::from(render_size.height.get());
+        self.recreate_buffers_if_needed(render_size, size, bytes_per_row);
+
+        let capture = self.capture.as_ref().assert("always initialized above");
+
+        if self.cursor_visible {
+            let mut gfx = self.window.graphics(&self.device, &self.queue);
+            let mut frame = self.cursor_graphic.new_frame(&mut gfx);
+            frame.draw_shape(
+                Shape::filled_circle(Px::new(4), Color::WHITE, Origin::Center)
+                    .translate_by(self.cursor.get()),
+            );
+            drop(frame);
+        }
+
+        self.window.prepare(&self.device, &self.queue);
+
+        self.window.render_with(
+            &wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: capture.multisample.view(),
+                    resolve_target: Some(capture.texture.view()),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(Color::CLEAR_BLACK.into()),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            },
+            &self.device,
+            &self.queue,
+            self.cursor_visible.then_some(&self.cursor_graphic),
+        );
     }
 
     /// Redraws the contents.
