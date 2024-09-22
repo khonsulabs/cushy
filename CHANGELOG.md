@@ -63,6 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tracing_subscriber` initialization has been moved to `PendingApp::default()`
   from `Window::run`. This ensures logging is always initialized for all Cushy
   apps.
+- The default logging output has been trimmed to only show errors for wgpu,
+  winit, and naga. Thanks to @bluenote10 for the feedback!
 
 ### Fixed
 
@@ -170,6 +172,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Window::on_file_drop` is a new callback that is invoked when file drop events
   occur for the window.
 - `Image::opacity` allows rendering the image with a given opacity.
+- `PendingApp::with_tracing` and `PendingApp::initialize_tracing` install
+  Cushy's tracing Subscriber. The default `PendingApp` has tracing initialized,
+  but `PendingApp::new` does not.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

@@ -74,7 +74,7 @@ impl_all_tuples!(impl_with_clone);
 pub trait ModifiersStateExt {
     /// The modifier key used for shortcuts.
     ///
-    /// For Apple based platforms, this is [`ModifierState::SUPER`]. This
+    /// For Apple based platforms, this is [`ModifiersState::SUPER`]. This
     /// corresponds to the Apple/Command key.
     ///
     /// For all other platforms, this is [`ModifiersState::CONTROL`].

@@ -133,6 +133,7 @@ use figures::units::UPx;
 use figures::{Fraction, ScreenUnit, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;
 pub use names::Name;
+use tracing_subscriber::filter::Targets;
 pub use utils::{Lazy, ModifiersExt, ModifiersStateExt, WithClone};
 pub use {figures, kludgine};
 
@@ -310,6 +311,12 @@ fn initialize_tracing() {
                 EnvFilter::builder()
                     .with_default_directive(LevelFilter::from_level(MAX_LEVEL).into())
                     .from_env_lossy(),
+            )
+            .with(
+                Targets::new()
+                    .with_target("winit", Level::ERROR)
+                    .with_target("wgpu", Level::ERROR)
+                    .with_target("naga", Level::ERROR),
             )
             .try_init();
     }

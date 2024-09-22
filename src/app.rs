@@ -14,6 +14,37 @@ use crate::window::WindowHandle;
 use crate::{animation, initialize_tracing};
 
 /// A Cushy application that has not started running yet.
+///
+/// ## Logging/Tracing in Cushy
+///
+/// This type is responsible for initializing Cushy's built-in support for
+/// listening for tracing/log messages by installing a global
+/// `tracing_subcriber` Subscriber.
+///
+/// ### To enable logging/tracing support
+///
+/// Most ways of running a Cushy app will automatically intialize logging
+/// because at some point they call `PendingApp::default()`. The default
+/// behavior is to initialize logging.
+///
+/// When using [`PendingApp::new`] to provide a custom [`AppRuntime`], support
+/// can be enabled using:
+///
+/// - [`with_tracing()`](Self::with_tracing)
+/// - [`initialize_tracing()`](Self::initialize_tracing)
+///
+/// ### Overriding Cushy's logging/tracing support
+///
+/// Cushy uses `tracing_subscriber`'s `try_init()` function to install the
+/// global subscriber. This function keeps the existing subscriber if one is
+/// already installed. This means to use your own Subscriber, install it before
+/// calling any Cushy code and your subscriber will be the one used.
+///
+/// ### Disabling tracing support
+///
+/// The `tracing-output` Cargo feature controls whether tracing is enabled. It
+/// is included in `default-features`, but can be omitted to disable tracing
+/// support.
 pub struct PendingApp {
     app: kludgine::app::PendingApp<WindowCommand>,
     cushy: Cushy,
@@ -21,11 +52,28 @@ pub struct PendingApp {
 
 impl PendingApp {
     /// Returns a new app using the provided runtime.
+    ///
+    /// Unliked `PendingApp::default()`, this function does not initialize
+    /// `tracing` support. See
+    /// [`with_tracing()`](Self::with_tracing)/[`initialize_tracing()`](Self::initialize_tracing)
+    /// to enable Cushy's built-in trace handling.
     pub fn new<Runtime: AppRuntime>(runtime: Runtime) -> Self {
         Self {
             app: kludgine::app::PendingApp::default(),
             cushy: Cushy::new(BoxedRuntime(Box::new(runtime))),
         }
+    }
+
+    /// Installs a global `tracing` Subscriber and returns self.
+    #[must_use]
+    pub fn with_tracing(self) -> Self {
+        self.initialize_tracing();
+        self
+    }
+
+    /// Installs a global `tracing` Subscriber.
+    pub fn initialize_tracing(&self) {
+        initialize_tracing();
     }
 
     /// The shared resources this application utilizes.
@@ -73,8 +121,7 @@ impl Run for PendingApp {
 
 impl Default for PendingApp {
     fn default() -> Self {
-        initialize_tracing();
-        Self::new(DefaultRuntime::default())
+        Self::new(DefaultRuntime::default()).with_tracing()
     }
 }
 
