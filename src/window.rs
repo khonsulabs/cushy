@@ -1843,7 +1843,6 @@ where
             .new_frame(self.redraw_status.invalidations().drain());
     }
 
-    #[allow(clippy::too_many_lines)]
     fn prepare<W>(
         &mut self,
         mut window: W,
@@ -1919,7 +1918,7 @@ where
         layout_context.invalidate_when_changed(&self.resize_to_fit);
         let new_size = if let Some(new_size) = self.inner_size.updated() {
             layout_context.request_inner_size(*new_size)
-        } else if dbg!(actual_size) != dbg!(window_size) && !resizable {
+        } else if actual_size != window_size && !resizable {
             let mut new_size = actual_size;
             if let Some(min_size) = self.min_inner_size {
                 new_size = new_size.max(min_size);
@@ -1936,10 +1935,8 @@ where
 
         if let Some(new_size) = new_size {
             self.inner_size.set_and_read(new_size);
-            self.outer_size
-                .set(dbg!(layout_context.window().outer_size()));
+            self.outer_size.set(layout_context.window().outer_size());
             self.root.invalidate();
-            layout_context.set_needs_redraw();
             return Err(Resized);
         }
         self.root.set_layout(Rect::from(render_size.into_signed()));
