@@ -1227,8 +1227,27 @@ impl<T> Dynamic<T> {
     }
 
     fn lock_inner<const READONLY: bool>(&self) -> DynamicGuard<'_, T, READONLY> {
+        let guard = self.0.state().expect("deadlocked");
+        // Before allowing a lock, we need to ensure that the current change
+        // callbacks aren't executing. Otherwise, during drop of this guard, if
+        // we notify of changes from a second thread than one set is already
+        // occuring on, both sets of invocations can end up waiting on each
+        // other and deadlocking. By ensuring a single guard and change
+        // callbacks cycle can exist at any one time, we prevent this deadlock.
+        if !READONLY && guard.callbacks.currently_executing.lock().thread.is_some() {
+            let current_thread_id = std::thread::current().id();
+            let callbacks = guard.callbacks.clone();
+            let mut executing = callbacks.currently_executing.lock();
+            loop {
+                match &executing.thread {
+                    Some(th) if th == &current_thread_id => panic!("deadlocked"),
+                    Some(_) => callbacks.sync.wait(&mut executing),
+                    None => break,
+                };
+            }
+        }
         DynamicGuard {
-            guard: DynamicOrOwnedGuard::Dynamic(self.0.state().expect("deadlocked")),
+            guard: DynamicOrOwnedGuard::Dynamic(guard),
             accessed_mut: false,
             prevent_notifications: false,
         }

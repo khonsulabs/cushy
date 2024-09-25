@@ -1819,7 +1819,7 @@ where
         this.synchronize_platform_window(&mut window);
 
         // Perform an initial layout.
-        let _result = this.prepare(window, graphics);
+        this.prepare(window, graphics);
 
         this
     }

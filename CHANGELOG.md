@@ -87,6 +87,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - When a keyboard-activated widget activates another widget during its callback,
   the key-up event now sends the deactivate event to the finally-activated
   widget.
+- A rare deadlock occurring when multiple threads were racing to execute
+  `Dynamic<T>` change callbacks has been fixed.
 
 ### Added
 
