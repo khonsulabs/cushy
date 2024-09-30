@@ -5,7 +5,7 @@ use std::thread;
 
 use arboard::Clipboard;
 use kludgine::app::winit::error::EventLoopError;
-use kludgine::app::{AppEvent, AsApplication, Monitors};
+use kludgine::app::{AppEvent, AsApplication, ExecutingApp, Monitors};
 use parking_lot::{Mutex, MutexGuard};
 
 use crate::fonts::FontCollection;
@@ -392,6 +392,13 @@ pub struct App {
 }
 
 impl App {
+    pub(crate) fn standalone() -> Self {
+        Self {
+            app: None,
+            cushy: Cushy::default(),
+        }
+    }
+
     /// Returns a snapshot of information about the monitors connected to this
     /// device.
     ///
@@ -413,6 +420,20 @@ impl App {
         self.app
             .as_ref()
             .and_then(kludgine::app::App::prevent_shutdown)
+    }
+
+    /// Executes `callback` on the main event loop thread.
+    ///
+    /// Returns true if the callback was able to be sent to be executed. The app
+    /// may still terminate before the callback is executed regardless of the
+    /// result of this function. The only way to know with certainty that
+    /// `callback` is executed is to have `callback` notify the caller of its
+    /// completion.
+    pub fn execute<Callback>(&self, callback: Callback) -> bool
+    where
+        Callback: FnOnce(&ExecutingApp<'_, WindowCommand>) + Send + 'static,
+    {
+        self.app.as_ref().map_or(false, |app| app.execute(callback))
     }
 }
 

@@ -28,6 +28,7 @@ pub mod widget;
 pub mod widgets;
 pub mod window;
 
+pub mod dialog;
 #[doc(hidden)]
 pub mod example;
 use std::ops::{Add, AddAssign, Sub, SubAssign};

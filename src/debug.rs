@@ -133,7 +133,7 @@ impl Drop for DebugContext {
     }
 }
 
-trait Observable: Send {
+trait Observable: Send + Sync {
     fn label(&self) -> &str;
     // fn alive(&self) -> bool;
     fn widget(&self) -> &WidgetInstance;
