@@ -458,6 +458,18 @@ pub trait Destination<T> {
     /// If the calling thread has exclusive access to the contents of this
     /// dynamic, this call will return None and the value will not be updated.
     /// If detecting this is important, use [`Self::try_replace()`].
+    ///
+    /// # Replacing a new value without `PartialEq`
+    ///
+    /// This function requires that the contained type implements `PartialEq`.
+    /// One common problem with reactive data graphs is that they can be very
+    /// "noisy". Cushy attempts to minimize noise by only invoking callbacks
+    /// when the value has changed, and it detects this by using `PartialEq`.
+    ///
+    /// However, not all types implement `PartialEq`.
+    /// [`map_mut()`](Self::map_mut) does not require `PartialEq`, and can be
+    /// used along with [`std::mem::replace()`] to perform the same operation
+    /// without checking for equality.
     fn replace(&self, new_value: T) -> Option<T>
     where
         T: PartialEq,
@@ -471,6 +483,17 @@ pub trait Destination<T> {
     /// If the calling thread has exclusive access to the contents of this
     /// dynamic, this call will return None and the value will not be updated.
     /// If detecting this is important, use [`Self::try_replace()`].
+    ///
+    /// # Setting a new value without `PartialEq`
+    ///
+    /// This function requires that the contained type implements `PartialEq`.
+    /// One common problem with reactive data graphs is that they can be very
+    /// "noisy". Cushy attempts to minimize noise by only invoking callbacks
+    /// when the value has changed, and it detects this by using `PartialEq`.
+    ///
+    /// However, not all types implement `PartialEq`.
+    /// [`map_mut()`](Self::map_mut) does not require `PartialEq`, and will
+    /// invoke change callbacks after accessing exclusively.
     fn set(&self, new_value: T)
     where
         T: PartialEq,
