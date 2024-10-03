@@ -81,13 +81,18 @@ impl Stack {
                                 (expand.child().clone(), GridDimension::Fractional { weight })
                             } else if let Some((child, size)) =
                                 guard.downcast_ref::<Resize>().and_then(|r| {
-                                    let range = match self.layout.orientation {
-                                        Orientation::Row => r.height,
-                                        Orientation::Column => r.width,
+                                    let (range, other_range) = match self.layout.orientation {
+                                        Orientation::Row => (r.height, r.width),
+                                        Orientation::Column => (r.width, r.height),
                                     };
-                                    range.minimum().map(|size| {
-                                        (r.child().clone(), GridDimension::Measured { size })
-                                    })
+                                    let cell = if other_range.is_unbounded() {
+                                        r.child().clone()
+                                    } else {
+                                        WidgetRef::new(widget.clone())
+                                    };
+                                    range
+                                        .minimum()
+                                        .map(|size| (cell, GridDimension::Measured { size }))
                                 })
                             {
                                 (child, size)

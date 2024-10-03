@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 use std::process::exit;
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 use arboard::Clipboard;
 use kludgine::app::winit::error::EventLoopError;
@@ -313,11 +314,16 @@ pub struct RuntimeGuard<'a>(Box<dyn BoxableGuard<'a> + 'a>);
 trait BoxableGuard<'a> {}
 impl<'a, T> BoxableGuard<'a> for T {}
 
+struct AppSettings {
+    multi_click_threshold: Duration,
+}
+
 /// Shared resources for a GUI application.
 #[derive(Clone)]
 pub struct Cushy {
     pub(crate) clipboard: Option<Arc<Mutex<Clipboard>>>,
     pub(crate) fonts: FontCollection,
+    settings: Arc<Mutex<AppSettings>>,
     runtime: BoxedRuntime,
 }
 
@@ -328,8 +334,24 @@ impl Cushy {
                 .ok()
                 .map(|clipboard| Arc::new(Mutex::new(clipboard))),
             fonts: FontCollection::default(),
+            settings: Arc::new(Mutex::new(AppSettings {
+                multi_click_threshold: Duration::from_millis(500),
+            })),
             runtime,
         }
+    }
+
+    /// Returns the duration between two mouse clicks that should be allowed to
+    /// elapse for the clicks to be considered separate actions.
+    #[must_use]
+    pub fn multi_click_threshold(&self) -> Duration {
+        self.settings.lock().multi_click_threshold
+    }
+
+    /// Sets the maximum time between sequential clicks that should be
+    /// considered the same action.
+    pub fn set_multi_click_threshold(&self, threshold: Duration) {
+        self.settings.lock().multi_click_threshold = threshold;
     }
 
     /// Returns a locked mutex guard to the OS's clipboard, if one was able to be

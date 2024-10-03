@@ -1,9 +1,11 @@
+use std::path::PathBuf;
 use std::thread;
 
-use rfd::{MessageDialog, MessageDialogResult};
+use rfd::{FileDialog, MessageDialog, MessageDialogResult};
 
 use super::{
-    coalesce_empty, MessageBox, MessageButtons, MessageButtonsKind, MessageLevel, OpenMessageBox,
+    coalesce_empty, FilePicker, MessageBox, MessageButtons, MessageButtonsKind, MessageLevel, Mode,
+    OpenMessageBox, PickFile,
 };
 use crate::window::WindowHandle;
 use crate::App;
@@ -171,5 +173,152 @@ fn handle_message_result(result: &MessageDialogResult, buttons: &MessageButtons)
                 unreachable!("no matching button")
             }
         }
+    }
+}
+
+fn create_file_dialog(picker: FilePicker) -> FileDialog {
+    let mut dialog = FileDialog::new();
+
+    if !picker.title.is_empty() {
+        dialog = dialog.set_title(picker.title);
+    }
+
+    if let Some(directory) = picker.directory {
+        dialog = dialog.set_directory(directory);
+    }
+
+    if !picker.file_name.is_empty() {
+        dialog = dialog.set_file_name(picker.file_name);
+    }
+
+    for ty in picker.types {
+        dialog = dialog.add_filter(ty.name, &ty.extensions);
+    }
+
+    if let Some(can_create) = picker.can_create_directories {
+        dialog = dialog.set_can_create_directories(can_create);
+    }
+    dialog
+}
+
+fn show_picker_in_window(window: &WindowHandle, picker: &FilePicker, mode: Mode) {
+    let picker = picker.clone();
+    window.execute(move |context| {
+        // Get access to the winit handle from the window thread.
+        let winit = context.winit().cloned();
+        // We can't utilize the window handle outside of the main thread
+        // with winit, so we now need to move execution to the event loop
+        // thread.
+        let Some(app) = context.app().cloned() else {
+            return;
+        };
+        app.execute(move |_app| {
+            let mut dialog = create_file_dialog(picker);
+
+            if let Some(winit) = winit {
+                dialog = dialog.set_parent(&winit);
+            }
+
+            // Now that we've set the parent, we can move this to its own
+            // blocking thread to be shown.
+            thread::spawn(move || match mode {
+                Mode::File(on_dismiss) => on_dismiss.invoke(dialog.pick_file()),
+                Mode::SaveFile(on_dismiss) => on_dismiss.invoke(dialog.save_file()),
+                Mode::Files(on_dismiss) => on_dismiss.invoke(dialog.pick_files()),
+                Mode::Folder(on_dismiss) => on_dismiss.invoke(dialog.pick_folder()),
+                Mode::Folders(on_dismiss) => on_dismiss.invoke(dialog.pick_folders()),
+            });
+        });
+    });
+}
+
+impl PickFile for WindowHandle {
+    fn pick_file<Callback>(&self, picker: &FilePicker, callback: Callback)
+    where
+        Callback: FnOnce(Option<PathBuf>) + Send + 'static,
+    {
+        show_picker_in_window(self, picker, Mode::file(callback));
+    }
+
+    fn save_file<Callback>(&self, picker: &FilePicker, callback: Callback)
+    where
+        Callback: FnOnce(Option<PathBuf>) + Send + 'static,
+    {
+        show_picker_in_window(self, picker, Mode::save_file(callback));
+    }
+
+    fn pick_files<Callback>(&self, picker: &FilePicker, callback: Callback)
+    where
+        Callback: FnOnce(Option<Vec<PathBuf>>) + Send + 'static,
+    {
+        show_picker_in_window(self, picker, Mode::files(callback));
+    }
+
+    fn pick_folder<Callback>(&self, picker: &FilePicker, callback: Callback)
+    where
+        Callback: FnOnce(Option<PathBuf>) + Send + 'static,
+    {
+        show_picker_in_window(self, picker, Mode::folder(callback));
+    }
+
+    fn pick_folders<Callback>(&self, picker: &FilePicker, callback: Callback)
+    where
+        Callback: FnOnce(Option<Vec<PathBuf>>) + Send + 'static,
+    {
+        show_picker_in_window(self, picker, Mode::folders(callback));
+    }
+}
+
+fn show_picker_in_app(app: &App, picker: &FilePicker, mode: Mode) {
+    let picker = picker.clone();
+    app.execute(move |_| {
+        let dialog = create_file_dialog(picker);
+
+        // Now that we've set the parent, we can move this to its own
+        // blocking thread to be shown.
+        thread::spawn(move || match mode {
+            Mode::File(on_dismiss) => on_dismiss.invoke(dialog.pick_file()),
+            Mode::SaveFile(on_dismiss) => on_dismiss.invoke(dialog.save_file()),
+            Mode::Files(on_dismiss) => on_dismiss.invoke(dialog.pick_files()),
+            Mode::Folder(on_dismiss) => on_dismiss.invoke(dialog.pick_folder()),
+            Mode::Folders(on_dismiss) => on_dismiss.invoke(dialog.pick_folders()),
+        });
+    });
+}
+
+impl PickFile for App {
+    fn pick_file<Callback>(&self, picker: &FilePicker, callback: Callback)
+    where
+        Callback: FnOnce(Option<PathBuf>) + Send + 'static,
+    {
+        show_picker_in_app(self, picker, Mode::file(callback));
+    }
+
+    fn save_file<Callback>(&self, picker: &FilePicker, callback: Callback)
+    where
+        Callback: FnOnce(Option<PathBuf>) + Send + 'static,
+    {
+        show_picker_in_app(self, picker, Mode::save_file(callback));
+    }
+
+    fn pick_files<Callback>(&self, picker: &FilePicker, callback: Callback)
+    where
+        Callback: FnOnce(Option<Vec<PathBuf>>) + Send + 'static,
+    {
+        show_picker_in_app(self, picker, Mode::files(callback));
+    }
+
+    fn pick_folder<Callback>(&self, picker: &FilePicker, callback: Callback)
+    where
+        Callback: FnOnce(Option<PathBuf>) + Send + 'static,
+    {
+        show_picker_in_app(self, picker, Mode::folder(callback));
+    }
+
+    fn pick_folders<Callback>(&self, picker: &FilePicker, callback: Callback)
+    where
+        Callback: FnOnce(Option<Vec<PathBuf>>) + Send + 'static,
+    {
+        show_picker_in_app(self, picker, Mode::folders(callback));
     }
 }

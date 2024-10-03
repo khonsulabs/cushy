@@ -1,5 +1,5 @@
 //! A clickable, labeled button
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size};
@@ -8,7 +8,7 @@ use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
 
-use crate::animation::{AnimationHandle, AnimationTarget, LinearInterpolate, Spawn};
+use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, LinearInterpolate, Spawn};
 use crate::context::{
     AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetCacheKey, WidgetContext,
 };
@@ -20,7 +20,9 @@ use crate::styles::components::{
 };
 use crate::styles::{ColorExt, Styles};
 use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
-use crate::widget::{Callback, EventHandling, MakeWidget, Widget, WidgetRef, HANDLED};
+use crate::widget::{
+    Callback, EventHandling, MakeWidget, SharedCallback, Widget, WidgetRef, HANDLED,
+};
 use crate::window::{DeviceId, WindowLocal};
 use crate::FitMeasuredSize;
 
@@ -606,4 +608,81 @@ pub struct ButtonClick {
 
     /// The keyboard modifiers state when this click began.
     pub modifiers: Modifiers,
+}
+
+/// A multi-click gesture recognizer.
+pub struct ClickCounter {
+    threshold: Value<Duration>,
+    maximum: usize,
+    last_click: Option<Instant>,
+    count: usize,
+    on_click: SharedCallback<(usize, Option<ButtonClick>)>,
+    delay_fire: AnimationHandle,
+}
+
+impl ClickCounter {
+    /// Returns a new click counter that allows up to `threshold` between each
+    /// click to be recognized as a single action. `on_click` will be invoked
+    /// after no clicks have been detected for `threshold`.
+    ///
+    /// `on_click` accepts two parameters:
+    ///
+    /// - The number of clicks recognized for this action.
+    /// - The final [`ButtonClick`], if provided.
+    #[must_use]
+    pub fn new<F>(threshold: impl IntoValue<Duration>, mut on_click: F) -> Self
+    where
+        F: FnMut(usize, Option<ButtonClick>) + Send + 'static,
+    {
+        Self {
+            threshold: threshold.into_value(),
+            maximum: usize::MAX,
+            last_click: None,
+            count: 0,
+            on_click: SharedCallback::new(move |(count, click)| on_click(count, click)),
+            delay_fire: AnimationHandle::new(),
+        }
+    }
+
+    /// Sets the maximum number of clicks this counter recognizes to `maximum`.
+    ///
+    /// This causes the counter to immediately invoke the callback when the
+    /// maximum clicks have been reached, allowing for slightly more responsive
+    /// interfaces when the user is clicking multiple times.
+    #[must_use]
+    pub fn with_maximum(mut self, maximum: usize) -> Self {
+        self.maximum = maximum;
+        self
+    }
+
+    /// Notes a single click.
+    pub fn click(&mut self, click: Option<ButtonClick>) {
+        let now = Instant::now();
+        let threshold = self.threshold.get();
+        if let Some(last_click) = self.last_click {
+            let elapsed = now.saturating_duration_since(last_click);
+            if elapsed < threshold {
+                self.count += 1;
+            } else {
+                self.count = 1;
+            }
+        } else {
+            self.count = 1;
+        }
+        self.last_click = Some(now);
+
+        if self.count == self.maximum {
+            self.delay_fire.clear();
+            self.on_click.invoke((self.count, click));
+            self.count = 0;
+        } else {
+            let on_activation = self.on_click.clone();
+            let count = self.count;
+            self.delay_fire = threshold
+                .on_complete(move || {
+                    on_activation.invoke((count, click));
+                })
+                .spawn();
+        }
+    }
 }
