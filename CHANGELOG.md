@@ -89,6 +89,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   widget.
 - A rare deadlock occurring when multiple threads were racing to execute
   `Dynamic<T>` change callbacks has been fixed.
+- `Stack` no longer unwraps a `Resize` child if the resize widget is resizing in
+  the direction opposite of the Stack's orientation.
 
 ### Added
 
@@ -187,6 +189,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `impl FnMut(Duration) -> ControlFlow<Duration> + Send + Sync + 'static`
   - `SharedCallback<Duration, ControlFlow<Duration>>`
   - `SharedCallback`
+- `Cushy::multi_click_threshold`/`Cushy::set_multi_click_threshold` provide
+  access to the setting used by Cushy widgets to detect whether two clicks are
+  related.
+- `ClickCounter` is a new helper that simplifies handling actions based on how
+  many sequential clicks were observed.
+- `Dimension::is_unbounded` is a new helper that returns true if neither the
+  start or end is bounded.
+- `&String` and `Cow<'_, str>` now implement `MakeWidget`.
+- `MessageBox` displays a prompt to the user in a `Modal` layer, above a
+  `WindowHandle`, or in an `App`. When shown above a window or app, the `rfd`
+  crate is used to use the native system dialogs.
+- `FilePicker` displays a file picker to the user in a `Modal` layer, above a
+  `WindowHandle`, or in an `App`. When shown above a window or app, the `rfd`
+  crate is used to use the native system dialogs.
+
+  The `FilePicker` type supports these modes of operation:
+
+  - Saving a file
+  - Choosing a single file
+  - Choosing one or more files
+  - Choosing a single folder/directory
+  - Choosing one or more folders/directories
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

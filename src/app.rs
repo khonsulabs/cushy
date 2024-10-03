@@ -2,10 +2,11 @@ use std::marker::PhantomData;
 use std::process::exit;
 use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 use arboard::Clipboard;
 use kludgine::app::winit::error::EventLoopError;
-use kludgine::app::{AppEvent, AsApplication, Monitors};
+use kludgine::app::{AppEvent, AsApplication, ExecutingApp, Monitors};
 use parking_lot::{Mutex, MutexGuard};
 
 use crate::fonts::FontCollection;
@@ -313,11 +314,16 @@ pub struct RuntimeGuard<'a>(Box<dyn BoxableGuard<'a> + 'a>);
 trait BoxableGuard<'a> {}
 impl<'a, T> BoxableGuard<'a> for T {}
 
+struct AppSettings {
+    multi_click_threshold: Duration,
+}
+
 /// Shared resources for a GUI application.
 #[derive(Clone)]
 pub struct Cushy {
     pub(crate) clipboard: Option<Arc<Mutex<Clipboard>>>,
     pub(crate) fonts: FontCollection,
+    settings: Arc<Mutex<AppSettings>>,
     runtime: BoxedRuntime,
 }
 
@@ -328,8 +334,24 @@ impl Cushy {
                 .ok()
                 .map(|clipboard| Arc::new(Mutex::new(clipboard))),
             fonts: FontCollection::default(),
+            settings: Arc::new(Mutex::new(AppSettings {
+                multi_click_threshold: Duration::from_millis(500),
+            })),
             runtime,
         }
+    }
+
+    /// Returns the duration between two mouse clicks that should be allowed to
+    /// elapse for the clicks to be considered separate actions.
+    #[must_use]
+    pub fn multi_click_threshold(&self) -> Duration {
+        self.settings.lock().multi_click_threshold
+    }
+
+    /// Sets the maximum time between sequential clicks that should be
+    /// considered the same action.
+    pub fn set_multi_click_threshold(&self, threshold: Duration) {
+        self.settings.lock().multi_click_threshold = threshold;
     }
 
     /// Returns a locked mutex guard to the OS's clipboard, if one was able to be
@@ -392,6 +414,13 @@ pub struct App {
 }
 
 impl App {
+    pub(crate) fn standalone() -> Self {
+        Self {
+            app: None,
+            cushy: Cushy::default(),
+        }
+    }
+
     /// Returns a snapshot of information about the monitors connected to this
     /// device.
     ///
@@ -413,6 +442,20 @@ impl App {
         self.app
             .as_ref()
             .and_then(kludgine::app::App::prevent_shutdown)
+    }
+
+    /// Executes `callback` on the main event loop thread.
+    ///
+    /// Returns true if the callback was able to be sent to be executed. The app
+    /// may still terminate before the callback is executed regardless of the
+    /// result of this function. The only way to know with certainty that
+    /// `callback` is executed is to have `callback` notify the caller of its
+    /// completion.
+    pub fn execute<Callback>(&self, callback: Callback) -> bool
+    where
+        Callback: FnOnce(&ExecutingApp<'_, WindowCommand>) + Send + 'static,
+    {
+        self.app.as_ref().map_or(false, |app| app.execute(callback))
     }
 }
 

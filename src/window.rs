@@ -73,7 +73,7 @@ pub trait PlatformWindowImplementation {
     /// Marks the window to close as soon as possible.
     fn close(&mut self);
     /// Returns the underlying `winit` window, if one exists.
-    fn winit(&self) -> Option<&winit::window::Window>;
+    fn winit(&self) -> Option<&Arc<winit::window::Window>>;
     /// Sets the window to redraw as soon as possible.
     fn set_needs_redraw(&mut self);
     /// Sets the window to redraw after a `duration`.
@@ -114,8 +114,7 @@ pub trait PlatformWindowImplementation {
     /// [`winit::window::Window::is_resizable`], or true if this window has no
     /// winit window.
     fn is_resizable(&self) -> bool {
-        self.winit()
-            .map_or(true, winit::window::Window::is_resizable)
+        self.winit().map_or(true, |win| win.is_resizable())
     }
 
     /// Returns true if the window can have its size changed.
@@ -124,7 +123,7 @@ pub trait PlatformWindowImplementation {
     /// dark if this window has no winit window.
     fn theme(&self) -> winit::window::Theme {
         self.winit()
-            .and_then(winit::window::Window::theme)
+            .and_then(|win| win.theme())
             .unwrap_or(winit::window::Theme::Dark)
     }
 
@@ -208,7 +207,7 @@ impl PlatformWindowImplementation for kludgine::app::Window<'_, WindowCommand> {
         self.close();
     }
 
-    fn winit(&self) -> Option<&winit::window::Window> {
+    fn winit(&self) -> Option<&Arc<winit::window::Window>> {
         Some(self.winit())
     }
 
@@ -260,6 +259,8 @@ pub trait PlatformWindow {
     fn outer_size(&self) -> Size<UPx>;
     /// Returns the shared application resources.
     fn cushy(&self) -> &Cushy;
+    /// Returns the app managing this window's event loop.
+    fn app(&self) -> Option<&App>;
     /// Sets the window to redraw as soon as possible.
     fn set_needs_redraw(&mut self);
     /// Sets the window to redraw after a `duration`.
@@ -289,7 +290,7 @@ pub trait PlatformWindow {
     fn set_max_inner_size(&self, max_size: Option<Size<UPx>>);
 
     /// Returns a handle to the underlying winit window, if available.
-    fn winit(&self) -> Option<&winit::window::Window>;
+    fn winit(&self) -> Option<&Arc<winit::window::Window>>;
 }
 
 /// A currently running Cushy window.
@@ -297,7 +298,7 @@ pub struct RunningWindow<W> {
     window: W,
     kludgine_id: KludgineId,
     invalidation_status: InvalidationStatus,
-    cushy: Cushy,
+    app: App,
     focused: Dynamic<bool>,
     occluded: Dynamic<bool>,
     inner_size: Dynamic<Size<UPx>>,
@@ -313,7 +314,7 @@ where
         window: W,
         kludgine_id: KludgineId,
         invalidation_status: &InvalidationStatus,
-        cushy: &Cushy,
+        app: &App,
         focused: &Dynamic<bool>,
         occluded: &Dynamic<bool>,
         inner_size: &Dynamic<Size<UPx>>,
@@ -323,7 +324,7 @@ where
             window,
             kludgine_id,
             invalidation_status: invalidation_status.clone(),
-            cushy: cushy.clone(),
+            app: app.clone(),
             focused: focused.clone(),
             occluded: occluded.clone(),
             inner_size: inner_size.clone(),
@@ -382,7 +383,7 @@ where
     /// initialized when the window opened.
     #[must_use]
     pub fn clipboard_guard(&self) -> Option<MutexGuard<'_, Clipboard>> {
-        self.cushy.clipboard_guard()
+        self.app.cushy().clipboard_guard()
     }
 }
 
@@ -422,6 +423,10 @@ where
         self.kludgine_id
     }
 
+    fn app(&self) -> Option<&App> {
+        Some(&self.app)
+    }
+
     fn focused(&self) -> &Dynamic<bool> {
         &self.focused
     }
@@ -439,7 +444,7 @@ where
     }
 
     fn cushy(&self) -> &Cushy {
-        &self.cushy
+        self.app.cushy()
     }
 
     fn set_needs_redraw(&mut self) {
@@ -490,7 +495,7 @@ where
         self.window.set_ime_location(location);
     }
 
-    fn winit(&self) -> Option<&winit::window::Window> {
+    fn winit(&self) -> Option<&Arc<winit::window::Window>> {
         self.window.winit()
     }
 }
@@ -1121,14 +1126,14 @@ where
         App: Application + ?Sized,
     {
         let this = self.make_window();
-        let cushy = app.cushy().clone();
+        let app_app = app.as_app();
         let handle = this.pending.handle();
         OpenWindow::<T::Behavior>::open_with(
             app,
             sealed::Context {
                 user: this.context,
                 settings: RefCell::new(sealed::WindowSettings {
-                    cushy,
+                    app: app_app,
                     title: this.title,
                     redraw_status: this.pending.0.redraw_status.clone(),
                     on_open: this.on_open,
@@ -1348,7 +1353,7 @@ struct OpenWindow<T> {
     theme_mode: Value<ThemeMode>,
     transparent: bool,
     fonts: FontState,
-    cushy: Cushy,
+    app: App,
     on_closed: Option<OnceCallback>,
     vsync: bool,
     dpi_scale: Dynamic<Fraction>,
@@ -1729,10 +1734,10 @@ where
                 .persist();
         }
 
-        let cushy = settings.cushy.clone();
+        let app = settings.app.clone();
         let fonts = Self::load_fonts(
             &mut settings,
-            cushy.fonts.clone(),
+            app.cushy().fonts.clone(),
             graphics.font_system().db_mut(),
         );
 
@@ -1788,7 +1793,7 @@ where
             theme_mode,
             transparent: settings.transparent,
             fonts,
-            cushy,
+            app,
             on_closed: settings.on_closed,
             vsync: settings.vsync,
             close_requested: settings.close_requested,
@@ -1847,7 +1852,7 @@ where
     where
         W: PlatformWindowImplementation,
     {
-        let cushy = self.cushy.clone();
+        let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
 
         self.synchronize_platform_window(&mut window);
@@ -1859,7 +1864,7 @@ where
             window,
             graphics.id(),
             &self.redraw_status,
-            &self.cushy,
+            &self.app,
             &self.focused,
             &self.occluded,
             self.inner_size.source(),
@@ -1961,13 +1966,13 @@ where
     where
         W: PlatformWindowImplementation,
     {
-        let cushy = self.cushy.clone();
+        let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         if self.behavior.close_requested(&mut RunningWindow::new(
             window,
             kludgine.id(),
             &self.redraw_status,
-            &self.cushy,
+            &self.app,
             &self.focused,
             &self.occluded,
             self.inner_size.source(),
@@ -2108,13 +2113,13 @@ where
     where
         W: PlatformWindowImplementation,
     {
-        let cushy = self.cushy.clone();
+        let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             kludgine.id(),
             &self.redraw_status,
-            &self.cushy,
+            &self.app,
             &self.focused,
             &self.occluded,
             self.inner_size.source(),
@@ -2167,13 +2172,13 @@ where
     where
         W: PlatformWindowImplementation,
     {
-        let cushy = self.cushy.clone();
+        let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             kludgine.id(),
             &self.redraw_status,
-            &self.cushy,
+            &self.app,
             &self.focused,
             &self.occluded,
             self.inner_size.source(),
@@ -2211,13 +2216,13 @@ where
     where
         W: PlatformWindowImplementation,
     {
-        let cushy = self.cushy.clone();
+        let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             kludgine.id(),
             &self.redraw_status,
-            &self.cushy,
+            &self.app,
             &self.focused,
             &self.occluded,
             self.inner_size.source(),
@@ -2256,13 +2261,13 @@ where
     ) where
         W: PlatformWindowImplementation,
     {
-        let cushy = self.cushy.clone();
+        let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             kludgine.id(),
             &self.redraw_status,
-            &self.cushy,
+            &self.app,
             &self.focused,
             &self.occluded,
             self.inner_size.source(),
@@ -2315,7 +2320,7 @@ where
     where
         W: PlatformWindowImplementation,
     {
-        let cushy = self.cushy.clone();
+        let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         self.cursor.location = None;
         self.cursor_position
@@ -2325,7 +2330,7 @@ where
                 window,
                 kludgine.id(),
                 &self.redraw_status,
-                &self.cushy,
+                &self.app,
                 &self.focused,
                 &self.occluded,
                 self.inner_size.source(),
@@ -2358,13 +2363,13 @@ where
     where
         W: PlatformWindowImplementation,
     {
-        let cushy = self.cushy.clone();
+        let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             kludgine.id(),
             &self.redraw_status,
-            &self.cushy,
+            &self.app,
             &self.focused,
             &self.occluded,
             self.inner_size.source(),
@@ -2500,13 +2505,13 @@ where
     ) -> Self {
         context.pending.opened(window.handle());
         let settings = context.settings.borrow();
-        let cushy = settings.cushy.clone();
+        let cushy = settings.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         let mut window = RunningWindow::new(
             window,
             graphics.id(),
             &settings.redraw_status,
-            &settings.cushy,
+            &settings.app,
             &settings.focused,
             &settings.occluded,
             &settings.inner_size,
@@ -2528,7 +2533,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
     ) {
-        let cushy = self.cushy.clone();
+        let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         self.focused.set(window.focused());
         self.occluded.set(window.occluded());
@@ -2539,7 +2544,7 @@ where
             window,
             kludgine.id(),
             &self.redraw_status,
-            &self.cushy,
+            &self.app,
             &self.focused,
             &self.occluded,
             self.inner_size.source(),
@@ -2618,7 +2623,7 @@ where
         window: kludgine::app::Window<'_, WindowCommand>,
         kludgine: &mut Kludgine,
     ) -> bool {
-        let cushy = self.cushy.clone();
+        let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         Self::request_close(
             &mut self.should_close,
@@ -2627,7 +2632,7 @@ where
                 window,
                 kludgine.id(),
                 &self.redraw_status,
-                &self.cushy,
+                &self.app,
                 &self.focused,
                 &self.occluded,
                 self.inner_size.source(),
@@ -2815,7 +2820,7 @@ where
                     window,
                     kludgine.id(),
                     &self.redraw_status,
-                    &self.cushy,
+                    &self.app,
                     &self.focused,
                     &self.occluded,
                     self.inner_size.source(),
@@ -2859,7 +2864,7 @@ where
                     window,
                     kludgine.id(),
                     &self.redraw_status,
-                    &self.cushy,
+                    &self.app,
                     &self.focused,
                     &self.occluded,
                     self.inner_size.source(),
@@ -2959,7 +2964,6 @@ pub(crate) mod sealed {
     use kludgine::app::winit::window::{Fullscreen, UserAttentionType, WindowButtons, WindowLevel};
     use kludgine::Color;
 
-    use crate::app::Cushy;
     use crate::context::sealed::InvalidationStatus;
     use crate::context::EventContext;
     use crate::fonts::FontCollection;
@@ -2968,6 +2972,7 @@ pub(crate) mod sealed {
     use crate::widget::{Callback, OnceCallback, SharedCallback};
     use crate::widgets::shortcuts::ShortcutMap;
     use crate::window::{FileDrop, PendingWindow, ThemeMode, WindowAttributes, WindowHandle};
+    use crate::App;
 
     pub struct Context<C> {
         pub user: C,
@@ -2976,7 +2981,7 @@ pub(crate) mod sealed {
     }
 
     pub struct WindowSettings {
-        pub cushy: Cushy,
+        pub app: App,
         pub redraw_status: InvalidationStatus,
         pub title: Value<String>,
         pub attributes: Option<WindowAttributes>,
@@ -3516,7 +3521,7 @@ impl PlatformWindowImplementation for &mut VirtualState {
         self.closed = true;
     }
 
-    fn winit(&self) -> Option<&winit::window::Window> {
+    fn winit(&self) -> Option<&Arc<winit::window::Window>> {
         None
     }
 
@@ -3659,7 +3664,7 @@ impl StandaloneWindowBuilder {
             window,
             &mut kludgine::Graphics::new(&mut kludgine, device, queue),
             sealed::WindowSettings {
-                cushy: Cushy::default(),
+                app: App::standalone(),
                 redraw_status: InvalidationStatus::default(),
                 title: Value::default(),
                 attributes: None,

@@ -1,5 +1,6 @@
 //! A read-only text widget.
 
+use std::borrow::Cow;
 use std::fmt::{Display, Write};
 
 use figures::units::{Px, UPx};
@@ -12,7 +13,7 @@ use crate::context::{GraphicsContext, LayoutContext, Trackable, WidgetContext};
 use crate::styles::components::TextColor;
 use crate::styles::FontFamilyList;
 use crate::value::{Dynamic, Generation, IntoReadOnly, ReadOnly, Value};
-use crate::widget::{Widget, WidgetInstance};
+use crate::widget::{MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag};
 use crate::window::WindowLocal;
 use crate::ConstraintLimit;
 
@@ -127,8 +128,8 @@ where
 
 macro_rules! impl_make_widget {
     ($($type:ty => $kind:ty),*) => {
-        $(impl crate::widget::MakeWidgetWithTag for $type {
-            fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
+        $(impl MakeWidgetWithTag for $type {
+            fn make_with_tag(self, id: WidgetTag) -> WidgetInstance {
                 Label::<$kind>::new(self).make_with_tag(id)
             }
         })*
@@ -144,6 +145,18 @@ impl_make_widget!(
     Value<String> => String,
     ReadOnly<String> => String
 );
+
+impl MakeWidgetWithTag for Cow<'_, str> {
+    fn make_with_tag(self, tag: WidgetTag) -> WidgetInstance {
+        Label::new(self.into_owned()).make_with_tag(tag)
+    }
+}
+
+impl MakeWidgetWithTag for &'_ String {
+    fn make_with_tag(self, tag: WidgetTag) -> WidgetInstance {
+        Label::new(self.clone()).make_with_tag(tag)
+    }
+}
 
 #[derive(Debug)]
 struct LabelCacheKey {

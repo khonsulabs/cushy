@@ -927,6 +927,12 @@ impl DimensionRange {
             Bound::Included(value) => Some(value),
         }
     }
+
+    /// Returns true if this range has no bounds.
+    #[must_use]
+    pub const fn is_unbounded(&self) -> bool {
+        matches!(&self.start, Bound::Unbounded) && matches!(&self.end, Bound::Unbounded)
+    }
 }
 
 impl<T> From<T> for DimensionRange
