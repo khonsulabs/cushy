@@ -15,7 +15,7 @@ use crate::value::{Destination, Dynamic, Source};
 use crate::widget::{MakeWidget, OnceCallback, SharedCallback, WidgetList};
 use crate::widgets::button::{ButtonKind, ClickCounter};
 use crate::widgets::input::InputValue;
-use crate::widgets::layers::{Modal, ModalTarget};
+use crate::widgets::layers::{Modal, ModalHandle, ModalTarget};
 use crate::widgets::Custom;
 use crate::ModifiersExt;
 
@@ -56,12 +56,14 @@ pub struct MessageButton {
 impl MessageButton {
     /// Returns a button with a custom caption that invokes `on_click` when
     /// selected.
-    pub fn custom<F>(caption: impl Into<String>, mut on_click: F) -> Self
+    pub fn custom<F>(caption: impl Into<String>, on_click: F) -> Self
     where
-        F: FnMut() + Send + 'static,
+        F: FnOnce() + Send + 'static,
     {
         Self {
-            callback: OptionalCallback(Some(SharedCallback::new(move |()| on_click()))),
+            callback: OptionalCallback(Arc::new(Mutex::new(Some(OnceCallback::new(move |()| {
+                on_click();
+            }))))),
             caption: caption.into(),
         }
     }
@@ -90,22 +92,19 @@ impl From<&'_ str> for MessageButton {
 
 impl<F> From<F> for MessageButton
 where
-    F: FnMut() + Send + 'static,
+    F: FnOnce() + Send + 'static,
 {
-    fn from(mut value: F) -> Self {
-        Self {
-            callback: OptionalCallback(Some(SharedCallback::new(move |()| value()))),
-            caption: String::new(),
-        }
+    fn from(value: F) -> Self {
+        Self::custom(String::new(), value)
     }
 }
 
 #[derive(Clone, Debug, Default)]
-struct OptionalCallback(Option<SharedCallback>);
+struct OptionalCallback(Arc<Mutex<Option<OnceCallback>>>);
 
 impl OptionalCallback {
     fn invoke(&self) {
-        if let Some(callback) = &self.0 {
+        if let Some(callback) = self.0.lock().take() {
             callback.invoke(());
         }
     }
@@ -175,20 +174,16 @@ impl<Kind> MessageBoxBuilder<Kind> {
 
 impl MessageBoxBuilder<Undecided> {
     /// Sets the yes button and returns self.
-    pub fn with_yes(
-        Self(mut message, _): Self,
-        yes: impl Into<MessageButton>,
-    ) -> MessageBoxBuilder<YesNoCancel> {
+    pub fn with_yes(self, yes: impl Into<MessageButton>) -> MessageBoxBuilder<YesNoCancel> {
+        let Self(mut message, _) = self;
         message.buttons.kind = MessageButtonsKind::YesNo;
         message.buttons.affirmative = yes.into();
         MessageBoxBuilder(message, PhantomData)
     }
 
     /// Sets the ok button and returns self.
-    pub fn with_ok(
-        Self(mut message, _): Self,
-        ok: impl Into<MessageButton>,
-    ) -> MessageBoxBuilder<OkCancel> {
+    pub fn with_ok(self, ok: impl Into<MessageButton>) -> MessageBoxBuilder<OkCancel> {
+        let Self(mut message, _) = self;
         message.buttons.affirmative = ok.into();
         MessageBoxBuilder(message, PhantomData)
     }
@@ -628,7 +623,9 @@ impl PickFile for Modal {
         Callback: FnOnce(Option<PathBuf>) + Send + 'static,
     {
         let modal = self.clone();
-        self.present(FilePickerWidget {
+        let handle = self.new_handle();
+        handle.present(FilePickerWidget {
+            handle: handle.clone(),
             picker: picker.clone(),
             mode: Mode::file(move |result| {
                 modal.dismiss();
@@ -642,7 +639,9 @@ impl PickFile for Modal {
         Callback: FnOnce(Option<PathBuf>) + Send + 'static,
     {
         let modal = self.clone();
-        self.present(FilePickerWidget {
+        let handle = self.new_handle();
+        handle.present(FilePickerWidget {
+            handle: handle.clone(),
             picker: picker.clone(),
             mode: Mode::save_file(move |result| {
                 modal.dismiss();
@@ -656,7 +655,9 @@ impl PickFile for Modal {
         Callback: FnOnce(Option<Vec<PathBuf>>) + Send + 'static,
     {
         let modal = self.clone();
-        self.present(FilePickerWidget {
+        let handle = self.new_handle();
+        handle.present(FilePickerWidget {
+            handle: handle.clone(),
             picker: picker.clone(),
             mode: Mode::files(move |result| {
                 modal.dismiss();
@@ -670,7 +671,9 @@ impl PickFile for Modal {
         Callback: FnOnce(Option<PathBuf>) + Send + 'static,
     {
         let modal = self.clone();
-        self.present(FilePickerWidget {
+        let handle = self.new_handle();
+        handle.present(FilePickerWidget {
+            handle: handle.clone(),
             picker: picker.clone(),
             mode: Mode::folder(move |result| {
                 modal.dismiss();
@@ -684,7 +687,9 @@ impl PickFile for Modal {
         Callback: FnOnce(Option<Vec<PathBuf>>) + Send + 'static,
     {
         let modal = self.clone();
-        self.present(FilePickerWidget {
+        let handle = self.new_handle();
+        handle.present(FilePickerWidget {
+            handle: handle.clone(),
             picker: picker.clone(),
             mode: Mode::folders(move |result| {
                 modal.dismiss();
@@ -695,6 +700,7 @@ impl PickFile for Modal {
 }
 
 struct FilePickerWidget {
+    handle: ModalHandle,
     picker: FilePicker,
     mode: Mode,
 }
@@ -761,19 +767,45 @@ impl MakeWidget for FilePickerWidget {
             let types = self.picker.types.clone();
             move |()| {
                 let chosen_paths = chosen_paths.get();
-                match callback.lock().take() {
+                let installed_callback = callback.lock().take();
+                match installed_callback {
                     Some(ModeCallback::Single(cb)) => {
                         let mut chosen_path = chosen_paths.into_iter().next();
-                        if let Some(chosen_path) = &mut chosen_path {
-                            if matches!(kind, ModeKind::SaveFile)
-                                && !types.iter().any(|t| t.matches(chosen_path))
-                            {
-                                if let Some(extension) =
-                                    types.first().and_then(|ty| ty.extensions.first())
-                                {
-                                    let path = chosen_path.as_mut_os_string();
-                                    path.push(".");
-                                    path.push(extension);
+                        if let Some(chosen_path_mut) = &mut chosen_path {
+                            if matches!(kind, ModeKind::SaveFile) {
+                                if !types.iter().any(|t| t.matches(chosen_path_mut)) {
+                                    if let Some(extension) =
+                                        types.first().and_then(|ty| ty.extensions.first())
+                                    {
+                                        let path = chosen_path_mut.as_mut_os_string();
+                                        path.push(".");
+                                        path.push(extension);
+                                    }
+                                }
+
+                                if chosen_path_mut.exists() {
+                                    *callback.lock() = Some(ModeCallback::Single(cb));
+                                    let name = chosen_path_mut
+                                        .file_name()
+                                        .map(|name| name.to_string_lossy())
+                                        .unwrap_or_default();
+                                    MessageBox::build("Confirm Overwrite")
+                                        .with_explanation(
+                                            format!("A file named \"{name}\" already exists. Do you want to overwrite the existing file?")
+                                        )
+                                        .with_yes({ 
+                                            let callback = callback.clone(); 
+                                            move || {
+                                                let Some(ModeCallback::Single(cb)) = callback.lock().take() else { 
+                                                    unreachable!("re-set above");
+                                                };
+                                                cb.invoke(chosen_path.clone());
+                                            }
+                                        })
+                                        .with_no(|| {})
+                                        .finish()
+                                        .open(&self.handle);
+                                    return;
                                 }
                             }
                         }
