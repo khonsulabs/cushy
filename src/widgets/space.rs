@@ -4,7 +4,7 @@ use kludgine::Color;
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::PrimaryColor;
-use crate::styles::{DynamicComponent, IntoDynamicComponentValue};
+use crate::styles::{Component, DynamicComponent, IntoDynamicComponentValue};
 use crate::value::{IntoValue, Value};
 use crate::widget::Widget;
 use crate::ConstraintLimit;
@@ -75,6 +75,24 @@ impl Widget for Space {
         _context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
         available_space.map(ConstraintLimit::min)
+    }
+
+    fn hit_test(
+        &mut self,
+        _location: figures::Point<figures::units::Px>,
+        context: &mut crate::context::EventContext<'_>,
+    ) -> bool {
+        let color = match self.color.get() {
+            ColorSource::Color(color) => color,
+            ColorSource::Dynamic(dynamic_component) => {
+                if let Some(Component::Color(color)) = dynamic_component.resolve(context) {
+                    color
+                } else {
+                    return false;
+                }
+            }
+        };
+        color.alpha() > 0
     }
 }
 

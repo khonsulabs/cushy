@@ -1536,11 +1536,12 @@ where
 }
 
 impl<'a, T> DynamicMutexGuard<'a, T> {
-    fn unlocked(&mut self, while_unlocked: impl FnOnce()) {
+    fn unlocked<R>(&mut self, while_unlocked: impl FnOnce() -> R) -> R {
         let previous_state = self.dynamic.during_callback_state.lock().take();
-        MutexGuard::unlocked(&mut self.guard, while_unlocked);
+        let result = MutexGuard::unlocked(&mut self.guard, while_unlocked);
 
         *self.dynamic.during_callback_state.lock() = previous_state;
+        result
     }
 }
 
@@ -2196,7 +2197,7 @@ impl<'a, T> DynamicOrOwnedGuard<'a, T> {
         }
     }
 
-    fn unlocked(&mut self, while_unlocked: impl FnOnce()) {
+    fn unlocked<R>(&mut self, while_unlocked: impl FnOnce() -> R) -> R {
         match self {
             Self::Dynamic(guard) => guard.unlocked(while_unlocked),
             Self::Owned(_) | Self::OwnedRef(_) => while_unlocked(),
@@ -2251,6 +2252,14 @@ impl<T, const READONLY: bool> DynamicGuard<'_, T, READONLY> {
     /// notifications.
     pub fn prevent_notifications(&mut self) {
         self.prevent_notifications = true;
+    }
+
+    /// Executes `while_unlocked` while this guard is temporarily unlocked.
+    pub fn unlocked<F, R>(&mut self, while_unlocked: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        self.guard.unlocked(while_unlocked)
     }
 }
 

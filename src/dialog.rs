@@ -15,7 +15,7 @@ use crate::value::{Destination, Dynamic, Source};
 use crate::widget::{MakeWidget, OnceCallback, SharedCallback, WidgetList};
 use crate::widgets::button::{ButtonKind, ClickCounter};
 use crate::widgets::input::InputValue;
-use crate::widgets::layers::Modal;
+use crate::widgets::layers::{Modal, ModalTarget};
 use crate::widgets::Custom;
 use crate::ModifiersExt;
 
@@ -274,7 +274,10 @@ impl MessageBox {
 
     /// Opens this dialog in the given target.
     ///
-    /// A target can be a [`Modal`] layer, a [`WindowHandle`], or an [`App`].
+    /// A target can be a [`Modal`] layer, a
+    /// [`ModalHandle`](crate::widgets::layers::ModalHandle), a
+    /// [`WindowHandle`](crate::window::WindowHandle), or an
+    /// [`App`](crate::App).
     pub fn open(&self, open_in: &impl OpenMessageBox) {
         open_in.open_message_box(self);
     }
@@ -294,9 +297,13 @@ fn coalesce_empty<'a>(s1: &'a str, s2: &'a str) -> &'a str {
     }
 }
 
-impl OpenMessageBox for Modal {
+impl<T> OpenMessageBox for T
+where
+    T: ModalTarget,
+{
     fn open_message_box(&self, message: &MessageBox) {
-        let dialog = self.build_dialog(
+        let handle = self.pending_handle();
+        let dialog = handle.build_dialog(
             message
                 .title
                 .as_str()
@@ -716,7 +723,9 @@ impl MakeWidget for FilePickerWidget {
         };
 
         let chosen_paths = Dynamic::<Vec<PathBuf>>::default();
-        let confirm_enabled = chosen_paths.map_each(|paths| !paths.is_empty());
+        let confirm_enabled = chosen_paths.map_each(move |paths| {
+            !paths.is_empty() && paths.iter().all(|p| p.is_file() == kind.is_file())
+        });
 
         let browsing_directory = Dynamic::new(
             self.picker

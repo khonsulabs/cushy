@@ -307,7 +307,8 @@ impl<'context> EventContext<'context> {
     }
 
     pub(crate) fn update_hovered_widget(&mut self) {
-        self.cursor.widget = None;
+        let current_hover = self.cursor.widget.take();
+
         if let Some(location) = self.cursor.location {
             for widget in self.tree.widgets_under_point(location) {
                 let mut widget_context = self.for_other(&widget);
@@ -317,7 +318,9 @@ impl<'context> EventContext<'context> {
                 let relative = location - widget_layout.origin;
 
                 if widget_context.hit_test(relative) {
-                    widget_context.hover(location);
+                    if current_hover != Some(widget.id()) {
+                        widget_context.hover(location);
+                    }
                     drop(widget_context);
                     self.cursor.widget = Some(widget.id());
                     break;

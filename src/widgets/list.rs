@@ -20,7 +20,7 @@ use super::label::DynamicDisplay;
 use super::{Grid, Label};
 use crate::styles::{Component, RequireInvalidation};
 use crate::value::{IntoValue, MapEach, Source, Value};
-use crate::widget::{MakeWidget, WidgetInstance, WidgetList};
+use crate::widget::{MakeWidget, MakeWidgetWithTag, WidgetInstance, WidgetList};
 
 /// A list of items displayed with an optional item indicator.
 pub struct List {
@@ -445,8 +445,8 @@ impl ListIndicator for ListStyle {
     }
 }
 
-impl MakeWidget for List {
-    fn make_widget(self) -> WidgetInstance {
+impl MakeWidgetWithTag for List {
+    fn make_with_tag(self, tag: crate::widget::WidgetTag) -> WidgetInstance {
         let rows = match (self.children, self.style) {
             (children, Value::Constant(style)) => {
                 children.map_each(move |children| build_grid_widgets(&style, children))
@@ -459,7 +459,7 @@ impl MakeWidget for List {
                 Value::Dynamic(style.map_each(move |style| build_grid_widgets(style, &children)))
             }
         };
-        Grid::from_rows(rows).make_widget()
+        Grid::from_rows(rows).make_with_tag(tag)
     }
 }
 

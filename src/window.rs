@@ -1960,6 +1960,8 @@ where
             self.outer_size.set(layout_context.window().outer_size());
             self.root.invalidate();
         }
+
+        layout_context.as_event_context().update_hovered_widget();
     }
 
     fn close_requested<W>(&mut self, window: W, kludgine: &mut Kludgine) -> bool

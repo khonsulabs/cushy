@@ -8,17 +8,18 @@ use alot::{LotId, OrderedLots};
 use cushy::widget::{RootBehavior, WidgetInstance};
 use easing_function::EasingFunction;
 use figures::units::{Lp, Px, UPx};
-use figures::{IntoComponents, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero};
+use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use intentional::Assert;
 
 use super::super::widget::MountedWidget;
+use super::Space;
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
-use crate::styles::components::{EasingIn, IntrinsicPadding, ScrimColor};
-use crate::value::{Destination, Dynamic, DynamicGuard, IntoValue, Source, Value};
+use crate::styles::components::{EasingIn, ScrimColor};
+use crate::value::{Destination, Dynamic, DynamicGuard, DynamicRead, IntoValue, Source, Value};
 use crate::widget::{
-    Callback, MakeWidget, MountedChildren, SharedCallback, Widget, WidgetId, WidgetList, WidgetRef,
-    WrapperWidget,
+    Callback, MakeWidget, MakeWidgetWithTag, MountedChildren, SharedCallback, Widget, WidgetId,
+    WidgetList, WidgetRef, WidgetTag, WrapperWidget,
 };
 use crate::widgets::container::ContainerShadow;
 use crate::ConstraintLimit;
@@ -892,7 +893,7 @@ impl WrapperWidget for Tooltipped {
 /// Designed to be used in a [`Layers`] widget.
 #[derive(Debug, Clone, Default)]
 pub struct Modal {
-    modal: Dynamic<Option<WidgetInstance>>,
+    modal: Dynamic<OrderedLots<WidgetInstance>>,
 }
 
 impl Modal {
@@ -906,7 +907,23 @@ impl Modal {
 
     /// Presents `contents` as the modal session.
     pub fn present(&self, contents: impl MakeWidget) {
-        self.modal.set(Some(contents.make_widget()));
+        self.present_inner(contents);
+    }
+
+    fn present_inner(&self, contents: impl MakeWidget) -> LotId {
+        let mut state = self.modal.lock();
+        state.push(contents.make_widget())
+    }
+
+    /// Returns a new pending handle that can be used to show a modal and
+    /// dismiss it.
+    #[must_use]
+    pub fn pending_handle(&self) -> ModalHandle {
+        ModalHandle {
+            layer: self.clone(),
+            above: None,
+            id: Dynamic::default(),
+        }
     }
 
     /// Presents a modal dialog containing `message` with a default button that
@@ -919,18 +936,18 @@ impl Modal {
 
     /// Returns a builder for a modal dialog that displays `message`.
     pub fn build_dialog(&self, message: impl MakeWidget) -> DialogBuilder {
-        DialogBuilder::new(self, message)
+        DialogBuilder::new(self.pending_handle(), message)
     }
 
     /// Dismisses the modal session.
     pub fn dismiss(&self) {
-        self.modal.set(None);
+        self.modal.lock().clear();
     }
 
     /// Returns true if this layer is currently presenting a modal session.
     #[must_use]
     pub fn visible(&self) -> bool {
-        self.modal.map_ref(Option::is_some)
+        !self.modal.lock().is_empty()
     }
 
     /// Returns a function that dismisses the modal when invoked.
@@ -946,67 +963,97 @@ impl Modal {
     }
 }
 
-impl MakeWidget for Modal {
-    fn make_widget(self) -> WidgetInstance {
+impl MakeWidgetWithTag for Modal {
+    fn make_with_tag(self, tag: WidgetTag) -> WidgetInstance {
+        let layer_widgets = Dynamic::default();
+
         ModalLayer {
-            presented: None,
+            layers: WidgetRef::new(Layers::new(layer_widgets.clone())),
+            layer_widgets,
+            presented: Vec::new(),
+            focus_top_layer: false,
             modal: self.modal,
         }
-        .make_widget()
+        .make_with_tag(tag)
     }
 }
 
 #[derive(Debug)]
 struct ModalLayer {
-    presented: Option<MountedWidget>,
-    modal: Dynamic<Option<WidgetInstance>>,
+    presented: Vec<WidgetInstance>,
+    layer_widgets: Dynamic<WidgetList>,
+    layers: WidgetRef,
+    modal: Dynamic<OrderedLots<WidgetInstance>>,
+    focus_top_layer: bool,
 }
 
-impl Widget for ModalLayer {
-    fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
-        if let Some(presented) = &self.presented {
-            let bg = context.get(&ScrimColor);
-            context.fill(bg);
-            context.for_other(presented).redraw();
-        }
+impl WrapperWidget for ModalLayer {
+    fn child_mut(&mut self) -> &mut WidgetRef {
+        &mut self.layers
     }
 
-    fn layout(
+    fn adjust_child_constraints(
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
-        let modal = self.modal.get_tracking_invalidate(context);
-        if self.presented.as_ref().map(MountedWidget::instance) != modal.as_ref() {
-            if let Some(presented) = self.presented.take() {
-                context.remove_child(&presented);
+    ) -> Size<ConstraintLimit> {
+        self.modal.invalidate_when_changed(context);
+        let modal = self.modal.read();
+        let mut layer_widgets = self.layer_widgets.lock();
+        self.focus_top_layer = false;
+        for index in 0..modal.len().min(self.presented.len()) {
+            let modal_widget = &modal[index];
+            let presented = &mut self.presented[index];
+            if presented != modal_widget {
+                let modal_widget = modal_widget.clone();
+                *presented = modal_widget.clone();
+                layer_widgets[index * 2 + 1] = modal_widget.clone().centered().make_widget();
+
+                self.focus_top_layer = true;
             }
-            self.presented = modal.map(|modal| {
-                let mounted = context.push_child(modal);
-                context.for_other(&mounted).focus();
-                mounted
-            });
-        }
-        let full_area = available_space.map(ConstraintLimit::max);
-        if let Some(child) = &self.presented {
-            let padding = context.get(&IntrinsicPadding);
-            let layout_size = full_area - Size::squared(padding.into_upx(context.gfx.scale()));
-            let child_size = context
-                .for_other(child)
-                .layout(layout_size.map(ConstraintLimit::SizeToFit))
-                .into_signed();
-            let margin = full_area.into_signed() - child_size;
-            context.set_child_layout(
-                child,
-                Rect::new(margin.to_vec::<Point<Px>>() / 2, child_size),
-            );
         }
 
-        full_area
+        for to_present in modal.iter().skip(self.presented.len()) {
+            self.focus_top_layer = true;
+            layer_widgets.push(Space::colored(context.get(&ScrimColor)));
+            self.presented.push(to_present.clone());
+            layer_widgets.push(to_present.clone().centered());
+        }
+
+        if self.presented.len() > modal.len() {
+            self.presented.truncate(modal.len());
+            layer_widgets.truncate(modal.len() * 2);
+            self.focus_top_layer = true;
+        }
+
+        available_space
     }
 
-    fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
-        self.presented.is_some()
+    fn position_child(
+        &mut self,
+        size: Size<Px>,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) -> crate::widget::WrappedLayout {
+        if self.focus_top_layer {
+            self.focus_top_layer = false;
+            if let Some(mut ctx) = self
+                .presented
+                .last()
+                .and_then(|topmost| context.for_other(topmost))
+            {
+                ctx.focus();
+            }
+        }
+        Size::new(
+            available_space
+                .width
+                .fit_measured(size.width, context.gfx.scale()),
+            available_space
+                .height
+                .fit_measured(size.height, context.gfx.scale()),
+        )
+        .into()
     }
 }
 
@@ -1020,16 +1067,16 @@ pub enum Yes {}
 /// A modal dialog builder.
 #[must_use = "DialogBuilder::show must be called for the dialog to be shown"]
 pub struct DialogBuilder<HasDefault = No, HasCancel = No> {
-    modal: Modal,
+    handle: ModalHandle,
     message: WidgetInstance,
     buttons: WidgetList,
     _state: PhantomData<(HasDefault, HasCancel)>,
 }
 
 impl DialogBuilder<No, No> {
-    fn new(modal: &Modal, message: impl MakeWidget) -> Self {
+    fn new(handle: ModalHandle, message: impl MakeWidget) -> Self {
         Self {
-            modal: modal.clone(),
+            handle,
             message: message.make_widget(),
             buttons: WidgetList::new(),
             _state: PhantomData,
@@ -1065,7 +1112,7 @@ impl<HasDefault, HasCancel> DialogBuilder<HasDefault, HasCancel> {
         on_click: impl FnOnce() + Send + 'static,
     ) {
         let mut on_click = Some(on_click);
-        let modal = self.modal.clone();
+        let modal = self.handle.clone();
         let mut button = caption
             .into_button()
             .on_click(move |_| {
@@ -1084,12 +1131,12 @@ impl<HasDefault, HasCancel> DialogBuilder<HasDefault, HasCancel> {
         self.buttons.push(button.fit_horizontally().make_widget());
     }
 
-    /// Shows the modal dialog.
+    /// Shows the modal dialog, returning a handle that owns the session.
     pub fn show(mut self) {
         if self.buttons.is_empty() {
             self.inner_push_button("OK", DialogButtonKind::Default, || {});
         }
-        self.modal.present(
+        self.handle.present(
             self.message
                 .and(self.buttons.into_columns().centered())
                 .into_rows()
@@ -1108,13 +1155,13 @@ impl<HasCancel> DialogBuilder<No, HasCancel> {
     ) -> DialogBuilder<Yes, HasCancel> {
         self.inner_push_button(caption, DialogButtonKind::Default, on_click);
         let Self {
-            modal,
+            handle,
             message,
             buttons,
             _state,
         } = self;
         DialogBuilder {
-            modal,
+            handle,
             message,
             buttons,
             _state: PhantomData,
@@ -1132,13 +1179,13 @@ impl<HasDefault> DialogBuilder<HasDefault, No> {
     ) -> DialogBuilder<HasDefault, Yes> {
         self.inner_push_button(caption, DialogButtonKind::Cancel, on_click);
         let Self {
-            modal,
+            handle,
             message,
             buttons,
             _state,
         } = self;
         DialogBuilder {
-            modal,
+            handle,
             message,
             buttons,
             _state: PhantomData,
@@ -1151,4 +1198,101 @@ enum DialogButtonKind {
     Plain,
     Default,
     Cancel,
+}
+
+/// A handle to a modal dialog presented in a [`Modal`] layer.
+#[derive(Clone)]
+pub struct ModalHandle {
+    layer: Modal,
+    above: Option<Dynamic<Option<LotId>>>,
+    id: Dynamic<Option<LotId>>,
+}
+
+impl ModalHandle {
+    fn above(mut self, other: &Self) -> Self {
+        self.above = Some(other.id.clone());
+        self
+    }
+
+    /// Presents `contents` as a modal dialog, updating this handle to control
+    /// it.
+    pub fn present(&self, contents: impl MakeWidget) {
+        let mut state = self.layer.modal.lock();
+        if let Some(above) = self.above.as_ref().and_then(Source::get) {
+            if let Some(index) = state.index_of_id(above) {
+                state.truncate(index + 1);
+            } else {
+                self.id.set(None);
+                return;
+            }
+        } else {
+            state.clear();
+        };
+        self.id.set(Some(state.push(contents.make_widget())));
+    }
+
+    // /// Prevents the modal shown by this handle from being dismissed when the
+    // /// last reference is dropped.
+    // pub fn persist(self) {
+    //     self.id.set(None);
+    //     drop(self);
+    // }
+
+    /// Dismisses the modal shown by this handle.
+    pub fn dismiss(&self) {
+        let Some(id) = self.id.take() else { return };
+        let mut state = self.layer.modal.lock();
+        let Some(index) = state.index_of_id(id) else {
+            return;
+        };
+        state.truncate(index);
+    }
+
+    /// Returns the modal layer the dialog is presented on.
+    #[must_use]
+    pub const fn layer(&self) -> &Modal {
+        &self.layer
+    }
+
+    /// Returns a builder for a modal dialog that displays `message` in a modal
+    /// dialog above the dialog shown by this handle.
+    pub fn build_dialog(&self, message: impl MakeWidget) -> DialogBuilder {
+        DialogBuilder::new(self.clone(), message)
+    }
+}
+
+impl Drop for ModalHandle {
+    fn drop(&mut self) {
+        if self.id.instances() == 1 {
+            self.dismiss();
+        }
+    }
+}
+
+/// A target for a [`Modal`] session.
+pub trait ModalTarget: Send + 'static {
+    /// Returns a new handle that can be used to show a dialog above `self`.
+    fn pending_handle(&self) -> ModalHandle;
+    /// Returns a reference to the modal layer this target presents to.
+    fn layer(&self) -> &Modal;
+}
+
+impl ModalTarget for Modal {
+    fn pending_handle(&self) -> ModalHandle {
+        self.pending_handle()
+    }
+
+    fn layer(&self) -> &Modal {
+        self
+    }
+}
+
+impl ModalTarget for ModalHandle {
+    fn pending_handle(&self) -> ModalHandle {
+        self.layer.pending_handle().above(self)
+    }
+
+    fn layer(&self) -> &Modal {
+        &self.layer
+    }
 }

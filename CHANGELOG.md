@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   winit, and naga. Thanks to @bluenote10 for the feedback!
 - `WrapperWidget::activate`'s default implementation now activates the wrapped
   widget.
+- `Space` now intercepts mouse events if its color has a non-zero alpha channel.
 
 ### Fixed
 
@@ -91,6 +92,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Dynamic<T>` change callbacks has been fixed.
 - `Stack` no longer unwraps a `Resize` child if the resize widget is resizing in
   the direction opposite of the Stack's orientation.
+- If the layout of widgets changes during a redraw, the currently hovered widget
+  is now properly updated immediately. Previously, the hover would only update
+  on the next cursor event.
 
 ### Added
 
@@ -211,6 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Choosing one or more files
   - Choosing a single folder/directory
   - Choosing one or more folders/directories
+- `DynamicGuard::unlocked` executes a closure while the guard is temporarily
+  unlocked.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
