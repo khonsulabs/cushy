@@ -44,6 +44,8 @@ enum MessageButtonsKind {
 ///   dismisses the message box.
 /// - `FnMut()` implementors: A button with the default caption given its
 ///   context that invokes the closure when chosen.
+/// - `()`: The default button for this context. Equivalent to
+///   `MessageButton::default()`.
 ///
 /// To create a button with a custom caption that invokes a closure when chosen,
 /// use [`MessageButton::custom`].
@@ -96,6 +98,12 @@ where
 {
     fn from(value: F) -> Self {
         Self::custom(String::new(), value)
+    }
+}
+
+impl From<()> for MessageButton {
+    fn from(_value: ()) -> Self {
+        Self::default()
     }
 }
 
@@ -802,7 +810,7 @@ impl MakeWidget for FilePickerWidget {
                                                 cb.invoke(chosen_path.clone());
                                             }
                                         })
-                                        .with_no(|| {})
+                                        .with_no(())
                                         .finish()
                                         .open(&self.handle);
                                     return;
