@@ -20,7 +20,7 @@ fn main() -> cushy::Result {
 }
 
 fn show_modal(present_in: &impl ModalTarget, level: usize) {
-    let handle = present_in.pending_handle();
+    let handle = present_in.new_handle();
     handle
         .build_dialog(
             format!("Modal level: {level}")

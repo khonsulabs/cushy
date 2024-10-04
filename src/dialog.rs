@@ -302,7 +302,7 @@ where
     T: ModalTarget,
 {
     fn open_message_box(&self, message: &MessageBox) {
-        let handle = self.pending_handle();
+        let handle = self.new_handle();
         let dialog = handle.build_dialog(
             message
                 .title

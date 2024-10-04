@@ -918,7 +918,7 @@ impl Modal {
     /// Returns a new pending handle that can be used to show a modal and
     /// dismiss it.
     #[must_use]
-    pub fn pending_handle(&self) -> ModalHandle {
+    pub fn new_handle(&self) -> ModalHandle {
         ModalHandle {
             layer: self.clone(),
             above: None,
@@ -936,7 +936,7 @@ impl Modal {
 
     /// Returns a builder for a modal dialog that displays `message`.
     pub fn build_dialog(&self, message: impl MakeWidget) -> DialogBuilder {
-        DialogBuilder::new(self.pending_handle(), message)
+        DialogBuilder::new(self.new_handle(), message)
     }
 
     /// Dismisses the modal session.
@@ -1272,14 +1272,14 @@ impl Drop for ModalHandle {
 /// A target for a [`Modal`] session.
 pub trait ModalTarget: Send + 'static {
     /// Returns a new handle that can be used to show a dialog above `self`.
-    fn pending_handle(&self) -> ModalHandle;
+    fn new_handle(&self) -> ModalHandle;
     /// Returns a reference to the modal layer this target presents to.
     fn layer(&self) -> &Modal;
 }
 
 impl ModalTarget for Modal {
-    fn pending_handle(&self) -> ModalHandle {
-        self.pending_handle()
+    fn new_handle(&self) -> ModalHandle {
+        self.new_handle()
     }
 
     fn layer(&self) -> &Modal {
@@ -1288,8 +1288,8 @@ impl ModalTarget for Modal {
 }
 
 impl ModalTarget for ModalHandle {
-    fn pending_handle(&self) -> ModalHandle {
-        self.layer.pending_handle().above(self)
+    fn new_handle(&self) -> ModalHandle {
+        self.layer.new_handle().above(self)
     }
 
     fn layer(&self) -> &Modal {
