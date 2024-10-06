@@ -217,6 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Choosing one or more folders/directories
 - `DynamicGuard::unlocked` executes a closure while the guard is temporarily
   unlocked.
+- `Scroll::preserve_max_scroll` controls whether the scroll view automatically
+  scrolls when currently scrolled to the maximum and its child grows.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

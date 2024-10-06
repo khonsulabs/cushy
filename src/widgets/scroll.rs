@@ -13,7 +13,7 @@ use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, Zer
 use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::components::{EasingIn, EasingOut, LineHeight};
 use crate::styles::Dimension;
-use crate::value::{Destination, Dynamic, Source};
+use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
 use crate::window::DeviceId;
 use crate::ConstraintLimit;
@@ -26,6 +26,7 @@ pub struct Scroll {
     control_size: Size<Px>,
     scroll: Dynamic<Point<Px>>,
     enabled: Point<bool>,
+    preserve_max_scroll: Value<bool>,
     max_scroll: Dynamic<Point<Px>>,
     scrollbar_opacity: Dynamic<ZeroToOne>,
     scrollbar_opacity_animation: OpacityAnimationState,
@@ -64,6 +65,7 @@ impl Scroll {
             bar_width: Px::default(),
             line_height: Px::default(),
             drag: DragInfo::default(),
+            preserve_max_scroll: Value::Constant(true),
         }
     }
 
@@ -82,6 +84,18 @@ impl Scroll {
     /// Returns a new scroll widget that allows scrolling `contents` vertically.
     pub fn vertical(contents: impl MakeWidget) -> Self {
         Self::construct(contents, Point::new(false, true))
+    }
+
+    /// Sets whether the scroll view will stay scrolled to the maximum when a
+    /// child is resized.
+    ///
+    /// When enabled, this setting allows the scroll view to remain scrolled to
+    /// the bottom or to the right when its contents grow. The default value for
+    /// this setting is `true`.
+    #[must_use]
+    pub fn preserve_max_scroll(mut self, preserve: impl IntoValue<bool>) -> Self {
+        self.preserve_max_scroll = preserve.into_value();
+        self
     }
 
     fn constrained_scroll(scroll: Point<Px>, max_scroll: Point<Px>) -> Point<Px> {
@@ -266,16 +280,18 @@ impl Widget for Scroll {
             || self.control_size.width != control_size.width
         {
             self.content_size.width = new_content_size.width;
-            let scroll_pct = scroll.x.into_float() / current_max_scroll.x.into_float();
-            scroll.x = max_scroll_x * scroll_pct;
+            if self.preserve_max_scroll.get() && scroll.x == current_max_scroll.x {
+                scroll.x = max_scroll_x;
+            }
         }
 
         if self.content_size.height != new_content_size.height
             || self.control_size.height != control_size.height
         {
             self.content_size.height = new_content_size.height;
-            let scroll_pct = scroll.y.into_float() / current_max_scroll.y.into_float();
-            scroll.y = max_scroll_y * scroll_pct;
+            if self.preserve_max_scroll.get() && scroll.y == current_max_scroll.y {
+                scroll.y = max_scroll_y;
+            }
         }
         // Set the current scroll, but prevent immediately triggering
         // invalidate.
