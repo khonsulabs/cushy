@@ -95,6 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - If the layout of widgets changes during a redraw, the currently hovered widget
   is now properly updated immediately. Previously, the hover would only update
   on the next cursor event.
+- `Scroll` no longer attempts to preserve scroll amounts using a percentage when
+  its child changes size.
 
 ### Added
 
@@ -218,7 +220,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `DynamicGuard::unlocked` executes a closure while the guard is temporarily
   unlocked.
 - `Scroll::preserve_max_scroll` controls whether the scroll view automatically
-  scrolls when currently scrolled to the maximum and its child grows.
+  scrolls when currently scrolled to the maximum and its child grows. The
+  default is `true`, which was the behavior before this flag was added.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
