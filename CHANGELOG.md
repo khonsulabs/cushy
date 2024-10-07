@@ -68,7 +68,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WrapperWidget::activate`'s default implementation now activates the wrapped
   widget.
 - `Space` now intercepts mouse events if its color has a non-zero alpha channel.
-- `Image` now honors `CornerRadius`. Thanks to @danbulant for this change!
 
 ### Fixed
 
@@ -230,6 +229,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Scroll::preserve_max_scroll` controls whether the scroll view automatically
   scrolls when currently scrolled to the maximum and its child grows. The
   default is `true`, which was the behavior before this flag was added.
+- `Image` now supports `ImageCornerRadius`. Thanks to @danbulant for helping
+  with this change!
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

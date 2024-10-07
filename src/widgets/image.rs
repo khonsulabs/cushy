@@ -2,12 +2,14 @@
 
 use figures::units::{Px, UPx};
 use figures::{FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero};
-use kludgine::shapes::Shape;
-use kludgine::{AnyTexture, CollectedTexture, Color, LazyTexture, SharedTexture, Texture, TextureRegion};
+use kludgine::shapes::{CornerRadii, Shape};
+use kludgine::{
+    AnyTexture, CollectedTexture, Color, LazyTexture, SharedTexture, Texture, TextureRegion,
+};
 
 use crate::animation::ZeroToOne;
 use crate::context::{LayoutContext, Trackable};
-use crate::styles::components::CornerRadius;
+use crate::styles::Dimension;
 use crate::value::{IntoValue, Source, Value};
 use crate::widget::Widget;
 use crate::ConstraintLimit;
@@ -159,7 +161,7 @@ impl Widget for Image {
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         self.contents.invalidate_when_changed(context);
         let opacity = self.opacity.get_tracking_redraw(context);
-        let radii = context.get(&CornerRadius);
+        let radii = context.get(&ImageCornerRadius);
         let radii = radii.map(|r| r.into_px(context.gfx.scale()));
 
         self.contents.map(|texture| {
@@ -167,7 +169,16 @@ impl Widget for Image {
             if radii.is_zero() {
                 context.gfx.draw_texture(texture, rect, opacity);
             } else {
-                context.gfx.draw_textured_shape(&Shape::textured_round_rect(rect, radii, Rect::from(texture.size()), Color::WHITE), texture, opacity);
+                context.gfx.draw_textured_shape(
+                    &Shape::textured_round_rect(
+                        rect,
+                        radii,
+                        Rect::from(texture.size()),
+                        Color::WHITE,
+                    ),
+                    texture,
+                    opacity,
+                );
             }
         });
     }
@@ -253,4 +264,11 @@ pub enum Aspect {
     /// The aspect-fill scaling strategy scales the image to be the smallest
     /// size it can be to cover the entire surface.
     Fill,
+}
+
+define_components! {
+    Image {
+        /// The corner radius to use to clip when rendering an [`Image`].
+        ImageCornerRadius(CornerRadii<Dimension>, "corner_radius", CornerRadii::ZERO)
+    }
 }
