@@ -68,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WrapperWidget::activate`'s default implementation now activates the wrapped
   widget.
 - `Space` now intercepts mouse events if its color has a non-zero alpha channel.
+- `Image` now honors `CornerRadius`. Thanks to @danbulant for this change!
 
 ### Fixed
 
@@ -203,6 +204,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Dimension::is_unbounded` is a new helper that returns true if neither the
   start or end is bounded.
 - `&String` and `Cow<'_, str>` now implement `MakeWidget`.
+- Cargo feature `native-dialogs` has been added to enable native dialogs to be
+  shown by Cushy applications.
+- `PendingApp::with_on_unrecoverable_error` allows overriding the default
+  behavior when an unrecoverable error occurs. Previously, all unrecoverable
+  errors resulted in a panic. The new default behavior uses the `native-dialogs`
+  feature when enabled to display the error using a system-native message
+  dialog.
 - `MessageBox` displays a prompt to the user in a `Modal` layer, above a
   `WindowHandle`, or in an `App`. When shown above a window or app, the `rfd`
   crate is used to use the native system dialogs.

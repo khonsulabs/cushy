@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use arboard::Clipboard;
 use kludgine::app::winit::error::EventLoopError;
-use kludgine::app::{AppEvent, AsApplication, ExecutingApp, Monitors};
+use kludgine::app::{AppEvent, AsApplication, ExecutingApp, Monitors, UnrecoverableError};
 use parking_lot::{Mutex, MutexGuard};
 
 use crate::fonts::FontCollection;
@@ -59,10 +59,32 @@ impl PendingApp {
     /// [`with_tracing()`](Self::with_tracing)/[`initialize_tracing()`](Self::initialize_tracing)
     /// to enable Cushy's built-in trace handling.
     pub fn new<Runtime: AppRuntime>(runtime: Runtime) -> Self {
+        let mut app = kludgine::app::PendingApp::default();
+        app.on_unrecoverable_error(Self::unrecoverable_error);
         Self {
-            app: kludgine::app::PendingApp::default(),
+            app,
             cushy: Cushy::new(BoxedRuntime(Box::new(runtime))),
         }
+    }
+
+    /// Sets the error handler that is invoked when Cushy encounters an error
+    /// that it cannot recover from.
+    ///
+    /// # Default Behavior
+    ///
+    /// If `native-dialogs` is enabled, the default handler will display the
+    /// error using a system-native message dialog. Otherwise, the default
+    /// handler will panic.
+    ///
+    /// Calling this function will override the default behavior with
+    /// `on_error`.
+    #[must_use]
+    pub fn with_on_unrecoverable_error<F>(mut self, on_error: F) -> Self
+    where
+        F: FnMut(UnrecoverableError) + 'static,
+    {
+        self.app.on_unrecoverable_error(on_error);
+        self
     }
 
     /// Installs a global `tracing` Subscriber and returns self.
@@ -109,6 +131,23 @@ impl PendingApp {
                 }
             });
         });
+    }
+
+    #[cfg(feature = "native-dialogs")]
+    #[allow(clippy::needless_pass_by_value)]
+    fn unrecoverable_error(err: UnrecoverableError) {
+        let _ = rfd::MessageDialog::new()
+            .set_title("An unrecoverable error has occurred")
+            .set_description(err.to_string())
+            .set_level(rfd::MessageLevel::Error)
+            .show();
+        exit(-1);
+    }
+
+    #[cfg(not(feature = "native-dialogs"))]
+    #[allow(clippy::needless_pass_by_value)]
+    fn unrecoverable_error(err: UnrecoverableError) {
+        unreachable!("error initializing window: {err}");
     }
 }
 
