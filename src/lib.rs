@@ -134,7 +134,6 @@ use figures::units::UPx;
 use figures::{Fraction, ScreenUnit, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;
 pub use names::Name;
-use tracing_subscriber::filter::Targets;
 pub use utils::{Lazy, ModifiersExt, ModifiersStateExt, WithClone};
 pub use {figures, kludgine};
 
@@ -295,7 +294,7 @@ fn initialize_tracing() {
     #[cfg(feature = "tracing-output")]
     {
         use tracing::Level;
-        use tracing_subscriber::filter::LevelFilter;
+        use tracing_subscriber::filter::{LevelFilter, Targets};
         use tracing_subscriber::layer::SubscriberExt;
         use tracing_subscriber::util::SubscriberInitExt;
         use tracing_subscriber::EnvFilter;
