@@ -1458,6 +1458,29 @@ impl IntoValue<FlexibleDimension> for Dimension {
     }
 }
 
+impl IntoValue<CornerRadii<Dimension>> for Dimension {
+    fn into_value(self) -> Value<CornerRadii<Dimension>> {
+        Value::Constant(CornerRadii {
+            top_left: self,
+            top_right: self,
+            bottom_right: self,
+            bottom_left: self,
+        })
+    }
+}
+
+impl IntoValue<CornerRadii<Dimension>> for Lp {
+    fn into_value(self) -> Value<CornerRadii<Dimension>> {
+        Dimension::Lp(self).into_value()
+    }
+}
+
+impl IntoValue<CornerRadii<Dimension>> for Px {
+    fn into_value(self) -> Value<CornerRadii<Dimension>> {
+        Dimension::Px(self).into_value()
+    }
+}
+
 impl<U> ScreenScale for Edges<U>
 where
     U: ScreenScale<Px = Px, UPx = UPx, Lp = Lp>,
