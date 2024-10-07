@@ -1335,7 +1335,6 @@ struct OpenWindow<T> {
     tree: Tree,
     root: MountedWidget,
     contents: Drawing,
-    should_close: bool,
     cursor: CursorState,
     mouse_buttons: AHashMap<DeviceId, AHashMap<MouseButton, WidgetId>>,
     redraw_status: InvalidationStatus,
@@ -1385,17 +1384,14 @@ where
     T: WindowBehavior,
 {
     fn request_close(
-        should_close: &mut bool,
         behavior: &mut T,
         window: &mut RunningWindow<kludgine::app::Window<'_, WindowCommand>>,
     ) -> bool {
-        *should_close |= behavior.close_requested(window)
+        behavior.close_requested(window)
             && window
                 .close_requested
                 .as_ref()
-                .map_or(true, |close| close.invoke(()));
-
-        *should_close
+                .map_or(true, |close| close.invoke(()))
     }
 
     fn keyboard_activate_widget<W>(
@@ -1622,7 +1618,7 @@ where
                     && input.state.is_pressed()
                     && self.behavior.close_requested(window)
                 {
-                    self.should_close = true;
+                    window.close();
                     window.set_needs_redraw();
                 }
                 HANDLED
@@ -1773,7 +1769,6 @@ where
             root,
             tree,
             contents: Drawing::default(),
-            should_close: false,
             cursor: CursorState {
                 location: None,
                 widget: None,
@@ -1970,7 +1965,7 @@ where
     {
         let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
-        if self.behavior.close_requested(&mut RunningWindow::new(
+        let mut window = RunningWindow::new(
             window,
             kludgine.id(),
             &self.redraw_status,
@@ -1979,8 +1974,9 @@ where
             &self.occluded,
             self.inner_size.source(),
             &self.close_requested,
-        )) {
-            self.should_close = true;
+        );
+        if self.behavior.close_requested(&mut window) {
+            window.close();
             true
         } else {
             false
@@ -2598,10 +2594,8 @@ where
         &'pass mut self,
         _window: kludgine::app::Window<'_, WindowCommand>,
         graphics: &mut kludgine::RenderingGraphics<'_, 'pass>,
-    ) -> bool {
+    ) {
         self.contents.render(1., graphics);
-
-        !self.should_close
     }
 
     fn initial_window_attributes(context: &Self::Context) -> kludgine::app::WindowAttributes {
@@ -2628,7 +2622,6 @@ where
         let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
         Self::request_close(
-            &mut self.should_close,
             &mut self.behavior,
             &mut RunningWindow::new(
                 window,
