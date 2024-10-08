@@ -20,14 +20,17 @@ Use a [`Dynamic`][Dynamic]`(`[`AnyTexture`][AnyTexture]`)`.
 You can default to a empty texture like so:
 
 ```rs
-AnyTexture::Lazy(
-    LazyTexture::from_image(
-        image::DynamicImage::ImageRgba8(
-            image::ImageBuffer::new(1, 1)
-        ),
-        cushy::kludgine::wgpu::FilterMode::Linear
+let dynamic_texture = Dynamic::new(
+    AnyTexture::Lazy(
+        LazyTexture::from_image(
+            image::DynamicImage::ImageRgba8(
+                image::ImageBuffer::new(1, 1)
+            ),
+            cushy::kludgine::wgpu::FilterMode::Linear
+        )
     )
-)
+);
+let widget = Image::new(dynamic_texture); // Creates image widget with an empty texture, that can later be changed
 ```
 
 To load an image from bytes, use the [`image`][image-crate] crate and then pass it to LazyTexture:
