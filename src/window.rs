@@ -2378,7 +2378,10 @@ where
                 if let (ElementState::Pressed, Some(location), Some(hovered)) = (
                     state,
                     self.cursor.location,
-                    self.cursor.widget.and_then(|id| self.tree.widget(id)),
+                    self.cursor
+                        .widget
+                        .as_ref()
+                        .and_then(|hover| self.tree.widget(hover.id)),
                 ) {
                     if let Some(handler) = recursively_handle_event(
                         &mut EventContext::new(
@@ -2943,7 +2946,13 @@ fn recursively_handle_event(
 #[derive(Default)]
 pub(crate) struct CursorState {
     pub(crate) location: Option<Point<Px>>,
-    pub(crate) widget: Option<WidgetId>,
+    pub(crate) widget: Option<WidgetCursorState>,
+}
+
+#[derive(Eq, PartialEq)]
+pub(crate) struct WidgetCursorState {
+    pub(crate) id: WidgetId,
+    pub(crate) last_hovered: Point<Px>,
 }
 
 pub(crate) mod sealed {

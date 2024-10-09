@@ -21,7 +21,9 @@ use crate::styles::{ComponentDefinition, FontFamilyList, Styles, Theme, ThemePai
 use crate::tree::Tree;
 use crate::value::{IntoValue, Source, Value};
 use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
-use crate::window::{CursorState, DeviceId, KeyEvent, PlatformWindow, ThemeMode};
+use crate::window::{
+    CursorState, DeviceId, KeyEvent, PlatformWindow, ThemeMode, WidgetCursorState,
+};
 use crate::ConstraintLimit;
 
 /// A context to an event function.
@@ -316,13 +318,17 @@ impl<'context> EventContext<'context> {
                     continue;
                 };
                 let relative = location - widget_layout.origin;
+                let widget_hover = Some(WidgetCursorState {
+                    id: widget.id(),
+                    last_hovered: location,
+                });
 
                 if widget_context.hit_test(relative) {
-                    if current_hover != Some(widget.id()) {
+                    if current_hover != widget_hover {
                         widget_context.hover(location);
                     }
                     drop(widget_context);
-                    self.cursor.widget = Some(widget.id());
+                    self.cursor.widget = widget_hover;
                     break;
                 }
             }
