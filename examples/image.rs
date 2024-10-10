@@ -1,12 +1,15 @@
+use std::collections::HashMap;
+
 use cushy::animation::ZeroToOne;
 use cushy::figures::Size;
-use cushy::value::{Dynamic, MapEachCloned, Source};
+use cushy::value::{Dynamic, MapEachCloned, Source, Switchable};
 use cushy::widget::MakeWidget;
 use cushy::widgets::image::{Aspect, ImageScaling};
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::Image;
 use cushy::Run;
 use kludgine::include_texture;
+use kludgine::wgpu::FilterMode;
 
 fn main() -> cushy::Result {
     let mode = Dynamic::<ScalingMode>::default();
@@ -32,7 +35,14 @@ fn main() -> cushy::Result {
         .contain()
         .collapse_vertically(hide_scale_editor);
 
-    let image = Image::new(include_texture!("assets/ferris-happy.png").expect("valid image"));
+    let image_nearest = Image::new(include_texture!("assets/ferris-happy.png", FilterMode::Nearest).expect("valid image"));
+    let image_linear = Image::new(include_texture!("assets/ferris-happy.png", FilterMode::Linear).expect("valid image"));
+    let mut images = HashMap::new();
+
+    images.insert(FilterMode::Nearest, image_nearest.scaling(image_scaling.clone()).make_widget());
+    images.insert(FilterMode::Linear, image_linear.scaling(image_scaling).make_widget());
+
+    let selected_filter = Dynamic::new(FilterMode::Nearest);
 
     let origin_select = "Origin"
         .h3()
@@ -55,6 +65,12 @@ fn main() -> cushy::Result {
         .contain()
         .collapse_vertically(hide_aspect_editor);
 
+    let filter_select = "Filter mode"
+        .h1()
+        .and(selected_filter.new_radio(FilterMode::Nearest, "Nearest"))
+        .and(selected_filter.new_radio(FilterMode::Linear, "Linear"))
+        .into_rows();
+
     let mode_select = "Scaling Mode"
         .h1()
         .and(mode.new_radio(ScalingMode::Scale, "Scale"))
@@ -65,10 +81,11 @@ fn main() -> cushy::Result {
                 .into_rows(),
         )
         .and(mode.new_radio(ScalingMode::Stretch, "Stretch"))
+        .and(filter_select)
         .into_rows();
 
     mode_select
-        .and(image.scaling(image_scaling).expand().contain())
+        .and(selected_filter.switch_between(images).expand().contain())
         .into_columns()
         .pad()
         .expand()
