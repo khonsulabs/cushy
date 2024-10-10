@@ -278,6 +278,7 @@ pub(crate) struct GridLayout {
     fractional: Vec<(LotId, u8)>,
     fit_to_content: Vec<LotId>,
     premeasured: Vec<LotId>,
+    measured_scale: Fraction,
     pub orientation: Orientation,
 }
 
@@ -300,6 +301,7 @@ impl GridLayout {
             fractional: Vec::new(),
             fit_to_content: Vec::new(),
             premeasured: Vec::new(),
+            measured_scale: Fraction::ONE,
         }
     }
 
@@ -389,6 +391,7 @@ impl GridLayout {
         scale: Fraction,
         mut measure: impl FnMut(usize, usize, Size<ConstraintLimit>, bool) -> Size<UPx>,
     ) -> Size<UPx> {
+        self.update_measured(scale);
         let (space_constraint, mut other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
         let known_gutters = gutter.saturating_mul(UPx::new(
@@ -532,6 +535,20 @@ impl GridLayout {
         let measured = self.update_offsets(needs_final_layout, gutter, scale, measure);
 
         self.orientation.make_size(measured, total_other)
+    }
+
+    fn update_measured(&mut self, scale: Fraction) {
+        if self.measured_scale != scale {
+            self.measured_scale = scale;
+
+            for (spec, layout) in self.children.iter().zip(self.layouts.iter_mut()) {
+                let GridDimension::Measured { size } = spec else {
+                    continue;
+                };
+
+                layout.size = size.into_upx(scale);
+            }
+        }
     }
 
     fn total_other(&self) -> UPx {

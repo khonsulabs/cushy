@@ -97,6 +97,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on the next cursor event.
 - `Scroll` no longer attempts to preserve scroll amounts using a percentage when
   its child changes size.
+- `Stack` and `Grid` now properly recompute exact-sized `Lp` children when the
+  display scale is changed.
 
 ### Added
 
