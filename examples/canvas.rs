@@ -1,9 +1,9 @@
 use cushy::figures::{Angle, IntoSigned, Point, Px2D, Rect, Size};
+use cushy::kludgine::shapes::Shape;
+use cushy::kludgine::text::{Text, TextOrigin};
+use cushy::kludgine::{Color, DrawableExt};
 use cushy::widgets::Canvas;
 use cushy::{Run, Tick};
-use kludgine::shapes::Shape;
-use kludgine::text::{Text, TextOrigin};
-use kludgine::{Color, DrawableExt};
 
 fn main() -> cushy::Result<()> {
     let mut angle = Angle::degrees(0);

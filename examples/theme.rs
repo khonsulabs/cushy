@@ -4,8 +4,8 @@ use cushy::figures::units::Lp;
 use cushy::kludgine::Color;
 use cushy::styles::components::{TextColor, TextSize, WidgetBackground};
 use cushy::styles::{
-    ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, Dimension, FixedTheme, SurfaceTheme,
-    Theme, ThemePair,
+    ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, Dimension, FixedTheme, OklabHue,
+    SurfaceTheme, Theme, ThemePair,
 };
 use cushy::value::{Destination, Dynamic, MapEachCloned, Source};
 use cushy::widget::MakeWidget;
@@ -16,7 +16,6 @@ use cushy::widgets::slider::Slidable;
 use cushy::widgets::Space;
 use cushy::window::ThemeMode;
 use cushy::{Cushy, Open, PendingApp};
-use palette::OklabHue;
 
 fn main() -> cushy::Result {
     let app = PendingApp::default();

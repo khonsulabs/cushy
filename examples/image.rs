@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use cushy::animation::ZeroToOne;
 use cushy::figures::Size;
+use cushy::kludgine::include_texture;
+use cushy::kludgine::wgpu::FilterMode;
 use cushy::value::{Dynamic, MapEachCloned, Source, Switchable};
 use cushy::widget::MakeWidget;
 use cushy::widgets::image::{Aspect, ImageScaling};
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::Image;
 use cushy::Run;
-use kludgine::include_texture;
-use kludgine::wgpu::FilterMode;
 
 fn main() -> cushy::Result {
     let mode = Dynamic::<ScalingMode>::default();
@@ -35,12 +35,22 @@ fn main() -> cushy::Result {
         .contain()
         .collapse_vertically(hide_scale_editor);
 
-    let image_nearest = Image::new(include_texture!("assets/ferris-happy.png", FilterMode::Nearest).expect("valid image"));
-    let image_linear = Image::new(include_texture!("assets/ferris-happy.png", FilterMode::Linear).expect("valid image"));
+    let image_nearest = Image::new(
+        include_texture!("assets/ferris-happy.png", FilterMode::Nearest).expect("valid image"),
+    );
+    let image_linear = Image::new(
+        include_texture!("assets/ferris-happy.png", FilterMode::Linear).expect("valid image"),
+    );
     let mut images = HashMap::new();
 
-    images.insert(FilterMode::Nearest, image_nearest.scaling(image_scaling.clone()).make_widget());
-    images.insert(FilterMode::Linear, image_linear.scaling(image_scaling).make_widget());
+    images.insert(
+        FilterMode::Nearest,
+        image_nearest.scaling(image_scaling.clone()).make_widget(),
+    );
+    images.insert(
+        FilterMode::Linear,
+        image_linear.scaling(image_scaling).make_widget(),
+    );
 
     let selected_filter = Dynamic::new(FilterMode::Nearest);
 

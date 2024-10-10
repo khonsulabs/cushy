@@ -1,7 +1,7 @@
+use cushy::styles::Color;
 use cushy::widget::MakeWidget;
 use cushy::widgets::Space;
 use cushy::Run;
-use kludgine::Color;
 
 fn main() -> cushy::Result {
     Space::colored(Color::RED)

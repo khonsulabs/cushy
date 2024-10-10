@@ -1,12 +1,12 @@
 use cushy::animation::easings::StandardEasing;
 use cushy::context::GraphicsContext;
+use cushy::kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 use cushy::widget::{MakeWidget, WidgetList};
 use cushy::widgets::Canvas;
 use cushy::Run;
 use easing_function::Easing;
 use figures::units::{Lp, Px};
 use figures::{IntoSigned, Point, Rect, Size, Zero};
-use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 
 fn main() -> cushy::Result {
     StandardEasing::all()

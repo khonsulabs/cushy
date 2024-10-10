@@ -1,13 +1,12 @@
 use cushy::figures::units::Lp;
 use cushy::figures::{Point, Size, Zero};
 use cushy::styles::components::CornerRadius;
-use cushy::styles::Dimension;
+use cushy::styles::{CornerRadii, Dimension};
 use cushy::value::{Dynamic, MapEachCloned};
 use cushy::widget::MakeWidget;
 use cushy::widgets::container::ContainerShadow;
 use cushy::widgets::slider::Slidable;
 use cushy::Run;
-use kludgine::shapes::CornerRadii;
 
 fn main() -> cushy::Result {
     let top_left = Dynamic::new(Lp::mm(1));

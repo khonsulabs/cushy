@@ -1,9 +1,8 @@
-use cushy::figures::Size;
+use cushy::figures::units::{Px, UPx};
+use cushy::figures::{IntoSigned, Point, Px2D, Size, UPx2D};
 use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::{App, Open};
-use figures::units::{Px, UPx};
-use figures::{IntoSigned, Point, Px2D, UPx2D};
 
 #[cushy::main]
 fn main(app: &mut App) {

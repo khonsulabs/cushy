@@ -1,9 +1,9 @@
+use cushy::kludgine::app::winit::window::CursorIcon;
 use cushy::value::Dynamic;
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::widgets::Custom;
 use cushy::Run;
-use kludgine::app::winit::window::CursorIcon;
 
 fn main() -> cushy::Result {
     Custom::new(

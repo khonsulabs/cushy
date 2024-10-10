@@ -1,10 +1,9 @@
-use cushy::kludgine::include_texture;
+use cushy::kludgine::{include_texture, LazyTexture};
 use cushy::value::{Destination, Dynamic, MapEach};
 use cushy::widget::MakeWidget;
 use cushy::widgets::Image;
 use cushy::window::PendingWindow;
 use cushy::{Application, Open, PendingApp, Run};
-use kludgine::LazyTexture;
 
 fn main() -> cushy::Result {
     // To open multiple applications, we need a handle to the application. This

@@ -1,11 +1,11 @@
 use cushy::figures::units::Lp;
 use cushy::figures::{Lp2D, Point};
+use cushy::kludgine::app::winit::event::MouseButton;
+use cushy::kludgine::Color;
 use cushy::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
 use cushy::widgets::container::ContainerShadow;
 use cushy::widgets::layers::{OverlayBuilder, OverlayLayer, Overlayable};
 use cushy::Run;
-use kludgine::app::winit::event::MouseButton;
-use kludgine::Color;
 use rand::{thread_rng, Rng};
 
 fn main() -> cushy::Result {

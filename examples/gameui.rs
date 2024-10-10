@@ -1,10 +1,10 @@
+use cushy::kludgine::app::winit::event::ElementState;
+use cushy::kludgine::app::winit::keyboard::{Key, NamedKey};
+use cushy::kludgine::Color;
 use cushy::value::{Destination, Dynamic};
 use cushy::widget::{MakeWidget, HANDLED, IGNORED};
 use cushy::widgets::input::InputValue;
 use cushy::Run;
-use kludgine::app::winit::event::ElementState;
-use kludgine::app::winit::keyboard::{Key, NamedKey};
-use kludgine::Color;
 
 fn main() -> cushy::Result {
     let chat_log = Dynamic::new("Chat log goes here.\n".repeat(100));

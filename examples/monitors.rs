@@ -1,6 +1,6 @@
+use cushy::kludgine::app::{Monitor, Monitors};
 use cushy::widget::{MakeWidget, WidgetInstance, WidgetList};
 use cushy::{Application, Open, PendingApp};
-use kludgine::app::{Monitor, Monitors};
 
 fn main() -> cushy::Result {
     // Monitor information is only available through winit after the application
