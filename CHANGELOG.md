@@ -99,6 +99,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its child changes size.
 - `Stack` and `Grid` now properly recompute exact-sized `Lp` children when the
   display scale is changed.
+- `Button`'s colors are now fully reactive. The caching code to prevent color
+  duplicate change animations has been simplified to fix this.
 
 ### Added
 

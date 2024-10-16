@@ -958,7 +958,7 @@ pub trait MakeWidget: Sized {
         dynamic: impl IntoDynamicComponentValue,
     ) -> Style
     where
-        Value<C::ComponentType>: IntoComponentValue,
+        C::ComponentType: IntoComponentValue,
     {
         Style::new(Styles::new().with_dynamic(name, dynamic), self)
     }

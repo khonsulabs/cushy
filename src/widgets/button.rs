@@ -9,9 +9,7 @@ use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, LinearInterpolate, Spawn};
-use crate::context::{
-    AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetCacheKey, WidgetContext,
-};
+use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{
     AutoFocusableControls, DefaultActiveBackgroundColor, DefaultActiveForegroundColor,
     DefaultBackgroundColor, DefaultDisabledBackgroundColor, DefaultDisabledForegroundColor,
@@ -50,8 +48,7 @@ struct PerWindow {
 
 #[derive(Default, Debug, Eq, PartialEq, Clone, Copy)]
 struct CacheState {
-    key: WidgetCacheKey,
-    kind: ButtonKind,
+    style: Option<ButtonColors>,
 }
 
 /// The type of a [`Button`] or similar clickable widget.
@@ -232,13 +229,6 @@ impl Button {
         let kind = self.kind.get_tracking_redraw(context);
         let visual_state = Self::visual_style(context);
 
-        let window_local = self.per_window.entry(context).or_default();
-
-        window_local.cached_state = CacheState {
-            key: context.cache_key(),
-            kind,
-        };
-
         if context.is_default() {
             kind.colors_for_default(visual_state, context)
         } else {
@@ -253,6 +243,10 @@ impl Button {
     fn update_colors(&mut self, context: &mut WidgetContext<'_>, immediate: bool) {
         let new_style = self.determine_stateful_colors(context);
         let window_local = self.per_window.entry(context).or_default();
+        if window_local.cached_state.style.as_ref() == Some(&new_style) {
+            return;
+        }
+        window_local.cached_state.style = Some(new_style);
 
         match (immediate, &window_local.active_colors) {
             (false, Some(style)) => {
@@ -371,12 +365,7 @@ impl Widget for Button {
         #![allow(clippy::similar_names)]
 
         let current_style = self.kind.get_tracking_redraw(context);
-        let window_local = self.per_window.entry(context).or_default();
-        if window_local.cached_state.key != context.cache_key()
-            || window_local.cached_state.kind != current_style
-        {
-            self.update_colors(context, false);
-        }
+        self.update_colors(context, false);
 
         let style = self.current_style(context);
         context.fill(style.background);
