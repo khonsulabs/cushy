@@ -1212,7 +1212,7 @@ impl NamedComponent for Cow<'_, ComponentName> {
 }
 
 /// A type describing characteristics about the edges of a rectangle.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Edges<T = FlexibleDimension> {
     /// The left edge
     pub left: T,

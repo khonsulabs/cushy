@@ -13,7 +13,7 @@ use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, Zer
 use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::components::{EasingIn, EasingOut, LineHeight};
 use crate::styles::Dimension;
-use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
+use crate::value::{Destination, Dynamic, DynamicReader, IntoValue, Source, Value};
 use crate::widget::{EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
 use crate::window::DeviceId;
 use crate::ConstraintLimit;
@@ -22,9 +22,9 @@ use crate::ConstraintLimit;
 #[derive(Debug)]
 pub struct Scroll {
     contents: WidgetRef,
-    content_size: Size<Px>,
-    control_size: Size<Px>,
-    scroll: Dynamic<Point<Px>>,
+    content_size: Dynamic<Size<Px>>,
+    control_size: Dynamic<Size<Px>>,
+    pub scroll: Dynamic<Point<Px>>,
     enabled: Point<bool>,
     preserve_max_scroll: Value<bool>,
     max_scroll: Dynamic<Point<Px>>,
@@ -50,8 +50,8 @@ impl Scroll {
         Self {
             contents: WidgetRef::new(contents),
             enabled,
-            content_size: Size::default(),
-            control_size: Size::default(),
+            content_size: Dynamic::new(Size::default()),
+            control_size: Dynamic::new(Size::default()),
             scroll: Dynamic::new(Point::default()),
             max_scroll: Dynamic::new(Point::default()),
             scrollbar_opacity: Dynamic::default(),
@@ -96,6 +96,30 @@ impl Scroll {
     pub fn preserve_max_scroll(mut self, preserve: impl IntoValue<bool>) -> Self {
         self.preserve_max_scroll = preserve.into_value();
         self
+    }
+
+    /// Creates a reader for the scroll value.
+    pub fn get_scroll(&self) -> DynamicReader<Point<Px>> {
+        self.scroll.create_reader()
+    }
+
+    /// Creates a reader for the maximum scroll value.
+    /// This represents the maximum amount that the scroll can be moved by.
+    /// This should usually mean that this value + the scroll visual size is the size of the content.
+    pub fn get_max_scroll(&self) -> DynamicReader<Point<Px>> {
+        self.max_scroll.create_reader()
+    }
+
+    /// Creates a reader for the content size.
+    /// This is the size of the content that is being scrolled.
+    pub fn get_content_size(&self) -> DynamicReader<Size<Px>> {
+        self.content_size.create_reader()
+    }
+
+    /// Creates a reader for the control size.
+    /// This is the size of the visible area of the scroll widget.
+    pub fn get_control_size(&self) -> DynamicReader<Size<Px>> {
+        self.control_size.create_reader()
     }
 
     fn constrained_scroll(scroll: Point<Px>, max_scroll: Point<Px>) -> Point<Px> {
@@ -252,10 +276,10 @@ impl Widget for Scroll {
                 new_content_size.height.into_unsigned()
             },
         );
-        let control_size = layout_size.into_signed();
+        let new_control_size = layout_size.into_signed();
 
         self.horizontal_bar =
-            scrollbar_region(scroll.x, new_content_size.width, control_size.width);
+            scrollbar_region(scroll.x, new_content_size.width, new_control_size.width);
         let max_scroll_x = if self.enabled.x {
             -self.horizontal_bar.amount_hidden
         } else {
@@ -263,7 +287,7 @@ impl Widget for Scroll {
         };
 
         self.vertical_bar =
-            scrollbar_region(scroll.y, new_content_size.height, control_size.height);
+            scrollbar_region(scroll.y, new_content_size.height, new_control_size.height);
         let max_scroll_y = if self.enabled.y {
             -self.vertical_bar.amount_hidden
         } else {
@@ -275,20 +299,24 @@ impl Widget for Scroll {
             scroll = scroll.max(new_max_scroll);
         }
 
+        // This is not tracked on purpose - it's only ever changed in layout
+        let content_size = self.content_size.get();
+        let control_size = self.control_size.get();
+
         // Preserve the current scroll if the widget has resized
-        if self.content_size.width != new_content_size.width
-            || self.control_size.width != control_size.width
+        if content_size.width != new_content_size.width
+            || control_size.width != new_control_size.width
         {
-            self.content_size.width = new_content_size.width;
+            // content_size.width = new_content_size.width;
             if self.preserve_max_scroll.get() && scroll.x == current_max_scroll.x {
                 scroll.x = max_scroll_x;
             }
         }
 
-        if self.content_size.height != new_content_size.height
-            || self.control_size.height != control_size.height
+        if content_size.height != new_content_size.height
+            || control_size.height != new_control_size.height
         {
-            self.content_size.height = new_content_size.height;
+            // content_size.height = new_content_size.height;
             if self.preserve_max_scroll.get() && scroll.y == current_max_scroll.y {
                 scroll.y = max_scroll_y;
             }
@@ -301,12 +329,12 @@ impl Widget for Scroll {
             *current_scroll = scroll;
         }
         context.invalidate_when_changed(&self.scroll);
-        self.control_size = control_size;
-        self.content_size = new_content_size;
+        self.control_size.set(new_control_size);
+        self.content_size.set(new_content_size);
 
         let region = Rect::new(
             scroll,
-            self.content_size
+            new_content_size
                 .min(Size::new(Px::MAX, Px::MAX) - scroll.max(Point::default())),
         );
         context.set_child_layout(&managed, region);
@@ -349,10 +377,12 @@ impl Widget for Scroll {
         _button: kludgine::app::winit::event::MouseButton,
         context: &mut EventContext<'_>,
     ) -> EventHandling {
-        let relative_x = (self.control_size.width - location.x).max(Px::ZERO);
+        let control_size = self.control_size.get();
+        
+        let relative_x = (control_size.width - location.x).max(Px::ZERO);
         let in_vertical_area = self.enabled.y && relative_x <= self.bar_width;
 
-        let relative_y = (self.control_size.height - location.y).max(Px::ZERO);
+        let relative_y = (control_size.height - location.y).max(Px::ZERO);
         let in_horizontal_area = self.enabled.x && relative_y <= self.bar_width;
 
         if matches!(
@@ -382,7 +412,7 @@ impl Widget for Scroll {
                 &self.horizontal_bar,
                 &self.vertical_bar,
                 self.max_scroll.get(),
-                self.control_size,
+                control_size,
             );
         }
 
@@ -405,7 +435,7 @@ impl Widget for Scroll {
             &self.horizontal_bar,
             &self.vertical_bar,
             self.max_scroll.get(),
-            self.control_size,
+            self.control_size.get(),
         );
     }
 
@@ -420,7 +450,7 @@ impl Widget for Scroll {
 
         if self.drag.mouse_buttons_down == 0 {
             if location.map_or(false, |location| {
-                Rect::from(self.control_size).contains(location)
+                Rect::from(self.control_size.get()).contains(location)
             }) {
                 self.scrollbar_opacity_animation.handle.clear();
                 self.show_scrollbars(context);

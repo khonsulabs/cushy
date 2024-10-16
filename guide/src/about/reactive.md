@@ -63,7 +63,8 @@ change. Let's revisit the example from the [intro](../intro.md):
 Both the [`Input`][input] and the [`Label`][label] widgets have been given
 instances of `Dynamic<String>`s, but they are two different dynamics. The text
 input field was given the dynamic we want to be edited. We react to the changes
-through the `name.map_each(...)` callback.
+through the `name.map_each(...)` callback. You can react to multiple `Dynamic`s
+at once using `(&name, &surname).map_each(...)` callback.
 
 ## What is a `DynamicReader<T>`?
 
