@@ -47,6 +47,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   current outer size.
 - `Graphics::draw_texture` and `Graphics::draw_textured_shape` now both accept
   an opactiy parameter controlling how opaque the texture should be rendered at.
+- `MakeWigetList` has had some of its functions moved to a new trait:
+  `IntoWidgetList`.  A blanket implementation of `MakeWidgetList` is provided
+  for types that implement `IntoWidgetList`. In general, compilation errors
+  related to this change can be fixed by importing `IntoWidgetList`.
+
+  - `MakeWidgetList::into_rows` -> `IntoWidgetList::into_rows`
+  - `MakeWidgetList::into_columns` -> `IntoWidgetList::into_columns`
+  - `MakeWidgetList::into_layers` -> `IntoWidgetList::into_layers`
+  - `MakeWidgetList::into_wrap` -> `IntoWidgetList::into_wrap`
+  - `MakeWidgetList::into_list` -> `IntoWidgetList::into_list`
 
 ### Changed
 

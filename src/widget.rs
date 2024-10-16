@@ -2395,37 +2395,64 @@ pub trait MakeWidgetList: Sized {
         list.push(widget);
         list
     }
+}
+
+/// A type that can be converted to a `Value<WidgetList>`.
+pub trait IntoWidgetList: Sized {
+    /// Returns this list of widgets as a `Value<WidgetList>`.
+    fn into_widget_list(self) -> Value<WidgetList>;
 
     /// Returns `self` as a vertical [`Stack`] of rows.
     #[must_use]
     fn into_rows(self) -> Stack {
-        Stack::rows(self.make_widget_list())
+        Stack::rows(self.into_widget_list())
     }
 
     /// Returns `self` as a horizontal [`Stack`] of columns.
     #[must_use]
     fn into_columns(self) -> Stack {
-        Stack::columns(self.make_widget_list())
+        Stack::columns(self.into_widget_list())
     }
 
     /// Returns `self` as [`Layers`], with the widgets being stacked in the Z
     /// direction.
     #[must_use]
     fn into_layers(self) -> Layers {
-        Layers::new(self.make_widget_list())
+        Layers::new(self.into_widget_list())
     }
 
     /// Returns a [`Wrap`] that lays the children out horizontally, wrapping
     /// into additional rows as needed.
     #[must_use]
     fn into_wrap(self) -> Wrap {
-        Wrap::new(self.make_widget_list())
+        Wrap::new(self.into_widget_list())
     }
 
     /// Returns `self` as an unordered [`List`].
     #[must_use]
     fn into_list(self) -> List {
-        List::new(self.make_widget_list())
+        List::new(self.into_widget_list())
+    }
+}
+
+impl<T> IntoWidgetList for T
+where
+    T: MakeWidgetList,
+{
+    fn into_widget_list(self) -> Value<WidgetList> {
+        Value::Constant(self.make_widget_list())
+    }
+}
+
+impl IntoWidgetList for Dynamic<WidgetList> {
+    fn into_widget_list(self) -> Value<WidgetList> {
+        Value::Dynamic(self)
+    }
+}
+
+impl IntoWidgetList for Value<WidgetList> {
+    fn into_widget_list(self) -> Value<WidgetList> {
+        self
     }
 }
 

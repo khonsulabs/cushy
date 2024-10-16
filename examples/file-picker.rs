@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use cushy::dialog::{FilePicker, PickFile};
 use cushy::value::{Destination, Dynamic, Source};
-use cushy::widget::{MakeWidget, MakeWidgetList};
+use cushy::widget::{IntoWidgetList, MakeWidget};
 use cushy::widgets::button::ButtonClick;
 use cushy::widgets::checkbox::Checkable;
 use cushy::widgets::layers::Modal;
