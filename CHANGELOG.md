@@ -111,6 +111,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   display scale is changed.
 - `Button`'s colors are now fully reactive. The caching code to prevent color
   duplicate change animations has been simplified to fix this.
+- Clipping math of widgets with negative origins has been fixed to no longer
+  allow overdrawing the widget's bounds. This was noticable in the
+  nested-scroll.rs example when reducing the height of the window below 6
+  inches.
 
 ### Added
 

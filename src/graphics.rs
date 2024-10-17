@@ -88,10 +88,22 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     /// operations will be relative to the origin of `clip`.
     pub fn clipped_to(&mut self, clip: Rect<Px>) -> Graphics<'_, 'gfx, 'pass> {
         let region = clip + self.region.origin;
+
+        // If the current region has a negative component, we need to adjust the
+        // clipped rect before we perform an intersection in unsigned space.
+        let mut effective_region = region;
+        if region.origin.x < 0 {
+            effective_region.size.width += region.origin.x;
+            effective_region.origin.x = Px::ZERO;
+        }
+        if region.origin.y < 0 {
+            effective_region.size.height += region.origin.y;
+            effective_region.origin.y = Px::ZERO;
+        }
         let new_clip = self
             .renderer
             .clip_rect()
-            .intersection(&region.into_unsigned())
+            .intersection(&effective_region.into_unsigned())
             .map(|intersection| intersection - self.renderer.clip_rect().origin)
             .unwrap_or_default();
 
