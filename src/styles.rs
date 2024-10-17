@@ -757,6 +757,12 @@ impl Default for Dimension {
     }
 }
 
+impl From<UPx> for Dimension {
+    fn from(value: UPx) -> Self {
+        Self::Px(value.into_signed())
+    }
+}
+
 impl From<Px> for Dimension {
     fn from(value: Px) -> Self {
         Self::Px(value)
@@ -1212,7 +1218,7 @@ impl NamedComponent for Cow<'_, ComponentName> {
 }
 
 /// A type describing characteristics about the edges of a rectangle.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Edges<T = FlexibleDimension> {
     /// The left edge
     pub left: T,

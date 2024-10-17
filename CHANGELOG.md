@@ -249,6 +249,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default is `true`, which was the behavior before this flag was added.
 - `Image` now supports `ImageCornerRadius`. Thanks to @danbulant for helping
   with this change!
+- `Scroll` now exposes its scroll amount, maximum scroll, and more information
+  that allows completely customizing a scroll view's behavior. Thanks to
+  @danbulant for helping with this change!
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
