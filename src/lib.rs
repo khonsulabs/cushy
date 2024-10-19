@@ -131,7 +131,7 @@ pub use app::{
 /// ```
 pub use cushy_macros::main;
 use figures::units::UPx;
-use figures::{Fraction, ScreenUnit, Size, Zero};
+use figures::{IntoUnsigned, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;
 pub use names::Name;
 pub use utils::{Lazy, ModifiersExt, ModifiersStateExt, WithClone};
@@ -186,14 +186,13 @@ impl ConstraintLimit {
     /// If this constraint is of a known size, it will return the maximum of the
     /// measured size and the constraint. If it is of an unknown size, it will
     /// return the measured size.
-    pub fn fit_measured<Unit>(self, measured: Unit, scale: Fraction) -> UPx
+    pub fn fit_measured<Unit>(self, measured: Unit) -> UPx
     where
-        Unit: ScreenUnit,
+        Unit: IntoUnsigned<Unsigned = UPx>,
     {
-        let measured = measured.into_upx(scale);
         match self {
-            ConstraintLimit::Fill(size) => size.max(measured),
-            ConstraintLimit::SizeToFit(_) => measured,
+            ConstraintLimit::Fill(size) => size.max(measured.into_unsigned()),
+            ConstraintLimit::SizeToFit(_) => measured.into_unsigned(),
         }
     }
 }
@@ -202,19 +201,19 @@ impl ConstraintLimit {
 pub trait FitMeasuredSize {
     /// Returns the result of calling [`ConstraintLimit::fit_measured`] for each
     /// matching component in `self` and `measured`.
-    fn fit_measured<Unit>(self, measured: Size<Unit>, scale: Fraction) -> Size<UPx>
+    fn fit_measured<Unit>(self, measured: Size<Unit>) -> Size<UPx>
     where
-        Unit: ScreenUnit;
+        Unit: IntoUnsigned<Unsigned = UPx>;
 }
 
 impl FitMeasuredSize for Size<ConstraintLimit> {
-    fn fit_measured<Unit>(self, measured: Size<Unit>, scale: Fraction) -> Size<UPx>
+    fn fit_measured<Unit>(self, measured: Size<Unit>) -> Size<UPx>
     where
-        Unit: ScreenUnit,
+        Unit: IntoUnsigned<Unsigned = UPx>,
     {
         Size::new(
-            self.width.fit_measured(measured.width, scale),
-            self.height.fit_measured(measured.height, scale),
+            self.width.fit_measured(measured.width),
+            self.height.fit_measured(measured.height),
         )
     }
 }

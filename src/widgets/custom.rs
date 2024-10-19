@@ -477,12 +477,8 @@ impl WrapperWidget for Custom {
             position_child.invoke(size, available_space, context)
         } else {
             Size::new(
-                available_space
-                    .width
-                    .fit_measured(size.width, context.gfx.scale()),
-                available_space
-                    .height
-                    .fit_measured(size.height, context.gfx.scale()),
+                available_space.width.fit_measured(size.width),
+                available_space.height.fit_measured(size.height),
             )
             .into()
         }

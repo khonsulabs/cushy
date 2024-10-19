@@ -1,8 +1,6 @@
-use cushy::{
-    value::{Dynamic, Source},
-    widget::MakeWidget,
-    Run,
-};
+use cushy::value::{Dynamic, Source};
+use cushy::widget::MakeWidget;
+use cushy::Run;
 
 fn main() -> cushy::Result {
     let has_unsaved_changes = Dynamic::new(true);

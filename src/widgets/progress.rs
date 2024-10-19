@@ -407,6 +407,6 @@ impl Widget for Spinner {
         let track_size = context.get(&TrackSize).into_px(context.gfx.scale());
         let minimum_size = track_size * 4;
 
-        available_space.map(|constraint| constraint.fit_measured(minimum_size, context.gfx.scale()))
+        available_space.map(|constraint| constraint.fit_measured(minimum_size))
     }
 }

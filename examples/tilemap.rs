@@ -3,18 +3,15 @@ use std::cmp::Ordering;
 use std::time::Duration;
 
 use cushy::figures::units::Px;
-use cushy::figures::FloatConversion;
-use cushy::figures::{Point, Rect, Size};
-use cushy::kludgine::app::winit::keyboard::Key;
-use cushy::kludgine::app::winit::keyboard::NamedKey;
+use cushy::figures::{FloatConversion, Point, Rect, Size};
+use cushy::kludgine::app::winit::keyboard::{Key, NamedKey};
 use cushy::kludgine::drawing::Renderer;
 use cushy::kludgine::shapes::Shape;
 use cushy::kludgine::sprite::{Sprite, SpriteSource};
 use cushy::kludgine::tilemap::{
     DebugGrid, Object, ObjectLayer, TileArray, TileKind, TileMapFocus, TILE_SIZE,
 };
-use cushy::kludgine::Color;
-use cushy::kludgine::{include_aseprite_sprite, DrawableExt};
+use cushy::kludgine::{include_aseprite_sprite, Color, DrawableExt};
 use cushy::value::{Destination, Dynamic};
 use cushy::widgets::TileMap;
 use cushy::{Run, Tick};

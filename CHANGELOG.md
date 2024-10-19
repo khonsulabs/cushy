@@ -57,6 +57,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `MakeWidgetList::into_layers` -> `IntoWidgetList::into_layers`
   - `MakeWidgetList::into_wrap` -> `IntoWidgetList::into_wrap`
   - `MakeWidgetList::into_list` -> `IntoWidgetList::into_list`
+- `ConstraintLimit::fit_measured` and `FitMeasuredSize::fit_measured` now accept
+  either a `Px` or `UPx` measurement, and does not perform scaling adjustments.
+  To convert `Lp` use `into_upx()` first.
 
 ### Changed
 
@@ -115,6 +118,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   allow overdrawing the widget's bounds. This was noticable in the
   nested-scroll.rs example when reducing the height of the window below 6
   inches.
+- `Scroll` now uses the new `ScrollBar` widget for its bars rather than manually
+  drawing them. By making this change, the bars now have input priority over the
+  contents. This means that the scroll bars are now clickable even in areas
+  where interactive widgets are beneath them.
 
 ### Added
 
@@ -252,6 +259,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Scroll` now exposes its scroll amount, maximum scroll, and more information
   that allows completely customizing a scroll view's behavior. Thanks to
   @danbulant for helping with this change!
+- `ScrollBar` is a new widget that renders a scroll bar meant to scroll through
+  a large container.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

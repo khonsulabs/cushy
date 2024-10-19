@@ -497,7 +497,7 @@ impl Widget for Button {
         let mounted = self.content.mounted(context);
         let available_space = available_space.map(|space| space - double_padding);
         let size = context.for_other(&mounted).layout(available_space);
-        let size = available_space.fit_measured(size, context.gfx.scale());
+        let size = available_space.fit_measured(size);
         context.set_child_layout(
             &mounted,
             Rect::new(Point::squared(padding), size).into_signed(),

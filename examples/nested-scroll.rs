@@ -1,7 +1,7 @@
 use cushy::figures::units::Lp;
 use cushy::kludgine::cosmic_text::FamilyOwned;
 use cushy::styles::components::FontFamily;
-use cushy::styles::FontFamilyList;
+use cushy::styles::{Edges, FontFamilyList};
 use cushy::widget::MakeWidget;
 use cushy::Run;
 
@@ -17,6 +17,7 @@ fn main() -> cushy::Result {
                 .height(Lp::inches(3)),
         )
         .into_rows()
+        .pad_by(Edges::default().with_right(Lp::points(7)))
         .vertical_scroll()
         .expand()
         .run()

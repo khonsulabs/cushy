@@ -88,12 +88,8 @@ impl Widget for Layers {
         // Now we know the size of the widget, we can request the widgets fill
         // the allocated space.
         let size = Size::new(
-            available_space
-                .width
-                .fit_measured(size.width, context.gfx.scale()),
-            available_space
-                .height
-                .fit_measured(size.height, context.gfx.scale()),
+            available_space.width.fit_measured(size.width),
+            available_space.height.fit_measured(size.height),
         );
         let layout = Rect::from(size.into_signed());
         for child in self.mounted.children() {
@@ -1046,12 +1042,8 @@ impl WrapperWidget for ModalLayer {
             }
         }
         Size::new(
-            available_space
-                .width
-                .fit_measured(size.width, context.gfx.scale()),
-            available_space
-                .height
-                .fit_measured(size.height, context.gfx.scale()),
+            available_space.width.fit_measured(size.width),
+            available_space.height.fit_measured(size.height),
         )
         .into()
     }

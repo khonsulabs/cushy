@@ -801,10 +801,10 @@ impl MakeWidget for FilePickerWidget {
                                         .with_explanation(
                                             format!("A file named \"{name}\" already exists. Do you want to overwrite the existing file?")
                                         )
-                                        .with_yes({ 
-                                            let callback = callback.clone(); 
+                                        .with_yes({
+                                            let callback = callback.clone();
                                             move || {
-                                                let Some(ModeCallback::Single(cb)) = callback.lock().take() else { 
+                                                let Some(ModeCallback::Single(cb)) = callback.lock().take() else {
                                                     unreachable!("re-set above");
                                                 };
                                                 cb.invoke(chosen_path.clone());

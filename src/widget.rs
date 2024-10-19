@@ -592,12 +592,8 @@ pub trait WrapperWidget: Debug + Send + 'static {
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         Size::new(
-            available_space
-                .width
-                .fit_measured(size.width, context.gfx.scale()),
-            available_space
-                .height
-                .fit_measured(size.height, context.gfx.scale()),
+            available_space.width.fit_measured(size.width),
+            available_space.height.fit_measured(size.height),
         )
         .into()
     }

@@ -113,24 +113,16 @@ impl WrapperWidget for Expand {
 
         let (width, height) = match &self.kind {
             ExpandKind::Weighted(_) => (
-                available_space
-                    .width
-                    .fit_measured(size.width, context.gfx.scale()),
-                available_space
-                    .height
-                    .fit_measured(size.height, context.gfx.scale()),
+                available_space.width.fit_measured(size.width),
+                available_space.height.fit_measured(size.height),
             ),
             ExpandKind::Horizontal => (
-                available_space
-                    .width
-                    .fit_measured(size.width, context.gfx.scale()),
+                available_space.width.fit_measured(size.width),
                 size.height.min(available_space.height.max()),
             ),
             ExpandKind::Vertical => (
                 size.width.min(available_space.width.max()),
-                available_space
-                    .height
-                    .fit_measured(size.height, context.gfx.scale()),
+                available_space.height.fit_measured(size.height),
             ),
         };
 
