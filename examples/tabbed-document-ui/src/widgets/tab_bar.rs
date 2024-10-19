@@ -57,8 +57,7 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
 
     pub fn close_all(&mut self) {
         self.selected.set(None);
-        // FIXME couldn't find `.clear()` or `.empty()` or similar on `WidgetList`, using `.truncate() instead`
-        self.tab_items.lock().truncate(0);
+        self.tab_items.lock().clear();
         self.tabs.lock().clear();
     }
 
