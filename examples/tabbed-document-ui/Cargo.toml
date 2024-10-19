@@ -5,3 +5,5 @@ edition = "2021"
 
 [dependencies]
 cushy = { path = "../.."}
+
+slotmap = { version = "1.0.7" }

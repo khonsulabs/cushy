@@ -3437,6 +3437,7 @@ name = "tabbed-document-ui"
 version = "0.1.0"
 dependencies = [
  "cushy",
+ "slotmap",
 ]
 
 [[package]]
