@@ -20,13 +20,12 @@ pub struct TabBar<TK> {
     tab_items: Dynamic<WidgetList>,
     content_area: Dynamic<WidgetInstance>,
 
-    selected: Dynamic<TabKey>,
+    selected: Dynamic<Option<TabKey>>,
 }
 
 new_key_type! {
     pub struct TabKey;
 }
-
 
 // FIXME avoid the ` + Sync + Send + 'static` requirement if possible, required due to use of `Source::for_each`
 impl<TK: Tab + Hash + Eq + Sync + Send + 'static> TabBar<TK> {
@@ -38,7 +37,7 @@ impl<TK: Tab + Hash + Eq + Sync + Send + 'static> TabBar<TK> {
             tabs: Dynamic::new(tabs),
             content_area,
             tab_items: Dynamic::new(WidgetList::new()),
-            selected: Dynamic::default(),
+            selected: Dynamic::new(None)
         }
     }
 
@@ -47,11 +46,11 @@ impl<TK: Tab + Hash + Eq + Sync + Send + 'static> TabBar<TK> {
 
         let tab_key = self.tabs.lock().insert(tab);
         println!("tab_key: {:?}", tab_key);
-        let select = self.selected.new_select(tab_key, tab_label);
+        let select = self.selected.new_select(Some(tab_key), tab_label);
 
         self.tab_items
             .lock()
-            .push(select)
+            .push(select);
     }
 
     pub fn make_widget(&self) -> WidgetInstance {
@@ -61,11 +60,13 @@ impl<TK: Tab + Hash + Eq + Sync + Send + 'static> TabBar<TK> {
                 let tabs = self.tabs.clone();
                 let content_area = self.content_area.clone();
                 move |selected_tab_key|{
-                    let tab_binding = tabs.lock();
-                    if let Some(tab) = tab_binding.get(selected_tab_key.clone()) {
-                        let content = tab.make_content();
+                    if let Some(tab_key) = selected_tab_key.clone() {
+                        let tab_binding = tabs.lock();
+                        if let Some(tab) = tab_binding.get(tab_key) {
+                            let content = tab.make_content();
 
-                        content_area.set(content.clone())
+                            content_area.set(content.clone())
+                        }
                     }
                 }
             });
@@ -80,6 +81,7 @@ impl<TK: Tab + Hash + Eq + Sync + Send + 'static> TabBar<TK> {
     }
 }
 
+// Intermediate widget, with only the things it needs, so that it's possible to call `make_widget` which consumes self.
 struct TabBarWidget {
     tab_items: Dynamic<WidgetList>,
     content_area: Dynamic<WidgetInstance>,
