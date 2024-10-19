@@ -103,7 +103,7 @@ fn make_toolbar(tab_bar: Dynamic<TabBar<TabKind>>) -> Stack {
         });
 
 
-                      let toolbar_widgets: [WidgetInstance; 5] = [
+    let toolbar_widgets: [WidgetInstance; 5] = [
         home_button.make_widget(),
         new_button.make_widget(),
         open_button.make_widget(),
