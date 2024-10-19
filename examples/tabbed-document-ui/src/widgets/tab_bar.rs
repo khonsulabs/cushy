@@ -56,7 +56,7 @@ impl<TK: Tab + Hash + Eq + Sync + Send + 'static> TabBar<TK> {
 
     pub fn make_widget(&self) -> WidgetInstance {
 
-        self.selected
+        let callback = self.selected
             .for_each({
                 let tabs = self.tabs.clone();
                 let content_area = self.content_area.clone();
@@ -69,6 +69,7 @@ impl<TK: Tab + Hash + Eq + Sync + Send + 'static> TabBar<TK> {
                     }
                 }
             });
+        callback.persist();
 
         let widget = TabBarWidget {
             tab_items: self.tab_items.clone(),
