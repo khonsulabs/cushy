@@ -81,6 +81,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WrapperWidget::activate`'s default implementation now activates the wrapped
   widget.
 - `Space` now intercepts mouse events if its color has a non-zero alpha channel.
+- If the root widget of a window is a `Resize` with an exact width and height,
+  the window will have its resizable attribute disabled. This will not update
+  the resizable `Dynamic<bool>` on `Window`.
 
 ### Fixed
 

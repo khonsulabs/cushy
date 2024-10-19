@@ -4095,6 +4095,17 @@ where
             self.current_generation = self.source.generation();
         }
     }
+
+    /// Updates the value stored in the source.
+    pub fn set(&mut self, new_value: Source::Value)
+    where
+        Source::Value: PartialEq + Clone,
+    {
+        self.current = new_value;
+        if self.source.set(self.current.clone()) {
+            self.current_generation = self.source.generation();
+        }
+    }
 }
 
 /// A [`Source`] that can be used in a [`Tracked`] instance.

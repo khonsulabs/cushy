@@ -1377,6 +1377,7 @@ struct OpenWindow<T> {
     modifiers: Dynamic<Modifiers>,
     shortcuts: Value<ShortcutMap>,
     on_file_drop: Option<Callback<FileDrop>>,
+    disabled_resize_automatically: bool,
 }
 
 impl<T> OpenWindow<T>
@@ -1814,6 +1815,7 @@ where
             fullscreen: Tracked::from(settings.fullscreen).ignoring_first(),
             shortcuts: settings.shortcuts,
             on_file_drop: settings.on_file_drop,
+            disabled_resize_automatically: false,
         };
 
         this.synchronize_platform_window(&mut window);
@@ -1854,7 +1856,7 @@ where
         self.new_frame(graphics);
 
         let resize_to_fit = self.resize_to_fit.get();
-        let resizable = window.is_resizable() || resize_to_fit;
+        let resizable = *self.resizable.peek() || resize_to_fit;
         let mut window = RunningWindow::new(
             window,
             graphics.id(),
@@ -1883,13 +1885,9 @@ where
             ),
             gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
-        if self.initial_frame {
-            self.root
-                .lock()
-                .as_widget()
-                .mounted(&mut context.as_event_context());
-        }
         self.theme_mode.redraw_when_changed(&context);
+        self.inner_size.invalidate_when_changed(&context);
+        self.resize_to_fit.invalidate_when_changed(&context);
         let mut layout_context = LayoutContext::new(&mut context);
         let window_size = layout_context.gfx.size();
 
@@ -1910,19 +1908,12 @@ where
             layout_size
         };
         let render_size = actual_size.min(window_size);
-        layout_context.invalidate_when_changed(&self.inner_size);
-        layout_context.invalidate_when_changed(&self.resize_to_fit);
 
         self.root.set_layout(Rect::from(render_size.into_signed()));
 
         if self.initial_frame {
             self.initial_frame = false;
-            self.root
-                .lock()
-                .as_widget()
-                .mounted(&mut layout_context.as_event_context());
-            layout_context.focus();
-            layout_context.as_event_context().apply_pending_state();
+            Self::mount_and_focus_root(&self.root, &mut layout_context);
         }
 
         if render_size.width < window_size.width || render_size.height < window_size.height {
@@ -1932,6 +1923,15 @@ where
         } else {
             layout_context.redraw();
         }
+
+        let resizable = resizable
+            && !Self::enforce_fixed_size(
+                self.max_inner_size,
+                self.max_inner_size,
+                &self.resizable,
+                &mut self.disabled_resize_automatically,
+                &mut layout_context,
+            );
 
         let new_size = if let Some(new_size) = self.inner_size.updated() {
             layout_context.request_inner_size(*new_size)
@@ -1957,6 +1957,38 @@ where
         }
 
         layout_context.as_event_context().update_hovered_widget();
+    }
+
+    fn mount_and_focus_root(root: &MountedWidget, context: &mut LayoutContext<'_, '_, '_, '_>) {
+        root.lock()
+            .as_widget()
+            .mounted(&mut context.as_event_context());
+        context.focus();
+        context.as_event_context().apply_pending_state();
+    }
+
+    fn enforce_fixed_size(
+        min_inner_size: Option<Size<UPx>>,
+        max_inner_size: Option<Size<UPx>>,
+        resizable: &Tracked<Value<bool>>,
+        disabled_resize_automatically: &mut bool,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) -> bool {
+        let fixed_size = max_inner_size.is_some()
+            && min_inner_size.is_some()
+            && max_inner_size == min_inner_size;
+        if fixed_size && *resizable.peek() && !*disabled_resize_automatically {
+            *disabled_resize_automatically = true;
+            if let Some(winit) = context.window().winit() {
+                winit.set_resizable(false);
+            }
+        } else if !fixed_size && *resizable.peek() && *disabled_resize_automatically {
+            *disabled_resize_automatically = false;
+            if let Some(winit) = context.window().winit() {
+                winit.set_resizable(true);
+            }
+        }
+        fixed_size
     }
 
     fn close_requested<W>(&mut self, window: W, kludgine: &mut Kludgine) -> bool
@@ -2066,6 +2098,7 @@ where
             });
             when_updated!(resizable, handle, {
                 winit.set_resizable(*resizable);
+                println!("Setting resizable {resizable}");
                 redraw = true;
             });
             when_updated!(window_icon, handle, {
