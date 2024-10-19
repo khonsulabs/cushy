@@ -1,8 +1,10 @@
+use std::default::Default;
 use std::hash::Hash;
+use slotmap::{new_key_type, SlotMap};
 use cushy::figures::units::Px;
 use cushy::styles::Color;
 use cushy::styles::components::DefaultBackgroundColor;
-use cushy::value::{Destination, Dynamic, IntoValue};
+use cushy::value::{Destination, Dynamic, IntoValue, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance, WidgetList};
 use cushy::widgets::grid::Orientation;
 use cushy::widgets::{Expand, Space, Stack};
@@ -12,59 +14,62 @@ pub trait Tab {
     fn make_content(&self) -> WidgetInstance;
 }
 
-// NOTE: Specifically NOT clone because we don't want to clone 'next_id' or the TK instances.
+// NOTE: Specifically NOT clone because we don't want to clone the tabs.
 pub struct TabBar<TK> {
-    tabs: Vec<TK>,
+    tabs: Dynamic<SlotMap<TabKey, TK>>,
     tab_items: Dynamic<WidgetList>,
     content_area: Dynamic<WidgetInstance>,
 
-    selected: Dynamic<TK>,
-    next_id: usize,
+    selected: Dynamic<TabKey>,
 }
 
-impl<TK: Tab + Hash + Eq> TabBar<TK> {
+new_key_type! {
+    pub struct TabKey;
+}
+
+
+// FIXME avoid the ` + Sync + Send + 'static` requirement if possible, required due to use of `Source::for_each`
+impl<TK: Tab + Hash + Eq + Sync + Send + 'static> TabBar<TK> {
     pub fn new() -> Self {
-        let tabs: Vec<TK> = vec![];
+        let tabs: SlotMap<TabKey, TK> = Default::default();
         let content_area = Dynamic::new(Space::clear().make_widget());
 
         Self {
-            tabs,
+            tabs: Dynamic::new(tabs),
             content_area,
             tab_items: Dynamic::new(WidgetList::new()),
-            next_id: 0,
             selected: Dynamic::default(),
         }
     }
 
     pub fn add_tab(&mut self, tab: TK) {
-        let content = tab.make_content();
+        let tab_label = tab.label();
 
-        let tab_button = tab.label()
-            .into_button()
-            .on_click({
-                let content_area = self.content_area.clone();
-                move |_| content_area.set(content.clone())
-            });
-
-        let tab_id = self.new_tab_id();
-        println!("tab_id: {}", tab_id);
-        let select = self.selected.new_select(tab, tab_button);
-
+        let tab_key = self.tabs.lock().insert(tab);
+        println!("tab_key: {:?}", tab_key);
+        let select = self.selected.new_select(tab_key, tab_label);
 
         self.tab_items
             .lock()
             .push(select)
     }
 
-    fn new_tab_id(&mut self) -> usize {
-
-        let id = self.next_id;
-        self.next_id += 1;
-
-        id
-    }
-
     pub fn make_widget(&self) -> WidgetInstance {
+
+        self.selected
+            .for_each({
+                let tabs = self.tabs.clone();
+                let content_area = self.content_area.clone();
+                move |selected_tab_key|{
+                    let tab_binding = tabs.lock();
+                    if let Some(tab) = tab_binding.get(selected_tab_key.clone()) {
+                        let content = tab.make_content();
+
+                        content_area.set(content.clone())
+                    }
+                }
+            });
+
         let widget = TabBarWidget {
             tab_items: self.tab_items.clone(),
             content_area: self.content_area.clone(),
