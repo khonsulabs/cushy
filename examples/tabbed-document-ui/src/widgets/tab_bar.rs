@@ -55,6 +55,13 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
         self.selected.set(Some(tab_key));
     }
 
+    pub fn close_all(&mut self) {
+        self.selected.set(None);
+        // FIXME couldn't find `.clear()` or `.empty()` or similar on `WidgetList`, using `.truncate() instead`
+        self.tab_items.lock().truncate(0);
+        self.tabs.lock().clear();
+    }
+
     pub fn make_widget(&self) -> WidgetInstance {
 
         let callback = self.selected
