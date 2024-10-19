@@ -1,27 +1,28 @@
-use std::collections::HashMap;
 use std::hash::Hash;
 use cushy::figures::units::Px;
 use cushy::styles::Color;
 use cushy::styles::components::DefaultBackgroundColor;
-use cushy::value::{Destination, Dynamic, Source};
+use cushy::value::{Destination, Dynamic, IntoValue};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance, WidgetList};
 use cushy::widgets::grid::Orientation;
 use cushy::widgets::{Expand, Space, Stack};
-use crate::tabs::TabKind;
 
-pub trait TabThing {
+pub trait Tab {
     fn label(&self) -> String;
     fn make_content(&self) -> WidgetInstance;
 }
 
-#[derive(Clone)]
-pub struct TabBar<TK: Clone> {
+// NOTE: Specifically NOT clone because we don't want to clone 'next_id' or the TK instances.
+pub struct TabBar<TK> {
     tabs: Vec<TK>,
     tab_items: Dynamic<WidgetList>,
     content_area: Dynamic<WidgetInstance>,
+
+    selected: Dynamic<TK>,
+    next_id: usize,
 }
 
-impl<TK: TabThing + Hash + Eq + Clone > TabBar<TK> {
+impl<TK: Tab + Hash + Eq> TabBar<TK> {
     pub fn new() -> Self {
         let tabs: Vec<TK> = vec![];
         let content_area = Dynamic::new(Space::clear().make_widget());
@@ -30,6 +31,8 @@ impl<TK: TabThing + Hash + Eq + Clone > TabBar<TK> {
             tabs,
             content_area,
             tab_items: Dynamic::new(WidgetList::new()),
+            next_id: 0,
+            selected: Dynamic::default(),
         }
     }
 
@@ -41,14 +44,42 @@ impl<TK: TabThing + Hash + Eq + Clone > TabBar<TK> {
             .on_click({
                 let content_area = self.content_area.clone();
                 move |_| content_area.set(content.clone())
-            })
-            .make_widget();
-        self.tab_items.lock().push(tab_button)
+            });
+
+        let tab_id = self.new_tab_id();
+        println!("tab_id: {}", tab_id);
+        let select = self.selected.new_select(tab, tab_button);
+
+
+        self.tab_items
+            .lock()
+            .push(select)
     }
 
+    fn new_tab_id(&mut self) -> usize {
+
+        let id = self.next_id;
+        self.next_id += 1;
+
+        id
+    }
+
+    pub fn make_widget(&self) -> WidgetInstance {
+        let widget = TabBarWidget {
+            tab_items: self.tab_items.clone(),
+            content_area: self.content_area.clone(),
+        };
+
+        widget.make_widget()
+    }
 }
 
-impl<TK: Clone> MakeWidget for TabBar<TK> {
+struct TabBarWidget {
+    tab_items: Dynamic<WidgetList>,
+    content_area: Dynamic<WidgetInstance>,
+}
+
+impl MakeWidget for TabBarWidget {
     fn make_widget(self) -> WidgetInstance {
 
         let tab_bar: Stack = [
