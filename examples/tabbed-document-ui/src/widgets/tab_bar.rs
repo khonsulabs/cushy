@@ -51,6 +51,8 @@ impl<TK: Tab + Hash + Eq + Sync + Send + 'static> TabBar<TK> {
         self.tab_items
             .lock()
             .push(select);
+
+        self.selected.set(Some(tab_key));
     }
 
     pub fn make_widget(&self) -> WidgetInstance {
