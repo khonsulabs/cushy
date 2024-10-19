@@ -92,9 +92,18 @@ fn make_toolbar(tab_bar: Dynamic<TabBar<TabKind>>) -> Stack {
         .into_button();
 
     let close_all_button = "Close all"
-        .into_button();
+        .into_button()
+        .on_click({
+            let tab_bar = tab_bar.clone();
+            move |_| {
+                println!("close all clicked");
 
-    let toolbar_widgets: [WidgetInstance; 5] = [
+                tab_bar.lock().close_all();
+            }
+        });
+
+
+                      let toolbar_widgets: [WidgetInstance; 5] = [
         home_button.make_widget(),
         new_button.make_widget(),
         open_button.make_widget(),
