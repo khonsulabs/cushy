@@ -2,12 +2,14 @@ use std::default::Default;
 use std::hash::Hash;
 use slotmap::{new_key_type, SlotMap};
 use cushy::figures::units::Px;
-use cushy::styles::Color;
-use cushy::styles::components::WidgetBackground;
+use cushy::styles::{Color, CornerRadii, Dimension};
+use cushy::styles::components::{CornerRadius, TextColor, WidgetBackground};
 use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance, WidgetList};
 use cushy::widgets::grid::Orientation;
 use cushy::widgets::{Expand, Space, Stack};
+use cushy::widgets::button::{ButtonActiveBackground, ButtonActiveForeground, ButtonBackground, ButtonForeground, ButtonHoverForeground};
+use cushy::widgets::select::SelectedColor;
 
 pub trait Tab {
     fn label(&self) -> String;
@@ -46,7 +48,12 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
 
         let tab_key = self.tabs.lock().insert(tab);
         println!("tab_key: {:?}", tab_key);
-        let select = self.selected.new_select(Some(tab_key), tab_label);
+        let select = self.selected
+            .new_select(Some(tab_key), tab_label)
+            .with(&ButtonForeground, Color::LIGHTGRAY)
+            .with(&ButtonHoverForeground, Color::WHITE)
+            .with(&ButtonActiveBackground, Color::GRAY)
+            .with(&SelectedColor, Color::GRAY);
 
         self.tab_items
             .lock()
@@ -89,6 +96,8 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
     }
 }
 
+static VERY_DARK_GREY: Color = Color::new(0x32, 0x32, 0x32, 255);
+
 // Intermediate widget, with only the things it needs, so that it's possible to call `make_widget` which consumes self.
 struct TabBarWidget {
     tab_items: Dynamic<WidgetList>,
@@ -105,17 +114,19 @@ impl MakeWidget for TabBarWidget {
                 // FIXME this causes the tab bar to take the entire height of the area under the toolbar unless a height is specified
                 //       but we don't want to specify a height in pixels, we want the height to be be automatic
                 //       like it is when the background color is not specified.
-                .with(&WidgetBackground, Color::DARKGRAY)
+                .with(&WidgetBackground, VERY_DARK_GREY)
                 // FIXME remove this, see above.
                 .height(Px::new(38))
                 .make_widget(),
         ]
             .into_columns()
-            .with(&WidgetBackground, Color::GRAY);
+            .with(&WidgetBackground, VERY_DARK_GREY)
+            .with(&TextColor, Color::GRAY);
 
         tab_bar
             .and(self.content_area.expand())
             .into_rows()
+            .with(&CornerRadius, CornerRadii::from(Dimension::Px(Px::new(0))))
             .make_widget()
     }
 }
