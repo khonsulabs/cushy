@@ -2160,6 +2160,11 @@ impl WidgetList {
         self.ordered.truncate(length);
     }
 
+    /// Clear the list
+    pub fn clear(&mut self) {
+        self.ordered.clear();
+    }
+
     /// Returns `self` as a vertical [`Stack`] of rows.
     #[must_use]
     pub fn into_rows(self) -> Stack {
