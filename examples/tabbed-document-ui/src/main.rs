@@ -13,7 +13,7 @@ mod widgets;
 
 mod tabs {
     use cushy::widget::{MakeWidget, WidgetInstance};
-    use crate::widgets::tab_bar::TabThing;
+    use crate::widgets::tab_bar::Tab;
 
     #[derive(Hash, PartialEq, Eq, Clone)]
     pub enum TabKind {
@@ -21,7 +21,7 @@ mod tabs {
         Document,
     }
 
-    impl TabThing for TabKind {
+    impl Tab for TabKind {
         fn label(&self) -> String {
             match self {
                 TabKind::Home => "Home".to_string(),
@@ -44,7 +44,7 @@ struct AppState {
 
 fn main() -> cushy::Result {
 
-    let mut tab_bar = Dynamic::new(make_tab_bar());
+    let tab_bar = Dynamic::new(make_tab_bar());
     let toolbar = make_toolbar(tab_bar.clone());
 
     let app_state = AppState {
@@ -53,7 +53,7 @@ fn main() -> cushy::Result {
 
     let ui_elements = [
         toolbar.make_widget(),
-        app_state.tab_bar.lock().clone().make_widget(),
+        app_state.tab_bar.lock().make_widget(),
     ];
 
     let ui = ui_elements
