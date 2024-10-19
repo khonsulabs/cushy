@@ -1,11 +1,8 @@
 use cushy::figures::units::Px;
 use cushy::Run;
-use cushy::styles::Color;
-use cushy::styles::components::DefaultBackgroundColor;
-use cushy::value::{Dynamic, Source};
-use cushy::widget::{IntoWidgetList, MakeWidget, Widget, WidgetInstance, WidgetList};
+use cushy::value::{Dynamic};
+use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Stack};
-use cushy::widgets::grid::Orientation;
 use crate::tabs::TabKind;
 use crate::widgets::tab_bar::TabBar;
 

@@ -3,8 +3,8 @@ use std::hash::Hash;
 use slotmap::{new_key_type, SlotMap};
 use cushy::figures::units::Px;
 use cushy::styles::Color;
-use cushy::styles::components::DefaultBackgroundColor;
-use cushy::value::{Destination, Dynamic, IntoValue, Source};
+use cushy::styles::components::WidgetBackground;
+use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance, WidgetList};
 use cushy::widgets::grid::Orientation;
 use cushy::widgets::{Expand, Space, Stack};
@@ -92,14 +92,20 @@ struct TabBarWidget {
 impl MakeWidget for TabBarWidget {
     fn make_widget(self) -> WidgetInstance {
 
-        let tab_bar: Stack = [
+        let tab_bar = [
             Stack::new(Orientation::Column, self.tab_items)
                 .make_widget(),
             Expand::empty()
-                .with(&DefaultBackgroundColor, Color::RED)
-                .height(Px::new(32))
+                // FIXME this causes the tab bar to take the entire height of the area under the toolbar unless a height is specified
+                //       but we don't want to specify a height in pixels, we want the height to be be automatic
+                //       like it is when the background color is not specified.
+                .with(&WidgetBackground, Color::DARKGRAY)
+                // FIXME remove this, see above.
+                .height(Px::new(38))
                 .make_widget(),
-        ].into_columns();
+        ]
+            .into_columns()
+            .with(&WidgetBackground, Color::GRAY);
 
         tab_bar
             .and(self.content_area.expand())
