@@ -27,8 +27,8 @@ new_key_type! {
     pub struct TabKey;
 }
 
-// FIXME avoid the ` + Sync + Send + 'static` requirement if possible, required due to use of `Source::for_each`
-impl<TK: Tab + Hash + Eq + Sync + Send + 'static> TabBar<TK> {
+// FIXME avoid the ` + Send + 'static` requirement if possible, required due to use of `Source::for_each`
+impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
     pub fn new() -> Self {
         let tabs: SlotMap<TabKey, TK> = Default::default();
         let content_area = Dynamic::new(Space::clear().make_widget());
