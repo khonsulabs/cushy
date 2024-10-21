@@ -61,14 +61,17 @@ fn main() -> cushy::Result {
     let ui = ui_elements
         .into_rows()
         .width(Px::new(1024))
-        .height(Px::new(768));
+        .height(Px::new(768))
+        .into_window()
+        .on_close(move ||{
+            println!("Saving config");
+            config::save(&app_state.config);
+        });
 
     let cushy_result = ui.run();
 
-    // FIXME control never returns here (at least on windows), config is not saved.
+    // FIXME control never returns here (at least on windows)
 
-    println!("Saving config");
-    config::save(&app_state.config);
     cushy_result
 }
 
