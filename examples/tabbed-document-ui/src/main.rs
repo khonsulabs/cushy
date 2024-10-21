@@ -10,9 +10,15 @@ use crate::widgets::tab_bar::TabBar;
 
 mod config;
 mod widgets;
+mod home;
+mod app_context;
 
 mod tabs {
+    use cushy::value::Dynamic;
     use cushy::widget::{MakeWidget, WidgetInstance};
+    use crate::app_context::get_context;
+    use crate::config::Config;
+    use crate::home;
     use crate::widgets::tab_bar::Tab;
 
     #[derive(Hash, PartialEq, Eq, Clone)]
@@ -31,7 +37,14 @@ mod tabs {
 
         fn make_content(&self) -> WidgetInstance {
             match self {
-                TabKind::Home => "Home tab content".make_widget(),
+                TabKind::Home => {
+
+                    // FIXME need a context system, e.g.
+                    //let config: Config = get_context().unwrap();
+                    //let show_on_startup_value = Dynamic::new(config.show_home_on_startup);
+                    let show_on_startup_value = Dynamic::new(true);
+                    home::create_content(show_on_startup_value)
+                },
                 TabKind::Document => "Document tab content".make_widget(),
             }
         }
@@ -57,6 +70,8 @@ fn main() -> cushy::Result {
         toolbar.make_widget(),
         app_state.tab_bar.lock().make_widget(),
     ];
+
+    app_context::provide_context(app_state.config.clone());
 
     let ui = ui_elements
         .into_rows()
