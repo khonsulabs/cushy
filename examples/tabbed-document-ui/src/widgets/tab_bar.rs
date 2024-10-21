@@ -8,7 +8,7 @@ use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance, WidgetList};
 use cushy::widgets::grid::Orientation;
 use cushy::widgets::{Expand, Space, Stack};
-use cushy::widgets::button::{ButtonActiveBackground, ButtonActiveForeground, ButtonBackground, ButtonForeground, ButtonHoverForeground};
+use cushy::widgets::button::{ButtonActiveBackground, ButtonForeground, ButtonHoverForeground};
 use cushy::widgets::select::SelectedColor;
 
 pub trait Tab {

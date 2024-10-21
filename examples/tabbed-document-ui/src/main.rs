@@ -1,4 +1,4 @@
-use slotmap::SlotMap;
+use std::sync::Arc;
 use cushy::figures::units::Px;
 use cushy::Run;
 use cushy::value::{Dynamic};
@@ -40,7 +40,7 @@ mod tabs {
 
 struct AppState {
     tab_bar: Dynamic<TabBar<TabKind>>,
-    pub config: Config,
+    pub config: Arc<Config>,
 }
 
 fn main() -> cushy::Result {
@@ -50,7 +50,7 @@ fn main() -> cushy::Result {
 
     let app_state = AppState {
         tab_bar: tab_bar.clone(),
-        config: config::load(),
+        config: Arc::new(config::load()),
     };
 
     let ui_elements = [
@@ -63,10 +63,17 @@ fn main() -> cushy::Result {
         .width(Px::new(1024))
         .height(Px::new(768))
         .into_window()
-        .on_close(move ||{
-            println!("Saving config");
-            config::save(&app_state.config);
+        .on_close({
+            let config = app_state.config.clone();
+            move ||{
+                println!("Saving config");
+                config::save(&*config);
+            }
         });
+
+    if app_state.config.show_home_on_startup {
+        add_home_tab(&app_state.tab_bar);
+    }
 
     let cushy_result = ui.run();
 
@@ -87,7 +94,7 @@ fn make_toolbar(tab_bar: Dynamic<TabBar<TabKind>>) -> Stack {
             move |_|{
                 println!("home clicked");
 
-                tab_bar.lock().add_tab(TabKind::Home);
+                add_home_tab(&tab_bar);
             }
         });
 
@@ -127,4 +134,8 @@ fn make_toolbar(tab_bar: Dynamic<TabBar<TabKind>>) -> Stack {
 
     let toolbar = toolbar_widgets.into_columns();
     toolbar
+}
+
+fn add_home_tab(tab_bar: &Dynamic<TabBar<TabKind>>) {
+    tab_bar.lock().add_tab(TabKind::Home);
 }
