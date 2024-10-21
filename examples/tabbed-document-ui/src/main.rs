@@ -1,11 +1,14 @@
+use slotmap::SlotMap;
 use cushy::figures::units::Px;
 use cushy::Run;
 use cushy::value::{Dynamic};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Stack};
+use crate::config::Config;
 use crate::tabs::TabKind;
 use crate::widgets::tab_bar::TabBar;
 
+mod config;
 mod widgets;
 
 mod tabs {
@@ -36,7 +39,8 @@ mod tabs {
 }
 
 struct AppState {
-    tab_bar: Dynamic<TabBar<TabKind>>
+    tab_bar: Dynamic<TabBar<TabKind>>,
+    pub config: Config,
 }
 
 fn main() -> cushy::Result {
@@ -45,7 +49,8 @@ fn main() -> cushy::Result {
     let toolbar = make_toolbar(tab_bar.clone());
 
     let app_state = AppState {
-        tab_bar: tab_bar.clone()
+        tab_bar: tab_bar.clone(),
+        config: config::load(),
     };
 
     let ui_elements = [
@@ -58,7 +63,13 @@ fn main() -> cushy::Result {
         .width(Px::new(1024))
         .height(Px::new(768));
 
-    ui.run()
+    let cushy_result = ui.run();
+
+    // FIXME control never returns here (at least on windows), config is not saved.
+
+    println!("Saving config");
+    config::save(&app_state.config);
+    cushy_result
 }
 
 fn make_tab_bar() -> TabBar<TabKind> {
