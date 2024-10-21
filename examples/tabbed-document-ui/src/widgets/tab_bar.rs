@@ -53,6 +53,8 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
             .with(&ButtonForeground, Color::LIGHTGRAY)
             .with(&ButtonHoverForeground, Color::WHITE)
             .with(&ButtonActiveBackground, Color::GRAY)
+            // TODO remove this workaround for the select button's background inheritance
+            .with(&WidgetBackground, Color::CLEAR_BLACK)
             .with(&SelectedColor, Color::GRAY);
 
         self.tab_items
