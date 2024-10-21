@@ -80,6 +80,7 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
                     if let Some(tab_key) = selected_tab_key.clone() {
                         let tab_binding = tabs.lock();
                         if let Some(tab) = tab_binding.get(tab_key) {
+
                             let content = tab.make_content();
 
                             content_area.set(content.clone())
