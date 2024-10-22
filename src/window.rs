@@ -31,7 +31,7 @@ use kludgine::app::winit::event::{
 use kludgine::app::winit::keyboard::{
     Key, KeyLocation, ModifiersState, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
 };
-use kludgine::app::winit::window::{self, Cursor, Fullscreen, Icon, WindowButtons, WindowLevel};
+use kludgine::app::winit::window::{Cursor, Fullscreen, Icon, WindowButtons, WindowLevel};
 use kludgine::app::{winit, WindowAttributes, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::drawing::Drawing;
@@ -3177,16 +3177,16 @@ impl Not for ThemeMode {
     }
 }
 
-impl From<window::Theme> for ThemeMode {
-    fn from(value: window::Theme) -> Self {
+impl From<winit::window::Theme> for ThemeMode {
+    fn from(value: winit::window::Theme) -> Self {
         match value {
-            window::Theme::Light => Self::Light,
-            window::Theme::Dark => Self::Dark,
+            winit::window::Theme::Light => Self::Light,
+            winit::window::Theme::Dark => Self::Dark,
         }
     }
 }
 
-impl From<ThemeMode> for window::Theme {
+impl From<ThemeMode> for winit::window::Theme {
     fn from(value: ThemeMode) -> Self {
         match value {
             ThemeMode::Light => Self::Light,
