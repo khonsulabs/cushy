@@ -14,9 +14,10 @@ mod home;
 mod app_context;
 
 mod tabs {
+    use std::sync::Arc;
     use cushy::value::Dynamic;
     use cushy::widget::{MakeWidget, WidgetInstance};
-    use crate::app_context::get_context;
+    use crate::app_context::with_context;
     use crate::config::Config;
     use crate::home;
     use crate::widgets::tab_bar::Tab;
@@ -38,12 +39,10 @@ mod tabs {
         fn make_content(&self) -> WidgetInstance {
             match self {
                 TabKind::Home => {
-
-                    // FIXME need a context system, e.g.
-                    //let config: Config = get_context().unwrap();
-                    //let show_on_startup_value = Dynamic::new(config.show_home_on_startup);
-                    let show_on_startup_value = Dynamic::new(true);
-                    home::create_content(show_on_startup_value)
+                     with_context::<Arc<Config>, _, _>(|config|{
+                        let show_on_startup_value = Dynamic::new(config.show_home_on_startup);
+                        home::create_content(show_on_startup_value)
+                    }).unwrap()
                 },
                 TabKind::Document => "Document tab content".make_widget(),
             }
@@ -58,20 +57,22 @@ struct AppState {
 
 fn main() -> cushy::Result {
 
+    let config = Arc::new(config::load());
+
+    app_context::provide_context(config.clone());
+
     let tab_bar = Dynamic::new(make_tab_bar());
     let toolbar = make_toolbar(tab_bar.clone());
 
     let app_state = AppState {
         tab_bar: tab_bar.clone(),
-        config: Arc::new(config::load()),
+        config,
     };
 
     let ui_elements = [
         toolbar.make_widget(),
         app_state.tab_bar.lock().make_widget(),
     ];
-
-    app_context::provide_context(app_state.config.clone());
 
     let ui = ui_elements
         .into_rows()
