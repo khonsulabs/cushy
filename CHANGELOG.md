@@ -125,6 +125,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drawing them. By making this change, the bars now have input priority over the
   contents. This means that the scroll bars are now clickable even in areas
   where interactive widgets are beneath them.
+- `GraphicsContext::fill` now properly fills the entire region of the widget.
 
 ### Added
 

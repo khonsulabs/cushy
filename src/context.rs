@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 
 use figures::units::{Lp, Px, UPx};
-use figures::{IntoSigned, Point, Px2D, Rect, Round, ScreenScale, Size, Zero};
+use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::Cursor;
 use kludgine::cosmic_text::FamilyOwned;
@@ -626,7 +626,7 @@ impl<'context, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'clip, 'gfx, 'pass>
     /// If the alpha channel of `color` is 0, this function does nothing.
     pub fn fill(&mut self, color: Color) {
         if color.alpha() > 0 {
-            let visible_rect = Rect::from(self.gfx.region().size - Size::px(1, 1));
+            let visible_rect = Rect::from(self.gfx.region().size);
 
             let radii = self.get(&CornerRadius);
             let radii = radii.map(|r| r.into_px(self.gfx.scale()));
