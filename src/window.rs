@@ -31,7 +31,7 @@ use kludgine::app::winit::event::{
 use kludgine::app::winit::keyboard::{
     Key, KeyLocation, ModifiersState, NamedKey, NativeKeyCode, PhysicalKey, SmolStr,
 };
-use kludgine::app::winit::window::{self, Cursor, Fullscreen, Icon, WindowButtons, WindowLevel};
+use kludgine::app::winit::window::{Cursor, Fullscreen, Icon, WindowButtons, WindowLevel};
 use kludgine::app::{winit, WindowAttributes, WindowBehavior as _};
 use kludgine::cosmic_text::{fontdb, Family, FamilyOwned};
 use kludgine::drawing::Drawing;
@@ -117,7 +117,7 @@ pub trait PlatformWindowImplementation {
         self.winit().map_or(true, |win| win.is_resizable())
     }
 
-    /// Returns true if the window can have its size changed.
+    /// Returns the underlying window theme.
     ///
     /// The provided implementation returns [`winit::window::Window::theme`], or
     /// dark if this window has no winit window.
@@ -248,7 +248,7 @@ pub trait PlatformWindow {
     fn handle(&self) -> WindowHandle;
     /// Returns the unique id of the [`Kludgine`] instance used by this window.
     fn kludgine_id(&self) -> KludgineId;
-    /// Returns the dynamic that is synchrnoized with the window's focus.
+    /// Returns the dynamic that is synchronized with the window's focus.
     fn focused(&self) -> &Dynamic<bool>;
     /// Returns the dynamic that is synchronized with the window's occlusion
     /// status.
@@ -800,7 +800,7 @@ where
         self
     }
 
-    /// Sets `position`  to be a dynamic synchronized with this window's outer
+    /// Sets `position` to be a dynamic synchronized with this window's outer
     /// position.
     ///
     /// If `automatic_layout` is true, the initial value of `position` will be
@@ -829,7 +829,7 @@ where
         self
     }
 
-    /// Sets `position`  to be a dynamic synchronized with this window's inner
+    /// Sets `position` to be a dynamic synchronized with this window's inner
     /// position.
     ///
     /// When the window is moved, this dynamic will contain its new position.
@@ -3176,16 +3176,16 @@ impl Not for ThemeMode {
     }
 }
 
-impl From<window::Theme> for ThemeMode {
-    fn from(value: window::Theme) -> Self {
+impl From<winit::window::Theme> for ThemeMode {
+    fn from(value: winit::window::Theme) -> Self {
         match value {
-            window::Theme::Light => Self::Light,
-            window::Theme::Dark => Self::Dark,
+            winit::window::Theme::Light => Self::Light,
+            winit::window::Theme::Dark => Self::Dark,
         }
     }
 }
 
-impl From<ThemeMode> for window::Theme {
+impl From<ThemeMode> for winit::window::Theme {
     fn from(value: ThemeMode) -> Self {
         match value {
             ThemeMode::Light => Self::Light,
