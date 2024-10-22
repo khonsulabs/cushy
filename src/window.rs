@@ -2098,7 +2098,6 @@ where
             });
             when_updated!(resizable, handle, {
                 winit.set_resizable(*resizable);
-                println!("Setting resizable {resizable}");
                 redraw = true;
             });
             when_updated!(window_icon, handle, {
