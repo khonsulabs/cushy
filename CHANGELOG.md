@@ -126,6 +126,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contents. This means that the scroll bars are now clickable even in areas
   where interactive widgets are beneath them.
 - `GraphicsContext::fill` now properly fills the entire region of the widget.
+- `Slider` now correctly calculates its width when in a fully `SizeToFit`
+  layout.
 
 ### Added
 

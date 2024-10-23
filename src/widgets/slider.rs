@@ -548,7 +548,7 @@ where
                 // user of the slider, a horizontal slider is expected. So, we
                 // set the minimum measurement based on a horizontal
                 // orientation.
-                Size::new(width.min(minimum_size), static_side)
+                Size::new(width.max(minimum_size), static_side)
             }
         }
     }
