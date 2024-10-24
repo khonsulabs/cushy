@@ -1991,10 +1991,10 @@ impl MountedWidget {
         self.tree().attach_theme_mode(self.node_id, theme);
     }
 
-    pub(crate) fn overidden_theme(
+    pub(crate) fn overridden_theme(
         &self,
     ) -> (Styles, Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {
-        self.tree().overriden_theme(self.node_id)
+        self.tree().overridden_theme(self.node_id)
     }
 
     pub(crate) fn begin_layout(&self, constraints: Size<ConstraintLimit>) -> Option<Size<UPx>> {

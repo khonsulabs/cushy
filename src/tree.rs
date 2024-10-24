@@ -384,7 +384,7 @@ impl Tree {
         data.nodes.get_mut(id).expect("missing widget").theme_mode = Some(theme);
     }
 
-    pub(crate) fn overriden_theme(
+    pub(crate) fn overridden_theme(
         &self,
         id: LotId,
     ) -> (Styles, Option<Value<ThemePair>>, Option<Value<ThemeMode>>) {

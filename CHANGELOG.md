@@ -128,6 +128,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GraphicsContext::fill` now properly fills the entire region of the widget.
 - `Slider` now correctly calculates its width when in a fully `SizeToFit`
   layout.
+- `ThemedMode` is now properly applied consistently. Previously sometimes the
+  window's theme mode would be used instead of the overridden mode.
 
 ### Added
 

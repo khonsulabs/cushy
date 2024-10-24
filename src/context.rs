@@ -913,7 +913,10 @@ impl<'context> WidgetContext<'context> {
     ) -> Self {
         let enabled = current_node.enabled(&window.handle());
         let tree = current_node.tree();
-        Self {
+
+        let (effective_styles, overridden_theme, overridden_theme_mode) =
+            current_node.overridden_theme();
+        let mut context = Self {
             pending_state: PendingState::Owned(PendingWidgetState {
                 focus: tree
                     .focused_widget()
@@ -926,7 +929,7 @@ impl<'context> WidgetContext<'context> {
                 unmounting: false,
             }),
             tree,
-            effective_styles: current_node.effective_styles(),
+            effective_styles,
             cache: WidgetCacheKey {
                 kludgine_id: Some(window.kludgine_id()),
                 theme_mode,
@@ -937,7 +940,16 @@ impl<'context> WidgetContext<'context> {
             font_state,
             theme: Cow::Borrowed(theme),
             window,
+        };
+
+        if let Some(theme) = overridden_theme {
+            context.theme = Cow::Owned(theme.get_tracking_redraw(&context));
         }
+        if let Some(mode) = overridden_theme_mode {
+            context.cache.theme_mode = mode.get_tracking_redraw(&context);
+        }
+
+        context
     }
 
     /// Returns a new instance that borrows from `self`.
@@ -965,7 +977,7 @@ impl<'context> WidgetContext<'context> {
         Widget::Managed: MapManagedWidget<WidgetContext<'child>>,
     {
         widget.manage(self).map(|current_node| {
-            let (effective_styles, theme, theme_mode) = current_node.overidden_theme();
+            let (effective_styles, theme, theme_mode) = current_node.overridden_theme();
             let theme = if let Some(theme) = theme {
                 Cow::Owned(theme.get_tracking_redraw(self))
             } else {
@@ -1171,7 +1183,8 @@ impl<'context> WidgetContext<'context> {
     /// Attaches `theme_mode` to the widget hierarchy for this widget.
     ///
     /// All children nodes will use this theme mode.
-    pub fn attach_theme_mode(&self, theme_mode: Value<ThemeMode>) {
+    pub fn attach_theme_mode(&mut self, theme_mode: Value<ThemeMode>) {
+        self.cache.theme_mode = theme_mode.get();
         self.current_node.attach_theme_mode(theme_mode);
     }
 
