@@ -25,6 +25,7 @@ pub mod progress;
 pub mod radio;
 mod resize;
 pub mod scroll;
+pub mod virtual_list;
 pub mod select;
 pub mod shortcuts;
 pub mod slider;

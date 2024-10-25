@@ -42,6 +42,7 @@
     - [Switcher](./widgets/controls/switcher.md)
     - [TileMap](./widgets/controls/tilemap.md)
     - [Validated](./widgets/controls/validated.md)
+    - [VirtualList](./widgets/controls/virtual-list.md)
   - [Utility Widgets](./widgets/utility.md)
     - [Custom](./widgets/utility/custom.md)
     - [Data](./widgets/utility/data.md)

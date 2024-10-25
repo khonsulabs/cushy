@@ -25,7 +25,7 @@ use crate::ConstraintLimit;
 
 // TODO is this useful enough to make public?
 #[derive(Debug)]
-struct OwnedWidget<W>(OwnedWidgetState<W>);
+pub(crate) struct OwnedWidget<W>(OwnedWidgetState<W>);
 
 #[derive(Debug)]
 enum OwnedWidgetState<W> {
