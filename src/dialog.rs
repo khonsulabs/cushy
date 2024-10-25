@@ -277,8 +277,7 @@ impl MessageBox {
 
     /// Opens this dialog in the given target.
     ///
-    /// A target can be a [`Modal`] layer, a
-    /// [`ModalHandle`](crate::widgets::layers::ModalHandle), a
+    /// A target can be a [`Modal`] layer, a [`ModalHandle`], a
     /// [`WindowHandle`](crate::window::WindowHandle), or an
     /// [`App`](crate::App).
     pub fn open(&self, open_in: &impl OpenMessageBox) {

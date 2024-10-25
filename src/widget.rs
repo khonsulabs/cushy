@@ -319,18 +319,37 @@ pub trait Widget: Send + Debug + 'static {
     fn unmounted(&mut self, context: &mut EventContext<'_>) {}
 
     /// Returns true if this widget should respond to mouse input at `location`.
+    ///
+    /// This function is critical for how event propagation works for these
+    /// functions:
+    ///
+    /// - [`Self::hover`]
+    /// - [`Self::unhover`]
+    /// - [`Self::mouse_down`]
+    /// - [`Self::mouse_up`]
+    /// - [`Self::mouse_drag`]
+    /// - [`Self::mouse_wheel`]
+    ///
+    /// See [Hover State: Hit Testing](Self#hover-state-hit-testing) for an
+    /// explanation of how these events work together.
     #[allow(unused_variables)]
     fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> bool {
         false
     }
 
     /// The widget is currently has a cursor hovering it at `location`.
+    ///
+    /// This function will not be invoked if [`Self::hit_test`] returns false.
+    /// See [Hover State: Hit Testing](Self#hover-state-hit-testing) for more
+    /// information on how hover state is handled in Cushy.
     #[allow(unused_variables)]
     fn hover(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> Option<CursorIcon> {
         None
     }
 
     /// The widget is no longer being hovered.
+    ///
+    /// This function will only be invoked after [`Self::hover`].
     #[allow(unused_variables)]
     fn unhover(&mut self, context: &mut EventContext<'_>) {}
 
@@ -381,7 +400,14 @@ pub trait Widget: Send + Debug + 'static {
     /// event has been handled or not.
     ///
     /// If an event is handled, the widget will receive callbacks for
-    /// [`mouse_drag`](Self::mouse_drag) and [`mouse_up`](Self::mouse_up).
+    /// [`mouse_drag`](Self::mouse_drag) and [`mouse_up`](Self::mouse_up). See
+    /// [Mouse Button Events](Self#mouse-button-events) for more information on
+    /// how mouse events work in Cushy.
+    ///
+    /// This function will only be invoked if it or a child is the currently
+    /// hovered widget. See [Hover State: Hit
+    /// Testing](Self#hover-state-hit-testing) for more information on how hover
+    /// state is handled in Cushy.
     #[allow(unused_variables)]
     fn mouse_down(
         &mut self,
@@ -395,6 +421,10 @@ pub trait Widget: Send + Debug + 'static {
 
     /// A mouse button is being held down as the cursor is moved across the
     /// widget.
+    ///
+    /// This function will only be invoked if [`Self::mouse_down`] returns
+    /// [`HANDLED`]. See [Mouse Button Events](Self#mouse-button-events) for
+    /// more information on how mouse events work in Cushy.
     #[allow(unused_variables)]
     fn mouse_drag(
         &mut self,
@@ -406,6 +436,10 @@ pub trait Widget: Send + Debug + 'static {
     }
 
     /// A mouse button is no longer being pressed.
+    ///
+    /// This function will only be invoked if [`Self::mouse_down`] returns
+    /// [`HANDLED`]. See [Mouse Button Events](Self#mouse-button-events) for
+    /// more information on how mouse events work in Cushy.
     #[allow(unused_variables)]
     fn mouse_up(
         &mut self,
@@ -438,6 +472,12 @@ pub trait Widget: Send + Debug + 'static {
 
     /// A mouse wheel event has been sent to this widget. Returns whether the
     /// event has been handled or not.
+    ///
+    /// This function will only be invoked if it or a child is the currently
+    /// hovered widget. See [Hover State: Hit
+    /// Testing](Self#hover-state-hit-testing) for more information on how hover
+    /// state is handled in Cushy.
+    #[allow(unused_variables)]
     #[allow(unused_variables)]
     fn mouse_wheel(
         &mut self,
