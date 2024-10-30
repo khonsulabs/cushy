@@ -84,6 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - If the root widget of a window is a `Resize` with an exact width and height,
   the window will have its resizable attribute disabled. This will not update
   the resizable `Dynamic<bool>` on `Window`.
+- Transparent buttons' focus rings are now drawn using the same corner radius as
+  the button and have padding between the label and the focus ring.
 
 ### Fixed
 
@@ -269,6 +271,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   @danbulant for helping with this change!
 - `ScrollBar` is a new widget that renders a scroll bar meant to scroll through
   a large container.
+- `OutlineWidth` is a new component that is used to control the width of most
+  outlines drawn in the user interface.
+- `FocusColor` is a new component that controls the color of the keyboard focus
+  indicator.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

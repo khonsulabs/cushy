@@ -174,6 +174,10 @@ define_components! {
         TextColorVariant(Color, "text_color_variant", .surface.on_color_variant)
         /// A [`Color`] to be used as a highlight color.
         HighlightColor(Color,"highlight_color", .primary.color.with_alpha(128))
+        /// A [`Color`] to be used as to indicate keyboard focus.
+        FocusColor(Color,"focus_color", @HighlightColor)
+        /// The width of outlines drawn around widgets.
+        OutlineWidth(Dimension,"outline_width", Dimension::Lp(Lp::points(1)))
         /// The primary color from the current theme.
         PrimaryColor(Color, "primary_color", .primary.color)
         /// The secondary color from the current theme.

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use alot::LotId;
-use figures::units::{Lp, Px, UPx};
+use figures::units::{Px, UPx};
 use figures::{Angle, IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 use kludgine::DrawableExt;
@@ -19,7 +19,7 @@ use super::Button;
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
 use crate::styles::components::{
-    CornerRadius, Easing, IntrinsicPadding, OpaqueWidgetColor, TextColor,
+    CornerRadius, Easing, IntrinsicPadding, OpaqueWidgetColor, OutlineWidth, TextColor,
 };
 use crate::styles::Styles;
 use crate::value::{Dynamic, IntoValue, Source, Value};
@@ -579,9 +579,13 @@ where
             .line_to(Point::new(full_size.width - self.padding * 2, UPx::ZERO))
             .close()
             .stroke(
-                StrokeOptions::lp_wide(Lp::points(2))
-                    .into_upx(context.gfx.scale())
-                    .colored(context.theme().surface.color),
+                StrokeOptions::upx_wide(
+                    context
+                        .get(&OutlineWidth)
+                        .into_upx(context.gfx.scale())
+                        .ceil(),
+                )
+                .colored(context.theme().surface.color),
             );
         for rendered in &mut self.items {
             match &mut rendered.item {

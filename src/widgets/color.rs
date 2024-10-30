@@ -10,7 +10,9 @@ use kludgine::{Color, DrawableExt, Origin};
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
-use crate::styles::components::{HighlightColor, OutlineColor, SurfaceColor, TextColor};
+use crate::styles::components::{
+    HighlightColor, OutlineColor, OutlineWidth, SurfaceColor, TextColor,
+};
 use crate::styles::{ColorExt, ColorSource, Hsl, Hsla};
 use crate::value::{
     Destination, Dynamic, ForEachCloned, IntoDynamic, IntoReadOnly, IntoValue, MapEach, ReadOnly,
@@ -491,9 +493,13 @@ where
             context.get(&OutlineColor)
         };
 
-        let options = StrokeOptions::lp_wide(Lp::points(1))
-            .colored(outline_color)
-            .into_px(context.gfx.scale());
+        let options = StrokeOptions::px_wide(
+            context
+                .get(&OutlineWidth)
+                .into_px(context.gfx.scale())
+                .ceil(),
+        )
+        .colored(outline_color);
         self.visible_rect = Rect::new(
             Point::squared(options.line_width) + Point::new(loupe_size / 2, Px::ZERO),
             size - Size::squared(options.line_width * 2) - Size::new(loupe_size, Px::ZERO),
@@ -664,9 +670,9 @@ impl Widget for ColorSourcePicker {
             context.get(&OutlineColor)
         };
 
-        let options = StrokeOptions::lp_wide(Lp::points(1))
-            .colored(outline_color)
-            .into_px(context.gfx.scale());
+        let options =
+            StrokeOptions::px_wide(context.get(&OutlineWidth).into_px(context.gfx.scale()))
+                .colored(outline_color);
         self.visible_rect = Rect::new(
             Point::squared(options.line_width) + loupe_size / 2,
             size - Point::squared(options.line_width * 2) - loupe_size,

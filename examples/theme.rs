@@ -96,7 +96,8 @@ fn theme_editor(cushy: Cushy) -> impl MakeWidget {
         }))
         .into_rows()
         .pad()
-        .vertical_scroll();
+        .vertical_scroll()
+        .expand();
 
     editors
         .and(fixed_themes(

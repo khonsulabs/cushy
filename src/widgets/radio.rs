@@ -1,13 +1,12 @@
 //! A labeled widget with a circular indicator representing a value.
 use std::fmt::Debug;
 
-use figures::units::Lp;
-use figures::{Point, ScreenScale, Size};
+use figures::{Point, Round, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::DrawableExt;
 
 use crate::context::{GraphicsContext, LayoutContext};
-use crate::styles::components::{LineHeight, OutlineColor, WidgetAccentColor};
+use crate::styles::components::{LineHeight, OutlineColor, OutlineWidth, WidgetAccentColor};
 use crate::styles::Dimension;
 use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
@@ -89,7 +88,12 @@ where
             .min(context.gfx.region().size.height);
         let vertical_center = context.gfx.region().size.height / 2;
 
-        let stroke_options = StrokeOptions::lp_wide(Lp::points(2)).into_px(context.gfx.scale());
+        let stroke_options = StrokeOptions::px_wide(
+            context
+                .get(&OutlineWidth)
+                .into_px(context.gfx.scale())
+                .ceil(),
+        );
         context.redraw_when_changed(&self.state);
         let selected = self.state.map_ref(|state| state == &self.value);
         let color = context.get(&OutlineColor);
