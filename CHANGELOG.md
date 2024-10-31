@@ -270,7 +270,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that allows completely customizing a scroll view's behavior. Thanks to
   @danbulant for helping with this change!
 - `ScrollBar` is a new widget that renders a scroll bar meant to scroll through
-  a large container.
+  a large container. Additionally its appearance has been updated to be based on
+  the theme. Several new style components have been added to control how scroll
+  bars are rendered: `ScrollBarThumbColor`, `ScrollBarThumbOutlineColor`,
+  `ScrollBarThumbOutlineThickness`, `ScrollBarThumbCornerRadius`.
 - `OutlineWidth` is a new component that is used to control the width of most
   outlines drawn in the user interface.
 - `FocusColor` is a new component that controls the color of the keyboard focus

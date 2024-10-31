@@ -4,17 +4,19 @@ use std::mem;
 use std::time::Duration;
 
 use figures::units::{Lp, Px, UPx};
-use figures::{FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Zero};
+use figures::{
+    FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero,
+};
 use intentional::Cast;
 use kempt::Set;
 use kludgine::app::winit::event::{MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
-use kludgine::shapes::Shape;
+use kludgine::shapes::{CornerRadii, Shape};
 use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, LayoutContext};
-use crate::styles::components::{EasingIn, EasingOut, LineHeight};
+use crate::styles::components::{EasingIn, EasingOut, LineHeight, PrimaryColor, SurfaceColor};
 use crate::styles::Dimension;
 use crate::value::{
     Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, MapEachCloned, Source, Value,
@@ -506,13 +508,6 @@ fn scrollbar_region(scroll: UPx, content_size: UPx, control_size: UPx) -> Scroll
     }
 }
 
-define_components! {
-    Scroll {
-        /// The thickness that scrollbars are drawn with.
-        ScrollBarThickness(Dimension, "size", Dimension::Lp(Lp::points(7)))
-    }
-}
-
 /// A draggable bar that is used to scroll a region.
 #[derive(Debug)]
 pub struct ScrollBar {
@@ -718,11 +713,44 @@ impl Widget for ScrollBar {
                     Point::new(UPx::ZERO, control_size.height - self.bar_width),
                     Size::new(self.info.size, self.bar_width),
                 )
-            };
-            context.gfx.draw_shape(&Shape::filled_rect(
-                rect.into_signed(), // See https://github.com/khonsulabs/cushy/issues/186
-                Color::new_f32(1.0, 1.0, 1.0, *opacity),
-            ));
+            }
+            .into_signed(); // See https://github.com/khonsulabs/cushy/issues/186
+            let radii = context
+                .get(&ScrollBarThumbCornerRadius)
+                .into_px(context.gfx.scale())
+                .map(Px::ceil);
+            let color = context.get(&ScrollBarThumbColor);
+            let color = color.with_alpha_f32(color.alpha_f32() * *opacity);
+            let outline_size = context
+                .get(&ScrollBarThumbOutlineThickness)
+                .into_px(context.gfx.scale())
+                .ceil();
+            let outline_color = context.get(&ScrollBarThumbOutlineColor);
+            let outline_color = outline_color.with_alpha_f32(outline_color.alpha_f32() * *opacity);
+            if radii.is_zero() {
+                context
+                    .gfx
+                    .draw_shape(&Shape::filled_rect(rect.inset(outline_size / 2), color));
+                if outline_size > 0 {
+                    context.gfx.draw_shape(&Shape::stroked_rect(
+                        rect.inset(outline_size / 2),
+                        outline_color,
+                    ));
+                }
+            } else {
+                context.gfx.draw_shape(&Shape::filled_round_rect(
+                    rect.inset(outline_size / 2),
+                    radii,
+                    color,
+                ));
+                if outline_size > 0 {
+                    context.gfx.draw_shape(&Shape::stroked_round_rect(
+                        rect.inset(outline_size / 2),
+                        radii,
+                        outline_color,
+                    ));
+                }
+            }
         }
     }
 
@@ -759,7 +787,8 @@ impl Widget for ScrollBar {
     ) -> Size<UPx> {
         self.bar_width = context
             .get(&ScrollBarThickness)
-            .into_upx(context.gfx.scale());
+            .into_upx(context.gfx.scale())
+            .ceil();
         self.line_height = context.get(&LineHeight).into_upx(context.gfx.scale());
 
         if self.vertical {
@@ -861,5 +890,20 @@ impl Widget for ScrollBar {
                 self.hide(context);
             }
         }
+    }
+}
+
+define_components! {
+    Scroll {
+        /// The thickness that scrollbars are drawn with.
+        ScrollBarThickness(Dimension, "size", Dimension::Lp(Lp::points(7)))
+        /// The color of the scroll bar thumb.
+        ScrollBarThumbColor(Color, "thumb_color", @PrimaryColor)
+        /// The color of the outline drawn around the scroll bar thumb.
+        ScrollBarThumbOutlineColor(Color, "thumb_outline_color", @SurfaceColor)
+        /// The thickness of the outline drawn around the scroll bar thumb.
+        ScrollBarThumbOutlineThickness(Dimension, "thumb_outline_size", Dimension::Lp(Lp::points(1)))
+        /// The thickness of the outline drawn around the scroll bar thumb.
+        ScrollBarThumbCornerRadius(CornerRadii<Dimension>, "corner_radius", |context| CornerRadii::from(context.get(&ScrollBarThickness)))
     }
 }

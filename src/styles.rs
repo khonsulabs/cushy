@@ -1814,9 +1814,9 @@ impl ColorTheme {
     #[must_use]
     pub fn dark_from_source(source: ColorSource) -> Self {
         Self {
-            color: source.color(80),
+            color: source.color(85),
             color_dim: source.color(60),
-            color_bright: source.color(85),
+            color_bright: source.color(90),
             on_color: source.color(10),
             container: source.color(30),
             on_container: source.color(90),
