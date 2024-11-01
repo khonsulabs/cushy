@@ -1,4 +1,6 @@
+use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
 
 use figures::units::{Px, UPx};
 use figures::{
@@ -10,7 +12,8 @@ use kludgine::drawing::Renderer;
 use kludgine::shapes::Shape;
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{
-    cosmic_text, ClipGuard, Color, Drawable, Kludgine, ShaderScalable, ShapeSource, TextureSource,
+    cosmic_text, ClipGuard, Color, Drawable, Kludgine, RenderingGraphics, ShaderScalable,
+    ShapeSource, TextureSource,
 };
 
 use crate::animation::ZeroToOne;
@@ -305,6 +308,20 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         self.renderer.draw_measured_text(text, origin);
     }
 
+    /// Draws the custom rendering operation when this graphics is presented to
+    /// the screen.
+    ///
+    /// The rendering operation will be clipped automatically, but the rendering
+    /// operation will need to position and size itself accordingly.
+    pub fn draw(&mut self, op: RenderOperation) {
+        let origin = self.region.origin;
+        self.renderer.draw(kludgine::drawing::RenderOperation::new(
+            move |opacity, ctx: &mut kludgine::RenderingGraphics<'_, '_>| {
+                op.0.render(origin, opacity, ctx);
+            },
+        ));
+    }
+
     /// Returns a reference to the font system used to render.
     pub fn font_system(&mut self) -> &mut FontSystem {
         self.renderer.font_system()
@@ -537,5 +554,45 @@ impl FontState {
         {
             apply(name);
         }
+    }
+}
+
+/// A custom rendering operation.
+#[derive(Clone)]
+pub struct RenderOperation(Arc<dyn RenderOp>);
+
+impl RenderOperation {
+    /// Creates a new rendering operation that invokes `op` when executed.
+    pub fn new<Op>(op: Op) -> Self
+    where
+        Op: for<'a, 'context, 'pass> Fn(Point<Px>, f32, &'a mut RenderingGraphics<'context, 'pass>)
+            + Send
+            + Sync
+            + 'static,
+    {
+        Self(Arc::new(op))
+    }
+}
+
+impl Debug for RenderOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Arc::as_ptr(&self.0).fmt(f)
+    }
+}
+
+trait RenderOp: Send + Sync + 'static {
+    /// Render to `graphics` with `opacity`.
+    fn render(&self, origin: Point<Px>, opacity: f32, graphics: &mut RenderingGraphics<'_, '_>);
+}
+
+impl<F> RenderOp for F
+where
+    F: for<'a, 'context, 'pass> Fn(Point<Px>, f32, &'a mut RenderingGraphics<'context, 'pass>)
+        + Send
+        + Sync
+        + 'static,
+{
+    fn render(&self, origin: Point<Px>, opacity: f32, graphics: &mut RenderingGraphics<'_, '_>) {
+        self(origin, opacity, graphics);
     }
 }

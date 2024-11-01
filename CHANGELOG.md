@@ -278,6 +278,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outlines drawn in the user interface.
 - `FocusColor` is a new component that controls the color of the keyboard focus
   indicator.
+- `Graphics::draw` is a new function that allows performing arbitrary `wgpu`
+  drawing operations when rendering. See the `shaders.rs` example for an example
+  on how to use this to render into a Canvas with a custom shader.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
