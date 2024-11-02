@@ -137,7 +137,7 @@ pub use names::Name;
 pub use utils::{Lazy, ModifiersExt, ModifiersStateExt, WithClone};
 pub use {figures, kludgine};
 
-pub use self::graphics::{Graphics, RenderOperation};
+pub use self::graphics::{Graphics, RenderOperation, SimpleRenderOperation};
 pub use self::tick::{InputState, Tick};
 
 /// Starts running a Cushy application, invoking `app_init` after the event loop

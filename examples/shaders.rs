@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use cushy::widget::MakeWidget;
 use cushy::widgets::Canvas;
-use cushy::{RenderOperation, Run};
+use cushy::{Run, SimpleRenderOperation};
 use kludgine::{wgpu, RenderingGraphics};
 
 static TRIANGLE_SHADER: &str = r#"
@@ -23,10 +23,7 @@ pub struct TriangleShader {
     pipeline: wgpu::RenderPipeline,
 }
 
-impl RenderOperation for TriangleShader {
-    type DrawInfo = ();
-    type Prepared = ();
-
+impl SimpleRenderOperation for TriangleShader {
     fn new(graphics: &mut kludgine::Graphics<'_>) -> Self {
         let shader = graphics
             .device()
@@ -71,17 +68,8 @@ impl RenderOperation for TriangleShader {
         Self { pipeline }
     }
 
-    fn prepare(
-        &mut self,
-        _context: Self::DrawInfo,
-        _origin: figures::Point<figures::units::Px>,
-        _graphics: &mut kludgine::Graphics<'_>,
-    ) -> Self::Prepared {
-    }
-
     fn render(
         &self,
-        _prepared: &Self::Prepared,
         origin: figures::Point<figures::units::Px>,
         _opacity: f32,
         graphics: &mut RenderingGraphics<'_, '_>,

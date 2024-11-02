@@ -604,6 +604,21 @@ impl FontState {
 }
 
 /// A custom wgpu-powered rendering operation.
+///
+/// # How custom rendering ops work
+///
+/// When [`Graphics::draw`]/[`Graphics::draw_with`] are invoked for the first
+/// time for a given `RenderOperation` implementor, [`new()`](Self::new) is
+/// called to create a shared instance of this rendering operation. The new
+/// function is a good location to put any initialization that can be shared
+/// amongst all drawing calls, as it is invoked only once for each surface.
+///
+/// After an existing or newly-created operation is located, `prepare()` is
+/// invoked passing through the `DrawInfo` provided to the draw call. The result
+/// of this function is stored.
+///
+/// When the graphics is presented, `render()` is invoked providing the data
+/// returned from the `prepare()` function.
 pub trait RenderOperation: Send + Sync + 'static {
     /// Data that is provided to the `prepare()` function. This is passed
     /// through from the `draw/draw_with` invocation.
@@ -631,4 +646,43 @@ pub trait RenderOperation: Send + Sync + 'static {
         opacity: f32,
         graphics: &mut RenderingGraphics<'_, '_>,
     );
+}
+
+/// A [`RenderOperation`] with no per-drawing-call state.
+pub trait SimpleRenderOperation: Send + Sync + 'static {
+    /// Returns a new instance of this render operation.
+    fn new(graphics: &mut kludgine::Graphics<'_>) -> Self;
+
+    /// Render to `graphics` at `origin` with `opacity`.
+    fn render(&self, origin: Point<Px>, opacity: f32, graphics: &mut RenderingGraphics<'_, '_>);
+}
+
+impl<T> RenderOperation for T
+where
+    T: SimpleRenderOperation,
+{
+    type DrawInfo = ();
+    type Prepared = ();
+
+    fn new(graphics: &mut kludgine::Graphics<'_>) -> Self {
+        Self::new(graphics)
+    }
+
+    fn prepare(
+        &mut self,
+        _context: Self::DrawInfo,
+        _origin: Point<Px>,
+        _graphics: &mut kludgine::Graphics<'_>,
+    ) -> Self::Prepared {
+    }
+
+    fn render(
+        &self,
+        _prepared: &Self::Prepared,
+        origin: Point<Px>,
+        opacity: f32,
+        graphics: &mut RenderingGraphics<'_, '_>,
+    ) {
+        self.render(origin, opacity, graphics);
+    }
 }
