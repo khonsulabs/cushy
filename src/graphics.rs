@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
 
 use figures::units::{Px, UPx};
 use figures::{
@@ -313,13 +312,19 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     ///
     /// The rendering operation will be clipped automatically, but the rendering
     /// operation will need to position and size itself accordingly.
-    pub fn draw(&mut self, op: RenderOperation) {
+    pub fn draw<Op: RenderOperation>(&mut self)
+    where
+        Op::DrawInfo: Default,
+    {
         let origin = self.region.origin;
-        self.renderer.draw(kludgine::drawing::RenderOperation::new(
-            move |opacity, ctx: &mut kludgine::RenderingGraphics<'_, '_>| {
-                op.0.render(origin, opacity, ctx);
-            },
-        ));
+        self.renderer
+            .draw::<CushyRenderOp<Op>>((<Op::DrawInfo>::default(), origin));
+    }
+
+    /// Draws `Op` with the given context.
+    pub fn draw_with<Op: RenderOperation>(&mut self, context: Op::DrawInfo) {
+        let origin = self.region.origin;
+        self.renderer.draw::<CushyRenderOp<Op>>((context, origin));
     }
 
     /// Returns a reference to the font system used to render.
@@ -372,6 +377,47 @@ impl<'gfx, 'pass> DerefMut for RenderContext<'_, 'gfx, 'pass> {
             RenderContext::Renderer(renderer) => renderer,
             RenderContext::Clipped(clipped) => &mut *clipped,
         }
+    }
+}
+
+#[derive(Debug)]
+struct Prepared<T> {
+    origin: Point<Px>,
+    data: T,
+}
+
+struct CushyRenderOp<Op>(Op);
+
+impl<Op> kludgine::drawing::RenderOperation for CushyRenderOp<Op>
+where
+    Op: RenderOperation,
+{
+    type DrawInfo = (Op::DrawInfo, Point<Px>);
+    type Prepared = Prepared<Op::Prepared>;
+
+    fn new(graphics: &mut kludgine::Graphics<'_>) -> Self {
+        Self(Op::new(graphics))
+    }
+
+    fn prepare(
+        &mut self,
+        (context, origin): Self::DrawInfo,
+        graphics: &mut kludgine::Graphics<'_>,
+    ) -> Self::Prepared {
+        Prepared {
+            origin,
+            data: self.0.prepare(context, origin, graphics),
+        }
+    }
+
+    fn render<'pass>(
+        &'pass self,
+        prepared: &Self::Prepared,
+        opacity: f32,
+        graphics: &mut RenderingGraphics<'_, 'pass>,
+    ) {
+        self.0
+            .render(&prepared.data, prepared.origin, opacity, graphics);
     }
 }
 
@@ -557,42 +603,32 @@ impl FontState {
     }
 }
 
-/// A custom rendering operation.
-#[derive(Clone)]
-pub struct RenderOperation(Arc<dyn RenderOp>);
+/// A custom wgpu-powered rendering operation.
+pub trait RenderOperation: Send + Sync + 'static {
+    /// Data that is provided to the `prepare()` function. This is passed
+    /// through from the `draw/draw_with` invocation.
+    type DrawInfo;
+    /// Data that is created in the `prepare()` function, and provided to the
+    /// `render()` function.
+    type Prepared: Debug + Send + Sync + 'static;
 
-impl RenderOperation {
-    /// Creates a new rendering operation that invokes `op` when executed.
-    pub fn new<Op>(op: Op) -> Self
-    where
-        Op: for<'a, 'context, 'pass> Fn(Point<Px>, f32, &'a mut RenderingGraphics<'context, 'pass>)
-            + Send
-            + Sync
-            + 'static,
-    {
-        Self(Arc::new(op))
-    }
-}
+    /// Returns a new instance of this render operation.
+    fn new(graphics: &mut kludgine::Graphics<'_>) -> Self;
 
-impl Debug for RenderOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Arc::as_ptr(&self.0).fmt(f)
-    }
-}
+    /// Prepares this operation to be rendered at `origin` in `graphics`.
+    fn prepare(
+        &mut self,
+        context: Self::DrawInfo,
+        origin: Point<Px>,
+        graphics: &mut kludgine::Graphics<'_>,
+    ) -> Self::Prepared;
 
-trait RenderOp: Send + Sync + 'static {
-    /// Render to `graphics` with `opacity`.
-    fn render(&self, origin: Point<Px>, opacity: f32, graphics: &mut RenderingGraphics<'_, '_>);
-}
-
-impl<F> RenderOp for F
-where
-    F: for<'a, 'context, 'pass> Fn(Point<Px>, f32, &'a mut RenderingGraphics<'context, 'pass>)
-        + Send
-        + Sync
-        + 'static,
-{
-    fn render(&self, origin: Point<Px>, opacity: f32, graphics: &mut RenderingGraphics<'_, '_>) {
-        self(origin, opacity, graphics);
-    }
+    /// Render `preprared` to `graphics` at `origin` with `opacity`.
+    fn render(
+        &self,
+        prepared: &Self::Prepared,
+        origin: Point<Px>,
+        opacity: f32,
+        graphics: &mut RenderingGraphics<'_, '_>,
+    );
 }

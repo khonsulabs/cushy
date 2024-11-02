@@ -19,62 +19,82 @@ static TRIANGLE_SHADER: &str = r#"
     }
 "#;
 
-fn main() -> cushy::Result {
-    let mut shader_op = None;
-    Canvas::new(move |ctx| {
-        if shader_op.is_none() {
-            // Compile the shader now that we have access to wgpu
-            let shader = ctx.gfx.inner_graphics().device().create_shader_module(
-                wgpu::ShaderModuleDescriptor {
-                    label: None,
-                    source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(TRIANGLE_SHADER)),
-                },
-            );
+pub struct TriangleShader {
+    pipeline: wgpu::RenderPipeline,
+}
 
-            let pipeline_layout = ctx.gfx.inner_graphics().device().create_pipeline_layout(
-                &wgpu::PipelineLayoutDescriptor {
+impl RenderOperation for TriangleShader {
+    type DrawInfo = ();
+    type Prepared = ();
+
+    fn new(graphics: &mut kludgine::Graphics<'_>) -> Self {
+        let shader = graphics
+            .device()
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(TRIANGLE_SHADER)),
+            });
+
+        let pipeline_layout =
+            graphics
+                .device()
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
                     bind_group_layouts: &[],
                     push_constant_ranges: &[],
-                },
-            );
+                });
 
-            let pipeline = ctx.gfx.inner_graphics().device().create_render_pipeline(
-                &wgpu::RenderPipelineDescriptor {
-                    label: None,
-                    layout: Some(&pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &shader,
-                        entry_point: "vs_main",
-                        buffers: &[],
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                    },
-                    primitive: wgpu::PrimitiveState::default(),
-                    depth_stencil: None,
-                    multisample: ctx.gfx.inner_graphics().multisample_state(),
-                    fragment: Some(wgpu::FragmentState {
-                        module: &shader,
-                        entry_point: "fs_main",
-                        compilation_options: wgpu::PipelineCompilationOptions::default(),
-                        targets: &[Some(ctx.gfx.inner_graphics().texture_format().into())],
-                    }),
-                    multiview: None,
-                    cache: None,
+        let pipeline = graphics
+            .device()
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: None,
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &shader,
+                    entry_point: "vs_main",
+                    buffers: &[],
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
-            );
+                primitive: wgpu::PrimitiveState::default(),
+                depth_stencil: None,
+                multisample: graphics.multisample_state(),
+                fragment: Some(wgpu::FragmentState {
+                    module: &shader,
+                    entry_point: "fs_main",
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(graphics.texture_format().into())],
+                }),
+                multiview: None,
+                cache: None,
+            });
 
-            // Create our rendering operation that uses the pipeline we created.
-            shader_op = Some(RenderOperation::new(
-                move |_origin, _opacity, ctx: &mut RenderingGraphics<'_, '_>| {
-                    println!("Render to {_origin:?} clipped to {:?}", ctx.clip_rect());
-                    ctx.pass_mut().set_pipeline(&pipeline);
-                    ctx.pass_mut().draw(0..3, 0..1);
-                },
-            ));
-        }
+        Self { pipeline }
+    }
 
-        // Draw our shader
-        ctx.gfx.draw(shader_op.clone().expect("always initialized"));
+    fn prepare(
+        &mut self,
+        _context: Self::DrawInfo,
+        _origin: figures::Point<figures::units::Px>,
+        _graphics: &mut kludgine::Graphics<'_>,
+    ) -> Self::Prepared {
+    }
+
+    fn render(
+        &self,
+        _prepared: &Self::Prepared,
+        origin: figures::Point<figures::units::Px>,
+        _opacity: f32,
+        graphics: &mut RenderingGraphics<'_, '_>,
+    ) {
+        println!("Render to {origin:?} clipped to {:?}", graphics.clip_rect());
+        graphics.pass_mut().set_pipeline(&self.pipeline);
+        graphics.pass_mut().draw(0..3, 0..1);
+    }
+}
+
+fn main() -> cushy::Result {
+    Canvas::new(move |ctx| {
+        ctx.gfx.draw::<TriangleShader>();
     })
     .contain()
     .pad()
