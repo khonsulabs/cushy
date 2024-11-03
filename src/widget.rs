@@ -1281,7 +1281,7 @@ pub trait MakeWidget: Sized {
 
     /// Returns this widget as the label of a Checkbox.
     fn into_checkbox(self, value: impl IntoDynamic<CheckboxState>) -> Checkbox {
-        value.into_checkbox(self)
+        value.into_checkbox().labelled_by(self)
     }
 
     /// Returns this widget as the label of a Checkbox.
@@ -2670,6 +2670,12 @@ impl WidgetRef {
 impl From<WidgetRef> for WindowLocal<MountedWidget> {
     fn from(value: WidgetRef) -> Self {
         value.mounted
+    }
+}
+
+impl From<WidgetInstance> for WidgetRef {
+    fn from(value: WidgetInstance) -> Self {
+        Self::new(value)
     }
 }
 

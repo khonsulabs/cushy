@@ -8,7 +8,9 @@ use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
 
-use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, LinearInterpolate, Spawn};
+use crate::animation::{
+    AnimationHandle, AnimationTarget, IntoAnimate, LinearInterpolate, Spawn, ZeroToOne,
+};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{
     AutoFocusableControls, CornerRadius, DefaultActiveBackgroundColor,
@@ -17,7 +19,7 @@ use crate::styles::components::{
     DefaultHoveredForegroundColor, Easing, HighlightColor, IntrinsicPadding, OpaqueWidgetColor,
     OutlineColor, OutlineWidth, SurfaceColor, TextColor,
 };
-use crate::styles::{ColorExt, Styles};
+use crate::styles::{ColorExt, Hsla, Styles};
 use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{
     Callback, EventHandling, MakeWidget, SharedCallback, Widget, WidgetRef, HANDLED,
@@ -573,7 +575,11 @@ define_components! {
         ButtonActiveBackground(Color, "active_background_color", .surface.color)
         /// The background color of the button when the mouse cursor is hovering over
         /// it.
-        ButtonHoverBackground(Color, "hover_background_color", .surface.lowest_container)
+        ButtonHoverBackground(Color, "hover_background_color", |context| {
+            let mut hsla = Hsla::from(context.get(&ButtonBackground));
+            hsla.hsl.lightness *= ZeroToOne::new(0.8);
+            Color::from(hsla)
+        })
         /// The background color of the button when the mouse cursor is hovering over
         /// it.
         ButtonDisabledBackground(Color, "disabled_background_color", .surface.dim_color)

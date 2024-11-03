@@ -15,7 +15,7 @@ fn main() -> cushy::Result {
         .and(enum_slider())
         .into_rows()
         .with_enabled(enabled.clone())
-        .and(enabled.into_checkbox("Enabled"))
+        .and(enabled.into_checkbox().labelled_by("Enabled"))
         .into_rows()
         .expand_horizontally()
         .contain()

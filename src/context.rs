@@ -1242,6 +1242,12 @@ impl<'context> WidgetContext<'context> {
         }
     }
 
+    /// Returns the currently active theme mode.
+    #[must_use]
+    pub fn theme_mode(&self) -> ThemeMode {
+        self.cache.theme_mode
+    }
+
     /// Returns the opposite theme of [`Self::theme()`].
     #[must_use]
     pub fn inverse_theme(&self) -> &Theme {

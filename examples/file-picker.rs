@@ -36,9 +36,14 @@ fn main(app: &mut App) -> cushy::Result {
                 .and(picker_mode.new_radio(PickerMode::PickFile, "Pick File"))
                 .and(picker_mode.new_radio(PickerMode::PickFolder, "Pick Folder"))
                 .into_columns()
-                .and(pick_multiple.to_checkbox("Select Multiple").with_enabled(
-                    picker_mode.map_each(|kind| !matches!(kind, PickerMode::SaveFile)),
-                ))
+                .and(
+                    pick_multiple
+                        .to_checkbox()
+                        .labelled_by("Select Multiple")
+                        .with_enabled(
+                            picker_mode.map_each(|kind| !matches!(kind, PickerMode::SaveFile)),
+                        ),
+                )
                 .and(picker_buttons(
                     &picker_mode,
                     &pick_multiple,

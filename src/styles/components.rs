@@ -8,6 +8,7 @@ use kludgine::Color;
 use crate::animation::easings::{EaseInOutQuadradic, EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::{EasingFunction, ZeroToOne};
 use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
+use crate::window::ThemeMode;
 
 /// Defines a set of style components for Cushy.
 ///
@@ -235,7 +236,12 @@ define_components! {
         /// selection.
         AutoFocusableControls(FocusableWidgets, "focus")
         /// A [`Color`] to be used as the background color of a widget.
-        WidgetBackground(Color, "widget_backgrond_color", Color::CLEAR_WHITE)
+        WidgetBackground(Color, "widget_backgrond_color", |ctx| {
+            match ctx.theme_mode() {
+                ThemeMode::Dark => Color::CLEAR_BLACK,
+                ThemeMode::Light => Color::CLEAR_WHITE,
+            }
+        })
         /// A [`Color`] to be used to accent a widget.
         WidgetAccentColor(Color, "widget_accent_color", .primary.color)
         /// A [`Color`] to be used to accent a disabled widget.
