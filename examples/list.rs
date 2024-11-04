@@ -7,7 +7,11 @@ fn list() -> impl MakeWidget {
     let current_style: Dynamic<ListStyle> = Dynamic::default();
     let options = ListStyle::provided()
         .into_iter()
-        .map(|style| current_style.new_radio(style.clone(), format!("{style:?}")))
+        .map(|style| {
+            current_style
+                .new_radio(style.clone())
+                .labelled_by(format!("{style:?}"))
+        })
         .collect::<WidgetList>();
 
     let rows = (1..100).map(|i| i.to_string()).collect::<WidgetList>();

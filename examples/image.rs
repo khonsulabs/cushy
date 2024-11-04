@@ -64,8 +64,8 @@ fn main() -> cushy::Result {
 
     let apsect_mode_select = "Mode"
         .h3()
-        .and(aspect_mode.new_radio(Aspect::Fit, "Fit"))
-        .and(aspect_mode.new_radio(Aspect::Fill, "Fill"))
+        .and(aspect_mode.new_radio(Aspect::Fit).labelled_by("Fit"))
+        .and(aspect_mode.new_radio(Aspect::Fill).labelled_by("Fill"))
         .into_rows();
 
     let hide_aspect_editor = mode.map_each(|scale| !matches!(scale, ScalingMode::Aspect));
@@ -77,20 +77,29 @@ fn main() -> cushy::Result {
 
     let filter_select = "Filter mode"
         .h1()
-        .and(selected_filter.new_radio(FilterMode::Nearest, "Nearest"))
-        .and(selected_filter.new_radio(FilterMode::Linear, "Linear"))
+        .and(
+            selected_filter
+                .new_radio(FilterMode::Nearest)
+                .labelled_by("Nearest"),
+        )
+        .and(
+            selected_filter
+                .new_radio(FilterMode::Linear)
+                .labelled_by("Linear"),
+        )
         .into_rows();
 
     let mode_select = "Scaling Mode"
         .h1()
-        .and(mode.new_radio(ScalingMode::Scale, "Scale"))
+        .and(mode.new_radio(ScalingMode::Scale).labelled_by("Scale"))
         .and(scale_editor)
         .and(
-            mode.new_radio(ScalingMode::Aspect, "Aspect")
+            mode.new_radio(ScalingMode::Aspect)
+                .labelled_by("Aspect")
                 .and(aspect_editor)
                 .into_rows(),
         )
-        .and(mode.new_radio(ScalingMode::Stretch, "Stretch"))
+        .and(mode.new_radio(ScalingMode::Stretch).labelled_by("Stretch"))
         .and(filter_select)
         .into_rows();
 

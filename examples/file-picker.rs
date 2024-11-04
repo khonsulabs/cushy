@@ -32,9 +32,18 @@ fn main(app: &mut App) -> cushy::Result {
     pending
         .with_root(
             picker_mode
-                .new_radio(PickerMode::SaveFile, "Save File")
-                .and(picker_mode.new_radio(PickerMode::PickFile, "Pick File"))
-                .and(picker_mode.new_radio(PickerMode::PickFolder, "Pick Folder"))
+                .new_radio(PickerMode::SaveFile)
+                .labelled_by("Save File")
+                .and(
+                    picker_mode
+                        .new_radio(PickerMode::PickFile)
+                        .labelled_by("Pick File"),
+                )
+                .and(
+                    picker_mode
+                        .new_radio(PickerMode::PickFolder)
+                        .labelled_by("Pick Folder"),
+                )
                 .into_columns()
                 .and(
                     pick_multiple

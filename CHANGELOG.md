@@ -60,6 +60,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ConstraintLimit::fit_measured` and `FitMeasuredSize::fit_measured` now accept
   either a `Px` or `UPx` measurement, and does not perform scaling adjustments.
   To convert `Lp` use `into_upx()` first.
+- `Radio` and `Checkbox` are now powered by a new widget `Indicator<T>`. This
+  new implementation treats the indicators as independently focusable widgets
+  rather than how the `Button`-powered implementation shows focus around the
+  entire "label" of the button.
+
+  The `Button`-powered implementation can still be used by using the `kind`
+  function to pick the `ButtonKind` to use. Prior to this change,
+  `ButtonKind::Transparent` was the default.
+
+  Lastly, several APIs no longer accept a `label` parameter. Instead, the
+  widgets have new functions `labelled_by(label)` that can be used to attach a
+  clickable label to an indicator. The affected APIs are:
+
+  - `Radio::new`
+  - `Checkbox::new`
+  - `Checkable::into_checkbox`
+  - `Checkable::to_checkbox`
+  - `Dynamic::new_radio`
+  - `Dynamic::new_checkbox`
 
 ### Changed
 

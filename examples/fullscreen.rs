@@ -10,7 +10,8 @@ fn main(app: &mut App) -> cushy::Result {
     let fullscreen = Dynamic::new(None);
 
     fullscreen
-        .new_radio(None, "Not Fullscreen")
+        .new_radio(None)
+        .labelled_by("Not Fullscreen")
         .and(
             monitors
                 .available
@@ -38,20 +39,20 @@ fn monitor_modes(
     let name = monitor.name().unwrap_or_else(|| format!("Monitor {index}"));
 
     name.h1()
-        .and(fullscreen.new_radio(
-            Some(Fullscreen::Borderless(Some(monitor.handle().clone()))),
-            "Borderless Fullscreen",
-        ))
+        .and(
+            fullscreen
+                .new_radio(Some(Fullscreen::Borderless(Some(monitor.handle().clone()))))
+                .labelled_by("Borderless Fullscreen"),
+        )
         .chain(monitor.video_modes().map(|mode| {
-            fullscreen.new_radio(
-                Some(Fullscreen::Exclusive(mode.handle().clone())),
-                format!(
+            fullscreen
+                .new_radio(Some(Fullscreen::Exclusive(mode.handle().clone())))
+                .labelled_by(format!(
                     "{}x{} @ {}Hz ({}-bit color)",
                     mode.size().width,
                     mode.size().height,
                     mode.refresh_rate_millihertz() as f32 / 1_000.,
                     mode.bit_depth()
-                ),
-            )
+                ))
         }))
 }

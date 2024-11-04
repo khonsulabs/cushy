@@ -19,7 +19,7 @@ use crate::styles::components::{
     DefaultHoveredForegroundColor, Easing, HighlightColor, IntrinsicPadding, OpaqueWidgetColor,
     OutlineColor, OutlineWidth, SurfaceColor, TextColor,
 };
-use crate::styles::{ColorExt, Hsla, Styles};
+use crate::styles::{ColorExt, Styles};
 use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{
     Callback, EventHandling, MakeWidget, SharedCallback, Widget, WidgetRef, HANDLED,
@@ -575,11 +575,7 @@ define_components! {
         ButtonActiveBackground(Color, "active_background_color", .surface.color)
         /// The background color of the button when the mouse cursor is hovering over
         /// it.
-        ButtonHoverBackground(Color, "hover_background_color", |context| {
-            let mut hsla = Hsla::from(context.get(&ButtonBackground));
-            hsla.hsl.lightness *= ZeroToOne::new(0.8);
-            Color::from(hsla)
-        })
+        ButtonHoverBackground(Color, "hover_background_color", |context| context.get(&ButtonBackground).darken_by(ZeroToOne::new(0.8)))
         /// The background color of the button when the mouse cursor is hovering over
         /// it.
         ButtonDisabledBackground(Color, "disabled_background_color", .surface.dim_color)

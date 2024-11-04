@@ -1978,6 +1978,20 @@ pub trait ColorExt: Copy {
         self.into_hsla().hsl.lightness
     }
 
+    /// Returns this color lightened by `amount`.
+    fn lighten_by(self, amount: ZeroToOne) -> Color {
+        let mut hsla = self.into_hsla();
+        hsla.hsl.lightness /= amount;
+        hsla.into()
+    }
+
+    /// Returns this color darkened by `amount`.
+    fn darken_by(self, amount: ZeroToOne) -> Color {
+        let mut hsla = self.into_hsla();
+        hsla.hsl.lightness *= amount;
+        hsla.into()
+    }
+
     /// Returns the contrast between this color and the components provided.
     ///
     /// To achieve a contrast of 1.0:
