@@ -79,6 +79,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Checkable::to_checkbox`
   - `Dynamic::new_radio`
   - `Dynamic::new_checkbox`
+- `Space` no longer implements hit_test. If you need an area to intercept mouse
+  events, wrap the `Space` in a `Custom` widget:
+
+  ```rust
+    Custom::new(Space::colored(Color::RED)).on_hit_test(|_, _| true)
+  ```
 
 ### Changed
 
