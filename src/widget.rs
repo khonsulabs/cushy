@@ -1348,7 +1348,7 @@ pub trait MakeWidget: Sized {
 
     /// Creates a [`WidgetRef`] for use as child widget.
     #[must_use]
-    fn widget_ref(self) -> WidgetRef {
+    fn into_ref(self) -> WidgetRef {
         WidgetRef::new(self)
     }
 

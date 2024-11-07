@@ -1,22 +1,38 @@
-use std::{collections::VecDeque, fmt::Debug, ops::Range};
+use std::collections::VecDeque;
+use std::fmt::Debug;
+use std::ops::Range;
 
-use crate::{context::{AsEventContext, EventContext}, figures::{units::{Px, UPx}, IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero}, kludgine::app::winit::{event::{ MouseScrollDelta, TouchPhase}, window::CursorIcon}, styles::Dimension, value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source}, widget::{EventHandling, MakeWidget, MountedWidget, Widget, HANDLED, IGNORED}, widgets::scroll::ScrollBar, window::DeviceId, ConstraintLimit};
+use cushy::context::LayoutContext;
+use cushy::ConstraintLimit;
+use figures::UnscaledUnit;
 
 use super::scroll::OwnedWidget;
+use crate::context::{AsEventContext, EventContext};
+use crate::figures::units::{Px, UPx};
+use crate::figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
+use crate::kludgine::app::winit::event::{MouseScrollDelta, TouchPhase};
+use crate::kludgine::app::winit::window::CursorIcon;
+use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source};
+use crate::widget::{
+    Callback, EventHandling, MakeWidget, MountedWidget, Widget, WidgetInstance, HANDLED, IGNORED,
+};
+use crate::widgets::scroll::ScrollBar;
+use crate::window::DeviceId;
 
-/// A virtual list contents.
-/// This simple virtual list assumes that all items have the same height, width and that the item count is known.
-/// All the values are dynamic, so the list will update when the values change.
-pub trait VirtualListContent: Debug {
-    /// Single item height
-    fn item_height(&self) -> impl IntoValue<Dimension>;
-    /// Width of the items
-    fn width(&self) -> impl IntoValue<Dimension>;
-    /// Number of items
-    fn item_count(&self) -> impl IntoValue<usize>;
-    /// Create a widget for the item at the given index.
-    /// This is called when the widget comes into view. The widget may be removed at any moment (by scrolling it out of view) and recreated later.
-    fn widget_at(&self, index: usize) -> impl MakeWidget;
+#[derive(Debug)]
+struct RowMaker(Callback<usize, WidgetInstance>);
+
+impl RowMaker {
+    fn make_row(
+        &mut self,
+        index: usize,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) -> VirtualListItem {
+        VirtualListItem {
+            index,
+            mounted: context.push_child(self.0.invoke(index)),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -26,37 +42,47 @@ struct VirtualListItem {
 }
 
 #[derive(Debug)]
-/// A virtual list widget.
-/// Requires a [VirtualListContent] trait implementation to render the items.
-/// Items are lazily recreated as they go in and out of view.
-pub struct VirtualList<T: VirtualListContent + Send + 'static> {
-    virtual_list: T,
+/// A virtuallized list view
+///
+/// This widget allows scrolling a list of rows by lazily loading only the rows
+/// that are currently being displayed to the screen.
+pub struct VirtualList {
+    make_row: RowMaker,
     vertical_scroll: OwnedWidget<ScrollBar>,
     items: VecDeque<VirtualListItem>,
     content_size: Dynamic<Size<UPx>>,
-    /// Maximum scroll value - max_scroll.y + control_size.height should be the height of the content.
+    /// Maximum scroll value - `max_scroll.y` + `control_size.height` should be the height of the content.
     pub max_scroll: DynamicReader<Point<UPx>>,
-    /// Current scroll value. The x value is always 0. Change the value to scroll the widget programmatically.
+    /// Current scroll value. Changes to this dynamic will scroll the list
+    /// programmatically.
     pub scroll: Dynamic<Point<UPx>>,
     control_size: Dynamic<Size<UPx>>,
 
-    /// Height of an item. Based on [VirtualListContent::item_height].
-    pub item_height: DynamicReader<Dimension>,
-    /// Width of the items. Based on [VirtualListContent::width].
-    pub width: DynamicReader<Dimension>,
-    /// Number of items. Based on [VirtualListContent::item_count].
-    pub item_count: DynamicReader<usize>,
+    item_count: DynamicReader<usize>,
+    item_size: Dynamic<Size<UPx>>,
 
-    visible_range: Dynamic<Range<usize>>
+    visible_range: Dynamic<Range<usize>>,
 }
 
-impl<T: VirtualListContent + Send + 'static> VirtualList<T> {
-    /// Creates a new [VirtualList] based on the given [VirtualListContent].
-    pub fn new(virtual_list: T) -> Self {
+impl VirtualList {
+    /// Creates a new [`VirtualList`] that displays `item_count` rows, loading
+    /// each row as needed by invoking `make_row`.
+    ///
+    /// `make_row` will be called each time a new row becomes visible. As rows
+    /// are no longer visible, they will be freed, ensuring a minimum number of
+    /// widgets is kept in memory at any given time.
+    ///
+    /// Each row will be sized to match the first visible row. To ensure all
+    /// rows have a consistent size, use the [`Resize`](../Resize) widget.
+    pub fn new<MakeRow, Row>(item_count: impl IntoValue<usize>, mut make_row: MakeRow) -> Self
+    where
+        MakeRow: FnMut(usize) -> Row + Send + 'static,
+        Row: MakeWidget,
+    {
+        let make_row = RowMaker(Callback::new(move |row| make_row(row).make_widget()));
         let scroll = Dynamic::<Point<UPx>>::default();
-        let item_height = virtual_list.item_height().into_value().into_dynamic().create_reader();
-        let width = virtual_list.width().into_value().into_dynamic().create_reader();
-        let item_count = virtual_list.item_count().into_value().into_dynamic().create_reader();
+        let item_size = Dynamic::new(Size::ZERO);
+        let item_count = item_count.into_value().into_dynamic().into_reader();
         let content_size = Dynamic::new(Size::default());
 
         let y = scroll.map_each_cloned(|scroll| scroll.y);
@@ -71,14 +97,14 @@ impl<T: VirtualListContent + Send + 'static> VirtualList<T> {
             }
         })
         .persist();
-        let vertical =
-            ScrollBar::new(content_size.map_each_cloned(|size| size.height), y, true);
-        let max_scroll = (&vertical.max_scroll())
+        let vertical = ScrollBar::new(content_size.map_each_cloned(|size| size.height), y, true);
+        let max_scroll = vertical
+            .max_scroll()
             .map_each_cloned(|y| Point::new(UPx::ZERO, y))
             .into_reader();
 
         Self {
-            virtual_list,
+            make_row,
             vertical_scroll: OwnedWidget::new(vertical),
             items: VecDeque::new(),
             control_size: Dynamic::new(Size::default()),
@@ -86,10 +112,9 @@ impl<T: VirtualListContent + Send + 'static> VirtualList<T> {
             max_scroll,
             scroll,
 
-            item_height,
-            width,
+            item_size,
             item_count,
-            visible_range: Default::default()
+            visible_range: Dynamic::default(),
         }
     }
 
@@ -134,9 +159,140 @@ impl<T: VirtualListContent + Send + 'static> VirtualList<T> {
             .expect("a ScrollBar")
             .hide(context);
     }
+
+    fn layout_rows(
+        &mut self,
+        item_count: usize,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) -> Size<UPx> {
+        let mut item_size = self.calculate_item_size(available_space, context).ceil();
+
+        let content_height = item_size.height * u32::try_from(item_count).unwrap_or(u32::MAX);
+        let content_height = content_height.into_upx(context.gfx.scale());
+
+        let new_control_size = Size::new(
+            available_space.width.fill_or_fit(item_size.width),
+            available_space.height.fill_or_fit(content_height),
+        )
+        .ceil();
+        if item_size.width < new_control_size.width {
+            item_size.width = new_control_size.width;
+        }
+
+        let vertical = self
+            .vertical_scroll
+            .make_if_needed()
+            .mounted(&mut context.as_event_context());
+        let scrollbar_layout = context.for_other(&vertical).layout(available_space);
+        context.set_child_layout(
+            &vertical,
+            Rect::new(
+                Point::new(
+                    available_space
+                        .width
+                        .fit_measured(new_control_size.width)
+                        .saturating_sub(scrollbar_layout.width)
+                        .into_signed(),
+                    Px::ZERO,
+                ),
+                scrollbar_layout.into_signed(),
+            ),
+        );
+        let scroll = self.scroll.get_tracking_invalidate(context);
+
+        let start_item = (scroll.y.floor() / item_size.height).floor().get() as usize;
+        let end_item = ((scroll.y.ceil() + new_control_size.height) / item_size.height)
+            .ceil()
+            .get() as usize;
+        let end_item = end_item.min(item_count - 1);
+
+        self.visible_range.set(start_item..end_item);
+
+        let first = self.items.front().map(|t| t.index);
+        let last = self.items.back().map(|t| t.index);
+
+        if self.items.is_empty() || first.unwrap() > end_item || last.unwrap() < start_item {
+            for item in self.items.drain(..) {
+                context.remove_child(&item.mounted);
+            }
+            self.items.extend(
+                (start_item..=end_item).map(|index| self.make_row.make_row(index, context)),
+            );
+        } else {
+            let first = first.expect("List is not empty");
+            let last = last.expect("List is not empty");
+            while self
+                .items
+                .front()
+                .map_or(false, |item| item.index < start_item)
+            {
+                context.remove_child(&self.items.pop_front().expect("at least one item").mounted);
+            }
+            while self
+                .items
+                .back()
+                .map_or(false, |item| item.index > end_item)
+            {
+                self.items.pop_back();
+            }
+            // no extend front :(
+            for item in (start_item..first).rev() {
+                self.items.push_front(self.make_row.make_row(item, context));
+            }
+            self.items.extend(
+                ((last + 1)..=end_item).map(|index| self.make_row.make_row(index, context)),
+            );
+        }
+
+        // TODO add % to Figures
+        let mut y =
+            -UPx::from_unscaled(scroll.y.into_unscaled() % item_size.height.into_unscaled())
+                .into_signed();
+        let constraint = item_size.map(ConstraintLimit::SizeToFit);
+        for item in &self.items {
+            let child_size = context.for_other(&item.mounted).layout(constraint);
+
+            context.set_child_layout(
+                &item.mounted,
+                Rect::new(
+                    Point::new(Px::ZERO, y),
+                    item_size.min(child_size).into_signed(),
+                ),
+            );
+            y += item_size.height.into_signed();
+        }
+
+        self.control_size.set(new_control_size);
+        self.content_size
+            .set(Size::new(item_size.width, content_height));
+        self.item_size.set(item_size);
+
+        new_control_size
+    }
+
+    fn calculate_item_size(
+        &mut self,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) -> Size<UPx> {
+        if self.items.is_empty() {
+            self.items.push_front(self.make_row.make_row(0, context));
+        }
+
+        context
+            .for_other(
+                &self
+                    .items
+                    .front()
+                    .expect("at least one mounted item")
+                    .mounted,
+            )
+            .layout(available_space.map(|space| ConstraintLimit::SizeToFit(space.max())))
+    }
 }
 
-impl<T: VirtualListContent + Send + 'static> Widget for VirtualList<T> {
+impl Widget for VirtualList {
     fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {
         true
     }
@@ -173,104 +329,16 @@ impl<T: VirtualListContent + Send + 'static> Widget for VirtualList<T> {
     }
 
     fn layout(
-            &mut self,
-            available_space: Size<cushy::ConstraintLimit>,
-            context: &mut cushy::context::LayoutContext<'_, '_, '_, '_>,
-        ) -> Size<UPx> {
-        let item_height = self.item_height.get_tracking_invalidate(context);
-        let item_height_upx = item_height.into_upx(context.gfx.scale());
+        &mut self,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) -> Size<UPx> {
         let item_count = self.item_count.get_tracking_invalidate(context);
-        let content_height = item_height * item_count as i32;
-        let content_height = content_height.into_upx(context.gfx.scale());
-        let width = self.width.get_tracking_invalidate(context);
-        let width = width.into_upx(context.gfx.scale());
-
-        let new_control_size = Size::new(
-            width,
-            constrain_child(available_space.height, content_height),
-        );
-
-        let vertical = self
-            .vertical_scroll
-            .make_if_needed()
-            .mounted(&mut context.as_event_context());
-        let scrollbar_layout = context.for_other(&vertical).layout(available_space);
-        context.set_child_layout(
-            &vertical,
-            Rect::new(
-                Point::new(
-                    available_space.width
-                        .fit_measured(new_control_size.width)
-                        .saturating_sub(scrollbar_layout.width)
-                        .into_signed(),
-                    Px::ZERO,
-                ),
-                scrollbar_layout.into_signed(),
-            ),
-        );
-        let scroll = self.scroll.get_tracking_invalidate(context);
-
-        let start_item = (scroll.y / item_height_upx).floor().get() as usize;
-        let end_item = ((scroll.y + new_control_size.height) / item_height_upx).ceil().get() as usize;
-        let end_item = end_item.min(item_count-1);
-
-        self.visible_range.set(start_item..end_item);
-        
-        let first = self.items.front().map(|t| t.index);
-        let last = self.items.back().map(|t| t.index);
-        let mut closure = |index| {
-            let widget = self.virtual_list.widget_at(index);
-            let mut widget = widget.widget_ref();
-            let mounted = widget.mounted(&mut context.as_event_context());
-            VirtualListItem { index, mounted }
-        };
-        if self.items.is_empty() || first.unwrap() > end_item || last.unwrap() < start_item {
-            self.items.clear();
-            self.items.extend((start_item..=end_item).map(closure));
-        } else {
-            let first = first.expect("List is not empty");
-            let last = last.expect("List is not empty");
-            if first < start_item {
-                while self.items.front().is_some() && self.items.front().expect("Checked is some").index < start_item {
-                    self.items.pop_front();
-                }
-            }
-            if last > end_item {
-                while self.items.back().is_some() && self.items.back().expect("Checked is some").index > end_item {
-                    self.items.pop_back();
-                }
-            }
-            // no extend front :(
-            for item in (start_item..first).rev() {
-                self.items.push_front(closure(item));
-            }
-            self.items.extend(((last+1)..=end_item).map(closure));
+        if item_count == 0 {
+            return available_space.map(ConstraintLimit::min);
         }
 
-        let item_size = Size::new(width, item_height_upx);
-        let constraint = item_size.map(ConstraintLimit::Fill);
-
-        for item in &self.items {
-            context.for_other(&item.mounted).layout(constraint);
-        }
-
-        let item_size = item_size.into_signed();
-        let scroll = self.scroll.get_tracking_invalidate(context).into_signed();
-
-        for item in &self.items {
-            context.set_child_layout(
-                &item.mounted,
-                Rect::new(
-                    Point::new(Px::ZERO, (item_height_upx * item.index as f32).into_signed() - scroll.y),
-                    item_size,
-                )
-            );
-        }
-        
-        self.control_size.set(new_control_size);
-        self.content_size.set(Size::new(width, content_height));
-
-        new_control_size
+        self.layout_rows(item_count, available_space, context)
     }
 
     fn mouse_wheel(
@@ -297,13 +365,5 @@ impl<T: VirtualListContent + Send + 'static> Widget for VirtualList<T> {
         } else {
             IGNORED
         }
-    }
-}
-
-fn constrain_child(constraint: ConstraintLimit, measured: UPx) -> UPx {
-    match constraint {
-        ConstraintLimit::Fill(size) => size.min(measured),
-        // change from Scroll widget: returning just measured here would break the functionality (render too many items)
-        ConstraintLimit::SizeToFit(size) => size.min(measured),
     }
 }

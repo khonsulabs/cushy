@@ -195,6 +195,19 @@ impl ConstraintLimit {
             ConstraintLimit::SizeToFit(_) => measured.into_unsigned(),
         }
     }
+
+    /// When `self` is `SizeToFit`, the smallest of the constraint and
+    /// `measured` will be returned. When `self` is `Fill`, the fill size will
+    /// be returned.
+    pub fn fill_or_fit<Unit>(self, measured: Unit) -> UPx
+    where
+        Unit: IntoUnsigned<Unsigned = UPx>,
+    {
+        match self {
+            ConstraintLimit::Fill(size) => size,
+            ConstraintLimit::SizeToFit(size) => size.min(measured.into_unsigned()),
+        }
+    }
 }
 
 /// An extension trait for `Size<ConstraintLimit>`.

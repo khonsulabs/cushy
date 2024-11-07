@@ -137,7 +137,7 @@ impl Button {
     /// Returns a new button with the provided label.
     pub fn new(content: impl MakeWidget) -> Self {
         Self {
-            content: content.widget_ref(),
+            content: content.into_ref(),
             on_click: None,
             per_window: WindowLocal::default(),
             kind: Value::Constant(ButtonKind::default()),
