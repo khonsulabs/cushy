@@ -15,8 +15,8 @@ Implementing this forces the developer to learn about some key points of the fra
 ## Requirements
 
 - Main window
-    - [ ] native look and feel titlebar with native close, minimize, maximize control
-    - [ ] re-sizable, contents adjust to fit.
+    - [x] native look and feel titlebar with native close, minimize, maximize control
+    - [x] re-sizable, contents adjust to fit.
 - Toolbar
     - 'Home' button
         - [ ] which when clicks shows a home tab.
