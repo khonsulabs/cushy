@@ -62,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   To convert `Lp` use `into_upx()` first.
 - `IntoReader::to_label` and `IntoReader::into_label` have been moved to their
   own trait: `Displayable`. This allows more flexible acceptance of types.
+- `MakeWidget::widget_ref` has been renamed to `MakeWidget::into_ref`.
 
 ### Changed
 
@@ -132,6 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   layout.
 - `ThemedMode` is now properly applied consistently. Previously sometimes the
   window's theme mode would be used instead of the overridden mode.
+- `Expand` now requests children size to fit in the non-expanding direction when
+  using either vertical or horizontal expanding modes.
 
 ### Added
 
@@ -273,6 +276,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a large container.
 - `Label::overflow` allows customizing the behavior for a label when it cannot
   be drawn on a single line.
+- `ConstraintLimit::fill_or_fit` is a new function that will fill the available
+  space when being requested to fill, otherwise it return the minimum of the
+  measured size and the constraint limit.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
