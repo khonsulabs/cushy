@@ -24,8 +24,9 @@ fn main(app: &mut PendingApp) -> cushy::Result {
 
     // Open up another window containing our controls
     selected
-        .new_radio(Contents::A, "A")
-        .and(selected.new_radio(Contents::B, "B"))
+        .new_radio(Contents::A)
+        .labelled_by("A")
+        .and(selected.new_radio(Contents::B).labelled_by("B"))
         .into_rows()
         .open(app)?;
 

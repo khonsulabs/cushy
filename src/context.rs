@@ -15,7 +15,7 @@ use crate::fonts::{LoadedFont, LoadedFontFace};
 use crate::graphics::{FontState, Graphics};
 use crate::styles::components::{
     CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, LineHeight,
-    Opacity, TextSize, WidgetBackground,
+    Opacity, OutlineWidth, TextSize, WidgetBackground,
 };
 use crate::styles::{ComponentDefinition, FontFamilyList, Styles, Theme, ThemePair};
 use crate::tree::Tree;
@@ -672,7 +672,8 @@ impl<'context, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'clip, 'gfx, 'pass>
         }
 
         let color = self.get(&HighlightColor);
-        self.stroke_outline::<Lp>(color, StrokeOptions::lp_wide(Lp::points(2)));
+        let width = self.get(&OutlineWidth).into_px(self.gfx.scale()).ceil();
+        self.stroke_outline(color, StrokeOptions::px_wide(width));
     }
 
     /// Applies the current style settings for font family, text size, font
@@ -1239,6 +1240,12 @@ impl<'context> WidgetContext<'context> {
             ThemeMode::Light => &self.theme.light,
             ThemeMode::Dark => &self.theme.dark,
         }
+    }
+
+    /// Returns the currently active theme mode.
+    #[must_use]
+    pub fn theme_mode(&self) -> ThemeMode {
+        self.cache.theme_mode
     }
 
     /// Returns the opposite theme of [`Self::theme()`].

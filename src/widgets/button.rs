@@ -1,20 +1,23 @@
 //! A clickable, labeled button
 use std::time::{Duration, Instant};
 
-use figures::units::{Lp, Px, UPx};
-use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size};
+use figures::units::{Px, UPx};
+use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::app::winit::event::{Modifiers, MouseButton};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::Color;
 
-use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, LinearInterpolate, Spawn};
+use crate::animation::{
+    AnimationHandle, AnimationTarget, IntoAnimate, LinearInterpolate, Spawn, ZeroToOne,
+};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{
-    AutoFocusableControls, DefaultActiveBackgroundColor, DefaultActiveForegroundColor,
-    DefaultBackgroundColor, DefaultDisabledBackgroundColor, DefaultDisabledForegroundColor,
-    DefaultForegroundColor, DefaultHoveredBackgroundColor, DefaultHoveredForegroundColor, Easing,
-    HighlightColor, IntrinsicPadding, OpaqueWidgetColor, OutlineColor, SurfaceColor, TextColor,
+    AutoFocusableControls, CornerRadius, DefaultActiveBackgroundColor,
+    DefaultActiveForegroundColor, DefaultBackgroundColor, DefaultDisabledBackgroundColor,
+    DefaultDisabledForegroundColor, DefaultForegroundColor, DefaultHoveredBackgroundColor,
+    DefaultHoveredForegroundColor, Easing, HighlightColor, IntrinsicPadding, OpaqueWidgetColor,
+    OutlineColor, OutlineWidth, SurfaceColor, TextColor,
 };
 use crate::styles::{ColorExt, Styles};
 use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
@@ -370,12 +373,16 @@ impl Widget for Button {
         let style = self.current_style(context);
         context.fill(style.background);
 
-        let two_lp_stroke = StrokeOptions::lp_wide(Lp::points(2));
-        context.stroke_outline(style.outline, two_lp_stroke);
+        let outline_options = StrokeOptions::px_wide(
+            context
+                .get(&OutlineWidth)
+                .into_px(context.gfx.scale())
+                .ceil(),
+        );
+        context.stroke_outline(style.outline, outline_options);
 
         if context.focused(true) {
             if current_style == ButtonKind::Transparent {
-                let two_lp_stroke = two_lp_stroke.into_px(context.gfx.scale());
                 let focus_color = context.get(&HighlightColor);
                 // Some states of a transparent button have solid background
                 // colors. most_contrasting from a 0-alpha color is not a
@@ -389,17 +396,27 @@ impl Widget for Button {
                         .most_contrasting(&[focus_color, context.get(&TextColor)])
                 } else {
                     focus_color
+                }
+                .with_alpha(128);
+
+                let inset = (context.get(&IntrinsicPadding).into_px(context.gfx.scale())
+                    - outline_options.line_width)
+                    / 2;
+
+                let options = outline_options.colored(color);
+                let radii = context.get(&CornerRadius);
+                let radii = radii.map(|r| r.into_px(context.gfx.scale()));
+                let ring_rect =
+                    Rect::new(Point::squared(inset), context.gfx.region().size - inset * 2);
+
+                let focus_ring = if radii.is_zero() {
+                    Shape::stroked_rect(ring_rect, options.into_px(context.gfx.scale()))
+                } else {
+                    Shape::stroked_round_rect(ring_rect, radii, options)
                 };
-
-                let inset = context.get(&IntrinsicPadding).into_px(context.gfx.scale());
-
-                let focus_ring = Shape::stroked_rect(
-                    Rect::new(Point::squared(inset), context.gfx.region().size - inset * 2),
-                    two_lp_stroke.colored(color),
-                );
                 context.gfx.draw_shape(&focus_ring);
             } else if context.is_default() {
-                context.stroke_outline(context.get(&OutlineColor), two_lp_stroke);
+                context.stroke_outline(context.get(&OutlineColor), outline_options);
             } else {
                 context.draw_focus_ring();
             }
@@ -558,7 +575,7 @@ define_components! {
         ButtonActiveBackground(Color, "active_background_color", .surface.color)
         /// The background color of the button when the mouse cursor is hovering over
         /// it.
-        ButtonHoverBackground(Color, "hover_background_color", .surface.lowest_container)
+        ButtonHoverBackground(Color, "hover_background_color", |context| context.get(&ButtonBackground).darken_by(ZeroToOne::new(0.8)))
         /// The background color of the button when the mouse cursor is hovering over
         /// it.
         ButtonDisabledBackground(Color, "disabled_background_color", .surface.dim_color)

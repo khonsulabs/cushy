@@ -1801,9 +1801,9 @@ impl ColorTheme {
     #[must_use]
     pub fn light_from_source(source: ColorSource) -> Self {
         Self {
-            color: source.color(40),
-            color_dim: source.color(20),
-            color_bright: source.color(45),
+            color: source.color(50),
+            color_dim: source.color(30),
+            color_bright: source.color(60),
             on_color: source.color(100),
             container: source.color(90),
             on_container: source.color(10),
@@ -1814,9 +1814,9 @@ impl ColorTheme {
     #[must_use]
     pub fn dark_from_source(source: ColorSource) -> Self {
         Self {
-            color: source.color(80),
-            color_dim: source.color(60),
-            color_bright: source.color(85),
+            color: source.color(60),
+            color_dim: source.color(50),
+            color_bright: source.color(70),
             on_color: source.color(10),
             container: source.color(30),
             on_container: source.color(90),
@@ -1844,8 +1844,8 @@ impl FixedTheme {
     #[must_use]
     pub fn from_source(source: ColorSource) -> Self {
         Self {
-            color: source.color(90),
-            dim_color: source.color(80),
+            color: source.color(60),
+            dim_color: source.color(50),
             on_color: source.color(10),
             on_color_variant: source.color(40),
         }
@@ -1901,7 +1901,7 @@ impl ColorSource {
     pub fn color(self, lightness: impl Lightness) -> Color {
         let rgb: palette::Srgb =
             Okhsl::new(self.hue, *self.saturation, *lightness.into_lightness()).into_color();
-        Color::new_f32(rgb.red, rgb.blue, rgb.green, 1.0)
+        Color::new_f32(rgb.red, rgb.green, rgb.blue, 1.0)
     }
 
     /// Calculates an approximate ratio between 0.0 and 1.0 of how contrasting
@@ -1976,6 +1976,20 @@ pub trait ColorExt: Copy {
     #[must_use]
     fn lightness(self) -> ZeroToOne {
         self.into_hsla().hsl.lightness
+    }
+
+    /// Returns this color lightened by `amount`.
+    fn lighten_by(self, amount: ZeroToOne) -> Color {
+        let mut hsla = self.into_hsla();
+        hsla.hsl.lightness /= amount;
+        hsla.into()
+    }
+
+    /// Returns this color darkened by `amount`.
+    fn darken_by(self, amount: ZeroToOne) -> Color {
+        let mut hsla = self.into_hsla();
+        hsla.hsl.lightness *= amount;
+        hsla.into()
     }
 
     /// Returns the contrast between this color and the components provided.
@@ -2610,7 +2624,7 @@ impl ColorScheme {
 
 impl Default for ColorScheme {
     fn default() -> Self {
-        Self::from_primary(138.5)
+        Self::from_primary(290.)
     }
 }
 

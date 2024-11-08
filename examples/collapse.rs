@@ -10,7 +10,8 @@ fn main() -> cushy::Result {
     let collapse = Dynamic::new(false);
 
     collapse
-        .to_checkbox("Collapse")
+        .to_checkbox()
+        .labelled_by("Collapse")
         .and(
             "Content Above"
                 .contain()

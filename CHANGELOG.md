@@ -63,6 +63,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `IntoReader::to_label` and `IntoReader::into_label` have been moved to their
   own trait: `Displayable`. This allows more flexible acceptance of types.
 - `MakeWidget::widget_ref` has been renamed to `MakeWidget::into_ref`.
+- `Radio` and `Checkbox` are now powered by a new widget `Indicator<T>`. This
+  new implementation treats the indicators as independently focusable widgets
+  rather than how the `Button`-powered implementation shows focus around the
+  entire "label" of the button.
+
+  The `Button`-powered implementation can still be used by using the `kind`
+  function to pick the `ButtonKind` to use. Prior to this change,
+  `ButtonKind::Transparent` was the default.
+
+  Lastly, several APIs no longer accept a `label` parameter. Instead, the
+  widgets have new functions `labelled_by(label)` that can be used to attach a
+  clickable label to an indicator. The affected APIs are:
+
+  - `Radio::new`
+  - `Checkbox::new`
+  - `Checkable::into_checkbox`
+  - `Checkable::to_checkbox`
+  - `Dynamic::new_radio`
+  - `Dynamic::new_checkbox`
+- `Space` no longer implements hit_test. If you need an area to intercept mouse
+  events, wrap the `Space` in a `Custom` widget:
+
+  ```rust
+    Custom::new(Space::colored(Color::RED)).on_hit_test(|_, _| true)
+  ```
 
 ### Changed
 
@@ -87,6 +112,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - If the root widget of a window is a `Resize` with an exact width and height,
   the window will have its resizable attribute disabled. This will not update
   the resizable `Dynamic<bool>` on `Window`.
+- Transparent buttons' focus rings are now drawn using the same corner radius as
+  the button and have padding between the label and the focus ring.
 
 ### Fixed
 
@@ -273,12 +300,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that allows completely customizing a scroll view's behavior. Thanks to
   @danbulant for helping with this change!
 - `ScrollBar` is a new widget that renders a scroll bar meant to scroll through
-  a large container.
+  a large container. Additionally its appearance has been updated to be based on
+  the theme. Several new style components have been added to control how scroll
+  bars are rendered: `ScrollBarThumbColor`, `ScrollBarThumbOutlineColor`,
+  `ScrollBarThumbOutlineThickness`, `ScrollBarThumbCornerRadius`.
 - `Label::overflow` allows customizing the behavior for a label when it cannot
   be drawn on a single line.
 - `ConstraintLimit::fill_or_fit` is a new function that will fill the available
   space when being requested to fill, otherwise it return the minimum of the
   measured size and the constraint limit.
+- `OutlineWidth` is a new component that is used to control the width of most
+  outlines drawn in the user interface.
+- `FocusColor` is a new component that controls the color of the keyboard focus
+  indicator.
+- `Graphics::draw` and `Graphics::draw_with` are a new function that allows
+  performing arbitrary `wgpu` drawing operations when rendering. See the
+  `shaders.rs` example for an example on how to use this to render into a Canvas
+  with a custom shader.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

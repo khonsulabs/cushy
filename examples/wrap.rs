@@ -26,21 +26,45 @@ fn main() -> cushy::Result {
         .and(
             "Wrap Align"
                 .h5()
-                .and(align.new_radio(WrapAlign::Start, "Start"))
-                .and(align.new_radio(WrapAlign::End, "End"))
-                .and(align.new_radio(WrapAlign::Center, "Center"))
-                .and(align.new_radio(WrapAlign::SpaceAround, "Space Around"))
-                .and(align.new_radio(WrapAlign::SpaceEvenly, "Space Evenly"))
-                .and(align.new_radio(WrapAlign::SpaceBetween, "Space Between"))
+                .and(align.new_radio(WrapAlign::Start).labelled_by("Start"))
+                .and(align.new_radio(WrapAlign::End).labelled_by("End"))
+                .and(align.new_radio(WrapAlign::Center).labelled_by("Center"))
+                .and(
+                    align
+                        .new_radio(WrapAlign::SpaceAround)
+                        .labelled_by("Space Around"),
+                )
+                .and(
+                    align
+                        .new_radio(WrapAlign::SpaceEvenly)
+                        .labelled_by("Space Evenly"),
+                )
+                .and(
+                    align
+                        .new_radio(WrapAlign::SpaceBetween)
+                        .labelled_by("Space Between"),
+                )
                 .into_rows()
                 .contain(),
         )
         .and(
             "Vertical Align"
                 .h5()
-                .and(vertical_align.new_radio(VerticalAlign::Top, "Top"))
-                .and(vertical_align.new_radio(VerticalAlign::Middle, "Middle"))
-                .and(vertical_align.new_radio(VerticalAlign::Bottom, "Bottom"))
+                .and(
+                    vertical_align
+                        .new_radio(VerticalAlign::Top)
+                        .labelled_by("Top"),
+                )
+                .and(
+                    vertical_align
+                        .new_radio(VerticalAlign::Middle)
+                        .labelled_by("Middle"),
+                )
+                .and(
+                    vertical_align
+                        .new_radio(VerticalAlign::Bottom)
+                        .labelled_by("Bottom"),
+                )
                 .into_rows()
                 .contain(),
         )

@@ -12,7 +12,7 @@ use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
 use intentional::Assert;
 
 use super::super::widget::MountedWidget;
-use super::Space;
+use super::{Custom, Space};
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::{EasingIn, ScrimColor};
@@ -1011,7 +1011,9 @@ impl WrapperWidget for ModalLayer {
 
         for to_present in modal.iter().skip(self.presented.len()) {
             self.focus_top_layer = true;
-            layer_widgets.push(Space::colored(context.get(&ScrimColor)));
+            layer_widgets.push(
+                Custom::new(Space::colored(context.get(&ScrimColor))).on_hit_test(|_, _| true),
+            );
             self.presented.push(to_present.clone());
             layer_widgets.push(to_present.clone().centered());
         }

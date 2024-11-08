@@ -24,7 +24,8 @@ use crate::utils::WithClone;
 use crate::widget::{
     MakeWidget, MakeWidgetWithTag, OnceCallback, WidgetId, WidgetInstance, WidgetList,
 };
-use crate::widgets::{Radio, Select, Space, Switcher};
+use crate::widgets::checkbox::CheckboxState;
+use crate::widgets::{Checkbox, Radio, Select, Space, Switcher};
 use crate::window::WindowHandle;
 
 /// A source of one or more `T` values.
@@ -1295,10 +1296,9 @@ impl<T> Dynamic<T> {
     }
 
     /// Returns a new [`Radio`] that updates this dynamic to `widget_value` when
-    /// pressed. `label` is drawn next to the checkbox and is also clickable to
-    /// select the radio.
+    /// pressed.
     #[must_use]
-    pub fn new_radio(&self, widget_value: T, label: impl MakeWidget) -> Radio<T>
+    pub fn new_radio(&self, widget_value: T) -> Radio<T>
     where
         Self: Clone,
         // Technically this trait bound isn't necessary, but it prevents trying
@@ -1306,7 +1306,16 @@ impl<T> Dynamic<T> {
         // implementations require these bounds (and more).
         T: Clone + PartialEq,
     {
-        Radio::new(widget_value, self.clone(), label)
+        Radio::new(widget_value, self.clone())
+    }
+
+    /// Returns a new checkbox that updates `self` when clicked.
+    #[must_use]
+    pub fn new_checkbox(&self) -> Checkbox
+    where
+        Self: IntoDynamic<CheckboxState>,
+    {
+        Checkbox::new(self.clone())
     }
 
     /// Returns a new [`Select`] that updates this dynamic to `widget_value`

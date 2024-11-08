@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 
 use figures::units::{Px, UPx};
@@ -10,7 +11,8 @@ use kludgine::drawing::Renderer;
 use kludgine::shapes::Shape;
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{
-    cosmic_text, ClipGuard, Color, Drawable, Kludgine, ShaderScalable, ShapeSource, TextureSource,
+    cosmic_text, ClipGuard, Color, Drawable, Kludgine, RenderingGraphics, ShaderScalable,
+    ShapeSource, TextureSource,
 };
 
 use crate::animation::ZeroToOne;
@@ -305,6 +307,26 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         self.renderer.draw_measured_text(text, origin);
     }
 
+    /// Draws the custom rendering operation when this graphics is presented to
+    /// the screen.
+    ///
+    /// The rendering operation will be clipped automatically, but the rendering
+    /// operation will need to position and size itself accordingly.
+    pub fn draw<Op: RenderOperation>(&mut self)
+    where
+        Op::DrawInfo: Default,
+    {
+        let origin = self.region.origin;
+        self.renderer
+            .draw::<CushyRenderOp<Op>>((<Op::DrawInfo>::default(), origin));
+    }
+
+    /// Draws `Op` with the given context.
+    pub fn draw_with<Op: RenderOperation>(&mut self, context: Op::DrawInfo) {
+        let origin = self.region.origin;
+        self.renderer.draw::<CushyRenderOp<Op>>((context, origin));
+    }
+
     /// Returns a reference to the font system used to render.
     pub fn font_system(&mut self) -> &mut FontSystem {
         self.renderer.font_system()
@@ -355,6 +377,47 @@ impl<'gfx, 'pass> DerefMut for RenderContext<'_, 'gfx, 'pass> {
             RenderContext::Renderer(renderer) => renderer,
             RenderContext::Clipped(clipped) => &mut *clipped,
         }
+    }
+}
+
+#[derive(Debug)]
+struct Prepared<T> {
+    origin: Point<Px>,
+    data: T,
+}
+
+struct CushyRenderOp<Op>(Op);
+
+impl<Op> kludgine::drawing::RenderOperation for CushyRenderOp<Op>
+where
+    Op: RenderOperation,
+{
+    type DrawInfo = (Op::DrawInfo, Point<Px>);
+    type Prepared = Prepared<Op::Prepared>;
+
+    fn new(graphics: &mut kludgine::Graphics<'_>) -> Self {
+        Self(Op::new(graphics))
+    }
+
+    fn prepare(
+        &mut self,
+        (context, origin): Self::DrawInfo,
+        graphics: &mut kludgine::Graphics<'_>,
+    ) -> Self::Prepared {
+        Prepared {
+            origin,
+            data: self.0.prepare(context, origin, graphics),
+        }
+    }
+
+    fn render<'pass>(
+        &'pass self,
+        prepared: &Self::Prepared,
+        opacity: f32,
+        graphics: &mut RenderingGraphics<'_, 'pass>,
+    ) {
+        self.0
+            .render(&prepared.data, prepared.origin, opacity, graphics);
     }
 }
 
@@ -537,5 +600,89 @@ impl FontState {
         {
             apply(name);
         }
+    }
+}
+
+/// A custom wgpu-powered rendering operation.
+///
+/// # How custom rendering ops work
+///
+/// When [`Graphics::draw`]/[`Graphics::draw_with`] are invoked for the first
+/// time for a given `RenderOperation` implementor, [`new()`](Self::new) is
+/// called to create a shared instance of this rendering operation. The new
+/// function is a good location to put any initialization that can be shared
+/// amongst all drawing calls, as it is invoked only once for each surface.
+///
+/// After an existing or newly-created operation is located, `prepare()` is
+/// invoked passing through the `DrawInfo` provided to the draw call. The result
+/// of this function is stored.
+///
+/// When the graphics is presented, `render()` is invoked providing the data
+/// returned from the `prepare()` function.
+pub trait RenderOperation: Send + Sync + 'static {
+    /// Data that is provided to the `prepare()` function. This is passed
+    /// through from the `draw/draw_with` invocation.
+    type DrawInfo;
+    /// Data that is created in the `prepare()` function, and provided to the
+    /// `render()` function.
+    type Prepared: Debug + Send + Sync + 'static;
+
+    /// Returns a new instance of this render operation.
+    fn new(graphics: &mut kludgine::Graphics<'_>) -> Self;
+
+    /// Prepares this operation to be rendered at `origin` in `graphics`.
+    fn prepare(
+        &mut self,
+        context: Self::DrawInfo,
+        origin: Point<Px>,
+        graphics: &mut kludgine::Graphics<'_>,
+    ) -> Self::Prepared;
+
+    /// Render `preprared` to `graphics` at `origin` with `opacity`.
+    fn render(
+        &self,
+        prepared: &Self::Prepared,
+        origin: Point<Px>,
+        opacity: f32,
+        graphics: &mut RenderingGraphics<'_, '_>,
+    );
+}
+
+/// A [`RenderOperation`] with no per-drawing-call state.
+pub trait SimpleRenderOperation: Send + Sync + 'static {
+    /// Returns a new instance of this render operation.
+    fn new(graphics: &mut kludgine::Graphics<'_>) -> Self;
+
+    /// Render to `graphics` at `origin` with `opacity`.
+    fn render(&self, origin: Point<Px>, opacity: f32, graphics: &mut RenderingGraphics<'_, '_>);
+}
+
+impl<T> RenderOperation for T
+where
+    T: SimpleRenderOperation,
+{
+    type DrawInfo = ();
+    type Prepared = ();
+
+    fn new(graphics: &mut kludgine::Graphics<'_>) -> Self {
+        Self::new(graphics)
+    }
+
+    fn prepare(
+        &mut self,
+        _context: Self::DrawInfo,
+        _origin: Point<Px>,
+        _graphics: &mut kludgine::Graphics<'_>,
+    ) -> Self::Prepared {
+    }
+
+    fn render(
+        &self,
+        _prepared: &Self::Prepared,
+        origin: Point<Px>,
+        opacity: f32,
+        graphics: &mut RenderingGraphics<'_, '_>,
+    ) {
+        self.render(origin, opacity, graphics);
     }
 }

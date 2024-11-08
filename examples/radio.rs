@@ -14,9 +14,10 @@ fn main() -> cushy::Result {
     let option = Dynamic::default();
 
     option
-        .new_radio(Choice::A, "A")
-        .and(option.new_radio(Choice::B, "B"))
-        .and(option.new_radio(Choice::C, "C"))
+        .new_radio(Choice::A)
+        .labelled_by("A")
+        .and(option.new_radio(Choice::B).labelled_by("B"))
+        .and(option.new_radio(Choice::C).labelled_by("C"))
         .into_rows()
         .centered()
         .run()
