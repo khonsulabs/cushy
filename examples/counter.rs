@@ -1,6 +1,7 @@
 use cushy::figures::units::Lp;
-use cushy::value::{Dynamic, IntoReader};
+use cushy::value::Dynamic;
 use cushy::widget::MakeWidget;
+use cushy::widgets::label::Displayable;
 use cushy::Run;
 
 fn main() -> cushy::Result {

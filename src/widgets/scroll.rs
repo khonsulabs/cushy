@@ -715,7 +715,7 @@ impl Widget for ScrollBar {
                 )
             } else {
                 Rect::new(
-                    Point::new(UPx::ZERO, control_size.height - self.bar_width),
+                    Point::new(self.info.offset, control_size.height - self.bar_width),
                     Size::new(self.info.size, self.bar_width),
                 )
             };

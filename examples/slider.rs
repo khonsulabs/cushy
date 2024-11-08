@@ -1,10 +1,11 @@
 use cushy::animation::{LinearInterpolate, PercentBetween};
 use cushy::figures::units::Lp;
 use cushy::figures::Ranged;
-use cushy::value::{Destination, Dynamic, ForEach, IntoReader, Source};
+use cushy::value::{Destination, Dynamic, ForEach, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::checkbox::Checkable;
 use cushy::widgets::input::InputValue;
+use cushy::widgets::label::Displayable;
 use cushy::widgets::slider::Slidable;
 use cushy::Run;
 

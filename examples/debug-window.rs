@@ -1,6 +1,7 @@
 use cushy::debug::DebugContext;
-use cushy::value::{Destination, Dynamic, IntoReader};
+use cushy::value::{Destination, Dynamic};
 use cushy::widget::MakeWidget;
+use cushy::widgets::label::Displayable;
 use cushy::widgets::slider::Slidable;
 use cushy::{Application, Open, PendingApp};
 

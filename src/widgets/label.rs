@@ -1,7 +1,7 @@
 //! A read-only text widget.
 
 use std::borrow::Cow;
-use std::fmt::{Display, Write};
+use std::fmt::{Debug, Display, Write};
 
 use figures::units::{Px, UPx};
 use figures::{Point, Round, Size};
@@ -12,7 +12,9 @@ use super::input::CowString;
 use crate::context::{GraphicsContext, LayoutContext, Trackable, WidgetContext};
 use crate::styles::components::TextColor;
 use crate::styles::FontFamilyList;
-use crate::value::{Dynamic, Generation, IntoReadOnly, ReadOnly, Value};
+use crate::value::{
+    Dynamic, DynamicReader, Generation, IntoDynamic, IntoReadOnly, IntoValue, ReadOnly, Value,
+};
 use crate::widget::{MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag};
 use crate::window::WindowLocal;
 use crate::ConstraintLimit;
@@ -22,29 +24,46 @@ use crate::ConstraintLimit;
 pub struct Label<T> {
     /// The contents of the label.
     pub display: ReadOnly<T>,
+    /// The behavior to use when too much text is able to be displayed on a
+    /// single line.
+    pub overflow: Value<LabelOverflow>,
     displayed: String,
     prepared_text: WindowLocal<LabelCacheKey>,
 }
 
 impl<T> Label<T>
 where
-    T: std::fmt::Debug + DynamicDisplay + Send + 'static,
+    T: Debug + DynamicDisplay + Send + 'static,
 {
-    /// Returns a new label that displays `text`.
+    /// Returns a new label that displays `text`, wrapping if necessary to fit
+    /// the content in the provided space.
     pub fn new(text: impl IntoReadOnly<T>) -> Self {
         Self {
             display: text.into_read_only(),
+            overflow: Value::Constant(LabelOverflow::WordWrap),
             displayed: String::new(),
             prepared_text: WindowLocal::default(),
         }
+    }
+
+    /// Sets the behavior when more text than can fit on a single line is
+    /// displayed.
+    #[must_use]
+    pub fn overflow(mut self, overflow: impl IntoValue<LabelOverflow>) -> Self {
+        self.overflow = overflow.into_value();
+        self
     }
 
     fn prepared_text(
         &mut self,
         context: &mut GraphicsContext<'_, '_, '_, '_>,
         color: Color,
-        width: Px,
+        mut width: Px,
     ) -> &MeasuredText<Px> {
+        let overflow = self.overflow.get_tracking_invalidate(context);
+        if overflow == LabelOverflow::Clip {
+            width = Px::MAX;
+        }
         let check_generation = self.display.generation();
         context.apply_current_font_settings();
         let current_families = context.current_family_list();
@@ -88,7 +107,7 @@ where
 
 impl<T> Widget for Label<T>
 where
-    T: std::fmt::Debug + DynamicDisplay + Send + 'static,
+    T: Debug + DynamicDisplay + Send + 'static,
 {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         self.display.invalidate_when_changed(context);
@@ -158,6 +177,18 @@ impl MakeWidgetWithTag for &'_ String {
     }
 }
 
+/// The overflow behavior for a [`Label`].
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum LabelOverflow {
+    /// Any text that cannot be drawn on a single line will be clipped to the
+    /// bounds of the label.
+    Clip,
+    /// Wraps text at the boundaries between words and whitespace while
+    /// attaching punctuation to the non-wrapped word when possible.
+    WordWrap,
+}
+
 #[derive(Debug)]
 struct LabelCacheKey {
     text: MeasuredText<Px>,
@@ -207,5 +238,67 @@ pub struct DynamicDisplayer<'a, 'w>(&'a dyn DynamicDisplay, &'a WidgetContext<'w
 impl Display for DynamicDisplayer<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(self.1, f)
+    }
+}
+
+/// A type that can be displayed as a [`Label`].
+pub trait Displayable<T>
+where
+    T: Debug + Display + Send + 'static,
+{
+    /// Returns this value as a displayable reader.
+    fn into_displayable(self) -> DynamicReader<T>;
+
+    /// Returns `self` being `Display`ed in a [`Label`] widget.
+    fn into_label(self) -> Label<T>
+    where
+        Self: Sized,
+        T: Debug + Display + Send + 'static,
+    {
+        Label::new(self.into_displayable())
+    }
+
+    /// Returns `self` being `Display`ed in a [`Label`] widget.
+    fn to_label(&self) -> Label<T>
+    where
+        Self: Clone,
+    {
+        self.clone().into_label()
+    }
+}
+
+impl<T> Displayable<T> for T
+where
+    T: Debug + Display + Send + 'static,
+{
+    fn into_displayable(self) -> DynamicReader<T> {
+        Dynamic::new(self).into_reader()
+    }
+}
+
+impl<T> Displayable<T> for Dynamic<T>
+where
+    T: Debug + Display + Send + 'static,
+{
+    fn into_displayable(self) -> DynamicReader<T> {
+        self.into_reader()
+    }
+}
+
+impl<T> Displayable<T> for DynamicReader<T>
+where
+    T: Debug + Display + Send + 'static,
+{
+    fn into_displayable(self) -> DynamicReader<T> {
+        self
+    }
+}
+
+impl<T> Displayable<T> for Value<T>
+where
+    T: Debug + Display + Send + 'static,
+{
+    fn into_displayable(self) -> DynamicReader<T> {
+        self.into_dynamic().into_reader()
     }
 }

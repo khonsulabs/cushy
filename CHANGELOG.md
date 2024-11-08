@@ -60,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ConstraintLimit::fit_measured` and `FitMeasuredSize::fit_measured` now accept
   either a `Px` or `UPx` measurement, and does not perform scaling adjustments.
   To convert `Lp` use `into_upx()` first.
+- `IntoReader::to_label` and `IntoReader::into_label` have been moved to their
+  own trait: `Displayable`. This allows more flexible acceptance of types.
 
 ### Changed
 
@@ -269,6 +271,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   @danbulant for helping with this change!
 - `ScrollBar` is a new widget that renders a scroll bar meant to scroll through
   a large container.
+- `Label::overflow` allows customizing the behavior for a label when it cannot
+  be drawn on a single line.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

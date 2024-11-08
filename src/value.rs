@@ -24,7 +24,7 @@ use crate::utils::WithClone;
 use crate::widget::{
     MakeWidget, MakeWidgetWithTag, OnceCallback, WidgetId, WidgetInstance, WidgetList,
 };
-use crate::widgets::{Label, Radio, Select, Space, Switcher};
+use crate::widgets::{Radio, Select, Space, Switcher};
 use crate::window::WindowHandle;
 
 /// A source of one or more `T` values.
@@ -2662,24 +2662,6 @@ impl<T> IntoReadOnly<T> for Owned<T> {
 pub trait IntoReader<T> {
     /// Returns this value as a reader.
     fn into_reader(self) -> DynamicReader<T>;
-
-    /// Returns `self` being `Display`ed in a [`Label`] widget.
-    fn into_label(self) -> Label<T>
-    where
-        Self: Sized,
-        T: Debug + Display + Send + 'static,
-    {
-        Label::new(self.into_reader())
-    }
-
-    /// Returns `self` being `Display`ed in a [`Label`] widget.
-    fn to_label(&self) -> Label<T>
-    where
-        Self: Clone,
-        T: Debug + Display + Send + 'static,
-    {
-        self.clone().into_label()
-    }
 }
 
 impl<T> IntoReader<T> for Dynamic<T> {

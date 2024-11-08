@@ -2,6 +2,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use cushy::value::Dynamic;
 use cushy::widget::MakeWidget;
+use cushy::widgets::label::{Displayable, LabelOverflow};
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::VirtualList;
 use cushy::Run;
@@ -14,6 +15,8 @@ fn list() -> impl MakeWidget {
             .expect("System Time after 1970")
             .as_secs();
         format!("Item {index} - {timestamp}")
+            .into_label()
+            .overflow(LabelOverflow::Clip)
     });
     let content_changed = list.content_watcher().clone();
 

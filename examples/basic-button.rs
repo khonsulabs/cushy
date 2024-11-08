@@ -1,5 +1,6 @@
-use cushy::value::{Destination, Dynamic, IntoReader, Source};
+use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
+use cushy::widgets::label::Displayable;
 use cushy::Run;
 
 // begin rustme snippet: readme

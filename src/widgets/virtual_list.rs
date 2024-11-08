@@ -4,7 +4,7 @@ use std::ops::Range;
 
 use cushy::context::LayoutContext;
 use cushy::ConstraintLimit;
-use figures::{IntoUnsigned, UnscaledUnit};
+use figures::IntoUnsigned;
 
 use super::scroll::OwnedWidget;
 use crate::context::{AsEventContext, EventContext, Trackable};
@@ -12,7 +12,9 @@ use crate::figures::units::{Px, UPx};
 use crate::figures::{IntoSigned, Point, Rect, Round, Size, Zero};
 use crate::kludgine::app::winit::event::{MouseScrollDelta, TouchPhase};
 use crate::kludgine::app::winit::window::CursorIcon;
-use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Watcher};
+use crate::value::{
+    Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, MapEachCloned, Source, Watcher,
+};
 use crate::widget::{
     Callback, EventHandling, MakeWidget, MountedWidget, Widget, WidgetInstance, HANDLED, IGNORED,
 };
@@ -49,6 +51,7 @@ struct VirtualListItem {
 pub struct VirtualList {
     make_row: RowMaker,
     vertical_scroll: OwnedWidget<ScrollBar>,
+    horizontal_scroll: OwnedWidget<ScrollBar>,
     items: VecDeque<VirtualListItem>,
     content_size: Dynamic<Size<UPx>>,
     contents: Watcher,
@@ -88,6 +91,18 @@ impl VirtualList {
         let item_count = item_count.into_value().into_dynamic().into_reader();
         let content_size = Dynamic::new(Size::default());
 
+        let x = scroll.map_each_cloned(|scroll| scroll.x);
+        x.for_each_cloned({
+            let scroll = scroll.clone();
+            move |x| {
+                if let Ok(mut scroll) = scroll.try_lock() {
+                    if scroll.x != x {
+                        scroll.x = x;
+                    }
+                }
+            }
+        })
+        .persist();
         let y = scroll.map_each_cloned(|scroll| scroll.y);
         y.for_each_cloned({
             let scroll = scroll.clone();
@@ -100,10 +115,12 @@ impl VirtualList {
             }
         })
         .persist();
-        let vertical = ScrollBar::new(content_size.map_each_cloned(|size| size.height), y, true);
-        let max_scroll = vertical
-            .max_scroll()
-            .map_each_cloned(|y| Point::new(UPx::ZERO, y))
+        let horizontal = ScrollBar::new(content_size.map_each_cloned(|size| size.width), x, false);
+        let mut vertical =
+            ScrollBar::new(content_size.map_each_cloned(|size| size.height), y, true);
+        vertical.synchronize_visibility_with(&horizontal);
+        let max_scroll = (&horizontal.max_scroll(), &vertical.max_scroll())
+            .map_each_cloned(|(x, y)| Point::new(x, y))
             .into_reader();
 
         let contents = Watcher::default();
@@ -114,6 +131,7 @@ impl VirtualList {
             contents,
             contents_generation,
             vertical_scroll: OwnedWidget::new(vertical),
+            horizontal_scroll: OwnedWidget::new(horizontal),
             items: VecDeque::new(),
             control_size: Dynamic::new(Size::default()),
             content_size,
@@ -180,6 +198,52 @@ impl VirtualList {
         }
     }
 
+    fn layout_scrollbars(
+        &mut self,
+        available_space: Size<ConstraintLimit>,
+        new_control_size: Size<UPx>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) {
+        let horizontal = self
+            .horizontal_scroll
+            .make_if_needed()
+            .mounted(&mut context.as_event_context());
+        let scrollbar_layout = context.for_other(&horizontal).layout(available_space);
+        context.set_child_layout(
+            &horizontal,
+            Rect::new(
+                Point::new(
+                    Px::ZERO,
+                    available_space
+                        .height
+                        .fit_measured(new_control_size.height)
+                        .saturating_sub(scrollbar_layout.height)
+                        .into_signed(),
+                ),
+                scrollbar_layout.into_signed(),
+            ),
+        );
+        let vertical = self
+            .vertical_scroll
+            .make_if_needed()
+            .mounted(&mut context.as_event_context());
+        let scrollbar_layout = context.for_other(&vertical).layout(available_space);
+        context.set_child_layout(
+            &vertical,
+            Rect::new(
+                Point::new(
+                    available_space
+                        .width
+                        .fit_measured(new_control_size.width)
+                        .saturating_sub(scrollbar_layout.width)
+                        .into_signed(),
+                    Px::ZERO,
+                ),
+                scrollbar_layout.into_signed(),
+            ),
+        );
+    }
+
     fn layout_rows(
         &mut self,
         item_count: usize,
@@ -205,29 +269,12 @@ impl VirtualList {
             item_size.width = new_control_size.width;
         }
 
-        let vertical = self
-            .vertical_scroll
-            .make_if_needed()
-            .mounted(&mut context.as_event_context());
-        let scrollbar_layout = context.for_other(&vertical).layout(available_space);
-        context.set_child_layout(
-            &vertical,
-            Rect::new(
-                Point::new(
-                    available_space
-                        .width
-                        .fit_measured(new_control_size.width)
-                        .saturating_sub(scrollbar_layout.width)
-                        .into_signed(),
-                    Px::ZERO,
-                ),
-                scrollbar_layout.into_signed(),
-            ),
-        );
+        self.layout_scrollbars(available_space, new_control_size, context);
         let scroll = self.scroll.get_tracking_invalidate(context);
 
+        let max_scroll_x = item_size.width.saturating_sub(new_control_size.width);
         let max_scroll_y = content_height.saturating_sub(new_control_size.height);
-        let scroll = scroll.min(Point::new(UPx::MAX, max_scroll_y));
+        let scroll = scroll.min(Point::new(max_scroll_x, max_scroll_y));
 
         let start_item = (scroll.y.floor() / item_size.height).floor().get() as usize;
         let end_item = ((scroll.y.ceil() + new_control_size.height) / item_size.height)
@@ -271,20 +318,15 @@ impl VirtualList {
             );
         }
 
-        // TODO add % to Figures
-        let mut y =
-            -UPx::from_unscaled(scroll.y.into_unscaled() % item_size.height.into_unscaled())
-                .into_signed();
-        let constraint = item_size.map(ConstraintLimit::SizeToFit);
+        let x = -scroll.x.into_signed();
+        let mut y = -(scroll.y % item_size.height).into_signed();
+        let constraint = item_size.map(ConstraintLimit::Fill);
         for item in &self.items {
             let child_size = context.for_other(&item.mounted).layout(constraint);
 
             context.set_child_layout(
                 &item.mounted,
-                Rect::new(
-                    Point::new(Px::ZERO, y),
-                    item_size.min(child_size).into_signed(),
-                ),
+                Rect::new(Point::new(x, y), item_size.min(child_size).into_signed()),
             );
             y += item_size.height.into_signed();
         }
@@ -354,6 +396,11 @@ impl Widget for VirtualList {
             .expect_made_mut()
             .mounted(&mut context.as_event_context());
         context.for_other(&vertical).redraw();
+        let horizontal = self
+            .horizontal_scroll
+            .expect_made_mut()
+            .mounted(&mut context.as_event_context());
+        context.for_other(&horizontal).redraw();
     }
 
     fn layout(
@@ -380,6 +427,12 @@ impl Widget for VirtualList {
         {
             let mut vertical = self.vertical_scroll.expect_made().widget().lock();
             handled |= vertical
+                .downcast_mut::<ScrollBar>()
+                .expect("a ScrollBar")
+                .mouse_wheel(delta, context)
+                .is_break();
+            let mut horizontal = self.horizontal_scroll.expect_made().widget().lock();
+            handled |= horizontal
                 .downcast_mut::<ScrollBar>()
                 .expect("a ScrollBar")
                 .mouse_wheel(delta, context)
