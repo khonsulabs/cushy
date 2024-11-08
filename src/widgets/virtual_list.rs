@@ -4,15 +4,15 @@ use std::ops::Range;
 
 use cushy::context::LayoutContext;
 use cushy::ConstraintLimit;
-use figures::UnscaledUnit;
+use figures::{IntoUnsigned, UnscaledUnit};
 
 use super::scroll::OwnedWidget;
-use crate::context::{AsEventContext, EventContext};
+use crate::context::{AsEventContext, EventContext, Trackable};
 use crate::figures::units::{Px, UPx};
-use crate::figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
+use crate::figures::{IntoSigned, Point, Rect, Round, Size, Zero};
 use crate::kludgine::app::winit::event::{MouseScrollDelta, TouchPhase};
 use crate::kludgine::app::winit::window::CursorIcon;
-use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source};
+use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Watcher};
 use crate::widget::{
     Callback, EventHandling, MakeWidget, MountedWidget, Widget, WidgetInstance, HANDLED, IGNORED,
 };
@@ -51,7 +51,10 @@ pub struct VirtualList {
     vertical_scroll: OwnedWidget<ScrollBar>,
     items: VecDeque<VirtualListItem>,
     content_size: Dynamic<Size<UPx>>,
-    /// Maximum scroll value - `max_scroll.y` + `control_size.height` should be the height of the content.
+    contents: Watcher,
+    contents_generation: usize,
+    /// Maximum scroll value - `max_scroll.y` + `control_size.height` should be
+    /// the height of the content.
     pub max_scroll: DynamicReader<Point<UPx>>,
     /// Current scroll value. Changes to this dynamic will scroll the list
     /// programmatically.
@@ -103,8 +106,13 @@ impl VirtualList {
             .map_each_cloned(|y| Point::new(UPx::ZERO, y))
             .into_reader();
 
+        let contents = Watcher::default();
+        let contents_generation = contents.get();
+
         Self {
             make_row,
+            contents,
+            contents_generation,
             vertical_scroll: OwnedWidget::new(vertical),
             items: VecDeque::new(),
             control_size: Dynamic::new(Size::default()),
@@ -116,6 +124,12 @@ impl VirtualList {
             item_count,
             visible_range: Dynamic::default(),
         }
+    }
+
+    /// Returns a [`Watcher`] that when notified will force this list to reload
+    /// its contents, including the currently visible rows.
+    pub const fn content_watcher(&self) -> &Watcher {
+        &self.contents
     }
 
     /// Returns a reader for the maximum scroll value.
@@ -160,16 +174,27 @@ impl VirtualList {
             .hide(context);
     }
 
+    fn clear(&mut self, context: &mut LayoutContext<'_, '_, '_, '_>) {
+        for item in self.items.drain(..) {
+            context.remove_child(&item.mounted);
+        }
+    }
+
     fn layout_rows(
         &mut self,
         item_count: usize,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
+        let generation = self.contents.get_tracking_redraw(context);
+        if generation != self.contents_generation {
+            self.contents_generation = generation;
+            self.clear(context);
+        }
         let mut item_size = self.calculate_item_size(available_space, context).ceil();
 
         let content_height = item_size.height * u32::try_from(item_count).unwrap_or(u32::MAX);
-        let content_height = content_height.into_upx(context.gfx.scale());
+        let content_height = content_height.into_unsigned();
 
         let new_control_size = Size::new(
             available_space.width.fill_or_fit(item_size.width),
@@ -201,6 +226,9 @@ impl VirtualList {
         );
         let scroll = self.scroll.get_tracking_invalidate(context);
 
+        let max_scroll_y = content_height.saturating_sub(new_control_size.height);
+        let scroll = scroll.min(Point::new(UPx::MAX, max_scroll_y));
+
         let start_item = (scroll.y.floor() / item_size.height).floor().get() as usize;
         let end_item = ((scroll.y.ceil() + new_control_size.height) / item_size.height)
             .ceil()
@@ -213,9 +241,7 @@ impl VirtualList {
         let last = self.items.back().map(|t| t.index);
 
         if self.items.is_empty() || first.unwrap() > end_item || last.unwrap() < start_item {
-            for item in self.items.drain(..) {
-                context.remove_child(&item.mounted);
-            }
+            self.clear(context);
             self.items.extend(
                 (start_item..=end_item).map(|index| self.make_row.make_row(index, context)),
             );
@@ -318,6 +344,8 @@ impl Widget for VirtualList {
     }
 
     fn redraw(&mut self, context: &mut cushy::context::GraphicsContext<'_, '_, '_, '_>) {
+        self.item_count.invalidate_when_changed(context);
+        self.contents.invalidate_when_changed(context);
         for child in &mut self.items {
             context.for_other(&child.mounted).redraw();
         }

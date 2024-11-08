@@ -3952,21 +3952,27 @@ impl InvalidationBatch<'_> {
 pub struct Watcher(Dynamic<usize>);
 
 impl Watcher {
+    /// Notifies any observers of this watcher and invokes all associated
+    /// callbacks.
+    pub fn notify(&self) {
+        let mut counter = self.0.lock();
+        *counter = counter.wrapping_add(1);
+    }
+
     /// Ensures all callbacks attached to this watcher are invoked when `other`
     /// is changed.
     pub fn watch<T>(&self, other: &impl Source<T>)
     where
         T: Send + 'static,
     {
-        let counter = self.0.clone();
+        let counter = self.clone();
         self.0
             .set_source(other.for_each_subsequent_generational(move |guard| {
                 // We want to drop our guard before changing the counter to
                 // ensure all callbacks associated with our counter are executed
                 // without this type holding any source locks.
                 drop(guard);
-                let mut counter = counter.lock();
-                *counter = counter.wrapping_add(1);
+                counter.notify();
             }));
     }
 
@@ -3986,6 +3992,45 @@ impl Watcher {
         F: FnMut() + Send + 'static,
     {
         self.0.for_each(move |_| when_changed())
+    }
+}
+
+impl Source<usize> for Watcher {
+    fn try_map_generational<R>(
+        &self,
+        map: impl FnOnce(DynamicGuard<'_, usize, true>) -> R,
+    ) -> Result<R, DeadlockError> {
+        self.0.try_map_generational(map)
+    }
+
+    fn for_each_subsequent_generational_try<F>(&self, for_each: F) -> CallbackHandle
+    where
+        F: for<'a> FnMut(DynamicGuard<'_, usize, true>) -> Result<(), CallbackDisconnected>
+            + Send
+            + 'static,
+    {
+        self.0.for_each_subsequent_generational_try(for_each)
+    }
+
+    fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
+    where
+        F: FnMut(GenerationalValue<usize>) -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.0.for_each_generational_cloned_try(for_each)
+    }
+}
+
+impl crate::context::sealed::Trackable for Watcher {
+    fn inner_invalidate_when_changed(&self, handle: WindowHandle, id: WidgetId) {
+        self.0.inner_invalidate_when_changed(handle, id);
+    }
+
+    fn inner_redraw_when_changed(&self, handle: WindowHandle) {
+        self.0.inner_redraw_when_changed(handle);
+    }
+
+    fn inner_sync_when_changed(&self, handle: WindowHandle) {
+        self.0.inner_sync_when_changed(handle);
     }
 }
 

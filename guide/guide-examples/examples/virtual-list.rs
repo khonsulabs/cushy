@@ -4,7 +4,7 @@ use cushy::Run;
 
 // ANCHOR: list
 fn list() -> impl MakeWidget {
-    VirtualList::new(50, |index| format!("Item {}", index)).expand()
+    VirtualList::new(50, |index| format!("Item {index}")).expand()
 }
 // ANCHOR_END: list
 
