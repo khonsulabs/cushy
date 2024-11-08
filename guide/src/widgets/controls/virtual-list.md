@@ -1,19 +1,20 @@
 # Virtual List
 
-The [VirtualList] widget allows efficient rendering of long lists of items.
-It currently only supports the simplest form - a known width, equal heights of each item and a known item count, though all of the values are reactive, as is the custom in cushy.
+The [`VirtualList`][VirtualList] widget allows efficient rendering of long lists of items. It
+is restricted to uniform row width and heights to be very efficient.
 
-You can create a widget by implementing the [VirtualListContent] trait:
-
-```rust,no_run,no_playground
-{{#include ../../../guide-examples/examples/virtual-list.rs:implementation}}
-```
-
-And then using it as any other widget in your functions
+For a virtual list to be rendered, it needs to be given an item count and a
+function that creates a widget for a given item index.
 
 ```rust,no_run,no_playground
 {{#include ../../../guide-examples/examples/virtual-list.rs:list}}
 ```
 
+With this information, the `VirtualList` will only keep exactly the widgets
+needed to display the currently visible rows. The item count can be a
+`Dynamic<usize>` to allow changing the item count while the list is being
+displayed. Additionally, [`content_watcher()`][content_watcher] allows fully
+refreshing the contents when a `Source` changes or through manual notification.
+
 [VirtualList]: <{{ docs }}/widgets/virtual_list/struct.VirtualList.html>
-[VirtualListContent]: <{{ docs }}/widgets/virtual_list/struct.VirtualListContent.html>
+[content_watcher]: <{{ docs }}/widgets/struct.VirtualList.html#method.content_watcher>
