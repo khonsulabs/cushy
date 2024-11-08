@@ -46,8 +46,10 @@ fn main() -> cushy::Result {
 
     let ui = ui_elements
         .into_rows()
-        .width(Px::new(1024))
-        .height(Px::new(768))
+        .width(Px::new(800)..)
+        .height(Px::new(600)..)
+        .fit_vertically()
+        .fit_horizontally()
         .into_window()
         .on_close({
             let config = app_state.config.clone();
@@ -56,7 +58,8 @@ fn main() -> cushy::Result {
                 println!("Saving config");
                 config::save(&*config);
             }
-        });
+        })
+        .titled("Tabbed document UI");
 
     if app_state.config.lock().show_home_on_startup {
         add_home_tab(&app_state.tab_bar);
