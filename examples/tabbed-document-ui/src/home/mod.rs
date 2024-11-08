@@ -13,6 +13,7 @@ pub fn create_content(context: &mut Context) -> WidgetInstance {
             let mut config_binding = config.clone();
 
             move |value|{
+                println!("updating config, show_home_on_startup: {}", value);
                 let mut config_guard = config_binding.lock();
                 config_guard.show_home_on_startup = value;
             }
