@@ -1,5 +1,6 @@
 use std::default::Default;
 use std::hash::Hash;
+use std::sync::{Arc, Mutex};
 use slotmap::{new_key_type, SlotMap};
 use cushy::figures::units::Px;
 use cushy::styles::{Color, CornerRadii, Dimension};
@@ -10,10 +11,11 @@ use cushy::widgets::grid::Orientation;
 use cushy::widgets::{Expand, Space, Stack};
 use cushy::widgets::button::{ButtonActiveBackground, ButtonForeground, ButtonHoverForeground};
 use cushy::widgets::select::SelectedColor;
+use crate::context::Context;
 
 pub trait Tab {
     fn label(&self) -> String;
-    fn make_content(&self) -> WidgetInstance;
+    fn make_content(&self, context: &mut Context) -> WidgetInstance;
 }
 
 // NOTE: Specifically NOT clone because we don't want to clone the tabs.
@@ -29,7 +31,6 @@ new_key_type! {
     pub struct TabKey;
 }
 
-// FIXME avoid the ` + Send + 'static` requirement if possible, required due to use of `Source::for_each`
 impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
     pub fn new() -> Self {
         let tabs: SlotMap<TabKey, TK> = Default::default();
@@ -70,24 +71,28 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
         self.tabs.lock().clear();
     }
 
-    pub fn make_widget(&self) -> WidgetInstance {
+    pub fn make_widget(&self, context: &mut Arc<Mutex<Context>>) -> WidgetInstance {
 
-        let callback = self.selected
-            .for_each({
-                let tabs = self.tabs.clone();
-                let content_area = self.content_area.clone();
-                move |selected_tab_key|{
-                    if let Some(tab_key) = selected_tab_key.clone() {
-                        let tab_binding = tabs.lock();
-                        if let Some(tab) = tab_binding.get(tab_key) {
+        let callback = self.selected.for_each({
+            let tabs = self.tabs.clone();
+            let content_area = self.content_area.clone();
+            let context = context.clone();
 
-                            let content = tab.make_content();
+            move |selected_tab_key|{
+                let mut context_guard = context.lock().unwrap();
+                let context = &mut *context_guard;
 
-                            content_area.set(content.clone())
-                        }
+                println!("key: {:?}", selected_tab_key);
+                if let Some(tab_key) = selected_tab_key.clone() {
+                    let tab_binding = tabs.lock();
+                    if let Some(tab) = tab_binding.get(tab_key) {
+                        let content = tab.make_content(context);
+                        content_area.set(content.clone())
                     }
                 }
-            });
+            }
+        });
+
         callback.persist();
 
         let widget = TabBarWidget {

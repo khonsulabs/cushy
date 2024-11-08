@@ -1,24 +1,26 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use cushy::figures::units::Px;
 use cushy::Run;
 use cushy::value::{Dynamic};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Stack};
 use crate::config::Config;
+use crate::context::Context;
 use crate::tabs::TabKind;
 use crate::widgets::tab_bar::TabBar;
 
 mod config;
 mod widgets;
 mod home;
-mod app_context;
+mod global_context;
+mod context;
 
 mod tabs {
     use std::sync::Arc;
     use cushy::value::Dynamic;
     use cushy::widget::{MakeWidget, WidgetInstance};
-    use crate::app_context::with_context;
     use crate::config::Config;
+    use crate::context::Context;
     use crate::home;
     use crate::widgets::tab_bar::Tab;
 
@@ -36,13 +38,13 @@ mod tabs {
             }
         }
 
-        fn make_content(&self) -> WidgetInstance {
+        fn make_content(&self, context: &mut Context) -> WidgetInstance {
             match self {
                 TabKind::Home => {
-                     with_context::<Arc<Config>, _, _>(|config|{
+                     context.with_context::<Arc<Config>, _, _>(|config|{
                         let show_on_startup_value = Dynamic::new(config.show_home_on_startup);
                         home::create_content(show_on_startup_value)
-                    }).unwrap()
+                     }).unwrap()
                 },
                 TabKind::Document => "Document tab content".make_widget(),
             }
@@ -53,25 +55,28 @@ mod tabs {
 struct AppState {
     tab_bar: Dynamic<TabBar<TabKind>>,
     pub config: Arc<Config>,
+    context: Arc<Mutex<Context>>,
 }
 
 fn main() -> cushy::Result {
 
     let config = Arc::new(config::load());
 
-    app_context::provide_context(config.clone());
+    let mut context = Context::default();
+    context.provide(config.clone());
 
     let tab_bar = Dynamic::new(make_tab_bar());
     let toolbar = make_toolbar(tab_bar.clone());
 
-    let app_state = AppState {
+    let mut app_state = AppState {
         tab_bar: tab_bar.clone(),
+        context: Arc::new(Mutex::new(context)),
         config,
     };
 
     let ui_elements = [
         toolbar.make_widget(),
-        app_state.tab_bar.lock().make_widget(),
+        app_state.tab_bar.lock().make_widget(&mut app_state.context),
     ];
 
     let ui = ui_elements
