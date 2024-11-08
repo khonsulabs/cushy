@@ -24,11 +24,7 @@ impl Tab for TabKind {
     fn make_content(&self, context: &mut Context) -> WidgetInstance {
         match self {
             TabKind::Home => {
-                context.with_context::<Dynamic<Config>, _, _>(|config|{
-                    let config = config.lock();
-                    let show_on_startup_value = Dynamic::new(config.show_home_on_startup);
-                    home::create_content(show_on_startup_value)
-                }).unwrap()
+                home::create_content(context)
             },
             TabKind::Document => "Document tab content".make_widget(),
         }
