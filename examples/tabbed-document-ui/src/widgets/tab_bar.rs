@@ -2,10 +2,11 @@ use std::default::Default;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use slotmap::{new_key_type, SlotMap};
+use slotmap::basic::Iter;
 use cushy::figures::units::Px;
 use cushy::styles::{Color, CornerRadii, Dimension};
 use cushy::styles::components::{CornerRadius, TextColor, WidgetBackground};
-use cushy::value::{Destination, Dynamic, Source};
+use cushy::value::{Destination, Dynamic, IntoValue, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance, WidgetList};
 use cushy::widgets::grid::Orientation;
 use cushy::widgets::{Expand, Space, Stack};
@@ -62,7 +63,7 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
             .lock()
             .push(select);
 
-        self.selected.set(Some(tab_key));
+        self.activate(tab_key)
     }
 
     pub fn close_all(&mut self) {
@@ -101,6 +102,20 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
         };
 
         widget.make_widget()
+    }
+
+    pub fn with_tabs<R, F>(&self, f: F) -> R
+    where
+        F: Fn(Iter<TabKey, TK>) -> R
+    {
+        let tabs = self.tabs.lock();
+        let iter = tabs.iter();
+
+        f(iter)
+    }
+
+    pub fn activate(&self, tab_key: TabKey) {
+        self.selected.set(Some(tab_key));
     }
 }
 

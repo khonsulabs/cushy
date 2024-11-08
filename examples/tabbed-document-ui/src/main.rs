@@ -127,5 +127,24 @@ fn make_toolbar(tab_bar: Dynamic<TabBar<TabKind>>) -> Stack {
 }
 
 fn add_home_tab(tab_bar: &Dynamic<TabBar<TabKind>>) {
-    tab_bar.lock().add_tab(TabKind::Home);
+    let mut tab_bar_guard = tab_bar
+        .lock();
+
+    let home_tab = tab_bar_guard.with_tabs(|mut iter|{
+        let foo = iter.find_map(move |(_key, value)|
+            match value {
+                TabKind::Home => Some((_key, value.clone())),
+                _ => None
+            }
+        );
+
+        foo
+    });
+
+    if let Some((key, _tab)) = home_tab {
+        tab_bar_guard.activate(key);
+    } else {
+        tab_bar_guard
+            .add_tab(TabKind::Home);
+    }
 }
