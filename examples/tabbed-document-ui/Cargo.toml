@@ -10,3 +10,5 @@ slotmap = { version = "1.0.7" }
 
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = { version = "1.0.128" }
+
+thiserror = "1.0.65"

@@ -1,32 +1,32 @@
 //! The tabs for the application.
 
-use cushy::value::Dynamic;
-use cushy::widget::{MakeWidget, WidgetInstance};
-use crate::config::Config;
+use cushy::widget::{WidgetInstance};
+use crate::app_tabs::document::DocumentTab;
+use crate::app_tabs::home::HomeTab;
 use crate::context::Context;
-use crate::home;
 use crate::widgets::tab_bar::Tab;
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+pub mod document;
+pub mod home;
+
+#[derive(Clone)]
 pub enum TabKind {
-    Home,
-    Document,
+    Home(HomeTab),
+    Document(DocumentTab),
 }
 
 impl Tab for TabKind {
     fn label(&self) -> String {
         match self {
-            TabKind::Home => "Home".to_string(),
-            TabKind::Document => "Document".to_string(),
+            TabKind::Home(tab) => tab.create_label(),
+            TabKind::Document(tab) => tab.create_label(),
         }
     }
 
     fn make_content(&self, context: &mut Context) -> WidgetInstance {
         match self {
-            TabKind::Home => {
-                home::create_content(context)
-            },
-            TabKind::Document => "Document tab content".make_widget(),
+            TabKind::Home(tab) => tab.create_content(context),
+            TabKind::Document(tab) => tab.create_content(context),
         }
     }
 }
