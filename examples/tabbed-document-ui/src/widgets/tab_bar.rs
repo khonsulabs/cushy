@@ -1,13 +1,12 @@
 use std::default::Default;
 use std::hash::Hash;
-use std::io::Empty;
 use std::sync::{Arc, Mutex};
 use slotmap::{new_key_type, SlotMap};
 use slotmap::basic::Iter;
 use cushy::figures::units::Px;
 use cushy::styles::{Color, CornerRadii, Dimension};
 use cushy::styles::components::{CornerRadius, TextColor, WidgetBackground};
-use cushy::value::{Destination, Dynamic, IntoValue, Source};
+use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance, WidgetList};
 use cushy::widgets::grid::Orientation;
 use cushy::widgets::{Expand, Space, Stack};
@@ -33,7 +32,7 @@ new_key_type! {
     pub struct TabKey;
 }
 
-impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
+impl<TK: Tab + Send + 'static> TabBar<TK> {
     pub fn new() -> Self {
         let tabs: SlotMap<TabKey, TK> = Default::default();
         let content_area = Dynamic::new(Space::clear().make_widget());
@@ -46,7 +45,7 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
         }
     }
 
-    pub fn add_tab(&mut self, tab: TK) {
+    pub fn add_tab(&mut self, tab: TK) -> TabKey {
         let tab_label = tab.label();
 
         let tab_key = self.tabs.lock().insert(tab);
@@ -64,7 +63,9 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
             .lock()
             .push(select);
 
-        self.activate(tab_key)
+        self.activate(tab_key);
+
+        tab_key
     }
 
     pub fn close_all(&mut self) {
