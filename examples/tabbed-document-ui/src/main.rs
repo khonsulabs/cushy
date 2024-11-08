@@ -4,9 +4,10 @@ use cushy::Run;
 use cushy::value::{Dynamic};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Stack};
+use crate::app_tabs::TabKind;
 use crate::config::Config;
 use crate::context::Context;
-use crate::tabs::TabKind;
+
 use crate::widgets::tab_bar::TabBar;
 
 mod config;
@@ -14,53 +15,17 @@ mod widgets;
 mod home;
 mod global_context;
 mod context;
-
-mod tabs {
-    use std::sync::Arc;
-    use cushy::value::Dynamic;
-    use cushy::widget::{MakeWidget, WidgetInstance};
-    use crate::config::Config;
-    use crate::context::Context;
-    use crate::home;
-    use crate::widgets::tab_bar::Tab;
-
-    #[derive(Hash, PartialEq, Eq, Clone)]
-    pub enum TabKind {
-        Home,
-        Document,
-    }
-
-    impl Tab for TabKind {
-        fn label(&self) -> String {
-            match self {
-                TabKind::Home => "Home".to_string(),
-                TabKind::Document => "Document".to_string(),
-            }
-        }
-
-        fn make_content(&self, context: &mut Context) -> WidgetInstance {
-            match self {
-                TabKind::Home => {
-                     context.with_context::<Arc<Config>, _, _>(|config|{
-                        let show_on_startup_value = Dynamic::new(config.show_home_on_startup);
-                        home::create_content(show_on_startup_value)
-                     }).unwrap()
-                },
-                TabKind::Document => "Document tab content".make_widget(),
-            }
-        }
-    }
-}
+mod app_tabs;
 
 struct AppState {
     tab_bar: Dynamic<TabBar<TabKind>>,
-    pub config: Arc<Config>,
+    config: Dynamic<Config>,
     context: Arc<Mutex<Context>>,
 }
 
 fn main() -> cushy::Result {
 
-    let config = Arc::new(config::load());
+    let config = Dynamic::new(config::load());
 
     let mut context = Context::default();
     context.provide(config.clone());
@@ -87,12 +52,13 @@ fn main() -> cushy::Result {
         .on_close({
             let config = app_state.config.clone();
             move ||{
+                let config = config.lock();
                 println!("Saving config");
                 config::save(&*config);
             }
         });
 
-    if app_state.config.show_home_on_startup {
+    if app_state.config.lock().show_home_on_startup {
         add_home_tab(&app_state.tab_bar);
     }
 
