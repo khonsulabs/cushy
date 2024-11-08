@@ -1,5 +1,6 @@
 use std::default::Default;
 use std::hash::Hash;
+use std::io::Empty;
 use std::sync::{Arc, Mutex};
 use slotmap::{new_key_type, SlotMap};
 use slotmap::basic::Iter;
@@ -90,6 +91,10 @@ impl<TK: Tab + Hash + Eq + Send + 'static> TabBar<TK> {
                         let content = tab.make_content(context);
                         content_area.set(content.clone())
                     }
+                } else {
+                    let no_tabs_content = Expand::empty().make_widget();
+
+                    content_area.set(no_tabs_content);
                 }
             }
         });
