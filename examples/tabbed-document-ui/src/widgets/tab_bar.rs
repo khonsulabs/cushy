@@ -102,33 +102,33 @@ impl<TK: Tab + Send + Copy + 'static> TabBar<TK> {
             move |selected_tab_key|{
 
                 println!("key: {:?}, previous_tab_key: {:?}", selected_tab_key, previous_tab_key.get());
+
                 if let Some(tab_key) = selected_tab_key.clone() {
                     let mut tab_binding = tabs.lock();
-                    let previous_tab = if let Some((_tab, tab_state)) = tab_binding.get_mut(tab_key) {
+                    let previous_tab = match tab_binding.get_mut(tab_key) {
+                        Some((_tab, tab_state)) => {
+                            let tab_state_value = tab_state.take();
 
-                        let tab_state_value = tab_state.take();
+                            match tab_state_value {
+                                TabState::Hidden(content_widget) => {
+                                    let previous_content_widget = content_area.replace(content_widget);
 
-                        match tab_state_value {
-                            TabState::Hidden(content_widget) => {
+                                    let result = match previous_tab_key.lock().take() {
+                                        Some(previous_tab_key) => Some((previous_tab_key, previous_content_widget)),
+                                        None => None,
+                                    };
 
-                                let previous_content_widget = content_area.replace(content_widget);
+                                    previous_tab_key.lock().replace(tab_key);
 
-                                let result = match previous_tab_key.lock().take() {
-                                    None => None,
-                                    Some(previous_tab_key) => Some((previous_tab_key, previous_content_widget))
-                                };
+                                    tab_state.set(TabState::Active);
 
-                                previous_tab_key.lock().replace(tab_key);
-
-                                tab_state.set(TabState::Active);
-
-                                result
+                                    result
+                                }
+                                TabState::Uninitialized => unreachable!(),
+                                TabState::Active => None,
                             }
-                            TabState::Uninitialized => unreachable!(),
-                            TabState::Active => None,
                         }
-                    } else {
-                        None
+                        _ => None
                     };
 
                     match previous_tab {
