@@ -2,7 +2,6 @@ use std::default::Default;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use slotmap::{new_key_type, SlotMap};
-use slotmap::basic::{Iter};
 use cushy::figures::units::Px;
 use cushy::styles::{Color, CornerRadii, Dimension};
 use cushy::styles::components::{CornerRadius, TextColor, WidgetBackground};
@@ -19,9 +18,8 @@ pub trait Tab {
     fn make_content(&self, context: &mut Context) -> WidgetInstance;
 }
 
-// FIXME make private
 #[derive(PartialEq)]
-pub enum TabState {
+enum TabState {
     Uninitialized,
     Active,
     Hidden(WidgetInstance)
@@ -49,7 +47,7 @@ new_key_type! {
     pub struct TabKey;
 }
 
-impl<TK: Tab + Send + 'static> TabBar<TK> {
+impl<TK: Tab + Send + Copy + 'static> TabBar<TK> {
     pub fn new() -> Self {
         let tabs: SlotMap<TabKey, (TK, Dynamic<TabState>)> = Default::default();
         let content_area = Dynamic::new(Space::clear().make_widget());
@@ -184,19 +182,67 @@ impl<TK: Tab + Send + 'static> TabBar<TK> {
         widget.make_widget()
     }
 
-    // FIXME make remove TabState from this API
     pub fn with_tabs<R, F>(&self, f: F) -> R
     where
-        F: Fn(Iter<TabKey, (TK, Dynamic<TabState>)>) -> R
+        F: Fn(TabsIter<'_, TK>) -> R
     {
-        let tabs = self.tabs.lock();
-        let iter = tabs.iter();
-
+        let iter = self.into_iter();
         f(iter)
     }
 
     pub fn activate(&self, tab_key: TabKey) {
         self.selected.set(Some(tab_key));
+    }
+}
+
+pub struct TabsIter<'a, TK> {
+    tab_bar: &'a TabBar<TK>,
+    keys: Vec<TabKey>,
+    index: usize,
+}
+
+impl<'a, TK> TabsIter<'a, TK> {
+    pub fn new(tab_bar: &'a TabBar<TK>) -> Self {
+        let keys = tab_bar.tabs.lock().keys().collect();
+
+        Self {
+            tab_bar,
+            keys,
+            index: 0,
+        }
+    }
+}
+
+impl<'a, TK: Copy> Iterator for TabsIter<'a, TK> {
+    type Item = (TabKey, TK);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.keys.len() {
+            let key = self.keys[self.index];
+
+            let binding = self.tab_bar.tabs.lock();
+            let value = binding
+                .get(key)
+                .map(|(tab, _state) | (key, *tab) );
+
+            self.index += 1;
+
+            value
+
+        } else {
+            None
+        }
+    }
+}
+
+impl<'a, TK: Copy> IntoIterator for &'a TabBar<TK> {
+    type Item = (TabKey, TK);
+    type IntoIter = TabsIter<'a, TK>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        TabsIter::new(
+            self
+        )
     }
 }
 
