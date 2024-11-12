@@ -14,8 +14,9 @@ use crate::app_tabs::TabKind;
 use crate::config::Config;
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
+use crate::documents::image::ImageDocument;
 use crate::documents::text::TextDocument;
-use crate::widgets::tab_bar::TabBar;
+use crate::widgets::tab_bar::{TabBar, TabKey};
 
 mod config;
 mod widgets;
@@ -43,9 +44,12 @@ fn main() -> cushy::Result {
 
     let tab_bar = Dynamic::new(make_tab_bar());
 
+    let context = Arc::new(Mutex::new(context));
+    let context_for_later = context.clone();
+
     let mut app_state = AppState {
         tab_bar: tab_bar.clone(),
-        context: Arc::new(Mutex::new(context)),
+        context,
         config,
         documents
     };
@@ -54,7 +58,7 @@ fn main() -> cushy::Result {
 
     let ui_elements = [
         toolbar.make_widget(),
-        app_state.tab_bar.lock().make_widget(&mut app_state.context),
+        app_state.tab_bar.lock().make_widget(),
     ];
 
     let ui = ui_elements
@@ -76,11 +80,11 @@ fn main() -> cushy::Result {
 
 
     if app_state.config.lock().show_home_on_startup {
-        add_home_tab(&app_state.tab_bar);
+        add_home_tab(&mut context_for_later.lock().unwrap(), &app_state.tab_bar);
     }
 
     for path in app_state.config.lock().open_document_paths.clone() {
-        open_document(&app_state.documents, &app_state.tab_bar, path).ok();
+        open_document(&mut context_for_later.lock().unwrap(), &app_state.documents, &app_state.tab_bar, path).ok();
     }
 
     let cushy_result = ui.run();
@@ -102,6 +106,7 @@ const SUPPORTED_IMAGE_EXTENSIONS: [&'static str; 5] = ["bmp", "png", "jpg", "jpe
 const SUPPORTED_TEXT_EXTENSIONS: [&'static str; 1] = ["txt"];
 
 fn open_document(
+    context: &mut context::Context,
     documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>,
     tab_bar: &Dynamic<TabBar<TabKind>>,
     path: PathBuf
@@ -113,24 +118,35 @@ fn open_document(
 
     let extension = path.extension().unwrap().to_str().unwrap();
 
-    if SUPPORTED_TEXT_EXTENSIONS.contains(&extension) {
+    let tab_key = if SUPPORTED_TEXT_EXTENSIONS.contains(&extension) {
         let document = DocumentKind::TextDocument(TextDocument::from_path(path));
-        let document_key = documents.lock().insert(document);
 
-        let document_tab = DocumentTab::new(document_key);
+        let tab_key = make_document_tab(context, documents, tab_bar, document);
 
-        let mut tab_bar_guard = tab_bar.lock();
-        let tab_key = tab_bar_guard.add_tab(TabKind::Document(document_tab));
-        println!("added document tab with key. key: {:?}", tab_key);
+        tab_key
     } else if SUPPORTED_IMAGE_EXTENSIONS.contains(&extension) {
-        // TODO support images
-        return Err(OpenDocumentError::UnsupportedFileExtension { extension: extension.to_string() });
+        let document = DocumentKind::ImageDocument(ImageDocument::from_path(path));
+
+        let tab_key = make_document_tab(context, documents, tab_bar, document);
+
+        tab_key
     } else {
         return Err(OpenDocumentError::UnsupportedFileExtension { extension: extension.to_string() });
-    }
+    };
 
+    println!("added document tab with key. key: {:?}", tab_key);
 
     Ok(())
+}
+
+fn make_document_tab(context: &mut Context, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>, tab_bar: &Dynamic<TabBar<TabKind>>, document: DocumentKind) -> TabKey {
+    let document_key = documents.lock().insert(document);
+
+    let document_tab = DocumentTab::new(document_key);
+
+    let mut tab_bar_guard = tab_bar.lock();
+    let tab_key = tab_bar_guard.add_tab(context, TabKind::Document(document_tab));
+    tab_key
 }
 
 fn make_tab_bar() -> TabBar<TabKind> {
@@ -142,10 +158,11 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
         .into_button()
         .on_click({
             let tab_bar = app_state.tab_bar.clone();
+            let context = app_state.context.clone();
             move |_|{
                 println!("home clicked");
 
-                add_home_tab(&tab_bar);
+                add_home_tab(&mut context.lock().unwrap(), &tab_bar);
             }
         });
 
@@ -163,12 +180,13 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
         .on_click({
             let tab_bar = app_state.tab_bar.clone();
             let documents = app_state.documents.clone();
+            let context = app_state.context.clone();
             move |_|{
                 println!("open clicked");
 
                 let path = PathBuf::from("examples/tabbed-document-ui/assets/text_file_1.txt");
 
-                open_document(&documents, &tab_bar, path).ok();
+                open_document(&mut context.lock().unwrap(), &documents, &tab_bar, path).ok();
             }
         });
 
@@ -197,7 +215,7 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
     toolbar
 }
 
-fn add_home_tab(tab_bar: &Dynamic<TabBar<TabKind>>) {
+fn add_home_tab(context: &mut context::Context, tab_bar: &Dynamic<TabBar<TabKind>>) {
     let mut tab_bar_guard = tab_bar
         .lock();
 
@@ -214,6 +232,6 @@ fn add_home_tab(tab_bar: &Dynamic<TabBar<TabKind>>) {
         tab_bar_guard.activate(key);
     } else {
         tab_bar_guard
-            .add_tab(TabKind::Home(HomeTab::default()));
+            .add_tab(context, TabKind::Home(HomeTab::default()));
     }
 }

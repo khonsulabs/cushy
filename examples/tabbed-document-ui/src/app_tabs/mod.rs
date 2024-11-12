@@ -16,17 +16,17 @@ pub enum TabKind {
 }
 
 impl Tab for TabKind {
-    fn label(&self) -> String {
+    fn label(&self, context: &mut Context) -> String {
         match self {
-            TabKind::Home(tab) => tab.create_label(),
-            TabKind::Document(tab) => tab.create_label(),
+            TabKind::Home(tab) => tab.label(context),
+            TabKind::Document(tab) => tab.label(context),
         }
     }
 
     fn make_content(&self, context: &mut Context) -> WidgetInstance {
         match self {
-            TabKind::Home(tab) => tab.create_content(context),
-            TabKind::Document(tab) => tab.create_content(context),
+            TabKind::Home(tab) => tab.make_content(context),
+            TabKind::Document(tab) => tab.make_content(context),
         }
     }
 }

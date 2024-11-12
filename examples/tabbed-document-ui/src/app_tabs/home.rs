@@ -3,17 +3,17 @@ use crate::Dynamic;
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use crate::config::Config;
 use crate::context::Context;
+use crate::widgets::tab_bar::Tab;
 
 #[derive(Clone, Copy, Default)]
 pub struct HomeTab {}
 
-impl HomeTab {
-
-    pub fn create_label(&self) -> String {
+impl Tab for HomeTab {
+    fn label(&self, _context: &mut Context) -> String {
         "Home".to_string()
     }
 
-    pub fn create_content(&self, context: &mut Context) -> WidgetInstance {
+    fn make_content(&self, context: &mut Context) -> WidgetInstance {
 
         context.with_context::<Dynamic<Config>, _, _>(|config|{
             let config_guard = config.lock();
