@@ -3,6 +3,7 @@ use cushy::value::Dynamic;
 use cushy::widget::WidgetInstance;
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
+use crate::widgets::tab_bar::Tab;
 
 #[derive(Clone, Copy)]
 pub struct DocumentTab {
@@ -10,25 +11,39 @@ pub struct DocumentTab {
 }
 
 impl DocumentTab {
-
     pub fn new(document_key: DocumentKey) -> Self {
         Self {
             document_key
         }
     }
+}
 
-    pub fn create_label(&self) -> String {
-        "Document".to_string()
+impl Tab for DocumentTab {
+
+    fn label(&self, context: &mut Context) -> String {
+        context.with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
+            let documents_guard = documents.lock();
+            let document = documents_guard.get(self.document_key).unwrap();
+
+            let path = match document {
+                DocumentKind::TextDocument(document) => &document.path,
+                DocumentKind::ImageDocument(document) => &document.path,
+            };
+
+            path.file_name().unwrap().to_str().unwrap().to_string()
+
+        }).unwrap()
     }
 
-    pub fn create_content(&self, context: &mut Context) -> WidgetInstance {
+    fn make_content(&self, context: &mut Context) -> WidgetInstance {
 
         context.with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
             let documents_guard = documents.lock();
             let document = documents_guard.get(self.document_key).unwrap();
 
             match document {
-                DocumentKind::TextDocument(text_document) => text_document.create_content()
+                DocumentKind::TextDocument(text_document) => text_document.create_content(),
+                DocumentKind::ImageDocument(image_document) => image_document.create_content()
             }
         }).unwrap()
     }

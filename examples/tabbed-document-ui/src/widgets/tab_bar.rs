@@ -1,6 +1,5 @@
 use std::default::Default;
 use std::hash::Hash;
-use std::sync::{Arc, Mutex};
 use slotmap::{new_key_type, SlotMap};
 use cushy::figures::units::Px;
 use cushy::styles::{Color, CornerRadii, Dimension};
@@ -14,7 +13,7 @@ use cushy::widgets::select::SelectedColor;
 use crate::context::Context;
 
 pub trait Tab {
-    fn label(&self) -> String;
+    fn label(&self, context: &mut Context) -> String;
     fn make_content(&self, context: &mut Context) -> WidgetInstance;
 }
 
@@ -61,10 +60,11 @@ impl<TK: Tab + Send + Copy + 'static> TabBar<TK> {
         }
     }
 
-    pub fn add_tab(&mut self, tab: TK) -> TabKey {
-        let tab_label = tab.label();
+    pub fn add_tab(&mut self, context: &mut Context, tab: TK) -> TabKey {
+        let tab_label = tab.label(context);
+        let tab_content = tab.make_content(context);
 
-        let tab_key = self.tabs.lock().insert((tab, Dynamic::new(TabState::Uninitialized)));
+        let tab_key = self.tabs.lock().insert((tab, Dynamic::new(TabState::Hidden(tab_content))));
         println!("tab_key: {:?}", tab_key);
         let select = self.selected
             .new_select(Some(tab_key), tab_label)
@@ -90,73 +90,48 @@ impl<TK: Tab + Send + Copy + 'static> TabBar<TK> {
         self.tabs.lock().clear();
     }
 
-    pub fn make_widget(&self, context: &mut Arc<Mutex<Context>>) -> WidgetInstance {
+    pub fn make_widget(&self) -> WidgetInstance {
 
         println!("TabBar::make_widget");
-
-        let make_content_callback = self.tabs.for_each({
-            let context = context.clone();
-
-            move |tabs| {
-                let mut context_guard = context.lock().unwrap();
-                let context = &mut *context_guard;
-
-                for (key, (tab, tab_state)) in tabs.iter() {
-
-                    let mut tab_state_guard = tab_state.lock();
-
-                    match &*tab_state_guard {
-                        TabState::Uninitialized => {
-                            println!("making content. key: {:?}", key);
-                            let content = tab.make_content(context);
-
-                            *tab_state_guard = TabState::Hidden(content);
-                        }
-                        _ => ()
-                    }
-                }
-            }
-        });
-        make_content_callback.persist();
 
         let callback = self.selected.for_each({
             let tabs = self.tabs.clone();
             let content_area = self.content_area.clone();
-            let previous_tab = self.previous_tab.clone();
+            let previous_tab_key = self.previous_tab.clone();
 
             move |selected_tab_key|{
 
-                println!("key: {:?}, previous_tab_key: {:?}", selected_tab_key, previous_tab.get());
+                println!("key: {:?}, previous_tab_key: {:?}", selected_tab_key, previous_tab_key.get());
                 if let Some(tab_key) = selected_tab_key.clone() {
                     let mut tab_binding = tabs.lock();
-                    let previous_stuff = if let Some((_tab, tab_state)) = tab_binding.get_mut(tab_key) {
+                    let previous_tab = if let Some((_tab, tab_state)) = tab_binding.get_mut(tab_key) {
 
                         let tab_state_value = tab_state.take();
 
                         match tab_state_value {
-                            TabState::Active => None,
-                            TabState::Uninitialized => unreachable!(),
                             TabState::Hidden(content_widget) => {
 
                                 let previous_content_widget = content_area.replace(content_widget);
 
-                                let result = match previous_tab.lock().take() {
+                                let result = match previous_tab_key.lock().take() {
                                     None => None,
                                     Some(previous_tab_key) => Some((previous_tab_key, previous_content_widget))
                                 };
 
-                                previous_tab.lock().replace(tab_key);
+                                previous_tab_key.lock().replace(tab_key);
 
                                 tab_state.set(TabState::Active);
 
                                 result
                             }
+                            TabState::Uninitialized => unreachable!(),
+                            TabState::Active => None,
                         }
                     } else {
                         None
                     };
 
-                    match previous_stuff {
+                    match previous_tab {
                         Some((tab_key, Some(widget))) => {
                             if let Some((_tab, tab_state)) = tab_binding.get_mut(tab_key) {
                                 *tab_state.lock() = TabState::Hidden(widget);

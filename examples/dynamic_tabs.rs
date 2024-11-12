@@ -29,6 +29,7 @@ impl Tab {
     }
 
     pub fn make_content(&self) -> WidgetInstance {
+        println!("make_content");
         match self {
             Tab::Home => "This is the home tab".make_widget(),
             Tab::Text { contents, .. } => contents.make_widget(),
