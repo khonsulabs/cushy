@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use cushy::value::Dynamic;
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::input::InputValue;
-use crate::documents::DocumentKind;
 
 pub struct TextDocument {
     pub path: PathBuf,

@@ -1,7 +1,6 @@
 use slotmap::SlotMap;
 use cushy::value::Dynamic;
-use cushy::widget::{MakeWidget, WidgetInstance};
-use crate::config::Config;
+use cushy::widget::WidgetInstance;
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
 
