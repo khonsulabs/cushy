@@ -80,7 +80,7 @@ fn main() -> cushy::Result {
     }
 
     for path in app_state.config.lock().open_document_paths.clone() {
-        open_document(&app_state.documents, &app_state.tab_bar, path);
+        open_document(&app_state.documents, &app_state.tab_bar, path).ok();
     }
 
     let cushy_result = ui.run();
@@ -152,7 +152,7 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
     let new_button = "New"
         .into_button()
         .on_click({
-            let tab_bar = app_state.tab_bar.clone();
+            let _tab_bar = app_state.tab_bar.clone();
             move |_|{
                 println!("New clicked");
             }
@@ -168,7 +168,7 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
 
                 let path = PathBuf::from("examples/tabbed-document-ui/assets/text_file_1.txt");
 
-                open_document(&documents, &tab_bar, path);
+                open_document(&documents, &tab_bar, path).ok();
             }
         });
 
@@ -201,18 +201,16 @@ fn add_home_tab(tab_bar: &Dynamic<TabBar<TabKind>>) {
     let mut tab_bar_guard = tab_bar
         .lock();
 
-    let home_tab = tab_bar_guard.with_tabs(|mut iter|{
-        let foo = iter.find_map(move |(_key, value)|
-            match value {
-                TabKind::Home(tab) => Some((_key, value.clone())),
+    let home_tab_result = tab_bar_guard.with_tabs(|mut iter|{
+        iter.find_map(move |(_key, (tab, _state))|
+            match tab {
+                TabKind::Home(tab) => Some((_key, tab.clone())),
                 _ => None
             }
-        );
-
-        foo
+        )
     });
 
-    if let Some((key, _tab)) = home_tab {
+    if let Some((key, _tab)) = home_tab_result {
         tab_bar_guard.activate(key);
     } else {
         tab_bar_guard

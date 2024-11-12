@@ -2,7 +2,7 @@ use std::default::Default;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 use slotmap::{new_key_type, SlotMap};
-use slotmap::basic::Iter;
+use slotmap::basic::{Iter};
 use cushy::figures::units::Px;
 use cushy::styles::{Color, CornerRadii, Dimension};
 use cushy::styles::components::{CornerRadius, TextColor, WidgetBackground};
@@ -19,13 +19,30 @@ pub trait Tab {
     fn make_content(&self, context: &mut Context) -> WidgetInstance;
 }
 
+// FIXME make private
+#[derive(PartialEq)]
+pub enum TabState {
+    Uninitialized,
+    Active,
+    Hidden(WidgetInstance)
+}
+
+impl Default for TabState {
+    fn default() -> Self {
+        Self::Uninitialized
+    }
+}
+
 // NOTE: Specifically NOT clone because we don't want to clone the tabs.
 pub struct TabBar<TK> {
-    tabs: Dynamic<SlotMap<TabKey, TK>>,
+    tabs: Dynamic<SlotMap<TabKey, (TK, Dynamic<TabState>)>>,
     tab_items: Dynamic<WidgetList>,
+
     content_area: Dynamic<WidgetInstance>,
 
     selected: Dynamic<Option<TabKey>>,
+
+    previous_tab: Dynamic<Option<TabKey>>,
 }
 
 new_key_type! {
@@ -34,21 +51,22 @@ new_key_type! {
 
 impl<TK: Tab + Send + 'static> TabBar<TK> {
     pub fn new() -> Self {
-        let tabs: SlotMap<TabKey, TK> = Default::default();
+        let tabs: SlotMap<TabKey, (TK, Dynamic<TabState>)> = Default::default();
         let content_area = Dynamic::new(Space::clear().make_widget());
 
         Self {
             tabs: Dynamic::new(tabs),
             content_area,
             tab_items: Dynamic::new(WidgetList::new()),
-            selected: Dynamic::new(None)
+            selected: Dynamic::new(None),
+            previous_tab: Dynamic::new(None),
         }
     }
 
     pub fn add_tab(&mut self, tab: TK) -> TabKey {
         let tab_label = tab.label();
 
-        let tab_key = self.tabs.lock().insert(tab);
+        let tab_key = self.tabs.lock().insert((tab, Dynamic::new(TabState::Uninitialized)));
         println!("tab_key: {:?}", tab_key);
         let select = self.selected
             .new_select(Some(tab_key), tab_label)
@@ -76,22 +94,79 @@ impl<TK: Tab + Send + 'static> TabBar<TK> {
 
     pub fn make_widget(&self, context: &mut Arc<Mutex<Context>>) -> WidgetInstance {
 
-        let callback = self.selected.for_each({
-            let tabs = self.tabs.clone();
-            let content_area = self.content_area.clone();
+        println!("TabBar::make_widget");
+
+        let make_content_callback = self.tabs.for_each({
             let context = context.clone();
 
-            move |selected_tab_key|{
+            move |tabs| {
                 let mut context_guard = context.lock().unwrap();
                 let context = &mut *context_guard;
 
-                println!("key: {:?}", selected_tab_key);
-                if let Some(tab_key) = selected_tab_key.clone() {
-                    let tab_binding = tabs.lock();
-                    if let Some(tab) = tab_binding.get(tab_key) {
-                        let content = tab.make_content(context);
-                        content_area.set(content.clone())
+                for (key, (tab, tab_state)) in tabs.iter() {
+
+                    let mut tab_state_guard = tab_state.lock();
+
+                    match &*tab_state_guard {
+                        TabState::Uninitialized => {
+                            println!("making content. key: {:?}", key);
+                            let content = tab.make_content(context);
+
+                            *tab_state_guard = TabState::Hidden(content);
+                        }
+                        _ => ()
                     }
+                }
+            }
+        });
+        make_content_callback.persist();
+
+        let callback = self.selected.for_each({
+            let tabs = self.tabs.clone();
+            let content_area = self.content_area.clone();
+            let previous_tab = self.previous_tab.clone();
+
+            move |selected_tab_key|{
+
+                println!("key: {:?}, previous_tab_key: {:?}", selected_tab_key, previous_tab.get());
+                if let Some(tab_key) = selected_tab_key.clone() {
+                    let mut tab_binding = tabs.lock();
+                    let previous_stuff = if let Some((_tab, tab_state)) = tab_binding.get_mut(tab_key) {
+
+                        let tab_state_value = tab_state.take();
+
+                        match tab_state_value {
+                            TabState::Active => None,
+                            TabState::Uninitialized => unreachable!(),
+                            TabState::Hidden(content_widget) => {
+
+                                let previous_content_widget = content_area.replace(content_widget);
+
+                                let result = match previous_tab.lock().take() {
+                                    None => None,
+                                    Some(previous_tab_key) => Some((previous_tab_key, previous_content_widget))
+                                };
+
+                                previous_tab.lock().replace(tab_key);
+
+                                tab_state.set(TabState::Active);
+
+                                result
+                            }
+                        }
+                    } else {
+                        None
+                    };
+
+                    match previous_stuff {
+                        Some((tab_key, Some(widget))) => {
+                            if let Some((_tab, tab_state)) = tab_binding.get_mut(tab_key) {
+                                *tab_state.lock() = TabState::Hidden(widget);
+                            }
+                        }
+                        _ => {}
+                    }
+
                 } else {
                     let no_tabs_content = Expand::empty().make_widget();
 
@@ -99,7 +174,6 @@ impl<TK: Tab + Send + 'static> TabBar<TK> {
                 }
             }
         });
-
         callback.persist();
 
         let widget = TabBarWidget {
@@ -110,9 +184,10 @@ impl<TK: Tab + Send + 'static> TabBar<TK> {
         widget.make_widget()
     }
 
+    // FIXME make remove TabState from this API
     pub fn with_tabs<R, F>(&self, f: F) -> R
     where
-        F: Fn(Iter<TabKey, TK>) -> R
+        F: Fn(Iter<TabKey, (TK, Dynamic<TabState>)>) -> R
     {
         let tabs = self.tabs.lock();
         let iter = tabs.iter();
