@@ -31,18 +31,18 @@ Implementing this forces the developer to learn about some key points of the fra
         - [ ] Changing the language should cause all UI text to be immediately displayed in the selected language without requiring a restart. 
 - Tab bar
 	- [ ] When all the tabs won't fit in the window, there must be some controls to allow them all to be selected, e.g. `<` and `>` buttons, or `V` dropdown, or scrollable.
-	- [ ] Selecting a tab changes the content area below the tab bar.
+	- [x] Selecting a tab changes the content area below the tab bar.
 	- [ ] Must be obvious which tab is selected when there are only two tabs.
 	- [ ] Each tab should be closable (e.g. an `X` button on the tab or right-click on tab to show a context menu with `Close`)
 	- [ ] When a tab is closed, the next most recently used tab is made active.
 - Tab content
-	- [ ] Displays the content for the tab.
+	- [x] Displays the content for the tab.
 	- [ ] Each tab content must maintain it's state, without expensive re-loads/refreshing of the state, no re-loading of files.
     - [ ] Scroll bars should appear if the content does not fit the window.
 	- Tabs
 		- 'Home' tab
-			- [ ] Shows a welcome message.
-			- [ ] Shows a checkbox with the message 'Open on startup', see 'state items' below.
+			- [x] Shows a welcome message.
+			- [x] Shows a checkbox with the message 'Open on startup', see 'state items' below.
 		- 'New' tab
 			- [ ] a form is shown with 3 main controls , each with a label, in a grid with labels on the left. Below the form an OK button should be present.
 				- Name - text entry, ideally with placeholder text, no default name.
@@ -61,11 +61,11 @@ Implementing this forces the developer to learn about some key points of the fra
 				- [ ] tab ordering must be preserved.  e.g. given tabs 'File1, New, File2' pressing 'Ok' on `New` should result in tabs 'File1, File3, File2', not 'File1, File2, File3'
 		- 'Text' tab, displays a 'text' document.
 			- [ ] Filename must appear in tab.
-			- [ ] Show text file content in an editor.
+			- [x] Show text file content in an editor.
 			- [ ] Content must be loaded in a thread or async, in the background.
 			- Tab State
-				- [ ] Maintain text selection.
-				- [ ] Maintain caret position.
+				- [ ] Maintain text selection. ❌ Text selection is lost when switching tabs.
+				- [ ] Maintain caret position. ❌ Caret position is lost when switching tabs.
 			- Info sidebar with a grid of key/value items
 				- [ ] File path
 				- [ ] Selection information
