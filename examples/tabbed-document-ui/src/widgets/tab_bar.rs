@@ -124,8 +124,8 @@ impl<TK: Tab + Send + Copy + 'static> TabBar<TK> {
 
                                     result
                                 }
-                                TabState::Uninitialized => unreachable!(),
                                 TabState::Active => None,
+                                TabState::Uninitialized => unreachable!(),
                             }
                         }
                         _ => None
