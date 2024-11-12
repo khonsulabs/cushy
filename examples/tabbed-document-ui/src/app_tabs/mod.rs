@@ -9,7 +9,7 @@ use crate::widgets::tab_bar::Tab;
 pub mod document;
 pub mod home;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum TabKind {
     Home(HomeTab),
     Document(DocumentTab),

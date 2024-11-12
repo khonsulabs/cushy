@@ -4,7 +4,7 @@ use cushy::widget::WidgetInstance;
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct DocumentTab {
     document_key: DocumentKey
 }

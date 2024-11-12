@@ -4,7 +4,7 @@ use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use crate::config::Config;
 use crate::context::Context;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Copy, Default)]
 pub struct HomeTab {}
 
 impl HomeTab {

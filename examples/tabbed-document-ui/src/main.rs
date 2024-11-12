@@ -202,7 +202,7 @@ fn add_home_tab(tab_bar: &Dynamic<TabBar<TabKind>>) {
         .lock();
 
     let home_tab_result = tab_bar_guard.with_tabs(|mut iter|{
-        iter.find_map(move |(_key, (tab, _state))|
+        iter.find_map(move |(_key, tab)|
             match tab {
                 TabKind::Home(tab) => Some((_key, tab.clone())),
                 _ => None
