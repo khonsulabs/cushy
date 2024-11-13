@@ -33,8 +33,8 @@ Implementing this forces the developer to learn about some key points of the fra
 	- [ ] When all the tabs won't fit in the window, there must be some controls to allow them all to be selected, e.g. `<` and `>` buttons, or `V` dropdown, or scrollable.
 	- [x] Selecting a tab changes the content area below the tab bar.
 	- [x] Must be obvious which tab is selected when there are only two tabs.
-	- [ ] Each tab should be closable (e.g. an `X` button on the tab or right-click on tab to show a context menu with `Close`)
-	- [ ] When a tab is closed, the next most recently used tab is made active.
+	- [x] Each tab should be closable (e.g. an `X` button on the tab or right-click on tab to show a context menu with `Close`)
+	- [x] When a tab is closed, the next most recently used tab is made active.
 - Tab content
 	- [x] Displays the content for the tab.
 	- [ ] Each tab content must maintain it's state, without expensive re-loads/refreshing of the state, no re-loading of files.
@@ -60,7 +60,7 @@ Implementing this forces the developer to learn about some key points of the fra
 				- [ ] there should be no visible removal and insertion of any new tab.
 				- [ ] tab ordering must be preserved.  e.g. given tabs 'File1, New, File2' pressing 'Ok' on `New` should result in tabs 'File1, File3, File2', not 'File1, File2, File3'
 		- 'Text' tab, displays a 'text' document.
-			- [ ] Filename must appear in tab.
+			- [x] Filename must appear in tab.
 			- [x] Show text file content in an editor.
 			- [ ] Content must be loaded in a thread or async, in the background.
 			- Tab State
@@ -70,9 +70,9 @@ Implementing this forces the developer to learn about some key points of the fra
 				- [ ] File path
 				- [ ] Selection information
 		- 'Image' tab, displays an 'image' document.
-			- [ ] Filename must appear in tab.
-			- [ ] Shows the image.
-            - [ ] Image is top-left justified.
+			- [x] Filename must appear in tab.
+			- [x] Shows the image.
+            - [x] Image is top-left justified.
             - [ ] Image is scaled-up to fit window, aspect ratio must be preserved.
             - [ ] Do not allow image to be scaled down.
 			- [ ] If too big to fit in the window, scrollbars must be present to allow panning
