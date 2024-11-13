@@ -32,7 +32,7 @@ Implementing this forces the developer to learn about some key points of the fra
 - Tab bar
 	- [ ] When all the tabs won't fit in the window, there must be some controls to allow them all to be selected, e.g. `<` and `>` buttons, or `V` dropdown, or scrollable.
 	- [x] Selecting a tab changes the content area below the tab bar.
-	- [ ] Must be obvious which tab is selected when there are only two tabs.
+	- [x] Must be obvious which tab is selected when there are only two tabs.
 	- [ ] Each tab should be closable (e.g. an `X` button on the tab or right-click on tab to show a context menu with `Close`)
 	- [ ] When a tab is closed, the next most recently used tab is made active.
 - Tab content

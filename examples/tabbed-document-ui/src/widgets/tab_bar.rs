@@ -95,7 +95,22 @@ impl<TK: Tab + Send + Copy + 'static> TabBar<TK> {
             .and(close_button)
             .into_columns()
             .gutter(Px::new(5))
-            .pad_by(Edges::default().with_horizontal(Px::new(5)).with_vertical(Px::new(1)));
+            .pad_by(Edges::default().with_horizontal(Px::new(3)).with_top(Px::new(3)).with_bottom(Px::new(0)))
+            .and(
+                Space::default()
+                    .height(Px::new(3))
+                    .with(&WidgetBackground, self.active.map_each(move |active|{
+                        let mut color = Color::CLEAR_BLACK;
+                        if let Some(active) = active {
+                            if active.eq(&tab_key) {
+                                color = Color::SKYBLUE
+                            }
+                        }
+                        color
+                    }))
+            )
+            .into_rows()
+            .gutter(Px::new(0));
 
         let select = self.active
             .new_select(Some(tab_key), select_content )
