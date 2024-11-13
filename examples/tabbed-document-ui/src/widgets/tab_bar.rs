@@ -2,13 +2,14 @@ use std::default::Default;
 use std::hash::Hash;
 use slotmap::{new_key_type, SlotMap};
 use cushy::figures::units::Px;
-use cushy::styles::{Color, CornerRadii, Dimension};
-use cushy::styles::components::{CornerRadius, TextColor, WidgetBackground};
+use cushy::styles::{Color, CornerRadii, Dimension, Edges};
+use cushy::styles::components::{CornerRadius, IntrinsicPadding, TextColor, WidgetBackground};
 use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance, WidgetList};
 use cushy::widgets::grid::Orientation;
 use cushy::widgets::{Expand, Space, Stack};
 use cushy::widgets::button::{ButtonActiveBackground, ButtonActiveForeground, ButtonBackground, ButtonForeground, ButtonHoverForeground};
+use cushy::widgets::label::Displayable;
 use cushy::widgets::select::SelectedColor;
 use crate::context::Context;
 
@@ -83,24 +84,27 @@ impl<TK: Tab + Send + Copy + 'static> TabBar<TK> {
                     tab_bar.lock().close_tab(tab_key);
                 }
             })
-            // FIXME the close button should have the `select`'s ButtonActiveBackground, but it does
-            //       not inherit it so the background is always the same, regardless of whether the
-            //       tab is selected/active.
             .with(&ButtonForeground, Color::LIGHTGRAY)
             .with(&ButtonBackground, Color::CLEAR_BLACK)
             .with(&ButtonActiveBackground, Color::CLEAR_BLACK)
             .with(&ButtonActiveForeground, Color::RED)
             .with(&ButtonHoverForeground, Color::RED);
 
+        let select_content = tab_label
+            .into_label()
+            .and(close_button)
+            .into_columns()
+            .gutter(Px::new(5))
+            .pad_by(Edges::default().with_horizontal(Px::new(5)).with_vertical(Px::new(1)));
+
         let select = self.active
-            .new_select(Some(tab_key), tab_label)
+            .new_select(Some(tab_key), select_content )
+            // NOTE any less than 3 here breaks the keyboard focus for the select button, 0 = not visible, < 3 = too small
+            .with(&IntrinsicPadding, Px::new(3))
             .with(&ButtonForeground, Color::LIGHTGRAY)
             .with(&ButtonHoverForeground, Color::WHITE)
             .with(&ButtonActiveBackground, Color::GRAY)
             .with(&SelectedColor, Color::GRAY)
-            .and(close_button)
-            .into_columns()
-            .gutter(Px::new(0))
             // TODO remove this workaround for the select button's background inheritance
             .with(&WidgetBackground, Color::CLEAR_BLACK);
 
