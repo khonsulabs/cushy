@@ -42,7 +42,7 @@ fn main() -> cushy::Result {
     context.provide(config.clone());
     context.provide(documents.clone());
 
-    let tab_bar = Dynamic::new(make_tab_bar());
+    let tab_bar = Dynamic::new(TabBar::new());
 
     let context = Arc::new(Mutex::new(context));
     let context_for_later = context.clone();
@@ -147,10 +147,6 @@ fn make_document_tab(context: &mut Context, documents: &Dynamic<SlotMap<Document
     let mut tab_bar_guard = tab_bar.lock();
     let tab_key = tab_bar_guard.add_tab(context, TabKind::Document(document_tab));
     tab_key
-}
-
-fn make_tab_bar() -> TabBar<TabKind> {
-    TabBar::new()
 }
 
 fn make_toolbar(app_state: &mut AppState) -> Stack {
