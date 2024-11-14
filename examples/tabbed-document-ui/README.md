@@ -15,7 +15,7 @@ Implementing this forces the developer to learn about some key points of the fra
 ## Requirements
 
 - Main window
-    - [x] native look and feel titlebar with native close, minimize, maximize control
+    - [x] native look and feel title bar with native close, minimize, maximize control
     - [x] re-sizable, contents adjust to fit.
 - Toolbar
     - 'Home' button
@@ -100,9 +100,9 @@ Implementing this forces the developer to learn about some key points of the fra
 	- [ ] Native look and feel controls.
 	- [ ] Some way of closing all the tabs in one go (e.g. "Close all" button on toolbar).
     - [ ] Add 'Display in window' on tab context menu which when clicked displays the document in a new window with no tab bar, and where the window title is the name of the file.
-	- [ ] Multiple tabs for the same document, e.g. right click a tab, click 'Duplicate'.  Changes in one tab are reflected in the other.
+	- [ ] Multiple tabs for the same document, e.g. right-click a tab, click 'Duplicate'.  Changes in one tab are reflected in the other.
 	- [ ] Status bar, showing some active-tab-specific state, e.g. last click location on image tabs. changes when changing tabs. (e.g. IDEs often show line number, offset, and selected line/character counts in the status bar).
-	- [ ] When two tabs are open, where the file name names of the document are the same, but the directory the file is in is different, show enough of the path to be able to distingush the two tabs.
+	- [ ] When two tabs are open, where the file name names of the document are the same, but the directory the file is in is different, show enough of the path to be able to distinguish the two tabs.
 		- e.g. for `/tmp/foobar/file.txt` and `/tmp/barfoo/file.txt` instead of (`file.txt` & `file.txt`) show (`foobar/file.txt` & `barfoo/file.txt`)
 		- doing this forces the tab system to be able to access other tab names and change them all, dynamically, when one tab is added or when one is updated.
 	- [ ] Draggable divider between sidebar and content.
