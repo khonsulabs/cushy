@@ -4,10 +4,11 @@ use slotmap::SlotMap;
 use thiserror::Error;
 use cushy::figures::units::{Lp, Px};
 use cushy::App;
+use cushy::dialog::{FilePicker, FileType};
 use cushy::value::{Dynamic};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Stack};
-use cushy::window::{PendingWindow};
+use cushy::window::{PendingWindow, WindowHandle};
 use cushy::Open;
 use cushy::styles::components::IntrinsicPadding;
 use cushy::styles::Dimension;
@@ -164,6 +165,10 @@ fn make_document_tab(context: &Dynamic<Context>, documents: &Dynamic<SlotMap<Doc
 fn make_toolbar(app_state: &mut AppState) -> Stack {
     let button_padding = Dimension::Lp(Lp::points(4));
 
+    let window = app_state.context.lock().with_context::<WindowHandle, _, _>(|window_handle| {
+        window_handle.clone()
+    }).unwrap();
+
     let home_button = "Home"
         .into_button()
         .on_click({
@@ -199,9 +204,30 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
             move |_|{
                 println!("open clicked");
 
-                let path = PathBuf::from("examples/tabbed-document-ui/assets/text_file_1.txt");
+                let all_extensions: Vec<_> = SUPPORTED_TEXT_EXTENSIONS.iter().cloned().chain(SUPPORTED_IMAGE_EXTENSIONS.iter().cloned()).collect();
 
-                open_document(&context, &documents, &tab_bar, path).ok();
+                FilePicker::new()
+                    .with_title("Open file")
+                    .with_types([
+                        FileType::from(("All supported files", into_array::<_, 6>(all_extensions))),
+                        FileType::from(("Text files", SUPPORTED_TEXT_EXTENSIONS)),
+                        FileType::from(("Image files", SUPPORTED_IMAGE_EXTENSIONS)),
+                    ])
+                    .pick_file(&window,{
+
+                        // NOTE: Nested callbacks require a second clone
+                        let tab_bar = tab_bar.clone();
+                        let documents = documents.clone();
+                        let context = context.clone();
+
+                        move |path|{
+                            if let Some(path) = path {
+                                println!("path: {:?}", path);
+
+                                open_document(&context, &documents, &tab_bar, path).ok();
+                            }
+                        }
+                    });
             }
         })
         .with(&IntrinsicPadding, button_padding);
@@ -259,4 +285,9 @@ fn add_home_tab(context: &Dynamic<Context>, tab_bar: &Dynamic<TabBar<TabKind>>) 
         tab_bar_guard
             .add_tab(context, TabKind::Home(HomeTab::default()));
     }
+}
+
+fn into_array<T, const N: usize>(v: Vec<T>) -> [T; N] {
+    v.try_into()
+        .unwrap_or_else(|v: Vec<T>| panic!("Incorrect element count. required: {}, actual: {}", N, v.len()))
 }

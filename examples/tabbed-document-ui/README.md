@@ -22,9 +22,9 @@ Implementing this forces the developer to learn about some key points of the fra
         - [x] which when clicks shows a home tab.
         - [x] if the home tab is already open, it should switch to it.
 	- 'Open' button
-	    - [ ] When clicked, shows a native file selector dialog which allows the user to choose a file.
+	    - [x] When clicked, shows a native file selector dialog which allows the user to choose a file.
         - [ ] If an unsupported file is selected, show a native error dialog.
-        - [ ] When a file is opened, a tab appears and depending on the file type, it shows different content in the tab. (e.g. '.txt' text shows the 'Text' tab, '.bmp' shows the 'Image' tab).
+        - [x] When a file is opened, a tab appears and depending on the file type, it shows different content in the tab. (e.g. '.txt' text shows the 'Text' tab, '.bmp' shows the 'Image' tab).
 	- 'New' button
 	    - [x] When clicked the 'New' tab is shown, see below.
 	- [ ] Language dropdown, choose between at least 2 languages (e.g. English and Spanish).
