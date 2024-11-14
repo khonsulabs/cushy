@@ -13,6 +13,7 @@ use crate::app_tabs::document::DocumentTab;
 use crate::app_tabs::TabKind;
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
+use crate::documents::image::ImageDocument;
 use crate::documents::text::TextDocument;
 use crate::widgets::tab_bar::{Tab, TabBar};
 
@@ -57,7 +58,7 @@ impl Tab for NewTab {
             .placeholder("Name without extension")
             .validation(validations.validate(&self.name.clone(), |name: &String| {
                 if name.is_empty() {
-                    Err("cannot be empty")
+                    Err("Cannot be empty")
                 } else {
                     Ok(())
                 }
@@ -157,22 +158,44 @@ impl Tab for NewTab {
             .on_click(validations.when_valid({
 
                 let kind = self.kind.clone();
+                let name = self.name.clone();
+                let path = self.directory.clone();
+
                 let documents = documents.clone();
                 let tab_bar = tab_bar.clone();
                 let context = context.clone();
 
                 move |_event|{
+                    let kind = kind.get();
+                    let mut name = name.get();
+                    let mut path = path.get();
+
                     println!("kind: {:?}", kind);
 
-                    let document = DocumentKind::TextDocument(TextDocument::from_path(PathBuf::from("examples/tabbed-document-ui/assets/text_file_1.txt")));
+                    match kind.unwrap() {
+                        KindChoice::Text => {
+                            name.push_str(".txt");
+                            path.push(&name);
 
-                    let document_key = documents.lock().insert(document);
+                            let document = DocumentKind::TextDocument(TextDocument::new(path.clone()));
 
-                    let document_tab = DocumentTab::new(document_key);
+                            let document_key = documents.lock().insert(document);
+                            let document_tab = DocumentTab::new(document_key);
 
-                    let mut tab_bar_guard = tab_bar.lock();
+                            let _tab_key = tab_bar.lock().add_tab(&context, TabKind::Document(document_tab));
+                        }
+                        KindChoice::Image => {
+                            name.push_str(".png");
+                            path.push(&name);
 
-                    let _tab_key = tab_bar_guard.add_tab(&context, TabKind::Document(document_tab));
+                            let document = DocumentKind::ImageDocument(ImageDocument::new(path.clone()));
+
+                            let document_key = documents.lock().insert(document);
+                            let document_tab = DocumentTab::new(document_key);
+
+                            let _tab_key = tab_bar.lock().add_tab(&context, TabKind::Document(document_tab));
+                        }
+                    }
                 }
             }));
 

@@ -12,7 +12,7 @@ pub struct TextDocument {
 
 impl TextDocument {
     pub fn from_path(path: PathBuf) -> TextDocument {
-
+        // FUTURE the file should be loaded asynchronously instead of directly here
         let text = fs::read_to_string(&path).unwrap();
 
         let content = Dynamic::new(text);
@@ -21,6 +21,15 @@ impl TextDocument {
             path,
             content,
         }
+    }
+
+    pub fn new(path: PathBuf) -> Self {
+        println!("creating text document. path: {:?}", path);
+
+        // FUTURE the file should be created asynchronously instead of directly here
+        let _result = fs::write(&path, "New text file").ok();
+
+        Self::from_path(path)
     }
 
     pub fn create_content(&self) -> WidgetInstance {
