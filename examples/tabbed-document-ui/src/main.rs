@@ -2,13 +2,15 @@ use std::path;
 use std::path::PathBuf;
 use slotmap::SlotMap;
 use thiserror::Error;
-use cushy::figures::units::Px;
+use cushy::figures::units::{Lp, Px};
 use cushy::App;
 use cushy::value::{Dynamic};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Stack};
 use cushy::window::{PendingWindow};
 use cushy::Open;
+use cushy::styles::components::IntrinsicPadding;
+use cushy::styles::Dimension;
 use crate::app_tabs::document::DocumentTab;
 use crate::app_tabs::home::HomeTab;
 use crate::app_tabs::new::NewTab;
@@ -160,6 +162,8 @@ fn make_document_tab(context: &Dynamic<Context>, documents: &Dynamic<SlotMap<Doc
 }
 
 fn make_toolbar(app_state: &mut AppState) -> Stack {
+    let button_padding = Dimension::Lp(Lp::points(4));
+
     let home_button = "Home"
         .into_button()
         .on_click({
@@ -170,7 +174,8 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
 
                 add_home_tab(&context, &tab_bar);
             }
-        });
+        })
+        .with(&IntrinsicPadding, button_padding);
 
     let new_button = "New"
         .into_button()
@@ -182,7 +187,8 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
 
                 add_new_tab(&context, &tab_bar)
             }
-        });
+        })
+        .with(&IntrinsicPadding, button_padding);
 
     let open_button = "Open"
         .into_button()
@@ -197,7 +203,8 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
 
                 open_document(&context, &documents, &tab_bar, path).ok();
             }
-        });
+        })
+        .with(&IntrinsicPadding, button_padding);
 
 
     let close_all_button = "Close all"
@@ -209,7 +216,8 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
 
                 tab_bar.lock().close_all();
             }
-        });
+        })
+        .with(&IntrinsicPadding, button_padding);
 
 
     let toolbar_widgets: [WidgetInstance; 5] = [
