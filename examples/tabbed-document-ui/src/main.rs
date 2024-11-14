@@ -106,7 +106,7 @@ const SUPPORTED_IMAGE_EXTENSIONS: [&'static str; 5] = ["bmp", "png", "jpg", "jpe
 const SUPPORTED_TEXT_EXTENSIONS: [&'static str; 1] = ["txt"];
 
 fn open_document(
-    context: &mut context::Context,
+    context: &mut Context,
     documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>,
     tab_bar: &Dynamic<TabBar<TabKind>>,
     path: PathBuf
@@ -211,7 +211,7 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
     toolbar
 }
 
-fn add_home_tab(context: &mut context::Context, tab_bar: &Dynamic<TabBar<TabKind>>) {
+fn add_home_tab(context: &mut Context, tab_bar: &Dynamic<TabBar<TabKind>>) {
     let mut tab_bar_guard = tab_bar
         .lock();
 
