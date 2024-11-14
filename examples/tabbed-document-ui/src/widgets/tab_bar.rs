@@ -181,9 +181,11 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
         println!("closing tab. tab_key: {:?}", tab_key);
 
         let mut history = self.history.lock();
+        println!("history (before): {:?}", history);
         history.retain(|&other_key| other_key != tab_key);
         history.dedup();
         let recent = history.pop();
+        println!("history (after): {:?}, recent: {:?}", history, recent);
         // drop the history guard now so we don't deadlock in other methods we call that use history
         drop(history);
 
@@ -235,10 +237,19 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
             let tabs = self.tabs.clone();
             let content_area = self.content_area.clone();
             let previous_tab_key = self.previous_tab.clone();
+            let history = self.history.clone();
 
             move |selected_tab_key|{
 
                 println!("key: {:?}, previous_tab_key: {:?}", selected_tab_key, previous_tab_key.get());
+
+                if let Some(tab_key) = selected_tab_key {
+                    let mut history = history.lock();
+                    history.push(tab_key.clone());
+                    history.dedup();
+                    drop(history);
+                }
+
 
                 if let Some(tab_key) = selected_tab_key.clone() {
                     let mut tabs_binding = tabs.lock();
@@ -305,9 +316,6 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
 
     pub fn activate(&self, tab_key: TabKey) {
         let _previously_active = self.active.lock().replace(tab_key);
-        let mut history = self.history.lock();
-        history.push(tab_key);
-        history.dedup();
     }
 }
 

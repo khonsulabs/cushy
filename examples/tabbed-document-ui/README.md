@@ -34,7 +34,7 @@ Implementing this forces the developer to learn about some key points of the fra
 	- [x] Selecting a tab changes the content area below the tab bar.
 	- [x] Must be obvious which tab is selected when there are only two tabs.
 	- [x] Each tab should be closable (e.g. an `X` button on the tab or right-click on tab to show a context menu with `Close`)
-	- [ ] When a tab is closed, the next most recently used tab is made active.
+	- [x] When a tab is closed, the next most recently used tab is made active.
 - Tab content
 	- [x] Displays the content for the tab.
 	- [x] Each tab content must maintain it's state, without expensive re-loads/refreshing of the state, no re-loading of files.
