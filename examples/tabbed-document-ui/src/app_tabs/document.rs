@@ -3,7 +3,7 @@ use cushy::value::Dynamic;
 use cushy::widget::WidgetInstance;
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
-use crate::widgets::tab_bar::Tab;
+use crate::widgets::tab_bar::{Tab, TabKey};
 
 #[derive(Clone)]
 pub struct DocumentTab {
@@ -35,7 +35,7 @@ impl Tab for DocumentTab {
         }).unwrap()
     }
 
-    fn make_content(&self, context: &Dynamic<Context>) -> WidgetInstance {
+    fn make_content(&self, context: &Dynamic<Context>, _tab_key: TabKey) -> WidgetInstance {
 
         context.lock().with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
             let documents_guard = documents.lock();

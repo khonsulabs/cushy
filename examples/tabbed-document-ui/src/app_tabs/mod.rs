@@ -6,7 +6,7 @@ use crate::app_tabs::document::DocumentTab;
 use crate::app_tabs::home::HomeTab;
 use crate::app_tabs::new::NewTab;
 use crate::context::Context;
-use crate::widgets::tab_bar::Tab;
+use crate::widgets::tab_bar::{Tab, TabKey};
 
 pub mod document;
 pub mod home;
@@ -28,11 +28,11 @@ impl Tab for TabKind {
         }
     }
 
-    fn make_content(&self, context: &Dynamic<Context>) -> WidgetInstance {
+    fn make_content(&self, context: &Dynamic<Context>, tab_key: TabKey) -> WidgetInstance {
         match self {
-            TabKind::Home(tab) => tab.make_content(context),
-            TabKind::Document(tab) => tab.make_content(context),
-            TabKind::New(tab) => tab.make_content(context),
+            TabKind::Home(tab) => tab.make_content(context, tab_key),
+            TabKind::Document(tab) => tab.make_content(context, tab_key),
+            TabKind::New(tab) => tab.make_content(context, tab_key),
         }
     }
 }

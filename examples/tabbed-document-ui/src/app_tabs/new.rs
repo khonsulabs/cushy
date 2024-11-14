@@ -15,7 +15,7 @@ use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
 use crate::documents::image::ImageDocument;
 use crate::documents::text::TextDocument;
-use crate::widgets::tab_bar::{Tab, TabBar};
+use crate::widgets::tab_bar::{Tab, TabBar, TabKey};
 
 #[derive(Default, Eq, PartialEq, Debug, Clone, Copy)]
 pub enum KindChoice {
@@ -35,7 +35,7 @@ impl Tab for NewTab {
         "New".to_string()
     }
 
-    fn make_content(&self, context: &Dynamic<Context>) -> WidgetInstance {
+    fn make_content(&self, context: &Dynamic<Context>, tab_key: TabKey) -> WidgetInstance {
         let validations = Validations::default();
 
 
@@ -182,7 +182,7 @@ impl Tab for NewTab {
                             let document_key = documents.lock().insert(document);
                             let document_tab = DocumentTab::new(document_key);
 
-                            let _tab_key = tab_bar.lock().add_tab(&context, TabKind::Document(document_tab));
+                            tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
                         }
                         KindChoice::Image => {
                             name.push_str(".png");
@@ -193,7 +193,7 @@ impl Tab for NewTab {
                             let document_key = documents.lock().insert(document);
                             let document_tab = DocumentTab::new(document_key);
 
-                            let _tab_key = tab_bar.lock().add_tab(&context, TabKind::Document(document_tab));
+                            tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
                         }
                     }
                 }
