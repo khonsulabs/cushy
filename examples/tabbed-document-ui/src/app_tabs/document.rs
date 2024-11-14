@@ -5,7 +5,7 @@ use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
 use crate::widgets::tab_bar::Tab;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct DocumentTab {
     document_key: DocumentKey
 }
@@ -20,8 +20,8 @@ impl DocumentTab {
 
 impl Tab for DocumentTab {
 
-    fn label(&self, context: &mut Context) -> String {
-        context.with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
+    fn label(&self, context: &Dynamic<Context>) -> String {
+        context.lock().with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
             let documents_guard = documents.lock();
             let document = documents_guard.get(self.document_key).unwrap();
 
@@ -35,9 +35,9 @@ impl Tab for DocumentTab {
         }).unwrap()
     }
 
-    fn make_content(&self, context: &mut Context) -> WidgetInstance {
+    fn make_content(&self, context: &Dynamic<Context>) -> WidgetInstance {
 
-        context.with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
+        context.lock().with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
             let documents_guard = documents.lock();
             let document = documents_guard.get(self.document_key).unwrap();
 

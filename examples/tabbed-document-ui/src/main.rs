@@ -1,15 +1,17 @@
 use std::path;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
 use slotmap::SlotMap;
 use thiserror::Error;
 use cushy::figures::units::Px;
-use cushy::Run;
+use cushy::App;
 use cushy::value::{Dynamic};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Stack};
+use cushy::window::{PendingWindow};
+use cushy::Open;
 use crate::app_tabs::document::DocumentTab;
 use crate::app_tabs::home::HomeTab;
+use crate::app_tabs::new::NewTab;
 use crate::app_tabs::TabKind;
 use crate::config::Config;
 use crate::context::Context;
@@ -28,28 +30,32 @@ mod documents;
 struct AppState {
     tab_bar: Dynamic<TabBar<TabKind>>,
     config: Dynamic<Config>,
-    context: Arc<Mutex<Context>>,
+    context: Dynamic<Context>,
 
     documents: Dynamic<SlotMap<DocumentKey, DocumentKind>>,
 }
 
-fn main() -> cushy::Result {
+#[cushy::main]
+fn main(app: &mut App) -> cushy::Result {
+
+    let pending = PendingWindow::default();
+    let window = pending.handle();
 
     let config = Dynamic::new(config::load());
     let documents = Dynamic::new(SlotMap::default());
+    let tab_bar = Dynamic::new(TabBar::new());
 
     let mut context = Context::default();
     context.provide(config.clone());
     context.provide(documents.clone());
+    context.provide(tab_bar.clone());
+    context.provide(window);
 
-    let tab_bar = Dynamic::new(TabBar::new());
-
-    let context = Arc::new(Mutex::new(context));
-    let context_for_later = context.clone();
+    let context = Dynamic::new(context);
 
     let mut app_state = AppState {
         tab_bar: tab_bar.clone(),
-        context,
+        context: context.clone(),
         config,
         documents
     };
@@ -61,13 +67,15 @@ fn main() -> cushy::Result {
         app_state.tab_bar.lock().make_widget(),
     ];
 
-    let ui = ui_elements
-        .into_rows()
-        .width(Px::new(800)..)
-        .height(Px::new(600)..)
-        .fit_vertically()
-        .fit_horizontally()
-        .into_window()
+    let ui = pending.with_root(
+        ui_elements
+            .into_rows()
+            .width(Px::new(800)..)
+            .height(Px::new(600)..)
+            .fit_vertically()
+            .fit_horizontally()
+            .make_widget()
+    )
         .on_close({
             let config = app_state.config.clone();
             move ||{
@@ -79,19 +87,21 @@ fn main() -> cushy::Result {
         .titled("Tabbed document UI");
 
 
+
     if app_state.config.lock().show_home_on_startup {
-        add_home_tab(&mut context_for_later.lock().unwrap(), &app_state.tab_bar);
+        add_home_tab(&context, &app_state.tab_bar);
     }
 
     for path in app_state.config.lock().open_document_paths.clone() {
-        open_document(&mut context_for_later.lock().unwrap(), &app_state.documents, &app_state.tab_bar, path).ok();
+        open_document(&context, &app_state.documents, &app_state.tab_bar, path).ok();
     }
 
-    let cushy_result = ui.run();
+
+    ui.open(app)?;
 
     // FIXME control never returns here (at least on windows)
 
-    cushy_result
+    Ok(())
 }
 
 #[derive(Error, Debug)]
@@ -106,7 +116,7 @@ const SUPPORTED_IMAGE_EXTENSIONS: [&'static str; 5] = ["bmp", "png", "jpg", "jpe
 const SUPPORTED_TEXT_EXTENSIONS: [&'static str; 1] = ["txt"];
 
 fn open_document(
-    context: &mut Context,
+    context: &Dynamic<Context>,
     documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>,
     tab_bar: &Dynamic<TabBar<TabKind>>,
     path: PathBuf
@@ -139,7 +149,7 @@ fn open_document(
     Ok(())
 }
 
-fn make_document_tab(context: &mut Context, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>, tab_bar: &Dynamic<TabBar<TabKind>>, document: DocumentKind) -> TabKey {
+fn make_document_tab(context: &Dynamic<Context>, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>, tab_bar: &Dynamic<TabBar<TabKind>>, document: DocumentKind) -> TabKey {
     let document_key = documents.lock().insert(document);
 
     let document_tab = DocumentTab::new(document_key);
@@ -158,16 +168,19 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
             move |_|{
                 println!("home clicked");
 
-                add_home_tab(&mut context.lock().unwrap(), &tab_bar);
+                add_home_tab(&context, &tab_bar);
             }
         });
 
     let new_button = "New"
         .into_button()
         .on_click({
-            let _tab_bar = app_state.tab_bar.clone();
+            let tab_bar = app_state.tab_bar.clone();
+            let context = app_state.context.clone();
             move |_|{
                 println!("New clicked");
+
+                add_new_tab(&context, &tab_bar)
             }
         });
 
@@ -182,7 +195,7 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
 
                 let path = PathBuf::from("examples/tabbed-document-ui/assets/text_file_1.txt");
 
-                open_document(&mut context.lock().unwrap(), &documents, &tab_bar, path).ok();
+                open_document(&context, &documents, &tab_bar, path).ok();
             }
         });
 
@@ -211,7 +224,15 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
     toolbar
 }
 
-fn add_home_tab(context: &mut Context, tab_bar: &Dynamic<TabBar<TabKind>>) {
+fn add_new_tab(context: &Dynamic<Context>, tab_bar: &Dynamic<TabBar<TabKind>>) {
+    let mut tab_bar_guard = tab_bar
+        .lock();
+
+    tab_bar_guard
+        .add_tab(context, TabKind::New(NewTab::default()));
+}
+
+fn add_home_tab(context: &Dynamic<Context>, tab_bar: &Dynamic<TabBar<TabKind>>) {
     let mut tab_bar_guard = tab_bar
         .lock();
 

@@ -14,8 +14,8 @@ use cushy::widgets::select::SelectedColor;
 use crate::context::Context;
 
 pub trait Tab {
-    fn label(&self, context: &mut Context) -> String;
-    fn make_content(&self, context: &mut Context) -> WidgetInstance;
+    fn label(&self, context: &Dynamic<Context>) -> String;
+    fn make_content(&self, context: &Dynamic<Context>) -> WidgetInstance;
 }
 
 #[derive(PartialEq)]
@@ -54,7 +54,7 @@ new_key_type! {
     pub struct TabKey;
 }
 
-impl<TK: Tab + Send + Copy + 'static> TabBar<TK> {
+impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
     pub fn new() -> Self {
         let tabs: SlotMap<TabKey, (TK, Dynamic<TabState>)> = Default::default();
         let content_area = Dynamic::new(Space::clear().make_widget());
@@ -70,7 +70,7 @@ impl<TK: Tab + Send + Copy + 'static> TabBar<TK> {
         }
     }
 
-    pub fn add_tab(&mut self, context: &mut Context, tab: TK) -> TabKey {
+    pub fn add_tab(&mut self, context: &Dynamic<Context>, tab: TK) -> TabKey {
         let tab_label = tab.label(context);
         let tab_content = tab.make_content(context);
 
@@ -294,7 +294,7 @@ impl<'a, TK> TabsIter<'a, TK> {
     }
 }
 
-impl<'a, TK: Copy> Iterator for TabsIter<'a, TK> {
+impl<'a, TK: Clone> Iterator for TabsIter<'a, TK> {
     type Item = (TabKey, TK);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -304,7 +304,7 @@ impl<'a, TK: Copy> Iterator for TabsIter<'a, TK> {
             let binding = self.tab_bar.tabs.lock();
             let value = binding
                 .get(key)
-                .map(|(tab, _state) | (key, *tab) );
+                .map(|(tab, _state) | (key, tab.clone()) );
 
             self.index += 1;
 
@@ -316,7 +316,7 @@ impl<'a, TK: Copy> Iterator for TabsIter<'a, TK> {
     }
 }
 
-impl<'a, TK: Copy> IntoIterator for &'a TabBar<TK> {
+impl<'a, TK: Clone> IntoIterator for &'a TabBar<TK> {
     type Item = (TabKey, TK);
     type IntoIter = TabsIter<'a, TK>;
 
