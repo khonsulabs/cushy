@@ -5,17 +5,17 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::widgets::tab_bar::Tab;
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Default)]
 pub struct HomeTab {}
 
 impl Tab for HomeTab {
-    fn label(&self, _context: &mut Context) -> String {
+    fn label(&self, _context: &Dynamic<Context>) -> String {
         "Home".to_string()
     }
 
-    fn make_content(&self, context: &mut Context) -> WidgetInstance {
+    fn make_content(&self, context: &Dynamic<Context>) -> WidgetInstance {
 
-        context.with_context::<Dynamic<Config>, _, _>(|config|{
+        context.lock().with_context::<Dynamic<Config>, _, _>(|config|{
             let config_guard = config.lock();
             let show_on_startup_value = Dynamic::new(config_guard.show_home_on_startup);
             let callback = show_on_startup_value.for_each_cloned({
