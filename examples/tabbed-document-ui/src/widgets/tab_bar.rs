@@ -15,7 +15,7 @@ use crate::context::Context;
 
 pub trait Tab {
     fn label(&self, context: &Dynamic<Context>) -> String;
-    fn make_content(&self, context: &Dynamic<Context>) -> WidgetInstance;
+    fn make_content(&self, context: &Dynamic<Context>, tab_key: TabKey) -> WidgetInstance;
 }
 
 #[derive(PartialEq)]
@@ -35,7 +35,7 @@ impl Default for TabState {
 #[derive(Clone)]
 pub struct TabBar<TK> {
     /// holds the actual tab instances and activation state which includes the tab's content widget instance
-    tabs: Dynamic<SlotMap<TabKey, (TK, Dynamic<TabState>)>>,
+    tabs: Dynamic<SlotMap<TabKey, (TK, Dynamic<TabState>, Dynamic<String>)>>,
     /// tab bar buttons
     tab_items: Dynamic<WidgetList>,
     /// maintains an orders list of TabKeys, used when removing tabs from `tab_items` property.
@@ -56,7 +56,7 @@ new_key_type! {
 
 impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
     pub fn new() -> Self {
-        let tabs: SlotMap<TabKey, (TK, Dynamic<TabState>)> = Default::default();
+        let tabs: SlotMap<TabKey, (TK, Dynamic<TabState>, Dynamic<String>)> = Default::default();
         let content_area = Dynamic::new(Space::clear().make_widget());
 
         Self {
@@ -70,12 +70,44 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
         }
     }
 
-    pub fn add_tab(&mut self, context: &Dynamic<Context>, tab: TK) -> TabKey {
-        let tab_label = tab.label(context);
-        let tab_content = tab.make_content(context);
+    pub fn replace(&mut self, tab_key: TabKey, context: &Dynamic<Context>, tab: TK) {
 
-        let tab_key = self.tabs.lock().insert((tab, Dynamic::new(TabState::Hidden(tab_content))));
+        let tab_label = tab.label(context);
+        let tab_content_widget = tab.make_content(context, tab_key).make_widget();
+
+        match self.active.get() {
+            Some(active_tab_key) if active_tab_key.eq(&tab_key) => {
+                self.content_area.replace(tab_content_widget);
+                let mut tabs = self.tabs.lock();
+                let (existing_tab, state, label) = tabs.get_mut(tab_key).unwrap();
+                *existing_tab = tab;
+                state.replace(TabState::Active);
+                label.set(tab_label);
+            }
+            _ => {
+                let mut tabs = self.tabs.lock();
+                let (existing_tab, state, label) = tabs.get_mut(tab_key).unwrap();
+                *existing_tab = tab;
+                state.replace(TabState::Hidden(tab_content_widget));
+                label.set(tab_label);
+            }
+        }
+    }
+
+    pub fn add_tab(&mut self, context: &Dynamic<Context>, tab: TK) -> TabKey {
+        let tab_state = Dynamic::new(TabState::Uninitialized);
+
+        let tab_label = tab.label(context);
+
+        let tab_key = self.tabs.lock().insert((tab, tab_state, Dynamic::new(tab_label)));
         println!("tab_key: {:?}", tab_key);
+
+        let tabs = self.tabs.lock();
+        let (tab, tab_state, tab_label) = tabs.get(tab_key).unwrap();
+
+        let tab_content = tab.make_content(context, tab_key);
+
+        tab_state.set(TabState::Hidden(tab_content));
 
         let close_button = "X".into_button()
             .on_click({
@@ -90,7 +122,7 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
             .with(&ButtonActiveForeground, Color::RED)
             .with(&ButtonHoverForeground, Color::RED);
 
-        let select_content = tab_label
+        let select_content = tab_label.clone()
             .into_label()
             .and(close_button)
             .into_columns()
@@ -127,6 +159,9 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
         self.tab_items_keys.lock().push(tab_key);
 
         self.history.lock().push(tab_key);
+
+        // manually drop the guard before activation
+        drop(tabs);
 
         self.activate(tab_key);
 
@@ -208,7 +243,7 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
                 if let Some(tab_key) = selected_tab_key.clone() {
                     let mut tabs_binding = tabs.lock();
                     let previous_tab = match tabs_binding.get_mut(tab_key) {
-                        Some((_tab, tab_state)) => {
+                        Some((_tab, tab_state, _tab_label)) => {
                             let tab_state_value = tab_state.take();
 
                             match tab_state_value {
@@ -236,7 +271,7 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
 
                     match previous_tab {
                         Some((tab_key, Some(widget))) => {
-                            if let Some((_tab, tab_state)) = tabs_binding.get_mut(tab_key) {
+                            if let Some((_tab, tab_state, _tab_label)) = tabs_binding.get_mut(tab_key) {
                                 *tab_state.lock() = TabState::Hidden(widget);
                             }
                         }
@@ -304,7 +339,7 @@ impl<'a, TK: Clone> Iterator for TabsIter<'a, TK> {
             let binding = self.tab_bar.tabs.lock();
             let value = binding
                 .get(key)
-                .map(|(tab, _state) | (key, tab.clone()) );
+                .map(|(tab, _state, _tab_label) | (key, tab.clone()) );
 
             self.index += 1;
 
