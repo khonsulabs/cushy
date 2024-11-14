@@ -3,7 +3,7 @@ use slotmap::SlotMap;
 use cushy::dialog::FilePicker;
 use cushy::figures::units::Px;
 use cushy::styles::components::IntrinsicPadding;
-use cushy::value::{Destination, Dynamic, Source};
+use cushy::value::{Destination, Dynamic, Source, Validations};
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::{Button, Grid, Input, Space};
 use cushy::widgets::grid::{GridDimension, GridWidgets};
@@ -35,6 +35,7 @@ impl Tab for NewTab {
     }
 
     fn make_content(&self, context: &Dynamic<Context>) -> WidgetInstance {
+        let validations = Validations::default();
 
 
         let documents = context.lock().with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
@@ -52,7 +53,16 @@ impl Tab for NewTab {
 
         let name_label = "Name".into_label()
             .align_left();
-        let name_input = Input::new(self.name.clone());
+        let name_input = Input::new(self.name.clone())
+            .placeholder("Name without extension")
+            .validation(validations.validate(&self.name.clone(), |name: &String| {
+                if name.is_empty() {
+                    Err("cannot be empty")
+                } else {
+                    Ok(())
+                }
+            }))
+            .hint("* required");
 
         let name_row = (name_label, name_input);
 
@@ -66,6 +76,15 @@ impl Tab for NewTab {
         let directory_input = Input::new(self.directory.clone().map_each(|path|{
             path.to_str().unwrap().to_string()
         }))
+            .placeholder("Choose a directory")
+            .validation(validations.validate(&self.directory.clone(), |path| {
+                if !(path.is_dir() && path.exists())  {
+                    Err("Must be a valid directory")
+                } else {
+                    Ok(())
+                }
+            }))
+            .hint("* required")
             .expand_horizontally();
 
         let directory_button = Button::new("...")
@@ -109,7 +128,14 @@ impl Tab for NewTab {
             .labelled_by("Text")
             .and(self.kind.new_radio(Some(KindChoice::Image)).labelled_by("Image"))
             .into_columns()
-            .centered();
+            .centered()
+            .validation(validations.validate(&self.kind, |kind|{
+                if kind.is_none() {
+                    Err("Required")
+                } else {
+                    Ok(())
+                }
+            }));
 
         let type_row = (type_label, type_choice);
 
@@ -128,7 +154,7 @@ impl Tab for NewTab {
             .with(&IntrinsicPadding, Px::new(5)); // no visible effect.
 
         let ok_button = "Ok".into_button()
-            .on_click({
+            .on_click(validations.when_valid({
 
                 let kind = self.kind.clone();
                 let documents = documents.clone();
@@ -148,7 +174,7 @@ impl Tab for NewTab {
 
                     let _tab_key = tab_bar_guard.add_tab(&context, TabKind::Document(document_tab));
                 }
-            });
+            }));
 
         let form = grid
             .and(ok_button)
