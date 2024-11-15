@@ -5,7 +5,7 @@ use thiserror::Error;
 use cushy::figures::units::{Lp, Px};
 use cushy::App;
 use cushy::dialog::{FilePicker, FileType};
-use cushy::value::{Dynamic};
+use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Stack};
 use cushy::window::{PendingWindow, WindowHandle};
@@ -21,7 +21,7 @@ use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
 use crate::documents::image::ImageDocument;
 use crate::documents::text::TextDocument;
-use crate::widgets::tab_bar::{TabBar, TabKey};
+use crate::widgets::tab_bar::{TabBar, TabKey, TabMessage};
 
 mod config;
 mod widgets;
@@ -29,6 +29,18 @@ mod global_context;
 mod context;
 mod app_tabs;
 mod documents;
+
+#[derive(Clone, PartialEq)]
+enum Message {
+    None,
+    TabMessage(TabMessage)
+}
+
+impl Default for Message {
+    fn default() -> Self {
+        Message::None
+    }
+}
 
 struct AppState {
     tab_bar: Dynamic<TabBar<TabKind>>,
@@ -44,9 +56,21 @@ fn main(app: &mut App) -> cushy::Result {
     let pending = PendingWindow::default();
     let window = pending.handle();
 
+    let message: Dynamic<Message> = Dynamic::default();
+
     let config = Dynamic::new(config::load());
     let documents = Dynamic::new(SlotMap::default());
-    let tab_bar = Dynamic::new(TabBar::new());
+
+    let tab_message = Dynamic::default();
+    tab_message.for_each_cloned({
+        let message = message.clone();
+        move |tab_message|{
+            message.set(Message::TabMessage(tab_message));
+        }
+    })
+        .persist();
+
+    let tab_bar = Dynamic::new(TabBar::new(&tab_message));
 
     let mut context = Context::default();
     context.provide(config.clone());
@@ -60,8 +84,9 @@ fn main(app: &mut App) -> cushy::Result {
         tab_bar: tab_bar.clone(),
         context: context.clone(),
         config,
-        documents
+        documents,
     };
+
 
     let toolbar = make_toolbar(&mut app_state);
 
@@ -69,6 +94,18 @@ fn main(app: &mut App) -> cushy::Result {
         toolbar.make_widget(),
         app_state.tab_bar.lock().make_widget(),
     ];
+
+    let dyn_app_state = Dynamic::new(app_state);
+
+    message
+        .for_each_cloned({
+            let dyn_app_state = dyn_app_state.clone();
+            move |message|{
+                dyn_app_state.lock().update(message);
+            }
+        })
+        .persist();
+
 
     let ui = pending.with_root(
         ui_elements
@@ -80,8 +117,9 @@ fn main(app: &mut App) -> cushy::Result {
             .make_widget()
     )
         .on_close({
-            let config = app_state.config.clone();
-            let documents = app_state.documents.clone();
+            let dyn_app_state = dyn_app_state.clone();
+            let config = dyn_app_state.lock().config.clone();
+            let documents = dyn_app_state.lock().documents.clone();
             move ||{
                 // TODO update the list of open documents
 
@@ -95,21 +133,37 @@ fn main(app: &mut App) -> cushy::Result {
         .titled("Tabbed document UI");
 
 
+    {
+        let app_state_guard = dyn_app_state.lock();
+        let app_state = &*app_state_guard;
 
-    if app_state.config.lock().show_home_on_startup {
-        add_home_tab(&context, &app_state.tab_bar);
+
+        if app_state.config.lock().show_home_on_startup
+        {
+            add_home_tab(&context, &app_state.tab_bar);
+        }
+
+        for path in app_state.config.lock().open_document_paths.clone() {
+            open_document(&context, &app_state.documents, &app_state.tab_bar, path).ok();
+        }
     }
-
-    for path in app_state.config.lock().open_document_paths.clone() {
-        open_document(&context, &app_state.documents, &app_state.tab_bar, path).ok();
-    }
-
 
     ui.open(app)?;
 
     // FIXME control never returns here (at least on windows)
 
     Ok(())
+}
+
+impl AppState {
+    fn update(&mut self, message: Message) {
+        match message {
+            Message::None => {}
+            Message::TabMessage(message) => {
+                self.tab_bar.lock().update(message);
+            }
+        }
+    }
 }
 
 fn update_open_documents(config: &Dynamic<Config>, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>) {
