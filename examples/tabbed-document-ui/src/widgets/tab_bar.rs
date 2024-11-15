@@ -33,9 +33,10 @@ impl Default for TabState {
 
 // Needs `Clone` so that the `on_click` close button handler can access all the state.
 #[derive(Clone)]
-pub struct TabBar<TK> {
+pub struct TabBar<TK>
+{
     /// holds the actual tab instances and activation state which includes the tab's content widget instance
-    tabs: Dynamic<SlotMap<TabKey, (TK, Dynamic<TabState>, Dynamic<String>)>>,
+    tabs: Dynamic<SlotMap<TabKey, (TK, Dynamic<TabState>, Dynamic<String>, Box<dyn 'static + Send + Fn()>)>>,
     /// tab bar buttons
     tab_items: Dynamic<WidgetList>,
     /// maintains an orders list of TabKeys, used when removing tabs from `tab_items` property.
@@ -56,7 +57,7 @@ new_key_type! {
 
 impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
     pub fn new() -> Self {
-        let tabs: SlotMap<TabKey, (TK, Dynamic<TabState>, Dynamic<String>)> = Default::default();
+        let tabs: SlotMap<TabKey, (TK, Dynamic<TabState>, Dynamic<String>, Box<dyn 'static + Send + Fn()>)> = Default::default();
         let content_area = Dynamic::new(Space::clear().make_widget());
 
         Self {
@@ -79,14 +80,14 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
             Some(active_tab_key) if active_tab_key.eq(&tab_key) => {
                 self.content_area.replace(tab_content_widget);
                 let mut tabs = self.tabs.lock();
-                let (existing_tab, state, label) = tabs.get_mut(tab_key).unwrap();
+                let (existing_tab, state, label, _on_close) = tabs.get_mut(tab_key).unwrap();
                 *existing_tab = tab;
                 state.replace(TabState::Active);
                 label.set(tab_label);
             }
             _ => {
                 let mut tabs = self.tabs.lock();
-                let (existing_tab, state, label) = tabs.get_mut(tab_key).unwrap();
+                let (existing_tab, state, label, _on_close) = tabs.get_mut(tab_key).unwrap();
                 *existing_tab = tab;
                 state.replace(TabState::Hidden(tab_content_widget));
                 label.set(tab_label);
@@ -94,16 +95,21 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
         }
     }
 
-    pub fn add_tab(&mut self, context: &Dynamic<Context>, tab: TK) -> TabKey {
+    pub fn add_tab<F>(&mut self, context: &Dynamic<Context>, tab: TK, on_close: F) -> TabKey
+    where
+        F: 'static + Send + Fn(),
+    {
         let tab_state = Dynamic::new(TabState::Uninitialized);
 
         let tab_label = tab.label(context);
 
-        let tab_key = self.tabs.lock().insert((tab, tab_state, Dynamic::new(tab_label)));
+        let on_close_handler = Box::new(on_close);
+
+        let tab_key = self.tabs.lock().insert((tab, tab_state, Dynamic::new(tab_label), on_close_handler));
         println!("tab_key: {:?}", tab_key);
 
         let tabs = self.tabs.lock();
-        let (tab, tab_state, tab_label) = tabs.get(tab_key).unwrap();
+        let (tab, tab_state, tab_label, _on_close) = tabs.get(tab_key).unwrap();
 
         let tab_content = tab.make_content(context, tab_key);
 
@@ -177,6 +183,11 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
     }
 
     pub fn close_tab(&mut self, tab_key: TabKey) {
+
+        if let Some((_tab, _, _, on_close)) = self.tabs.lock().get(tab_key) {
+            on_close();
+        }
+
 
         println!("closing tab. tab_key: {:?}", tab_key);
 
@@ -254,7 +265,7 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
                 if let Some(tab_key) = selected_tab_key.clone() {
                     let mut tabs_binding = tabs.lock();
                     let previous_tab = match tabs_binding.get_mut(tab_key) {
-                        Some((_tab, tab_state, _tab_label)) => {
+                        Some((_tab, tab_state, _tab_label, _on_close)) => {
                             let tab_state_value = tab_state.take();
 
                             match tab_state_value {
@@ -282,7 +293,7 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
 
                     match previous_tab {
                         Some((tab_key, Some(widget))) => {
-                            if let Some((_tab, tab_state, _tab_label)) = tabs_binding.get_mut(tab_key) {
+                            if let Some((_tab, tab_state, _tab_label, _on_close)) = tabs_binding.get_mut(tab_key) {
                                 *tab_state.lock() = TabState::Hidden(widget);
                             }
                         }
@@ -347,7 +358,7 @@ impl<'a, TK: Clone> Iterator for TabsIter<'a, TK> {
             let binding = self.tab_bar.tabs.lock();
             let value = binding
                 .get(key)
-                .map(|(tab, _state, _tab_label) | (key, tab.clone()) );
+                .map(|(tab, _state, _tab_label, _on_close) | (key, tab.clone()) );
 
             self.index += 1;
 

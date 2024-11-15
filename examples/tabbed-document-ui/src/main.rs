@@ -177,7 +177,13 @@ fn make_document_tab(context: &Dynamic<Context>, documents: &Dynamic<SlotMap<Doc
     let document_tab = DocumentTab::new(document_key);
 
     let mut tab_bar_guard = tab_bar.lock();
-    let tab_key = tab_bar_guard.add_tab(context, TabKind::Document(document_tab));
+    let tab_key = tab_bar_guard.add_tab(context, TabKind::Document(document_tab), {
+        let documents = documents.clone();
+        let document_key = document_key.clone();
+        move || {
+            documents.lock().remove(document_key);
+        }
+    });
     tab_key
 }
 
@@ -282,7 +288,7 @@ fn add_new_tab(context: &Dynamic<Context>, tab_bar: &Dynamic<TabBar<TabKind>>) {
         .lock();
 
     tab_bar_guard
-        .add_tab(context, TabKind::New(NewTab::default()));
+        .add_tab(context, TabKind::New(NewTab::default()), ||{});
 }
 
 fn add_home_tab(context: &Dynamic<Context>, tab_bar: &Dynamic<TabBar<TabKind>>) {
@@ -302,7 +308,7 @@ fn add_home_tab(context: &Dynamic<Context>, tab_bar: &Dynamic<TabBar<TabKind>>) 
         tab_bar_guard.activate(key);
     } else {
         tab_bar_guard
-            .add_tab(context, TabKind::Home(HomeTab::default()));
+            .add_tab(context, TabKind::Home(HomeTab::default()), ||{});
     }
 }
 
