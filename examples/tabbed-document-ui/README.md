@@ -87,7 +87,7 @@ Implementing this forces the developer to learn about some key points of the fra
 	- State items
 		- [x] 'Open home tab on startup', boolean, initially true.
 			- [x] If true, open the 'Home' tab on startup.
-		- [ ] 'List of currently open files' (ignore `New` tabs), list of absolute filenames, initially empty.
+		- [x] 'List of currently open files' (ignore `New` tabs), list of absolute filenames, initially empty.
 			- [x] Create a tab for each file on startup.
 - Documents
   - 'text' - the text file.

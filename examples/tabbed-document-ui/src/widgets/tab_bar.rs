@@ -178,7 +178,10 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
         self.active.set(None);
         self.tab_items.lock().clear();
         self.tab_items_keys.lock().clear();
-        self.tabs.lock().clear();
+
+        for (_key, (_tab, _, _, on_close)) in self.tabs.lock().drain() {
+            on_close();
+        }
         self.history.lock().clear();
     }
 
@@ -187,7 +190,6 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
         if let Some((_tab, _, _, on_close)) = self.tabs.lock().get(tab_key) {
             on_close();
         }
-
 
         println!("closing tab. tab_key: {:?}", tab_key);
 
@@ -237,7 +239,7 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
 
         self.tab_items.replace(new_widgets);
 
-        self.tabs.lock().remove(tab_key).expect(format!("should be able to remove tab. key: {:?}", tab_key).as_str());
+        let _ = self.tabs.lock().remove(tab_key).expect(format!("should be able to remove tab. key: {:?}", tab_key).as_str());
     }
 
     pub fn make_widget(&self) -> WidgetInstance {
