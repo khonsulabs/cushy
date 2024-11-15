@@ -81,7 +81,12 @@ fn main(app: &mut App) -> cushy::Result {
     )
         .on_close({
             let config = app_state.config.clone();
+            let documents = app_state.documents.clone();
             move ||{
+                // TODO update the list of open documents
+
+                update_open_documents(&config, &documents);
+
                 let config = config.lock();
                 println!("Saving config");
                 config::save(&*config);
@@ -105,6 +110,20 @@ fn main(app: &mut App) -> cushy::Result {
     // FIXME control never returns here (at least on windows)
 
     Ok(())
+}
+
+fn update_open_documents(config: &Dynamic<Config>, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>) {
+    let open_documents: Vec<PathBuf> = documents.lock().iter()
+        .map(|(_key, document)| {
+            match document {
+                DocumentKind::TextDocument(document) => document.path.clone(),
+                DocumentKind::ImageDocument(document) => document.path.clone(),
+            }
+        })
+        .collect();
+
+    println!("open_documents: {:?}", open_documents);
+    config.lock().open_document_paths = open_documents;
 }
 
 #[derive(Error, Debug)]
