@@ -7,13 +7,13 @@ use crate::widgets::tab_bar::{Tab, TabKey};
 
 #[derive(Clone)]
 pub struct DocumentTab {
-    document_key: DocumentKey
+    document_key: DocumentKey,
 }
 
 impl DocumentTab {
     pub fn new(document_key: DocumentKey) -> Self {
         Self {
-            document_key
+            document_key,
         }
     }
 }
