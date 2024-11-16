@@ -1926,7 +1926,7 @@ where
 
         let resizable = resizable
             && !Self::enforce_fixed_size(
-                self.max_inner_size,
+                self.min_inner_size,
                 self.max_inner_size,
                 &self.resizable,
                 &mut self.disabled_resize_automatically,
@@ -1977,12 +1977,13 @@ where
         let fixed_size = max_inner_size.is_some()
             && min_inner_size.is_some()
             && max_inner_size == min_inner_size;
-        if fixed_size && *resizable.peek() && !*disabled_resize_automatically {
+        let resizable = *resizable.peek();
+        if fixed_size && resizable && !*disabled_resize_automatically {
             *disabled_resize_automatically = true;
             if let Some(winit) = context.window().winit() {
                 winit.set_resizable(false);
             }
-        } else if !fixed_size && *resizable.peek() && *disabled_resize_automatically {
+        } else if !fixed_size && resizable && *disabled_resize_automatically {
             *disabled_resize_automatically = false;
             if let Some(winit) = context.window().winit() {
                 winit.set_resizable(true);
