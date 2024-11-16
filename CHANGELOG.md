@@ -162,6 +162,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   window's theme mode would be used instead of the overridden mode.
 - `Expand` now requests children size to fit in the non-expanding direction when
   using either vertical or horizontal expanding modes.
+- `Input` now draws its selection when not focused.
+- `Input` no longer immediately selects all of its contents. Instead, when focus
+  is shifted to the input, if there is no selection the entire field will be
+  selected. This is not always the desired behavior, and further customization
+  of this behavior should be allowed, but this is a step in the right direction
+  compared to the previous behavior.
 
 ### Added
 

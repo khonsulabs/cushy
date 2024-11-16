@@ -119,7 +119,7 @@ where
             selection: SelectionState::default(),
             on_key: None,
             mouse_buttons_down: 0,
-            needs_to_select_all: true,
+            needs_to_select_all: false,
             line_navigation_x_target: None,
             window_focused: false,
         }
@@ -1024,7 +1024,9 @@ where
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         if self.needs_to_select_all {
             self.needs_to_select_all = false;
-            self.select_all();
+            if self.selection.start.is_none() {
+                self.select_all();
+            }
         }
 
         self.blink_state.update(context.elapsed());
@@ -1047,7 +1049,9 @@ where
         self.layout_text(Some(size.width.into_signed()), context);
         let info = self.cache_info();
 
-        let highlight = if context.focused(false) && window_focused {
+        let focused = context.focused(false);
+
+        let highlight = if focused && window_focused {
             context.draw_focus_ring();
             context.get(&HighlightColor)
         } else {
@@ -1056,7 +1060,7 @@ where
             outline_color
         };
 
-        if context.focused(false) {
+        if focused {
             context.set_ime_allowed(true);
             context.set_ime_location(context.gfx.region());
             context.set_ime_purpose(if info.masked {
@@ -1064,93 +1068,88 @@ where
             } else {
                 ImePurpose::Normal
             });
+        }
 
-            if let Some(selection) = info.selection {
-                let (start, end) = if selection < info.cursor {
-                    (selection, info.cursor)
-                } else {
-                    (info.cursor, selection)
-                };
+        if let Some(selection) = info.selection {
+            let (start, end) = if selection < info.cursor {
+                (selection, info.cursor)
+            } else {
+                (info.cursor, selection)
+            };
 
-                let (start_position, _) =
-                    self.point_from_cursor(info.cache, start, info.cache.bytes);
-                let (end_position, end_width) =
-                    self.point_from_cursor(info.cache, end, info.cache.bytes);
+            let (start_position, _) = self.point_from_cursor(info.cache, start, info.cache.bytes);
+            let (end_position, end_width) =
+                self.point_from_cursor(info.cache, end, info.cache.bytes);
 
-                if start_position.y == end_position.y {
-                    // Single line selection
-                    let width = end_position.x - start_position.x;
+            if start_position.y == end_position.y {
+                // Single line selection
+                let width = end_position.x - start_position.x;
+                context.gfx.draw_shape(
+                    Shape::filled_rect(
+                        Rect::new(
+                            start_position,
+                            Size::new(width, info.cache.measured.line_height),
+                        ),
+                        highlight,
+                    )
+                    .translate_by(padding),
+                );
+            } else {
+                // Draw from start to end of line,
+                let width = size.width.into_signed() - start_position.x;
+                context.gfx.draw_shape(
+                    Shape::filled_rect(
+                        Rect::new(
+                            start_position,
+                            Size::new(width, info.cache.measured.line_height),
+                        ),
+                        highlight,
+                    )
+                    .translate_by(padding),
+                );
+                // Fill region between
+                let bottom_of_first_line = start_position.y + info.cache.measured.line_height;
+                let distance_between = end_position.y - bottom_of_first_line;
+                if distance_between > 0 {
                     context.gfx.draw_shape(
                         Shape::filled_rect(
                             Rect::new(
-                                start_position,
-                                Size::new(width, info.cache.measured.line_height),
-                            ),
-                            highlight,
-                        )
-                        .translate_by(padding),
-                    );
-                } else {
-                    // Draw from start to end of line,
-                    let width = size.width.into_signed() - start_position.x;
-                    context.gfx.draw_shape(
-                        Shape::filled_rect(
-                            Rect::new(
-                                start_position,
-                                Size::new(width, info.cache.measured.line_height),
-                            ),
-                            highlight,
-                        )
-                        .translate_by(padding),
-                    );
-                    // Fill region between
-                    let bottom_of_first_line = start_position.y + info.cache.measured.line_height;
-                    let distance_between = end_position.y - bottom_of_first_line;
-                    if distance_between > 0 {
-                        context.gfx.draw_shape(
-                            Shape::filled_rect(
-                                Rect::new(
-                                    Point::new(Px::ZERO, bottom_of_first_line),
-                                    Size::new(size.width.into_signed(), distance_between),
-                                ),
-                                highlight,
-                            )
-                            .translate_by(padding),
-                        );
-                    }
-                    // Draw from 0 to end + width
-                    context.gfx.draw_shape(
-                        Shape::filled_rect(
-                            Rect::new(
-                                Point::new(Px::ZERO, end_position.y),
-                                Size::new(
-                                    end_position.x + end_width,
-                                    info.cache.measured.line_height,
-                                ),
+                                Point::new(Px::ZERO, bottom_of_first_line),
+                                Size::new(size.width.into_signed(), distance_between),
                             ),
                             highlight,
                         )
                         .translate_by(padding),
                     );
                 }
-            } else if window_focused && context.enabled() {
-                let (location, _) =
-                    self.point_from_cursor(info.cache, info.cursor, info.cache.bytes);
-                if cursor_state.visible {
-                    let cursor_width = Lp::points(2).into_px(context.gfx.scale());
-                    context.gfx.draw_shape(
-                        Shape::filled_rect(
-                            Rect::new(
-                                Point::new(location.x - cursor_width / 2, location.y),
-                                Size::new(cursor_width, info.cache.measured.line_height),
-                            ),
-                            highlight,
-                        )
-                        .translate_by(padding),
-                    );
-                }
-                context.redraw_in(cursor_state.remaining_until_blink);
+                // Draw from 0 to end + width
+                context.gfx.draw_shape(
+                    Shape::filled_rect(
+                        Rect::new(
+                            Point::new(Px::ZERO, end_position.y),
+                            Size::new(end_position.x + end_width, info.cache.measured.line_height),
+                        ),
+                        highlight,
+                    )
+                    .translate_by(padding),
+                );
             }
+        } else if focused && window_focused && context.enabled() {
+            let (location, _) = self.point_from_cursor(info.cache, info.cursor, info.cache.bytes);
+            if cursor_state.visible {
+                let cursor_width = Lp::points(2).into_px(context.gfx.scale());
+                context.gfx.draw_shape(
+                    Shape::filled_rect(
+                        Rect::new(
+                            Point::new(location.x - cursor_width / 2, location.y),
+                            Size::new(cursor_width, info.cache.measured.line_height),
+                        ),
+                        highlight,
+                    )
+                    .translate_by(padding),
+                );
+            }
+            context.redraw_in(cursor_state.remaining_until_blink);
         }
 
         let text = if info.cache.bytes > 0 {
