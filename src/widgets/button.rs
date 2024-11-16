@@ -399,8 +399,10 @@ impl Widget for Button {
                 }
                 .with_alpha(128);
 
-                let inset = (context.get(&IntrinsicPadding).into_px(context.gfx.scale())
-                    - outline_options.line_width)
+                let inset = context
+                    .get(&IntrinsicPadding)
+                    .into_px(context.gfx.scale())
+                    .min(outline_options.line_width)
                     / 2;
 
                 let options = outline_options.colored(color);
@@ -506,10 +508,16 @@ impl Widget for Button {
         available_space: Size<crate::ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
+        let outline_width = context
+            .get(&OutlineWidth)
+            .into_upx(context.gfx.scale())
+            .ceil();
         let padding = context
             .get(&IntrinsicPadding)
             .into_upx(context.gfx.scale())
-            .round();
+            .round()
+            .max(outline_width);
+
         let double_padding = padding * 2;
         let mounted = self.content.mounted(context);
         let available_space = available_space.map(|space| space - double_padding);
