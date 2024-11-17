@@ -8,9 +8,7 @@ use crate::styles::components::{
     LineHeight8, TextSize, TextSize1, TextSize2, TextSize3, TextSize4, TextSize5, TextSize6,
     TextSize7, TextSize8,
 };
-use crate::styles::{
-    ComponentDefinition, IntoComponentValue, IntoDynamicComponentValue, StoredComponent, Styles,
-};
+use crate::styles::{ComponentDefinition, IntoComponentValue, IntoDynamicComponentValue, Styles};
 use crate::value::{Destination, IntoValue, Mutable, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 
@@ -54,7 +52,8 @@ impl Style {
         self
     }
 
-    /// Associates a style component with `self`.
+    /// Associates a style component with `self`, preventing the value from
+    /// being inherited by child widgets.
     #[must_use]
     pub fn with_local<C: ComponentDefinition>(
         mut self,
@@ -65,10 +64,7 @@ impl Style {
         Value<C::ComponentType>: IntoComponentValue,
     {
         self.map_styles_mut(|mut styles| {
-            styles.insert_named(
-                name.name().into_owned(),
-                StoredComponent::local(component.into_value()),
-            );
+            styles.insert_local_named(name.name().into_owned(), component.into_value());
         });
         self
     }
@@ -86,6 +82,23 @@ impl Style {
     {
         self.map_styles_mut(|mut styles| {
             styles.insert_dynamic(name, dynamic);
+        });
+        self
+    }
+
+    /// Associates a style component with `self`, resolving its value using
+    /// `dynamic` at runtime. This value will not be inherited by child widgets.
+    #[must_use]
+    pub fn with_local_dynamic<C: ComponentDefinition>(
+        mut self,
+        name: &C,
+        dynamic: impl IntoDynamicComponentValue,
+    ) -> Style
+    where
+        Value<C::ComponentType>: IntoComponentValue,
+    {
+        self.map_styles_mut(|mut styles| {
+            styles.insert_local_dynamic(name, dynamic);
         });
         self
     }

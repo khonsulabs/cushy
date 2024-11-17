@@ -1,4 +1,4 @@
-use figures::{Fraction, IntoSigned, ScreenScale, Size};
+use figures::{Fraction, ScreenScale, Size};
 
 use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::styles::DimensionRange;
@@ -117,19 +117,21 @@ impl WrapperWidget for Resize {
                     || matches!(available_space.height, ConstraintLimit::SizeToFit(_)),
             )
         };
-        let size = Size::new(
+        let mut size = Size::new(
             self.width.clamp(size.width, context.gfx.scale()),
             self.height.clamp(size.height, context.gfx.scale()),
         );
+
         if fill_layout {
             // Now that we have our known dimension, give the child an opportunity
             // to lay out with Fill semantics.
-            context
+            size = context
                 .for_other(&child)
-                .layout(size.map(ConstraintLimit::Fill));
+                .layout(size.map(ConstraintLimit::Fill))
+                .min(size);
         }
 
-        size.into_signed().into()
+        WrappedLayout::aligned(size, available_space, context)
     }
 }
 

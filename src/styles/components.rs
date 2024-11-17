@@ -7,7 +7,9 @@ use kludgine::Color;
 
 use crate::animation::easings::{EaseInOutQuadradic, EaseInQuadradic, EaseOutQuadradic};
 use crate::animation::{EasingFunction, ZeroToOne};
-use crate::styles::{Dimension, FocusableWidgets, FontFamilyList, VisualOrder};
+use crate::styles::{
+    Dimension, FocusableWidgets, FontFamilyList, HorizontalAlign, VerticalAlign, VisualOrder,
+};
 use crate::window::ThemeMode;
 
 /// Defines a set of style components for Cushy.
@@ -312,5 +314,10 @@ define_components! {
 
         /// The opaqueness of drawing calls
         Opacity(ZeroToOne, "opacity", ZeroToOne::ONE)
+
+        /// The horizontal alignment of the content of a widget.
+        HorizontalAlignment(HorizontalAlign, "align", HorizontalAlign::default())
+        /// The vertical alignment of the content of a widget.
+        VerticalAlignment(VerticalAlign, "vertical-align", VerticalAlign::default())
     }
 }

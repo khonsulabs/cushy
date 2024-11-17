@@ -6,14 +6,16 @@ use std::collections::hash_map;
 use std::fmt::{Debug, Write};
 use std::ops::{
     Add, AddAssign, Bound, Deref, Div, Mul, Range, RangeFrom, RangeFull, RangeInclusive, RangeTo,
-    RangeToInclusive,
+    RangeToInclusive, Sub,
 };
 use std::sync::Arc;
 
 use ahash::AHashMap;
 use figures::units::{Lp, Px, UPx};
-use figures::{Fraction, IntoSigned, IntoUnsigned, Rect, Round, ScreenScale, Size, Zero};
-use intentional::Cast;
+use figures::{
+    Fraction, IntoSigned, IntoUnsigned, Rect, Round, ScreenScale, Size, UnscaledUnit, Zero,
+};
+use intentional::{Cast, CastFrom, CastInto};
 pub use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
 pub use kludgine::shapes::CornerRadii;
 pub use kludgine::Color;
@@ -59,10 +61,27 @@ impl Styles {
             .insert(name, component.into_stored_component());
     }
 
+    /// Inserts a [`Component`] with a given name, preventing the component from
+    /// being inherited in [`inherit_from()`](Self::inherit_from).
+    pub fn insert_local_named(&mut self, name: ComponentName, component: impl IntoStoredComponent) {
+        let mut component = component.into_stored_component();
+        component.inheritable = false;
+        Arc::make_mut(&mut self.0)
+            .components
+            .insert(name, component);
+    }
+
     /// Inserts a [`Component`] using then name provided.
     pub fn insert(&mut self, name: &impl NamedComponent, component: impl IntoComponentValue) {
         let name = name.name().into_owned();
         self.insert_named(name, component);
+    }
+
+    /// Inserts a [`Component`] using then name provided, preventing the component from
+    /// being inherited in [`inherit_from()`](Self::inherit_from).
+    pub fn insert_local(&mut self, name: &impl NamedComponent, component: impl IntoComponentValue) {
+        let name = name.name().into_owned();
+        self.insert_local_named(name, component);
     }
 
     /// Inserts a [`Component`] using then name provided, resolving the value
@@ -79,6 +98,21 @@ impl Styles {
         self.insert(name, component);
     }
 
+    /// Inserts a [`Component`] using then name provided, resolving the value
+    /// through `dynamic`. This component will not be inherited in
+    ///  [`inherit_from()`](Self::inherit_from).
+    pub fn insert_local_dynamic(
+        &mut self,
+        name: &impl NamedComponent,
+        dynamic: impl IntoDynamicComponentValue,
+    ) {
+        let component = match dynamic.into_dynamic_component() {
+            Value::Constant(dynamic) => Value::Constant(Component::Dynamic(dynamic)),
+            Value::Dynamic(dynamic) => Value::Dynamic(dynamic.map_each_cloned(Component::Dynamic)),
+        };
+        self.insert_local(name, component);
+    }
+
     /// Adds a [`Component`] for the name provided and returns self.
     #[must_use]
     pub fn with<C: ComponentDefinition>(
@@ -91,11 +125,24 @@ impl Styles {
     {
         self.insert_named(
             name.name().into_owned(),
-            StoredComponent {
-                inherited: false,
-                inheritable: true,
-                component: component.into_value().into_component_value(),
-            },
+            component.into_value().into_component_value(),
+        );
+        self
+    }
+
+    /// Adds a [`Component`] for the name provided and returns self.
+    #[must_use]
+    pub fn with_local<C: ComponentDefinition>(
+        mut self,
+        name: &C,
+        component: impl IntoValue<C::ComponentType>,
+    ) -> Self
+    where
+        Value<C::ComponentType>: IntoComponentValue,
+    {
+        self.insert_local_named(
+            name.name().into_owned(),
+            component.into_value().into_component_value(),
         );
         self
     }
@@ -109,6 +156,18 @@ impl Styles {
         dynamic: impl IntoDynamicComponentValue,
     ) -> Self {
         self.insert_dynamic(name, dynamic);
+        self
+    }
+
+    /// Adds a [`Component`] using then name provided, resolving the value
+    /// through `dynamic`. This function returns self.
+    #[must_use]
+    pub fn with_local_dynamic<C: ComponentDefinition>(
+        mut self,
+        name: &C,
+        dynamic: impl IntoDynamicComponentValue,
+    ) -> Self {
+        self.insert_local_dynamic(name, dynamic);
         self
     }
 
@@ -389,6 +448,7 @@ where
 
 /// A value of a style component.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum Component {
     /// A color.
     Color(Color),
@@ -415,6 +475,10 @@ pub enum Component {
     FontStyle(Style),
     /// A string value.
     String(CowString),
+    /// A horizontal alignment.
+    HorizontalAlign(HorizontalAlign),
+    /// A vertical alignment.
+    VerticalAlign(VerticalAlign),
 
     /// A custom component type.
     Custom(CustomComponent),
@@ -679,7 +743,7 @@ impl TryFrom<Component> for CornerRadii<Dimension> {
 }
 
 /// A 1-dimensional measurement that may be automatically calculated.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FlexibleDimension {
     /// Automatically calculate this dimension.
@@ -2713,6 +2777,108 @@ impl TryFrom<Component> for FontFamilyList {
                 .ok_or_else(|| Component::Custom(custom)),
             other => Err(other),
         }
+    }
+}
+
+/// Alignment along the horizontal axis.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HorizontalAlign {
+    /// Align the content to the left of the area provided.
+    #[default]
+    Left,
+    /// Align the content centered in the area provided.
+    Center,
+    /// Align the content to the right of the area provided.
+    Right,
+}
+
+impl HorizontalAlign {
+    /// Returns the horizontal offset needed to align content of `measured` size
+    /// within `available_space`.
+    pub fn alignment_offset<Unit>(self, measured: Unit, available_space: Unit) -> Unit
+    where
+        Unit: Sub<Output = Unit> + Mul<Output = Unit> + UnscaledUnit + Zero,
+        Unit::Representation: CastFrom<i32>,
+    {
+        match self {
+            Self::Left => Unit::ZERO,
+            Self::Center => (available_space - measured) * Unit::from_unscaled(2.cast_into()),
+            Self::Right => available_space - measured,
+        }
+    }
+}
+
+impl From<HorizontalAlign> for Component {
+    fn from(value: HorizontalAlign) -> Self {
+        Self::HorizontalAlign(value)
+    }
+}
+
+impl TryFrom<Component> for HorizontalAlign {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::HorizontalAlign(level) => Ok(level),
+            other => Err(other),
+        }
+    }
+}
+
+impl RequireInvalidation for HorizontalAlign {
+    fn requires_invalidation(&self) -> bool {
+        true
+    }
+}
+
+/// Alignment along the vertical axis.
+#[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
+pub enum VerticalAlign {
+    /// Align towards the top.
+    Top,
+    /// Align towards the center/middle.
+    Center,
+    /// Align towards the bottom.
+    #[default] // TODO this should be baseline, not bottom.
+    Bottom,
+}
+
+impl VerticalAlign {
+    /// Returns the vertical offset needed to align content of `measured` size
+    /// within `available_space`.
+    pub fn align<Unit>(self, measured: Unit, available_space: Unit) -> Unit
+    where
+        Unit: Sub<Output = Unit> + Mul<Output = Unit> + UnscaledUnit + Zero,
+        Unit::Representation: CastFrom<i32>,
+    {
+        match self {
+            Self::Top => Unit::ZERO,
+            Self::Center => (available_space - measured) * Unit::from_unscaled(2.cast_into()),
+            Self::Bottom => available_space - measured,
+        }
+    }
+}
+
+impl From<VerticalAlign> for Component {
+    fn from(value: VerticalAlign) -> Self {
+        Self::VerticalAlign(value)
+    }
+}
+
+impl TryFrom<Component> for VerticalAlign {
+    type Error = Component;
+
+    fn try_from(value: Component) -> Result<Self, Self::Error> {
+        match value {
+            Component::VerticalAlign(level) => Ok(level),
+            other => Err(other),
+        }
+    }
+}
+
+impl RequireInvalidation for VerticalAlign {
+    fn requires_invalidation(&self) -> bool {
+        true
     }
 }
 

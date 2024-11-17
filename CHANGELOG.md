@@ -88,6 +88,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ```rust
     Custom::new(Space::colored(Color::RED)).on_hit_test(|_, _| true)
   ```
+- `Component` is now `#[non_exhaustive]`.
+- `Wrap::vertical_align` has been removed in favor of the `VerticalAlignment`
+  component.
+- `widgets::wrap::VerticalAlign` has been moved to `styles::VerticalAlign`.
+  Additionally `VerticalAlign::Middle` has been renamed `VerticalAlign::Center`
+  for consistency with horizontal alignment.
+- `Label` now honor `HorizontalAlignment` and `VerticalAlignment`. Previously
+  `Label`s centered their content when sized larger than the text they
+  contained. The defaults for the alignment components are left and top,
+  respectively.
 
 ### Changed
 
@@ -326,6 +336,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Pile` is a new widget that shows one of many widgets. `PiledWidget` handles
   are returned for each widget pushed into a pile. These handles can be used to
   show or close a specific widget in a pile.
+- `HorizontalAlignment` and `VerticalAlignment` are new components that are used
+  by some widgets when positioning their contents. `WrapperWidget::position_child` has been updated to use `WrappedLayout::aligned` to support these components on most widgets automatically. `Label` and `Resize` have also been updated to support these components.
+- Local style support has been fully exposed. Local styles are applied to the widget they are attached to, but are not inherited to child widgets. The new APIs are:
+
+  - `Styles::insert_local`
+  - `Styles::insert_local_dynamic`
+  - `Styles::insert_local_named`
+  - `Styles::with_local`
+  - `Styles::with_local_dynamic`
+  - `Styles::with_local_named`
+  - `Style::with_local`
+  - `Style::with_local_dynamic`
+  - `Style::with_local_named`
+  - `MakeWidget::with_local`
+  - `MakeWidget::with_local_dynamic`
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

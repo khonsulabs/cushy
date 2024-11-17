@@ -27,17 +27,18 @@ use crate::styles::components::{
     FontFamily, FontStyle, FontWeight, Heading1FontFamily, Heading1Style, Heading1Weight,
     Heading2FontFamily, Heading2Style, Heading2Weight, Heading3FontFamily, Heading3Style,
     Heading3Weight, Heading4FontFamily, Heading4Style, Heading4Weight, Heading5FontFamily,
-    Heading5Style, Heading5Weight, Heading6FontFamily, Heading6Style, Heading6Weight, LineHeight,
-    LineHeight1, LineHeight2, LineHeight3, LineHeight4, LineHeight5, LineHeight6, LineHeight7,
-    LineHeight8, TextSize, TextSize1, TextSize2, TextSize3, TextSize4, TextSize5, TextSize6,
-    TextSize7, TextSize8,
+    Heading5Style, Heading5Weight, Heading6FontFamily, Heading6Style, Heading6Weight,
+    HorizontalAlignment, IntrinsicPadding, LineHeight, LineHeight1, LineHeight2, LineHeight3,
+    LineHeight4, LineHeight5, LineHeight6, LineHeight7, LineHeight8, TextSize, TextSize1,
+    TextSize2, TextSize3, TextSize4, TextSize5, TextSize6, TextSize7, TextSize8, VerticalAlignment,
 };
 use crate::styles::{
-    ComponentDefinition, ContainerLevel, Dimension, DimensionRange, Edges, IntoComponentValue,
-    IntoDynamicComponentValue, Styles, ThemePair, VisualOrder,
+    ComponentDefinition, ContainerLevel, ContextFreeComponent, Dimension, DimensionRange, Edges,
+    FlexibleDimension, HorizontalAlign, IntoComponentValue, IntoDynamicComponentValue, Styles,
+    ThemePair, VisualOrder,
 };
 use crate::tree::{Tree, WeakTree};
-use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Validation, Value};
+use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Source, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::list::List;
@@ -538,6 +539,46 @@ pub struct WrappedLayout {
     pub size: Size<UPx>,
 }
 
+impl WrappedLayout {
+    /// Returns a layout that positions `size` within `available_space` while
+    /// respecting [`HOrizontalAlignment`] and [`VerticalAlignment`].
+    pub fn aligned(
+        size: Size<UPx>,
+        available_space: Size<ConstraintLimit>,
+        context: &mut LayoutContext<'_, '_, '_, '_>,
+    ) -> Self {
+        let child_size = size.into_signed();
+        let fill_width = available_space
+            .width
+            .fit_measured(child_size.width)
+            .into_signed();
+        let (padded_width, x, width) = if fill_width <= child_size.width {
+            (child_size.width, Px::ZERO, child_size.width)
+        } else {
+            let x = context
+                .get(&HorizontalAlignment)
+                .alignment_offset(child_size.width, fill_width);
+            (fill_width, x, child_size.width)
+        };
+        let fill_height = available_space
+            .height
+            .fit_measured(child_size.height)
+            .into_signed();
+        let (padded_height, y, height) = if fill_height <= child_size.height {
+            (child_size.height, Px::ZERO, child_size.height)
+        } else {
+            let y = context
+                .get(&VerticalAlignment)
+                .align(child_size.height, fill_height);
+            (fill_height, y, child_size.height)
+        };
+        WrappedLayout {
+            child: Rect::new(Point::new(x, y), Size::new(width, height)),
+            size: Size::new(padded_width, padded_height).into_unsigned(),
+        }
+    }
+}
+
 impl From<Size<Px>> for WrappedLayout {
     fn from(size: Size<Px>) -> Self {
         WrappedLayout {
@@ -631,11 +672,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
-        Size::new(
-            available_space.width.fit_measured(size.width),
-            available_space.height.fit_measured(size.height),
-        )
-        .into()
+        WrappedLayout::aligned(size.into_unsigned(), available_space, context)
     }
 
     /// Returns the background color to render behind the wrapped widget.
@@ -986,6 +1023,19 @@ pub trait MakeWidget: Sized {
         Style::new(Styles::new().with(name, component), self)
     }
 
+    /// Associates a style component with `self`, ensuring that no child widgets
+    /// inherit this component.
+    fn with_local<C: ComponentDefinition>(
+        self,
+        name: &C,
+        component: impl IntoValue<C::ComponentType>,
+    ) -> Style
+    where
+        Value<C::ComponentType>: IntoComponentValue,
+    {
+        Style::new(Styles::new().with_local(name, component), self)
+    }
+
     /// Associates a style component with `self`, resolving its value using
     /// `dynamic` at runtime.
     fn with_dynamic<C: ComponentDefinition>(
@@ -997,6 +1047,20 @@ pub trait MakeWidget: Sized {
         C::ComponentType: IntoComponentValue,
     {
         Style::new(Styles::new().with_dynamic(name, dynamic), self)
+    }
+
+    /// Associates a style component with `self`, resolving its value using
+    /// `dynamic` at runtime. This component will not be inherited to child
+    /// widgets.
+    fn with_local_dynamic<C: ComponentDefinition>(
+        self,
+        name: &C,
+        dynamic: impl IntoDynamicComponentValue,
+    ) -> Style
+    where
+        C::ComponentType: IntoComponentValue,
+    {
+        Style::new(Styles::new().with_local_dynamic(name, dynamic), self)
     }
 
     /// Invokes `callback` when `key` is pressed while `modifiers` are pressed.
@@ -1138,6 +1202,20 @@ pub trait MakeWidget: Sized {
     fn x_small(self) -> Style {
         self.with_dynamic(&TextSize, TextSize1)
             .with_dynamic(&LineHeight, LineHeight1)
+    }
+
+    fn with_hint(self, hint: impl MakeWidget) -> Stack {
+        let probe = IntrinsicPadding.probe();
+        let padding = probe
+            .value()
+            .map_each(|padding| FlexibleDimension::Dimension(*padding / 2));
+        self.and(probe)
+            .and(
+                hint.small()
+                    .with(&HorizontalAlignment, HorizontalAlign::Left),
+            )
+            .into_rows()
+            .gutter(padding)
     }
 
     /// Sets the widget that should be focused next.

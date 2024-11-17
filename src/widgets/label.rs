@@ -4,14 +4,14 @@ use std::borrow::Cow;
 use std::fmt::{Debug, Display, Write};
 
 use figures::units::{Px, UPx};
-use figures::{Point, Round, Size};
+use figures::{Point, Round, Size, Zero};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
-use kludgine::{CanRenderTo, Color, DrawableExt};
+use kludgine::{cosmic_text, CanRenderTo, Color, DrawableExt};
 
 use super::input::CowString;
 use crate::context::{GraphicsContext, LayoutContext, Trackable, WidgetContext};
-use crate::styles::components::TextColor;
-use crate::styles::FontFamilyList;
+use crate::styles::components::{HorizontalAlignment, TextColor, VerticalAlignment};
+use crate::styles::{FontFamilyList, HorizontalAlign, VerticalAlign};
 use crate::value::{
     Dynamic, DynamicReader, Generation, IntoDynamic, IntoReadOnly, IntoValue, ReadOnly, Value,
 };
@@ -59,7 +59,14 @@ where
         context: &mut GraphicsContext<'_, '_, '_, '_>,
         color: Color,
         mut width: Px,
+        align: HorizontalAlign,
     ) -> &MeasuredText<Px> {
+        let is_left_aligned = align == HorizontalAlign::Left;
+        let align = match align {
+            HorizontalAlign::Left => cosmic_text::Align::Left,
+            HorizontalAlign::Center => cosmic_text::Align::Center,
+            HorizontalAlign::Right => cosmic_text::Align::Right,
+        };
         let overflow = self.overflow.get_tracking_invalidate(context);
         if overflow == LabelOverflow::Clip {
             width = Px::MAX;
@@ -72,8 +79,11 @@ where
                 if cache.text.can_render_to(&context.gfx)
                     && cache.generation == check_generation
                     && cache.color == color
-                    && width <= cache.width
-                    && cache.text.size.width <= width
+                    && cache.align == align
+                    && ((is_left_aligned
+                        && width <= cache.width
+                        && cache.text.size.width <= width)
+                        || (!is_left_aligned && width == cache.width))
                     && cache.families == current_families => {}
             _ => {
                 let measured = self.display.map(|text| {
@@ -83,7 +93,7 @@ where
                     }
                     context
                         .gfx
-                        .measure_text(Text::new(&self.displayed, color).wrap_at(width))
+                        .measure_text(Text::new(&self.displayed, color).align(align, width))
                 });
                 self.prepared_text.set(
                     context,
@@ -93,6 +103,7 @@ where
                         width,
                         color,
                         families: current_families,
+                        align,
                     },
                 );
             }
@@ -112,15 +123,25 @@ where
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         self.display.invalidate_when_changed(context);
 
-        let size = context.gfx.region().size;
-        let center = Point::from(size) / 2;
+        let align = context.get(&HorizontalAlignment);
+        let valign = context.get(&VerticalAlignment);
+
         let text_color = context.get(&TextColor);
 
-        let prepared_text = self.prepared_text(context, text_color, size.width);
+        let prepared_text =
+            self.prepared_text(context, text_color, context.gfx.region().size.width, align);
+
+        let y_offset = match valign {
+            VerticalAlign::Top => Px::ZERO,
+            VerticalAlign::Center => {
+                (context.gfx.region().size.height - prepared_text.size.height) / 2
+            }
+            VerticalAlign::Bottom => context.gfx.region().size.height - prepared_text.size.height,
+        };
 
         context.gfx.draw_measured_text(
-            prepared_text.translate_by(center.round()),
-            TextOrigin::Center,
+            prepared_text.translate_by(Point::new(Px::ZERO, y_offset)),
+            TextOrigin::TopLeft,
         );
     }
 
@@ -129,9 +150,10 @@ where
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
+        let align = context.get(&HorizontalAlignment);
         let color = context.get(&TextColor);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
-        let prepared = self.prepared_text(context, color, width);
+        let prepared = self.prepared_text(context, color, width, align);
 
         prepared.size.try_cast().unwrap_or_default().ceil()
     }
@@ -196,6 +218,7 @@ struct LabelCacheKey {
     width: Px,
     color: Color,
     families: FontFamilyList,
+    align: cosmic_text::Align,
 }
 
 /// A context-aware [`Display`] implementation.
