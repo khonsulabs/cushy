@@ -11,6 +11,7 @@ fn main() -> cushy::Result {
         .and("Heading 6".h6())
         .and("Regular Text")
         .and("Small Text".small())
+        .and("Hint Text".hint())
         .and("X-Small Text".x_small())
         .into_rows()
         .centered()

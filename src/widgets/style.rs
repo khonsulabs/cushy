@@ -1,3 +1,4 @@
+use super::validated::HintTextColor;
 use crate::context::EventContext;
 use crate::styles::components::{
     FontFamily, FontStyle, FontWeight, Heading1FontFamily, Heading1Style, Heading1Weight,
@@ -5,8 +6,8 @@ use crate::styles::components::{
     Heading3Weight, Heading4FontFamily, Heading4Style, Heading4Weight, Heading5FontFamily,
     Heading5Style, Heading5Weight, Heading6FontFamily, Heading6Style, Heading6Weight, LineHeight,
     LineHeight1, LineHeight2, LineHeight3, LineHeight4, LineHeight5, LineHeight6, LineHeight7,
-    LineHeight8, TextSize, TextSize1, TextSize2, TextSize3, TextSize4, TextSize5, TextSize6,
-    TextSize7, TextSize8,
+    LineHeight8, TextColor, TextSize, TextSize1, TextSize2, TextSize3, TextSize4, TextSize5,
+    TextSize6, TextSize7, TextSize8,
 };
 use crate::styles::{ComponentDefinition, IntoComponentValue, IntoDynamicComponentValue, Styles};
 use crate::value::{Destination, IntoValue, Mutable, Value};
@@ -211,6 +212,11 @@ impl Style {
     pub fn x_small(self) -> Style {
         self.with_dynamic(&TextSize, TextSize1)
             .with_dynamic(&LineHeight, LineHeight1)
+    }
+
+    /// Styles `self` as an informational hint message.
+    pub fn hint(self) -> Style {
+        self.small().with_dynamic(&TextColor, HintTextColor)
     }
 }
 

@@ -351,6 +351,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Style::with_local_named`
   - `MakeWidget::with_local`
   - `MakeWidget::with_local_dynamic`
+- `Style::hint`, `MakeWidget::hint`, and `MakeWidget::with_hint` have been added
+  to standardize a method of adding informational text to interfaces.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139
