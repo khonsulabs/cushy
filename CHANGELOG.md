@@ -323,6 +323,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   performing arbitrary `wgpu` drawing operations when rendering. See the
   `shaders.rs` example for an example on how to use this to render into a Canvas
   with a custom shader.
+- `Pile` is a new widget that shows one of many widgets. `PiledWidget` handles
+  are returned for each widget pushed into a pile. These handles can be used to
+  show or close a specific widget in a pile.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

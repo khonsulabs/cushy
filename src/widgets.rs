@@ -22,6 +22,7 @@ pub mod layers;
 pub mod list;
 pub mod menu;
 mod mode_switch;
+pub mod pile;
 pub mod progress;
 pub mod radio;
 mod resize;

@@ -2148,6 +2148,24 @@ impl WidgetList {
         self.ordered.insert(index, widget.make_widget());
     }
 
+    /// Removes the widget at `index`.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `index` is out of the range of this
+    /// collection.
+    pub fn remove(&mut self, index: usize) -> WidgetInstance {
+        self.ordered.remove(index)
+    }
+
+    /// Retains all widgets where `func` returns true.
+    pub fn retain<F>(&mut self, func: F)
+    where
+        F: FnMut(&WidgetInstance) -> bool,
+    {
+        self.ordered.retain(func);
+    }
+
     /// Extends this collection with the contents of `iter`.
     pub fn extend<T, Iter>(&mut self, iter: Iter)
     where
