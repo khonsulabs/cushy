@@ -12,6 +12,124 @@ Implementing this forces the developer to learn about some key points of the fra
 * Native integration (file dialogs, etc).
 * Composability and reusability.
 
+## Implementation notes
+
+### Elm architecture for views
+
+It was discovered that for non-trivial components that use a set of widgets, that managing state becomes tricky and
+resulted in wrapping of component state members in dynamics and having to make the entire component state object
+`Clone` so that it's possible to call component methods that require `&mut self`. This had the side effect of requiring
+lots of usages of `lock()` and having to deal with more potential deadlock issues.
+
+A solution to this problem is to create a single `Dynamic<MyComponentMessage>` where `MyComponentMessage` is typically
+an enum with `Clone`, and pass that to the component on creation which stores it in `Self`.
+
+The only source for each `MyComponentMessage` is the component the message belongs to.  i.e. do NOT
+share `MyComponentMessage` between two components.
+
+The component's widgets job is then to emit messages via updating this `Dynamic`, rather than attempting to mutate
+state immediately. e.g. 
+
+```rust
+my_component(...).on_click({let message = self.message.clone()|_event|message.set(MyComponentMessage::SomeButtonClicked)})
+```
+vs
+```rust
+my_component(...).on_click({let instance = self.clone()|_event|self.lock().on_button_clicked()})
+```
+
+Then the owner of the component and it's dynamic, can call the component's `update` method, which has the signature:
+`fn update(&mut self, message: MyComponentMessage)`, this method can then match on the message and call the component's
+method that requires `&mut self` using arguments derived from properties from the enum.
+
+e.g.
+
+```rust
+pub fn update(&mut self, message: MyComponentMessage) {
+    match message {
+        SomeButtonClicked => self.on_button_clicked(),
+		_ => ()
+    }
+}
+```
+
+The owner component does this via the `Dynamic::for_each_cloned` on the message.  e.g.
+
+```rust
+let message: Dynamic<MyComponentMessage> = Dynamic::default();
+let component = RefCell::new(MyComponent::new(&message))));
+
+message.for_each_cloned({
+	let message = message.clone(); // clone the dynamic
+	let component = component.clone(); // cloning the refcell
+	move |message|{
+		component.borrow_mut().update(message);
+	}
+})
+	.persist();
+```
+
+When using many components, the app can wrap component messages in application messages.
+
+e.g.
+```rust
+enum AppMessage {
+	None,
+	MyComponentMessage(MyComponentMessage)
+}
+```
+
+and then the app has it's own message:
+
+```rust
+let message = Dynamic::new(AppMessage::None);
+```
+
+and then the component `for_each_cloned` call back simply becomes:
+
+```rust
+component_message.for_each_cloned({
+	let app_message = app_message.clone();
+	move |message|{
+		app_message.set(AppMessage::MyComponentMessage(message));
+	}
+})
+	.persist();
+```
+
+and then the app's `AppMessage` callback is then:
+
+```rust
+app_message
+	.for_each_cloned({
+		let dyn_app_state = dyn_app_state.clone();
+		move |app_message|{
+			dyn_app_state.lock().update(app_message);
+		}
+	})
+	.persist();
+```
+
+and the application state's `update` method just delegates messages to components as required:
+```rust
+struct AppState {
+    component: Dynamic<MyComponent>,
+}
+
+impl AppState {
+    fn update(&mut self, message: Message) {
+        match message {
+            Message::None => {}
+            Message::MyComponentMessage(message) => {
+                self.my_component.lock().update(message);
+            }
+        }
+    }
+}
+```
+
+See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an example.
+
 ## Requirements
 
 - Main window
