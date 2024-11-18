@@ -307,7 +307,7 @@ impl VirtualList {
                 .back()
                 .map_or(false, |item| item.index > end_item)
             {
-                self.items.pop_back();
+                context.remove_child(&self.items.pop_back().expect("at least one item").mounted);
             }
             // no extend front :(
             for item in (start_item..first).rev() {
