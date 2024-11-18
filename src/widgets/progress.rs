@@ -14,7 +14,10 @@ use crate::animation::{
 };
 use crate::styles::components::{EasingIn, EasingOut};
 use crate::styles::ContextFreeComponent;
-use crate::value::{Destination, Dynamic, IntoReadOnly, IntoReader, MapEach, ReadOnly, Source};
+use crate::value::{
+    Destination, Dynamic, DynamicRead, IntoReadOnly, IntoReader, MapEach, ReadOnly, Source,
+    TryLockError, Watcher,
+};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::slider::{InactiveTrackColor, Slidable, TrackColor, TrackSize};
 use crate::widgets::Data;
@@ -255,9 +258,26 @@ where
             ReadOnly::Constant(range) => value
                 .map_each(move |value| value.to_progress(Some(range.start()..=range.end())))
                 .into_reader(),
-            ReadOnly::Reader(range) => (&range, &value)
-                .map_each(|(range, value)| value.to_progress(Some(range.start()..=range.end())))
-                .into_reader(),
+            ReadOnly::Reader(range) => {
+                let watcher = Watcher::default();
+                watcher.watch(&value);
+                watcher.watch(&range);
+                watcher
+                    .map_changed(move || loop {
+                        let value = value.read();
+                        let range = match range.read_nonblocking() {
+                            Ok(range) => range,
+                            Err(TryLockError::WouldDeadlock) => unreachable!("deadlock"),
+                            Err(TryLockError::AlreadyLocked(mut locked)) => {
+                                drop(value);
+                                locked.block();
+                                continue;
+                            }
+                        };
+                        break value.to_progress(Some(range.start()..=range.end()));
+                    })
+                    .into_reader()
+            }
         })
     }
 }
