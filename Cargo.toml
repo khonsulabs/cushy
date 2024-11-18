@@ -27,7 +27,7 @@ native-dialogs = ["dep:rfd"]
 kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
     "app",
 ] }
-figures = { version = "0.4.0" }
+figures = { version = "0.4.2" }
 alot = "0.3.2"
 interner = "0.2.1"
 kempt = "0.2.1"

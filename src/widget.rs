@@ -2484,7 +2484,7 @@ where
 /// Allows to convert collections or iterators directly into [`Stack`], [`Layers`], etc.
 ///
 /// ```
-/// use cushy::widget::{MakeWidget, MakeWidgetList};
+/// use cushy::widget::{IntoWidgetList, MakeWidget};
 ///
 /// vec!["hello", "label"].into_rows();
 ///

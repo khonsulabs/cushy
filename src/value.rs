@@ -1,21 +1,23 @@
 //! Types for storing and interacting with values in Widgets.
 
-use std::cell::{Ref, RefCell, RefMut};
-use std::collections::HashMap;
+use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::collections::{HashMap, VecDeque};
 use std::fmt::{self, Debug, Display};
 use std::future::Future;
 use std::hash::{BuildHasher, Hash};
 use std::ops::{Add, AddAssign, Deref, DerefMut, Not};
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self};
 use std::sync::{Arc, Weak};
 use std::task::{Poll, Waker};
-use std::thread::{self, ThreadId};
+use std::thread::ThreadId;
 use std::time::{Duration, Instant};
 
 use ahash::{AHashMap, AHashSet};
 use alot::{LotId, Lots};
 use intentional::Assert;
-use kempt::{Map, Sort};
+use kempt::{map, Map, Sort};
 use parking_lot::{Condvar, Mutex, MutexGuard};
 
 use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
@@ -27,6 +29,36 @@ use crate::widget::{
 use crate::widgets::checkbox::CheckboxState;
 use crate::widgets::{Checkbox, Radio, Select, Space, Switcher};
 use crate::window::WindowHandle;
+use crate::Lazy;
+
+static CALLBACK_EXECUTORS: Mutex<Map<usize, Arc<DynamicLockData>>> = Mutex::new(Map::new());
+
+fn execute_callbacks(
+    lock: Arc<DynamicLockData>,
+    callbacks: &mut CallbacksList,
+) -> Result<(), DeadlockError> {
+    let mut executors = CALLBACK_EXECUTORS.lock();
+    let key = Arc::as_ptr(&lock) as usize;
+    match executors.entry(key) {
+        map::Entry::Occupied(_) => return Err(DeadlockError),
+        map::Entry::Vacant(entry) => {
+            entry.insert(lock);
+        }
+    }
+    drop(executors);
+
+    // Invoke all callbacks, removing those that report an
+    // error.
+    callbacks.invoked_at = Instant::now();
+    callbacks
+        .callbacks
+        .drain_filter(|callback| callback.changed().is_err());
+
+    let mut executors = CALLBACK_EXECUTORS.lock();
+    executors.remove(&key);
+
+    Ok(())
+}
 
 /// A source of one or more `T` values.
 pub trait Source<T> {
@@ -130,6 +162,27 @@ pub trait Source<T> {
     {
         context.invalidate_when_changed(self);
         self.get()
+    }
+
+    /// Executes `on_change` when the contents of this dynamic are updated.
+    ///
+    /// Returning `Err(CallbackDisconnected)` will prevent the callback from
+    /// being invoked again.
+    fn on_change_try<F>(&self, on_change: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: FnMut() -> Result<(), CallbackDisconnected> + Send + 'static;
+
+    /// Executes `on_change` when the contents of this dynamic are updated.
+    fn on_change<F>(&self, mut on_change: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: FnMut() + Send + 'static,
+    {
+        self.on_change_try(move || {
+            on_change();
+            Ok(())
+        })
     }
 
     /// Attaches `for_each` to this value so that it is invoked each time the
@@ -372,7 +425,7 @@ pub trait Source<T> {
         mapped.set_source(
             self.for_each_cloned_try(move |value| {
                 let mapped = mapped_weak.upgrade().ok_or(CallbackDisconnected)?;
-                *mapped.lock() = value.clone();
+                *mapped.lock() = value;
                 Ok(())
             })
             .weak(),
@@ -618,6 +671,14 @@ impl<T> Source<T> for Arc<DynamicData<T>> {
         }))
     }
 
+    fn on_change_try<F>(&self, on_change: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        dynamic_for_each(self, on_change)
+    }
+
     fn for_each_subsequent_generational_try<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
@@ -659,6 +720,14 @@ impl<T> Source<T> for Dynamic<T> {
         self.0.try_map_generational(map)
     }
 
+    fn on_change_try<F>(&self, on_change: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        dynamic_for_each(&self.0, on_change)
+    }
+
     fn for_each_subsequent_generational_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
@@ -687,6 +756,14 @@ impl<T> Source<T> for DynamicReader<T> {
             *self.read_generation.lock() = generational.generation();
             map(generational)
         })
+    }
+
+    fn on_change_try<F>(&self, on_change: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        dynamic_for_each(&self.source, on_change)
     }
 
     fn for_each_subsequent_generational_try<F>(&self, for_each: F) -> CallbackHandle
@@ -836,6 +913,24 @@ impl<T> Source<T> for Owned<T> {
         }))
     }
 
+    fn on_change_try<F>(&self, mut on_change: F) -> CallbackHandle
+    where
+        T: Send + 'static,
+        F: FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        let mut callbacks = self.callbacks.active.lock();
+        CallbackHandle(CallbackHandleInner::Single(CallbackHandleData {
+            id: Some(
+                callbacks.push(Box::new(move |g: DynamicGuard<'_, T, true>| {
+                    drop(g);
+                    on_change()
+                })),
+            ),
+            owner: None,
+            callbacks: self.callbacks.clone(),
+        }))
+    }
+
     fn for_each_subsequent_generational_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Send + 'static,
@@ -979,7 +1074,7 @@ where
     pub fn invoke<'a, U>(
         &self,
         user: &'a mut U,
-        value: impl for<'b> Fn(&'b mut U) -> DynamicOrOwnedGuard<'b, T>,
+        value: impl for<'b> Fn(&'b mut U) -> DynamicOrOwnedGuard<'b, T, true>,
     ) {
         let mut callbacks = self.active.lock();
         callbacks.drain_filter(|callback| {
@@ -1025,10 +1120,11 @@ pub struct Dynamic<T>(Arc<DynamicData<T>>);
 impl<T> Dynamic<T> {
     /// Creates a new instance wrapping `value`.
     pub fn new(value: T) -> Self {
+        let state = State::new(value);
+        let lock = state.callbacks.lock.clone();
         Self(Arc::new(DynamicData {
-            state: Mutex::new(State::new(value)),
-            during_callback_state: Mutex::default(),
-            sync: Condvar::default(),
+            state: Mutex::new(state),
+            lock,
         }))
     }
 
@@ -1066,7 +1162,7 @@ impl<T> Dynamic<T> {
     /// thread.
     #[must_use]
     pub fn readers(&self) -> usize {
-        self.state().expect("deadlocked").readers
+        self.state::<true>().expect("deadlocked").readers
     }
 
     /// Returns a new dynamic that has its contents linked with `self` by the
@@ -1142,6 +1238,73 @@ impl<T> Dynamic<T> {
         self.linked(ToString::to_string, |s: &String| s.parse().ok())
     }
 
+    /// Returns a dynamic that is synchronized with a borrowed value from
+    /// `self`.
+    ///
+    /// When the returned dynamic is updated, `self` will be updated using
+    /// `get_mut`.
+    pub fn linked_accessor<U, Getter, Setter>(&self, get: Getter, get_mut: Setter) -> Dynamic<U>
+    where
+        T: Send + 'static,
+        U: PartialEq + Clone + Send + 'static,
+        Getter: Fn(&T) -> &U + Send + Clone + 'static,
+        Setter: Fn(&mut T) -> &mut U + Send + 'static,
+    {
+        let ignore_changes = Arc::new(AtomicBool::new(false));
+
+        let linked = Dynamic::new(self.map_ref(|source| get(source).clone()));
+        let weak_linked = linked.downgrade();
+        let weak_source = self.downgrade();
+
+        linked.set_source(self.for_each_generational_try({
+            let ignore_changes = ignore_changes.clone();
+            let get = get.clone();
+            move |source| {
+                if ignore_changes.load(Ordering::Relaxed) {
+                    return Ok(());
+                }
+
+                let linked = weak_linked.upgrade().ok_or(CallbackDisconnected)?;
+                let new_value = get(&*source).clone();
+                drop(source);
+
+                if let Ok(mut linked) = linked.try_lock() {
+                    if *linked != new_value {
+                        ignore_changes.store(true, Ordering::Relaxed);
+                        *linked = new_value;
+                        drop(linked);
+                        ignore_changes.store(false, Ordering::Relaxed);
+                    }
+                }
+                Ok(())
+            }
+        }));
+
+        linked
+            .for_each_generational_try(move |linked| {
+                if ignore_changes.load(Ordering::Relaxed) {
+                    return Ok(());
+                }
+
+                let source = weak_source.upgrade().ok_or(CallbackDisconnected)?;
+                let new_value = linked.clone();
+                drop(linked);
+
+                if let Ok(mut source) = source.try_lock() {
+                    if get(&*source) != &new_value {
+                        ignore_changes.store(true, Ordering::Relaxed);
+                        *get_mut(&mut source) = new_value;
+                        drop(source);
+                        ignore_changes.store(false, Ordering::Relaxed);
+                    }
+                }
+                Ok(())
+            })
+            .persist();
+
+        linked
+    }
+
     /// Sets the current `source` for this dynamic with `source`.
     ///
     /// A dynamic can have multiple source callbacks.
@@ -1149,7 +1312,7 @@ impl<T> Dynamic<T> {
     /// This ensures that `source` stays active as long as any clones of `self`
     /// are alive.
     pub fn set_source(&self, source: CallbackHandle) {
-        self.state().assert("deadlocked").source_callback += source;
+        self.state::<true>().assert("deadlocked").source_callback += source;
     }
 
     /// Attaches `for_each` to this value so that it is invoked each time the
@@ -1201,10 +1364,11 @@ impl<T> Dynamic<T> {
     /// thread.
     #[must_use]
     pub fn create_reader(&self) -> DynamicReader<T> {
-        self.state().expect("deadlocked").readers += 1;
+        let mut state = self.state::<true>().expect("deadlocked");
+        state.readers += 1;
         DynamicReader {
             source: self.0.clone(),
-            read_generation: Mutex::new(self.0.state().expect("deadlocked").wrapped.generation),
+            read_generation: Mutex::new(state.wrapped.generation),
         }
     }
 
@@ -1250,29 +1414,18 @@ impl<T> Dynamic<T> {
         })
     }
 
-    fn lock_inner<const READONLY: bool>(&self) -> DynamicGuard<'_, T, READONLY> {
-        let mut guard = self.0.state().expect("deadlocked");
-        // Before allowing a lock, we need to ensure that the current change
-        // callbacks aren't executing. Otherwise, during drop of this guard, if
-        // we notify of changes from a second thread than one set is already
-        // occuring on, both sets of invocations can end up waiting on each
-        // other and deadlocking. By ensuring a single guard and change
-        // callbacks cycle can exist at any one time, we prevent this deadlock.
-        if !READONLY && guard.callbacks.currently_executing.lock().thread.is_some() {
-            let callbacks = guard.callbacks.clone();
-            guard.unlocked(|| {
-                let current_thread_id = std::thread::current().id();
-                let mut executing = callbacks.currently_executing.lock();
+    fn try_lock_nonblocking<const READONLY: bool>(
+        &self,
+    ) -> Result<DynamicGuard<'_, T, READONLY>, TryLockError> {
+        Ok(DynamicGuard {
+            guard: DynamicOrOwnedGuard::Dynamic(self.0.state_nonblocking()?),
+            accessed_mut: false,
+            prevent_notifications: false,
+        })
+    }
 
-                loop {
-                    match &executing.thread {
-                        Some(th) if th == &current_thread_id => break,
-                        None => break,
-                        Some(_) => callbacks.sync.wait(&mut executing),
-                    };
-                }
-            });
-        }
+    fn lock_inner<const READONLY: bool>(&self) -> DynamicGuard<'_, T, READONLY> {
+        let guard = self.0.state().expect("deadlocked");
         DynamicGuard {
             guard: DynamicOrOwnedGuard::Dynamic(guard),
             accessed_mut: false,
@@ -1280,7 +1433,9 @@ impl<T> Dynamic<T> {
         }
     }
 
-    fn state(&self) -> Result<DynamicMutexGuard<'_, T>, DeadlockError> {
+    fn state<const READONLY: bool>(
+        &self,
+    ) -> Result<DynamicMutexGuard<'_, T, READONLY>, DeadlockError> {
         self.0.state()
     }
 
@@ -1495,19 +1650,19 @@ impl<T> Drop for Dynamic<T> {
         // the only issue is that `on_disconnect` will not fire if during a map
         // callback on a `DynamicReader` the final reference to the source
         // `Dynamic`.
-        if let Ok(mut state) = self.state() {
+        if let Ok(mut state) = self.state::<true>() {
             if Arc::strong_count(&self.0) == state.readers + 1 {
                 let cleanup = state.cleanup();
                 drop(state);
                 drop(cleanup);
 
-                self.0.sync.notify_all();
+                self.0.lock.sync.notify_all();
             }
         } else {
             // In the event that this is the rare edge case and a reader is
             // blocking, we want to signal that we've dropped the final
             // reference.
-            self.0.sync.notify_all();
+            self.0.lock.sync.notify_all();
         }
     }
 }
@@ -1530,12 +1685,13 @@ impl From<String> for Dynamic<String> {
     }
 }
 
-struct DynamicMutexGuard<'a, T> {
+struct DynamicMutexGuard<'a, T, const READONLY: bool> {
     dynamic: &'a DynamicData<T>,
     guard: MutexGuard<'a, State<T>>,
+    released_hold: bool,
 }
 
-impl<T> Debug for DynamicMutexGuard<'_, T>
+impl<T, const READONLY: bool> Debug for DynamicMutexGuard<'_, T, READONLY>
 where
     T: Debug,
 {
@@ -1544,108 +1700,158 @@ where
     }
 }
 
-impl<'a, T> DynamicMutexGuard<'a, T> {
+impl<'a, T, const READONLY: bool> DynamicMutexGuard<'a, T, READONLY> {
     fn unlocked<R>(&mut self, while_unlocked: impl FnOnce() -> R) -> R {
-        let previous_state = self.dynamic.during_callback_state.lock().take();
-        let result = MutexGuard::unlocked(&mut self.guard, while_unlocked);
+        MutexGuard::unlocked(&mut self.guard, || {
+            let mut state = self.dynamic.lock.state.lock();
+            let current_holder = state.lock_holder.take();
+            // let current_executor = state.executing_callbacks.take();
+            drop(state);
+            self.dynamic.lock.sync.notify_all();
+            let result = while_unlocked();
 
-        *self.dynamic.during_callback_state.lock() = previous_state;
-        result
+            let mut state = self.dynamic.lock.state.lock();
+            state.lock_holder = current_holder;
+            result
+        })
+    }
+
+    fn release_hold(&mut self) {
+        self.released_hold = true;
+        self.dynamic.lock.state.lock().lock_holder = None;
+        self.dynamic.lock.sync.notify_all();
     }
 }
 
-impl<'a, T> Drop for DynamicMutexGuard<'a, T> {
+impl<'a, T, const READONLY: bool> Drop for DynamicMutexGuard<'a, T, READONLY> {
     fn drop(&mut self) {
-        let mut during_state = self.dynamic.during_callback_state.lock();
-        *during_state = None;
-        drop(during_state);
-        self.dynamic.sync.notify_all();
+        if !self.released_hold {
+            self.release_hold();
+        }
     }
 }
 
-impl<'a, T> Deref for DynamicMutexGuard<'a, T> {
+impl<'a, T, const READONLY: bool> Deref for DynamicMutexGuard<'a, T, READONLY> {
     type Target = State<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.guard
     }
 }
-impl<'a, T> DerefMut for DynamicMutexGuard<'a, T> {
+impl<'a, T, const READONLY: bool> DerefMut for DynamicMutexGuard<'a, T, READONLY> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.guard
     }
 }
 
-#[derive(Debug)]
-struct LockState {
-    locked_thread: ThreadId,
-}
-
 struct DynamicData<T> {
     state: Mutex<State<T>>,
-    during_callback_state: Mutex<Option<LockState>>,
-    sync: Condvar,
+    lock: Arc<DynamicLockData>,
 }
 
 impl<T> DynamicData<T> {
-    fn state(&self) -> Result<DynamicMutexGuard<'_, T>, DeadlockError> {
-        let mut during_sync = self.during_callback_state.lock();
+    fn state<const READONLY: bool>(
+        &self,
+    ) -> Result<DynamicMutexGuard<'_, T, READONLY>, DeadlockError> {
+        self.state_inner::<_, _, READONLY, true>(|mut already_locked| {
+            already_locked.block();
+            Ok(already_locked)
+        })
+    }
 
+    fn state_nonblocking<'a, const READONLY: bool>(
+        &'a self,
+    ) -> Result<DynamicMutexGuard<'a, T, READONLY>, TryLockError<'a>> {
+        self.state_inner::<_, _, READONLY, false>(|state: AlreadyLocked<'a>| {
+            Err(TryLockError::AlreadyLocked(state))
+        })
+    }
+
+    fn state_inner<'a, E, F, const READONLY: bool, const BLOCKING: bool>(
+        &'a self,
+        mut when_locked: F,
+    ) -> Result<DynamicMutexGuard<'a, T, READONLY>, E>
+    where
+        E: std::fmt::Debug + From<DeadlockError>,
+        F: FnMut(AlreadyLocked<'a>) -> Result<AlreadyLocked<'a>, E>,
+    {
         let current_thread_id = std::thread::current().id();
-        let guard = loop {
-            match self.state.try_lock() {
-                Some(g) => break g,
-                None => loop {
-                    match &*during_sync {
-                        Some(state) if state.locked_thread == current_thread_id => {
-                            return Err(DeadlockError)
-                        }
-                        Some(_) => {
-                            self.sync.wait(&mut during_sync);
-                        }
-                        None => break,
+        let mut lock = self.lock.state.lock();
+        loop {
+            match lock.lock_holder {
+                None => break,
+                Some(holder) if holder == current_thread_id => return Err(DeadlockError.into()),
+                Some(_) => {
+                    let AlreadyLocked { state, .. } = when_locked(AlreadyLocked {
+                        state: lock,
+                        sync: &self.lock.sync,
+                    })?;
+                    lock = state;
+                }
+            }
+        }
+
+        lock.lock_holder = Some(current_thread_id);
+
+        let guard = if BLOCKING {
+            self.state.lock()
+        } else {
+            loop {
+                if let Some(guard) = self.state.try_lock() {
+                    break guard;
+                }
+
+                let AlreadyLocked { state, .. } = match when_locked(AlreadyLocked {
+                    state: lock,
+                    sync: &self.lock.sync,
+                }) {
+                    Ok(locked) => locked,
+                    Err(other) => {
+                        self.lock.state.lock().lock_holder = None;
+                        return Err(other);
                     }
-                },
+                };
+                lock = state;
             }
         };
-        *during_sync = Some(LockState {
-            locked_thread: current_thread_id,
-        });
+        drop(lock);
+
         Ok(DynamicMutexGuard {
             dynamic: self,
             guard,
+            released_hold: false,
         })
     }
 
     pub fn redraw_when_changed(&self, window: WindowHandle) {
-        let mut state = self.state().expect("deadlocked");
+        let mut state = self.state::<true>().expect("deadlocked");
         state.invalidation.windows.insert(window, true);
     }
 
     pub fn sync_when_changed(&self, window: WindowHandle) {
-        let mut state = self.state().expect("deadlocked");
+        let mut state = self.state::<true>().expect("deadlocked");
         state.invalidation.windows.entry(window).or_insert(false);
     }
 
     pub fn invalidate_when_changed(&self, window: WindowHandle, widget: WidgetId) {
-        let mut state = self.state().expect("deadlocked");
+        let mut state = self.state::<true>().expect("deadlocked");
         state.invalidation.widgets.insert((window, widget));
     }
 
     pub fn map_mut<R>(&self, map: impl FnOnce(Mutable<T>) -> R) -> Result<R, DeadlockError> {
-        let mut state = self.state()?;
+        let mut state_guard = self.state::<true>()?;
         let (old, callbacks) = {
-            let state = &mut *state;
+            let state = &mut *state_guard;
             let mut changed = false;
             let result = map(Mutable::new(&mut state.wrapped.value, &mut changed));
-            let callbacks = changed.then(|| state.note_changed());
+            let callbacks = changed.then(|| state_guard.note_changed());
 
             (result, callbacks)
         };
-        drop(state);
-        drop(callbacks);
-
-        self.sync.notify_all();
+        drop(state_guard);
+        if let Some(callbacks) = callbacks {
+            defer_execute_callbacks(callbacks);
+        }
 
         Ok(old)
     }
@@ -1653,10 +1859,10 @@ impl<T> DynamicData<T> {
 
 fn dynamic_for_each<T, F>(this: &Arc<DynamicData<T>>, map: F) -> CallbackHandle
 where
-    F: for<'a> FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
+    F: FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
     T: Send + 'static,
 {
-    let state = this.state().expect("deadlocked");
+    let state = this.state::<true>().expect("deadlocked");
     let mut data = state.callbacks.callbacks.lock();
     CallbackHandle(CallbackHandleInner::Single(CallbackHandleData {
         id: Some(data.callbacks.push(Box::new(map))),
@@ -1676,7 +1882,7 @@ where
     T: Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0.state() {
+        match self.0.state::<true>() {
             Ok(state) => state.debug("Dynamic", f),
             Err(_) => f.debug_tuple("Dynamic").field(&"<unable to lock>").finish(),
         }
@@ -2025,26 +2231,30 @@ where
     }
 }
 
-#[derive(Default)]
-struct ChangeCallbacksExecutor {
-    thread: Option<ThreadId>,
+#[derive(Default, Debug)]
+struct DynamicLockState {
+    lock_holder: Option<ThreadId>,
     callbacks_to_remove: Vec<LotId>,
+}
+
+#[derive(Default, Debug)]
+struct DynamicLockData {
+    state: Mutex<DynamicLockState>,
+    sync: Condvar,
 }
 
 #[derive(Default)]
 struct ChangeCallbacksData {
     callbacks: Mutex<CallbacksList>,
-    currently_executing: Mutex<ChangeCallbacksExecutor>,
-    sync: Condvar,
+    lock: Arc<DynamicLockData>,
 }
 
 impl CallbackCollection for ChangeCallbacksData {
     fn remove(&self, id: LotId) {
-        let mut currently_executing = self.currently_executing.lock();
-        if currently_executing.thread == Some(thread::current().id()) {
-            currently_executing.callbacks_to_remove.push(id);
+        if CallbackExecutor::is_current_thread() {
+            let mut state = self.lock.state.lock();
+            state.callbacks_to_remove.push(id);
         } else {
-            drop(currently_executing);
             let mut data = self.callbacks.lock();
             data.callbacks.remove(id);
         }
@@ -2070,58 +2280,28 @@ struct ChangeCallbacks {
     changed_at: Instant,
 }
 
-impl Drop for ChangeCallbacks {
-    fn drop(&mut self) {
-        let mut currently_executing = self.data.currently_executing.lock();
-        let current_thread = thread::current().id();
-        loop {
-            match &currently_executing.thread {
-                None => {
-                    // No other thread is executing these callbacks. Set this
-                    // thread as the current executor so that we can prevent
-                    // infinite cycles.
-                    currently_executing.thread = Some(current_thread);
-                    drop(currently_executing);
-
-                    // Invoke the callbacks
-                    let mut state = self.data.callbacks.lock();
-                    // If the callbacks have already been invoked by another
-                    // thread such that the callbacks observed the value our
-                    // thread wrote, we can skip the callbacks.
-                    if state.invoked_at < self.changed_at {
-                        state.invoked_at = Instant::now();
-                        // Invoke all callbacks, removing those that report an
-                        // error.
-                        state
-                            .callbacks
-                            .drain_filter(|callback| callback.changed().is_err());
-                    }
-
-                    // Remove ourselves as the current executor, notifying any
-                    // other threads that are waiting.
-                    currently_executing = self.data.currently_executing.lock();
-                    currently_executing.thread = None;
-                    for callback in currently_executing.callbacks_to_remove.drain(..) {
-                        state.callbacks.remove(callback);
-                    }
-                    drop(state);
-                    drop(currently_executing);
-                    self.data.sync.notify_all();
-
-                    return;
-                }
-                Some(executing) if executing == &current_thread => {
-                    // The callbacks are already running, and they triggered
-                    // again. We ignore this rather than trying to continue to
-                    // propagate because this can only be caused by a cycle
-                    // happening during a callback already executing.
-                    return;
-                }
-                Some(_) => {
-                    self.data.sync.wait(&mut currently_executing);
-                }
-            }
+impl ChangeCallbacks {
+    fn execute(self) {
+        // Invoke the callbacks
+        let mut data = self.data.callbacks.lock();
+        // If the callbacks have already been invoked by another
+        // thread such that the callbacks observed the value our
+        // thread wrote, we can skip the callbacks.
+        if data.invoked_at < self.changed_at
+            && execute_callbacks(self.data.lock.clone(), &mut data).is_err()
+        {
+            return;
         }
+
+        // Clean up all callbacks that were disconnected while our callbacks
+        // were locked.
+        let mut state = self.data.lock.state.lock();
+        for callback in state.callbacks_to_remove.drain(..) {
+            data.callbacks.remove(callback);
+        }
+        drop(data);
+        drop(state);
+        self.data.lock.sync.notify_all();
     }
 }
 
@@ -2193,12 +2373,12 @@ impl<T> DerefMut for GenerationalValue<T> {
 }
 
 #[derive(Debug)]
-enum DynamicOrOwnedGuard<'a, T> {
-    Dynamic(DynamicMutexGuard<'a, T>),
+enum DynamicOrOwnedGuard<'a, T, const READONLY: bool> {
+    Dynamic(DynamicMutexGuard<'a, T, READONLY>),
     Owned(RefMut<'a, GenerationalValue<T>>),
     OwnedRef(&'a mut GenerationalValue<T>),
 }
-impl<'a, T> DynamicOrOwnedGuard<'a, T> {
+impl<'a, T, const READONLY: bool> DynamicOrOwnedGuard<'a, T, READONLY> {
     fn note_changed(&mut self) -> Option<ChangeCallbacks> {
         match self {
             Self::Dynamic(guard) => Some(guard.note_changed()),
@@ -2214,7 +2394,7 @@ impl<'a, T> DynamicOrOwnedGuard<'a, T> {
     }
 }
 
-impl<'a, T> Deref for DynamicOrOwnedGuard<'a, T> {
+impl<'a, T, const READONLY: bool> Deref for DynamicOrOwnedGuard<'a, T, READONLY> {
     type Target = GenerationalValue<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -2226,7 +2406,7 @@ impl<'a, T> Deref for DynamicOrOwnedGuard<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for DynamicOrOwnedGuard<'a, T> {
+impl<'a, T, const READONLY: bool> DerefMut for DynamicOrOwnedGuard<'a, T, READONLY> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             Self::Dynamic(guard) => &mut guard.wrapped,
@@ -2242,7 +2422,7 @@ impl<'a, T> DerefMut for DynamicOrOwnedGuard<'a, T> {
 /// notified of a change when this guard is dropped.
 #[derive(Debug)]
 pub struct DynamicGuard<'a, T, const READONLY: bool = false> {
-    guard: DynamicOrOwnedGuard<'a, T>,
+    guard: DynamicOrOwnedGuard<'a, T, READONLY>,
     accessed_mut: bool,
     prevent_notifications: bool,
 }
@@ -2291,7 +2471,9 @@ impl<T, const READONLY: bool> Drop for DynamicGuard<'_, T, READONLY> {
     fn drop(&mut self) {
         if self.accessed_mut && !self.prevent_notifications {
             let callbacks = self.guard.note_changed();
-            self.guard.unlocked(|| drop(callbacks));
+            if let Some(callbacks) = callbacks {
+                defer_execute_callbacks(callbacks);
+            }
         }
     }
 }
@@ -2389,6 +2571,14 @@ impl<T> DynamicReader<T> {
         }
     }
 
+    fn try_lock_nonblocking(&self) -> Result<DynamicGuard<'_, T, true>, TryLockError> {
+        Ok(DynamicGuard {
+            guard: DynamicOrOwnedGuard::Dynamic(self.source.state_nonblocking()?),
+            accessed_mut: false,
+            prevent_notifications: false,
+        })
+    }
+
     /// Returns the current generation that has been accessed through this
     /// reader.
     #[must_use]
@@ -2405,7 +2595,12 @@ impl<T> DynamicReader<T> {
     /// thread.
     #[must_use]
     pub fn has_updated(&self) -> bool {
-        self.source.state().expect("deadlocked").wrapped.generation != self.read_generation()
+        self.source
+            .state::<true>()
+            .expect("deadlocked")
+            .wrapped
+            .generation
+            != self.read_generation()
     }
 
     /// Blocks the current thread until the contained value has been updated or
@@ -2418,13 +2613,9 @@ impl<T> DynamicReader<T> {
     /// This function panics if this value is already locked by the current
     /// thread.
     pub fn block_until_updated(&self) -> bool {
-        assert!(
-            self.source
-                .during_callback_state
-                .lock()
-                .as_ref()
-                .map_or(true, |state| state.locked_thread
-                    != std::thread::current().id()),
+        assert_ne!(
+            self.source.lock.state.lock().lock_holder,
+            Some(std::thread::current().id()),
             "deadlocked"
         );
         let mut state = self.source.state.lock();
@@ -2438,7 +2629,7 @@ impl<T> DynamicReader<T> {
             }
 
             // Wait for a notification of a change, which is synch
-            self.source.sync.wait(&mut state);
+            self.source.lock.sync.wait(&mut state);
         }
     }
 
@@ -2470,7 +2661,7 @@ impl<T> DynamicReader<T> {
     where
         OnDisconnect: FnOnce() + Send + 'static,
     {
-        let mut state = self.source.state().expect("deadlocked");
+        let mut state = self.source.state::<true>().expect("deadlocked");
 
         if let Some(callbacks) = &mut state.on_disconnect {
             callbacks.push(OnceCallback::new(|()| on_disconnect()));
@@ -2506,7 +2697,7 @@ where
 
 impl<T> Clone for DynamicReader<T> {
     fn clone(&self) -> Self {
-        self.source.state().expect("deadlocked").readers += 1;
+        self.source.state::<true>().expect("deadlocked").readers += 1;
         Self {
             source: self.source.clone(),
             read_generation: Mutex::new(self.read_generation()),
@@ -2516,7 +2707,7 @@ impl<T> Clone for DynamicReader<T> {
 
 impl<T> Drop for DynamicReader<T> {
     fn drop(&mut self) {
-        let mut state = self.source.state().expect("deadlocked");
+        let mut state = self.source.state::<true>().expect("deadlocked");
         state.readers -= 1;
     }
 }
@@ -2533,7 +2724,7 @@ impl<'a, T> Future for BlockUntilUpdatedFuture<'a, T> {
     type Output = bool;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let mut state = self.0.source.state().expect("deadlocked");
+        let mut state = self.0.source.state::<true>().expect("deadlocked");
         if state.wrapped.generation != self.0.read_generation() {
             return Poll::Ready(true);
         } else if state.readers == Arc::strong_count(&self.0.source)
@@ -3230,15 +3421,68 @@ macro_rules! impl_tuple_for_each {
         // The list of tuple fields excluding the one being invoked.
         [$($rtype:ident $rfield:tt $rvar:ident),+]
     ) => {
-        $handles += $var.for_each_subsequent((&$for_each, $(&$rvar,)+).with_clone(|(for_each, $($rvar,)+)| {
-            move |$var: &$type| {
-                $(let $rvar = $rvar.read();)+
-                let mut for_each =
-                    for_each.lock();
-                (for_each)(($(&$avar,)+));
+        $handles += $var.on_change_try({
+            let for_each = $for_each.clone();
+            $(let $avar = $avar.clone();)+
+            move || {
+                loop {
+                    let result = 'locks: {
+                        $(let $avar = match $avar.read_nonblocking() {
+                            Ok(guard) => guard,
+                            Err($crate::value::TryLockError::WouldDeadlock) => panic!("Deadlocked"),
+                            Err($crate::value::TryLockError::AlreadyLocked(locked)) => {
+                                break 'locks Err(locked);
+                            }
+                        };)+
+
+                        Ok(($($avar,)+))
+                    };
+                    match result {
+                        Ok(($($avar,)+)) => {
+                            let mut for_each = for_each.lock();
+                            (for_each)(($(&$avar,)+));
+                            return Ok(())
+                        }
+                        Err(mut already_locked) => {
+                            already_locked.block();
+                        }
+                    }
+                }
             }
-        }));
+        });
     };
+}
+
+/// A lock was unable to be acquired.
+#[derive(Debug)]
+pub enum TryLockError<'guard> {
+    /// Attempting to acquire this lock would have resulted in a deadlock.
+    WouldDeadlock,
+    /// The lock is currently acquired.
+    ///
+    /// The returned structure can be used to block the current thread until
+    /// locking can be retried.
+    AlreadyLocked(AlreadyLocked<'guard>),
+}
+
+impl From<DeadlockError> for TryLockError<'_> {
+    fn from(_value: DeadlockError) -> Self {
+        Self::WouldDeadlock
+    }
+}
+
+/// A lock could not be aquired without blocking.
+#[derive(Debug)]
+pub struct AlreadyLocked<'guard> {
+    state: MutexGuard<'guard, DynamicLockState>,
+    sync: &'guard Condvar,
+}
+
+impl AlreadyLocked<'_> {
+    /// Blocks the current thread until the lock state has changed.
+    pub fn block(&mut self) {
+        self.sync.wait(&mut self.state);
+    }
 }
 
 /// Read access to a value stored in a [`Dynamic`].
@@ -3246,17 +3490,33 @@ pub trait DynamicRead<T> {
     /// Returns a guard that provides exclusive, read-only access to the value
     /// contained wihtin this dynamic.
     fn read(&self) -> DynamicGuard<'_, T, true>;
+
+    /// Attempts to obtain a guard that provides exclusive, read-only access to
+    /// the value contained wihtin this dynamic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if blocking would be required to lock this dynamic.
+    fn read_nonblocking(&self) -> Result<DynamicGuard<'_, T, true>, TryLockError>;
 }
 
 impl<T> DynamicRead<T> for Dynamic<T> {
     fn read(&self) -> DynamicGuard<'_, T, true> {
         self.lock_inner()
     }
+
+    fn read_nonblocking(&self) -> Result<DynamicGuard<'_, T, true>, TryLockError> {
+        self.try_lock_nonblocking()
+    }
 }
 
 impl<T> DynamicRead<T> for DynamicReader<T> {
     fn read(&self) -> DynamicGuard<'_, T, true> {
         self.lock()
+    }
+
+    fn read_nonblocking(&self) -> Result<DynamicGuard<'_, T, true>, TryLockError> {
+        self.try_lock_nonblocking()
     }
 }
 
@@ -3994,6 +4254,13 @@ impl Source<usize> for Watcher {
         self.0.try_map_generational(map)
     }
 
+    fn on_change_try<F>(&self, on_change: F) -> CallbackHandle
+    where
+        F: FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.0.on_change_try(on_change)
+    }
+
     fn for_each_subsequent_generational_try<F>(&self, for_each: F) -> CallbackHandle
     where
         F: for<'a> FnMut(DynamicGuard<'_, usize, true>) -> Result<(), CallbackDisconnected>
@@ -4279,26 +4546,81 @@ where
     }
 }
 
-#[test]
-fn map_cycle_is_finite() {
-    crate::initialize_tracing();
-    let a = Dynamic::new(0_usize);
+fn defer_execute_callbacks(callbacks: ChangeCallbacks) {
+    static THREAD_SENDER: Lazy<mpsc::SyncSender<ChangeCallbacks>> = Lazy::new(|| {
+        let (sender, receiver) = mpsc::sync_channel(256);
+        std::thread::spawn(move || CallbackExecutor::new(receiver).run());
+        sender
+    });
+    let _ = THREAD_SENDER.send(callbacks);
+}
 
-    // This callback updates a each time a is updated with a + 1, causing an
-    // infinite cycle if not broken by Cushy.
-    a.for_each_cloned({
-        let a = a.clone();
-        move |current| {
-            a.set(current + 1);
+struct CallbackExecutor {
+    receiver: mpsc::Receiver<ChangeCallbacks>,
+    enqueued: Map<*const ChangeCallbacksData, LotId>,
+    callbacks: Lots<ChangeCallbacks>,
+    queue: VecDeque<LotId>,
+}
+
+impl CallbackExecutor {
+    fn new(receiver: mpsc::Receiver<ChangeCallbacks>) -> Self {
+        Self {
+            receiver,
+            enqueued: Map::new(),
+            callbacks: Lots::new(),
+            queue: VecDeque::new(),
         }
-    })
-    .persist();
+    }
 
-    // Cushy will invoke the callback for the first set call, but the set call
-    // within the callback will not cause the callback to be invoked again.
-    // Thus, we expect setting the value to 1 to result in `a` containing 2.
-    a.set(1);
-    assert_eq!(a.get(), 2);
+    fn run(mut self) {
+        IS_EXECUTOR_THREAD.set(true);
+
+        // Because this is stored in a static, this likely will never return an
+        // error, but if it does, it's during program shutdown, and we can exit safely.
+        while let Ok(callbacks) = self.receiver.recv() {
+            self.enqueue(callbacks);
+            loop {
+                // Exhaust any pending callbacks without blocking.
+                while let Ok(callbacks) = self.receiver.try_recv() {
+                    self.enqueue(callbacks);
+                }
+
+                let Some(callbacks) = self.pop_callbacks() else {
+                    break;
+                };
+                callbacks.execute();
+            }
+        }
+    }
+
+    fn enqueue(&mut self, callbacks: ChangeCallbacks) {
+        match self.enqueued.entry(Arc::as_ptr(&callbacks.data)) {
+            map::Entry::Occupied(id) => {
+                self.callbacks[*id].changed_at =
+                    self.callbacks[*id].changed_at.max(callbacks.changed_at);
+            }
+            map::Entry::Vacant(entry) => {
+                let id = self.callbacks.push(callbacks);
+                entry.insert(id);
+                self.queue.push_back(id);
+            }
+        }
+    }
+
+    fn pop_callbacks(&mut self) -> Option<ChangeCallbacks> {
+        let id = self.queue.pop_front()?;
+        let callbacks = self.callbacks.remove(id)?;
+        self.enqueued.remove(&Arc::as_ptr(&callbacks.data));
+        Some(callbacks)
+    }
+
+    fn is_current_thread() -> bool {
+        IS_EXECUTOR_THREAD.get()
+    }
+}
+
+thread_local! {
+    static IS_EXECUTOR_THREAD: Cell<bool> = const { Cell::new(false) };
 }
 
 #[test]
@@ -4342,12 +4664,17 @@ fn ref_counts() {
 #[test]
 fn linked_short_circuit() {
     let usize = Dynamic::new(0_usize);
+    let usize_reader = usize.create_reader();
     let string = usize.linked_string();
 
     string.map_ref(|s| assert_eq!(s, "0"));
     string.set(String::from("1"));
+    usize_reader.block_until_updated();
     assert_eq!(usize.get(), 1);
+
+    let string_reader = string.create_reader();
     usize.set(2);
+    string_reader.block_until_updated();
     string.map_ref(|s| assert_eq!(s, "2"));
 }
 
@@ -4355,17 +4682,22 @@ fn linked_short_circuit() {
 fn graph_shortcircuit() {
     let a = Dynamic::new(0_usize);
     let doubled = a.map_each_cloned(|a| a * 2);
+    let doubled_reader = doubled.create_reader();
     let quadrupled = doubled.map_each_cloned(|a| a * 2);
+    let quadrupled_reader = quadrupled.create_reader();
     a.set_source(quadrupled.for_each_cloned({
         let a = a.clone();
         move |quad| a.set(quad / 4)
     }));
 
     assert_eq!(a.get(), 0);
-    assert_eq!(quadrupled.get(), 0);
+    assert_eq!(quadrupled_reader.get(), 0);
     a.set(1);
-    assert_eq!(quadrupled.get(), 4);
+    quadrupled_reader.block_until_updated();
+    assert_eq!(doubled_reader.get(), 2);
+    assert_eq!(quadrupled_reader.get(), 4);
     quadrupled.set(16);
+    doubled_reader.block_until_updated();
     assert_eq!(a.get(), 4);
-    assert_eq!(doubled.get(), 8);
+    assert_eq!(doubled_reader.get(), 8);
 }
