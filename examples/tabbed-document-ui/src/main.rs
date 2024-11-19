@@ -1,3 +1,4 @@
+use std::ops::DerefMut;
 use std::path;
 use std::path::PathBuf;
 use futures::{select, StreamExt};
@@ -13,10 +14,11 @@ use cushy::window::{PendingWindow, WindowHandle};
 use cushy::Open;
 use cushy::styles::components::IntrinsicPadding;
 use cushy::styles::Dimension;
+use crate::action::Action;
 use crate::app_tabs::document::DocumentTab;
 use crate::app_tabs::home::HomeTab;
-use crate::app_tabs::new::{NewTab, NewTabMessage};
-use crate::app_tabs::{TabKind, TabKindMessage};
+use crate::app_tabs::new::{KindChoice, NewTab, NewTabAction, NewTabMessage};
+use crate::app_tabs::{TabKind, TabKindAction, TabKindMessage};
 use crate::config::Config;
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
@@ -24,7 +26,7 @@ use crate::documents::image::ImageDocument;
 use crate::documents::text::TextDocument;
 use crate::runtime::{Executor, RunTime};
 use crate::task::{Task};
-use crate::widgets::tab_bar::{TabBar, TabKey, TabMessage};
+use crate::widgets::tab_bar::{TabAction, TabBar, TabKey, TabMessage};
 
 mod config;
 mod widgets;
@@ -33,9 +35,10 @@ mod context;
 mod app_tabs;
 mod documents;
 mod task;
+mod action;
 mod runtime;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug)]
 enum AppMessage {
     None,
     TabMessage(TabMessage<TabKindMessage>),
@@ -49,7 +52,7 @@ impl Default for AppMessage {
 }
 
 struct AppState {
-    tab_bar: Dynamic<TabBar<TabKind, TabKindMessage>>,
+    tab_bar: Dynamic<TabBar<TabKind, TabKindMessage, TabKindAction>>,
     config: Dynamic<Config>,
     context: Dynamic<Context>,
 
@@ -71,7 +74,8 @@ fn main(app: &mut App) -> cushy::Result {
             loop {
                 select! {
                     received_message = receiver.select_next_some() => {
-                        message.set(received_message);
+                        println!("received message: {:?}", received_message);
+                        message.force_set(received_message);
                     }
                 }
             }
@@ -89,7 +93,7 @@ fn main(app: &mut App) -> cushy::Result {
     tab_message.for_each_cloned({
         let message = message.clone();
         move |tab_message|{
-            message.set(AppMessage::TabMessage(tab_message));
+            message.force_set(AppMessage::TabMessage(tab_message));
         }
     })
         .persist();
@@ -116,7 +120,7 @@ fn main(app: &mut App) -> cushy::Result {
     toolbar_message.for_each_cloned({
         let message = message.clone();
         move |toolbar_message|{
-            message.set(AppMessage::ToolBarMessage(toolbar_message));
+            message.force_set(AppMessage::ToolBarMessage(toolbar_message));
         }
     })
         .persist();
@@ -158,8 +162,6 @@ fn main(app: &mut App) -> cushy::Result {
             let config = dyn_app_state.lock().config.clone();
             let documents = dyn_app_state.lock().documents.clone();
             move ||{
-                // TODO update the list of open documents
-
                 update_open_documents(&config, &documents);
 
                 let config = config.lock();
@@ -197,9 +199,10 @@ impl AppState {
         match message {
             AppMessage::None => Task::none(),
             AppMessage::TabMessage(message) => {
-                self.tab_bar.lock()
-                    .update(&self.context, message)
-                    .map(|message|AppMessage::TabMessage(message))
+                let action = self.tab_bar.lock()
+                    .update(&self.context, message);
+
+                self.on_tab_action(action)
             }
             AppMessage::ToolBarMessage(message) => {
                 self
@@ -271,12 +274,12 @@ impl AppState {
         let new_tab_message: Dynamic<NewTabMessage> = Dynamic::default();
 
         let tab_key = self.tab_bar.lock()
-            .add_tab(&self.context, TabKind::New(NewTab::new(new_tab_message.clone())), ||{});
+            .add_tab(&self.context, TabKind::New(NewTab::new(new_tab_message.clone())));
 
         new_tab_message.for_each_cloned({
             let message = self.message.clone();
             move |new_tab_message|{
-                message.set(
+                message.force_set(
                     AppMessage::TabMessage(
                         TabMessage::TabKindMessage(
                             tab_key,
@@ -290,6 +293,75 @@ impl AppState {
 
     }
 
+    fn on_tab_action(&mut self, action: Action<TabAction<TabKindAction, TabKind>>) -> Task<AppMessage> {
+        let action = action.into_inner();
+
+        match action {
+            TabAction::TabSelected(tab_key) => todo!(),
+            TabAction::TabClosed(tab_key, tab) => {
+                match tab {
+                    TabKind::Home(tab) => (),
+                    TabKind::Document(tab) => {
+                        self.documents.lock().remove(tab.document_key);
+                    }
+                    TabKind::New(tab) => ()
+                }
+
+                Task::none()
+            },
+            TabAction::TabAction(tab_key, tab_action) => {
+                match tab_action {
+                    TabKindAction::HomeTabAction(_, _) => todo!(),
+                    TabKindAction::DocumentTabAction(_, _) => todo!(),
+                    TabKindAction::NewTabAction(tab_key, action) => {
+                        match action {
+                            NewTabAction::None => Task::none(),
+                            NewTabAction::CreateDocument(name, path, kind) => {
+                                self.create_document(tab_key, name, path, kind)
+                            }
+                            NewTabAction::Task(task) => {
+                                task.map(move |message|{
+                                    AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::NewTabMessage(message)))
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+            TabAction::None => Task::none(),
+        }
+    }
+
+    fn create_document(&self, tab_key: TabKey, mut name: String, mut path: PathBuf, kind: KindChoice) -> Task<AppMessage> {
+        println!("kind: {:?}, name: {:?}, path: {:?}", kind, name, path);
+
+        match kind {
+            KindChoice::Text => {
+                name.push_str(".txt");
+                path.push(&name);
+
+                let document = DocumentKind::TextDocument(TextDocument::new(path.clone()));
+
+                let document_key = self.documents.lock().insert(document);
+                let document_tab = DocumentTab::new(document_key);
+
+                self.tab_bar.lock().replace(tab_key, &self.context, TabKind::Document(document_tab));
+            }
+            KindChoice::Image => {
+                name.push_str(".png");
+                path.push(&name);
+
+                let document = DocumentKind::ImageDocument(ImageDocument::new(path.clone()));
+
+                let document_key = self.documents.lock().insert(document);
+                let document_tab = DocumentTab::new(document_key);
+
+                self.tab_bar.lock().replace(tab_key, &self.context, TabKind::Document(document_tab));
+            }
+        }
+
+        Task::none()
+    }
 }
 
 fn update_open_documents(config: &Dynamic<Config>, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>) {
@@ -320,7 +392,7 @@ const SUPPORTED_TEXT_EXTENSIONS: [&'static str; 1] = ["txt"];
 fn open_document(
     context: &Dynamic<Context>,
     documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>,
-    tab_bar: &Dynamic<TabBar<TabKind, TabKindMessage>>,
+    tab_bar: &Dynamic<TabBar<TabKind, TabKindMessage, TabKindAction>>,
     path: PathBuf
 ) -> Result<(), OpenDocumentError> {
     println!("open_document. path: {:?}", path);
@@ -351,23 +423,17 @@ fn open_document(
     Ok(())
 }
 
-fn make_document_tab(context: &Dynamic<Context>, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>, tab_bar: &Dynamic<TabBar<TabKind, TabKindMessage>>, document: DocumentKind) -> TabKey {
+fn make_document_tab(context: &Dynamic<Context>, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>, tab_bar: &Dynamic<TabBar<TabKind, TabKindMessage, TabKindAction>>, document: DocumentKind) -> TabKey {
     let document_key = documents.lock().insert(document);
 
     let document_tab = DocumentTab::new(document_key);
 
     let mut tab_bar_guard = tab_bar.lock();
-    let tab_key = tab_bar_guard.add_tab(context, TabKind::Document(document_tab), {
-        let documents = documents.clone();
-        let document_key = document_key.clone();
-        move || {
-            documents.lock().remove(document_key);
-        }
-    });
+    let tab_key = tab_bar_guard.add_tab(context, TabKind::Document(document_tab));
     tab_key
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum ToolbarMessage {
     None,
     OpenClicked,
@@ -390,7 +456,7 @@ fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>) -> Stack {
         .into_button()
         .on_click({
             let message = toolbar_message.clone();
-            move |_event| message.set(ToolbarMessage::HomeClicked)
+            move |_event| message.force_set(ToolbarMessage::HomeClicked)
         })
         .with(&IntrinsicPadding, button_padding);
 
@@ -398,7 +464,7 @@ fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>) -> Stack {
         .into_button()
         .on_click({
             let message = toolbar_message.clone();
-            move |_event| message.set(ToolbarMessage::NewClicked)
+            move |_event| message.force_set(ToolbarMessage::NewClicked)
         })
         .with(&IntrinsicPadding, button_padding);
 
@@ -406,7 +472,7 @@ fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>) -> Stack {
         .into_button()
         .on_click({
             let message = toolbar_message.clone();
-            move |_event| message.set(ToolbarMessage::OpenClicked)
+            move |_event| message.force_set(ToolbarMessage::OpenClicked)
         })
         .with(&IntrinsicPadding, button_padding);
 
@@ -415,7 +481,7 @@ fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>) -> Stack {
         .into_button()
         .on_click({
             let message = toolbar_message.clone();
-            move |_event| message.set(ToolbarMessage::CloseAllClicked)
+            move |_event| message.force_set(ToolbarMessage::CloseAllClicked)
         })
         .with(&IntrinsicPadding, button_padding);
 
@@ -432,7 +498,7 @@ fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>) -> Stack {
     toolbar
 }
 
-fn add_home_tab(context: &Dynamic<Context>, tab_bar: &Dynamic<TabBar<TabKind, TabKindMessage>>) {
+fn add_home_tab(context: &Dynamic<Context>, tab_bar: &Dynamic<TabBar<TabKind, TabKindMessage, TabKindAction>>) {
     let mut tab_bar_guard = tab_bar
         .lock();
 
@@ -449,7 +515,7 @@ fn add_home_tab(context: &Dynamic<Context>, tab_bar: &Dynamic<TabBar<TabKind, Ta
         tab_bar_guard.activate(key);
     } else {
         tab_bar_guard
-            .add_tab(context, TabKind::Home(HomeTab::default()), ||{});
+            .add_tab(context, TabKind::Home(HomeTab::default()));
     }
 }
 

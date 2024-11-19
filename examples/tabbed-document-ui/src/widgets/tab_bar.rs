@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::default::Default;
 use std::hash::Hash;
+use std::marker::PhantomData;
 use slotmap::{new_key_type, SlotMap};
 use cushy::figures::units::Px;
 use cushy::styles::{Color, CornerRadii, Dimension, Edges};
@@ -12,10 +13,10 @@ use cushy::widgets::{Expand, Space, Stack};
 use cushy::widgets::button::{ButtonActiveBackground, ButtonActiveForeground, ButtonBackground, ButtonForeground, ButtonHoverForeground};
 use cushy::widgets::label::Displayable;
 use cushy::widgets::select::SelectedColor;
+use crate::action::Action;
 use crate::context::Context;
-use crate::task::Task;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum TabMessage<TKM> {
     None,
     TabClosed(TabKey),
@@ -28,20 +29,26 @@ impl<TKM> Default for TabMessage<TKM> {
     }
 }
 
-pub trait Tab<TKM> {
+pub enum TabAction<TKA, TK> {
+    TabSelected(TabKey),
+    TabClosed(TabKey, TK),
+    TabAction(TabKey, TKA),
+    None,
+}
+
+pub trait Tab<TKM, TKA> {
     fn label(&self, context: &Dynamic<Context>) -> String;
     fn make_content(&self, context: &Dynamic<Context>, tab_key: TabKey) -> WidgetInstance;
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: TKM) -> Task<TKM>;
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: TKM) -> Action<TKA>;
 }
 
 struct TabState<TK> {
     tab: TK,
     widget: Dynamic<WidgetInstance>,
     label: Dynamic<String>,
-    on_close: Box<dyn 'static + Send + Fn()>,
 }
 
-pub struct TabBar<TK, TKM>
+pub struct TabBar<TK, TKM, TKA>
 {
     /// holds the actual tab instances and activation state which includes the tab's content widget instance
     tabs: Dynamic<SlotMap<TabKey, TabState<TK>>>,
@@ -58,13 +65,14 @@ pub struct TabBar<TK, TKM>
 
     /// a message which is updated when interactions occur.
     message: Dynamic<TabMessage<TKM>>,
+    _action: PhantomData<TKA>
 }
 
 new_key_type! {
     pub struct TabKey;
 }
 
-impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> TabBar<TK, TKM> {
+impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBar<TK, TKM, TKA> {
     pub fn new(message: &Dynamic<TabMessage<TKM>>) -> Self {
         let tabs: Dynamic<SlotMap<TabKey, TabState<TK>>> = Dynamic::default();
         let active: Dynamic<Option<TabKey>> = Dynamic::new(None);
@@ -95,6 +103,7 @@ impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> Tab
             active,
             history: RefCell::new(Vec::new()),
             message: message.clone(),
+            _action: Default::default(),
         }
     }
 
@@ -124,9 +133,7 @@ impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> Tab
         }
     }
 
-    pub fn add_tab<F>(&mut self, context: &Dynamic<Context>, tab: TK, on_close: F) -> TabKey
-    where
-        F: 'static + Send + Fn(),
+    pub fn add_tab(&mut self, context: &Dynamic<Context>, tab: TK) -> TabKey
     {
 
         let tab_key = self.tabs.lock().insert_with_key(|tab_key| {
@@ -134,13 +141,10 @@ impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> Tab
 
             let tab_content = tab.make_content(context, tab_key);
 
-            let on_close_handler = Box::new(on_close);
-
             let tab_state = TabState {
                 tab,
                 label: Dynamic::new(tab_label),
                 widget: Dynamic::new(tab_content),
-                on_close: on_close_handler,
             };
 
             tab_state
@@ -154,9 +158,7 @@ impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> Tab
         let close_button = "X".into_button()
             .on_click({
                 let message = self.message.clone();
-                move |_event|{
-                    message.set(TabMessage::TabClosed(tab_key));
-                }
+                move |_event| message.force_set(TabMessage::TabClosed(tab_key))
             })
             .with(&ButtonForeground, Color::LIGHTGRAY)
             .with(&ButtonBackground, Color::CLEAR_BLACK)
@@ -228,17 +230,11 @@ impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> Tab
         self.tab_buttons.lock().clear();
         self.tab_button_keys.clear();
 
-        for (_key, tab_state) in self.tabs.lock().drain() {
-            (tab_state.on_close)();
-        }
+        self.tabs.lock().clear();
         self.history.borrow_mut().clear();
     }
 
-    pub fn close_tab(&mut self, tab_key: TabKey) {
-
-        if let Some(tab_state) = self.tabs.lock().get(tab_key) {
-            (tab_state.on_close)();
-        }
+    pub fn close_tab(&mut self, tab_key: TabKey) -> TK {
 
         println!("closing tab. tab_key: {:?}", tab_key);
 
@@ -288,7 +284,9 @@ impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> Tab
 
         self.tab_buttons.replace(new_widgets);
 
-        let _ = self.tabs.lock().remove(tab_key).expect(format!("should be able to remove tab. key: {:?}", tab_key).as_str());
+        let tk = self.tabs.lock().remove(tab_key).expect(format!("should be able to remove tab. key: {:?}", tab_key).as_str());
+
+        tk.tab
     }
 
     pub fn make_widget(&self) -> WidgetInstance {
@@ -320,7 +318,7 @@ impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> Tab
 
     pub fn with_tabs<R, F>(&self, f: F) -> R
     where
-        F: Fn(TabsIter<'_, TK, TKM>) -> R
+        F: Fn(TabsIter<'_, TK, TKM, TKA>) -> R
     {
         let iter = self.into_iter();
         f(iter)
@@ -330,32 +328,34 @@ impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> Tab
         let _previously_active = self.active.lock().replace(tab_key);
     }
 
-    pub fn update(&mut self, context: &Dynamic<Context>, message: TabMessage<TKM>) -> Task<TabMessage<TKM>> {
+    pub fn update(&mut self, context: &Dynamic<Context>, message: TabMessage<TKM>) -> Action<TabAction<TKA, TK>> {
         match message {
-            TabMessage::None => Task::none(),
+            TabMessage::None => Action::new(TabAction::None),
             TabMessage::TabClosed(tab_key) => {
-                self.close_tab(tab_key);
-                Task::none()
+                let tab = self.close_tab(tab_key);
+                Action::new(TabAction::TabClosed(tab_key, tab))
             },
             TabMessage::TabKindMessage(tab_key, tab_kind_message) => {
                 let mut guard = self.tabs.lock();
                 let tab_state = guard.get_mut(tab_key).unwrap();
-                tab_state.tab
+                let action = tab_state.tab
                     .update(context, tab_key, tab_kind_message)
-                    .map(move |message|TabMessage::TabKindMessage(tab_key, message))
+                    .map(move |action|TabAction::TabAction(tab_key, action));
+
+                action
             }
         }
     }
 }
 
-pub struct TabsIter<'a, TK, TKM> {
-    tab_bar: &'a TabBar<TK, TKM>,
+pub struct TabsIter<'a, TK, TKM, TKA> {
+    tab_bar: &'a TabBar<TK, TKM, TKA>,
     keys: Vec<TabKey>,
     index: usize,
 }
 
-impl<'a, TK, TKM> TabsIter<'a, TK, TKM> {
-    pub fn new(tab_bar: &'a TabBar<TK, TKM>) -> Self {
+impl<'a, TK, TKM, TKA> TabsIter<'a, TK, TKM, TKA> {
+    pub fn new(tab_bar: &'a TabBar<TK, TKM, TKA>) -> Self {
         let keys = tab_bar.tabs.lock().keys().collect();
 
         Self {
@@ -366,7 +366,7 @@ impl<'a, TK, TKM> TabsIter<'a, TK, TKM> {
     }
 }
 
-impl<'a, TK: Clone, TKM> Iterator for TabsIter<'a, TK, TKM> {
+impl<'a, TK: Clone, TKM, TKA> Iterator for TabsIter<'a, TK, TKM, TKA> {
     type Item = (TabKey, TK);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -388,9 +388,9 @@ impl<'a, TK: Clone, TKM> Iterator for TabsIter<'a, TK, TKM> {
     }
 }
 
-impl<'a, TK: Clone, TKM> IntoIterator for &'a TabBar<TK, TKM> {
+impl<'a, TK: Clone, TKM, TKA> IntoIterator for &'a TabBar<TK, TKM, TKA> {
     type Item = (TabKey, TK);
-    type IntoIter = TabsIter<'a, TK, TKM>;
+    type IntoIter = TabsIter<'a, TK, TKM, TKA>;
 
     fn into_iter(self) -> Self::IntoIter {
         TabsIter::new(
