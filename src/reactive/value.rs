@@ -632,15 +632,24 @@ pub trait Destination<T> {
     /// "noisy". Cushy attempts to minimize noise by only invoking callbacks
     /// when the value has changed, and it detects this by using `PartialEq`.
     ///
-    /// However, not all types implement `PartialEq`.
-    /// [`map_mut()`](Self::map_mut) does not require `PartialEq`, and will
-    /// invoke change callbacks after accessing exclusively.
+    /// However, not all types implement `PartialEq`. See [`force_set()`](Self::force_set).
     fn set(&self, new_value: T)
     where
         T: PartialEq,
     {
         let _old = self.replace(new_value);
     }
+
+    /// Stores `new_value` in this dynamic without checking for equality.
+    ///
+    /// Before returning from this function, all observers will be notified
+    /// that the contents have been updated.
+    fn force_set(&self, new_value: T) {
+        self.map_mut(|mut old_value|{
+            let _old_value = std::mem::replace(&mut *old_value, new_value);
+        });
+    }
+
 
     /// Replaces the current value with `new_value` if the current value is
     /// equal to `expected_current`.
