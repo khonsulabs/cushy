@@ -625,10 +625,6 @@ pub trait Destination<T> {
     /// Stores `new_value` in this dynamic. Before returning from this function,
     /// all observers will be notified that the contents have been updated.
     ///
-    /// If the calling thread has exclusive access to the contents of this
-    /// dynamic, this call will return None and the value will not be updated.
-    /// If detecting this is important, use [`Self::try_replace()`].
-    ///
     /// # Setting a new value without `PartialEq`
     ///
     /// This function requires that the contained type implements `PartialEq`.
