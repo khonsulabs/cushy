@@ -5,10 +5,21 @@ use crate::config::Config;
 use crate::context::Context;
 use crate::widgets::tab_bar::{Tab, TabKey};
 
+#[derive(Clone, PartialEq)]
+pub enum HomeTabMessage {
+    None,
+}
+
+impl Default for HomeTabMessage {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct HomeTab {}
 
-impl Tab for HomeTab {
+impl Tab<HomeTabMessage> for HomeTab {
     fn label(&self, _context: &Dynamic<Context>) -> String {
         "Home".to_string()
     }
@@ -46,5 +57,9 @@ impl Tab for HomeTab {
                 .make_widget()
 
         }).unwrap()
+    }
+
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: HomeTabMessage) -> () {
+        todo!()
     }
 }
