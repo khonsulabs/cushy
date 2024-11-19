@@ -13,6 +13,7 @@ use cushy::widgets::button::{ButtonActiveBackground, ButtonActiveForeground, But
 use cushy::widgets::label::Displayable;
 use cushy::widgets::select::SelectedColor;
 use crate::context::Context;
+use crate::task::Task;
 
 #[derive(Clone, PartialEq)]
 pub enum TabMessage<TKM> {
@@ -30,7 +31,7 @@ impl<TKM> Default for TabMessage<TKM> {
 pub trait Tab<TKM> {
     fn label(&self, context: &Dynamic<Context>) -> String;
     fn make_content(&self, context: &Dynamic<Context>, tab_key: TabKey) -> WidgetInstance;
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: TKM) -> ();
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: TKM) -> Task<TKM>;
 }
 
 struct TabState<TK> {
@@ -316,14 +317,19 @@ impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> Tab
         let _previously_active = self.active.lock().replace(tab_key);
     }
 
-    pub fn update(&mut self, context: &Dynamic<Context>, message: TabMessage<TKM>) {
+    pub fn update(&mut self, context: &Dynamic<Context>, message: TabMessage<TKM>) -> Task<TabMessage<TKM>> {
         match message {
-            TabMessage::TabClosed(tab_key) => self.close_tab(tab_key),
-            TabMessage::None => {}
+            TabMessage::None => Task::none(),
+            TabMessage::TabClosed(tab_key) => {
+                self.close_tab(tab_key);
+                Task::none()
+            },
             TabMessage::TabKindMessage(tab_key, tab_kind_message) => {
                 let mut guard = self.tabs.lock();
                 let tab_state = guard.get_mut(tab_key).unwrap();
-                tab_state.tab.update(context, tab_key, tab_kind_message);
+                tab_state.tab
+                    .update(context, tab_key, tab_kind_message)
+                    .map(move |message|TabMessage::TabKindMessage(tab_key, message))
             }
         }
     }

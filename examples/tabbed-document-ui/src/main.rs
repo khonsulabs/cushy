@@ -1,5 +1,6 @@
 use std::path;
 use std::path::PathBuf;
+use futures::{select, StreamExt};
 use slotmap::SlotMap;
 use thiserror::Error;
 use cushy::figures::units::{Lp, Px};
@@ -21,6 +22,8 @@ use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
 use crate::documents::image::ImageDocument;
 use crate::documents::text::TextDocument;
+use crate::runtime::{Executor, RunTime};
+use crate::task::{Task};
 use crate::widgets::tab_bar::{TabBar, TabKey, TabMessage};
 
 mod config;
@@ -29,6 +32,8 @@ mod global_context;
 mod context;
 mod app_tabs;
 mod documents;
+mod task;
+mod runtime;
 
 #[derive(Clone, PartialEq)]
 enum AppMessage {
@@ -55,10 +60,27 @@ struct AppState {
 #[cushy::main]
 fn main(app: &mut App) -> cushy::Result {
 
+    let message: Dynamic<AppMessage> = Dynamic::default();
+
+    let (sender, mut receiver) = futures::channel::mpsc::unbounded();
+
+    let executor = Executor::new().expect("should be able to create an executor");
+    executor.spawn({
+        let message = message.clone();
+        async move {
+            loop {
+                select! {
+                    received_message = receiver.select_next_some() => {
+                        message.set(received_message);
+                    }
+                }
+            }
+        }
+    });
+    let mut runtime = RunTime::new(executor, sender);
+
     let pending = PendingWindow::default();
     let window = pending.handle();
-
-    let message: Dynamic<AppMessage> = Dynamic::default();
 
     let config = Dynamic::new(config::load());
     let documents = Dynamic::new(SlotMap::default());
@@ -112,7 +134,11 @@ fn main(app: &mut App) -> cushy::Result {
         .for_each_cloned({
             let dyn_app_state = dyn_app_state.clone();
             move |message|{
-                dyn_app_state.lock().update(message);
+                let task = dyn_app_state.lock().update(message);
+
+                if let Some(stream) = task::into_stream(task) {
+                    runtime.run(stream);
+                }
             }
         })
         .persist();
@@ -167,19 +193,23 @@ fn main(app: &mut App) -> cushy::Result {
 }
 
 impl AppState {
-    fn update(&mut self, message: AppMessage) {
+    fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
         match message {
-            AppMessage::None => {}
+            AppMessage::None => Task::none(),
             AppMessage::TabMessage(message) => {
-                self.tab_bar.lock().update(&self.context, message);
+                self.tab_bar.lock()
+                    .update(&self.context, message)
+                    .map(|message|AppMessage::TabMessage(message))
             }
             AppMessage::ToolBarMessage(message) => {
-                self.on_toolbar_message(message);
+                self
+                    .on_toolbar_message(message)
+                    .map(|message|AppMessage::ToolBarMessage(message))
             }
         }
     }
 
-    fn on_toolbar_message(&self, message: ToolbarMessage) {
+    fn on_toolbar_message(&self, message: ToolbarMessage) -> Task<ToolbarMessage> {
         match message {
             ToolbarMessage::None => {}
             ToolbarMessage::HomeClicked => {
@@ -190,7 +220,7 @@ impl AppState {
             ToolbarMessage::NewClicked => {
                 println!("New clicked");
 
-                self.add_new_tab()
+                self.add_new_tab();
             }
             ToolbarMessage::OpenClicked => {
 
@@ -232,6 +262,8 @@ impl AppState {
                 self.tab_bar.lock().close_all();
             }
         }
+
+        Task::none()
     }
 
     fn add_new_tab(&self) {
@@ -239,7 +271,7 @@ impl AppState {
         let new_tab_message: Dynamic<NewTabMessage> = Dynamic::default();
 
         let tab_key = self.tab_bar.lock()
-            .add_tab(&self.context, TabKind::New(NewTab::default()), ||{});
+            .add_tab(&self.context, TabKind::New(NewTab::new(new_tab_message.clone())), ||{});
 
         new_tab_message.for_each_cloned({
             let message = self.message.clone();

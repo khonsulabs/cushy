@@ -3,6 +3,7 @@ use cushy::value::Dynamic;
 use cushy::widget::WidgetInstance;
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
+use crate::task::Task;
 use crate::widgets::tab_bar::{Tab, TabKey};
 
 #[derive(Clone, PartialEq)]
@@ -59,7 +60,7 @@ impl Tab<DocumentTabMessage> for DocumentTab {
         }).unwrap()
     }
 
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: DocumentTabMessage) -> () {
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: DocumentTabMessage) -> Task<DocumentTabMessage> {
         todo!()
     }
 }
