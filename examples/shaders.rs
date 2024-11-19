@@ -48,7 +48,7 @@ impl SimpleRenderOperation for TriangleShader {
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
                     buffers: &[],
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
@@ -57,7 +57,7 @@ impl SimpleRenderOperation for TriangleShader {
                 multisample: graphics.multisample_state(),
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
-                    entry_point: "fs_main",
+                    entry_point: Some("fs_main"),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets: &[Some(graphics.texture_format().into())],
                 }),

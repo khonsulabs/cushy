@@ -27,7 +27,7 @@ native-dialogs = ["dep:rfd"]
 kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
     "app",
 ] }
-figures = { version = "0.4.3" }
+figures = { version = "0.5.0" }
 alot = "0.3.2"
 interner = "0.2.1"
 kempt = "0.2.1"
@@ -45,7 +45,7 @@ cushy-macros = { version = "0.4.0", path = "cushy-macros" }
 arboard = "3.2.1"
 zeroize = "1.6.1"
 unicode-segmentation = "1.10.1"
-pollster = "0.3.0"
+pollster = "0.4.0"
 png = "0.17.10"
 image = { version = "0.25.0", features = ["png"] }
 plotters = { version = "0.3.7", default-features = false, optional = true }
