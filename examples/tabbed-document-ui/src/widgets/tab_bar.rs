@@ -210,6 +210,19 @@ impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> Tab
         tab_key
     }
 
+    pub fn find_tab_by_label(&self, label: &str) -> Option<TabKey> {
+        let tabs = self.tabs.lock();
+
+        tabs.iter().find_map(|(tab_key, tab_state)| {
+            if tab_state.label.get().eq(label) {
+                Some(tab_key)
+            } else {
+                None
+            }
+        })
+    }
+
+
     pub fn close_all(&mut self) {
         self.active.set(None);
         self.tab_buttons.lock().clear();
