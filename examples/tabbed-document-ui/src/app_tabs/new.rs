@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use slotmap::SlotMap;
 use cushy::dialog::FilePicker;
 use cushy::figures::units::Px;
 use cushy::styles::components::IntrinsicPadding;
@@ -9,26 +8,27 @@ use cushy::widgets::{Button, Grid, Input, Space};
 use cushy::widgets::grid::{GridDimension, GridWidgets};
 use cushy::widgets::label::Displayable;
 use cushy::window::WindowHandle;
-use crate::app_tabs::document::{DocumentTab, DocumentTabMessage};
-use crate::app_tabs::{TabKind, TabKindMessage};
+use crate::action::Action;
 use crate::context::Context;
-use crate::documents::{DocumentKey, DocumentKind};
-use crate::documents::image::ImageDocument;
-use crate::documents::text::TextDocument;
 use crate::task::Task;
-use crate::widgets::tab_bar::{Tab, TabBar, TabKey};
+use crate::widgets::tab_bar::{Tab, TabKey};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum NewTabMessage {
     None,
     OkClicked,
-    OkClickedOnValidForm,
 }
 
 impl Default for NewTabMessage {
     fn default() -> Self {
         Self::None
     }
+}
+
+pub enum NewTabAction {
+    None,
+    CreateDocument(String, PathBuf, KindChoice),
+    Task(Task<NewTabMessage>),
 }
 
 #[derive(Default, Eq, PartialEq, Debug, Clone, Copy)]
@@ -56,7 +56,7 @@ impl NewTab {
     }
 }
 
-impl Tab<NewTabMessage> for NewTab {
+impl Tab<NewTabMessage, NewTabAction> for NewTab {
     fn label(&self, _context: &Dynamic<Context>) -> String {
         "New".to_string()
     }
@@ -174,7 +174,7 @@ impl Tab<NewTabMessage> for NewTab {
         let ok_button = "Ok".into_button()
             .on_click({
                 let message = self.message.clone();
-                move |_event| message.set(NewTabMessage::OkClicked)
+                move |_event| message.force_set(NewTabMessage::OkClicked)
             });
 
         let form = grid
@@ -195,79 +195,21 @@ impl Tab<NewTabMessage> for NewTab {
             .make_widget()
     }
 
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: NewTabMessage) -> Task<NewTabMessage> {
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: NewTabMessage) -> Action<NewTabAction> {
 
-        let documents = context.lock().with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
-            documents.clone()
-        }).unwrap();
-
-        let tab_bar = context.lock().with_context::<Dynamic<TabBar<TabKind, TabKindMessage>>, _, _>(|tab_bar| {
-            tab_bar.clone()
-        }).unwrap();
-
-        match message {
-            NewTabMessage::None => Task::none(),
+        let action = match message {
+            NewTabMessage::None => NewTabAction::None,
             NewTabMessage::OkClicked => {
                 if self.validations.is_valid() {
-                    Task::done(NewTabMessage::OkClickedOnValidForm)
+                    NewTabAction::CreateDocument(self.name.get(), self.directory.get(), self.kind.get().unwrap())
                 } else {
-                    Task::none()
+                    NewTabAction::None
                 }
             }
-            NewTabMessage::OkClickedOnValidForm => {
-                Task::future({
-                    let documents = documents.clone();
-                    let tab_bar = tab_bar.clone();
-                    let context = context.clone();
-                    let kind = self.kind.clone();
-                    let name = self.name.clone();
-                    let directory = self.directory.clone();
-
-                    async move {
-                        let kind = kind.get();
-                        let mut name = name.get();
-                        let mut path = directory.get();
-
-                        println!("kind: {:?}, name: {:?}, path: {:?}", kind, name, path);
-
-                        match kind.unwrap() {
-                            KindChoice::Text => {
-                                name.push_str(".txt");
-                                path.push(&name);
-
-                                let document = DocumentKind::TextDocument(TextDocument::new(path.clone()));
-
-                                let document_key = documents.lock().insert(document);
-                                let document_tab = DocumentTab::new(document_key);
-
-                                tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
-                            }
-                            KindChoice::Image => {
-                                name.push_str(".png");
-                                path.push(&name);
-
-                                let document = DocumentKind::ImageDocument(ImageDocument::new(path.clone()));
-
-                                let document_key = documents.lock().insert(document);
-                                let document_tab = DocumentTab::new(document_key);
-
-                                tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
-                            }
-                        }
-
-                        // FIXME this not correct now since the tab has been replaced with a different type of TabKind and will
-                        //       result in a panic when the message is processed.
-                        NewTabMessage::None
-                        //       we cannot do this, due to the return type:
-                        // DocumentTabMessage::None
-
-                        // So it seems that all this code needs to be moved up a layer so that the 'new' tab knows
-                        // nothing about 'documents' or the 'tab_bar'
-                    }
-                })
+        };
 
 
-            }
-        }
+
+        Action::new(action)
     }
 }

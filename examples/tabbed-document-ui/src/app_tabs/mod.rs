@@ -2,11 +2,11 @@
 
 use cushy::value::Dynamic;
 use cushy::widget::{WidgetInstance};
-use crate::app_tabs::document::{DocumentTab, DocumentTabMessage};
-use crate::app_tabs::home::{HomeTab, HomeTabMessage};
-use crate::app_tabs::new::{NewTab, NewTabMessage};
+use crate::action::Action;
+use crate::app_tabs::document::{DocumentTab, DocumentTabAction, DocumentTabMessage};
+use crate::app_tabs::home::{HomeTab, HomeTabAction, HomeTabMessage};
+use crate::app_tabs::new::{NewTab, NewTabAction, NewTabMessage};
 use crate::context::Context;
-use crate::task::Task;
 use crate::widgets::tab_bar::{Tab, TabKey};
 
 pub mod document;
@@ -20,15 +20,20 @@ pub enum TabKind {
     New(NewTab),
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum TabKindMessage {
     HomeTabMessage(HomeTabMessage),
     DocumentTabMessage(DocumentTabMessage),
     NewTabMessage(NewTabMessage),
 }
 
+pub enum TabKindAction {
+    HomeTabAction(TabKey, HomeTabAction),
+    DocumentTabAction(TabKey, DocumentTabAction),
+    NewTabAction(TabKey, NewTabAction),
+}
 
-impl Tab<TabKindMessage> for TabKind {
+impl Tab<TabKindMessage, TabKindAction> for TabKind {
     fn label(&self, context: &Dynamic<Context>) -> String {
         match self {
             TabKind::Home(tab) => tab.label(context),
@@ -45,27 +50,27 @@ impl Tab<TabKindMessage> for TabKind {
         }
     }
 
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: TabKindMessage) -> Task<TabKindMessage> {
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: TabKindMessage) -> Action<TabKindAction> {
         match (self, message) {
             (TabKind::Home(tab), TabKindMessage::HomeTabMessage(message)) => {
                 tab
                     .update(context, tab_key, message)
-                    .map(|message|{
-                        TabKindMessage::HomeTabMessage(message)
+                    .map(|action|{
+                        TabKindAction::HomeTabAction(tab_key, action)
                     })
             },
             (TabKind::New(tab), TabKindMessage::NewTabMessage(message)) => {
                 tab
                     .update(context, tab_key, message)
-                    .map(|message|{
-                        TabKindMessage::NewTabMessage(message)
+                    .map(|action|{
+                        TabKindAction::NewTabAction(tab_key, action)
                     })
             },
             (TabKind::Document(tab), TabKindMessage::DocumentTabMessage(message)) => {
                 tab
                     .update(context, tab_key, message)
-                    .map(|message|{
-                        TabKindMessage::DocumentTabMessage(message)
+                    .map(|action|{
+                        TabKindAction::DocumentTabAction(tab_key, action)
                     })
             },
             (_, _) => {

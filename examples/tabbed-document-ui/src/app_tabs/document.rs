@@ -1,12 +1,12 @@
 use slotmap::SlotMap;
 use cushy::value::Dynamic;
 use cushy::widget::WidgetInstance;
+use crate::action::Action;
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
-use crate::task::Task;
 use crate::widgets::tab_bar::{Tab, TabKey};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum DocumentTabMessage {
     None,
 }
@@ -17,9 +17,13 @@ impl Default for DocumentTabMessage {
     }
 }
 
+pub enum DocumentTabAction {
+    None,
+}
+
 #[derive(Clone)]
 pub struct DocumentTab {
-    document_key: DocumentKey,
+    pub document_key: DocumentKey,
 }
 
 impl DocumentTab {
@@ -30,7 +34,7 @@ impl DocumentTab {
     }
 }
 
-impl Tab<DocumentTabMessage> for DocumentTab {
+impl Tab<DocumentTabMessage, DocumentTabAction> for DocumentTab {
 
     fn label(&self, context: &Dynamic<Context>) -> String {
         context.lock().with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
@@ -60,7 +64,7 @@ impl Tab<DocumentTabMessage> for DocumentTab {
         }).unwrap()
     }
 
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: DocumentTabMessage) -> Task<DocumentTabMessage> {
-        todo!()
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: DocumentTabMessage) -> Action<DocumentTabAction> {
+        Action::new(DocumentTabAction::None)
     }
 }

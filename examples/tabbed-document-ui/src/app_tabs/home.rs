@@ -1,12 +1,12 @@
 use cushy::value::Source;
 use crate::Dynamic;
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
+use crate::action::Action;
 use crate::config::Config;
 use crate::context::Context;
-use crate::task::Task;
 use crate::widgets::tab_bar::{Tab, TabKey};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum HomeTabMessage {
     None,
 }
@@ -17,10 +17,15 @@ impl Default for HomeTabMessage {
     }
 }
 
+#[derive(Debug)]
+pub enum HomeTabAction {
+    None
+}
+
 #[derive(Clone, Default)]
 pub struct HomeTab {}
 
-impl Tab<HomeTabMessage> for HomeTab {
+impl Tab<HomeTabMessage, HomeTabAction> for HomeTab {
     fn label(&self, _context: &Dynamic<Context>) -> String {
         "Home".to_string()
     }
@@ -60,7 +65,7 @@ impl Tab<HomeTabMessage> for HomeTab {
         }).unwrap()
     }
 
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: HomeTabMessage) -> Task<HomeTabMessage> {
-        todo!()
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: HomeTabMessage) -> Action<HomeTabAction> {
+        Action::new(HomeTabAction::None)
     }
 }
