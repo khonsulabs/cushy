@@ -5,6 +5,17 @@ use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
 use crate::widgets::tab_bar::{Tab, TabKey};
 
+#[derive(Clone, PartialEq)]
+pub enum DocumentTabMessage {
+    None,
+}
+
+impl Default for DocumentTabMessage {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
 #[derive(Clone)]
 pub struct DocumentTab {
     document_key: DocumentKey,
@@ -18,7 +29,7 @@ impl DocumentTab {
     }
 }
 
-impl Tab for DocumentTab {
+impl Tab<DocumentTabMessage> for DocumentTab {
 
     fn label(&self, context: &Dynamic<Context>) -> String {
         context.lock().with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
@@ -46,5 +57,9 @@ impl Tab for DocumentTab {
                 DocumentKind::ImageDocument(image_document) => image_document.create_content()
             }
         }).unwrap()
+    }
+
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: DocumentTabMessage) -> () {
+        todo!()
     }
 }

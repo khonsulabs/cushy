@@ -2,9 +2,9 @@
 
 use cushy::value::Dynamic;
 use cushy::widget::{WidgetInstance};
-use crate::app_tabs::document::DocumentTab;
-use crate::app_tabs::home::HomeTab;
-use crate::app_tabs::new::NewTab;
+use crate::app_tabs::document::{DocumentTab, DocumentTabMessage};
+use crate::app_tabs::home::{HomeTab, HomeTabMessage};
+use crate::app_tabs::new::{NewTab, NewTabMessage};
 use crate::context::Context;
 use crate::widgets::tab_bar::{Tab, TabKey};
 
@@ -19,7 +19,15 @@ pub enum TabKind {
     New(NewTab),
 }
 
-impl Tab for TabKind {
+#[derive(Clone, PartialEq)]
+pub enum TabKindMessage {
+    HomeTabMessage(HomeTabMessage),
+    DocumentTabMessage(DocumentTabMessage),
+    NewTabMessage(NewTabMessage),
+}
+
+
+impl Tab<TabKindMessage> for TabKind {
     fn label(&self, context: &Dynamic<Context>) -> String {
         match self {
             TabKind::Home(tab) => tab.label(context),
@@ -33,6 +41,15 @@ impl Tab for TabKind {
             TabKind::Home(tab) => tab.make_content(context, tab_key),
             TabKind::Document(tab) => tab.make_content(context, tab_key),
             TabKind::New(tab) => tab.make_content(context, tab_key),
+        }
+    }
+
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: TabKindMessage) -> () {
+        match (self, message) {
+            (TabKind::Home(tab), TabKindMessage::HomeTabMessage(message)) => tab.update(context, tab_key, message),
+            (TabKind::New(tab), TabKindMessage::NewTabMessage(message)) => tab.update(context, tab_key, message),
+            (TabKind::Document(tab), TabKindMessage::DocumentTabMessage(message)) => tab.update(context, tab_key, message),
+            (_, _) => unreachable!(),
         }
     }
 }

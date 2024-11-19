@@ -10,12 +10,24 @@ use cushy::widgets::grid::{GridDimension, GridWidgets};
 use cushy::widgets::label::Displayable;
 use cushy::window::WindowHandle;
 use crate::app_tabs::document::DocumentTab;
-use crate::app_tabs::TabKind;
+use crate::app_tabs::{TabKind, TabKindMessage};
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
 use crate::documents::image::ImageDocument;
 use crate::documents::text::TextDocument;
 use crate::widgets::tab_bar::{Tab, TabBar, TabKey};
+
+#[derive(Clone, PartialEq)]
+pub enum NewTabMessage {
+    None,
+    OkClicked,
+}
+
+impl Default for NewTabMessage {
+    fn default() -> Self {
+        Self::None
+    }
+}
 
 #[derive(Default, Eq, PartialEq, Debug, Clone, Copy)]
 pub enum KindChoice {
@@ -23,29 +35,22 @@ pub enum KindChoice {
     Text,
     Image,
 }
+
 #[derive(Clone, Default)]
 pub struct NewTab {
     name: Dynamic<String>,
     directory: Dynamic<PathBuf>,
     kind: Dynamic<Option<KindChoice>>,
+    message: Dynamic<NewTabMessage>,
 }
 
-impl Tab for NewTab {
+impl Tab<NewTabMessage> for NewTab {
     fn label(&self, _context: &Dynamic<Context>) -> String {
         "New".to_string()
     }
 
-    fn make_content(&self, context: &Dynamic<Context>, tab_key: TabKey) -> WidgetInstance {
+    fn make_content(&self, context: &Dynamic<Context>, _tab_key: TabKey) -> WidgetInstance {
         let validations = Validations::default();
-
-
-        let documents = context.lock().with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
-            documents.clone()
-        }).unwrap();
-
-        let tab_bar = context.lock().with_context::<Dynamic<TabBar<TabKind>>, _, _>(|tab_bar| {
-            tab_bar.clone()
-        }).unwrap();
 
         let window = context.lock().with_context::<WindowHandle, _, _>(|window_handle| {
             window_handle.clone()
@@ -156,47 +161,8 @@ impl Tab for NewTab {
 
         let ok_button = "Ok".into_button()
             .on_click(validations.when_valid({
-
-                let kind = self.kind.clone();
-                let name = self.name.clone();
-                let path = self.directory.clone();
-
-                let documents = documents.clone();
-                let tab_bar = tab_bar.clone();
-                let context = context.clone();
-
-                move |_event|{
-                    let kind = kind.get();
-                    let mut name = name.get();
-                    let mut path = path.get();
-
-                    println!("kind: {:?}", kind);
-
-                    match kind.unwrap() {
-                        KindChoice::Text => {
-                            name.push_str(".txt");
-                            path.push(&name);
-
-                            let document = DocumentKind::TextDocument(TextDocument::new(path.clone()));
-
-                            let document_key = documents.lock().insert(document);
-                            let document_tab = DocumentTab::new(document_key);
-
-                            tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
-                        }
-                        KindChoice::Image => {
-                            name.push_str(".png");
-                            path.push(&name);
-
-                            let document = DocumentKind::ImageDocument(ImageDocument::new(path.clone()));
-
-                            let document_key = documents.lock().insert(document);
-                            let document_tab = DocumentTab::new(document_key);
-
-                            tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
-                        }
-                    }
-                }
+                let message = self.message.clone();
+                move |_event| message.set(NewTabMessage::OkClicked)
             }));
 
         let form = grid
@@ -215,5 +181,57 @@ impl Tab for NewTab {
             .into_columns()
 
             .make_widget()
+    }
+
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: NewTabMessage) -> () {
+
+        let documents = context.lock().with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
+            documents.clone()
+        }).unwrap();
+
+        let tab_bar = context.lock().with_context::<Dynamic<TabBar<TabKind, TabKindMessage>>, _, _>(|tab_bar| {
+            tab_bar.clone()
+        }).unwrap();
+
+        match message {
+            NewTabMessage::None => {}
+            NewTabMessage::OkClicked => {
+
+                let documents = documents.clone();
+                let tab_bar = tab_bar.clone();
+                let context = context.clone();
+
+                let kind = self.kind.get();
+                let mut name = self.name.get();
+                let mut path = self.directory.get();
+
+                println!("kind: {:?}", kind);
+
+                match kind.unwrap() {
+                    KindChoice::Text => {
+                        name.push_str(".txt");
+                        path.push(&name);
+
+                        let document = DocumentKind::TextDocument(TextDocument::new(path.clone()));
+
+                        let document_key = documents.lock().insert(document);
+                        let document_tab = DocumentTab::new(document_key);
+
+                        tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
+                    }
+                    KindChoice::Image => {
+                        name.push_str(".png");
+                        path.push(&name);
+
+                        let document = DocumentKind::ImageDocument(ImageDocument::new(path.clone()));
+
+                        let document_key = documents.lock().insert(document);
+                        let document_tab = DocumentTab::new(document_key);
+
+                        tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
+                    }
+                }
+            }
+        }
     }
 }

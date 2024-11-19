@@ -15,20 +15,22 @@ use cushy::widgets::select::SelectedColor;
 use crate::context::Context;
 
 #[derive(Clone, PartialEq)]
-pub enum TabMessage {
+pub enum TabMessage<TKM> {
     None,
-    TabClosed(TabKey)
+    TabClosed(TabKey),
+    TabKindMessage(TabKey, TKM),
 }
 
-impl Default for TabMessage {
+impl<TKM> Default for TabMessage<TKM> {
     fn default() -> Self {
         TabMessage::None
     }
 }
 
-pub trait Tab {
+pub trait Tab<TKM> {
     fn label(&self, context: &Dynamic<Context>) -> String;
     fn make_content(&self, context: &Dynamic<Context>, tab_key: TabKey) -> WidgetInstance;
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: TKM) -> ();
 }
 
 struct TabState<TK> {
@@ -38,7 +40,7 @@ struct TabState<TK> {
     on_close: Box<dyn 'static + Send + Fn()>,
 }
 
-pub struct TabBar<TK>
+pub struct TabBar<TK, TKM>
 {
     /// holds the actual tab instances and activation state which includes the tab's content widget instance
     tabs: Dynamic<SlotMap<TabKey, TabState<TK>>>,
@@ -54,15 +56,15 @@ pub struct TabBar<TK>
     history: RefCell<Vec<TabKey>>,
 
     /// a message which is updated when interactions occur.
-    message: Dynamic<TabMessage>,
+    message: Dynamic<TabMessage<TKM>>,
 }
 
 new_key_type! {
     pub struct TabKey;
 }
 
-impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
-    pub fn new(message: &Dynamic<TabMessage>) -> Self {
+impl<TK: Tab<TKM> + Send + Clone + 'static, TKM: PartialEq + Send + 'static> TabBar<TK, TKM> {
+    pub fn new(message: &Dynamic<TabMessage<TKM>>) -> Self {
         let tabs: Dynamic<SlotMap<TabKey, TabState<TK>>> = Dynamic::default();
         let active: Dynamic<Option<TabKey>> = Dynamic::new(None);
         let switcher = active.clone().switcher({
@@ -304,7 +306,7 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
 
     pub fn with_tabs<R, F>(&self, f: F) -> R
     where
-        F: Fn(TabsIter<'_, TK>) -> R
+        F: Fn(TabsIter<'_, TK, TKM>) -> R
     {
         let iter = self.into_iter();
         f(iter)
@@ -314,22 +316,27 @@ impl<TK: Tab + Send + Clone + 'static> TabBar<TK> {
         let _previously_active = self.active.lock().replace(tab_key);
     }
 
-    pub fn update(&mut self, message: TabMessage) {
+    pub fn update(&mut self, context: &Dynamic<Context>, message: TabMessage<TKM>) {
         match message {
             TabMessage::TabClosed(tab_key) => self.close_tab(tab_key),
             TabMessage::None => {}
+            TabMessage::TabKindMessage(tab_key, tab_kind_message) => {
+                let mut guard = self.tabs.lock();
+                let tab_state = guard.get_mut(tab_key).unwrap();
+                tab_state.tab.update(context, tab_key, tab_kind_message);
+            }
         }
     }
 }
 
-pub struct TabsIter<'a, TK> {
-    tab_bar: &'a TabBar<TK>,
+pub struct TabsIter<'a, TK, TKM> {
+    tab_bar: &'a TabBar<TK, TKM>,
     keys: Vec<TabKey>,
     index: usize,
 }
 
-impl<'a, TK> TabsIter<'a, TK> {
-    pub fn new(tab_bar: &'a TabBar<TK>) -> Self {
+impl<'a, TK, TKM> TabsIter<'a, TK, TKM> {
+    pub fn new(tab_bar: &'a TabBar<TK, TKM>) -> Self {
         let keys = tab_bar.tabs.lock().keys().collect();
 
         Self {
@@ -340,7 +347,7 @@ impl<'a, TK> TabsIter<'a, TK> {
     }
 }
 
-impl<'a, TK: Clone> Iterator for TabsIter<'a, TK> {
+impl<'a, TK: Clone, TKM> Iterator for TabsIter<'a, TK, TKM> {
     type Item = (TabKey, TK);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -362,9 +369,9 @@ impl<'a, TK: Clone> Iterator for TabsIter<'a, TK> {
     }
 }
 
-impl<'a, TK: Clone> IntoIterator for &'a TabBar<TK> {
+impl<'a, TK: Clone, TKM> IntoIterator for &'a TabBar<TK, TKM> {
     type Item = (TabKey, TK);
-    type IntoIter = TabsIter<'a, TK>;
+    type IntoIter = TabsIter<'a, TK, TKM>;
 
     fn into_iter(self) -> Self::IntoIter {
         TabsIter::new(
