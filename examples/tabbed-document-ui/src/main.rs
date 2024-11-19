@@ -157,6 +157,19 @@ fn main(app: &mut App) -> cushy::Result {
             .fit_horizontally()
             .make_widget()
     )
+        .on_open({
+            let message = message.clone();
+            let dyn_app_state = dyn_app_state.clone();
+
+            move |_window| {
+                message.force_set(AppMessage::ToolBarMessage(ToolbarMessage::NewClicked));
+
+                let tab_key = dyn_app_state.lock().tab_bar.lock().find_tab_by_label("New").unwrap();
+                println!("New tab. key: {:?}", tab_key);
+
+                message.force_set(AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::NewTabMessage(NewTabMessage::OkClicked))));
+            }
+        })
         .on_close({
             let dyn_app_state = dyn_app_state.clone();
             let config = dyn_app_state.lock().config.clone();
