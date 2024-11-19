@@ -31,14 +31,15 @@ mod app_tabs;
 mod documents;
 
 #[derive(Clone, PartialEq)]
-enum Message {
+enum AppMessage {
     None,
-    TabMessage(TabMessage)
+    TabMessage(TabMessage),
+    ToolBarMessage(ToolbarMessage),
 }
 
-impl Default for Message {
+impl Default for AppMessage {
     fn default() -> Self {
-        Message::None
+        AppMessage::None
     }
 }
 
@@ -56,7 +57,7 @@ fn main(app: &mut App) -> cushy::Result {
     let pending = PendingWindow::default();
     let window = pending.handle();
 
-    let message: Dynamic<Message> = Dynamic::default();
+    let message: Dynamic<AppMessage> = Dynamic::default();
 
     let config = Dynamic::new(config::load());
     let documents = Dynamic::new(SlotMap::default());
@@ -65,7 +66,7 @@ fn main(app: &mut App) -> cushy::Result {
     tab_message.for_each_cloned({
         let message = message.clone();
         move |tab_message|{
-            message.set(Message::TabMessage(tab_message));
+            message.set(AppMessage::TabMessage(tab_message));
         }
     })
         .persist();
@@ -80,15 +81,23 @@ fn main(app: &mut App) -> cushy::Result {
 
     let context = Dynamic::new(context);
 
-    let mut app_state = AppState {
+    let app_state = AppState {
         tab_bar: tab_bar.clone(),
         context: context.clone(),
         config,
         documents,
     };
 
+    let toolbar_message: Dynamic<ToolbarMessage> = Dynamic::default();
+    toolbar_message.for_each_cloned({
+        let message = message.clone();
+        move |toolbar_message|{
+            message.set(AppMessage::ToolBarMessage(toolbar_message));
+        }
+    })
+        .persist();
 
-    let toolbar = make_toolbar(&mut app_state);
+    let toolbar = make_toolbar(toolbar_message);
 
     let ui_elements = [
         toolbar.make_widget(),
@@ -156,11 +165,69 @@ fn main(app: &mut App) -> cushy::Result {
 }
 
 impl AppState {
-    fn update(&mut self, message: Message) {
+    fn update(&mut self, message: AppMessage) {
         match message {
-            Message::None => {}
-            Message::TabMessage(message) => {
+            AppMessage::None => {}
+            AppMessage::TabMessage(message) => {
                 self.tab_bar.lock().update(message);
+            }
+            AppMessage::ToolBarMessage(message) => {
+                self.on_toolbar_message(message);
+            }
+        }
+    }
+
+    fn on_toolbar_message(&self, message: ToolbarMessage) {
+        match message {
+            ToolbarMessage::None => {}
+            ToolbarMessage::HomeClicked => {
+                println!("home clicked");
+
+                add_home_tab(&self.context, &self.tab_bar);
+            }
+            ToolbarMessage::NewClicked => {
+                println!("New clicked");
+
+                add_new_tab(&self.context, &self.tab_bar)
+            }
+            ToolbarMessage::OpenClicked => {
+
+                let window = self.context.lock().with_context::<WindowHandle, _, _>(|window_handle| {
+                    window_handle.clone()
+                }).unwrap();
+
+                println!("open clicked");
+
+                let all_extensions: Vec<_> = SUPPORTED_TEXT_EXTENSIONS.iter().cloned().chain(SUPPORTED_IMAGE_EXTENSIONS.iter().cloned()).collect();
+
+                FilePicker::new()
+                    .with_title("Open file")
+                    .with_types([
+                        FileType::from(("All supported files", into_array::<_, 6>(all_extensions))),
+                        FileType::from(("Text files", SUPPORTED_TEXT_EXTENSIONS)),
+                        FileType::from(("Image files", SUPPORTED_IMAGE_EXTENSIONS)),
+                    ])
+                    .pick_file(&window,{
+
+                        // NOTE: Nested callbacks require a second clone
+                        let tab_bar = self.tab_bar.clone();
+                        let documents = self.documents.clone();
+                        let context = self.context.clone();
+
+                        move |path|{
+                            if let Some(path) = path {
+                                println!("path: {:?}", path);
+
+                                open_document(&context, &documents, &tab_bar, path).ok();
+                            }
+                        }
+                    });
+
+            }
+            ToolbarMessage::CloseAllClicked => {
+                println!("close all clicked");
+
+                self.tab_bar.lock().close_all();
             }
         }
     }
@@ -241,73 +308,46 @@ fn make_document_tab(context: &Dynamic<Context>, documents: &Dynamic<SlotMap<Doc
     tab_key
 }
 
-fn make_toolbar(app_state: &mut AppState) -> Stack {
-    let button_padding = Dimension::Lp(Lp::points(4));
+#[derive(Clone, PartialEq)]
+pub enum ToolbarMessage {
+    None,
+    OpenClicked,
+    HomeClicked,
+    NewClicked,
+    CloseAllClicked,
+}
 
-    let window = app_state.context.lock().with_context::<WindowHandle, _, _>(|window_handle| {
-        window_handle.clone()
-    }).unwrap();
+impl Default for ToolbarMessage {
+    fn default() -> Self {
+        ToolbarMessage::None
+    }
+}
+
+
+fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>) -> Stack {
+    let button_padding = Dimension::Lp(Lp::points(4));
 
     let home_button = "Home"
         .into_button()
         .on_click({
-            let tab_bar = app_state.tab_bar.clone();
-            let context = app_state.context.clone();
-            move |_|{
-                println!("home clicked");
-
-                add_home_tab(&context, &tab_bar);
-            }
+            let message = toolbar_message.clone();
+            move |_event| message.set(ToolbarMessage::HomeClicked)
         })
         .with(&IntrinsicPadding, button_padding);
 
     let new_button = "New"
         .into_button()
         .on_click({
-            let tab_bar = app_state.tab_bar.clone();
-            let context = app_state.context.clone();
-            move |_|{
-                println!("New clicked");
-
-                add_new_tab(&context, &tab_bar)
-            }
+            let message = toolbar_message.clone();
+            move |_event| message.set(ToolbarMessage::NewClicked)
         })
         .with(&IntrinsicPadding, button_padding);
 
     let open_button = "Open"
         .into_button()
         .on_click({
-            let tab_bar = app_state.tab_bar.clone();
-            let documents = app_state.documents.clone();
-            let context = app_state.context.clone();
-            move |_|{
-                println!("open clicked");
-
-                let all_extensions: Vec<_> = SUPPORTED_TEXT_EXTENSIONS.iter().cloned().chain(SUPPORTED_IMAGE_EXTENSIONS.iter().cloned()).collect();
-
-                FilePicker::new()
-                    .with_title("Open file")
-                    .with_types([
-                        FileType::from(("All supported files", into_array::<_, 6>(all_extensions))),
-                        FileType::from(("Text files", SUPPORTED_TEXT_EXTENSIONS)),
-                        FileType::from(("Image files", SUPPORTED_IMAGE_EXTENSIONS)),
-                    ])
-                    .pick_file(&window,{
-
-                        // NOTE: Nested callbacks require a second clone
-                        let tab_bar = tab_bar.clone();
-                        let documents = documents.clone();
-                        let context = context.clone();
-
-                        move |path|{
-                            if let Some(path) = path {
-                                println!("path: {:?}", path);
-
-                                open_document(&context, &documents, &tab_bar, path).ok();
-                            }
-                        }
-                    });
-            }
+            let message = toolbar_message.clone();
+            move |_event| message.set(ToolbarMessage::OpenClicked)
         })
         .with(&IntrinsicPadding, button_padding);
 
@@ -315,12 +355,8 @@ fn make_toolbar(app_state: &mut AppState) -> Stack {
     let close_all_button = "Close all"
         .into_button()
         .on_click({
-            let tab_bar = app_state.tab_bar.clone();
-            move |_| {
-                println!("close all clicked");
-
-                tab_bar.lock().close_all();
-            }
+            let message = toolbar_message.clone();
+            move |_event| message.set(ToolbarMessage::CloseAllClicked)
         })
         .with(&IntrinsicPadding, button_padding);
 
