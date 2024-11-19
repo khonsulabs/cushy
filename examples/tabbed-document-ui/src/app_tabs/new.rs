@@ -9,7 +9,7 @@ use cushy::widgets::{Button, Grid, Input, Space};
 use cushy::widgets::grid::{GridDimension, GridWidgets};
 use cushy::widgets::label::Displayable;
 use cushy::window::WindowHandle;
-use crate::app_tabs::document::DocumentTab;
+use crate::app_tabs::document::{DocumentTab, DocumentTabMessage};
 use crate::app_tabs::{TabKind, TabKindMessage};
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
@@ -215,8 +215,6 @@ impl Tab<NewTabMessage> for NewTab {
                 }
             }
             NewTabMessage::OkClickedOnValidForm => {
-
-
                 Task::future({
                     let documents = documents.clone();
                     let tab_bar = tab_bar.clone();
@@ -257,7 +255,14 @@ impl Tab<NewTabMessage> for NewTab {
                             }
                         }
 
+                        // FIXME this not correct now since the tab has been replaced with a different type of TabKind and will
+                        //       result in a panic when the message is processed.
                         NewTabMessage::None
+                        //       we cannot do this, due to the return type:
+                        // DocumentTabMessage::None
+
+                        // So it seems that all this code needs to be moved up a layer so that the 'new' tab knows
+                        // nothing about 'documents' or the 'tab_bar'
                     }
                 })
 
