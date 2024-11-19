@@ -177,7 +177,7 @@ impl Tree {
                     }
                 };
                 let top = layout.origin.y;
-                let bottom = top + layout.size.height;
+                let bottom = top.saturating_add(layout.size.height);
                 min_vertical = order.vertical.smallest_px(min_vertical, top);
                 max_vertical = order.vertical.smallest_px(min_vertical, bottom);
 
@@ -622,7 +622,7 @@ struct RenderArea {
 
 impl RenderArea {
     fn new(node: LotId, area: Rect<Px>) -> Self {
-        let (min, max) = area.extents();
+        let (min, max) = area.saturating_extents();
         Self { node, min, max }
     }
 }

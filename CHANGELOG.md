@@ -178,6 +178,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selected. This is not always the desired behavior, and further customization
   of this behavior should be allowed, but this is a step in the right direction
   compared to the previous behavior.
+- Using an `Expand` inside of a `Resize` widget no longer panics with
+  overflowing math.
 
 ### Added
 
