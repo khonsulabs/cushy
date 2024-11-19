@@ -15,12 +15,14 @@ use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
 use crate::documents::image::ImageDocument;
 use crate::documents::text::TextDocument;
+use crate::task::Task;
 use crate::widgets::tab_bar::{Tab, TabBar, TabKey};
 
 #[derive(Clone, PartialEq)]
 pub enum NewTabMessage {
     None,
     OkClicked,
+    OkClickedOnValidForm,
 }
 
 impl Default for NewTabMessage {
@@ -42,6 +44,16 @@ pub struct NewTab {
     directory: Dynamic<PathBuf>,
     kind: Dynamic<Option<KindChoice>>,
     message: Dynamic<NewTabMessage>,
+    validations: Validations,
+}
+
+impl NewTab {
+    pub fn new(message: Dynamic<NewTabMessage>) -> Self {
+        Self {
+            message,
+            ..Self::default()
+        }
+    }
 }
 
 impl Tab<NewTabMessage> for NewTab {
@@ -50,7 +62,7 @@ impl Tab<NewTabMessage> for NewTab {
     }
 
     fn make_content(&self, context: &Dynamic<Context>, _tab_key: TabKey) -> WidgetInstance {
-        let validations = Validations::default();
+        let validations = self.validations.clone();
 
         let window = context.lock().with_context::<WindowHandle, _, _>(|window_handle| {
             window_handle.clone()
@@ -160,10 +172,10 @@ impl Tab<NewTabMessage> for NewTab {
             .with(&IntrinsicPadding, Px::new(5)); // no visible effect.
 
         let ok_button = "Ok".into_button()
-            .on_click(validations.when_valid({
+            .on_click({
                 let message = self.message.clone();
                 move |_event| message.set(NewTabMessage::OkClicked)
-            }));
+            });
 
         let form = grid
             .and(ok_button)
@@ -183,7 +195,7 @@ impl Tab<NewTabMessage> for NewTab {
             .make_widget()
     }
 
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: NewTabMessage) -> () {
+    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: NewTabMessage) -> Task<NewTabMessage> {
 
         let documents = context.lock().with_context::<Dynamic<SlotMap<DocumentKey, DocumentKind>>, _, _>(|documents| {
             documents.clone()
@@ -194,43 +206,62 @@ impl Tab<NewTabMessage> for NewTab {
         }).unwrap();
 
         match message {
-            NewTabMessage::None => {}
+            NewTabMessage::None => Task::none(),
             NewTabMessage::OkClicked => {
-
-                let documents = documents.clone();
-                let tab_bar = tab_bar.clone();
-                let context = context.clone();
-
-                let kind = self.kind.get();
-                let mut name = self.name.get();
-                let mut path = self.directory.get();
-
-                println!("kind: {:?}", kind);
-
-                match kind.unwrap() {
-                    KindChoice::Text => {
-                        name.push_str(".txt");
-                        path.push(&name);
-
-                        let document = DocumentKind::TextDocument(TextDocument::new(path.clone()));
-
-                        let document_key = documents.lock().insert(document);
-                        let document_tab = DocumentTab::new(document_key);
-
-                        tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
-                    }
-                    KindChoice::Image => {
-                        name.push_str(".png");
-                        path.push(&name);
-
-                        let document = DocumentKind::ImageDocument(ImageDocument::new(path.clone()));
-
-                        let document_key = documents.lock().insert(document);
-                        let document_tab = DocumentTab::new(document_key);
-
-                        tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
-                    }
+                if self.validations.is_valid() {
+                    Task::done(NewTabMessage::OkClickedOnValidForm)
+                } else {
+                    Task::none()
                 }
+            }
+            NewTabMessage::OkClickedOnValidForm => {
+
+
+                Task::future({
+                    let documents = documents.clone();
+                    let tab_bar = tab_bar.clone();
+                    let context = context.clone();
+                    let kind = self.kind.clone();
+                    let name = self.name.clone();
+                    let directory = self.directory.clone();
+
+                    async move {
+                        let kind = kind.get();
+                        let mut name = name.get();
+                        let mut path = directory.get();
+
+                        println!("kind: {:?}, name: {:?}, path: {:?}", kind, name, path);
+
+                        match kind.unwrap() {
+                            KindChoice::Text => {
+                                name.push_str(".txt");
+                                path.push(&name);
+
+                                let document = DocumentKind::TextDocument(TextDocument::new(path.clone()));
+
+                                let document_key = documents.lock().insert(document);
+                                let document_tab = DocumentTab::new(document_key);
+
+                                tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
+                            }
+                            KindChoice::Image => {
+                                name.push_str(".png");
+                                path.push(&name);
+
+                                let document = DocumentKind::ImageDocument(ImageDocument::new(path.clone()));
+
+                                let document_key = documents.lock().insert(document);
+                                let document_tab = DocumentTab::new(document_key);
+
+                                tab_bar.lock().replace(tab_key, &context, TabKind::Document(document_tab));
+                            }
+                        }
+
+                        NewTabMessage::None
+                    }
+                })
+
+
             }
         }
     }
