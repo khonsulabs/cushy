@@ -3,6 +3,7 @@ use std::future::Future;
 use futures::{future, stream, Stream};
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use futures::FutureExt;
 use crate::runtime::boxed_stream;
 
 pub mod rt;
@@ -20,6 +21,17 @@ impl<T> Task<T> {
         T: Send + 'static,
     {
         Self::future(future::ready(value))
+    }
+
+    pub fn perform<O>(
+        future: impl Future<Output = O> + Send + 'static,
+        f: impl Fn(O) -> T + Send + 'static,
+    ) -> Self
+    where
+        T: Send + 'static,
+        O: Send + 'static,
+    {
+        Self::future(future.map(f))
     }
 
     pub fn map<O>(

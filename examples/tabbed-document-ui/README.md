@@ -180,7 +180,7 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
 		- 'Text' tab, displays a 'text' document.
 			- [x] Filename must appear in tab.
 			- [x] Show text file content in an editor.
-			- [ ] Content must be loaded in a thread or async, in the background.
+			- [x] Content must be loaded in a thread or async, in the background.
 			- Tab State
 				- [ ] Maintain text selection. ❌ Text selection is lost when switching tabs.
 				- [ ] Maintain caret position. ❌ Caret position is lost when switching tabs.
@@ -194,7 +194,7 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
             - [ ] Image is scaled-up to fit window, aspect ratio must be preserved.
             - [ ] Do not allow image to be scaled down.
 			- [ ] If too big to fit in the window, scrollbars must be present to allow panning
-			- [ ] Content must be loaded in a thread or async, in the background.
+			- [x] Content must be loaded in a thread or async, in the background.
 			- Tab State
 				- [ ] Maintain X/Y coordinates of last click of anywhere on the image.
 			- Info sidebar with a grid of key/value items
