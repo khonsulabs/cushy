@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use futures::{future, stream, Stream};
 use futures::stream::BoxStream;
@@ -70,4 +71,10 @@ impl<T> Task<T> {
 
 pub fn into_stream<T>(task: Task<T>) -> Option<BoxStream<'static, T>> {
     task.0
+}
+
+impl<T> Debug for Task<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Task<...>")
+    }
 }
