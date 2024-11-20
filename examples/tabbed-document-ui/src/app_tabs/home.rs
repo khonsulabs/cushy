@@ -65,7 +65,10 @@ impl Tab<HomeTabMessage, HomeTabAction> for HomeTab {
         }).unwrap()
     }
 
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: HomeTabMessage) -> Action<HomeTabAction> {
+    fn update(&mut self, _context: &Dynamic<Context>, _tab_key: TabKey, message: HomeTabMessage) -> Action<HomeTabAction> {
+        match message {
+            HomeTabMessage::None => {}
+        }
         Action::new(HomeTabAction::None)
     }
 }

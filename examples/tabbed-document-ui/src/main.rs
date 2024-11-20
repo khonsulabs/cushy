@@ -1,4 +1,3 @@
-use std::ops::DerefMut;
 use std::path;
 use std::path::PathBuf;
 use futures::{select, StreamExt};
@@ -15,8 +14,8 @@ use cushy::Open;
 use cushy::styles::components::IntrinsicPadding;
 use cushy::styles::Dimension;
 use crate::action::Action;
-use crate::app_tabs::document::DocumentTab;
-use crate::app_tabs::home::HomeTab;
+use crate::app_tabs::document::{DocumentTab, DocumentTabAction};
+use crate::app_tabs::home::{HomeTab, HomeTabAction};
 use crate::app_tabs::new::{KindChoice, NewTab, NewTabAction, NewTabMessage};
 use crate::app_tabs::{TabKind, TabKindAction, TabKindMessage};
 use crate::config::Config;
@@ -209,6 +208,7 @@ fn main(app: &mut App) -> cushy::Result {
 
 impl AppState {
     fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
+        println!("AppState::update, message: {:?}", message);
         match message {
             AppMessage::None => Task::none(),
             AppMessage::TabMessage(message) => {
@@ -270,7 +270,6 @@ impl AppState {
                             }
                         }
                     });
-
             }
             ToolbarMessage::CloseAllClicked => {
                 println!("close all clicked");
@@ -310,22 +309,35 @@ impl AppState {
         let action = action.into_inner();
 
         match action {
-            TabAction::TabSelected(tab_key) => todo!(),
+            TabAction::TabSelected(tab_key) => {
+                println!("tab selected, key: {:?}", tab_key);
+                Task::none()
+            },
             TabAction::TabClosed(tab_key, tab) => {
+                println!("tab closed, key: {:?}", tab_key);
                 match tab {
-                    TabKind::Home(tab) => (),
+                    TabKind::Home(_tab) => (),
                     TabKind::Document(tab) => {
                         self.documents.lock().remove(tab.document_key);
                     }
-                    TabKind::New(tab) => ()
+                    TabKind::New(_tab) => ()
                 }
 
                 Task::none()
             },
             TabAction::TabAction(tab_key, tab_action) => {
+                println!("tab action. key: {:?}, action: {:?}", tab_key, tab_action);
                 match tab_action {
-                    TabKindAction::HomeTabAction(_, _) => todo!(),
-                    TabKindAction::DocumentTabAction(_, _) => todo!(),
+                    TabKindAction::HomeTabAction(_tab_key, action) => {
+                        match action {
+                            HomeTabAction::None => Task::none(),
+                        }
+                    },
+                    TabKindAction::DocumentTabAction(_tab_key, action) => {
+                        match action {
+                            DocumentTabAction::None => Task::none(),
+                        }
+                    },
                     TabKindAction::NewTabAction(tab_key, action) => {
                         match action {
                             NewTabAction::None => Task::none(),

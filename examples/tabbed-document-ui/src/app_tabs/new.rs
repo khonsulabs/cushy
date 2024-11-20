@@ -25,6 +25,7 @@ impl Default for NewTabMessage {
     }
 }
 
+#[derive(Debug)]
 pub enum NewTabAction {
     None,
     CreateDocument(String, PathBuf, KindChoice),
@@ -195,7 +196,7 @@ impl Tab<NewTabMessage, NewTabAction> for NewTab {
             .make_widget()
     }
 
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: NewTabMessage) -> Action<NewTabAction> {
+    fn update(&mut self, _context: &Dynamic<Context>, _tab_key: TabKey, message: NewTabMessage) -> Action<NewTabAction> {
 
         let action = match message {
             NewTabMessage::None => NewTabAction::None,

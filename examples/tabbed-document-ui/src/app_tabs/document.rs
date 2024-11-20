@@ -17,6 +17,7 @@ impl Default for DocumentTabMessage {
     }
 }
 
+#[derive(Debug)]
 pub enum DocumentTabAction {
     None,
 }
@@ -64,7 +65,10 @@ impl Tab<DocumentTabMessage, DocumentTabAction> for DocumentTab {
         }).unwrap()
     }
 
-    fn update(&mut self, context: &Dynamic<Context>, tab_key: TabKey, message: DocumentTabMessage) -> Action<DocumentTabAction> {
+    fn update(&mut self, _context: &Dynamic<Context>, _tab_key: TabKey, message: DocumentTabMessage) -> Action<DocumentTabAction> {
+        match message {
+            DocumentTabMessage::None => {}
+        }
         Action::new(DocumentTabAction::None)
     }
 }

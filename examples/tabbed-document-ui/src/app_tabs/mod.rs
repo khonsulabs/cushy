@@ -27,6 +27,7 @@ pub enum TabKindMessage {
     NewTabMessage(NewTabMessage),
 }
 
+#[derive(Debug)]
 pub enum TabKindAction {
     HomeTabAction(TabKey, HomeTabAction),
     DocumentTabAction(TabKey, DocumentTabAction),
