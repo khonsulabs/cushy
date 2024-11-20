@@ -1,8 +1,9 @@
 use std::future::Future;
 use std::marker::PhantomData;
 use futures::channel::mpsc;
-use futures::Sink;
-use futures::stream::BoxStream;
+use futures::{select, Sink, Stream, StreamExt};
+use futures::stream::{BoxStream, FusedStream};
+use cushy::value::{Destination, Dynamic};
 
 #[derive(Debug)]
 pub struct Executor;
@@ -55,6 +56,23 @@ where
         self.executor.spawn(future);
     }
 }
+
+
+pub struct MessageDispatcher {}
+
+impl MessageDispatcher {
+    pub async fn dispatch<T>(mut receiver: impl Stream<Item = T> + FusedStream + Unpin, message: Dynamic<T>) {
+        loop {
+            select! {
+                received_message = receiver.select_next_some() => {
+                    //println!("dispatcher received message: {:?}", received_message);
+                    message.force_set(received_message);
+                }
+            }
+        }
+    }
+}
+
 
 pub fn boxed_stream<T, S>(stream: S) -> BoxStream<'static, T>
 where

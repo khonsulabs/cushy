@@ -1,6 +1,5 @@
 use std::path;
 use std::path::PathBuf;
-use futures::{select, StreamExt};
 use slotmap::SlotMap;
 use thiserror::Error;
 use cushy::figures::units::{Lp, Px};
@@ -23,7 +22,7 @@ use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
 use crate::documents::image::ImageDocument;
 use crate::documents::text::TextDocument;
-use crate::runtime::{Executor, RunTime};
+use crate::runtime::{Executor, MessageDispatcher, RunTime};
 use crate::task::{Task};
 use crate::widgets::tab_bar::{TabAction, TabBar, TabKey, TabMessage};
 
@@ -65,22 +64,10 @@ fn main(app: &mut App) -> cushy::Result {
 
     let message: Dynamic<AppMessage> = Dynamic::default();
 
-    let (mut sender, mut receiver) = futures::channel::mpsc::unbounded();
+    let (mut sender, receiver) = futures::channel::mpsc::unbounded();
 
     let executor = Executor::new().expect("should be able to create an executor");
-    executor.spawn({
-        let message = message.clone();
-        async move {
-            loop {
-                select! {
-                    received_message = receiver.select_next_some() => {
-                        println!("received message: {:?}", received_message);
-                        message.force_set(received_message);
-                    }
-                }
-            }
-        }
-    });
+    executor.spawn(MessageDispatcher::dispatch(receiver, message.clone()));
     let mut runtime = RunTime::new(executor, sender.clone());
 
     let pending = PendingWindow::default();
@@ -226,7 +213,7 @@ fn main(app: &mut App) -> cushy::Result {
 
 impl AppState {
     fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
-        println!("AppState::update, message: {:?}", message);
+        //println!("AppState::update, message: {:?}", message);
         match message {
             AppMessage::None => Task::none(),
             AppMessage::TabMessage(message) => {
