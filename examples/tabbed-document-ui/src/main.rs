@@ -102,7 +102,6 @@ fn main(app: &mut App) -> cushy::Result {
     let mut context = Context::default();
     context.provide(config.clone());
     context.provide(documents.clone());
-    context.provide(tab_bar.clone());
     context.provide(window);
 
     let context = Dynamic::new(context);
