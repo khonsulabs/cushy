@@ -14,7 +14,7 @@ use cushy::Open;
 use cushy::styles::components::IntrinsicPadding;
 use cushy::styles::Dimension;
 use crate::action::Action;
-use crate::app_tabs::document::{DocumentTab, DocumentTabAction};
+use crate::app_tabs::document::{DocumentTab, DocumentTabAction, DocumentTabMessage};
 use crate::app_tabs::home::{HomeTab, HomeTabAction};
 use crate::app_tabs::new::{KindChoice, NewTab, NewTabAction, NewTabMessage};
 use crate::app_tabs::{TabKind, TabKindAction, TabKindMessage};
@@ -42,6 +42,7 @@ enum AppMessage {
     None,
     TabMessage(TabMessage<TabKindMessage>),
     ToolBarMessage(ToolbarMessage),
+    FileOpened(PathBuf),
 }
 
 impl Default for AppMessage {
@@ -64,7 +65,7 @@ fn main(app: &mut App) -> cushy::Result {
 
     let message: Dynamic<AppMessage> = Dynamic::default();
 
-    let (sender, mut receiver) = futures::channel::mpsc::unbounded();
+    let (mut sender, mut receiver) = futures::channel::mpsc::unbounded();
 
     let executor = Executor::new().expect("should be able to create an executor");
     executor.spawn({
@@ -80,7 +81,7 @@ fn main(app: &mut App) -> cushy::Result {
             }
         }
     });
-    let mut runtime = RunTime::new(executor, sender);
+    let mut runtime = RunTime::new(executor, sender.clone());
 
     let pending = PendingWindow::default();
     let window = pending.handle();
@@ -192,9 +193,27 @@ fn main(app: &mut App) -> cushy::Result {
         {
             add_home_tab(&context, &app_state.tab_bar);
         }
+    }
 
-        for path in app_state.config.lock().open_document_paths.clone() {
-            open_document(&context, &app_state.documents, &app_state.tab_bar, path).ok();
+    {
+        let paths = dyn_app_state.lock().config.lock().open_document_paths.clone();
+
+        let messages: Vec<_> = paths.iter().cloned().filter_map(|path|{
+            match dyn_app_state.lock().open_document(path) {
+                Ok(message) => Some(message),
+                Err(_error) => {
+                    // Silently ignore previously opened documents that cannot be loaded
+                    None
+                }
+            }
+        }).collect();
+
+        for message in messages {
+            // this causes deadlock
+            // dyn_app_state.lock().message.force_set(message);
+
+            // so it's required to use the sender instead
+            let _result = sender.start_send(message);
         }
     }
 
@@ -220,6 +239,17 @@ impl AppState {
                 self
                     .on_toolbar_message(message)
                     .map(|message|AppMessage::ToolBarMessage(message))
+            }
+            AppMessage::FileOpened(path) => {
+                match self.open_document(path) {
+                    Ok(message) => {
+                        Task::done(message)
+                    }
+                    Err(_error) => {
+                        // TODO improve error handling by using '_error'
+                        Task::none()
+                    }
+                }
             }
         }
     }
@@ -256,16 +286,12 @@ impl AppState {
                     ])
                     .pick_file(&window,{
 
-                        // NOTE: Nested callbacks require a second clone
-                        let tab_bar = self.tab_bar.clone();
-                        let documents = self.documents.clone();
-                        let context = self.context.clone();
+                        let message = self.message.clone();
 
                         move |path|{
                             if let Some(path) = path {
                                 println!("path: {:?}", path);
-
-                                open_document(&context, &documents, &tab_bar, path).ok();
+                                message.force_set(AppMessage::FileOpened(path))
                             }
                         }
                     });
@@ -335,6 +361,16 @@ impl AppState {
                     TabKindAction::DocumentTabAction(_tab_key, action) => {
                         match action {
                             DocumentTabAction::None => Task::none(),
+                            DocumentTabAction::ImageDocumentTask(task) => {
+                                task.map(move |message|{
+                                    AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::ImageDocumentMessage(message))))
+                                })
+                            }
+                            DocumentTabAction::TextDocumentTask(task) => {
+                                task.map(move |message|{
+                                    AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::TextDocumentMessage(message))))
+                                })
+                            }
                         }
                     },
                     TabKindAction::NewTabAction(tab_key, action) => {
@@ -364,28 +400,84 @@ impl AppState {
                 name.push_str(".txt");
                 path.push(&name);
 
-                let document = DocumentKind::TextDocument(TextDocument::new(path.clone()));
+                let (text_document, message) = TextDocument::new(path.clone());
+                let document = DocumentKind::TextDocument(text_document);
 
                 let document_key = self.documents.lock().insert(document);
                 let document_tab = DocumentTab::new(document_key);
 
                 self.tab_bar.lock().replace(tab_key, &self.context, TabKind::Document(document_tab));
+
+                let task_message = AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::TextDocumentMessage(message))));
+                Task::done(task_message)
             }
             KindChoice::Image => {
                 name.push_str(".png");
                 path.push(&name);
 
-                let document = DocumentKind::ImageDocument(ImageDocument::new(path.clone()));
+                let (image_document, message) = ImageDocument::new(path.clone());
+                let document = DocumentKind::ImageDocument(image_document);
 
                 let document_key = self.documents.lock().insert(document);
                 let document_tab = DocumentTab::new(document_key);
 
                 self.tab_bar.lock().replace(tab_key, &self.context, TabKind::Document(document_tab));
+
+                let task_message = AppMessage::TabMessage(
+                    TabMessage::TabKindMessage(
+                        tab_key,
+                        TabKindMessage::DocumentTabMessage(
+                            DocumentTabMessage::ImageDocumentMessage(message)
+                        )
+                    )
+                );
+                Task::done(task_message)
             }
         }
-
-        Task::none()
     }
+
+    fn open_document(
+        &self,
+        path: PathBuf
+    ) -> Result<AppMessage, OpenDocumentError> {
+        println!("open_document. path: {:?}", path);
+
+        let path = path::absolute(path)
+            .or_else(|cause| Err(OpenDocumentError::IoError { cause }))?;
+
+        let extension = path.extension().unwrap().to_str().unwrap();
+
+        let message = if SUPPORTED_TEXT_EXTENSIONS.contains(&extension) {
+            let (text_document, message) = TextDocument::from_path(path);
+            let document = DocumentKind::TextDocument(text_document);
+
+            let tab_key = self.make_document_tab(document);
+            AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::TextDocumentMessage(message))))
+        } else if SUPPORTED_IMAGE_EXTENSIONS.contains(&extension) {
+            let (image_document, message) = ImageDocument::from_path(path);
+            let document = DocumentKind::ImageDocument(image_document);
+
+            let tab_key = self.make_document_tab(document);
+            AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::ImageDocumentMessage(message))))
+        } else {
+            return Err(OpenDocumentError::UnsupportedFileExtension { extension: extension.to_string() });
+        };
+
+        println!("open_document message: {:?}", message);
+
+        Ok(message)
+    }
+
+    fn make_document_tab(&self, document: DocumentKind) -> TabKey {
+        let document_key = self.documents.lock().insert(document);
+
+        let document_tab = DocumentTab::new(document_key);
+
+        let mut tab_bar_guard = self.tab_bar.lock();
+        let tab_key = tab_bar_guard.add_tab(&self.context, TabKind::Document(document_tab));
+        tab_key
+    }
+
 }
 
 fn update_open_documents(config: &Dynamic<Config>, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>) {
@@ -412,50 +504,6 @@ enum OpenDocumentError {
 
 const SUPPORTED_IMAGE_EXTENSIONS: [&'static str; 5] = ["bmp", "png", "jpg", "jpeg", "svg"];
 const SUPPORTED_TEXT_EXTENSIONS: [&'static str; 1] = ["txt"];
-
-fn open_document(
-    context: &Dynamic<Context>,
-    documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>,
-    tab_bar: &Dynamic<TabBar<TabKind, TabKindMessage, TabKindAction>>,
-    path: PathBuf
-) -> Result<(), OpenDocumentError> {
-    println!("open_document. path: {:?}", path);
-
-    let path = path::absolute(path)
-        .or_else(|cause| Err(OpenDocumentError::IoError { cause }))?;
-
-    let extension = path.extension().unwrap().to_str().unwrap();
-
-    let tab_key = if SUPPORTED_TEXT_EXTENSIONS.contains(&extension) {
-        let document = DocumentKind::TextDocument(TextDocument::from_path(path));
-
-        let tab_key = make_document_tab(context, documents, tab_bar, document);
-
-        tab_key
-    } else if SUPPORTED_IMAGE_EXTENSIONS.contains(&extension) {
-        let document = DocumentKind::ImageDocument(ImageDocument::from_path(path));
-
-        let tab_key = make_document_tab(context, documents, tab_bar, document);
-
-        tab_key
-    } else {
-        return Err(OpenDocumentError::UnsupportedFileExtension { extension: extension.to_string() });
-    };
-
-    println!("added document tab with key. key: {:?}", tab_key);
-
-    Ok(())
-}
-
-fn make_document_tab(context: &Dynamic<Context>, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>, tab_bar: &Dynamic<TabBar<TabKind, TabKindMessage, TabKindAction>>, document: DocumentKind) -> TabKey {
-    let document_key = documents.lock().insert(document);
-
-    let document_tab = DocumentTab::new(document_key);
-
-    let mut tab_bar_guard = tab_bar.lock();
-    let tab_key = tab_bar_guard.add_tab(context, TabKind::Document(document_tab));
-    tab_key
-}
 
 #[derive(Clone, Debug)]
 pub enum ToolbarMessage {
