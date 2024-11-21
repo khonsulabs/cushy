@@ -39,6 +39,7 @@ impl SideBar {
                         }
                     }
                 )
+                    .align_left()
                     // FIXME ideally we want a sensible default width
                     .width(DimensionRange::from(Px::new(100)..Px::new(200)))
                     .make_widget()
