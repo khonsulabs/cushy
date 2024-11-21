@@ -429,6 +429,7 @@ impl MakeWidget for TabBarWidget {
         tab_bar
             .and(self.content_switcher.expand())
             .into_rows()
+            .gutter(Px::new(0))
             .with(&CornerRadius, CornerRadii::from(Dimension::Px(Px::new(0))))
             .make_widget()
     }
