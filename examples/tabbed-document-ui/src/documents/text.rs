@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
+use cushy::figures::units::Px;
 use cushy::value::{Destination, Dynamic};
-use cushy::widget::{MakeWidget, WidgetInstance};
+use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::input::InputValue;
 use crate::action::Action;
+use crate::widgets::side_bar::{SideBar, SideBarItem};
 
 #[derive(Clone, Debug)]
 pub enum TextDocumentMessage {
@@ -29,26 +31,35 @@ pub enum TextDocumentError {
 pub struct TextDocument {
     pub path: PathBuf,
 
-    content: Dynamic<String>
+    content: Dynamic<String>,
+
+    side_bar: SideBar,
 }
 
 impl TextDocument {
+    fn new(path: PathBuf) -> TextDocument {
+        let mut side_bar = SideBar::default();
+
+        let path_item = SideBarItem::new("Path".to_string(), Some(path.to_str().unwrap().to_string()));
+        side_bar.push(path_item);
+
+        Self {
+            path,
+            content: Dynamic::default(),
+            side_bar,
+        }
+    }
+
     pub fn from_path(path: PathBuf) -> (Self, TextDocumentMessage) {
         (
-            Self {
-                path,
-                content: Dynamic::default(),
-            },
+            Self::new(path),
             TextDocumentMessage::Load
         )
     }
 
-    pub fn new(path: PathBuf) -> (Self, TextDocumentMessage) {
+    pub fn create_new(path: PathBuf) -> (Self, TextDocumentMessage) {
         (
-            Self {
-                path,
-                content: Dynamic::default(),
-            },
+            Self::new(path),
             TextDocumentMessage::Create
         )
     }
@@ -74,7 +85,19 @@ impl TextDocument {
     pub fn create_content(&self) -> WidgetInstance {
         println!("TextDocument::create_content. path: {:?}", self.path);
 
-        self.content.clone().into_input()
+        let side_bar_widget = self.side_bar.make_widget();
+
+        let content_widget = self.content.clone().into_input()
+            .expand()
+            .make_widget();
+
+        let document_widgets = side_bar_widget
+            .and(content_widget)
+            .into_columns()
+            .gutter(Px::new(0))
+            .expand();
+
+        document_widgets
             .make_widget()
     }
 

@@ -3,11 +3,13 @@ use crate::WidgetInstance;
 use std::path::PathBuf;
 use std::time::Duration;
 use image::ImageReader;
+use cushy::figures::units::Px;
 use cushy::kludgine::{AnyTexture, LazyTexture};
 use cushy::value::{Destination, Dynamic, Switchable};
 use cushy::widget::MakeWidget;
 use cushy::widgets::{Image, Space};
 use crate::action::Action;
+use crate::widgets::side_bar::{SideBar, SideBarItem};
 
 #[derive(Clone, Debug)]
 pub enum ImageDocumentMessage {
@@ -31,26 +33,34 @@ pub enum ImageDocumentError {
 
 pub struct ImageDocument {
     pub path: PathBuf,
-    texture: Dynamic<Option<LazyTexture>>
+    texture: Dynamic<Option<LazyTexture>>,
+    side_bar: SideBar,
 }
 
 impl ImageDocument {
+    fn new(path: PathBuf) -> ImageDocument {
+        let mut side_bar = SideBar::default();
+
+        let path_item = SideBarItem::new("Path".to_string(), Some(path.to_str().unwrap().to_string()));
+        side_bar.push(path_item);
+
+        Self {
+            path,
+            texture: Dynamic::new(None),
+            side_bar,
+        }
+    }
+
     pub fn from_path(path: PathBuf) -> (Self, ImageDocumentMessage) {
         (
-            Self {
-                path,
-                texture: Dynamic::new(None)
-            },
+            Self::new(path),
             ImageDocumentMessage::Load,
         )
     }
 
-    pub fn new(path: PathBuf) -> (Self, ImageDocumentMessage) {
+    pub fn create_new(path: PathBuf) -> (Self, ImageDocumentMessage) {
         (
-            Self {
-                path,
-                texture: Dynamic::new(None)
-            },
+            Self::new(path),
             ImageDocumentMessage::Create,
         )
     }
@@ -95,7 +105,9 @@ impl ImageDocument {
     pub fn create_content(&self) -> WidgetInstance {
         println!("ImageDocument::create_content. path: {:?}", self.path);
 
-        self.texture.clone().switcher(|texture, _|
+        let side_bar_widget = self.side_bar.make_widget();
+
+        let image_widget = self.texture.clone().switcher(|texture, _|
             match texture {
                 None => Space::clear().make_widget(),
                 Some(texture) => {
@@ -108,6 +120,16 @@ impl ImageDocument {
                 }
             }
         )
+            .expand()
+            .make_widget();
+
+        let document_widgets = side_bar_widget
+            .and(image_widget)
+            .into_columns()
+            .gutter(Px::new(0))
+            .expand();
+
+        document_widgets
             .make_widget()
     }
 
