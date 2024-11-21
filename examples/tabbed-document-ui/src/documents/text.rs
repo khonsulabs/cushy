@@ -40,7 +40,7 @@ impl TextDocument {
     fn new(path: PathBuf) -> TextDocument {
         let mut side_bar = SideBar::default();
 
-        let path_item = SideBarItem::new("Path".to_string(), Some(path.to_str().unwrap().to_string()));
+        let path_item = SideBarItem::new("Path".to_string(), Dynamic::new(Some(path.to_str().unwrap().to_string())));
         side_bar.push(path_item);
 
         Self {

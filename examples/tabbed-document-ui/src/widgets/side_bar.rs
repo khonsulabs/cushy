@@ -57,10 +57,10 @@ impl SideBar {
 }
 
 impl SideBarItem {
-    pub fn new(label: String, value: Option<String>) -> Self {
+    pub fn new(label: String, value: Dynamic<Option<String>>) -> Self {
         Self {
             label,
-            value: Dynamic::new(value)
+            value,
         }
     }
 }

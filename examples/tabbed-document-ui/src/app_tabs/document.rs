@@ -32,12 +32,15 @@ pub enum DocumentTabAction {
 #[derive(Clone)]
 pub struct DocumentTab {
     pub document_key: DocumentKey,
+    message: Dynamic<DocumentTabMessage>,
+
 }
 
 impl DocumentTab {
-    pub fn new(document_key: DocumentKey) -> Self {
+    pub fn new(document_key: DocumentKey, message: Dynamic<DocumentTabMessage>) -> Self {
         Self {
             document_key,
+            message,
         }
     }
 }
