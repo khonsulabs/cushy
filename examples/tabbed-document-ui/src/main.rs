@@ -19,7 +19,7 @@ use crate::app_tabs::{TabKind, TabKindAction, TabKindMessage};
 use crate::config::Config;
 use crate::context::Context;
 use crate::documents::{DocumentKey, DocumentKind};
-use crate::documents::image::ImageDocument;
+use crate::documents::image::{ImageDocument, ImageDocumentMessage};
 use crate::documents::text::TextDocument;
 use crate::runtime::{Executor, MessageDispatcher, RunTime};
 use crate::task::{Task};
@@ -381,6 +381,10 @@ impl AppState {
     fn create_document(&self, tab_key: TabKey, mut name: String, mut path: PathBuf, kind: KindChoice) -> Task<AppMessage> {
         println!("kind: {:?}, name: {:?}, path: {:?}", kind, name, path);
 
+        let document_tab_message = Dynamic::new(DocumentTabMessage::default());
+
+        self.create_document_tab_mapping(document_tab_message.clone(), tab_key);
+
         match kind {
             KindChoice::Text => {
                 name.push_str(".txt");
@@ -390,7 +394,7 @@ impl AppState {
                 let document = DocumentKind::TextDocument(text_document);
 
                 let document_key = self.documents.lock().insert(document);
-                let document_tab = DocumentTab::new(document_key);
+                let document_tab = DocumentTab::new(document_key, document_tab_message);
 
                 self.tab_bar.lock().replace(tab_key, &self.context, TabKind::Document(document_tab));
 
@@ -401,11 +405,14 @@ impl AppState {
                 name.push_str(".png");
                 path.push(&name);
 
-                let (image_document, message) = ImageDocument::create_new(path.clone());
+                let image_document_message = Dynamic::new(ImageDocumentMessage::default());
+                Self::make_image_document_message_mapping(&document_tab_message, &image_document_message);
+
+                let (image_document, message) = ImageDocument::create_new(path.clone(), image_document_message);
                 let document = DocumentKind::ImageDocument(image_document);
 
                 let document_key = self.documents.lock().insert(document);
-                let document_tab = DocumentTab::new(document_key);
+                let document_tab = DocumentTab::new(document_key, document_tab_message);
 
                 self.tab_bar.lock().replace(tab_key, &self.context, TabKind::Document(document_tab));
 
@@ -422,6 +429,15 @@ impl AppState {
         }
     }
 
+    fn make_image_document_message_mapping(document_tab_message: &Dynamic<DocumentTabMessage>, image_document_message: &Dynamic<ImageDocumentMessage>) {
+        image_document_message.for_each_cloned({
+            let document_tab_message = document_tab_message.clone();
+            move |image_document_message| {
+                document_tab_message.force_set(DocumentTabMessage::ImageDocumentMessage(image_document_message))
+            }
+        }).persist();
+    }
+
     fn open_document(
         &self,
         path: PathBuf
@@ -433,17 +449,22 @@ impl AppState {
 
         let extension = path.extension().unwrap().to_str().unwrap();
 
+        let document_tab_message = Dynamic::new(DocumentTabMessage::default());
+
         let message = if SUPPORTED_TEXT_EXTENSIONS.contains(&extension) {
             let (text_document, message) = TextDocument::from_path(path);
             let document = DocumentKind::TextDocument(text_document);
 
-            let tab_key = self.make_document_tab(document);
+            let tab_key = self.make_document_tab(document, document_tab_message);
             AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::TextDocumentMessage(message))))
         } else if SUPPORTED_IMAGE_EXTENSIONS.contains(&extension) {
-            let (image_document, message) = ImageDocument::from_path(path);
+            let image_document_message = Dynamic::new(ImageDocumentMessage::default());
+            Self::make_image_document_message_mapping(&document_tab_message, &image_document_message);
+
+            let (image_document, message) = ImageDocument::from_path(path, image_document_message);
             let document = DocumentKind::ImageDocument(image_document);
 
-            let tab_key = self.make_document_tab(document);
+            let tab_key = self.make_document_tab(document, document_tab_message);
             AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::ImageDocumentMessage(message))))
         } else {
             return Err(OpenDocumentError::UnsupportedFileExtension { extension: extension.to_string() });
@@ -454,16 +475,35 @@ impl AppState {
         Ok(message)
     }
 
-    fn make_document_tab(&self, document: DocumentKind) -> TabKey {
+    fn make_document_tab(&self, document: DocumentKind, document_tab_message: Dynamic<DocumentTabMessage>) -> TabKey {
         let document_key = self.documents.lock().insert(document);
 
-        let document_tab = DocumentTab::new(document_key);
+        let document_tab = DocumentTab::new(document_key, document_tab_message.clone());
 
         let mut tab_bar_guard = self.tab_bar.lock();
         let tab_key = tab_bar_guard.add_tab(&self.context, TabKind::Document(document_tab));
+
+        self.create_document_tab_mapping(document_tab_message, tab_key);
+
         tab_key
     }
 
+    fn create_document_tab_mapping(&self, document_tab_message: Dynamic<DocumentTabMessage>, tab_key: TabKey) {
+        document_tab_message.for_each_cloned({
+            let message = self.message.clone();
+            move |document_tab_message| {
+                message.force_set(
+                    AppMessage::TabMessage(
+                        TabMessage::TabKindMessage(
+                            tab_key,
+                            TabKindMessage::DocumentTabMessage(document_tab_message)
+                        )
+                    )
+                );
+            }
+        })
+            .persist();
+    }
 }
 
 fn update_open_documents(config: &Dynamic<Config>, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>) {
