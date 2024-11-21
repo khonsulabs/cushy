@@ -9,9 +9,9 @@ use cushy::kludgine::{AnyTexture, LazyTexture};
 use cushy::styles::Color;
 use cushy::styles::components::{FocusColor, IntrinsicPadding, WidgetBackground};
 use cushy::value::{Destination, Dynamic, Source, Switchable};
-use cushy::widget::{MakeWidget, Widget};
-use cushy::widgets::{Image, Space};
-use cushy::widgets::button::{ButtonActiveBackground, ButtonActiveOutline, ButtonBackground, ButtonClick, ButtonHoverBackground, ButtonHoverOutline, ButtonOutline};
+use cushy::widget::MakeWidget;
+use cushy::widgets::{Container, Image, Space};
+use cushy::widgets::button::{ButtonActiveBackground, ButtonActiveOutline, ButtonBackground, ButtonHoverBackground, ButtonHoverOutline, ButtonOutline};
 use crate::action::Action;
 use crate::widgets::side_bar::{SideBar, SideBarItem};
 
@@ -152,6 +152,7 @@ impl ImageDocument {
                         let texture = AnyTexture::Lazy(texture.clone());
 
                         let image_widget = Image::new(texture)
+                            // FIXME the button should be the same size as the image/texture
                             .into_button()
                             .on_click({
                                 let message = message.clone();
@@ -180,11 +181,16 @@ impl ImageDocument {
                 }
         }
         )
+            .with(&WidgetBackground, Color::BLUE)
+            .make_widget();
+
+        let image_container_widget = Container::new(image_widget)
+            .background_color(Color::GREEN)
             .expand()
             .make_widget();
 
         let document_widgets = side_bar_widget
-            .and(image_widget)
+            .and(image_container_widget)
             .into_columns()
             .gutter(Px::new(0))
             .expand();
