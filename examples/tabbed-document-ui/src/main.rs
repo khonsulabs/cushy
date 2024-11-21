@@ -9,7 +9,6 @@ use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Stack};
 use cushy::window::{PendingWindow, WindowHandle};
-use cushy::Open;
 use cushy::styles::components::IntrinsicPadding;
 use cushy::styles::Dimension;
 use crate::action::Action;
@@ -204,7 +203,7 @@ fn main(app: &mut App) -> cushy::Result {
         }
     }
 
-    ui.open(app)?;
+    ui.open_centered(app)?;
 
     // FIXME control never returns here (at least on windows)
 
