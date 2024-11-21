@@ -196,10 +196,10 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
 			- [ ] If too big to fit in the window, scrollbars must be present to allow panning
 			- [x] Content must be loaded in a thread or async, in the background.
 			- Tab State
-				- [ ] Maintain X/Y coordinates of last click of anywhere on the image.
+				- [x] Maintain X/Y coordinates of last click of anywhere on the image.
 			- Info sidebar with a grid of key/value items
 				- [x] File path
-				- [ ] Last-clicked X/Y coordinate information
+				- [x] Last-clicked X/Y coordinate information ❌ Currently there are some FIXMEs
                 - [ ] Image size. (width, height).
 - Application state must be loaded on program start, and saved as appropriate.
 	- State items
