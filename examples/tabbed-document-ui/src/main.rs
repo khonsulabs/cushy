@@ -386,7 +386,7 @@ impl AppState {
                 name.push_str(".txt");
                 path.push(&name);
 
-                let (text_document, message) = TextDocument::new(path.clone());
+                let (text_document, message) = TextDocument::create_new(path.clone());
                 let document = DocumentKind::TextDocument(text_document);
 
                 let document_key = self.documents.lock().insert(document);
@@ -401,7 +401,7 @@ impl AppState {
                 name.push_str(".png");
                 path.push(&name);
 
-                let (image_document, message) = ImageDocument::new(path.clone());
+                let (image_document, message) = ImageDocument::create_new(path.clone());
                 let document = DocumentKind::ImageDocument(image_document);
 
                 let document_key = self.documents.lock().insert(document);
