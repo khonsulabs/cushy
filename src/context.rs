@@ -689,10 +689,7 @@ impl<'context, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'clip, 'gfx, 'pass>
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
     /// context's widget.
     pub fn redraw(&mut self) {
-        let Some(layout) = self.last_layout() else {
-            return;
-        };
-        if layout.size.width <= 0 || layout.size.height <= 0 {
+        if self.last_layout().is_none() {
             return;
         }
 

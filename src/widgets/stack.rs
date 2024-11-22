@@ -124,10 +124,8 @@ impl Stack {
 
 impl Widget for Stack {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
-        for (layout, child) in self.layout.iter().zip(&self.synced_children) {
-            if layout.size > 0 {
-                context.for_other(child).redraw();
-            }
+        for child in &self.synced_children {
+            context.for_other(child).redraw();
         }
     }
 
@@ -166,21 +164,19 @@ impl Widget for Stack {
         );
 
         for (layout, child) in self.layout.iter().zip(&self.synced_children) {
-            if layout.size > 0 {
-                context.set_child_layout(
-                    child,
-                    Rect::new(
-                        self.layout
-                            .orientation
-                            .make_point(layout.offset, UPx::ZERO)
-                            .into_signed(),
-                        self.layout
-                            .orientation
-                            .make_size(layout.size, self.layout.others[0])
-                            .into_signed(),
-                    ),
-                );
-            }
+            context.set_child_layout(
+                child,
+                Rect::new(
+                    self.layout
+                        .orientation
+                        .make_point(layout.offset, UPx::ZERO)
+                        .into_signed(),
+                    self.layout
+                        .orientation
+                        .make_size(layout.size, self.layout.others[0])
+                        .into_signed(),
+                ),
+            );
         }
 
         content_size
