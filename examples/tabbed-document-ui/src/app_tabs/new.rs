@@ -192,6 +192,7 @@ impl Tab<NewTabMessage, NewTabAction> for NewTab {
                 .expand_weighted(1)
             )
             .into_columns()
+            .centered()
 
             .make_widget()
     }

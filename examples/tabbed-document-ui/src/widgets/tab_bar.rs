@@ -168,6 +168,7 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
 
         let select_content = tab_state.label.clone()
             .into_label()
+            .centered()
             .and(close_button)
             .into_columns()
             .gutter(Px::new(5))
