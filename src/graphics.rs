@@ -430,7 +430,7 @@ pub struct FontState {
     app_fonts: FontCollection,
     app_font_generation: Generation,
     window_fonts: FontCollection,
-    window_font_generation: Generation,
+    window_font_generation: Option<Generation>,
     pub(crate) loaded_fonts: Map<LoadedFontId, LoadedFontIds>,
     font_generation: usize,
     fonts: Map<String, usize>,
@@ -448,7 +448,7 @@ impl FontState {
         let mut state = Self {
             fonts,
             current_font_family: None,
-            window_font_generation: window_fonts.0.generation(),
+            window_font_generation: None,
             window_fonts,
             app_font_generation: app_fonts.0.generation(),
             app_fonts,
@@ -492,10 +492,10 @@ impl FontState {
             true
         };
         let new_window_generation = self.window_fonts.0.generation();
-        let window_fonts_changed = if self.window_font_generation == new_window_generation {
+        let window_fonts_changed = if self.window_font_generation == Some(new_window_generation) {
             false
         } else {
-            self.window_font_generation = new_window_generation;
+            self.window_font_generation = Some(new_window_generation);
             true
         };
 

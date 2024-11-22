@@ -181,6 +181,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   compared to the previous behavior.
 - Using an `Expand` inside of a `Resize` widget no longer panics with
   overflowing math.
+- Fonts already loaded into a `FontCollection` when the window is first opened
+  are now properly loaded.
 
 ### Added
 
