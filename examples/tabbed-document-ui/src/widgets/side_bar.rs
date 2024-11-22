@@ -1,5 +1,5 @@
 use cushy::figures::units::{Lp, Px};
-use cushy::styles::{Color, ColorScheme, ContainerLevel, Edges, Theme};
+use cushy::styles::{Color, Edges};
 use cushy::styles::components::WidgetBackground;
 use cushy::value::{Dynamic, Switchable};
 use cushy::widget::{MakeWidget, MakeWidgetList, WidgetInstance};
@@ -7,6 +7,9 @@ use cushy::widgets::{Grid, Space};
 use cushy::widgets::grid::{GridDimension, GridWidgets};
 use cushy::widgets::label::{Displayable, LabelOverflow};
 
+// FIXME these color constants should not be used.
+//       additionally all use of `Color` in this file should be removed.
+//       instead colors from the active theme should be used.
 static EXTREMELY_DARK_GREY: Color = Color::new(0x24, 0x24, 0x24, 255);
 static VERY_DARK_GREY: Color = Color::new(0x32, 0x32, 0x32, 255);
 static GUTTER_GREY: Color = Color::new(0x1f, 0x1f, 0x1f, 255);
