@@ -16,6 +16,11 @@ use cushy::widgets::select::SelectedColor;
 use crate::action::Action;
 use crate::context::Context;
 
+// FIXME these color constants should not be used.
+//       additionally all use of `Color` in this file should be removed.
+//       instead colors from the active theme should be used.
+static VERY_DARK_GREY: Color = Color::new(0x32, 0x32, 0x32, 255);
+
 #[derive(Clone, Debug)]
 pub enum TabMessage<TKM> {
     None,
@@ -399,8 +404,6 @@ impl<'a, TK: Clone, TKM, TKA> IntoIterator for &'a TabBar<TK, TKM, TKA> {
         )
     }
 }
-
-static VERY_DARK_GREY: Color = Color::new(0x32, 0x32, 0x32, 255);
 
 // Intermediate widget, with only the things it needs, so that it's possible to call `make_widget` which consumes self.
 struct TabBarWidget {
