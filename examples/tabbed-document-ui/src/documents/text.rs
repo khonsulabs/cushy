@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 use cushy::figures::units::Px;
-use cushy::value::{Destination, Dynamic};
+use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::input::InputValue;
 use crate::action::Action;
@@ -38,37 +38,22 @@ pub struct TextDocument {
 
 impl TextDocument {
     fn new(path: PathBuf) -> TextDocument {
+        let content = Dynamic::default();
+
         let mut side_bar = SideBar::default()
             .with_fixed_width_columns();
 
         let path_item = SideBarItem::new("Path".to_string(), Dynamic::new(Some(path.to_str().unwrap().to_string())));
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
-        side_bar.push(path_item.clone());
+        side_bar.push(path_item);
+
+        let length_item = SideBarItem::new("Length".to_string(), content.map_each(|content: &String |{
+            Some(content.len().to_string())
+        }));
+        side_bar.push(length_item);
 
         Self {
             path,
-            content: Dynamic::default(),
+            content,
             side_bar,
         }
     }
