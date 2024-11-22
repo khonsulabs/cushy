@@ -185,8 +185,9 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
 				- [ ] Maintain text selection. ❌ Text selection is lost when switching tabs.
 				- [ ] Maintain caret position. ❌ Caret position is lost when switching tabs.
 			- Info sidebar with a grid of key/value items
-				- [x] File path
-				- [ ] Selection information
+				- [x] File path.
+                - [x] Length of document.
+				- [ ] Selection information.
 		- 'Image' tab, displays an 'image' document.
 			- [x] Filename must appear in tab.
 			- [x] Shows the image.
@@ -198,8 +199,8 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
 			- Tab State
 				- [x] Maintain X/Y coordinates of last click of anywhere on the image.
 			- Info sidebar with a grid of key/value items
-				- [x] File path
-				- [x] Last-clicked X/Y coordinate information ❌ Currently there are some FIXMEs
+				- [x] File path.
+				- [x] Last-clicked X/Y coordinate information ❌ Currently there are some FIXMEs.
                 - [ ] Image size. (width, height).
 - Application state must be loaded on program start, and saved as appropriate.
 	- State items
