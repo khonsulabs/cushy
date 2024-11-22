@@ -53,7 +53,8 @@ pub struct ImageDocument {
 
 impl ImageDocument {
     fn new(path: PathBuf, message: Dynamic<ImageDocumentMessage>) -> ImageDocument {
-        let mut side_bar = SideBar::default();
+        let mut side_bar = SideBar::default()
+            .with_fixed_width_columns();
 
         let path_item = SideBarItem::new(
             "Path".to_string(),
