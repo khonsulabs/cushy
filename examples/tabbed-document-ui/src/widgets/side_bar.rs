@@ -1,5 +1,5 @@
-use cushy::figures::units::{Lp};
-use cushy::styles::{Color, DimensionRange};
+use cushy::figures::units::{Lp, Px};
+use cushy::styles::{Color, Edges};
 use cushy::styles::components::WidgetBackground;
 use cushy::value::{Dynamic, Switchable};
 use cushy::widget::{MakeWidget, MakeWidgetList, WidgetInstance};
@@ -77,23 +77,38 @@ impl SideBar {
             .make_widget();
 
         let scrollable_content = grid_widget
-            // FIXME how to color the space below the grid?
-            .and(Space::colored(Color::RED)
-                .make_widget()
-            )
-            .into_rows()
+            .with(&WidgetBackground, Color::GREEN) // grid background
             .vertical_scroll()
+            .with(&WidgetBackground, Color::YELLOW) // colors the scrollbar itself
             .expand_vertically()
             .make_widget();
 
+        let sidebar_header = "Sidebar Header"
+            .into_label()
+            .centered()
+            .align_left()
+            .with(&WidgetBackground, Color::MAROON) // label color
+            .pad_by(Edges::default().with_bottom(Px::new(1)))
+            .background_color(Color::LIMEGREEN); // padding color
 
-        let sidebar_widget = "Sidebar Header".into_label()
+        let sidebar_footer = "Sidebar Footer"
+            .into_label()
+            .centered()
+            .align_left()
+            .with(&WidgetBackground, Color::MAROON) // label color
+            .pad_by(Edges::default().with_top(Px::new(1)))
+            .background_color(Color::LIMEGREEN); // padding color
+
+        let sidebar_widget = sidebar_header
             .and(scrollable_content)
-            .and("Sidebar Footer")
+            .and(sidebar_footer)
             .into_rows()
+            .gutter(Px::new(0))
+            .with(&WidgetBackground, Color::ORANGE) // colors header/footer and empty space below the grid
             // required so that when the background of the sidebar fills the container
             .expand_vertically()
-            .with(&WidgetBackground, EXTREMELY_DARK_GREY)
+            .with(&WidgetBackground, Color::PURPLE) // no effect
+            //.with(&WidgetBackground, EXTREMELY_DARK_GREY)
             .make_widget();
 
         sidebar_widget
