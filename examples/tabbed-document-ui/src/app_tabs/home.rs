@@ -47,13 +47,14 @@ impl Tab<HomeTabMessage, HomeTabAction> for HomeTab {
 
             callback.persist();
 
-            let home_label = "Home tab content"
-                // FIXME remove this alignment, currently labels are center aligned by default.
-                .align_left()
+            let home_label = "Home tab"
+                .xxxx_large()
+                .centered()
                 .make_widget();
 
             let show_on_startup_button= "Show on startup"
                 .into_checkbox(show_on_startup_value)
+                .centered()
                 .make_widget();
 
             [home_label, show_on_startup_button]
