@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use cushy::figures::units::Px;
 use cushy::value::{Destination, Dynamic};
-use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
+use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::input::InputValue;
 use crate::action::Action;
 use crate::widgets::side_bar::{SideBar, SideBarItem};
@@ -38,10 +38,33 @@ pub struct TextDocument {
 
 impl TextDocument {
     fn new(path: PathBuf) -> TextDocument {
-        let mut side_bar = SideBar::default();
+        let mut side_bar = SideBar::default()
+            .with_fixed_width_columns();
 
         let path_item = SideBarItem::new("Path".to_string(), Dynamic::new(Some(path.to_str().unwrap().to_string())));
-        side_bar.push(path_item);
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
+        side_bar.push(path_item.clone());
 
         Self {
             path,

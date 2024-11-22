@@ -1,14 +1,15 @@
-use cushy::figures::units::Px;
+use cushy::figures::units::{Lp};
 use cushy::styles::{Color, DimensionRange};
 use cushy::styles::components::WidgetBackground;
 use cushy::value::{Dynamic, Switchable};
-use cushy::widget::{MakeWidget, WidgetInstance};
+use cushy::widget::{MakeWidget, MakeWidgetList, WidgetInstance};
 use cushy::widgets::{Grid, Space};
-use cushy::widgets::grid::GridWidgets;
-use cushy::widgets::label::Displayable;
+use cushy::widgets::grid::{GridDimension, GridWidgets};
+use cushy::widgets::label::{Displayable, LabelOverflow};
 
 static EXTREMELY_DARK_GREY: Color = Color::new(0x24, 0x24, 0x24, 255);
 
+#[derive(Clone)]
 pub struct SideBarItem {
     label: String,
     value: Dynamic<Option<String>>,
@@ -16,32 +17,52 @@ pub struct SideBarItem {
 
 #[derive(Default)]
 pub struct SideBar {
-    items: Vec<SideBarItem>
+    items: Vec<SideBarItem>,
+    grid_dimensions: Dynamic<[GridDimension;2]>
 }
 
 impl SideBar {
+
+    pub fn with_fixed_width_columns(self) -> Self {
+        Self {
+            items: self.items,
+            grid_dimensions: Dynamic::new([
+                // label
+                GridDimension::Measured { size: Lp::new(100).into() },
+                // value
+                GridDimension::Measured { size: Lp::new(150).into() }
+            ]),
+        }
+    }
+
     pub fn push(&mut self, item: SideBarItem) {
         self.items.push(item);
     }
-}
 
-impl SideBar {
     pub fn make_widget(&self) -> WidgetInstance {
 
         let grid_rows: Vec<(WidgetInstance, WidgetInstance)> = self.items.iter().map(|item|{
             (
-                item.label.clone().into_label().make_widget(),
+                item.label.clone()
+                    .into_label()
+                    .overflow(LabelOverflow::Clip)
+                    .make_widget(),
                 item.value.clone().switcher(
                     move |value,_|{
                         match value {
-                            Some(value) => value.clone().into_label().make_widget(),
-                            None => Space::clear().make_widget(),
+                            Some(value) =>
+                                value.clone()
+                                    .into_label()
+                                    .overflow(LabelOverflow::Clip)
+                                    .make_widget()
+                            ,
+                            None =>
+                                Space::clear()
+                                    .make_widget(),
                         }
                     }
                 )
                     .align_left()
-                    // FIXME ideally we want a sensible default width
-                    .width(DimensionRange::from(Px::new(100)..Px::new(200)))
                     .make_widget()
             )
         }).collect();
@@ -50,10 +71,32 @@ impl SideBar {
 
         let grid = Grid::from_rows(grid_row_widgets);
 
-        grid
+        let grid_widget = grid
+            .dimensions(self.grid_dimensions.clone())
             .align_top()
+            .make_widget();
+
+        let scrollable_content = grid_widget
+            // FIXME how to color the space below the grid?
+            .and(Space::colored(Color::RED)
+                .make_widget()
+            )
+            .into_rows()
+            .vertical_scroll()
+            .expand_vertically()
+            .make_widget();
+
+
+        let sidebar_widget = "Sidebar Header".into_label()
+            .and(scrollable_content)
+            .and("Sidebar Footer")
+            .into_rows()
+            // required so that when the background of the sidebar fills the container
+            .expand_vertically()
             .with(&WidgetBackground, EXTREMELY_DARK_GREY)
-            .make_widget()
+            .make_widget();
+
+        sidebar_widget
     }
 }
 

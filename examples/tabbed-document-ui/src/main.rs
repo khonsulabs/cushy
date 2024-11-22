@@ -136,17 +136,19 @@ fn main(app: &mut App) -> cushy::Result {
     let ui = pending.with_root(
         ui_elements
             .into_rows()
-            .width(Px::new(800)..)
-            .height(Px::new(600)..)
+            .width(Px::new(640)..)
+            .height(Px::new(480)..)
             .fit_vertically()
             .fit_horizontally()
             .make_widget()
     )
+        /*
         .on_open({
             let message = message.clone();
             let dyn_app_state = dyn_app_state.clone();
 
             move |_window| {
+
                 message.force_set(AppMessage::ToolBarMessage(ToolbarMessage::NewClicked));
 
                 let tab_key = dyn_app_state.lock().tab_bar.lock().find_tab_by_label("New").unwrap();
@@ -155,6 +157,7 @@ fn main(app: &mut App) -> cushy::Result {
                 message.force_set(AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::NewTabMessage(NewTabMessage::OkClicked))));
             }
         })
+        */
         .on_close({
             let dyn_app_state = dyn_app_state.clone();
             let config = dyn_app_state.lock().config.clone();
