@@ -187,7 +187,7 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
 			- Info sidebar with a grid of key/value items
 				- [x] File path.
                 - [x] Length of document.
-				- [ ] Selection information.
+				- [ ] Selection information. ❌ `Input` API currently has no way to get the selection information or the selected text.
 		- 'Image' tab, displays an 'image' document.
 			- [x] Filename must appear in tab.
 			- [x] Shows the image.
