@@ -316,15 +316,15 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     where
         Op::DrawInfo: Default,
     {
-        let origin = self.region.origin;
+        let region = self.region;
         self.renderer
-            .draw::<CushyRenderOp<Op>>((<Op::DrawInfo>::default(), origin));
+            .draw::<CushyRenderOp<Op>>((<Op::DrawInfo>::default(), region));
     }
 
     /// Draws `Op` with the given context.
     pub fn draw_with<Op: RenderOperation>(&mut self, context: Op::DrawInfo) {
-        let origin = self.region.origin;
-        self.renderer.draw::<CushyRenderOp<Op>>((context, origin));
+        let region = self.region;
+        self.renderer.draw::<CushyRenderOp<Op>>((context, region));
     }
 
     /// Returns a reference to the font system used to render.
@@ -382,7 +382,7 @@ impl<'gfx, 'pass> DerefMut for RenderContext<'_, 'gfx, 'pass> {
 
 #[derive(Debug)]
 struct Prepared<T> {
-    origin: Point<Px>,
+    region: Rect<Px>,
     data: T,
 }
 
@@ -392,7 +392,7 @@ impl<Op> kludgine::drawing::RenderOperation for CushyRenderOp<Op>
 where
     Op: RenderOperation,
 {
-    type DrawInfo = (Op::DrawInfo, Point<Px>);
+    type DrawInfo = (Op::DrawInfo, Rect<Px>);
     type Prepared = Prepared<Op::Prepared>;
 
     fn new(graphics: &mut kludgine::Graphics<'_>) -> Self {
@@ -401,12 +401,12 @@ where
 
     fn prepare(
         &mut self,
-        (context, origin): Self::DrawInfo,
+        (context, region): Self::DrawInfo,
         graphics: &mut kludgine::Graphics<'_>,
     ) -> Self::Prepared {
         Prepared {
-            origin,
-            data: self.0.prepare(context, origin, graphics),
+            region,
+            data: self.0.prepare(context, region, graphics),
         }
     }
 
@@ -417,7 +417,7 @@ where
         graphics: &mut RenderingGraphics<'_, 'pass>,
     ) {
         self.0
-            .render(&prepared.data, prepared.origin, opacity, graphics);
+            .render(&prepared.data, prepared.region, opacity, graphics);
     }
 }
 
@@ -630,19 +630,33 @@ pub trait RenderOperation: Send + Sync + 'static {
     /// Returns a new instance of this render operation.
     fn new(graphics: &mut kludgine::Graphics<'_>) -> Self;
 
-    /// Prepares this operation to be rendered at `origin` in `graphics`.
+    /// Prepares this operation to be rendered in `region` in `graphics`.
+    ///
+    /// This operation's  will automatically be clipped to the available space
+    /// for the context it is being drawn to. The render operation should
+    /// project itself into `region` and only use the clip rect as an
+    /// optimization. To test that this is handled correctly, try placing
+    /// whatever is being rendered in a `Scroll` widget and ensure that as the
+    /// contents are clipped, the visible area shows the correct contents.
     fn prepare(
         &mut self,
         context: Self::DrawInfo,
-        origin: Point<Px>,
+        region: Rect<Px>,
         graphics: &mut kludgine::Graphics<'_>,
     ) -> Self::Prepared;
 
-    /// Render `preprared` to `graphics` at `origin` with `opacity`.
+    /// Render `preprared` to `graphics` at `region` with `opacity`.
+    ///
+    /// This operation's  will automatically be clipped to the available space
+    /// for the context it is being drawn to. The render operation should
+    /// project itself into `region` and only use the clip rect as an
+    /// optimization. To test that this is handled correctly, try placing
+    /// whatever is being rendered in a `Scroll` widget and ensure that as the
+    /// contents are clipped, the visible area shows the correct contents.
     fn render(
         &self,
         prepared: &Self::Prepared,
-        origin: Point<Px>,
+        region: Rect<Px>,
         opacity: f32,
         graphics: &mut RenderingGraphics<'_, '_>,
     );
@@ -653,8 +667,15 @@ pub trait SimpleRenderOperation: Send + Sync + 'static {
     /// Returns a new instance of this render operation.
     fn new(graphics: &mut kludgine::Graphics<'_>) -> Self;
 
-    /// Render to `graphics` at `origin` with `opacity`.
-    fn render(&self, origin: Point<Px>, opacity: f32, graphics: &mut RenderingGraphics<'_, '_>);
+    /// Render to `graphics` at `rect` with `opacity`.
+    ///
+    /// This operation's  will automatically be clipped to the available space
+    /// for the context it is being drawn to. The render operation should
+    /// project itself into `region` and only use the clip rect as an
+    /// optimization. To test that this is handled correctly, try placing
+    /// whatever is being rendered in a `Scroll` widget and ensure that as the
+    /// contents are clipped, the visible area shows the correct contents.
+    fn render(&self, region: Rect<Px>, opacity: f32, graphics: &mut RenderingGraphics<'_, '_>);
 }
 
 impl<T> RenderOperation for T
@@ -671,7 +692,7 @@ where
     fn prepare(
         &mut self,
         _context: Self::DrawInfo,
-        _origin: Point<Px>,
+        _origin: Rect<Px>,
         _graphics: &mut kludgine::Graphics<'_>,
     ) -> Self::Prepared {
     }
@@ -679,10 +700,10 @@ where
     fn render(
         &self,
         _prepared: &Self::Prepared,
-        origin: Point<Px>,
+        region: Rect<Px>,
         opacity: f32,
         graphics: &mut RenderingGraphics<'_, '_>,
     ) {
-        self.render(origin, opacity, graphics);
+        self.render(region, opacity, graphics);
     }
 }
