@@ -145,14 +145,14 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
         - [x] When a file is opened, a tab appears and depending on the file type, it shows different content in the tab. (e.g. '.txt' text shows the 'Text' tab, '.bmp' shows the 'Image' tab).
 	- 'New' button
 	    - [x] When clicked the 'New' tab is shown, see below.
-	- [ ] Language dropdown, choose between at least 2 languages (e.g. English and Spanish).
+	- [ ] Language dropdown, choose between at least 2 languages (e.g. English and Spanish). ❌ No i18n support exists yet (https://github.com/khonsulabs/cushy/issues/187). No popup/dropdown widget yet (https://github.com/khonsulabs/cushy/issues/154).
         - [ ] Changing the language should cause all UI text to be immediately displayed in the selected language without requiring a restart. 
 - Tab bar
-	- [ ] When all the tabs won't fit in the window, there must be some controls to allow them all to be selected, e.g. `<` and `>` buttons, or `V` dropdown, or scrollable.
-	- [x] Selecting a tab changes the content area below the tab bar.
-	- [x] Must be obvious which tab is selected when there are only two tabs.
-	- [x] Each tab should be closable (e.g. an `X` button on the tab or right-click on tab to show a context menu with `Close`)
-	- [x] When a tab is closed, the next most recently used tab is made active.
+  - [ ] When all the tabs won't fit in the window, there must be some controls to allow them all to be selected, e.g. `<` and `>` buttons, or `V` dropdown, or scrollable.
+  - [x] Selecting a tab changes the content area below the tab bar.
+  - [x] Must be obvious which tab is selected when there are only two tabs.
+  - [x] Each tab should be closable (e.g. an `X` button on the tab or right-click on tab to show a context menu with `Close`)
+  - [x] When a tab is closed, the next most recently used tab is made active.
 - Tab content
 	- [x] Displays the content for the tab.
 	- [x] Each tab content must maintain it's state, without expensive re-loads/refreshing of the state, no re-loading of files.
@@ -179,7 +179,7 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
 				- [x] tab ordering must be preserved.  e.g. given tabs 'File1, New, File2' pressing 'Ok' on `New` should result in tabs 'File1, File3, File2', not 'File1, File2, File3'
 		- 'Text' tab, displays a 'text' document.
 			- [x] Filename must appear in tab.
-			- [x] Show text file content in an editor.
+			- [x] Show text file content in an editor. ❌ Multi-line text editor not implemented in Cushy yet. (https://github.com/khonsulabs/cushy/issues/121)
 			- [x] Content must be loaded in a thread or async, in the background.
 			- Tab State
 				- [ ] Maintain text selection. ❌ Text selection is lost when switching tabs.
@@ -192,8 +192,8 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
 			- [x] Filename must appear in tab.
 			- [x] Shows the image.
             - [x] Image is top-left justified.
-            - [ ] Image is scaled-up to fit window, aspect ratio must be preserved.
-            - [ ] Do not allow image to be scaled down.
+            - [ ] Image is scaled-up to fit window, aspect ratio must be preserved. ❌ Pending due to image example in cushy currently broken.
+            - [ ] Do not allow image to be scaled down. ❌ Pending due to image example in cushy currently broken.
 			- [ ] If too big to fit in the window, scrollbars must be present to allow panning
 			- [x] Content must be loaded in a thread or async, in the background.
 			- Tab State
@@ -212,11 +212,11 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
   - 'text' - the text file.
   - 'image' - the image file. 
 - Architecture
-    - [ ] Code should be written in such a way that multiple-developers can work on different aspects of the codebase without creating merge-conflicts. i.e. use modules, avoid tight-coupling, good compile-time dependencies, etc.
+    - [x] Code should be written in such a way that multiple-developers can work on different aspects of the codebase without creating merge-conflicts. i.e. use modules, avoid tight-coupling, good compile-time dependencies, etc.
     - [x] The application itself must own the documents (images, text), not the tabs themselves.
-    - [ ] When the last tab for a document is closed, the document should be dropped/closed.
+    - [x] When the last tab for a document is closed, the document should be dropped/closed.
 - Bonus points
-	- [ ] Native look and feel controls.
+	- [ ] Native look and feel controls. ❌ Cushy has its own visual style.
 	- [x] Some way of closing all the tabs in one go (e.g. "Close all" button on toolbar).
     - [ ] Add 'Display in window' on tab context menu which when clicked displays the document in a new window with no tab bar, and where the window title is the name of the file.
 	- [ ] Multiple tabs for the same document, e.g. right-click a tab, click 'Duplicate'.  Changes in one tab are reflected in the other.
@@ -224,6 +224,6 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
 	- [ ] When two tabs are open, where the file name names of the document are the same, but the directory the file is in is different, show enough of the path to be able to distinguish the two tabs.
 		- e.g. for `/tmp/foobar/file.txt` and `/tmp/barfoo/file.txt` instead of (`file.txt` & `file.txt`) show (`foobar/file.txt` & `barfoo/file.txt`)
 		- doing this forces the tab system to be able to access other tab names and change them all, dynamically, when one tab is added or when one is updated.
-	- [ ] Draggable divider between sidebar and content.
+	- [ ] Draggable divider between sidebar and content. ❌ No `SplitPane`/`Draggable`/`Splitter` widget exists yet. See https://github.com/khonsulabs/cushy/issues/217 
     - [ ] Tests for individual components.
     - [ ] Integration/Behavioral tests.
