@@ -193,7 +193,6 @@ impl ImageDocument {
         let document_widgets = side_bar_widget
             .and(image_container_widget)
             .into_columns()
-            .gutter(Px::new(0))
             .expand();
 
         document_widgets
