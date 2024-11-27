@@ -3,23 +3,18 @@ use std::default::Default;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use slotmap::{new_key_type, SlotMap};
+use cushy::define_components;
 use cushy::figures::units::Px;
-use cushy::styles::{Color, CornerRadii, Dimension, Edges};
-use cushy::styles::components::{CornerRadius, IntrinsicPadding, TextColor, WidgetBackground};
+use cushy::styles::{Color, Edges};
+use cushy::styles::components::{ErrorColor, HighlightColor, IntrinsicPadding, OpaqueWidgetColor, WidgetBackground};
 use cushy::value::{Destination, Dynamic, Source, Switchable};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance, WidgetList};
 use cushy::widgets::grid::Orientation;
 use cushy::widgets::{Expand, Space, Stack};
-use cushy::widgets::button::{ButtonActiveBackground, ButtonActiveForeground, ButtonBackground, ButtonForeground, ButtonHoverForeground};
-use cushy::widgets::label::Displayable;
-use cushy::widgets::select::SelectedColor;
+use cushy::widgets::button::{ButtonActiveBackground, ButtonActiveForeground, ButtonBackground, ButtonForeground, ButtonHoverBackground, ButtonHoverForeground};
+use cushy::widgets::label::{Displayable, LabelOverflow};
 use crate::action::Action;
 use crate::context::Context;
-
-// FIXME these color constants should not be used.
-//       additionally all use of `Color` in this file should be removed.
-//       instead colors from the active theme should be used.
-static VERY_DARK_GREY: Color = Color::new(0x32, 0x32, 0x32, 255);
 
 #[derive(Clone, Debug)]
 pub enum TabMessage<TKM> {
@@ -165,43 +160,46 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
                 let message = self.message.clone();
                 move |_event| message.force_set(TabMessage::TabClosed(tab_key))
             })
-            .with(&ButtonForeground, Color::LIGHTGRAY)
             .with(&ButtonBackground, Color::CLEAR_BLACK)
             .with(&ButtonActiveBackground, Color::CLEAR_BLACK)
-            .with(&ButtonActiveForeground, Color::RED)
-            .with(&ButtonHoverForeground, Color::RED);
+            .with(&ButtonHoverBackground, Color::CLEAR_BLACK)
+            .with_dynamic(&ButtonForeground, OpaqueWidgetColor)
+            .with_dynamic(&ButtonActiveForeground, ErrorColor)
+            .with_dynamic(&ButtonHoverForeground, ErrorColor);
 
         let select_content = tab_state.label.clone()
             .into_label()
+            .overflow(LabelOverflow::Clip)
             .centered()
             .and(close_button)
             .into_columns()
             .gutter(Px::new(5))
             .pad_by(Edges::default().with_horizontal(Px::new(3)).with_top(Px::new(3)).with_bottom(Px::new(0)))
             .and(
-                Space::default()
-                    .height(Px::new(3))
-                    .with(&WidgetBackground, self.active.map_each(move |active|{
-                        let mut color = Color::CLEAR_BLACK;
-                        if let Some(active) = active {
-                            if active.eq(&tab_key) {
-                                color = Color::SKYBLUE
-                            }
-                        }
-                        color
-                    }))
+                self.active.clone().switcher(move |active, _|{
+                   match active {
+                       Some(active_tab_key) if active_tab_key.eq(&tab_key) => {
+                           Space::default()
+                               .height(Px::new(3))
+                               .with_dynamic(&WidgetBackground, TabBarActiveTabMarker)
+                               .make_widget()
+
+                       }
+                       _ => {
+                           Space::default()
+                               .height(Px::new(3))
+                               .make_widget()
+                       }
+                   }
+                })
             )
             .into_rows()
             .gutter(Px::new(0));
 
         let select = self.active
-            .new_select(Some(tab_key), select_content )
+            .new_select(Some(tab_key), select_content)
             // NOTE any less than 3 here breaks the keyboard focus for the select button, 0 = not visible, < 3 = too small
             .with(&IntrinsicPadding, Px::new(3))
-            .with(&ButtonForeground, Color::LIGHTGRAY)
-            .with(&ButtonHoverForeground, Color::WHITE)
-            .with(&ButtonActiveBackground, Color::GRAY)
-            .with(&SelectedColor, Color::GRAY)
             // TODO remove this workaround for the select button's background inheritance
             .with(&WidgetBackground, Color::CLEAR_BLACK);
 
@@ -418,23 +416,21 @@ impl MakeWidget for TabBarWidget {
             Stack::new(Orientation::Column, self.tab_buttons)
                 .make_widget(),
             Expand::empty()
-                // FIXME this causes the tab bar to take the entire height of the area under the toolbar unless a height is specified
-                //       but we don't want to specify a height in pixels, we want the height to be be automatic
-                //       like it is when the background color is not specified.
-                .with(&WidgetBackground, VERY_DARK_GREY)
-                // FIXME remove this, see above.
-                .height(Px::new(38))
                 .make_widget(),
         ]
-            .into_columns()
-            .with(&WidgetBackground, VERY_DARK_GREY)
-            .with(&TextColor, Color::GRAY);
+            .into_columns();
 
         tab_bar
             .and(self.content_switcher.expand())
             .into_rows()
-            .gutter(Px::new(0))
-            .with(&CornerRadius, CornerRadii::from(Dimension::Px(Px::new(0))))
+            .gutter(Px::new(3))
             .make_widget()
+    }
+}
+
+define_components! {
+    TabBar {
+        /// The color of the active tab's marker.
+        TabBarActiveTabMarker(Color, "active_tab_marker_color", @HighlightColor)
     }
 }
