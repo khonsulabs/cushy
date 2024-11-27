@@ -227,7 +227,6 @@ impl AppState {
             AppMessage::ToolBarMessage(message) => {
                 self
                     .on_toolbar_message(message)
-                    .map(|message|AppMessage::ToolBarMessage(message))
             }
             AppMessage::FileOpened(path) => {
                 match self.open_document(path) {
@@ -243,18 +242,24 @@ impl AppState {
         }
     }
 
-    fn on_toolbar_message(&self, message: ToolbarMessage) -> Task<ToolbarMessage> {
+    fn on_toolbar_message(&mut self, message: ToolbarMessage) -> Task<AppMessage> {
         match message {
-            ToolbarMessage::None => {}
+            ToolbarMessage::None => {
+                Task::none()
+            }
             ToolbarMessage::HomeClicked => {
                 println!("home clicked");
 
                 add_home_tab(&self.context, &self.tab_bar);
+
+                Task::none()
             }
             ToolbarMessage::NewClicked => {
                 println!("New clicked");
 
                 self.add_new_tab();
+
+                Task::none()
             }
             ToolbarMessage::OpenClicked => {
 
@@ -284,15 +289,18 @@ impl AppState {
                             }
                         }
                     });
+
+                Task::none()
             }
             ToolbarMessage::CloseAllClicked => {
                 println!("close all clicked");
+                let closed_tabs = self.tab_bar.lock().close_all();
+                let tasks: Vec<_> = closed_tabs.into_iter().map(|(key, kind)|self.on_tab_closed(key, kind)).collect();
 
-                self.tab_bar.lock().close_all();
+                Task::batch(tasks)
             }
         }
 
-        Task::none()
     }
 
     fn add_new_tab(&self) {
@@ -328,14 +336,7 @@ impl AppState {
                 Task::none()
             },
             TabAction::TabClosed(tab_key, tab) => {
-                println!("tab closed, key: {:?}", tab_key);
-                match tab {
-                    TabKind::Home(_tab) => (),
-                    TabKind::Document(tab) => {
-                        self.documents.lock().remove(tab.document_key);
-                    }
-                    TabKind::New(_tab) => ()
-                }
+                self.on_tab_closed(tab_key, tab);
 
                 Task::none()
             },
@@ -379,6 +380,18 @@ impl AppState {
             }
             TabAction::None => Task::none(),
         }
+    }
+
+    fn on_tab_closed(&mut self, tab_key: TabKey, tab: TabKind) -> Task<AppMessage> {
+        println!("tab closed, key: {:?}", tab_key);
+        match tab {
+            TabKind::Home(_tab) => (),
+            TabKind::Document(tab) => {
+                self.documents.lock().remove(tab.document_key);
+            }
+            TabKind::New(_tab) => ()
+        }
+        Task::none()
     }
 
     fn create_document(&self, tab_key: TabKey, mut name: String, mut path: PathBuf, kind: KindChoice) -> Task<AppMessage> {
