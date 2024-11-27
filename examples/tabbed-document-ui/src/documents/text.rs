@@ -102,7 +102,6 @@ impl TextDocument {
         let document_widgets = side_bar_widget
             .and(content_widget)
             .into_columns()
-            .gutter(Px::new(0))
             .expand();
 
         document_widgets
