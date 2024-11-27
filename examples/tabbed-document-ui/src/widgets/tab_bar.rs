@@ -19,7 +19,7 @@ use crate::context::Context;
 #[derive(Clone, Debug)]
 pub enum TabMessage<TKM> {
     None,
-    TabClosed(TabKey),
+    CloseTab(TabKey),
     TabKindMessage(TabKey, TKM),
 }
 
@@ -158,7 +158,7 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
         let close_button = "X".into_button()
             .on_click({
                 let message = self.message.clone();
-                move |_event| message.force_set(TabMessage::TabClosed(tab_key))
+                move |_event| message.force_set(TabMessage::CloseTab(tab_key))
             })
             .with(&ButtonBackground, Color::CLEAR_BLACK)
             .with(&ButtonActiveBackground, Color::CLEAR_BLACK)
@@ -337,7 +337,7 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
     pub fn update(&mut self, context: &Dynamic<Context>, message: TabMessage<TKM>) -> Action<TabAction<TKA, TK>> {
         match message {
             TabMessage::None => Action::new(TabAction::None),
-            TabMessage::TabClosed(tab_key) => {
+            TabMessage::CloseTab(tab_key) => {
                 let tab = self.close_tab(tab_key);
                 Action::new(TabAction::TabClosed(tab_key, tab))
             },
