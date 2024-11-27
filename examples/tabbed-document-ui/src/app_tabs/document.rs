@@ -33,7 +33,6 @@ pub enum DocumentTabAction {
 pub struct DocumentTab {
     pub document_key: DocumentKey,
     message: Dynamic<DocumentTabMessage>,
-
 }
 
 impl DocumentTab {
