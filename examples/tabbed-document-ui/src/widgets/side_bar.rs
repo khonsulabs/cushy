@@ -1,18 +1,10 @@
 use cushy::figures::units::{Lp, Px};
-use cushy::styles::{Color, Edges};
-use cushy::styles::components::WidgetBackground;
+use cushy::styles::ContainerLevel;
 use cushy::value::{Dynamic, IntoValue, Switchable, Value};
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::{Grid, Space};
 use cushy::widgets::grid::{GridDimension, GridWidgets};
 use cushy::widgets::label::{Displayable, LabelOverflow};
-
-// FIXME these color constants should not be used.
-//       additionally all use of `Color` in this file should be removed.
-//       instead colors from the active theme should be used.
-static EXTREMELY_DARK_GREY: Color = Color::new(0x24, 0x24, 0x24, 255);
-static VERY_DARK_GREY: Color = Color::new(0x32, 0x32, 0x32, 255);
-static GUTTER_GREY: Color = Color::new(0x1f, 0x1f, 0x1f, 255);
 
 #[derive(Clone)]
 pub struct SideBarItem {
@@ -66,6 +58,7 @@ impl SideBar {
 
         let scrollable_content = grid_widget
             .vertical_scroll()
+            .contain_level(ContainerLevel::High)
             .expand_vertically()
             .make_widget();
 
@@ -73,28 +66,22 @@ impl SideBar {
             .into_label()
             .centered()
             .align_left()
-            .with(&WidgetBackground, Color::DIMGRAY) // label color
-            .pad_by(Edges::default().with_bottom(Px::new(1)))
-            .background_color(GUTTER_GREY); // padding color
+            .contain_level(ContainerLevel::Highest);
 
         let sidebar_footer = "Sidebar Footer"
             .into_label()
             .centered()
             .align_left()
-            .with(&WidgetBackground, Color::DIMGRAY) // label color
-            .pad_by(Edges::default().with_top(Px::new(1)))
-            .background_color(GUTTER_GREY); // padding color
-
+            .contain_level(ContainerLevel::Highest);
 
         let sidebar_widget = sidebar_header
             .and(scrollable_content)
             .and(sidebar_footer)
             .into_rows()
             .gutter(Px::new(0))
-            .with(&WidgetBackground, Color::CLEAR_BLACK) // colors header/footer and empty space below the grid
             // required so that when the background of the sidebar fills the container
             .expand_vertically()
-            .with(&WidgetBackground, VERY_DARK_GREY) // space below the grid, when stack is clear (see above)
+            .contain_level(ContainerLevel::Mid)
             .make_widget();
 
         sidebar_widget
