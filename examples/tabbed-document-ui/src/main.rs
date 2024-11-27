@@ -41,6 +41,7 @@ enum AppMessage {
     TabMessage(TabMessage<TabKindMessage>),
     ToolBarMessage(ToolbarMessage),
     FileOpened(PathBuf),
+    ChooseFile(WindowHandle),
 }
 
 impl Default for AppMessage {
@@ -239,6 +240,30 @@ impl AppState {
                     }
                 }
             }
+            AppMessage::ChooseFile(window) => {
+                let all_extensions: Vec<_> = SUPPORTED_TEXT_EXTENSIONS.iter().cloned().chain(SUPPORTED_IMAGE_EXTENSIONS.iter().cloned()).collect();
+
+                FilePicker::new()
+                    .with_title("Open file")
+                    .with_types([
+                        FileType::from(("All supported files", into_array::<_, 6>(all_extensions))),
+                        FileType::from(("Text files", SUPPORTED_TEXT_EXTENSIONS)),
+                        FileType::from(("Image files", SUPPORTED_IMAGE_EXTENSIONS)),
+                    ])
+                    .pick_file(&window,{
+
+                        let message = self.message.clone();
+
+                        move |path|{
+                            if let Some(path) = path {
+                                println!("path: {:?}", path);
+                                message.force_set(AppMessage::FileOpened(path))
+                            }
+                        }
+                    });
+
+                Task::none()
+            }
         }
     }
 
@@ -269,28 +294,7 @@ impl AppState {
 
                 println!("open clicked");
 
-                let all_extensions: Vec<_> = SUPPORTED_TEXT_EXTENSIONS.iter().cloned().chain(SUPPORTED_IMAGE_EXTENSIONS.iter().cloned()).collect();
-
-                FilePicker::new()
-                    .with_title("Open file")
-                    .with_types([
-                        FileType::from(("All supported files", into_array::<_, 6>(all_extensions))),
-                        FileType::from(("Text files", SUPPORTED_TEXT_EXTENSIONS)),
-                        FileType::from(("Image files", SUPPORTED_IMAGE_EXTENSIONS)),
-                    ])
-                    .pick_file(&window,{
-
-                        let message = self.message.clone();
-
-                        move |path|{
-                            if let Some(path) = path {
-                                println!("path: {:?}", path);
-                                message.force_set(AppMessage::FileOpened(path))
-                            }
-                        }
-                    });
-
-                Task::none()
+                Task::done(AppMessage::ChooseFile(window))
             }
             ToolbarMessage::CloseAllClicked => {
                 println!("close all clicked");
@@ -300,7 +304,6 @@ impl AppState {
                 Task::batch(tasks)
             }
         }
-
     }
 
     fn add_new_tab(&self) {
