@@ -1,8 +1,8 @@
 use cushy::figures::units::{Lp, Px};
 use cushy::styles::{Color, Edges};
 use cushy::styles::components::WidgetBackground;
-use cushy::value::{Dynamic, Switchable};
-use cushy::widget::{MakeWidget, MakeWidgetList, WidgetInstance};
+use cushy::value::{Dynamic, IntoValue, Switchable, Value};
+use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::{Grid, Space};
 use cushy::widgets::grid::{GridDimension, GridWidgets};
 use cushy::widgets::label::{Displayable, LabelOverflow};
@@ -16,8 +16,8 @@ static GUTTER_GREY: Color = Color::new(0x1f, 0x1f, 0x1f, 255);
 
 #[derive(Clone)]
 pub struct SideBarItem {
-    label: String,
-    value: Dynamic<Option<String>>,
+    label: Value<String>,
+    field: WidgetInstance,
 }
 
 #[derive(Default)]
@@ -27,7 +27,6 @@ pub struct SideBar {
 }
 
 impl SideBar {
-
     pub fn with_fixed_width_columns(self) -> Self {
         Self {
             items: self.items,
@@ -52,23 +51,7 @@ impl SideBar {
                     .into_label()
                     .overflow(LabelOverflow::Clip)
                     .make_widget(),
-                item.value.clone().switcher(
-                    move |value,_|{
-                        match value {
-                            Some(value) =>
-                                value.clone()
-                                    .into_label()
-                                    .overflow(LabelOverflow::Clip)
-                                    .make_widget()
-                            ,
-                            None =>
-                                Space::clear()
-                                    .make_widget(),
-                        }
-                    }
-                )
-                    .align_left()
-                    .make_widget()
+                item.field.clone()
             )
         }).collect();
 
@@ -119,10 +102,37 @@ impl SideBar {
 }
 
 impl SideBarItem {
-    pub fn new(label: String, value: Dynamic<Option<String>>) -> Self {
+    pub fn from_field(label: impl IntoValue<String>, field: impl MakeWidget) -> Self {
         Self {
-            label,
-            value,
+            label: label.into_value(),
+            field: field.make_widget(),
+        }
+    }
+
+    // FIXME rename to from_optional_value
+    pub fn new(label: String, value: Dynamic<Option<String>>) -> Self {
+        let field = value.clone().switcher({
+            //let value = value.clone();
+            move |value, _| {
+                match value.clone() {
+                    Some(value) =>
+                        value
+                            .into_label()
+                            .overflow(LabelOverflow::Clip)
+                            .make_widget()
+                    ,
+                    None =>
+                        Space::clear()
+                            .make_widget(),
+                }
+            }
+        })
+            .align_left()
+            .make_widget();
+
+        Self {
+            label: label.into_value(),
+            field,
         }
     }
 }
