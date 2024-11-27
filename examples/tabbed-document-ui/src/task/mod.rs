@@ -34,6 +34,15 @@ impl<T> Task<T> {
         Self::future(future.map(f))
     }
 
+    pub fn batch(tasks: impl IntoIterator<Item = Self>) -> Self
+    where
+        T: 'static,
+    {
+        Self(Some(boxed_stream(stream::select_all(
+            tasks.into_iter().filter_map(|task| task.0),
+        ))))
+    }
+
     pub fn map<O>(
         self,
         mut f: impl FnMut(T) -> O + Send + 'static
