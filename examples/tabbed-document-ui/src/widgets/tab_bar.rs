@@ -229,13 +229,15 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
     }
 
 
-    pub fn close_all(&mut self) {
+    pub fn close_all(&mut self) -> Vec<(TabKey, TK)> {
         self.active.set(None);
         self.tab_buttons.lock().clear();
         self.tab_button_keys.clear();
 
-        self.tabs.lock().clear();
+        let closed_tabs = self.tabs.lock().drain().map(|(key,state)|(key, state.tab)).collect();
         self.history.borrow_mut().clear();
+
+        closed_tabs
     }
 
     pub fn close_tab(&mut self, tab_key: TabKey) -> TK {
