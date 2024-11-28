@@ -45,6 +45,7 @@ use crate::window::{
     VirtualRecorderBuilder, Window, WindowBehavior, WindowHandle, WindowLocal,
 };
 use crate::ConstraintLimit;
+use crate::widgets::localized::Localized;
 
 /// A type that makes up a graphical user interface.
 ///
@@ -1443,6 +1444,11 @@ pub trait MakeWidget: Sized {
     /// Applies `theme` to `self` and its children.
     fn themed(self, theme: impl IntoValue<ThemePair>) -> Themed {
         Themed::new(theme, self)
+    }
+
+    /// Applies `theme` to `self` and its children.
+    fn localized(self, locale: impl IntoValue<LanguageIdentifier>) -> Localized {
+        Localized::new(locale, self)
     }
 
     /// Applies `mode` to `self` and its children.
