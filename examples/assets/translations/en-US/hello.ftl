@@ -1,1 +1,1 @@
-message-hello-world = Hi, world!
+message-hello-world = Howdy, world!
