@@ -50,22 +50,18 @@ impl DynamicDisplay for Localize {
         let locale = context.locale();
         println!("{:?}", locale);
 
-        let bundle = if let Some(bundle) = context.translation() {
-            bundle
-        } else {
-            return f.write_str(&self.key)
-        };
+        let bundle = context.translation();
 
         let message = if let Some(msg) = bundle.get_message(&self.key) {
             msg
         } else {
-            return f.write_str(&self.key)
+            return f.write_str(&format!("No message. locale: {}, key: {}", locale, self.key))
         };
 
         let value = if let Some(value) = message.value() {
             value
         } else {
-            return f.write_str(&self.key)
+            return f.write_str(&format!("No value. locale: {}, key: {}", locale, self.key))
         };
 
         let mut err = vec![];
@@ -75,7 +71,7 @@ impl DynamicDisplay for Localize {
         if err.is_empty() {
             f.write_str(&res)
         } else {
-            f.write_str(&format!("{} {{Translation error: {:?}}}", res, err))
+            f.write_str(&format!("{} {{Error. locale: {}, key: {}, cause: {:?}}}", locale, self.key, res, err))
         }
     }
 }
@@ -106,15 +102,15 @@ impl Translations {
 }
 
 pub struct TranslationState {
-    pub(crate) locale: LanguageIdentifier,
+    pub(crate) fallback_locale: LanguageIdentifier,
     pub(crate) loaded_translations: HashMap<LanguageIdentifier, FluentBundle<FluentResource>>
 }
 
 
 impl TranslationState {
-    pub fn new(system_locale: LanguageIdentifier) -> Self {
+    pub fn new() -> Self {
         Self {
-            locale: system_locale,
+            fallback_locale: LanguageIdentifier::default(),
             loaded_translations: HashMap::from([(
                 LanguageIdentifier::default(),
                 FluentBundle::new(vec![LanguageIdentifier::default()]),
@@ -130,10 +126,10 @@ impl TranslationState {
                 self.loaded_translations.entry(language.clone()).or_insert_with(|| FluentBundle::new(vec![language.clone()]));
             bundle.add_resource(res).expect("Failed to add resource to bundle");
         };
-        self.renegotiate_language()
+        self.renegotiate_fallback_language()
     }
 
-    pub fn renegotiate_language(&mut self) {
+    pub fn renegotiate_fallback_language(&mut self) {
         let available = self
             .loaded_translations
             .keys()
@@ -150,6 +146,6 @@ impl TranslationState {
             Some(&default_ref),
             fluent_langneg::NegotiationStrategy::Filtering,
         );
-        self.locale = (**languages.first().unwrap()).clone();
+        self.fallback_locale = (**languages.first().unwrap()).clone();
     }
 }

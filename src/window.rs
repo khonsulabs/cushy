@@ -41,7 +41,6 @@ use kludgine::{Color, DrawableExt, Kludgine, KludgineId, Origin, Texture};
 use parking_lot::{Mutex, MutexGuard};
 use sealed::{Ize, PreShowCallback, WindowExecute};
 use tracing::Level;
-use unic_langid::LanguageIdentifier;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::animation::{
@@ -1747,7 +1746,7 @@ where
             graphics.font_system().db_mut(),
         );
 
-        let translations = Self::load_translations(app.cushy().locale.clone(), app.cushy().translations.clone());
+        let translations = Self::load_translations(app.cushy().translations.clone());
 
         let dpi_scale = Dynamic::new(graphics.dpi_scale());
         settings.inner_position.set(window.inner_position());
@@ -2533,8 +2532,8 @@ where
         }
     }
 
-    fn load_translations(system_locale: LanguageIdentifier, translations: Translations) -> TranslationState {
-        let mut state = TranslationState::new(system_locale);
+    fn load_translations(translations: Translations) -> TranslationState {
+        let mut state = TranslationState::new();
         state.add_all(translations);
 
         state

@@ -978,7 +978,7 @@ impl<'context> WidgetContext<'context> {
             font_state,
             theme: Cow::Borrowed(theme),
             window,
-            locale: translations.locale.clone(),
+            locale: translations.fallback_locale.clone(),
             translations
         };
 
@@ -1286,11 +1286,15 @@ impl<'context> WidgetContext<'context> {
         &self.locale
     }
 
-    /// Returns the current translation for this widget.
+    /// Returns the current translation bundle for this widget.
     pub fn translation(
         &self
-    ) -> Option<&FluentBundle<FluentResource>> {
-        self.translations.loaded_translations.get(&self.locale)
+    ) -> &FluentBundle<FluentResource> {
+        if let Some(bundle) = self.translations.loaded_translations.get(&self.locale) {
+            bundle
+        } else {
+            self.translations.loaded_translations.get(&self.translations.fallback_locale).unwrap()
+        }
     }
 
 
