@@ -167,8 +167,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contents. This means that the scroll bars are now clickable even in areas
   where interactive widgets are beneath them.
 - `GraphicsContext::fill` now properly fills the entire region of the widget.
-- `Slider` now correctly calculates its width when in a fully `SizeToFit`
-  layout.
 - `ThemedMode` is now properly applied consistently. Previously sometimes the
   window's theme mode would be used instead of the overridden mode.
 - `Expand` now requests children size to fit in the non-expanding direction when
@@ -189,6 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Focus order when reversing now correctly evaluates direct parent widgets.
   Prior to this change, placing a button inside of a button would not allow
   shift-tab to focus the outer button when focus was on the inner button.
+- Image now honors `ConstraintLimit::Fill` when using the aspect-fit scaling
+  mode.
 
 ### Added
 
@@ -364,6 +364,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `MakeWidget::with_local_dynamic`
 - `Style::hint`, `MakeWidget::hint`, and `MakeWidget::with_hint` have been added
   to standardize a method of adding informational text to interfaces.
+- `ImageScaling::layout_size` and `ImageScaling::render_area` are new functions
+  that expose the layout calculations the `Image` widget performed.
 
 
 [139]: https://github.com/khonsulabs/cushy/issues/139

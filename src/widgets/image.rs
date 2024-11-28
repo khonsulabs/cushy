@@ -123,38 +123,6 @@ impl Image {
             Value::Dynamic(amount) => Value::Dynamic(amount.map_each_cloned(ImageScaling::Scale)),
         })
     }
-
-    fn calculate_image_rect(
-        &self,
-        texture: &AnyTexture,
-        within_size: Size<UPx>,
-        context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>,
-    ) -> Rect<Px> {
-        let within_size = within_size.into_signed();
-        let size = texture.size().into_signed();
-        match self.scaling.get_tracking_invalidate(context) {
-            ImageScaling::Aspect { mode, orientation } => {
-                let scale_width = within_size.width.into_float() / size.width.into_float();
-                let scale_height = within_size.height.into_float() / size.height.into_float();
-
-                let effective_scale = match mode {
-                    Aspect::Fill => scale_width.max(scale_height),
-                    Aspect::Fit => scale_width.min(scale_height),
-                };
-                let scaled = size * effective_scale;
-
-                let x = (within_size.width - scaled.width) * *orientation.width;
-                let y = (within_size.height - scaled.height) * *orientation.height;
-
-                Rect::new(Point::new(x, y), scaled)
-            }
-            ImageScaling::Stretch => within_size.into(),
-            ImageScaling::Scale(factor) => {
-                let size = size.map(|px| px * factor);
-                size.into()
-            }
-        }
-    }
 }
 
 impl Widget for Image {
@@ -163,9 +131,10 @@ impl Widget for Image {
         let opacity = self.opacity.get_tracking_redraw(context);
         let radii = context.get(&ImageCornerRadius);
         let radii = radii.map(|r| r.into_px(context.gfx.scale()));
+        let scaling = self.scaling.get_tracking_invalidate(context);
 
         self.contents.map(|texture| {
-            let rect = self.calculate_image_rect(texture, context.gfx.size(), context);
+            let rect = scaling.render_area(texture.size(), context.gfx.size());
             if radii.is_zero() {
                 context.gfx.draw_texture(texture, rect, opacity);
             } else {
@@ -188,10 +157,9 @@ impl Widget for Image {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Size<UPx> {
-        let rect = self.contents.map(|texture| {
-            self.calculate_image_rect(texture, available_space.map(ConstraintLimit::max), context)
-        });
-        rect.size.into_unsigned()
+        let scaling = self.scaling.get_tracking_invalidate(context);
+        self.contents
+            .map(|texture| scaling.layout_size(texture.size(), available_space))
     }
 }
 
@@ -214,6 +182,71 @@ pub enum ImageScaling {
     /// In this mode, the widget will request that its size be the size of the
     /// contained image.
     Scale(f32),
+}
+
+impl ImageScaling {
+    /// Returns the size that should be occupied given an image size and
+    /// available space constraints.
+    #[must_use]
+    pub fn layout_size(
+        &self,
+        image_size: Size<UPx>,
+        available_space: Size<ConstraintLimit>,
+    ) -> Size<UPx> {
+        let desired_size = self
+            .render_area(image_size, available_space.map(ConstraintLimit::max))
+            .size
+            .into_unsigned();
+        if matches!(self, ImageScaling::Aspect { .. }) {
+            // If we're in aspect mode and we're expected to fill in a given
+            // dimension, we need to return the fill size during layout to allow
+            // the aspect orientation to be applied.
+            Size::new(
+                match available_space.width {
+                    ConstraintLimit::Fill(width) => width,
+                    ConstraintLimit::SizeToFit(_) => desired_size.width,
+                },
+                match available_space.height {
+                    ConstraintLimit::Fill(height) => height,
+                    ConstraintLimit::SizeToFit(_) => desired_size.height,
+                },
+            )
+        } else {
+            desired_size
+        }
+    }
+
+    /// Returns the area inside of `available_space` that an image of the given
+    /// size should be drawn.
+    #[must_use]
+    pub fn render_area(&self, image_size: Size<UPx>, available_space: Size<UPx>) -> Rect<Px> {
+        let image_size = image_size.into_signed();
+        let available_space = available_space.into_signed();
+        match self {
+            ImageScaling::Aspect { mode, orientation } => {
+                let scale_width =
+                    available_space.width.into_float() / image_size.width.into_float();
+                let scale_height =
+                    available_space.height.into_float() / image_size.height.into_float();
+
+                let effective_scale = match mode {
+                    Aspect::Fill => scale_width.max(scale_height),
+                    Aspect::Fit => scale_width.min(scale_height),
+                };
+                let scaled = image_size * effective_scale;
+
+                let x = (available_space.width - scaled.width) * *orientation.width;
+                let y = (available_space.height - scaled.height) * *orientation.height;
+
+                Rect::new(Point::new(x, y), scaled)
+            }
+            ImageScaling::Stretch => available_space.into(),
+            ImageScaling::Scale(factor) => {
+                let size = image_size.map(|px| px * *factor);
+                size.into()
+            }
+        }
+    }
 }
 
 impl Default for ImageScaling {
