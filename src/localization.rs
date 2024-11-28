@@ -53,7 +53,16 @@ impl Localize<'static> {
 
 impl DynamicDisplay for Localize<'static> {
     fn generation(&self, context: &WidgetContext<'_>) -> Option<Generation> {
-        context.locale().generation()
+        context.locale().generation().map(|generation| {
+
+            self.args.iter().fold(generation, |generation, (name, value)| {
+                if let Some(value_generation) = value.generation() {
+                    generation + value_generation
+                } else {
+                    generation
+                }
+            })
+        })
     }
 
     fn fmt(&self, context: &WidgetContext<'_>, f: &mut Formatter<'_>) -> fmt::Result {
