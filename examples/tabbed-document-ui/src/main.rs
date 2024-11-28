@@ -566,7 +566,7 @@ impl Default for ToolbarMessage {
 }
 
 
-fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>) -> Stack {
+fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>) -> WidgetInstance {
     let button_padding = Dimension::Lp(Lp::points(4));
 
     let home_button = "Home"
@@ -611,7 +611,11 @@ fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>) -> Stack {
         Expand::empty().make_widget(),
     ];
 
-    let toolbar = toolbar_widgets.into_columns();
+    let toolbar = toolbar_widgets
+        .into_columns()
+        .contain()
+        .make_widget();
+
     toolbar
 }
 
