@@ -2,20 +2,20 @@ use core::fmt;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
-use fluent_bundle::{FluentArgs, FluentBundle, FluentResource};
+use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use unic_langid::LanguageIdentifier;
 use cushy::widgets::Label;
 use crate::context::WidgetContext;
-use crate::value::Dynamic;
+use crate::value::{Dynamic, IntoValue};
 use crate::widgets::label::{DynamicDisplay};
 
-pub struct Localize {
+pub struct Localize<'args> {
     key: String,
     // TODO support dynamic arguments
-    args: HashMap<String, String>
+    args: HashMap<String, FluentValue<'args>>
 }
 
-impl Debug for Localize {
+impl<'args> Debug for Localize<'args> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Point")
             .field("key", &self.key)
@@ -24,7 +24,7 @@ impl Debug for Localize {
     }
 }
 
-impl Localize {
+impl Localize<'static> {
     pub fn new<'a>(key: impl Into<String>) -> Self {
         Self {
             key: key.into(),
@@ -32,10 +32,17 @@ impl Localize {
         }
     }
 
+    #[must_use]
+    pub fn arg(mut self, key: &str, value: impl IntoValue<FluentValue<'static>>) -> Self
+    {
+        self.args.insert(key.to_owned(), value.into_value().get());
+        self
+    }
+
     fn get_args(&self, _context: &WidgetContext<'_>) -> FluentArgs {
         let mut res = FluentArgs::new();
         for (name, arg) in &self.args {
-            res.set(name.to_owned(), arg.to_string());
+            res.set(name.to_owned(), arg.clone());
         }
         res
     }
@@ -45,7 +52,7 @@ impl Localize {
     }
 }
 
-impl DynamicDisplay for Localize {
+impl DynamicDisplay for Localize<'static> {
     fn fmt(&self, context: &WidgetContext<'_>, f: &mut Formatter<'_>) -> std::fmt::Result {
         let locale = context.locale();
         println!("{:?}", locale);

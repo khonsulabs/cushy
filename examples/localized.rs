@@ -1,3 +1,5 @@
+use fluent_bundle::FluentValue;
+use fluent_bundle::types::FluentNumber;
 use unic_langid::LanguageIdentifier;
 use cushy::localization::Localize;
 use cushy::widget::{IntoWidgetList, MakeWidget};
@@ -26,10 +28,31 @@ fn localized() -> impl MakeWidget {
         .into_rows()
         .localized(dynamic_locale.map_each(LanguageChoices::to_locale));
 
+
+    let bananas_counter = Dynamic::new(0i32);
+
+    let counter_elements = Localize::new("banana-counter-message")
+        .arg("bananas_counter", bananas_counter.map_each(|value|
+            FluentValue::Number(FluentNumber::from(value)))
+        )
+        .into_label()
+        .and("+".into_button().on_click(bananas_counter.with_clone(|counter| {
+            move |_| {
+                *counter.lock() += 1;
+            }
+        })))
+        .and("-".into_button().on_click(bananas_counter.with_clone(|counter| {
+            move |_| {
+                *counter.lock() -= 1;
+            }
+        })))
+        .into_columns();
+
     element_in_default_locale
         .and(elements_in_specific_locale)
         .and(elements_in_dynamic_locale)
         .and(dynamic_language_selector)
+        .and(counter_elements)
         .into_rows()
 }
 
