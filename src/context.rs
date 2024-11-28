@@ -340,10 +340,14 @@ impl<'context> EventContext<'context> {
     }
 
     fn next_focus_after(&mut self, mut focus: MountedWidget, advance: bool) -> Option<WidgetId> {
-        // First, look within the current focus for any focusable children.
+        // First, look within the current focus for any focusable children if we
+        // are advancing the focus. If we are reversing, we will wait to
+        // consider children as part of the reverse scan.
         let stop_at = focus.id();
-        if let Some(focus) = self.next_focus_within(&focus, None, stop_at, advance) {
-            return Some(focus);
+        if advance {
+            if let Some(focus) = self.next_focus_within(&focus, None, stop_at, advance) {
+                return Some(focus);
+            }
         }
 
         // Now, look for the next widget in each hierarchy
@@ -354,6 +358,16 @@ impl<'context> EventContext<'context> {
             let Some(parent) = focus.parent() else {
                 break focus;
             };
+            // If we're reversing focus, we need to consider the parent itself
+            // as a focus target.
+            let accept_focus = !advance
+                && parent
+                    .lock()
+                    .as_widget()
+                    .accept_focus(&mut self.for_other(&parent));
+            if accept_focus {
+                return Some(parent.id());
+            }
             focus = parent;
         };
 
@@ -415,13 +429,18 @@ impl<'context> EventContext<'context> {
             children.next();
         }
 
+        // Check each child if it can accept focus. When advancing, this is done
+        // before evaluating the children's children, but when reversing this is
+        // done after evaluating the children's children.
         for child in children {
-            let mut child_context = self.for_other(&child);
-            let accept_focus = child.lock().as_widget().accept_focus(&mut child_context);
-            drop(child_context);
+            let accept_focus = advance
+                && child
+                    .lock()
+                    .as_widget()
+                    .accept_focus(&mut self.for_other(&child));
             if accept_focus {
                 return Some(child.id());
-            } else if stop_at == child.id() {
+            } else if stop_at == child.id() && advance {
                 // We cycled completely, and the original widget didn't accept
                 // focus.
                 return None;
@@ -429,6 +448,20 @@ impl<'context> EventContext<'context> {
                 return Some(next_focus.id());
             } else if let Some(focus) = self.next_focus_within(&child, None, stop_at, advance) {
                 return Some(focus);
+            } else if !advance {
+                // When we are reversing, we needed to evaluate this child's
+                // children first. After checking its children, we need to also
+                // check that this isn't the stop_at widget before we try
+                // focusing this child.
+                if stop_at == child.id() {
+                    return None;
+                } else if child
+                    .lock()
+                    .as_widget()
+                    .accept_focus(&mut self.for_other(&child))
+                {
+                    return Some(child.id());
+                }
             }
         }
 

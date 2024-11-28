@@ -186,6 +186,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Widgets of 0-size are now still rendered, even though all the drawing
   operations will be clipped away. This allows the `ComponentProbe` to still
   actively probe when placed in a location and given no space.
+- Focus order when reversing now correctly evaluates direct parent widgets.
+  Prior to this change, placing a button inside of a button would not allow
+  shift-tab to focus the outer button when focus was on the inner button.
 
 ### Added
 
