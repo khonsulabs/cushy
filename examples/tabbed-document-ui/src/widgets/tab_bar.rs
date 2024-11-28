@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use slotmap::{new_key_type, SlotMap};
 use cushy::define_components;
 use cushy::figures::units::Px;
-use cushy::styles::{Color, Edges};
+use cushy::styles::{Color, ContainerLevel, Edges};
 use cushy::styles::components::{ErrorColor, HighlightColor, IntrinsicPadding, OpaqueWidgetColor, WidgetBackground};
 use cushy::value::{Destination, Dynamic, Source, Switchable};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance, WidgetList};
@@ -413,16 +413,29 @@ struct TabBarWidget {
 
 impl MakeWidget for TabBarWidget {
     fn make_widget(self) -> WidgetInstance {
+        let dyn_tab_buttons = self.tab_buttons.clone();
 
-        let tab_bar = [
-            Stack::new(Orientation::Column, self.tab_buttons)
-                .make_widget(),
-            Expand::empty()
-                .make_widget(),
-        ]
-            .into_columns();
+        let tab_bar_switcher = self.tab_buttons.switcher({
 
-        tab_bar
+            move |tab_buttons, _|{
+               if tab_buttons.is_empty() {
+                   Space::clear().make_widget()
+               } else {
+                   let tab_bar = [
+                       Stack::new(Orientation::Column, dyn_tab_buttons.clone())
+                           .make_widget(),
+                       Expand::empty()
+                           .make_widget(),
+                   ]
+                       .into_columns()
+                       .contain_level(ContainerLevel::High);
+
+                   tab_bar.make_widget()
+               }
+            }
+        });
+
+        tab_bar_switcher
             .and(self.content_switcher.expand())
             .into_rows()
             .gutter(Px::new(3))
