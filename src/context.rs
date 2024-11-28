@@ -4,12 +4,13 @@ use std::ops::{Deref, DerefMut};
 
 use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
+use fluent_bundle::{FluentBundle, FluentResource};
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::Cursor;
 use kludgine::cosmic_text::FamilyOwned;
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine, KludgineId};
-
+use unic_langid::LanguageIdentifier;
 use crate::animation::ZeroToOne;
 use crate::fonts::{LoadedFont, LoadedFontFace};
 use crate::graphics::{FontState, Graphics};
@@ -25,6 +26,7 @@ use crate::window::{
     CursorState, DeviceId, KeyEvent, PlatformWindow, ThemeMode, WidgetCursorState,
 };
 use crate::ConstraintLimit;
+use crate::localization::TranslationState;
 
 /// A context to an event function.
 ///
@@ -931,6 +933,8 @@ pub struct WidgetContext<'context> {
     font_state: &'context mut FontState,
     effective_styles: Styles,
     cache: WidgetCacheKey,
+    locale: LanguageIdentifier,
+    translations: &'context mut TranslationState,
 }
 
 impl<'context> WidgetContext<'context> {
@@ -941,9 +945,12 @@ impl<'context> WidgetContext<'context> {
         font_state: &'context mut FontState,
         theme_mode: ThemeMode,
         cursor: &'context mut CursorState,
+        translations: &'context mut TranslationState,
     ) -> Self {
         let enabled = current_node.enabled(&window.handle());
         let tree = current_node.tree();
+
+        let overridden_locale = current_node.overridden_locale();
 
         let (effective_styles, overridden_theme, overridden_theme_mode) =
             current_node.overridden_theme();
@@ -971,6 +978,8 @@ impl<'context> WidgetContext<'context> {
             font_state,
             theme: Cow::Borrowed(theme),
             window,
+            locale: translations.locale.clone(),
+            translations
         };
 
         if let Some(theme) = overridden_theme {
@@ -978,6 +987,9 @@ impl<'context> WidgetContext<'context> {
         }
         if let Some(mode) = overridden_theme_mode {
             context.cache.theme_mode = mode.get_tracking_redraw(&context);
+        }
+        if let Some(locale) = overridden_locale {
+            context.locale = locale.get_tracking_redraw(&context);
         }
 
         context
@@ -995,6 +1007,8 @@ impl<'context> WidgetContext<'context> {
             cache: self.cache,
             effective_styles: self.effective_styles.clone(),
             cursor: &mut *self.cursor,
+            locale: self.locale.clone(),
+            translations: &mut *self.translations,
         }
     }
 
@@ -1019,6 +1033,12 @@ impl<'context> WidgetContext<'context> {
             } else {
                 self.cache.theme_mode
             };
+            let locale = current_node.overridden_locale();
+            let locale = if let Some(locale) = locale {
+                locale.get_tracking_redraw(self)
+            } else {
+                self.locale.clone()
+            };
             WidgetContext {
                 effective_styles,
                 cache: WidgetCacheKey {
@@ -1033,6 +1053,8 @@ impl<'context> WidgetContext<'context> {
                 theme,
                 pending_state: self.pending_state.borrowed(),
                 cursor: &mut *self.cursor,
+                locale,
+                translations: &mut *self.translations,
             }
         })
     }
@@ -1219,6 +1241,13 @@ impl<'context> WidgetContext<'context> {
         self.current_node.attach_theme_mode(theme_mode);
     }
 
+    /// Attaches `locale` to the widget hierarchy for this widget.
+    ///
+    /// All children nodes will access this theme in their contexts.
+    pub fn attach_locale(&self, locale: Value<LanguageIdentifier>) {
+        self.current_node.attach_locale(locale);
+    }
+
     /// Queries the widget hierarchy for a single style component.
     ///
     /// This function traverses up the widget hierarchy looking for the
@@ -1250,6 +1279,20 @@ impl<'context> WidgetContext<'context> {
     pub fn window(&self) -> &dyn PlatformWindow {
         self.window
     }
+
+    /// Returns the locale for this widget.
+    #[must_use]
+    pub fn locale(&self) -> &LanguageIdentifier {
+        &self.locale
+    }
+
+    /// Returns the current translation for this widget.
+    pub fn translation(
+        &self
+    ) -> Option<&FluentBundle<FluentResource>> {
+        self.translations.loaded_translations.get(&self.locale)
+    }
+
 
     /// Returns an exclusive reference to the window containing this widget.
     #[must_use]

@@ -20,6 +20,7 @@ pub mod input;
 pub mod label;
 pub mod layers;
 pub mod list;
+pub mod localized;
 pub mod menu;
 mod mode_switch;
 pub mod pile;
