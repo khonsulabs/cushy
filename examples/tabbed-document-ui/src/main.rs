@@ -141,6 +141,7 @@ fn main(app: &mut App) -> cushy::Result {
             .height(Px::new(480)..)
             .fit_vertically()
             .fit_horizontally()
+            .with(&IntrinsicPadding, Px::new(4))
             .make_widget()
     )
         /*
