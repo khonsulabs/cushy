@@ -72,12 +72,14 @@ where
             width = Px::MAX;
         }
         let check_generation = self.display.generation();
+        let check_display_generation = self.display.map(DynamicDisplay::generation);
         context.apply_current_font_settings();
         let current_families = context.current_family_list();
         match self.prepared_text.get(context) {
             Some(cache)
                 if cache.text.can_render_to(&context.gfx)
                     && cache.generation == check_generation
+                    && cache.display_generation == check_display_generation
                     && cache.color == color
                     && cache.align == align
                     && ((is_left_aligned
@@ -86,20 +88,24 @@ where
                         || (!is_left_aligned && width == cache.width))
                     && cache.families == current_families => {}
             _ => {
-                let measured = self.display.map(|text| {
+                let (measured, display_generation) = self.display.map(|text| {
                     self.displayed.clear();
                     if let Err(err) = write!(&mut self.displayed, "{}", text.as_display(context)) {
                         tracing::error!("Error invoking Display: {err}");
                     }
-                    context
-                        .gfx
-                        .measure_text(Text::new(&self.displayed, color).align(align, width))
+                    (
+                        context
+                            .gfx
+                            .measure_text(Text::new(&self.displayed, color).align(align, width)),
+                        text.generation(),
+                    )
                 });
                 self.prepared_text.set(
                     context,
                     LabelCacheKey {
                         text: measured,
                         generation: check_generation,
+                        display_generation,
                         width,
                         color,
                         families: current_families,
@@ -215,6 +221,7 @@ pub enum LabelOverflow {
 struct LabelCacheKey {
     text: MeasuredText<Px>,
     generation: Option<Generation>,
+    display_generation: Option<Generation>,
     width: Px,
     color: Color,
     families: FontFamilyList,
@@ -226,6 +233,14 @@ struct LabelCacheKey {
 /// This trait is automatically implemented for all types that implement
 /// [`Display`].
 pub trait DynamicDisplay {
+    /// Returns a generation representing the current state of the dynamic.
+    ///
+    /// To ensure the contents are recached by a [`Label`] widget, return a
+    /// unique value from this function each time the contents are updated.
+    fn generation(&self) -> Option<Generation> {
+        None
+    }
+
     /// Format `self` with any needed information from `context`.
     fn fmt(&self, context: &WidgetContext<'_>, f: &mut std::fmt::Formatter<'_>)
         -> std::fmt::Result;
