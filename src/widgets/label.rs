@@ -72,7 +72,7 @@ where
             width = Px::MAX;
         }
         let check_generation = self.display.generation();
-        let check_display_generation = self.display.map(DynamicDisplay::generation);
+        let check_display_generation = self.display.map(|display| display.generation(context));
         context.apply_current_font_settings();
         let current_families = context.current_family_list();
         match self.prepared_text.get(context) {
@@ -97,7 +97,7 @@ where
                         context
                             .gfx
                             .measure_text(Text::new(&self.displayed, color).align(align, width)),
-                        text.generation(),
+                        text.generation(context),
                     )
                 });
                 self.prepared_text.set(
@@ -237,7 +237,8 @@ pub trait DynamicDisplay {
     ///
     /// To ensure the contents are recached by a [`Label`] widget, return a
     /// unique value from this function each time the contents are updated.
-    fn generation(&self) -> Option<Generation> {
+    #[allow(unused_variables)]
+    fn generation(&self, context: &WidgetContext<'_>) -> Option<Generation> {
         None
     }
 
