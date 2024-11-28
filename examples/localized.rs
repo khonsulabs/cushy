@@ -46,7 +46,8 @@ fn localized() -> impl MakeWidget {
                 *counter.lock() -= 1;
             }
         })))
-        .into_columns();
+        .into_columns()
+        .localized(dynamic_locale.map_each(LanguageChoices::to_locale));
 
     element_in_default_locale
         .and(elements_in_specific_locale)

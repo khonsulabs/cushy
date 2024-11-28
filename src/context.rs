@@ -20,7 +20,7 @@ use crate::styles::components::{
 };
 use crate::styles::{ComponentDefinition, FontFamilyList, Styles, Theme, ThemePair};
 use crate::tree::Tree;
-use crate::value::{IntoValue, Source, Value};
+use crate::value::{Dynamic, IntoValue, Source, Value};
 use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
 use crate::window::{
     CursorState, DeviceId, KeyEvent, PlatformWindow, ThemeMode, WidgetCursorState,
@@ -933,7 +933,7 @@ pub struct WidgetContext<'context> {
     font_state: &'context mut FontState,
     effective_styles: Styles,
     cache: WidgetCacheKey,
-    locale: LanguageIdentifier,
+    locale: Value<LanguageIdentifier>,
     translations: &'context mut TranslationState,
 }
 
@@ -978,7 +978,7 @@ impl<'context> WidgetContext<'context> {
             font_state,
             theme: Cow::Borrowed(theme),
             window,
-            locale: translations.fallback_locale.clone(),
+            locale: Dynamic::new(translations.fallback_locale.clone()).into_value(),
             translations
         };
 
@@ -989,8 +989,10 @@ impl<'context> WidgetContext<'context> {
             context.cache.theme_mode = mode.get_tracking_redraw(&context);
         }
         if let Some(locale) = overridden_locale {
-            context.locale = locale.get_tracking_redraw(&context);
+            context.locale = locale
         }
+        context.locale.invalidate_when_changed(&context);
+        context.locale.redraw_when_changed(&context);
 
         context
     }
@@ -1035,7 +1037,7 @@ impl<'context> WidgetContext<'context> {
             };
             let locale = current_node.overridden_locale();
             let locale = if let Some(locale) = locale {
-                locale.get_tracking_redraw(self)
+                locale
             } else {
                 self.locale.clone()
             };
@@ -1282,7 +1284,7 @@ impl<'context> WidgetContext<'context> {
 
     /// Returns the locale for this widget.
     #[must_use]
-    pub fn locale(&self) -> &LanguageIdentifier {
+    pub fn locale(&self) -> &Value<LanguageIdentifier> {
         &self.locale
     }
 
@@ -1290,7 +1292,7 @@ impl<'context> WidgetContext<'context> {
     pub fn translation(
         &self
     ) -> &FluentBundle<FluentResource> {
-        if let Some(bundle) = self.translations.loaded_translations.get(&self.locale) {
+        if let Some(bundle) = self.translations.loaded_translations.get(&self.locale.get()) {
             bundle
         } else {
             self.translations.loaded_translations.get(&self.translations.fallback_locale).unwrap()

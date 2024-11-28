@@ -6,7 +6,7 @@ use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use unic_langid::LanguageIdentifier;
 use cushy::widgets::Label;
 use crate::context::WidgetContext;
-use crate::value::{Dynamic, IntoValue};
+use crate::value::{Dynamic, Generation, IntoValue};
 use crate::widgets::label::{DynamicDisplay};
 
 pub struct Localize<'args> {
@@ -53,8 +53,12 @@ impl Localize<'static> {
 }
 
 impl DynamicDisplay for Localize<'static> {
-    fn fmt(&self, context: &WidgetContext<'_>, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let locale = context.locale();
+    fn generation(&self, context: &WidgetContext<'_>) -> Option<Generation> {
+        context.locale().generation()
+    }
+
+    fn fmt(&self, context: &WidgetContext<'_>, f: &mut Formatter<'_>) -> fmt::Result {
+        let locale = context.locale().get();
         println!("{:?}", locale);
 
         let bundle = context.translation();
