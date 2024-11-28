@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use futures::channel::mpsc;
 use futures::{select, Sink, Stream, StreamExt};
 use futures::stream::{BoxStream, FusedStream};
-use cushy::value::{Destination, Dynamic};
+use cushy::reactive::value::{Destination, Dynamic};
 
 #[derive(Debug)]
 pub struct Executor;

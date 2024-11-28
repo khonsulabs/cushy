@@ -1,5 +1,5 @@
-use cushy::reactive::value::Source;
-use crate::Dynamic;
+use cushy::localization::Localize;
+use cushy::reactive::value::{Dynamic, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use crate::action::Action;
 use crate::config::Config;
@@ -47,12 +47,14 @@ impl Tab<HomeTabMessage, HomeTabAction> for HomeTab {
 
             callback.persist();
 
-            let home_label = "Home tab"
+            let home_label = Localize::new("home-banner")
+                .into_label()
                 .xxxx_large()
                 .centered()
                 .make_widget();
 
-            let show_on_startup_button= "Show on startup"
+            let show_on_startup_button= Localize::new("home-checkbox-label-show-on-startup")
+                .into_label()
                 .into_checkbox(show_on_startup_value)
                 .centered()
                 .make_widget();
