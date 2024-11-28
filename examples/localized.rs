@@ -9,27 +9,27 @@ use cushy::widgets::label::{Displayable};
 
 fn localized() -> impl MakeWidget {
     let element_in_default_locale = Localize::new("message-hello-world")
-        .into_label();
+        .into_label()
+        .contain();
 
     let specific_locale: LanguageIdentifier = "es-ES".parse().unwrap();
     let elements_in_specific_locale = Localize::new("message-hello-world")
         .into_label()
-        .localized(specific_locale);
+        .localized(specific_locale)
+        .contain();
 
     let dynamic_locale: Dynamic<LanguageChoices> = Dynamic::default();
-    let elements_in_dynamic_locale = Localize::new("message-hello-world")
-        .into_label()
-        .localized(dynamic_locale.map_each(LanguageChoices::to_locale));
+    let dynamic_message_label = Localize::new("message-hello-world")
+        .into_label();
 
     let dynamic_language_selector = dynamic_locale
         .new_radio(LanguageChoices::EN_GB).labelled_by(Localize::new("language-en-gb").into_label())
         .and(dynamic_locale.new_radio(LanguageChoices::EN_US).labelled_by(Localize::new("language-en-us").into_label()))
         .and(dynamic_locale.new_radio(LanguageChoices::ES_ES).labelled_by(Localize::new("language-es-es").into_label()))
         .into_rows()
-        .localized(dynamic_locale.map_each(LanguageChoices::to_locale));
+        .contain();
 
-
-    let bananas_counter = Dynamic::new(0i32);
+    let bananas_counter = Dynamic::new(0u32);
 
     let counter_elements = Localize::new("banana-counter-message")
         .arg("bananas_counter", bananas_counter.map_each(|value|
@@ -38,23 +38,34 @@ fn localized() -> impl MakeWidget {
         .into_label()
         .and("+".into_button().on_click(bananas_counter.with_clone(|counter| {
             move |_| {
-                *counter.lock() += 1;
+                let mut counter = counter.lock();
+                counter.checked_add(1).inspect(|new_counter|{
+                    *counter = *new_counter;
+                });
             }
         })))
         .and("-".into_button().on_click(bananas_counter.with_clone(|counter| {
             move |_| {
-                *counter.lock() -= 1;
+                let mut counter = counter.lock();
+                counter.checked_sub(1).inspect(|new_counter|{
+                    *counter = *new_counter;
+                });
             }
         })))
-        .into_columns()
+        .into_columns();
+
+    let dynamic_container = dynamic_message_label
+        .and(counter_elements)
+        .and(dynamic_language_selector)
+        .into_rows()
+        .contain()
         .localized(dynamic_locale.map_each(LanguageChoices::to_locale));
 
     element_in_default_locale
         .and(elements_in_specific_locale)
-        .and(elements_in_dynamic_locale)
-        .and(dynamic_language_selector)
-        .and(counter_elements)
+        .and(dynamic_container)
         .into_rows()
+        .contain()
 }
 
 #[derive(Default, Eq, PartialEq, Debug, Clone, Copy)]
