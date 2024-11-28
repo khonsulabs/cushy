@@ -6,13 +6,12 @@ use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use unic_langid::LanguageIdentifier;
 use cushy::widgets::Label;
 use crate::context::WidgetContext;
-use crate::value::{Dynamic, Generation, IntoValue};
+use crate::value::{Dynamic, Generation, IntoValue, Value};
 use crate::widgets::label::{DynamicDisplay};
 
 pub struct Localize<'args> {
     key: String,
-    // TODO support dynamic arguments
-    args: HashMap<String, FluentValue<'args>>
+    args: HashMap<String, Value<FluentValue<'args>>>
 }
 
 impl<'args> Debug for Localize<'args> {
@@ -35,14 +34,14 @@ impl Localize<'static> {
     #[must_use]
     pub fn arg(mut self, key: &str, value: impl IntoValue<FluentValue<'static>>) -> Self
     {
-        self.args.insert(key.to_owned(), value.into_value().get());
+        self.args.insert(key.to_owned(), value.into_value());
         self
     }
 
-    fn get_args(&self, _context: &WidgetContext<'_>) -> FluentArgs {
+    fn get_args(&self, context: &WidgetContext<'_>) -> FluentArgs {
         let mut res = FluentArgs::new();
         for (name, arg) in &self.args {
-            res.set(name.to_owned(), arg.clone());
+            res.set(name.to_owned(), arg.get_tracking_invalidate(context));
         }
         res
     }
