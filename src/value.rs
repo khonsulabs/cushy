@@ -2622,6 +2622,14 @@ impl Generation {
     }
 }
 
+impl Add for Generation {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0.wrapping_add(rhs.0))
+    }
+}
+
 /// A type that can convert into a `ReadOnly<T>`.
 pub trait IntoReadOnly<T> {
     /// Returns `self` as a `ReadOnly`.
