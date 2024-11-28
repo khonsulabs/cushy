@@ -57,7 +57,7 @@ impl DynamicDisplay for Localize<'static> {
     }
 
     fn fmt(&self, context: &WidgetContext<'_>, f: &mut Formatter<'_>) -> fmt::Result {
-        let locale = context.locale().get();
+        let locale = context.locale().get_tracking_invalidate(context);
         println!("{:?}", locale);
 
         let bundle = context.translation();

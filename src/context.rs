@@ -991,8 +991,6 @@ impl<'context> WidgetContext<'context> {
         if let Some(locale) = overridden_locale {
             context.locale = locale
         }
-        context.locale.invalidate_when_changed(&context);
-        context.locale.redraw_when_changed(&context);
 
         context
     }
@@ -1292,7 +1290,7 @@ impl<'context> WidgetContext<'context> {
     pub fn translation(
         &self
     ) -> &FluentBundle<FluentResource> {
-        if let Some(bundle) = self.translations.loaded_translations.get(&self.locale.get()) {
+        if let Some(bundle) = self.translations.loaded_translations.get(&self.locale.get_tracking_invalidate(self)) {
             bundle
         } else {
             self.translations.loaded_translations.get(&self.translations.fallback_locale).unwrap()
