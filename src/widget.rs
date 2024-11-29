@@ -36,7 +36,7 @@ use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::list::List;
 use crate::widgets::shortcuts::{ShortcutKey, Shortcuts};
 use crate::widgets::{
-    Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Resize, Scroll, Space,
+    Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Localized, Resize, Scroll, Space,
     Stack, Style, Themed, ThemedMode, Validated, Wrap,
 };
 use crate::window::sealed::WindowCommand;
@@ -45,7 +45,6 @@ use crate::window::{
     VirtualRecorderBuilder, Window, WindowBehavior, WindowHandle, WindowLocal,
 };
 use crate::ConstraintLimit;
-use crate::widgets::localized::Localized;
 
 /// A type that makes up a graphical user interface.
 ///

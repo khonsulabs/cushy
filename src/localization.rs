@@ -25,6 +25,7 @@ use crate::context::WidgetContext;
 use crate::value::{Dynamic, Generation, IntoValue, Value};
 use crate::widgets::label::{DynamicDisplay};
 
+/// The primary of defining localized message
 pub struct Localize<'args> {
     key: String,
     args: HashMap<String, Value<FluentValue<'args>>>
@@ -40,6 +41,10 @@ impl<'args> Debug for Localize<'args> {
 }
 
 impl Localize<'static> {
+    /// Create a new [`Localization`] instance.
+    ///
+    /// The `key` should refer to a valid message identifier in the localization files.
+    /// See [Writing Text](https://projectfluent.org/fluent/guide/text.html)
     pub fn new<'a>(key: impl Into<String>) -> Self {
         Self {
             key: key.into(),
@@ -47,6 +52,9 @@ impl Localize<'static> {
         }
     }
 
+    /// Add an argument which can be used by the `.ftl` files.
+    ///
+    /// See [Variables](https://projectfluent.org/fluent/guide/variables.html)
     #[must_use]
     pub fn arg(mut self, key: &str, value: impl IntoValue<FluentValue<'static>>) -> Self
     {
@@ -62,6 +70,7 @@ impl Localize<'static> {
         res
     }
 
+    /// Convert `self` into a [`Label`](Label)
     pub fn into_label(self) -> Label<Self> {
         Label::new(self)
     }
@@ -113,37 +122,35 @@ impl DynamicDisplay for Localize<'static> {
 
 
 #[derive(Default)]
-pub struct TranslationCollection {
+struct TranslationCollection {
     translations: HashMap<LanguageIdentifier, String>
 }
 
+/// A collection of translations that can be cloned.
 #[derive(Default, Clone)]
 pub struct Translations {
     inner: Arc<Dynamic<TranslationCollection>>
 }
 
 impl Translations {
+    /// Add a `Fluent` translation file for a given locale.
+    ///
+    /// Note the `.ftl` file is not immediately parsed.
     pub fn add(&self, language: LanguageIdentifier, ftl: String) {
         let mut inner = self.inner.lock();
 
         inner.translations.insert(language, ftl);
     }
-
-    #[must_use]
-    pub fn with(self, language: LanguageIdentifier, ftl: String) -> Self {
-        self.add(language, ftl);
-        self
-    }
 }
 
-pub struct TranslationState {
+pub(crate) struct TranslationState {
     pub(crate) fallback_locale: LanguageIdentifier,
     pub(crate) loaded_translations: HashMap<LanguageIdentifier, FluentBundle<FluentResource>>
 }
 
 
 impl TranslationState {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             fallback_locale: LanguageIdentifier::default(),
             loaded_translations: HashMap::from([(
@@ -153,7 +160,7 @@ impl TranslationState {
         }
     }
 
-    pub fn add_all(&mut self, translations: Translations) {
+    pub(crate) fn add_all(&mut self, translations: Translations) {
         for (&ref language, ftl) in translations.inner.lock().translations.iter() {
             let res = FluentResource::try_new(ftl.clone())
                 .expect("Failed to parse translations as FTL");
@@ -164,7 +171,7 @@ impl TranslationState {
         self.renegotiate_fallback_language()
     }
 
-    pub fn renegotiate_fallback_language(&mut self) {
+    fn renegotiate_fallback_language(&mut self) {
         let available = self
             .loaded_translations
             .keys()
