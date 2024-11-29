@@ -65,6 +65,24 @@ impl Expand {
         }
     }
 
+    /// Returns a widget that expands to fill its parent horizontally, but has no contents.
+    #[must_use]
+    pub fn empty_horizontally() -> Self {
+        Self {
+            child: WidgetRef::new(Space::clear()),
+            kind: ExpandKind::Horizontal,
+        }
+    }
+
+    /// Returns a widget that expands to fill its parent vertically, but has no contents.
+    #[must_use]
+    pub fn empty_vertically() -> Self {
+        Self {
+            child: WidgetRef::new(Space::clear()),
+            kind: ExpandKind::Vertical,
+        }
+    }
+
     /// Returns a widget that expands `child` to fill the parent widget, using
     /// `weight` when competing with available space with other [`Expand`]s.
     ///
@@ -100,6 +118,10 @@ impl WrapperWidget for Expand {
 
     fn root_behavior(&mut self, _context: &mut EventContext<'_>) -> Option<RootBehavior> {
         Some(RootBehavior::Expand)
+    }
+
+    fn align_child(&self) -> bool {
+        true
     }
 
     fn layout_child(

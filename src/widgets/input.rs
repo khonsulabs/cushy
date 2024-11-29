@@ -28,7 +28,7 @@ use crate::utils::ModifiersExt;
 use crate::value::{Destination, Dynamic, Generation, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
 use crate::window::KeyEvent;
-use crate::{ConstraintLimit, Lazy};
+use crate::{ConstraintLimit, FitMeasuredSize, Lazy};
 
 const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
 
@@ -1177,12 +1177,14 @@ where
         self.layout_text(Some(width.into_signed()), &mut context.graphics);
         let info = self.cache_info();
 
-        info.cache
+        let measured_size = info
+            .cache
             .measured
             .size
             .max(info.cache.placeholder.size)
             .into_unsigned()
-            + Size::squared(padding * 2)
+            + Size::squared(padding * 2);
+        available_space.fit_measured(measured_size)
     }
 
     fn keyboard_input(

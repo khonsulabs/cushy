@@ -71,14 +71,29 @@ impl Stack {
                     |this, change| match change {
                         ChildrenSyncChange::Insert(index, widget) => {
                             // This is a brand new child.
-                            let guard = widget.lock();
+                            let mut guard = widget.lock();
                             let (mut widget, dimension) = if let Some((weight, expand)) =
-                                guard.downcast_ref::<Expand>().and_then(|expand| {
+                                guard.downcast_mut::<Expand>().and_then(|expand| {
                                     expand
                                         .weight(self.orientation == Orientation::Row)
                                         .map(|weight| (weight, expand))
                                 }) {
-                                (expand.child().clone(), GridDimension::Fractional { weight })
+                                let widget = if let Some(1) =
+                                    expand.weight(self.orientation != Orientation::Row)
+                                {
+                                    let other_expand = match self.orientation {
+                                        Orientation::Column => {
+                                            Expand::vertical(expand.child().widget().clone())
+                                        }
+                                        Orientation::Row => {
+                                            Expand::horizontal(expand.child().widget().clone())
+                                        }
+                                    };
+                                    WidgetRef::new(other_expand)
+                                } else {
+                                    expand.child().clone()
+                                };
+                                (widget, GridDimension::Fractional { weight })
                             } else if let Some((child, size)) =
                                 guard.downcast_ref::<Resize>().and_then(|r| {
                                     let (range, other_range) = match self.layout.orientation {

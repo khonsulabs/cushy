@@ -99,6 +99,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contained. The defaults for the alignment components are left and top,
   respectively.
 - `wgpu` has been updated to `v23.0.0`.
+- Embedding a `Expand` in a `Stack` or `Grid` now honors both directions of
+  expansion. This may cause layouts that use
+  `Expand::expand()`/`MakeWidget::expand()` inside of a stack to behave
+  drastically differently. If this affects your user interface, use
+  `expand_horizontally()` or `expand_vertically()` to limit the direction of the
+  expansion.
 
 ### Changed
 
@@ -193,6 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when drawing in clipped regions inside of a scrolled area. This change was
   made without observing any ill effects from the existing logic, but the logic
   was not correct.
+- `Input` now honors `ConstraintLayout::Fill`.
 
 ### Added
 
@@ -352,8 +359,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are returned for each widget pushed into a pile. These handles can be used to
   show or close a specific widget in a pile.
 - `HorizontalAlignment` and `VerticalAlignment` are new components that are used
-  by some widgets when positioning their contents. `WrapperWidget::position_child` has been updated to use `WrappedLayout::aligned` to support these components on most widgets automatically. `Label` and `Resize` have also been updated to support these components.
-- Local style support has been fully exposed. Local styles are applied to the widget they are attached to, but are not inherited to child widgets. The new APIs are:
+  by some widgets when positioning their contents.
+  `WrapperWidget::position_child` has been updated to use
+  `WrappedLayout::aligned` when the new function `WrapperWidget::align_child`
+  returns true. `Expand`, `Label`, and `Resize` have been updated to support
+  these components.
+- Local style support has been fully exposed. Local styles are applied to the
+  widget they are attached to, but are not inherited to child widgets. The new
+  APIs are:
 
   - `Styles::insert_local`
   - `Styles::insert_local_dynamic`

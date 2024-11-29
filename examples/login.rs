@@ -15,7 +15,6 @@ fn main() -> cushy::Result {
     let validations = Validations::default();
 
     let username_field = "Username"
-        .align_left()
         .and(
             username
                 .to_input()
@@ -36,7 +35,6 @@ fn main() -> cushy::Result {
         .into_rows();
 
     let password_field = "Password"
-        .align_left()
         .and(
             password
                 .to_input()
@@ -60,7 +58,7 @@ fn main() -> cushy::Result {
         })
         .into_escape()
         .tooltip(&tooltips, "This button quits the program")
-        .and(Expand::empty())
+        .and(Expand::empty_horizontally())
         .and(
             "Log In"
                 .into_button()

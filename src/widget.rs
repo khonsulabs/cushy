@@ -594,6 +594,13 @@ pub trait WrapperWidget: Debug + Send + 'static {
     /// Returns the child widget.
     fn child_mut(&mut self) -> &mut WidgetRef;
 
+    /// If true, [`WrapperWidget::position_child`] will honor
+    /// [`VerticalAlignment`] and [`HorizontalAlignment`] when positioning the
+    /// child widget.
+    fn align_child(&self) -> bool {
+        false
+    }
+
     /// Writes a summary of this widget into `fmt`.
     ///
     /// The default implementation calls [`Debug::fmt`]. This function allows
@@ -664,7 +671,11 @@ pub trait WrapperWidget: Debug + Send + 'static {
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
-        WrappedLayout::aligned(size.into_unsigned(), available_space, context)
+        if self.align_child() {
+            WrappedLayout::aligned(size.into_unsigned(), available_space, context)
+        } else {
+            WrappedLayout::from(size)
+        }
     }
 
     /// Returns the background color to render behind the wrapped widget.
