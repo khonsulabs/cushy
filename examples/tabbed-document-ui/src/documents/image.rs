@@ -6,6 +6,7 @@ use image::ImageReader;
 use cushy::figures::Point;
 use cushy::figures::units::Px;
 use cushy::kludgine::{AnyTexture, LazyTexture};
+use cushy::localization::Localize;
 use cushy::styles::Color;
 use cushy::styles::components::{FocusColor, IntrinsicPadding, WidgetBackground};
 use cushy::value::{Destination, Dynamic, Source, Switchable};
@@ -57,18 +58,19 @@ impl ImageDocument {
             .with_fixed_width_columns();
 
         let path_item = SideBarItem::new(
-            "Path".to_string(),
+            Localize::new("side-bar-item-path"),
             Dynamic::new(Some(path.to_str().unwrap().to_string()))
         );
         side_bar.push(path_item);
 
         let last_clicked_location = Dynamic::default();
         let last_clicked_location_item = SideBarItem::new(
-            "Last clicked".to_string(),
+            Localize::new("side-bar-item-image-last-clicked-coordinate"),
             last_clicked_location
                 .clone()
                 .map_each(|&location: &Option<Point<Px>>|{
                     match location {
+                        // TODO use a localized string for "None" here.
                         None => Some("None".to_string()),
                         Some(location) => {
                             Some(format!("x: {}, y: {}", location.x, location.y).to_string())

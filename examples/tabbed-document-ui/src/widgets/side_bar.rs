@@ -1,14 +1,14 @@
 use cushy::figures::units::{Lp, Px};
+use cushy::localization::Localize;
 use cushy::styles::ContainerLevel;
-use cushy::value::{Dynamic, IntoValue, Switchable, Value};
+use cushy::value::{Dynamic, Switchable};
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::{Grid, Space};
 use cushy::widgets::grid::{GridDimension, GridWidgets};
 use cushy::widgets::label::{Displayable, LabelOverflow};
 
-#[derive(Clone)]
 pub struct SideBarItem {
-    label: Value<String>,
+    label: WidgetInstance,
     field: WidgetInstance,
 }
 
@@ -39,10 +39,7 @@ impl SideBar {
 
         let grid_rows: Vec<(WidgetInstance, WidgetInstance)> = self.items.iter().map(|item|{
             (
-                item.label.clone()
-                    .into_label()
-                    .overflow(LabelOverflow::Clip)
-                    .make_widget(),
+                item.label.clone(),
                 item.field.clone()
             )
         }).collect();
@@ -62,13 +59,13 @@ impl SideBar {
             .expand_vertically()
             .make_widget();
 
-        let sidebar_header = "Sidebar Header"
+        let sidebar_header = Localize::new("side-bar-header")
             .into_label()
             .centered()
             .align_left()
             .contain_level(ContainerLevel::Highest);
 
-        let sidebar_footer = "Sidebar Footer"
+        let sidebar_footer = Localize::new("side-bar-footer")
             .into_label()
             .centered()
             .align_left()
@@ -89,17 +86,16 @@ impl SideBar {
 }
 
 impl SideBarItem {
-    pub fn from_field(label: impl IntoValue<String>, field: impl MakeWidget) -> Self {
+    pub fn from_field(label: impl MakeWidget, field: impl MakeWidget) -> Self {
         Self {
-            label: label.into_value(),
+            label: label.make_widget(),
             field: field.make_widget(),
         }
     }
 
     // FIXME rename to from_optional_value
-    pub fn new(label: String, value: Dynamic<Option<String>>) -> Self {
+    pub fn new(label: impl MakeWidget, value: Dynamic<Option<String>>) -> Self {
         let field = value.clone().switcher({
-            //let value = value.clone();
             move |value, _| {
                 match value.clone() {
                     Some(value) =>
@@ -118,7 +114,7 @@ impl SideBarItem {
             .make_widget();
 
         Self {
-            label: label.into_value(),
+            label: label.make_widget(),
             field,
         }
     }

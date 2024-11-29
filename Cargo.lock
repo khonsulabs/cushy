@@ -3578,6 +3578,7 @@ dependencies = [
  "serde_json",
  "slotmap",
  "thiserror",
+ "unic-langid",
 ]
 
 [[package]]
