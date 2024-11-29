@@ -145,8 +145,8 @@ See `TabBar` and `TabBarMessage` and the tab bar's `X` (close) buttons for an ex
         - [x] When a file is opened, a tab appears and depending on the file type, it shows different content in the tab. (e.g. '.txt' text shows the 'Text' tab, '.bmp' shows the 'Image' tab).
 	- 'New' button
 	    - [x] When clicked the 'New' tab is shown, see below.
-	- [ ] Language dropdown, choose between at least 2 languages (e.g. English and Spanish). ❌ No i18n support exists yet (https://github.com/khonsulabs/cushy/issues/187). No popup/dropdown widget yet (https://github.com/khonsulabs/cushy/issues/154).
-        - [ ] Changing the language should cause all UI text to be immediately displayed in the selected language without requiring a restart. 
+	- [x] Language dropdown, choose between at least 2 languages (e.g. English and Spanish). ⚠️ Uses experimental i18n support (https://github.com/khonsulabs/cushy/pull/226). ❌ No popup/dropdown widget yet (https://github.com/khonsulabs/cushy/issues/154).
+        - [x] Changing the language should cause all UI text to be immediately displayed in the selected language without requiring a restart. 
 - Tab bar
   - [ ] When all the tabs won't fit in the window, there must be some controls to allow them all to be selected, e.g. `<` and `>` buttons, or `V` dropdown, or scrollable.
   - [x] Selecting a tab changes the content area below the tab bar.
