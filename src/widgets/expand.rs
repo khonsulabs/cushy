@@ -16,7 +16,7 @@ pub struct Expand {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ExpandKind {
+pub(crate) enum ExpandKind {
     Weighted(u8),
     Horizontal,
     Vertical,
@@ -108,6 +108,10 @@ impl Expand {
             (ExpandKind::Horizontal, false) | (ExpandKind::Vertical, true) => Some(1),
             (ExpandKind::Horizontal | ExpandKind::Vertical, _) => None,
         }
+    }
+
+    pub(crate) const fn expand_kind(&self) -> ExpandKind {
+        self.kind
     }
 }
 

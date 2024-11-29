@@ -287,7 +287,6 @@ fn fixed_theme(theme: Dynamic<FixedTheme>, label: &str) -> impl MakeWidget {
             color,
         ))
         .into_columns()
-        .expand()
         .contain()
         .expand()
 }
@@ -442,8 +441,6 @@ fn swatch(background: Dynamic<Color>, label: &str, text: Dynamic<Color>) -> impl
         .with(&TextColor, text)
         .with(&TextSize, Dimension::Lp(Lp::points(8)))
         .with(&WidgetBackground, background)
-        .fit_horizontally()
-        .fit_vertically()
         .expand()
 }
 

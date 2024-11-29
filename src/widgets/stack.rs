@@ -3,6 +3,7 @@
 use figures::units::UPx;
 use figures::{IntoSigned, Rect, Round, ScreenScale, Size, Zero};
 
+use super::expand::ExpandKind;
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::FlexibleDimension;
@@ -78,20 +79,18 @@ impl Stack {
                                         .weight(self.orientation == Orientation::Row)
                                         .map(|weight| (weight, expand))
                                 }) {
-                                let widget = if let Some(1) =
-                                    expand.weight(self.orientation != Orientation::Row)
-                                {
-                                    let other_expand = match self.orientation {
-                                        Orientation::Column => {
-                                            Expand::vertical(expand.child().widget().clone())
-                                        }
-                                        Orientation::Row => {
-                                            Expand::horizontal(expand.child().widget().clone())
-                                        }
-                                    };
-                                    WidgetRef::new(other_expand)
-                                } else {
-                                    expand.child().clone()
+                                let widget = match expand.expand_kind() {
+                                    ExpandKind::Horizontal
+                                        if self.orientation == Orientation::Row =>
+                                    {
+                                        WidgetRef::new(widget.clone())
+                                    }
+                                    ExpandKind::Vertical
+                                        if self.orientation == Orientation::Column =>
+                                    {
+                                        WidgetRef::new(widget.clone())
+                                    }
+                                    _ => expand.child().clone(),
                                 };
                                 (widget, GridDimension::Fractional { weight })
                             } else if let Some((child, size)) =

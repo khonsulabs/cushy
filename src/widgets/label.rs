@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::fmt::{Debug, Display, Write};
 
 use figures::units::{Px, UPx};
-use figures::{Point, Round, Size, Zero};
+use figures::{IntoUnsigned, Point, Round, Size, Zero};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{cosmic_text, CanRenderTo, Color, DrawableExt};
 
@@ -17,7 +17,7 @@ use crate::value::{
 };
 use crate::widget::{MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag};
 use crate::window::WindowLocal;
-use crate::ConstraintLimit;
+use crate::{ConstraintLimit, FitMeasuredSize};
 
 /// A read-only text widget.
 #[derive(Debug)]
@@ -161,7 +161,7 @@ where
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width, align);
 
-        prepared.size.try_cast().unwrap_or_default().ceil()
+        available_space.fit_measured(prepared.size.into_unsigned().ceil())
     }
 
     fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

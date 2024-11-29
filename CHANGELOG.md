@@ -199,7 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when drawing in clipped regions inside of a scrolled area. This change was
   made without observing any ill effects from the existing logic, but the logic
   was not correct.
-- `Input` now honors `ConstraintLayout::Fill`.
+- `Input` and `Label` now honor `ConstraintLayout::Fill`.
 
 ### Added
 
