@@ -20,9 +20,11 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use unic_langid::LanguageIdentifier;
+use cushy::widget::MakeWidget;
 use cushy::widgets::Label;
 use crate::context::WidgetContext;
 use crate::value::{Dynamic, Generation, IntoValue, Value};
+use crate::widget::WidgetInstance;
 use crate::widgets::label::{DynamicDisplay};
 
 /// The primary of defining localized message
@@ -189,5 +191,11 @@ impl TranslationState {
             fluent_langneg::NegotiationStrategy::Filtering,
         );
         self.fallback_locale = (**languages.first().unwrap()).clone();
+    }
+}
+
+impl MakeWidget for Localize<'static> {
+    fn make_widget(self) -> WidgetInstance {
+        self.into_label().make_widget()
     }
 }
