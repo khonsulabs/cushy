@@ -1,3 +1,19 @@
+//! Localization allows UIs to be created that support more than just one language.
+//!
+//! The basic idea is that instead of using strings throughout the application, you use keys that
+//! refer to messages in translation files.
+//!
+//! The Fluent crate is used as a backend.  Translations are stored in `.ftl` files.
+//!
+//! Basic example of creating a label:
+//! ```rust
+//!     use cushy::localization::Localize;
+//!     let label = Localize::new("message-hello-world")
+//!         .into_label();
+//! ```
+//!
+//! Translation files are added to the `Cushy` app instance, see [`Cushy::translations()`](crate::app::Cushy::translations).
+
 use core::fmt;
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
