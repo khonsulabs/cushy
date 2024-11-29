@@ -16,10 +16,10 @@ use super::indicator::{Indicator, IndicatorBehavior, IndicatorState};
 use crate::animation::{LinearInterpolate, ZeroToOne};
 use crate::context::{GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::components::{
-    CornerRadius, FocusColor, LineHeight, OutlineColor, OutlineWidth, TextColor, WidgetAccentColor,
-    WidgetBackground,
+    CornerRadius, FocusColor, LineHeight, OutlineColor, OutlineWidth, TextColor, VerticalAlignment,
+    WidgetAccentColor, WidgetBackground,
 };
-use crate::styles::{ColorExt, Dimension};
+use crate::styles::{ColorExt, Dimension, VerticalAlign};
 use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
@@ -82,7 +82,12 @@ impl MakeWidgetWithTag for Checkbox {
                 value: self.state.create_reader(),
             };
             let button_label = if let Some(label) = self.label {
-                adornment.and(label).into_columns().make_widget()
+                // TODO Set this to Baseline.
+                adornment
+                    .and(label)
+                    .into_columns()
+                    .with(&VerticalAlignment, VerticalAlign::Center)
+                    .make_widget()
             } else {
                 adornment.make_widget()
             };
@@ -105,7 +110,11 @@ impl MakeWidgetWithTag for Checkbox {
             if let Some(label) = self.label {
                 indicator = indicator.labelled_by(label);
             }
-            indicator.make_with_tag(id)
+            indicator
+                .make_with_tag(id)
+                // TODO Set this to Baseline.
+                .with(&VerticalAlignment, VerticalAlign::Center)
+                .make_widget()
         }
     }
 }
