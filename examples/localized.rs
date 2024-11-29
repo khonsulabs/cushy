@@ -2,10 +2,9 @@ use fluent_bundle::FluentValue;
 use fluent_bundle::types::FluentNumber;
 use unic_langid::LanguageIdentifier;
 use cushy::localization::Localize;
-use cushy::widget::{IntoWidgetList, MakeWidget};
-use cushy::{Application, Open, PendingApp, Run};
+use cushy::widget::MakeWidget;
+use cushy::{Open, PendingApp, Run};
 use cushy::value::{Dynamic, Source};
-use cushy::widgets::label::{Displayable};
 
 fn localized() -> impl MakeWidget {
     let element_in_default_locale = Localize::new("message-hello-world")
@@ -23,9 +22,9 @@ fn localized() -> impl MakeWidget {
         .into_label();
 
     let dynamic_language_selector = dynamic_locale
-        .new_radio(LanguageChoices::EN_GB).labelled_by(Localize::new("language-en-gb").into_label())
-        .and(dynamic_locale.new_radio(LanguageChoices::EN_US).labelled_by(Localize::new("language-en-us").into_label()))
-        .and(dynamic_locale.new_radio(LanguageChoices::ES_ES).labelled_by(Localize::new("language-es-es").into_label()))
+        .new_radio(LanguageChoices::EnGb).labelled_by(Localize::new("language-en-gb").into_label())
+        .and(dynamic_locale.new_radio(LanguageChoices::EnUs).labelled_by(Localize::new("language-en-us").into_label()))
+        .and(dynamic_locale.new_radio(LanguageChoices::EsEs).labelled_by(Localize::new("language-es-es").into_label()))
         .into_rows()
         .contain();
 
@@ -71,18 +70,18 @@ fn localized() -> impl MakeWidget {
 
 #[derive(Default, Eq, PartialEq, Debug, Clone, Copy)]
 pub enum LanguageChoices {
-    EN_GB,
+    EnGb,
     #[default]
-    EN_US,
-    ES_ES,
+    EnUs,
+    EsEs,
 }
 
 impl LanguageChoices {
     pub fn to_locale(&self) -> LanguageIdentifier {
         match self {
-            LanguageChoices::EN_GB => "en-GB".parse().unwrap(),
-            LanguageChoices::EN_US => "en-US".parse().unwrap(),
-            LanguageChoices::ES_ES => "es-ES".parse().unwrap(),
+            LanguageChoices::EnGb => "en-GB".parse().unwrap(),
+            LanguageChoices::EnUs => "en-US".parse().unwrap(),
+            LanguageChoices::EsEs => "es-ES".parse().unwrap(),
         }
     }
 }
