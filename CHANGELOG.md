@@ -189,6 +189,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shift-tab to focus the outer button when focus was on the inner button.
 - Image now honors `ConstraintLimit::Fill` when using the aspect-fit scaling
   mode.
+- A fix in `Graphics::translation` potentially fixes edge cases that could arise
+  when drawing in clipped regions inside of a scrolled area. This change was
+  made without observing any ill effects from the existing logic, but the logic
+  was not correct.
 
 ### Added
 

@@ -54,18 +54,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     #[must_use]
     pub fn translation(&self) -> Point<Px> {
         let clip_origin = self.renderer.clip_rect().origin.into_signed();
-        -Point::new(
-            if clip_origin.x <= self.region.origin.x {
-                Px::ZERO
-            } else {
-                clip_origin.x - self.region.origin.x
-            },
-            if clip_origin.y <= self.region.origin.y {
-                Px::ZERO
-            } else {
-                clip_origin.y - self.region.origin.y
-            },
-        )
+        self.region.origin - clip_origin
     }
 
     /// Returns the underlying renderer.
