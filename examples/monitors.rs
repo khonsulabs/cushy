@@ -1,12 +1,10 @@
 use cushy::kludgine::app::{Monitor, Monitors};
 use cushy::widget::{MakeWidget, WidgetInstance, WidgetList};
-use cushy::{Application, Open, PendingApp};
+use cushy::Open;
 
 fn main() -> cushy::Result {
     // Monitor information is only available through winit after the application
     // has started up.
-    assert!(PendingApp::default().as_app().monitors().is_none());
-
     cushy::run(|app| {
         let monitors = app.monitors();
 
