@@ -1,11 +1,10 @@
 use std::fmt::Debug;
 
-use figures::units::UPx;
 use figures::Size;
 
 use crate::context::{GraphicsContext, LayoutContext};
 use crate::value::Dynamic;
-use crate::widget::Widget;
+use crate::widget::{Widget, WidgetLayout};
 use crate::{ConstraintLimit, Tick};
 
 /// A 2d drawable surface.
@@ -52,8 +51,8 @@ impl Widget for Canvas {
         &mut self,
         available_space: Size<crate::ConstraintLimit>,
         _context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
-        available_space.map(ConstraintLimit::max)
+    ) -> WidgetLayout {
+        available_space.map(ConstraintLimit::max).into()
     }
 }
 

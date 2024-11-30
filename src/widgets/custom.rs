@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use figures::units::Px;
-use figures::{Point, Size};
+use figures::{IntoSigned, Point, Rect, Size};
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
@@ -9,7 +9,9 @@ use kludgine::Color;
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
 use crate::styles::VisualOrder;
 use crate::value::{IntoValue, Value};
-use crate::widget::{EventHandling, MakeWidget, WidgetRef, WrappedLayout, WrapperWidget, IGNORED};
+use crate::widget::{
+    EventHandling, MakeWidget, WidgetLayout, WidgetRef, WrappedLayout, WrapperWidget, IGNORED,
+};
 use crate::widgets::Space;
 use crate::window::{DeviceId, KeyEvent};
 use crate::ConstraintLimit;
@@ -298,7 +300,7 @@ impl Custom {
         PositionChild: Send
             + 'static
             + for<'context, 'clip, 'gfx, 'pass> FnMut(
-                Size<Px>,
+                WidgetLayout,
                 Size<ConstraintLimit>,
                 &mut LayoutContext<'context, 'clip, 'gfx, 'pass>,
             ) -> WrappedLayout,
@@ -469,18 +471,22 @@ impl WrapperWidget for Custom {
 
     fn position_child(
         &mut self,
-        size: Size<Px>,
+        layout: WidgetLayout,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         if let Some(position_child) = &mut self.position_child {
-            position_child.invoke(size, available_space, context)
+            position_child.invoke(layout, available_space, context)
         } else {
-            Size::new(
-                available_space.width.fit_measured(size.width),
-                available_space.height.fit_measured(size.height),
-            )
-            .into()
+            let size = Size::new(
+                available_space.width.fit_measured(layout.size.width),
+                available_space.height.fit_measured(layout.size.height),
+            );
+            WrappedLayout {
+                size,
+                child: Rect::from(size.into_signed()),
+                baseline: layout.baseline,
+            }
         }
     }
 
@@ -694,7 +700,7 @@ where
 trait PositionChildFunc: Send {
     fn invoke(
         &mut self,
-        size: Size<Px>,
+        size: WidgetLayout,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout;
@@ -705,18 +711,18 @@ where
     Func: Send
         + 'static
         + for<'context, 'clip, 'gfx, 'pass> FnMut(
-            Size<Px>,
+            WidgetLayout,
             Size<ConstraintLimit>,
             &mut LayoutContext<'context, 'clip, 'gfx, 'pass>,
         ) -> WrappedLayout,
 {
     fn invoke(
         &mut self,
-        size: Size<Px>,
+        layout: WidgetLayout,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
-        self(size, available_space, context)
+        self(layout, available_space, context)
     }
 }
 

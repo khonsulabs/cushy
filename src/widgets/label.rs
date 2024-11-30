@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::fmt::{Debug, Display, Write};
 
-use figures::units::{Px, UPx};
+use figures::units::Px;
 use figures::{IntoUnsigned, Point, Round, Size, Zero};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{cosmic_text, CanRenderTo, Color, DrawableExt};
@@ -15,7 +15,7 @@ use crate::styles::{FontFamilyList, HorizontalAlign, VerticalAlign};
 use crate::value::{
     Dynamic, DynamicReader, Generation, IntoDynamic, IntoReadOnly, IntoValue, ReadOnly, Value,
 };
-use crate::widget::{MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag};
+use crate::widget::{MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout, WidgetTag};
 use crate::window::WindowLocal;
 use crate::{ConstraintLimit, FitMeasuredSize};
 
@@ -155,13 +155,21 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let align = context.get(&HorizontalAlignment);
         let color = context.get(&TextColor);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width, align);
 
-        available_space.fit_measured(prepared.size.into_unsigned().ceil())
+        // TODO if vertical alignment isn't top and we are using Fill on the
+        // height constraint limit, we should calculate the actual baseline. On
+        // that topic, if the text is wrapped, is the baseline of bottom-aligned
+        // text the bottom line's baseline or the top line's baseline? Probably
+        // bottom...
+        WidgetLayout {
+            size: available_space.fit_measured(prepared.size.into_unsigned().ceil()),
+            baseline: prepared.ascent.into(),
+        }
     }
 
     fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

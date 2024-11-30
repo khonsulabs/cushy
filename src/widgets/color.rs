@@ -1,7 +1,7 @@
 //! Widgets for selecting colors.
 use std::ops::Range;
 
-use figures::units::{Lp, Px, UPx};
+use figures::units::{Lp, Px};
 use figures::{FloatConversion, Point, Rect, Round, ScreenScale, Size, Zero};
 use intentional::Cast;
 use kludgine::app::winit::event::MouseButton;
@@ -19,7 +19,8 @@ use crate::value::{
     Source, Value,
 };
 use crate::widget::{
-    EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag, HANDLED,
+    EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout, WidgetTag,
+    HANDLED,
 };
 use crate::window::DeviceId;
 use crate::ConstraintLimit;
@@ -468,7 +469,7 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let ideal_height = Lp::points(24).into_upx(context.gfx.scale()).ceil();
         Size::new(
             match available_space.width {
@@ -480,6 +481,7 @@ where
                 ConstraintLimit::SizeToFit(max_height) => max_height.min(ideal_height),
             },
         )
+        .into()
     }
 
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {

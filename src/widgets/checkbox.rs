@@ -21,7 +21,7 @@ use crate::styles::components::{
 };
 use crate::styles::{ColorExt, Dimension, VerticalAlign};
 use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
-use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
+use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
 
@@ -483,12 +483,12 @@ impl Widget for CheckboxOrnament {
         &mut self,
         _available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let checkbox_size = context
             .get(&CheckboxSize)
             .into_upx(context.gfx.scale())
             .ceil();
-        Size::squared(checkbox_size)
+        Size::squared(checkbox_size).into()
     }
 }
 

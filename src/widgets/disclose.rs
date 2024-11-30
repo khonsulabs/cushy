@@ -15,8 +15,8 @@ use crate::styles::components::{HighlightColor, IntrinsicPadding, LineHeight, Ou
 use crate::styles::Dimension;
 use crate::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{
-    EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetRef, WidgetTag,
-    HANDLED, IGNORED,
+    EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout, WidgetRef,
+    WidgetTag, HANDLED, IGNORED,
 };
 use crate::window::DeviceId;
 use crate::ConstraintLimit;
@@ -219,7 +219,7 @@ impl Widget for DiscloseIndicator {
         &mut self,
         mut available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let indicator_size = context
             .get(&IndicatorSize)
             .into_upx(context.gfx.scale())
@@ -232,43 +232,55 @@ impl Widget for DiscloseIndicator {
         let content_inset = indicator_size + padding;
         available_space.width -= content_inset;
 
-        let label_size = if let Some(label) = &mut self.label {
+        let label_layout = if let Some(label) = &mut self.label {
             let label = label.mounted(context);
-            let label_size = context.for_other(&label).layout(available_space);
-            let label_vertical_offset = if label_size.height < indicator_size {
-                (indicator_size - label_size.height).round()
+            let label_layout = context.for_other(&label).layout(available_space);
+            let label_vertical_offset = if label_layout.size.height < indicator_size {
+                (indicator_size - label_layout.size.height).round()
             } else {
                 UPx::ZERO
             };
             context.set_child_layout(
                 &label,
-                Rect::new(Point::new(content_inset, label_vertical_offset), label_size)
-                    .into_signed(),
+                Rect::new(
+                    Point::new(content_inset, label_vertical_offset),
+                    label_layout.size,
+                )
+                .into_signed(),
             );
-            Size::new(label_size.width, label_size.height.max(indicator_size))
+            WidgetLayout {
+                size: Size::new(
+                    label_layout.size.width,
+                    label_layout.size.height.max(indicator_size),
+                ),
+                baseline: label_layout.baseline,
+            }
         } else {
-            Size::ZERO
+            WidgetLayout::ZERO
         };
 
-        let content_vertical_offset = if label_size.height > 0 {
-            label_size.height + padding
+        let content_vertical_offset = if label_layout.size.height > 0 {
+            label_layout.size.height + padding
         } else {
-            label_size.height
+            label_layout.size.height
         };
 
         available_space.height -= content_vertical_offset;
 
         let contents = self.contents.mounted(context);
-        let content_size = context.for_other(&contents).layout(available_space);
+        let content_layout = context.for_other(&contents).layout(available_space);
         let content_rect = Rect::new(
             Point::new(content_inset, content_vertical_offset),
-            content_size,
+            content_layout.size,
         );
         context.set_child_layout(&contents, content_rect.into_signed());
-        Size::new(
-            content_inset + content_rect.size.width.max(label_size.width),
-            indicator_size.max(content_rect.origin.y + content_rect.size.height),
-        )
+        WidgetLayout {
+            size: Size::new(
+                content_inset + content_rect.size.width.max(label_layout.size.width),
+                indicator_size.max(content_rect.origin.y + content_rect.size.height),
+            ),
+            baseline: label_layout.baseline,
+        }
     }
 
     fn accept_focus(&mut self, _context: &mut EventContext<'_>) -> bool {

@@ -15,7 +15,7 @@ use crate::styles::components::{
 };
 use crate::styles::{ColorExt, Dimension};
 use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
-use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
+use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
 
@@ -272,9 +272,9 @@ where
         &mut self,
         _available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<figures::units::UPx> {
+    ) -> WidgetLayout {
         let radio_size = context.get(&RadioSize).into_upx(context.gfx.scale());
-        Size::squared(radio_size)
+        Size::squared(radio_size).into()
     }
 }
 

@@ -15,7 +15,9 @@ use crate::styles::components::{
 };
 use crate::styles::ColorExt;
 use crate::value::{Destination, Dynamic, Source};
-use crate::widget::{EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
+use crate::widget::{
+    Baseline, EventHandling, MakeWidget, Widget, WidgetLayout, WidgetRef, HANDLED, IGNORED,
+};
 use crate::window::WindowLocal;
 use crate::ConstraintLimit;
 
@@ -85,7 +87,7 @@ struct WindowLocalState<Colors> {
     focused: bool,
     hovered: bool,
     mouse_buttons_pressed: usize,
-    size: Size<Px>,
+    size: Size<UPx>,
 }
 
 impl<Colors> Default for WindowLocalState<Colors> {
@@ -248,47 +250,66 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let window_local = self.per_window.entry(context).or_default();
-        window_local.size = self.behavior.size(context).into_signed().ceil();
-        window_local.checkbox_region.size = window_local.size;
+        window_local.size = self.behavior.size(context).ceil();
+        window_local.checkbox_region.size = window_local.size.into_signed();
 
-        let full_size = if let Some(label) = &mut self.label {
+        let (full_size, baseline) = if let Some(label) = &mut self.label {
             let padding = context
                 .get(&IntrinsicPadding)
                 .into_px(context.gfx.scale())
                 .ceil();
-            let x_offset = window_local.size.width + padding;
+            let x_offset = window_local.checkbox_region.size.width + padding;
             let remaining_space = Size::new(
                 available_space.width - x_offset.into_unsigned(),
                 available_space.height,
             );
             let mounted = label.mounted(context);
-            let label_size = context
-                .for_other(&mounted)
-                .layout(remaining_space)
-                .into_signed();
+            let label_layout = context.for_other(&mounted).layout(remaining_space);
+            let (offset, height) = match *label_layout.baseline {
+                Some(baseline) if baseline < window_local.size.height => (
+                    window_local.size.height - baseline,
+                    window_local.size.height,
+                ),
+                _ => (UPx::ZERO, label_layout.size.height),
+            };
+
             let height = available_space
                 .height
-                .fit_measured(label_size.height.into_unsigned())
-                .into_signed()
-                .max(window_local.size.height);
+                .fit_measured(height)
+                .max(window_local.size.height)
+                .into_signed();
 
             window_local.label_region = Rect::new(
-                Point::new(x_offset, (height - label_size.height) / 2),
-                label_size,
+                Point::new(
+                    x_offset,
+                    (height - label_layout.size.height.into_signed()) / 2 + offset.into_signed(),
+                ),
+                label_layout.size.into_signed(),
             );
             context.set_child_layout(&mounted, window_local.label_region);
 
-            Size::new(label_size.width + x_offset, height).into_unsigned()
+            (
+                Size::new(label_layout.size.width.into_signed() + x_offset, height).into_unsigned(),
+                label_layout.baseline.map(|baseline| baseline + offset),
+            )
         } else {
-            window_local.size.into_unsigned()
+            (window_local.size.into_unsigned(), Baseline::NONE)
         };
 
-        window_local.checkbox_region.origin.y =
-            (full_size.height.into_signed() - window_local.size.height) / 2;
+        if let Some(baseline) = *baseline {
+            window_local.checkbox_region.origin.y =
+                (baseline - window_local.size.height).into_signed();
+        } else {
+            window_local.checkbox_region.origin.y =
+                (full_size.height.into_signed() - window_local.checkbox_region.size.height) / 2;
+        }
 
-        full_size
+        WidgetLayout {
+            size: full_size,
+            baseline,
+        }
     }
 
     fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> bool {

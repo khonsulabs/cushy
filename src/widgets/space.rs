@@ -1,4 +1,3 @@
-use figures::units::UPx;
 use figures::Size;
 use kludgine::Color;
 
@@ -6,7 +5,7 @@ use crate::context::{GraphicsContext, LayoutContext};
 use crate::styles::components::PrimaryColor;
 use crate::styles::{DynamicComponent, IntoDynamicComponentValue};
 use crate::value::{IntoValue, Value};
-use crate::widget::Widget;
+use crate::widget::{Widget, WidgetLayout};
 use crate::ConstraintLimit;
 
 /// A widget that occupies space, optionally filling it with a color.
@@ -73,8 +72,8 @@ impl Widget for Space {
         &mut self,
         available_space: Size<ConstraintLimit>,
         _context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
-        available_space.map(ConstraintLimit::min)
+    ) -> WidgetLayout {
+        available_space.map(ConstraintLimit::min).into()
     }
 }
 

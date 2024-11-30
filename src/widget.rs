@@ -2,6 +2,7 @@
 
 use std::any::Any;
 use std::clone::Clone;
+use std::cmp::Ordering;
 use std::fmt::{self, Debug};
 use std::ops::{ControlFlow, Deref, DerefMut};
 use std::sync::atomic::{self, AtomicU64};
@@ -10,7 +11,7 @@ use std::{slice, vec};
 
 use alot::LotId;
 use figures::units::{Px, UPx};
-use figures::{IntoSigned, IntoUnsigned, Point, Rect, Size, Zero};
+use figures::{IntoSigned, IntoUnsigned, Point, Rect, Round, Size, Zero};
 use intentional::Assert;
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::keyboard::ModifiersState;
@@ -296,8 +297,8 @@ pub trait Widget: Send + Debug + 'static {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
-        available_space.map(ConstraintLimit::min)
+    ) -> WidgetLayout {
+        available_space.map(ConstraintLimit::min).into()
     }
 
     /// The widget has been mounted into a parent widget.
@@ -505,6 +506,148 @@ where
 }
 // ANCHOR_END: run
 
+#[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
+pub struct Baseline(pub Option<UPx>);
+
+impl Baseline {
+    pub const NONE: Self = Self(None);
+
+    #[must_use]
+    pub fn map(self, map: impl FnOnce(UPx) -> UPx) -> Self {
+        Self(self.0.map(map))
+    }
+}
+
+impl Round for Baseline {
+    fn ceil(self) -> Self {
+        Self(self.0.map(Round::ceil))
+    }
+
+    fn floor(self) -> Self {
+        Self(self.0.map(Round::floor))
+    }
+
+    fn round(self) -> Self {
+        Self(self.0.map(Round::round))
+    }
+}
+
+impl Deref for Baseline {
+    type Target = Option<UPx>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<Px> for Baseline {
+    fn from(value: Px) -> Self {
+        Self::from(value.into_unsigned())
+    }
+}
+
+impl From<Option<Px>> for Baseline {
+    fn from(value: Option<Px>) -> Self {
+        Self::from(value.map(Px::into_unsigned))
+    }
+}
+
+impl From<UPx> for Baseline {
+    fn from(value: UPx) -> Self {
+        Self::from(Some(value))
+    }
+}
+
+impl From<Option<UPx>> for Baseline {
+    fn from(value: Option<UPx>) -> Self {
+        Self(value)
+    }
+}
+
+impl Ord for Baseline {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+
+    fn min(self, other: Self) -> Self
+    where
+        Self: Sized,
+    {
+        match (self.0, other.0) {
+            (Some(lhs), Some(rhs)) => Self(Some(lhs.min(rhs))),
+            (Some(value), _) | (_, Some(value)) => Self(Some(value)),
+            (None, None) => Self(None),
+        }
+    }
+}
+
+impl PartialOrd for Baseline {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub struct WidgetLayout {
+    pub size: Size<UPx>,
+    pub baseline: Baseline,
+}
+
+impl Zero for WidgetLayout {
+    const ZERO: Self = Self {
+        size: Size::ZERO,
+        baseline: Baseline::NONE,
+    };
+
+    fn is_zero(&self) -> bool {
+        self.size.is_zero() && self.baseline.map_or(true, |baseline| baseline.is_zero())
+    }
+}
+
+impl<T> From<Size<T>> for WidgetLayout
+where
+    T: IntoUnsigned<Unsigned = UPx>,
+{
+    fn from(value: Size<T>) -> Self {
+        Self {
+            size: value.map(IntoUnsigned::into_unsigned),
+            baseline: Baseline::NONE,
+        }
+    }
+}
+
+impl From<WrappedLayout> for WidgetLayout {
+    fn from(layout: WrappedLayout) -> Self {
+        Self {
+            size: layout.size,
+            baseline: layout.baseline,
+        }
+    }
+}
+
+impl Round for WidgetLayout {
+    fn round(self) -> Self {
+        Self {
+            size: self.size.round(),
+            baseline: self.baseline.round(),
+        }
+    }
+
+    fn ceil(self) -> Self {
+        Self {
+            size: self.size.ceil(),
+            baseline: self.baseline.ceil(),
+        }
+    }
+
+    fn floor(self) -> Self {
+        Self {
+            size: self.size.floor(),
+            baseline: self.baseline.floor(),
+        }
+    }
+}
+
 /// A behavior that should be applied to a root widget.
 #[derive(Debug, Clone, Copy)]
 pub enum RootBehavior {
@@ -529,17 +672,23 @@ pub struct WrappedLayout {
     pub child: Rect<Px>,
     /// The size the wrapper widget should report as.
     pub size: Size<UPx>,
+    /// The offset from the top of this widget to the baseline of the first line
+    /// of text contained in this widget.
+    ///
+    /// If the widget has no text, this value should be set to `None`.
+    pub baseline: Baseline,
 }
 
 impl WrappedLayout {
     /// Returns a layout that positions `size` within `available_space` while
     /// respecting [`HOrizontalAlignment`] and [`VerticalAlignment`].
     pub fn aligned(
-        size: Size<UPx>,
+        layout: impl Into<WidgetLayout>,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> Self {
-        let child_size = size.into_signed();
+        let layout = layout.into();
+        let child_size = layout.size.into_signed();
         let fill_width = available_space
             .width
             .fit_measured(child_size.width)
@@ -567,6 +716,7 @@ impl WrappedLayout {
         WrappedLayout {
             child: Rect::new(Point::new(x, y), Size::new(width, height)),
             size: Size::new(padded_width, padded_height).into_unsigned(),
+            baseline: layout.baseline.map(|baseline| baseline + y.into_unsigned()),
         }
     }
 }
@@ -576,6 +726,7 @@ impl From<Size<Px>> for WrappedLayout {
         WrappedLayout {
             child: size.into(),
             size: size.into_unsigned(),
+            baseline: Baseline::NONE,
         }
     }
 }
@@ -585,6 +736,17 @@ impl From<Size<UPx>> for WrappedLayout {
         WrappedLayout {
             child: size.into_signed().into(),
             size,
+            baseline: Baseline::NONE,
+        }
+    }
+}
+
+impl From<WidgetLayout> for WrappedLayout {
+    fn from(layout: WidgetLayout) -> Self {
+        Self {
+            child: layout.size.into_signed().into(),
+            size: layout.size,
+            baseline: layout.baseline,
         }
     }
 }
@@ -643,10 +805,7 @@ pub trait WrapperWidget: Debug + Send + 'static {
     ) -> WrappedLayout {
         let adjusted_space = self.adjust_child_constraints(available_space, context);
         let child = self.child_mut().mounted(&mut context.as_event_context());
-        let size = context
-            .for_other(&child)
-            .layout(adjusted_space)
-            .into_signed();
+        let size = context.for_other(&child).layout(adjusted_space);
 
         self.position_child(size, available_space, context)
     }
@@ -667,14 +826,14 @@ pub trait WrapperWidget: Debug + Send + 'static {
     #[must_use]
     fn position_child(
         &mut self,
-        size: Size<Px>,
+        layout: WidgetLayout,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         if self.align_child() {
-            WrappedLayout::aligned(size.into_unsigned(), available_space, context)
+            WrappedLayout::aligned(layout, available_space, context)
         } else {
-            WrappedLayout::from(size)
+            WrappedLayout::from(layout)
         }
     }
 
@@ -862,11 +1021,11 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let layout = self.layout_child(available_space, context);
         let child = self.child_mut().mounted(&mut context.as_event_context());
         context.set_child_layout(&child, layout.child);
-        layout.size
+        layout.into()
     }
 
     fn mounted(&mut self, context: &mut EventContext<'_>) {
@@ -2100,11 +2259,11 @@ impl MountedWidget {
         self.tree().overridden_theme(self.node_id)
     }
 
-    pub(crate) fn begin_layout(&self, constraints: Size<ConstraintLimit>) -> Option<Size<UPx>> {
+    pub(crate) fn begin_layout(&self, constraints: Size<ConstraintLimit>) -> Option<WidgetLayout> {
         self.tree().begin_layout(self.node_id, constraints)
     }
 
-    pub(crate) fn persist_layout(&self, constraints: Size<ConstraintLimit>, size: Size<UPx>) {
+    pub(crate) fn persist_layout(&self, constraints: Size<ConstraintLimit>, size: WidgetLayout) {
         self.tree().persist_layout(self.node_id, constraints, size);
     }
 

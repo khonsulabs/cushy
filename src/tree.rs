@@ -3,13 +3,13 @@ use std::sync::{Arc, Weak};
 
 use ahash::AHashMap;
 use alot::{LotId, Lots};
-use figures::units::{Px, UPx};
+use figures::units::Px;
 use figures::{Point, Rect, Size};
 use parking_lot::Mutex;
 
 use crate::styles::{Styles, ThemePair, VisualOrder};
 use crate::value::Value;
-use crate::widget::{MountedWidget, WidgetId, WidgetInstance};
+use crate::widget::{MountedWidget, WidgetId, WidgetInstance, WidgetLayout};
 use crate::window::{ThemeMode, WindowHandle};
 use crate::ConstraintLimit;
 
@@ -121,7 +121,7 @@ impl Tree {
         &self,
         parent: LotId,
         constraints: Size<ConstraintLimit>,
-    ) -> Option<Size<UPx>> {
+    ) -> Option<WidgetLayout> {
         let mut data = self.data.lock();
 
         let node = &mut data.nodes[parent];
@@ -129,7 +129,7 @@ impl Tree {
             if constraints.width.max() <= cached_layout.constraints.width.max()
                 && constraints.height.max() <= cached_layout.constraints.height.max()
             {
-                return Some(cached_layout.size);
+                return Some(cached_layout.layout);
             }
 
             node.last_layout_query = None;
@@ -147,10 +147,13 @@ impl Tree {
         &self,
         id: LotId,
         constraints: Size<ConstraintLimit>,
-        size: Size<UPx>,
+        size: WidgetLayout,
     ) {
         let mut data = self.data.lock();
-        data.nodes[id].last_layout_query = Some(CachedLayoutQuery { constraints, size });
+        data.nodes[id].last_layout_query = Some(CachedLayoutQuery {
+            constraints,
+            layout: size,
+        });
     }
 
     pub(crate) fn visually_ordered_children(
@@ -655,7 +658,7 @@ impl Node {
 
 struct CachedLayoutQuery {
     constraints: Size<ConstraintLimit>,
-    size: Size<UPx>,
+    layout: WidgetLayout,
 }
 
 #[derive(Clone, Debug)]
