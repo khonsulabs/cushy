@@ -236,14 +236,6 @@ impl Scroll {
             .expect("a ScrollBar")
             .show(context);
     }
-
-    fn hide_scrollbars(&mut self, context: &mut EventContext<'_>) {
-        let mut horizontal = self.horizontal_widget.expect_made_mut().widget().lock();
-        horizontal
-            .downcast_mut::<ScrollBar>()
-            .expect("a ScrollBar")
-            .hide(context);
-    }
 }
 
 impl Widget for Scroll {
@@ -260,13 +252,21 @@ impl Widget for Scroll {
         _location: Point<Px>,
         context: &mut EventContext<'_>,
     ) -> Option<CursorIcon> {
-        self.show_scrollbars(context);
+        let mut horizontal = self.horizontal_widget.expect_made_mut().widget().lock();
+        horizontal
+            .downcast_mut::<ScrollBar>()
+            .expect("a ScrollBar")
+            .hover(context);
 
         None
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_>) {
-        self.hide_scrollbars(context);
+        let mut horizontal = self.horizontal_widget.expect_made_mut().widget().lock();
+        horizontal
+            .downcast_mut::<ScrollBar>()
+            .expect("a ScrollBar")
+            .unhover(context);
     }
 
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
@@ -619,6 +619,24 @@ impl ScrollBar {
     pub fn synchronize_visibility_with(&mut self, other: &ScrollBar) {
         self.scrollbar_opacity = other.scrollbar_opacity.clone();
         self.scrollbar_opacity_animation = other.scrollbar_opacity_animation.clone();
+    }
+
+    /// Marks this scroll bar as being hovered.
+    pub fn hover(&mut self, context: &mut EventContext<'_>) {
+        self.scrollbar_opacity_animation
+            .lock()
+            .hovering
+            .insert(context.widget().id());
+        self.show(context);
+    }
+
+    /// Unmarks this scroll bar as being hovered.
+    pub fn unhover(&mut self, context: &mut EventContext<'_>) {
+        self.scrollbar_opacity_animation
+            .lock()
+            .hovering
+            .remove(&context.widget().id());
+        self.hide(context);
     }
 
     /// Shows this scroll bar, automatically hiding after a short delay.
