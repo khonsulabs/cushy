@@ -58,6 +58,11 @@ fn main() -> cushy::Result {
                 )
                 .and(
                     vertical_align
+                        .new_radio(VerticalAlign::Baseline)
+                        .labelled_by("Baseline"),
+                )
+                .and(
+                    vertical_align
                         .new_radio(VerticalAlign::Center)
                         .labelled_by("Center"),
                 )

@@ -138,7 +138,7 @@ where
             self.prepared_text(context, text_color, context.gfx.region().size.width, align);
 
         let y_offset = match valign {
-            VerticalAlign::Top => Px::ZERO,
+            VerticalAlign::Top | VerticalAlign::Baseline => Px::ZERO,
             VerticalAlign::Center => {
                 (context.gfx.region().size.height - prepared_text.size.height) / 2
             }
@@ -168,7 +168,7 @@ where
         // bottom...
         WidgetLayout {
             size: available_space.fit_measured(prepared.size.into_unsigned().ceil()),
-            baseline: prepared.ascent.into(),
+            baseline: prepared.line_height.into(),
         }
     }
 

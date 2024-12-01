@@ -3,7 +3,7 @@ use std::error::Error;
 use std::fmt::{Debug, Display};
 use std::ops::Not;
 
-use figures::units::{Lp, Px, UPx};
+use figures::units::{Lp, Px};
 use figures::{Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::shapes::{CornerRadii, PathBuilder, Shape, StrokeOptions};
 use kludgine::Color;
@@ -21,7 +21,9 @@ use crate::styles::components::{
 };
 use crate::styles::{ColorExt, Dimension, VerticalAlign};
 use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
-use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout};
+use crate::widget::{
+    Baseline, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout,
+};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
 
@@ -82,11 +84,10 @@ impl MakeWidgetWithTag for Checkbox {
                 value: self.state.create_reader(),
             };
             let button_label = if let Some(label) = self.label {
-                // TODO Set this to Baseline.
                 adornment
                     .and(label)
                     .into_columns()
-                    .with(&VerticalAlignment, VerticalAlign::Center)
+                    .with(&VerticalAlignment, VerticalAlign::Baseline)
                     .make_widget()
             } else {
                 adornment.make_widget()
@@ -112,8 +113,7 @@ impl MakeWidgetWithTag for Checkbox {
             }
             indicator
                 .make_with_tag(id)
-                // TODO Set this to Baseline.
-                .with(&VerticalAlignment, VerticalAlign::Center)
+                .with(&VerticalAlignment, VerticalAlign::Baseline)
                 .make_widget()
         }
     }
@@ -194,13 +194,22 @@ impl CheckboxColors {
 impl IndicatorBehavior for CheckboxIndicator {
     type Colors = CheckboxColors;
 
-    fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> Size<UPx> {
-        Size::squared(
+    fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout {
+        let size = Size::squared(
             context
                 .get(&CheckboxSize)
                 .into_upx(context.gfx.scale())
                 .ceil(),
-        )
+        );
+        let icon_inset = Lp::points(3).into_upx(context.gfx.scale()).ceil();
+        let icon_height = size.height - icon_inset * 2;
+
+        let checkmark_lowest_point = (icon_inset + icon_height * 3 / 4).round();
+
+        WidgetLayout {
+            size,
+            baseline: Baseline::from(checkmark_lowest_point),
+        }
     }
 
     fn desired_colors(
@@ -271,83 +280,119 @@ fn draw_checkbox(
 
     match state {
         state @ (CheckboxState::Checked | CheckboxState::Indeterminant) => {
-            if corners.is_zero() {
-                context
-                    .gfx
-                    .draw_shape(&Shape::filled_rect(checkbox_rect, selected_color));
-                if selected_color != colors.outline {
-                    context.gfx.draw_shape(&Shape::stroked_rect(
-                        checkbox_rect,
-                        stroke_options.colored(colors.outline),
-                    ));
-                }
-            } else {
-                context.gfx.draw_shape(&Shape::filled_round_rect(
-                    checkbox_rect,
-                    corners,
-                    selected_color,
-                ));
-                if selected_color != colors.outline {
-                    context.gfx.draw_shape(&Shape::stroked_round_rect(
-                        checkbox_rect,
-                        corners,
-                        stroke_options.colored(colors.outline),
-                    ));
-                }
-            }
-            let icon_area = checkbox_rect.inset(Lp::points(3).into_px(context.gfx.scale()));
-
-            let center = icon_area.origin + icon_area.size / 2;
-            let mut double_stroke = stroke_options;
-            double_stroke.line_width *= 2;
-            if matches!(state, CheckboxState::Checked) {
-                context.gfx.draw_shape(
-                    &PathBuilder::new(Point::new(icon_area.origin.x, center.y))
-                        .line_to(Point::new(
-                            icon_area.origin.x + icon_area.size.width / 4,
-                            icon_area.origin.y + icon_area.size.height * 3 / 4,
-                        ))
-                        .line_to(Point::new(
-                            icon_area.origin.x + icon_area.size.width,
-                            icon_area.origin.y,
-                        ))
-                        .build()
-                        .stroke(double_stroke.colored(colors.foreground)),
-                );
-            } else {
-                context.gfx.draw_shape(
-                    &PathBuilder::new(Point::new(icon_area.origin.x, center.y))
-                        .line_to(Point::new(
-                            icon_area.origin.x + icon_area.size.width,
-                            center.y,
-                        ))
-                        .build()
-                        .stroke(double_stroke.colored(colors.foreground)),
-                );
-            }
+            draw_filled_checkbox(
+                state,
+                colors,
+                selected_color,
+                checkbox_rect,
+                stroke_options,
+                corners,
+                context,
+            );
         }
         CheckboxState::Unchecked => {
-            if corners.is_zero() {
-                context
-                    .gfx
-                    .draw_shape(&Shape::filled_rect(checkbox_rect, colors.fill));
-                context.gfx.draw_shape(&Shape::stroked_rect(
-                    checkbox_rect,
-                    stroke_options.colored(colors.outline),
-                ));
-            } else {
-                context.gfx.draw_shape(&Shape::filled_round_rect(
-                    checkbox_rect,
-                    corners,
-                    colors.fill,
-                ));
-                context.gfx.draw_shape(&Shape::stroked_round_rect(
-                    checkbox_rect,
-                    corners,
-                    stroke_options.colored(colors.outline),
-                ));
-            }
+            draw_empty_checkbox(colors, checkbox_rect, stroke_options, corners, context);
         }
+    }
+}
+
+fn draw_empty_checkbox(
+    colors: &CheckboxColors,
+    checkbox_rect: Rect<Px>,
+    stroke_options: StrokeOptions<Px>,
+    corners: CornerRadii<Px>,
+    context: &mut GraphicsContext<'_, '_, '_, '_>,
+) {
+    if corners.is_zero() {
+        context
+            .gfx
+            .draw_shape(&Shape::filled_rect(checkbox_rect, colors.fill));
+        context.gfx.draw_shape(&Shape::stroked_rect(
+            checkbox_rect,
+            stroke_options.colored(colors.outline),
+        ));
+    } else {
+        context.gfx.draw_shape(&Shape::filled_round_rect(
+            checkbox_rect,
+            corners,
+            colors.fill,
+        ));
+        context.gfx.draw_shape(&Shape::stroked_round_rect(
+            checkbox_rect,
+            corners,
+            stroke_options.colored(colors.outline),
+        ));
+    }
+}
+
+fn draw_filled_checkbox(
+    state: CheckboxState,
+    colors: &CheckboxColors,
+    selected_color: Color,
+    checkbox_rect: Rect<Px>,
+    stroke_options: StrokeOptions<Px>,
+    corners: CornerRadii<Px>,
+    context: &mut GraphicsContext<'_, '_, '_, '_>,
+) {
+    if corners.is_zero() {
+        context
+            .gfx
+            .draw_shape(&Shape::filled_rect(checkbox_rect, selected_color));
+        if selected_color != colors.outline {
+            context.gfx.draw_shape(&Shape::stroked_rect(
+                checkbox_rect,
+                stroke_options.colored(colors.outline),
+            ));
+        }
+    } else {
+        context.gfx.draw_shape(&Shape::filled_round_rect(
+            checkbox_rect,
+            corners,
+            selected_color,
+        ));
+        if selected_color != colors.outline {
+            context.gfx.draw_shape(&Shape::stroked_round_rect(
+                checkbox_rect,
+                corners,
+                stroke_options.colored(colors.outline),
+            ));
+        }
+    }
+    let icon_area = checkbox_rect.inset(Lp::points(3).into_px(context.gfx.scale()).ceil());
+
+    let center = icon_area.origin + icon_area.size / 2;
+    let mut double_stroke = stroke_options;
+    double_stroke.line_width *= 2;
+    if matches!(state, CheckboxState::Checked) {
+        context.gfx.draw_shape(
+            &PathBuilder::new(Point::new(icon_area.origin.x, center.y).round())
+                .line_to(
+                    Point::new(
+                        icon_area.origin.x + icon_area.size.width / 4,
+                        icon_area.origin.y + icon_area.size.height * 3 / 4,
+                    )
+                    .round(),
+                )
+                .line_to(
+                    Point::new(
+                        icon_area.origin.x + icon_area.size.width,
+                        icon_area.origin.y,
+                    )
+                    .round(),
+                )
+                .build()
+                .stroke(double_stroke.colored(colors.foreground)),
+        );
+    } else {
+        context.gfx.draw_shape(
+            &PathBuilder::new(Point::new(icon_area.origin.x, center.y))
+                .line_to(Point::new(
+                    icon_area.origin.x + icon_area.size.width,
+                    center.y,
+                ))
+                .build()
+                .stroke(double_stroke.colored(colors.foreground)),
+        );
     }
 }
 

@@ -102,6 +102,7 @@ impl Widget for Wrap {
         struct RowChild {
             index: usize,
             x: UPx,
+            baseline_offset: UPx,
             layout: WidgetLayout,
         }
 
@@ -139,9 +140,6 @@ impl Widget for Wrap {
             let mut max_baseline = Baseline::NONE;
             while let Some(child) = self.mounted.children().get(index) {
                 let child_layout = context.for_other(child).layout(child_constraints);
-                max_baseline = child_layout.baseline.max(max_baseline);
-                max_height = max_height.max(child_layout.size.height);
-
                 let child_x = if x.is_zero() {
                     x
                 } else {
@@ -153,10 +151,14 @@ impl Widget for Wrap {
                     break;
                 }
 
+                max_baseline = child_layout.baseline.max(max_baseline);
+                max_height = max_height.max(child_layout.size.height);
+
                 row_children.push(RowChild {
                     index,
                     x: child_x,
                     layout: child_layout,
+                    baseline_offset: UPx::ZERO,
                 });
 
                 x = after_child;
@@ -171,6 +173,18 @@ impl Widget for Wrap {
                 (UPx::ZERO, UPx::ZERO)
             };
 
+            if let Some(max_baseline) = *max_baseline {
+                // If we have a baseline, we might need to add additional height
+                // due to aligning all of the baselines.
+                for child in &mut row_children {
+                    if let Some(child_baseline) = *child.layout.baseline {
+                        child.baseline_offset = max_baseline - child_baseline;
+                        max_height =
+                            max_height.max(child.layout.size.height + child.baseline_offset);
+                    }
+                }
+            }
+
             if y == 0 {
                 first_baseline = max_baseline;
             }
@@ -184,6 +198,7 @@ impl Widget for Wrap {
                 let child_x = additional_x + child.x;
                 let child_y = y + match vertical_align {
                     VerticalAlign::Top => UPx::ZERO,
+                    VerticalAlign::Baseline => child.baseline_offset,
                     VerticalAlign::Center => (max_height - child.layout.size.height) / 2,
                     VerticalAlign::Bottom => max_height - child.layout.size.height,
                 };

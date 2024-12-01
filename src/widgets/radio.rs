@@ -1,7 +1,7 @@
 //! A labeled widget with a circular indicator representing a value.
 use std::fmt::Debug;
 
-use figures::units::{Px, UPx};
+use figures::units::Px;
 use figures::{Point, Rect, Round, ScreenScale, Size};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, DrawableExt};
@@ -15,7 +15,9 @@ use crate::styles::components::{
 };
 use crate::styles::{ColorExt, Dimension};
 use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
-use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout};
+use crate::widget::{
+    Baseline, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout,
+};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;
 
@@ -161,8 +163,17 @@ where
 {
     type Colors = RadioColors;
 
-    fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> Size<UPx> {
-        Size::squared(context.get(&RadioSize).into_upx(context.gfx.scale()).ceil())
+    fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout {
+        let size = Size::squared(context.get(&RadioSize).into_upx(context.gfx.scale()).ceil());
+        let outline_width = context
+            .get(&OutlineWidth)
+            .into_upx(context.gfx.scale())
+            .ceil();
+
+        WidgetLayout {
+            size,
+            baseline: Baseline::from(size.height - outline_width * 2),
+        }
     }
 
     fn desired_colors(

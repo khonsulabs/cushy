@@ -60,7 +60,7 @@ pub trait IndicatorBehavior: Send + Debug + 'static {
         context: &mut GraphicsContext<'_, '_, '_, '_>,
     );
     /// Returns the size of this indicator.
-    fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> Size<UPx>;
+    fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout;
 }
 
 /// The current state of an [`Indicator`] widget.
@@ -252,10 +252,11 @@ where
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WidgetLayout {
         let window_local = self.per_window.entry(context).or_default();
-        window_local.size = self.behavior.size(context).ceil();
+        let indicator_layout = self.behavior.size(context);
+        window_local.size = indicator_layout.size.ceil();
         window_local.checkbox_region.size = window_local.size.into_signed();
 
-        let (full_size, baseline) = if let Some(label) = &mut self.label {
+        let (mut full_size, baseline) = if let Some(label) = &mut self.label {
             let padding = context
                 .get(&IntrinsicPadding)
                 .into_px(context.gfx.scale())
@@ -267,44 +268,49 @@ where
             );
             let mounted = label.mounted(context);
             let label_layout = context.for_other(&mounted).layout(remaining_space);
+            let indicator_baseline = indicator_layout
+                .baseline
+                .unwrap_or(indicator_layout.size.height);
             let (offset, height) = match *label_layout.baseline {
-                Some(baseline) if baseline < window_local.size.height => (
-                    window_local.size.height - baseline,
+                Some(baseline) if baseline < indicator_baseline => (
+                    indicator_baseline.saturating_sub(baseline),
                     window_local.size.height,
                 ),
                 _ => (UPx::ZERO, label_layout.size.height),
             };
 
-            let height = available_space
-                .height
-                .fit_measured(height)
-                .max(window_local.size.height)
-                .into_signed();
-
             window_local.label_region = Rect::new(
-                Point::new(
-                    x_offset,
-                    (height - label_layout.size.height.into_signed()) / 2 + offset.into_signed(),
-                ),
+                Point::new(x_offset, offset.into_signed()),
                 label_layout.size.into_signed(),
             );
             context.set_child_layout(&mounted, window_local.label_region);
 
             (
-                Size::new(label_layout.size.width.into_signed() + x_offset, height).into_unsigned(),
+                Size::new(label_layout.size.width + x_offset.into_unsigned(), height),
                 label_layout.baseline.map(|baseline| baseline + offset),
             )
         } else {
             (window_local.size.into_unsigned(), Baseline::NONE)
         };
 
-        if let Some(baseline) = *baseline {
-            window_local.checkbox_region.origin.y =
-                (baseline - window_local.size.height).into_signed();
-        } else {
-            window_local.checkbox_region.origin.y =
-                (full_size.height.into_signed() - window_local.checkbox_region.size.height) / 2;
+        match (*baseline, *indicator_layout.baseline) {
+            (Some(label_baseline), Some(indicator_baseline)) => {
+                window_local.checkbox_region.origin.y =
+                    (label_baseline.saturating_sub(indicator_baseline)).into_signed();
+            }
+            (Some(label_baseline), None) => {
+                window_local.checkbox_region.origin.y =
+                    (label_baseline.saturating_sub(window_local.size.height)).into_signed();
+            }
+            _ => {
+                window_local.checkbox_region.origin.y =
+                    (full_size.height.into_signed() - window_local.checkbox_region.size.height) / 2;
+            }
         }
+
+        full_size.height = full_size
+            .height
+            .max(window_local.checkbox_region.extent().y.into_unsigned());
 
         WidgetLayout {
             size: full_size,
