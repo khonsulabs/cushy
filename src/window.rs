@@ -1896,12 +1896,13 @@ where
             layout_context.graphics.gfx.fill(background_color);
         }
 
-        let layout_size =
-            layout_context.layout(if matches!(root_mode, RootMode::Expand | RootMode::Align) {
+        let layout_size = layout_context
+            .layout(if matches!(root_mode, RootMode::Expand | RootMode::Align) {
                 window_size.map(ConstraintLimit::Fill)
             } else {
                 window_size.map(ConstraintLimit::SizeToFit)
-            });
+            })
+            .size;
         let actual_size = if root_mode == RootMode::Align {
             window_size.max(layout_size)
         } else {

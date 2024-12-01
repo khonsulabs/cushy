@@ -1,7 +1,7 @@
 //! A clickable, labeled button
 use std::time::{Duration, Instant};
 
-use figures::units::{Px, UPx};
+use figures::units::Px;
 use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::app::winit::event::{Modifiers, MouseButton};
 use kludgine::app::winit::window::CursorIcon;
@@ -22,7 +22,7 @@ use crate::styles::components::{
 use crate::styles::{ColorExt, Styles};
 use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{
-    Callback, EventHandling, MakeWidget, SharedCallback, Widget, WidgetRef, HANDLED,
+    Callback, EventHandling, MakeWidget, SharedCallback, Widget, WidgetLayout, WidgetRef, HANDLED,
 };
 use crate::window::{DeviceId, WindowLocal};
 use crate::FitMeasuredSize;
@@ -507,7 +507,7 @@ impl Widget for Button {
         &mut self,
         available_space: Size<crate::ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let outline_width = context
             .get(&OutlineWidth)
             .into_upx(context.gfx.scale())
@@ -521,13 +521,16 @@ impl Widget for Button {
         let double_padding = padding * 2;
         let mounted = self.content.mounted(context);
         let available_space = available_space.map(|space| space - double_padding);
-        let size = context.for_other(&mounted).layout(available_space);
-        let size = available_space.fit_measured(size);
+        let layout = context.for_other(&mounted).layout(available_space);
+        let size = available_space.fit_measured(layout.size);
         context.set_child_layout(
             &mounted,
             Rect::new(Point::squared(padding), size).into_signed(),
         );
-        size + double_padding
+        WidgetLayout {
+            size: size + double_padding,
+            baseline: layout.baseline.map(|baseline| baseline + padding),
+        }
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_>) {

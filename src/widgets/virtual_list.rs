@@ -16,7 +16,8 @@ use crate::value::{
     Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, MapEachCloned, Source, Watcher,
 };
 use crate::widget::{
-    Callback, EventHandling, MakeWidget, MountedWidget, Widget, WidgetInstance, HANDLED, IGNORED,
+    Callback, EventHandling, MakeWidget, MountedWidget, Widget, WidgetInstance, WidgetLayout,
+    HANDLED, IGNORED,
 };
 use crate::widgets::scroll::ScrollBar;
 use crate::window::DeviceId;
@@ -200,7 +201,7 @@ impl VirtualList {
             .horizontal_scroll
             .make_if_needed()
             .mounted(&mut context.as_event_context());
-        let scrollbar_layout = context.for_other(&horizontal).layout(available_space);
+        let scrollbar_layout = context.for_other(&horizontal).layout(available_space).size;
         context.set_child_layout(
             &horizontal,
             Rect::new(
@@ -219,7 +220,7 @@ impl VirtualList {
             .vertical_scroll
             .make_if_needed()
             .mounted(&mut context.as_event_context());
-        let scrollbar_layout = context.for_other(&vertical).layout(available_space);
+        let scrollbar_layout = context.for_other(&vertical).layout(available_space).size;
         context.set_child_layout(
             &vertical,
             Rect::new(
@@ -314,7 +315,7 @@ impl VirtualList {
         let mut y = -(scroll.y % item_size.height).into_signed();
         let constraint = item_size.map(ConstraintLimit::Fill);
         for item in &self.items {
-            let child_size = context.for_other(&item.mounted).layout(constraint);
+            let child_size = context.for_other(&item.mounted).layout(constraint).size;
 
             context.set_child_layout(
                 &item.mounted,
@@ -349,6 +350,7 @@ impl VirtualList {
                     .mounted,
             )
             .layout(available_space.map(|space| ConstraintLimit::SizeToFit(space.max())))
+            .size
     }
 }
 
@@ -407,13 +409,14 @@ impl Widget for VirtualList {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let item_count = self.item_count.get_tracking_invalidate(context);
         if item_count == 0 {
-            return available_space.map(ConstraintLimit::min);
+            return available_space.map(ConstraintLimit::min).into();
         }
 
         self.layout_rows(item_count, available_space, context)
+            .into()
     }
 
     fn mouse_wheel(

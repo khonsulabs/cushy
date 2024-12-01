@@ -1,13 +1,15 @@
 use std::time::Duration;
 
 use figures::units::Px;
-use figures::{Size, Zero};
+use figures::{IntoSigned, IntoUnsigned, Size, Zero};
 
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::LayoutContext;
 use crate::styles::components::{EasingIn, EasingOut};
 use crate::value::{Dynamic, Generation, IntoDynamic, Source};
-use crate::widget::{MakeWidget, WidgetInstance, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::widget::{
+    MakeWidget, WidgetInstance, WidgetLayout, WidgetRef, WrappedLayout, WrapperWidget,
+};
 use crate::ConstraintLimit;
 
 /// A widget that collapses/hides its contents based on a [`Dynamic<bool>`].
@@ -106,12 +108,13 @@ impl WrapperWidget for Collapse {
 
     fn position_child(
         &mut self,
-        size: Size<Px>,
+        layout: WidgetLayout,
         _available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
+        let size = layout.size.into_signed();
         let clip_size = self.size.get_tracking_invalidate(context);
-        if self.vertical {
+        let size = if self.vertical {
             let height = self.note_child_size(size.height, clip_size, context);
 
             Size::new(size.width, height)
@@ -119,8 +122,12 @@ impl WrapperWidget for Collapse {
             let width = self.note_child_size(size.width, clip_size, context);
 
             Size::new(width, size.height)
+        };
+        WrappedLayout {
+            child: size.into(),
+            size: size.into_unsigned(),
+            baseline: layout.baseline,
         }
-        .into()
     }
 
     fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

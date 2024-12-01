@@ -2797,12 +2797,15 @@ impl HorizontalAlign {
     /// within `available_space`.
     pub fn alignment_offset<Unit>(self, measured: Unit, available_space: Unit) -> Unit
     where
-        Unit: Sub<Output = Unit> + Mul<Output = Unit> + UnscaledUnit + Zero,
-        Unit::Representation: CastFrom<i32>,
+        Unit: Sub<Output = Unit> + Mul<Output = Unit> + UnscaledUnit + Zero + Round,
+        Unit::Representation: Div<Output = Unit::Representation> + From<u8>,
     {
         match self {
             Self::Left => Unit::ZERO,
-            Self::Center => (available_space - measured) * Unit::from_unscaled(2.cast_into()),
+            Self::Center => Unit::from_unscaled(
+                (available_space - measured).into_unscaled() / <Unit::Representation>::from(2),
+            )
+            .round(),
             Self::Right => available_space - measured,
         }
     }
@@ -2835,8 +2838,9 @@ impl RequireInvalidation for HorizontalAlign {
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
 pub enum VerticalAlign {
     /// Align towards the top.
-    #[default] // TODO this should be baseline, not top.
     Top,
+    #[default]
+    Baseline,
     /// Align towards the center/middle.
     Center,
     /// Align towards the bottom.
@@ -2852,7 +2856,7 @@ impl VerticalAlign {
         Unit::Representation: CastFrom<i32>,
     {
         match self {
-            Self::Top => Unit::ZERO,
+            Self::Top | Self::Baseline => Unit::ZERO,
             Self::Center => (available_space - measured) * Unit::from_unscaled(2.cast_into()),
             Self::Bottom => available_space - measured,
         }

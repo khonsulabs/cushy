@@ -25,7 +25,7 @@ use crate::styles::Styles;
 use crate::value::{Dynamic, IntoValue, Source, Value};
 use crate::widget::{
     Callback, EventHandling, MakeWidget, MakeWidgetWithTag, SharedCallback, Widget, WidgetId,
-    WidgetInstance, WidgetRef, WidgetTag, HANDLED,
+    WidgetInstance, WidgetLayout, WidgetRef, WidgetTag, HANDLED,
 };
 use crate::ConstraintLimit;
 
@@ -642,7 +642,7 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let mut maximum_item_width = UPx::ZERO;
         let mut remaining_height = available_space.height.max();
         self.padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
@@ -662,10 +662,13 @@ where
                 ItemKind::Item(item) => {
                     let mounted = item.contents.mounted(context);
                     let available_width = available_width - submenu_space;
-                    let size = context.for_other(&mounted).layout(Size::new(
-                        ConstraintLimit::SizeToFit(available_width),
-                        ConstraintLimit::SizeToFit(remaining_height),
-                    ));
+                    let size = context
+                        .for_other(&mounted)
+                        .layout(Size::new(
+                            ConstraintLimit::SizeToFit(available_width),
+                            ConstraintLimit::SizeToFit(remaining_height),
+                        ))
+                        .size;
                     maximum_item_width = maximum_item_width.max(size.width);
                     (size.height, size.height + double_padding)
                 }
@@ -694,7 +697,8 @@ where
             );
         }
 
-        Size::new(maximum_item_width + double_padding * 2 + submenu_space, y)
+        // TODO should a Menu report its baseline?
+        Size::new(maximum_item_width + double_padding * 2 + submenu_space, y).into()
     }
 
     fn hit_test(

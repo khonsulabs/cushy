@@ -14,7 +14,7 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::Dimension;
 use crate::value::{Generation, IntoValue, Value};
-use crate::widget::{MakeWidget, MountedWidget, Widget, WidgetInstance};
+use crate::widget::{Baseline, MakeWidget, MountedWidget, Widget, WidgetInstance, WidgetLayout};
 use crate::ConstraintLimit;
 
 /// A 2D grid of widgets.
@@ -135,10 +135,8 @@ impl<const COLUMNS: usize> Widget for Grid<COLUMNS> {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         for (row, widgets) in self.live_rows.iter_mut().enumerate() {
             if self.layout.others[row] > 0 {
-                for (column, cell) in widgets.iter().enumerate() {
-                    if self.layout[column].size > 0 {
-                        context.for_other(cell).redraw();
-                    }
+                for cell in widgets.iter() {
+                    context.for_other(cell).redraw();
                 }
             }
         }
@@ -156,10 +154,10 @@ impl<const COLUMNS: usize> Widget for Grid<COLUMNS> {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         self.synchronize_children(&mut context.as_event_context());
 
-        let content_size = self.layout.update(
+        let content_layout = self.layout.update(
             available_space,
             context
                 .get(&IntrinsicPadding)
@@ -179,27 +177,25 @@ impl<const COLUMNS: usize> Widget for Grid<COLUMNS> {
         for (&other_size, row) in self.layout.others.iter().zip(&self.live_rows) {
             if other_size > 0 {
                 for (layout, cell) in self.layout.iter().zip(row) {
-                    if layout.size > 0 {
-                        context.set_child_layout(
-                            cell,
-                            Rect::new(
-                                self.layout
-                                    .orientation
-                                    .make_point(layout.offset, other_offset)
-                                    .into_signed(),
-                                self.layout
-                                    .orientation
-                                    .make_size(layout.size, other_size)
-                                    .into_signed(),
-                            ),
-                        );
-                    }
+                    context.set_child_layout(
+                        cell,
+                        Rect::new(
+                            self.layout
+                                .orientation
+                                .make_point(layout.offset, other_offset)
+                                .into_signed(),
+                            self.layout
+                                .orientation
+                                .make_size(layout.size, other_size)
+                                .into_signed(),
+                        ),
+                    );
                 }
                 other_offset = other_offset.saturating_add(other_size);
             }
         }
 
-        content_size
+        content_layout
     }
 
     fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -282,10 +278,18 @@ pub(crate) struct GridLayout {
     pub orientation: Orientation,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub(crate) struct StackLayout {
     pub offset: UPx,
+    pub baselines: Vec<Baseline>,
     pub size: UPx,
+}
+
+impl StackLayout {
+    fn reset_baselines(&mut self, elements: usize) {
+        self.baselines.clear();
+        self.baselines.resize(elements, Baseline::NONE);
+    }
 }
 
 impl GridLayout {
@@ -379,6 +383,7 @@ impl GridLayout {
             StackLayout {
                 offset: UPx::ZERO,
                 size: layout,
+                baselines: Vec::new(),
             },
         );
     }
@@ -389,8 +394,8 @@ impl GridLayout {
         available: Size<ConstraintLimit>,
         gutter: UPx,
         scale: Fraction,
-        mut measure: impl FnMut(usize, usize, Size<ConstraintLimit>, bool) -> Size<UPx>,
-    ) -> Size<UPx> {
+        mut measure: impl FnMut(usize, usize, Size<ConstraintLimit>, bool) -> WidgetLayout,
+    ) -> WidgetLayout {
         self.update_measured(scale);
         let (space_constraint, mut other_constraint) = self.orientation.split_size(available);
         let available_space = space_constraint.max();
@@ -425,8 +430,10 @@ impl GridLayout {
 
             let mut max_measured = UPx::ZERO;
 
+            self.layouts[index].reset_baselines(self.elements_per_child);
+
             for element in 0..self.elements_per_child {
-                let (measured, other) = self.orientation.split_size(measure(
+                let layout = measure(
                     index,
                     element,
                     self.orientation.make_size(
@@ -438,7 +445,9 @@ impl GridLayout {
                         other_constraint,
                     ),
                     !needs_final_layout,
-                ));
+                );
+                self.layouts[index].baselines[element] = layout.baseline;
+                let (measured, other) = self.orientation.split_size(layout.size);
 
                 if measured > 0 {
                     max_measured = max_measured.max(measured);
@@ -459,8 +468,9 @@ impl GridLayout {
         // Measure measure the "other" dimension for children that we know their size already.
         for &id in &self.premeasured {
             let index = self.children.index_of_id(id).expect("child not found");
+            self.layouts[index].reset_baselines(self.elements_per_child);
             for element in 0..self.elements_per_child {
-                let (_, other) = self.orientation.split_size(measure(
+                let layout = measure(
                     index,
                     element,
                     self.orientation.make_size(
@@ -468,7 +478,9 @@ impl GridLayout {
                         other_constraint,
                     ),
                     !needs_final_layout,
-                ));
+                );
+                self.layouts[index].baselines[element] = layout.baseline;
+                let (_, other) = self.orientation.split_size(layout.size);
                 self.others[element] = self.others[element].max(other);
             }
         }
@@ -502,8 +514,9 @@ impl GridLayout {
             // to get the other measurement using the constrainted measurement.
             for (id, _) in &self.fractional {
                 let index = self.children.index_of_id(*id).expect("child not found");
+                self.layouts[index].reset_baselines(self.elements_per_child);
                 for element in 0..self.elements_per_child {
-                    let (_, measured) = self.orientation.split_size(measure(
+                    let layout = measure(
                         index,
                         element,
                         self.orientation.make_size(
@@ -511,7 +524,8 @@ impl GridLayout {
                             other_constraint,
                         ),
                         !needs_final_layout,
-                    ));
+                    );
+                    let (_, measured) = self.orientation.split_size(layout.size);
                     self.others[element] = self.others[element].max(measured);
                 }
             }
@@ -532,9 +546,12 @@ impl GridLayout {
             }
         }
 
-        let measured = self.update_offsets(needs_final_layout, gutter, scale, measure);
+        let (measured, baseline) = self.update_offsets(needs_final_layout, gutter, scale, measure);
 
-        self.orientation.make_size(measured, total_other)
+        WidgetLayout {
+            size: self.orientation.make_size(measured, total_other),
+            baseline,
+        }
     }
 
     fn update_measured(&mut self, scale: Fraction) {
@@ -562,9 +579,20 @@ impl GridLayout {
         needs_final_layout: bool,
         gutter: UPx,
         scale: Fraction,
-        mut measure: impl FnMut(usize, usize, Size<ConstraintLimit>, bool) -> Size<UPx>,
-    ) -> UPx {
+        mut measure: impl FnMut(usize, usize, Size<ConstraintLimit>, bool) -> WidgetLayout,
+    ) -> (UPx, Baseline) {
         let mut offset = UPx::ZERO;
+        let first_baseline = match self.orientation {
+            Orientation::Column => self.layouts.iter().fold(Baseline::NONE, |max, layout| {
+                let baseline = layout.baselines.first().copied().unwrap_or_default();
+                baseline.max(max)
+            }),
+            Orientation::Row => self
+                .layouts
+                .first()
+                .and_then(|layout| layout.baselines.first().copied())
+                .unwrap_or_default(),
+        };
         for index in 0..self.children.len() {
             let visible = self.layouts[index].size > 0;
 
@@ -591,7 +619,7 @@ impl GridLayout {
                 }
             }
         }
-        offset
+        (offset, first_baseline)
     }
 }
 
@@ -662,7 +690,7 @@ mod tests {
             flex.push(child.dimension, Fraction::ONE);
         }
 
-        let computed_size = flex.update(
+        let computed_layout = flex.update(
             available,
             UPx::ZERO,
             Fraction::ONE,
@@ -682,12 +710,12 @@ mod tests {
                         }
                         _ => (child.size, child.other),
                     };
-                orientation.make_size(measured, other)
+                orientation.make_size(measured, other).into()
             },
         );
-        assert_eq!(computed_size, expected_size);
+        assert_eq!(computed_layout.size, expected_size);
         let mut offset = UPx::ZERO;
-        for ((index, &child), &expected) in flex.iter().enumerate().zip(expected) {
+        for ((index, child), &expected) in flex.iter().enumerate().zip(expected) {
             assert_eq!(
                 child.size, expected,
                 "child {index} measured to {}, expected {expected}",

@@ -8,7 +8,9 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::FlexibleDimension;
 use crate::value::{Generation, IntoValue, Value};
-use crate::widget::{ChildrenSyncChange, MountedWidget, Widget, WidgetList, WidgetRef};
+use crate::widget::{
+    ChildrenSyncChange, MountedWidget, Widget, WidgetLayout, WidgetList, WidgetRef,
+};
 use crate::widgets::grid::{GridDimension, GridLayout, Orientation};
 use crate::widgets::{Expand, Resize};
 use crate::ConstraintLimit;
@@ -153,7 +155,7 @@ impl Widget for Stack {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         self.synchronize_children(&mut context.as_event_context());
 
         self.gutter.invalidate_when_changed(context);
