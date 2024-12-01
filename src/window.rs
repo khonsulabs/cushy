@@ -67,6 +67,7 @@ use crate::widget::{
 use crate::widgets::shortcuts::{ShortcutKey, ShortcutMap};
 use crate::window::sealed::WindowCommand;
 use crate::{App, ConstraintLimit};
+use crate::localization::{TranslationState, Translations};
 
 /// A platform-dependent window implementation.
 pub trait PlatformWindowImplementation {
@@ -1352,6 +1353,7 @@ struct OpenWindow<T> {
     theme_mode: Value<ThemeMode>,
     transparent: bool,
     fonts: FontState,
+    translations: TranslationState,
     app: App,
     on_closed: Option<OnceCallback>,
     vsync: bool,
@@ -1419,6 +1421,7 @@ where
                             &mut self.fonts,
                             self.theme_mode.get(),
                             &mut self.cursor,
+                            &mut self.translations,
                         ),
                         kludgine,
                     )
@@ -1432,6 +1435,7 @@ where
                         &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
+                        &mut self.translations,
                     ),
                     kludgine,
                 )
@@ -1451,6 +1455,7 @@ where
                     &mut self.fonts,
                     self.theme_mode.get(),
                     &mut self.cursor,
+                    &mut self.translations,
                 ),
                 kludgine,
             )
@@ -1484,6 +1489,7 @@ where
                     &mut self.fonts,
                     self.theme_mode.get(),
                     &mut self.cursor,
+                    &mut self.translations,
                 ),
                 graphics,
             );
@@ -1635,6 +1641,7 @@ where
                         &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
+                        &mut self.translations,
                     ),
                     kludgine,
                 );
@@ -1668,6 +1675,7 @@ where
                             &mut self.fonts,
                             self.theme_mode.get(),
                             &mut self.cursor,
+                            &mut self.translations,
                         ),
                         kludgine,
                     );
@@ -1738,6 +1746,8 @@ where
             graphics.font_system().db_mut(),
         );
 
+        let translations = Self::load_translations(app.cushy().translations.clone());
+
         let dpi_scale = Dynamic::new(graphics.dpi_scale());
         settings.inner_position.set(window.inner_position());
         settings.outer_position.set(window.outer_position());
@@ -1789,6 +1799,7 @@ where
             theme_mode,
             transparent: settings.transparent,
             fonts,
+            translations,
             app,
             on_closed: settings.on_closed,
             vsync: settings.vsync,
@@ -1882,6 +1893,7 @@ where
                 &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
+                &mut self.translations,
             ),
             gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
@@ -2168,6 +2180,7 @@ where
                 &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
+                &mut self.translations,
             ),
             kludgine,
         );
@@ -2229,6 +2242,7 @@ where
                 &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
+                &mut self.translations,
             ),
             kludgine,
         );
@@ -2272,6 +2286,7 @@ where
                 &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
+                &mut self.translations,
             ),
             kludgine,
         );
@@ -2317,6 +2332,7 @@ where
                 &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
+                &mut self.translations,
             ),
             kludgine,
         )
@@ -2336,6 +2352,7 @@ where
                         &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
+                        &mut self.translations,
                     ),
                     kludgine,
                 );
@@ -2376,6 +2393,7 @@ where
                     &mut self.fonts,
                     self.theme_mode.get(),
                     &mut self.cursor,
+                    &mut self.translations,
                 ),
                 kludgine,
             );
@@ -2425,6 +2443,7 @@ where
                                 &mut self.fonts,
                                 self.theme_mode.get(),
                                 &mut self.cursor,
+                                &mut self.translations,
                             ),
                             kludgine,
                         ),
@@ -2451,6 +2470,7 @@ where
                             &mut self.fonts,
                             self.theme_mode.get(),
                             &mut self.cursor,
+                            &mut self.translations,
                         ),
                         kludgine,
                     )
@@ -2480,6 +2500,7 @@ where
                         &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
+                        &mut self.translations,
                     ),
                     kludgine,
                 );
@@ -2509,6 +2530,13 @@ where
                 drop,
             });
         }
+    }
+
+    fn load_translations(translations: Translations) -> TranslationState {
+        let mut state = TranslationState::new();
+        state.add_all(translations);
+
+        state
     }
 }
 
@@ -2909,6 +2937,7 @@ where
                         &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
+                        &mut self.translations,
                     ),
                     kludgine,
                 );

@@ -8,7 +8,6 @@ use arboard::Clipboard;
 use kludgine::app::winit::error::EventLoopError;
 use kludgine::app::{AppEvent, AsApplication, ExecutingApp, Monitors, UnrecoverableError};
 use parking_lot::{Mutex, MutexGuard};
-
 use crate::fonts::FontCollection;
 use crate::window::sealed::WindowCommand;
 use crate::window::WindowHandle;
@@ -319,6 +318,7 @@ mod tokio {
 
 #[cfg(feature = "tokio")]
 pub use tokio::TokioRuntime;
+use crate::localization::Translations;
 
 struct BoxedRuntime(Box<dyn BoxableRuntime>);
 
@@ -364,6 +364,7 @@ pub struct Cushy {
     pub(crate) fonts: FontCollection,
     settings: Arc<Mutex<AppSettings>>,
     runtime: BoxedRuntime,
+    pub(crate) translations: Translations,
 }
 
 impl Cushy {
@@ -377,6 +378,7 @@ impl Cushy {
                 multi_click_threshold: Duration::from_millis(500),
             })),
             runtime,
+            translations: Translations::default(),
         }
     }
 
@@ -404,6 +406,12 @@ impl Cushy {
     #[must_use]
     pub fn fonts(&self) -> &FontCollection {
         &self.fonts
+    }
+
+    /// Returns the translations that will be loaded in all Cushy windows.
+    #[must_use]
+    pub fn translations(&self) -> &Translations {
+        &self.translations
     }
 
     /// Enters the application's runtime context.

@@ -8,6 +8,7 @@
 
 // for proc-macros
 extern crate self as cushy;
+extern crate core;
 
 #[macro_use]
 mod utils;
@@ -29,6 +30,8 @@ pub mod widgets;
 pub mod window;
 
 pub mod dialog;
+
+pub mod localization;
 #[doc(hidden)]
 pub mod example;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
