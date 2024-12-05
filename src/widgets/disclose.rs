@@ -234,7 +234,10 @@ impl Widget for DiscloseIndicator {
 
         let label_size = if let Some(label) = &mut self.label {
             let label = label.mounted(context);
-            let label_size = context.for_other(&label).layout(available_space);
+            let label_size = context.for_other(&label).layout(Size::new(
+                available_space.width,
+                ConstraintLimit::SizeToFit(available_space.height.max()),
+            ));
             let label_vertical_offset = if label_size.height < indicator_size {
                 (indicator_size - label_size.height).round()
             } else {
