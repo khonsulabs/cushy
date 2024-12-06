@@ -6,8 +6,9 @@ use cushy::figures::units::Px;
 use cushy::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use cushy::widgets::Space;
 use indexmap::IndexMap;
-use crate::value::{Dynamic, Switchable};
+use crate::reactive::value::{Destination, Dynamic, Source, Switchable};
 use crate::widget::WidgetInstance;
+use crate::widgets::label::Displayable;
 
 #[derive(Default,Clone, Debug, Hash, PartialEq, Eq)]
 pub struct TreeNodeKey(usize);
@@ -19,9 +20,40 @@ pub struct TreeNode {
 }
 
 pub struct TreeNodeWidget {
-    is_expanded: bool,
+    is_expanded: Dynamic<bool>,
     child: WidgetRef,
     child_height: Option<Px>,
+}
+
+impl TreeNodeWidget {
+    pub fn new(child: impl MakeWidget) -> Self {
+
+        let is_expanded = Dynamic::new(true);
+
+        let indicator = is_expanded.map_each(|value|{
+            match value {
+                true => "v",
+                false => ">"
+            }
+        }).into_label();
+
+        let expand_button = indicator.into_button()
+            .on_click({
+                let is_expanded = is_expanded.clone();
+                move |_event| {
+                    is_expanded.toggle();
+                }
+            })
+            .make_widget();
+
+        let child = expand_button.and(child).into_columns().into_ref();
+
+        Self {
+            is_expanded,
+            child,
+            child_height: None,
+        }
+    }
 }
 
 impl Debug for TreeNode {
@@ -70,7 +102,6 @@ impl Tree {
 
     /// Inserts a child after the given parent
     pub fn insert_child(&mut self, value: impl MakeWidget, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey> {
-        let child = value.into_ref();
 
         // Determine whether a new key and node should be created
         let (depth, parent_clone) = {
@@ -91,11 +122,7 @@ impl Tree {
         if let Some(depth) = depth {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
 
-            let child_widget = TreeNodeWidget {
-                is_expanded: true,
-                child,
-                child_height: None,
-            }.make_widget();
+            let child_widget = TreeNodeWidget::new(value).make_widget();
 
             let child_node = TreeNode {
                 parent: parent_clone,
@@ -115,7 +142,6 @@ impl Tree {
     ///
     /// Returns `None` if the given node doesn't exist.
     pub fn insert_after(&mut self, value: impl MakeWidget, sibling: &TreeNodeKey) -> Option<TreeNodeKey> {
-        let child = value.into_ref();
 
         // Determine whether a new key and node should be created
         let (depth, parent) = {
@@ -129,11 +155,7 @@ impl Tree {
         if let Some(depth) = depth {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
 
-            let child_widget = TreeNodeWidget {
-                is_expanded: true,
-                child,
-                child_height: None,
-            }.make_widget();
+            let child_widget = TreeNodeWidget::new(value).make_widget();
 
             let child_node = TreeNode {
                 parent,
@@ -341,7 +363,7 @@ impl WrapperWidget for TreeNodeWidget {
             self.child_height.replace(size.height);
         }
 
-        let size = match self.is_expanded {
+        let size = match self.is_expanded.get_tracking_invalidate(_context) {
             true => Size::new(size.width, self.child_height.unwrap()),
             false => Size::new(size.width, Px::new(0)),
         };
