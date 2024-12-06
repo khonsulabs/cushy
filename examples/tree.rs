@@ -13,9 +13,14 @@ fn main(app: &mut App) -> cushy::Result {
     let child_key = tree.insert_child("child".to_string(), Some(&root_key)).unwrap();
     let _nested_child_key = tree.insert_child("nested".to_string(), Some(&child_key));
 
-    let ui = pending.with_root(tree
-        .make_widget()
-    )
+    let elements = "content above".contain()
+        .and(tree.contain())
+        .and("content below".contain())
+        .into_rows()
+        .contain()
+        .make_widget();
+
+    let ui = pending.with_root(elements)
         .titled("tree");
     
     ui.open(app)?;
