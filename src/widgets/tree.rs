@@ -1,10 +1,11 @@
 use std::fmt::{Debug, Formatter};
+use std::sync::Arc;
 use cushy::figures::units::Px;
 use cushy::widget::{MakeWidget, WidgetRef, WrapperWidget};
 use cushy::widgets::Space;
 use indexmap::IndexMap;
 use crate::reactive::value::{Destination, Dynamic, Source, Switchable};
-use crate::widget::WidgetInstance;
+use crate::widget::{IntoWidgetList, WidgetInstance};
 use crate::widgets::label::Displayable;
 
 #[derive(Default,Clone, Debug, Hash, PartialEq, Eq)]
@@ -23,7 +24,7 @@ pub struct TreeNodeWidget {
 }
 
 impl TreeNodeWidget {
-    pub fn new(child: impl MakeWidget) -> Self {
+    pub fn new(tree: &Tree, key: TreeNodeKey, child: impl MakeWidget) -> Self {
 
         let is_expanded = Dynamic::new(true);
 
@@ -43,9 +44,35 @@ impl TreeNodeWidget {
             })
             .make_widget();
 
+        // FIXME the node will never have any children when this is called
+        //       is the only callers are the 'insert_...' methods, the tree needs to be dynamic
+        //       and the widget list be re-created when the children for the given key change.
+
+        let children = {
+            //let tree = tree.lock();
+            let children_keys = tree.children_keys(key);
+
+            let children: Vec<WidgetInstance> = children_keys.iter().map(|child_key|{
+
+                let child = tree.nodes.lock().get(child_key);
+
+                "some_child"
+                    .into_label()
+                    .make_widget()
+            }).collect();
+
+            children
+                .into_widget_list()
+                .into_rows()
+                .contain()
+                .make_widget()
+        };
+
         let child = expand_button
             .and(child)
             .into_columns()
+            .and(children)
+            .into_rows()
             // FIXME remove container, just for tree right now.
             .contain()
             .into_ref();
@@ -67,7 +94,7 @@ impl Debug for TreeNode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Tree {
     nodes: Dynamic<IndexMap<TreeNodeKey, TreeNode>>,
     next_key: TreeNodeKey,
@@ -124,7 +151,7 @@ impl Tree {
         if let Some(depth) = depth {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
 
-            let child_widget = TreeNodeWidget::new(value).make_widget();
+            let child_widget = TreeNodeWidget::new(self, key.clone(), value).make_widget();
 
             let child_node = TreeNode {
                 parent: parent_clone,
@@ -157,7 +184,7 @@ impl Tree {
         if let Some(depth) = depth {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
 
-            let child_widget = TreeNodeWidget::new(value).make_widget();
+            let child_widget = TreeNodeWidget::new(self, key.clone(), value).make_widget();
 
             let child_node = TreeNode {
                 parent,
@@ -200,6 +227,19 @@ impl Tree {
                     .for_each(|key| to_remove.push(key.clone()));
             }
         }
+    }
+
+    pub fn children_keys(&self, parent_key: TreeNodeKey) -> Vec<TreeNodeKey> {
+        let nodes = self.nodes.lock();
+        nodes.iter()
+            .filter_map(|(key, node)| {
+                if node.parent.as_ref() == Some(&parent_key) {
+                    Some(key.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
 
@@ -342,6 +382,23 @@ mod tests {
         // and child and children should be removed
         assert!(nodes.get(&key_1).is_none());
         assert!(nodes.get(&key_3).is_none());
+    }
+
+    #[test]
+    pub fn children_keys() {
+        // given
+        let mut tree = Tree::default();
+        let root_key = tree.insert_child("root".to_string(), None).unwrap();
+        let child_key_1 = tree.insert_child("child_1".to_string(), Some(&root_key)).unwrap();
+        let child_key_2 = tree.insert_child("child_2".to_string(), Some(&root_key)).unwrap();
+
+        // when
+        let children = tree.children_keys(root_key.clone());
+
+        // then
+        assert_eq!(children.len(), 2);
+        assert!(children.contains(&child_key_1));
+        assert!(children.contains(&child_key_2));
     }
 }
 
