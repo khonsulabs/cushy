@@ -7,15 +7,19 @@ use cushy::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use cushy::widgets::Space;
 use indexmap::IndexMap;
 use crate::value::{Dynamic, Switchable};
+use crate::widget::WidgetInstance;
 
 #[derive(Default,Clone, Debug, Hash, PartialEq, Eq)]
 pub struct TreeNodeKey(usize);
 
 pub struct TreeNode {
-    is_expanded: bool,
     parent: Option<TreeNodeKey>,
     depth: usize,
+    child_widget: WidgetInstance,
+}
 
+pub struct TreeNodeWidget {
+    is_expanded: bool,
     child: WidgetRef,
     child_height: Option<Px>,
 }
@@ -23,8 +27,6 @@ pub struct TreeNode {
 impl Debug for TreeNode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TreeNode")
-            .field("is_expanded", &self.is_expanded)
-            .field("value", &"<...>")
             .field("parent", &self.parent)
             .field("depth", &self.depth)
             .finish()
@@ -46,8 +48,9 @@ impl Default for Tree {
             if nodes.is_empty()  {
                 Space::default().make_widget()
             } else {
-                let root_key = nodes.keys().next().unwrap().clone();
-                nodes[&root_key].child.widget().clone()
+                let (_root_key, root_node) = nodes.first().unwrap();
+
+                root_node.child_widget.clone()
             }
         }).into_ref();
 
@@ -87,12 +90,17 @@ impl Tree {
         // If depth is determined, generate key and create the node
         if let Some(depth) = depth {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
-            let child_node = TreeNode {
+
+            let child_widget = TreeNodeWidget {
                 is_expanded: false,
-                parent: parent_clone,
-                depth,
                 child,
                 child_height: None,
+            }.make_widget();
+
+            let child_node = TreeNode {
+                parent: parent_clone,
+                depth,
+                child_widget,
             };
 
             let mut nodes = self.nodes.lock();
@@ -120,12 +128,17 @@ impl Tree {
         // If depth is determined, generate key and create the node
         if let Some(depth) = depth {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
-            let child_node = TreeNode {
+
+            let child_widget = TreeNodeWidget {
                 is_expanded: false,
-                parent,
-                depth,
                 child,
                 child_height: None,
+            }.make_widget();
+
+            let child_node = TreeNode {
+                parent,
+                depth,
+                child_widget,
             };
 
             let mut nodes = self.nodes.lock();
@@ -305,11 +318,20 @@ mod tests {
         // and child and children should be removed
         assert!(nodes.get(&key_1).is_none());
         assert!(nodes.get(&key_3).is_none());
-
     }
 }
 
-impl WrapperWidget for TreeNode {
+impl Debug for TreeNodeWidget {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TreeNodeWidget")
+            .field("is_expanded", &self.is_expanded)
+            .field("child", &self.child)
+            .field("child_height", &self.child_height)
+            .finish()
+    }
+}
+
+impl WrapperWidget for TreeNodeWidget {
     fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
     }
