@@ -102,6 +102,7 @@ fn main(app: &mut App) -> cushy::Result {
         .into_rows()
         .contain()
         .vertical_scroll()
+        .centered()
         .make_widget();
 
     let ui = pending.with_root(elements)
