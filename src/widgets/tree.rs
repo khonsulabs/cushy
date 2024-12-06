@@ -92,7 +92,7 @@ impl Tree {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
 
             let child_widget = TreeNodeWidget {
-                is_expanded: false,
+                is_expanded: true,
                 child,
                 child_height: None,
             }.make_widget();
@@ -130,7 +130,7 @@ impl Tree {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
 
             let child_widget = TreeNodeWidget {
-                is_expanded: false,
+                is_expanded: true,
                 child,
                 child_height: None,
             }.make_widget();
