@@ -6,6 +6,7 @@ use cushy::figures::units::Px;
 use cushy::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
 use cushy::widgets::Space;
 use indexmap::IndexMap;
+use crate::value::{Dynamic, Switchable};
 
 #[derive(Default,Clone, Debug, Hash, PartialEq, Eq)]
 pub struct TreeNodeKey(usize);
@@ -30,20 +31,28 @@ impl Debug for TreeNode {
     }
 }
 
-
 #[derive(Debug)]
 pub struct Tree {
-    nodes: IndexMap<TreeNodeKey, TreeNode>,
+    nodes: Dynamic<IndexMap<TreeNodeKey, TreeNode>>,
     next_key: TreeNodeKey,
     root: WidgetRef,
 }
 
 impl Default for Tree {
     fn default() -> Self {
-        let root = Space::default().into_ref();
+        let nodes = Dynamic::new(IndexMap::<TreeNodeKey, TreeNode>::new());
+
+        let root = nodes.clone().switcher(|nodes, _active| {
+            if nodes.is_empty()  {
+                Space::default().make_widget()
+            } else {
+                let root_key = nodes.keys().next().unwrap().clone();
+                nodes[&root_key].child.widget().clone()
+            }
+        }).into_ref();
 
         Self {
-            nodes: IndexMap::new(),
+            nodes,
             next_key: TreeNodeKey::default(),
             root
         }
@@ -58,59 +67,70 @@ impl Tree {
 
     /// Inserts a child after the given parent
     pub fn insert_child(&mut self, value: impl MakeWidget, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey> {
-
         let child = value.into_ref();
 
-        if let Some(parent) = parent {
-            let depth = if let Some(parent_node) = self.nodes.get(parent) {
-                parent_node.depth + 1
+        // Determine whether a new key and node should be created
+        let (depth, parent_clone) = {
+            let nodes = self.nodes.lock();
+            if let Some(parent) = parent {
+                if let Some(parent_node) = nodes.get(parent) {
+                    (Some(parent_node.depth + 1), Some(parent.clone()))
+                } else {
+                    (None, None) // Parent not found, node won't be inserted
+                }
             } else {
-                return None;
-            };
+                // If no parent is specified, this is a root node
+                (Some(0), None)
+            }
+        };
 
-            let key = self.generate_next_key();
+        // If depth is determined, generate key and create the node
+        if let Some(depth) = depth {
+            let key = self.generate_next_key(); // Generate key after deciding a node is needed
             let child_node = TreeNode {
                 is_expanded: false,
-                parent: Some(parent.clone()),
+                parent: parent_clone,
                 depth,
                 child,
                 child_height: None,
             };
-            self.nodes.insert(key.clone(), child_node);
+
+            let mut nodes = self.nodes.lock();
+            nodes.insert(key.clone(), child_node);
             Some(key)
         } else {
-            let key = self.generate_next_key();
-            let root_node = TreeNode {
-                is_expanded: false,
-                parent: None,
-                depth: 0,
-                child,
-                child_height: None,
-            };
-            self.nodes.insert(key.clone(), root_node);
-            Some(key)
+            None
         }
     }
 
     /// Inserts a sibling after the given node.
     ///
     /// Returns `None` if the given node doesn't exist.
-    pub fn insert_after(&mut self, value: impl MakeWidget, node: &TreeNodeKey) -> Option<TreeNodeKey> {
-        if let Some(existing_node) = self.nodes.get(node) {
-            let child = value.into_ref();
+    pub fn insert_after(&mut self, value: impl MakeWidget, sibling: &TreeNodeKey) -> Option<TreeNodeKey> {
+        let child = value.into_ref();
 
-            let sibling_node = TreeNode {
+        // Determine whether a new key and node should be created
+        let (depth, parent) = {
+            let nodes = self.nodes.lock();
+            nodes.get(sibling).map_or((None, None), |node|{
+                (Some(node.depth), Some(node.parent.clone().unwrap()))
+            })
+        };
+
+        // If depth is determined, generate key and create the node
+        if let Some(depth) = depth {
+            let key = self.generate_next_key(); // Generate key after deciding a node is needed
+            let child_node = TreeNode {
                 is_expanded: false,
-                parent: existing_node.parent.clone(),
-                depth: existing_node.depth,
+                parent,
+                depth,
                 child,
                 child_height: None,
             };
-            let sibling_key = self.generate_next_key();
-            
-            self.nodes.insert(sibling_key.clone(), sibling_node);
-            
-            Some(sibling_key)
+
+            let mut nodes = self.nodes.lock();
+            nodes.insert(key.clone(), child_node);
+            Some(key)
         } else {
             None
         }
@@ -118,14 +138,15 @@ impl Tree {
 
     /// Clears the tree, removing all nodes and resetting the key.
     pub fn clear(&mut self) {
-        self.nodes.clear();
+        self.nodes.lock().clear();
         self.next_key = TreeNodeKey::default();
     }
 
     /// Removes the node and all descendants.
     pub fn remove_node(&mut self, node_key: &TreeNodeKey) {
+        let mut nodes = self.nodes.lock();
         // First, check if the node exists
-        if !self.nodes.contains_key(node_key) {
+        if !nodes.contains_key(node_key) {
             return;
         }
 
@@ -134,11 +155,11 @@ impl Tree {
 
         // We perform a DFS traversal to collect all descendant keys
         while let Some(current_key) = to_remove.pop() {
-            if let Some(_node) = self.nodes.shift_remove(&current_key) {
+            if let Some(_node) = nodes.shift_remove(&current_key) {
                 // Add children of the current node to the stack
-                self.nodes
+                nodes
                     .keys()
-                    .filter(|&key| self.nodes[key].parent.as_ref() == Some(&current_key))
+                    .filter(|&key| nodes[key].parent.as_ref() == Some(&current_key))
                     .for_each(|key| to_remove.push(key.clone()));
             }
         }
@@ -160,12 +181,14 @@ mod tests {
         // when
         
         let key = tree.insert_child(root_widget, None).unwrap();
-        // when
-        
+
+        // then
+        let nodes = tree.nodes.lock();
+
         assert_eq!(key.0, 0);
-        assert_eq!(tree.nodes.len(), 1);
+        assert_eq!(nodes.len(), 1);
         // and
-        let root = tree.nodes.get(&key).unwrap();
+        let root = nodes.get(&key).unwrap();
         
         assert_eq!(root.parent, None);
         assert_eq!(root.depth, 0);
@@ -181,11 +204,13 @@ mod tests {
         let child_key = tree.insert_child("child".to_string(), Some(&root_key)).unwrap();
 
         // then
+        let nodes = tree.nodes.lock();
+
         assert_eq!(child_key.0, 1);
-        assert_eq!(tree.nodes.len(), 2);
+        assert_eq!(nodes.len(), 2);
 
         // and
-        let child = tree.nodes.get(&child_key).unwrap();
+        let child = nodes.get(&child_key).unwrap();
         assert_eq!(child.parent, Some(root_key.clone()));
         assert_eq!(child.depth, 1);
     }
@@ -202,10 +227,11 @@ mod tests {
         let sibling_key = tree.insert_after("sibling".to_string(), &first_child_key).unwrap();
 
         // then
-        assert_eq!(tree.nodes.len(), 3);
+        let nodes = tree.nodes.lock();
+        assert_eq!(nodes.len(), 3);
 
         // and verify the sibling properties
-        let sibling = tree.nodes.get(&sibling_key).unwrap();
+        let sibling = nodes.get(&sibling_key).unwrap();
         assert_eq!(sibling.parent, Some(root_key.clone()));
         assert_eq!(sibling.depth, 1); // Assuming sibling has the same depth as the first child
     }
@@ -226,11 +252,12 @@ mod tests {
         tree.remove_node(&node_to_remove);
 
         // then
-        tree.nodes.iter().for_each(|(key, node)| {
+        let nodes = tree.nodes.lock();
+        nodes.iter().for_each(|(key, node)| {
             println!("key: {:?}: node: {:?}", key, node);
         });
         // and root, child and descendant nodes should be removed
-        assert_eq!(tree.nodes.len(), 0);
+        assert_eq!(nodes.len(), 0);
     }
 
     #[test]
@@ -251,10 +278,13 @@ mod tests {
         let key_2 = tree.insert_child("2".to_string(), Some(&root_key)).unwrap();
         // descendants
         let key_3 = tree.insert_child("3".to_string(), Some(&key_1)).unwrap();
-        let _key_4 = tree.insert_child("3".to_string(), Some(&key_2)).unwrap();
+        let key_4 = tree.insert_child("3".to_string(), Some(&key_2)).unwrap();
 
         // ensure they exist before removal
-        assert_eq!(tree.nodes.len(), 5);
+        {
+            let nodes = tree.nodes.lock();
+            assert_eq!(nodes.len(), 5);
+        }
         
         // node to be removed
         let node_to_remove = key_1.clone();
@@ -263,12 +293,19 @@ mod tests {
         tree.remove_node(&node_to_remove);
 
         // then the root node should remain
-        assert_eq!(tree.nodes.len(), 3);
-        assert!(tree.nodes.get(&root_key).is_some());
+        let nodes = tree.nodes.lock();
 
-        // and child and childred should be removed
-        assert!(tree.nodes.get(&key_1).is_none());
-        assert!(tree.nodes.get(&key_3).is_none());
+        assert_eq!(nodes.len(), 3);
+        assert!(nodes.get(&root_key).is_some());
+
+        // other elements should remain
+        assert!(nodes.get(&key_2).is_some());
+        assert!(nodes.get(&key_4).is_some());
+
+        // and child and children should be removed
+        assert!(nodes.get(&key_1).is_none());
+        assert!(nodes.get(&key_3).is_none());
+
     }
 }
 
