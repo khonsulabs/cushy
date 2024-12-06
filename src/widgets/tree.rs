@@ -4,7 +4,7 @@ use cushy::widget::{MakeWidget, WidgetRef, WrapperWidget};
 use cushy::widgets::Space;
 use indexmap::IndexMap;
 use crate::reactive::value::{Destination, Dynamic, Source, Switchable};
-use crate::widget::{IntoWidgetList, MakeWidgetList, WidgetInstance, WidgetList};
+use crate::widget::{WidgetInstance, WidgetList};
 use crate::widgets::label::Displayable;
 
 #[derive(Default,Clone, Debug, Hash, PartialEq, Eq)]
@@ -44,7 +44,7 @@ impl TreeNodeWidget {
             })
             .make_widget();
 
-        let children_switcher = is_expanded.clone().switcher(move |value, active| {
+        let children_switcher = is_expanded.clone().switcher(move |value, _active| {
             match value {
                 false => Space::default().make_widget(),
                 true => children.clone().into_rows().make_widget()
@@ -122,10 +122,10 @@ impl Tree {
 
     /// Inserts a child after the given parent
     pub fn insert_child(&mut self, value: WidgetInstance, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey> {
-        self.insert_child_f(|key|value, parent)
+        self.insert_child_with_key(|_key|value, parent)
     }
 
-    pub fn insert_child_f<F>(&mut self, value_f: F, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey>
+    pub fn insert_child_with_key<F>(&mut self, value_f: F, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey>
     where
         F: FnOnce(TreeNodeKey) -> WidgetInstance
     {
@@ -191,7 +191,7 @@ impl Tree {
                 })
                 .collect();
 
-            let mut nodes = self.nodes.lock();
+            let nodes = self.nodes.lock();
             let parent = nodes.get(&parent_key).unwrap();
             parent.children.set(children);
         }
@@ -201,9 +201,9 @@ impl Tree {
     ///
     /// Returns `None` if the given node doesn't exist or is the root node.
     pub fn insert_after(&mut self, value: WidgetInstance, sibling: &TreeNodeKey) -> Option<TreeNodeKey> {
-        self.insert_after_f(|key|value, sibling)
+        self.insert_after_with_key(|_key|value, sibling)
     }
-    pub fn insert_after_f<F>(&mut self, value_f: F, sibling: &TreeNodeKey) -> Option<TreeNodeKey>
+    pub fn insert_after_with_key<F>(&mut self, value_f: F, sibling: &TreeNodeKey) -> Option<TreeNodeKey>
     where
         F: FnOnce(TreeNodeKey) -> WidgetInstance
     {
@@ -334,10 +334,10 @@ mod tests {
     pub fn add_child_to_root() {
         // given
         let mut tree = Tree::default();
-        let root_key = tree.insert_child("root".to_string(), None).unwrap();
+        let root_key = tree.insert_child("root".make_widget(), None).unwrap();
 
         // when
-        let child_key = tree.insert_child("child".to_string(), Some(&root_key)).unwrap();
+        let child_key = tree.insert_child("child".make_widget(), Some(&root_key)).unwrap();
 
         // then
         let nodes = tree.nodes.lock();
@@ -356,11 +356,11 @@ mod tests {
     pub fn add_sibling_to_child() {
         // given
         let mut tree = Tree::default();
-        let root_key = tree.insert_child("root".to_string(), None).unwrap();
-        let first_child_key = tree.insert_child("first_child".to_string(), Some(&root_key)).unwrap();
+        let root_key = tree.insert_child("root".make_widget(), None).unwrap();
+        let first_child_key = tree.insert_child("first_child".make_widget(), Some(&root_key)).unwrap();
 
         // when
-        let sibling_key = tree.insert_after("sibling".to_string(), &first_child_key).unwrap();
+        let sibling_key = tree.insert_after("sibling".make_widget(), &first_child_key).unwrap();
 
         // then
         let nodes = tree.nodes.lock();
@@ -377,9 +377,9 @@ mod tests {
     pub fn remove_node() {
         // given
         let mut tree = Tree::default();
-        let root_key = tree.insert_child("root".to_string(), None).unwrap();
-        let child_key = tree.insert_child("child".to_string(), Some(&root_key)).unwrap();
-        let _descendant_key = tree.insert_child("descendant".to_string(), Some(&child_key)).unwrap();
+        let root_key = tree.insert_child("root".make_widget(), None).unwrap();
+        let child_key = tree.insert_child("child".make_widget(), Some(&root_key)).unwrap();
+        let _descendant_key = tree.insert_child("descendant".make_widget(), Some(&child_key)).unwrap();
 
         // node to be removed
         let node_to_remove = root_key.clone();
@@ -408,13 +408,13 @@ mod tests {
         
         
         let mut tree = Tree::default();
-        let root_key = tree.insert_child("root".to_string(), None).unwrap();
+        let root_key = tree.insert_child("root".make_widget(), None).unwrap();
         // direct children
-        let key_1 = tree.insert_child("1".to_string(), Some(&root_key)).unwrap();
-        let key_2 = tree.insert_child("2".to_string(), Some(&root_key)).unwrap();
+        let key_1 = tree.insert_child("1".make_widget(), Some(&root_key)).unwrap();
+        let key_2 = tree.insert_child("2".make_widget(), Some(&root_key)).unwrap();
         // descendants
-        let key_3 = tree.insert_child("3".to_string(), Some(&key_1)).unwrap();
-        let key_4 = tree.insert_child("3".to_string(), Some(&key_2)).unwrap();
+        let key_3 = tree.insert_child("3".make_widget(), Some(&key_1)).unwrap();
+        let key_4 = tree.insert_child("3".make_widget(), Some(&key_2)).unwrap();
 
         // ensure they exist before removal
         {
@@ -447,9 +447,9 @@ mod tests {
     pub fn children_keys() {
         // given
         let mut tree = Tree::default();
-        let root_key = tree.insert_child("root".to_string(), None).unwrap();
-        let child_key_1 = tree.insert_child("child_1".to_string(), Some(&root_key)).unwrap();
-        let child_key_2 = tree.insert_child("child_2".to_string(), Some(&root_key)).unwrap();
+        let root_key = tree.insert_child("root".make_widget(), None).unwrap();
+        let child_key_1 = tree.insert_child("child_1".make_widget(), Some(&root_key)).unwrap();
+        let child_key_2 = tree.insert_child("child_2".make_widget(), Some(&root_key)).unwrap();
 
         // when
         let children = tree.children_keys(root_key.clone());

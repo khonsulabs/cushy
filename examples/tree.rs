@@ -7,7 +7,7 @@ use cushy::widgets::tree::{Tree, TreeNodeKey};
 use cushy::window::PendingWindow;
 
 
-fn make_node_with_label_and_buttons_f(tree: Dynamic<Tree>, key: TreeNodeKey, name: &'static str) -> WidgetInstance {
+fn make_node_with_label_and_buttons(tree: Dynamic<Tree>, key: TreeNodeKey, name: &'static str) -> WidgetInstance {
     name.into_label()
         .and("Delete"
             .into_button()
@@ -26,8 +26,8 @@ fn make_node_with_label_and_buttons_f(tree: Dynamic<Tree>, key: TreeNodeKey, nam
                 let tree = tree.clone();
                 let key = key.clone();
                 move |event|{
-                    tree.lock().insert_child_f(|child_key|{
-                        make_node_with_label_and_buttons_f(tree.clone(), child_key.clone(), "generated child").make_widget()
+                    tree.lock().insert_child_with_key(|child_key|{
+                        make_node_with_label_and_buttons(tree.clone(), child_key.clone(), "generated child").make_widget()
                     }, Some(&key));
                 }
             })
@@ -39,8 +39,8 @@ fn make_node_with_label_and_buttons_f(tree: Dynamic<Tree>, key: TreeNodeKey, nam
                 let tree = tree.clone();
                 let key = key.clone();
                 move |event|{
-                    tree.lock().insert_after_f(|sibling_key|{
-                        make_node_with_label_and_buttons_f(tree.clone(), sibling_key.clone(), "generated sibling").make_widget()
+                    tree.lock().insert_after_with_key(|sibling_key|{
+                        make_node_with_label_and_buttons(tree.clone(), sibling_key.clone(), "generated sibling").make_widget()
                     }, &key);
                 }
             })
@@ -53,39 +53,38 @@ fn make_node_with_label_and_buttons_f(tree: Dynamic<Tree>, key: TreeNodeKey, nam
 
 #[cushy::main]
 fn main(app: &mut App) -> cushy::Result {
-
     let pending = PendingWindow::default();
 
     let mut dyn_tree: Dynamic<Tree> = Dynamic::new(Tree::default());
     let root_key = {
         let mut tree = dyn_tree.lock();
 
-        let root_key = tree.insert_child_f(|key| {
-            make_node_with_label_and_buttons_f(dyn_tree.clone(), key, "root").make_widget()
+        let root_key = tree.insert_child_with_key(|key| {
+            make_node_with_label_and_buttons(dyn_tree.clone(), key, "root").make_widget()
         }, None).unwrap();
 
-        let child_key_1 = tree.insert_child_f(|key| {
-            make_node_with_label_and_buttons_f(dyn_tree.clone(), key,"child 1").make_widget()
+        let child_key_1 = tree.insert_child_with_key(|key| {
+            make_node_with_label_and_buttons(dyn_tree.clone(), key, "child 1").make_widget()
         }, Some(&root_key)).unwrap();
 
-        let nested_child_key_1 = tree.insert_child_f(|key| {
-            make_node_with_label_and_buttons_f(dyn_tree.clone(), key, "nested 1").make_widget()
+        let nested_child_key_1 = tree.insert_child_with_key(|key| {
+            make_node_with_label_and_buttons(dyn_tree.clone(), key, "nested 1").make_widget()
         }, Some(&child_key_1)).unwrap();
 
-        let _nested_child_key_2 = tree.insert_after_f(|key| {
-            make_node_with_label_and_buttons_f(dyn_tree.clone(), key, "nested 2")
+        let _nested_child_key_2 = tree.insert_after_with_key(|key| {
+            make_node_with_label_and_buttons(dyn_tree.clone(), key, "nested 2")
         }, &nested_child_key_1).unwrap();
 
-        let child_key_2 = tree.insert_child_f(|key| {
-            make_node_with_label_and_buttons_f(dyn_tree.clone(), key, "child 2").make_widget()
+        let child_key_2 = tree.insert_child_with_key(|key| {
+            make_node_with_label_and_buttons(dyn_tree.clone(), key, "child 2").make_widget()
         }, Some(&root_key)).unwrap();
 
-        let nested_child_key_3 = tree.insert_child_f(|key| {
-            make_node_with_label_and_buttons_f(dyn_tree.clone(), key, "nested 3").make_widget()
+        let nested_child_key_3 = tree.insert_child_with_key(|key| {
+            make_node_with_label_and_buttons(dyn_tree.clone(), key, "nested 3").make_widget()
         }, Some(&child_key_2)).unwrap();
 
-        let _nested_child_key_4 = tree.insert_after_f(|key|{
-            make_node_with_label_and_buttons_f(dyn_tree.clone(), key, "nested 4").make_widget()
+        let _nested_child_key_4 = tree.insert_after_with_key(|key|{
+            make_node_with_label_and_buttons(dyn_tree.clone(), key, "nested 4").make_widget()
         }, &nested_child_key_3);
 
         root_key
