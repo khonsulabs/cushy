@@ -5,7 +5,7 @@ use cushy::widget::{MakeWidget, WidgetRef, WrapperWidget};
 use cushy::widgets::Space;
 use indexmap::IndexMap;
 use crate::reactive::value::{Destination, Dynamic, Source, Switchable};
-use crate::widget::{IntoWidgetList, WidgetInstance};
+use crate::widget::{IntoWidgetList, MakeWidgetList, WidgetInstance, WidgetList};
 use crate::widgets::label::Displayable;
 
 #[derive(Default,Clone, Debug, Hash, PartialEq, Eq)]
@@ -15,6 +15,7 @@ pub struct TreeNode {
     parent: Option<TreeNodeKey>,
     depth: usize,
     child_widget: WidgetInstance,
+    children: Dynamic<WidgetList>,
 }
 
 pub struct TreeNodeWidget {
@@ -24,7 +25,7 @@ pub struct TreeNodeWidget {
 }
 
 impl TreeNodeWidget {
-    pub fn new(tree: &Tree, key: TreeNodeKey, child: impl MakeWidget) -> Self {
+    pub fn new(child: impl MakeWidget, children: Dynamic<WidgetList>) -> Self {
 
         let is_expanded = Dynamic::new(true);
 
@@ -44,34 +45,10 @@ impl TreeNodeWidget {
             })
             .make_widget();
 
-        // FIXME the node will never have any children when this is called
-        //       is the only callers are the 'insert_...' methods, the tree needs to be dynamic
-        //       and the widget list be re-created when the children for the given key change.
-
-        let children = {
-            //let tree = tree.lock();
-            let children_keys = tree.children_keys(key);
-
-            let children: Vec<WidgetInstance> = children_keys.iter().map(|child_key|{
-
-                let child = tree.nodes.lock().get(child_key);
-
-                "some_child"
-                    .into_label()
-                    .make_widget()
-            }).collect();
-
-            children
-                .into_widget_list()
-                .into_rows()
-                .contain()
-                .make_widget()
-        };
-
         let child = expand_button
             .and(child)
             .into_columns()
-            .and(children)
+            .and(children.into_rows())
             .into_rows()
             // FIXME remove container, just for tree right now.
             .contain()
@@ -118,7 +95,7 @@ impl Default for Tree {
         Self {
             nodes,
             next_key: TreeNodeKey::default(),
-            root
+            root,
         }
     }
 }
@@ -133,7 +110,7 @@ impl Tree {
     pub fn insert_child(&mut self, value: impl MakeWidget, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey> {
 
         // Determine whether a new key and node should be created
-        let (depth, parent_clone) = {
+        let (depth, parent_key) = {
             let nodes = self.nodes.lock();
             if let Some(parent) = parent {
                 if let Some(parent_node) = nodes.get(parent) {
@@ -151,19 +128,50 @@ impl Tree {
         if let Some(depth) = depth {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
 
-            let child_widget = TreeNodeWidget::new(self, key.clone(), value).make_widget();
+            let children = Dynamic::new(WidgetList::new());
+            let child_widget = TreeNodeWidget::new(value, children.clone()).make_widget();
 
             let child_node = TreeNode {
-                parent: parent_clone,
+                parent: parent_key.clone(),
                 depth,
                 child_widget,
+                children,
             };
 
-            let mut nodes = self.nodes.lock();
-            nodes.insert(key.clone(), child_node);
+            {
+                let mut nodes = self.nodes.lock();
+                nodes.insert(key.clone(), child_node);
+            }
+
+            self.update_children_widgetlist(parent_key);
+
             Some(key)
         } else {
             None
+        }
+    }
+
+    fn update_children_widgetlist(&mut self, parent_key: Option<TreeNodeKey>) {
+        if let Some(parent_key) = parent_key {
+            // regenerate the 'children' widget list for the parent
+
+            let children: WidgetList = self.children_keys(parent_key.clone())
+                .into_iter()
+                .enumerate()
+                .map(|(index, key)| {
+                    let nodes = self.nodes.lock();
+                    let node = nodes.get(&key).unwrap();
+
+                    index.into_label().make_widget()
+                        .and(node.child_widget.clone())
+                        .into_columns()
+                        .make_widget()
+                })
+                .collect();
+
+            let mut nodes = self.nodes.lock();
+            let parent = nodes.get(&parent_key).unwrap();
+            parent.children.set(children);
         }
     }
 
@@ -173,7 +181,7 @@ impl Tree {
     pub fn insert_after(&mut self, value: impl MakeWidget, sibling: &TreeNodeKey) -> Option<TreeNodeKey> {
 
         // Determine whether a new key and node should be created
-        let (depth, parent) = {
+        let (depth, parent_key) = {
             let nodes = self.nodes.lock();
             nodes.get(sibling).map_or((None, None), |node|{
                 (Some(node.depth), Some(node.parent.clone().unwrap()))
@@ -184,16 +192,23 @@ impl Tree {
         if let Some(depth) = depth {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
 
-            let child_widget = TreeNodeWidget::new(self, key.clone(), value).make_widget();
+            let children = Dynamic::new(WidgetList::new());
+            let child_widget = TreeNodeWidget::new(value, children.clone()).make_widget();
 
             let child_node = TreeNode {
-                parent,
+                parent: parent_key.clone(),
                 depth,
                 child_widget,
+                children
             };
 
-            let mut nodes = self.nodes.lock();
-            nodes.insert(key.clone(), child_node);
+            {
+                let mut nodes = self.nodes.lock();
+                nodes.insert(key.clone(), child_node);
+            }
+
+            self.update_children_widgetlist(parent_key);
+
             Some(key)
         } else {
             None
