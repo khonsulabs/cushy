@@ -1,9 +1,6 @@
 use std::fmt::{Debug, Formatter};
-use cushy::ConstraintLimit;
-use cushy::context::LayoutContext;
-use cushy::figures::Size;
 use cushy::figures::units::Px;
-use cushy::widget::{MakeWidget, WidgetRef, WrappedLayout, WrapperWidget};
+use cushy::widget::{MakeWidget, WidgetRef, WrapperWidget};
 use cushy::widgets::Space;
 use indexmap::IndexMap;
 use crate::reactive::value::{Destination, Dynamic, Source, Switchable};
@@ -356,19 +353,6 @@ impl Debug for TreeNodeWidget {
 impl WrapperWidget for TreeNodeWidget {
     fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.child
-    }
-
-    fn position_child(&mut self, size: Size<Px>, _available_space: Size<ConstraintLimit>, _context: &mut LayoutContext<'_, '_, '_, '_>) -> WrappedLayout {
-        if self.child_height.is_none() {
-            self.child_height.replace(size.height);
-        }
-
-        let size = match self.is_expanded.get_tracking_invalidate(_context) {
-            true => Size::new(size.width, self.child_height.unwrap()),
-            false => Size::new(size.width, Px::new(0)),
-        };
-
-        size.into()
     }
 }
 
