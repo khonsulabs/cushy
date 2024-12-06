@@ -55,7 +55,7 @@ fn make_node_with_label_and_buttons_f(tree: Dynamic<Tree>, key: TreeNodeKey, nam
 fn main(app: &mut App) -> cushy::Result {
 
     let pending = PendingWindow::default();
-  
+
     let mut dyn_tree: Dynamic<Tree> = Dynamic::new(Tree::default());
     let root_key = {
         let mut tree = dyn_tree.lock();
@@ -100,8 +100,8 @@ fn main(app: &mut App) -> cushy::Result {
         .and(tree_widget.contain())
         .and("content below".contain())
         .into_rows()
-        .vertical_scroll()
         .contain()
+        .vertical_scroll()
         .make_widget();
 
     let ui = pending.with_root(elements)

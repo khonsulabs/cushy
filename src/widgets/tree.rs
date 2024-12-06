@@ -258,25 +258,34 @@ impl Tree {
 
     /// Removes the node and all descendants.
     pub fn remove_node(&mut self, node_key: &TreeNodeKey) {
-        let mut nodes = self.nodes.lock();
-        // First, check if the node exists
-        if !nodes.contains_key(node_key) {
-            return;
-        }
+        let parent_key = {
+            let mut nodes = self.nodes.lock();
 
-        // Create a stack to hold nodes to be removed
-        let mut to_remove = vec![node_key.clone()];
-
-        // We perform a DFS traversal to collect all descendant keys
-        while let Some(current_key) = to_remove.pop() {
-            if let Some(_node) = nodes.shift_remove(&current_key) {
-                // Add children of the current node to the stack
-                nodes
-                    .keys()
-                    .filter(|&key| nodes[key].parent.as_ref() == Some(&current_key))
-                    .for_each(|key| to_remove.push(key.clone()));
+            // First, check if the node exists
+            if !nodes.contains_key(node_key) {
+                return;
             }
-        }
+
+            let parent_key = nodes[node_key].parent.clone();
+
+            // Create a stack to hold nodes to be removed
+            let mut to_remove = vec![node_key.clone()];
+
+            // We perform a DFS traversal to collect all descendant keys
+            while let Some(current_key) = to_remove.pop() {
+                if let Some(_node) = nodes.shift_remove(&current_key) {
+                    // Add children of the current node to the stack
+                    nodes
+                        .keys()
+                        .filter(|&key| nodes[key].parent.as_ref() == Some(&current_key))
+                        .for_each(|key| to_remove.push(key.clone()));
+                }
+            }
+
+            parent_key
+        };
+
+        self.update_children_widgetlist(parent_key);
     }
 
     pub fn children_keys(&self, parent_key: TreeNodeKey) -> Vec<TreeNodeKey> {
