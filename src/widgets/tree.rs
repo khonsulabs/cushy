@@ -1,5 +1,4 @@
 use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
 use cushy::figures::units::Px;
 use cushy::widget::{MakeWidget, WidgetRef, WrapperWidget};
 use cushy::widgets::Space;
@@ -25,7 +24,7 @@ pub struct TreeNodeWidget {
 }
 
 impl TreeNodeWidget {
-    pub fn new(child: impl MakeWidget, children: Dynamic<WidgetList>) -> Self {
+    pub fn new(child: WidgetInstance, children: Dynamic<WidgetList>) -> Self {
 
         let is_expanded = Dynamic::new(true);
 
@@ -82,6 +81,9 @@ impl Debug for TreeNode {
 pub struct Tree {
     nodes: Dynamic<IndexMap<TreeNodeKey, TreeNode>>,
     next_key: TreeNodeKey,
+}
+
+pub struct TreeWidget {
     root: WidgetRef,
 }
 
@@ -89,7 +91,15 @@ impl Default for Tree {
     fn default() -> Self {
         let nodes = Dynamic::new(IndexMap::<TreeNodeKey, TreeNode>::new());
 
-        let root = nodes.clone().switcher(|nodes, _active| {
+        Self {
+            nodes,
+            next_key: TreeNodeKey::default(),
+        }
+    }
+}
+impl Tree {
+    pub fn make_widget(&self) -> WidgetInstance {
+        let root = self.nodes.clone().switcher(|nodes, _active| {
             if nodes.is_empty()  {
                 Space::default().make_widget()
             } else {
@@ -99,14 +109,11 @@ impl Default for Tree {
             }
         }).into_ref();
 
-        Self {
-            nodes,
-            next_key: TreeNodeKey::default(),
-            root,
-        }
+        TreeWidget {
+            root
+        }.make_widget()
     }
-}
-impl Tree {
+
     fn generate_next_key(&mut self) -> TreeNodeKey {
         let key = self.next_key.clone();
         self.next_key.0 += 1;
@@ -114,8 +121,14 @@ impl Tree {
     }
 
     /// Inserts a child after the given parent
-    pub fn insert_child(&mut self, value: impl MakeWidget, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey> {
+    pub fn insert_child(&mut self, value: WidgetInstance, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey> {
+        self.insert_child_f(|key|value, parent)
+    }
 
+    pub fn insert_child_f<F>(&mut self, value_f: F, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey>
+    where
+        F: FnOnce(TreeNodeKey) -> WidgetInstance
+    {
         // Determine whether a new key and node should be created
         let (depth, parent_key) = {
             let nodes = self.nodes.lock();
@@ -134,6 +147,8 @@ impl Tree {
         // If depth is determined, generate key and create the node
         if let Some(depth) = depth {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
+
+            let value = value_f(key.clone());
 
             let children = Dynamic::new(WidgetList::new());
             let child_widget = TreeNodeWidget::new(value, children.clone()).make_widget();
@@ -184,8 +199,20 @@ impl Tree {
 
     /// Inserts a sibling after the given node.
     ///
-    /// Returns `None` if the given node doesn't exist.
-    pub fn insert_after(&mut self, value: impl MakeWidget, sibling: &TreeNodeKey) -> Option<TreeNodeKey> {
+    /// Returns `None` if the given node doesn't exist or is the root node.
+    pub fn insert_after(&mut self, value: WidgetInstance, sibling: &TreeNodeKey) -> Option<TreeNodeKey> {
+        self.insert_after_f(|key|value, sibling)
+    }
+    pub fn insert_after_f<F>(&mut self, value_f: F, sibling: &TreeNodeKey) -> Option<TreeNodeKey>
+    where
+        F: FnOnce(TreeNodeKey) -> WidgetInstance
+    {
+
+        // FIXME likely the API could be better, so that there is no concept of a 'root' node at all, then this limitation can be removed
+        // cannot add siblings to the root, silently ignore.
+        if self.nodes.lock().get(sibling).unwrap().parent.is_none() {
+            return None
+        }
 
         // Determine whether a new key and node should be created
         let (depth, parent_key) = {
@@ -198,6 +225,7 @@ impl Tree {
         // If depth is determined, generate key and create the node
         if let Some(depth) = depth {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
+            let value = value_f(key.clone());
 
             let children = Dynamic::new(WidgetList::new());
             let child_widget = TreeNodeWidget::new(value, children.clone()).make_widget();
@@ -440,7 +468,14 @@ impl WrapperWidget for TreeNodeWidget {
     }
 }
 
-impl WrapperWidget for Tree {
+impl Debug for TreeWidget {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TreeWidget")
+            .finish()
+    }
+}
+
+impl WrapperWidget for TreeWidget {
     fn child_mut(&mut self) -> &mut WidgetRef {
         &mut self.root
     }
