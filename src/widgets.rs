@@ -39,6 +39,7 @@ mod tilemap;
 pub mod validated;
 mod virtual_list;
 pub mod wrap;
+pub mod tree;
 
 pub use self::align::Align;
 pub use self::button::Button;
