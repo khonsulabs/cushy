@@ -834,6 +834,7 @@ dependencies = [
  "fluent-bundle",
  "fluent-langneg",
  "image",
+ "indexmap",
  "intentional",
  "interner",
  "kempt",
