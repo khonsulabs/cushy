@@ -43,7 +43,12 @@ impl TreeNodeWidget {
             })
             .make_widget();
 
-        let child = expand_button.and(child).into_columns().into_ref();
+        let child = expand_button
+            .and(child)
+            .into_columns()
+            // FIXME remove container, just for tree right now.
+            .contain()
+            .into_ref();
 
         Self {
             is_expanded,
