@@ -100,8 +100,8 @@ fn main(app: &mut App) -> cushy::Result {
         .and(tree_widget.contain())
         .and("content below".contain())
         .into_rows()
-        .vertical_scroll()
         .contain()
+        .vertical_scroll()
         .make_widget();
 
     let ui = pending.with_root(elements)
