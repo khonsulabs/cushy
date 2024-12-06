@@ -29,7 +29,7 @@ impl TreeNodeWidget {
 
         let is_expanded = Dynamic::new(true);
 
-        let indicator = is_expanded.map_each(|value|{
+        let indicator = is_expanded.clone().map_each(|value|{
             match value {
                 true => "v",
                 false => ">"
@@ -45,10 +45,17 @@ impl TreeNodeWidget {
             })
             .make_widget();
 
+        let children_switcher = is_expanded.clone().switcher(move |value, active| {
+            match value {
+                false => Space::default().make_widget(),
+                true => children.clone().into_rows().make_widget()
+            }
+        }).make_widget();
+
         let child = expand_button
             .and(child)
             .into_columns()
-            .and(children.into_rows())
+            .and(children_switcher)
             .into_rows()
             // FIXME remove container, just for tree right now.
             .contain()
