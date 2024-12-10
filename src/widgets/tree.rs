@@ -177,7 +177,7 @@ impl Tree {
         if let Some(parent_key) = parent_key {
             // regenerate the 'children' widget list for the parent
 
-            let children: WidgetList = self.children_keys(parent_key.clone())
+            let children: WidgetList = self.children_keys(&parent_key)
                 .into_iter()
                 .enumerate()
                 .map(|(index, key)| {
@@ -207,7 +207,6 @@ impl Tree {
     where
         F: FnOnce(TreeNodeKey) -> WidgetInstance
     {
-
         // FIXME likely the API could be better, so that there is no concept of a 'root' node at all, then this limitation can be removed
         // cannot add siblings to the root, silently ignore.
         if self.nodes.lock().get(sibling).unwrap().parent.is_none() {
@@ -215,15 +214,15 @@ impl Tree {
         }
 
         // Determine whether a new key and node should be created
-        let (depth, parent_key) = {
+        let result = {
             let nodes = self.nodes.lock();
-            nodes.get(sibling).map_or((None, None), |node|{
-                (Some(node.depth), Some(node.parent.clone().unwrap()))
+            nodes.get_full(sibling).map_or(None, |(sibling_index, _sibling_key, sibling_node)|{
+                Some((sibling_index, sibling_node.depth, sibling_node.parent.clone()))
             })
         };
 
         // If depth is determined, generate key and create the node
-        if let Some(depth) = depth {
+        if let Some((sibling_index, depth, parent_key)) = result {
             let key = self.generate_next_key(); // Generate key after deciding a node is needed
             let value = value_f(key.clone());
 
@@ -239,7 +238,7 @@ impl Tree {
 
             {
                 let mut nodes = self.nodes.lock();
-                nodes.insert(key.clone(), child_node);
+                nodes.insert_before(sibling_index + 1, key.clone(), child_node);
             }
 
             self.update_children_widgetlist(parent_key);
@@ -288,11 +287,11 @@ impl Tree {
         self.update_children_widgetlist(parent_key);
     }
 
-    pub fn children_keys(&self, parent_key: TreeNodeKey) -> Vec<TreeNodeKey> {
+    pub fn children_keys(&self, parent_key: &TreeNodeKey) -> Vec<TreeNodeKey> {
         let nodes = self.nodes.lock();
         nodes.iter()
             .filter_map(|(key, node)| {
-                if node.parent.as_ref() == Some(&parent_key) {
+                if node.parent.as_ref() == Some(parent_key) {
                     Some(key.clone())
                 } else {
                     None
@@ -370,6 +369,29 @@ mod tests {
         let sibling = nodes.get(&sibling_key).unwrap();
         assert_eq!(sibling.parent, Some(root_key.clone()));
         assert_eq!(sibling.depth, 1); // Assuming sibling has the same depth as the first child
+    }
+
+
+    #[test]
+    pub fn add_sibling_inbetween() {
+        // given
+        let mut tree = Tree::default();
+        let root_key = tree.insert_child("root".make_widget(), None).unwrap();
+        let first_child_key = tree.insert_child("first_child".make_widget(), Some(&root_key)).unwrap();
+        let second_child_key = tree.insert_child("second_child".make_widget(), Some(&root_key)).unwrap();
+
+        // when
+        let middle_sibling_key = tree.insert_after("middle_sibling".make_widget(), &first_child_key).unwrap();
+
+        // then ensure the order is correct, i.e., after first_child and before second_child
+        let children = tree.children_keys(&root_key);
+        let index_of_middle = children.iter().position(|k| k == &middle_sibling_key).unwrap();
+        assert_eq!(children[index_of_middle - 1], first_child_key);
+        assert_eq!(children[index_of_middle + 1], second_child_key);
+
+        // and
+        let nodes = tree.nodes.lock();
+        assert_eq!(nodes.len(), 4);
     }
 
 
@@ -452,7 +474,7 @@ mod tests {
         let child_key_2 = tree.insert_child("child_2".make_widget(), Some(&root_key)).unwrap();
 
         // when
-        let children = tree.children_keys(root_key.clone());
+        let children = tree.children_keys(&root_key);
 
         // then
         assert_eq!(children.len(), 2);

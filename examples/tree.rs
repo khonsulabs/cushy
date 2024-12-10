@@ -93,7 +93,7 @@ fn main(app: &mut App) -> cushy::Result {
     let tree_widget = dyn_tree.lock().make_widget();
 
     // the tree can still be accessed after making a widget
-    let _keys = dyn_tree.lock().children_keys(root_key);
+    let _keys = dyn_tree.lock().children_keys(&root_key);
 
     let elements = "content above".contain()
         .and(tree_widget.contain())
