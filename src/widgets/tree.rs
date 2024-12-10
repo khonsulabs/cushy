@@ -229,14 +229,11 @@ impl Tree {
 
             let children: WidgetList = self.children_keys(&parent_key)
                 .into_iter()
-                .enumerate()
-                .map(|(index, key)| {
+                .map(|key| {
                     let nodes = self.nodes.lock();
                     let node = nodes.get(&key).unwrap();
 
-                    index.into_label().make_widget()
-                        .and(node.child_widget.clone())
-                        .into_columns()
+                    node.child_widget.clone()
                         .make_widget()
                 })
                 .collect();
