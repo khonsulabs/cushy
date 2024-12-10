@@ -7,7 +7,7 @@ use crate::reactive::value::{Destination, Dynamic, Source, Switchable};
 use crate::widget::{WidgetInstance, WidgetList};
 use crate::widgets::label::Displayable;
 
-#[derive(Default,Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct TreeNodeKey(usize);
 
 pub struct TreeNode {
@@ -77,7 +77,7 @@ impl Debug for TreeNode {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Tree {
     nodes: Dynamic<IndexMap<TreeNodeKey, TreeNode>>,
     next_key: TreeNodeKey,
