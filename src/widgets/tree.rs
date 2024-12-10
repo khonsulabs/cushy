@@ -24,10 +24,7 @@ pub struct TreeNodeWidget {
 }
 
 impl TreeNodeWidget {
-    pub fn new(child: WidgetInstance, children: Dynamic<WidgetList>) -> Self {
-
-        let is_expanded = Dynamic::new(true);
-
+    pub fn new(child: WidgetInstance, children: Dynamic<WidgetList>, is_expanded: Dynamic<bool>) -> Self {
         let indicator = is_expanded.clone().map_each(|value|{
             match value {
                 true => "v",
@@ -151,11 +148,13 @@ impl Tree {
             let value = value_f(key.clone());
 
             let children = Dynamic::new(WidgetList::new());
-            let child_widget = TreeNodeWidget::new(value, children.clone()).make_widget();
+            let is_expanded = Dynamic::new(true);
+            let child_widget = TreeNodeWidget::new(value, children.clone(), is_expanded.clone()).make_widget();
 
             let child_node = TreeNode {
                 parent: parent_key.clone(),
                 depth,
+                is_expanded,
                 child_widget,
                 children,
             };
@@ -227,11 +226,13 @@ impl Tree {
             let value = value_f(key.clone());
 
             let children = Dynamic::new(WidgetList::new());
-            let child_widget = TreeNodeWidget::new(value, children.clone()).make_widget();
+            let is_expanded = Dynamic::new(true);
+            let child_widget = TreeNodeWidget::new(value, children.clone(), is_expanded.clone()).make_widget();
 
             let child_node = TreeNode {
                 parent: parent_key.clone(),
                 depth,
+                is_expanded,
                 child_widget,
                 children
             };
@@ -298,6 +299,18 @@ impl Tree {
                 }
             })
             .collect()
+    }
+
+    pub fn expand(&self, key: &TreeNodeKey) {
+        let nodes = self.nodes.lock();
+        let node = nodes.get(key).unwrap();
+        node.is_expanded.set(true);
+    }
+
+    pub fn collapse(&self, key: &TreeNodeKey) {
+        let nodes = self.nodes.lock();
+        let node = nodes.get(key).unwrap();
+        node.is_expanded.set(false);
     }
 }
 

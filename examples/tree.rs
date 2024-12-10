@@ -87,6 +87,9 @@ fn main(app: &mut App) -> cushy::Result {
             make_node_with_label_and_buttons(dyn_tree.clone(), key, "nested 4").make_widget()
         }, &nested_child_key_3);
 
+        // children are expanded by default, collapse one of them.
+        tree.collapse(&child_key_2);
+
         root_key
     };
 
