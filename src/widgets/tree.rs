@@ -29,6 +29,7 @@
 //! }
 //! ```
 use std::fmt::{Debug, Formatter};
+use figures::units::Lp;
 use cushy::figures::units::Px;
 use cushy::widget::{MakeWidget, WidgetRef, WrapperWidget};
 use cushy::widgets::Space;
@@ -231,7 +232,11 @@ impl Tree {
                     let nodes = self.nodes.lock();
                     let node = nodes.get(&key).unwrap();
 
-                    node.child_widget.clone()
+                    let indent = Space::default().width(Lp::new(5));
+
+                    indent
+                        .and(node.child_widget.clone())
+                        .into_columns()
                         .make_widget()
                 })
                 .collect();
