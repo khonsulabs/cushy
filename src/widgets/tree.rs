@@ -90,8 +90,6 @@ impl TreeNodeWidget {
             .into_columns()
             .and(children_switcher)
             .into_rows()
-            // FIXME remove container, just for tree right now.
-            .contain()
             .into_ref();
 
         Self {
