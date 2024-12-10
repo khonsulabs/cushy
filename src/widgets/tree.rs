@@ -1,3 +1,33 @@
+//! This module provides structures and functionality for managing a tree of widgets.
+//!
+//! The tree uses `Dynamic` and `WidgetList` to manage dynamic changes in widget hierarchies,
+//! such as the expansion and collapsing of nodes.
+//!
+//! The main components are:
+//! - `TreeNodeKey`: A unique identifier for each tree node.
+//! - `Tree`: A structure that holds the tree structure, mapping node keys to `TreeNode` instances,
+//!   and provides methods for manipulating the tree structure like inserting children or siblings.
+//! - `TreeNode`: Represents a node in the tree with information about its parent, depth,
+//!   widget instances, and children.
+//! - `TreeWidget`: Represents the root widget for displaying tree nodes.
+//! - `TreeNodeWidget`: Manages the visual representation of a tree node, including expand/collapse
+//!   functionality and the display of child widgets.
+//!
+//! # Example Usage
+//!
+//! The `Tree` and `TreeNodeWidget` structures provide methods to construct and manage the tree, 
+//! allowing for dynamic UI components that react to user interactions.
+//!
+//! ```rust
+//! use cushy::widget::MakeWidget;
+//! let mut tree = Tree::default();
+//! let root_widget = "root".to_label().make_widget();
+//! let root_key = tree.insert_child(root_widget, None);
+//! if let Some(root_key) = root_key {
+//!     let child_widget = "child".to_label().make_widget();
+//!     tree.insert_child(child_widget, Some(&root_key));
+//! }
+//! ```
 use std::fmt::{Debug, Formatter};
 use cushy::figures::units::Px;
 use cushy::widget::{MakeWidget, WidgetRef, WrapperWidget};
@@ -7,16 +37,23 @@ use crate::reactive::value::{Destination, Dynamic, Source, Switchable};
 use crate::widget::{WidgetInstance, WidgetList};
 use crate::widgets::label::Displayable;
 
+
+/// A tree node key.
+///
+/// These are created when adding nodes to a tree.  Keys are never re-used.
 #[derive(Default, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct TreeNodeKey(usize);
 
+/// Represents a node within a tree structure.
 pub struct TreeNode {
     parent: Option<TreeNodeKey>,
     depth: usize,
     child_widget: WidgetInstance,
     children: Dynamic<WidgetList>,
+    is_expanded: Dynamic<bool>,
 }
 
+/// A widget for a tree node, including the button to collapse/expand any children.
 pub struct TreeNodeWidget {
     is_expanded: Dynamic<bool>,
     child: WidgetRef,
@@ -24,7 +61,7 @@ pub struct TreeNodeWidget {
 }
 
 impl TreeNodeWidget {
-    pub fn new(child: WidgetInstance, children: Dynamic<WidgetList>, is_expanded: Dynamic<bool>) -> Self {
+    fn new(child: WidgetInstance, children: Dynamic<WidgetList>, is_expanded: Dynamic<bool>) -> Self {
         let indicator = is_expanded.clone().map_each(|value|{
             match value {
                 true => "v",
@@ -74,12 +111,16 @@ impl Debug for TreeNode {
     }
 }
 
+/// A tree of widgets, with expandable/collapsible nodes.
+///
+/// See module documentation.
 #[derive(Debug)]
 pub struct Tree {
     nodes: Dynamic<IndexMap<TreeNodeKey, TreeNode>>,
     next_key: TreeNodeKey,
 }
 
+/// The widget for a tree.
 pub struct TreeWidget {
     root: WidgetRef,
 }
@@ -95,6 +136,9 @@ impl Default for Tree {
     }
 }
 impl Tree {
+    /// Make the widget for the tree.
+    ///
+    /// The tree is NOT consumed and can be used to manipulate the tree, e.g. add/remove/collapse/expand nodes.
     pub fn make_widget(&self) -> WidgetInstance {
         let root = self.nodes.clone().switcher(|nodes, _active| {
             if nodes.is_empty()  {
@@ -118,10 +162,17 @@ impl Tree {
     }
 
     /// Inserts a child after the given parent
+    ///
+    /// Returns `None` if the given node doesn't exist or is the root node.
     pub fn insert_child(&mut self, value: WidgetInstance, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey> {
         self.insert_child_with_key(|_key|value, parent)
     }
 
+    /// Inserts a child after the given parent, the key is provided to a callback function.
+    ///
+    /// This method is useful when creating buttons/widgets that need to manipulate the tree.
+    ///
+    /// Returns `None` if the given node doesn't exist or is the root node.
     pub fn insert_child_with_key<F>(&mut self, value_f: F, parent: Option<&TreeNodeKey>) -> Option<TreeNodeKey>
     where
         F: FnOnce(TreeNodeKey) -> WidgetInstance
@@ -202,6 +253,13 @@ impl Tree {
     pub fn insert_after(&mut self, value: WidgetInstance, sibling: &TreeNodeKey) -> Option<TreeNodeKey> {
         self.insert_after_with_key(|_key|value, sibling)
     }
+
+
+    /// Inserts a sibling after the given node, the key is provided to a callback function.
+    ///
+    /// This method is useful when creating buttons/widgets that need to manipulate the tree.
+    ///
+    /// Returns `None` if the given node doesn't exist or is the root node.
     pub fn insert_after_with_key<F>(&mut self, value_f: F, sibling: &TreeNodeKey) -> Option<TreeNodeKey>
     where
         F: FnOnce(TreeNodeKey) -> WidgetInstance
@@ -288,6 +346,9 @@ impl Tree {
         self.update_children_widgetlist(parent_key);
     }
 
+    /// Get an ordered list of children keys for a node.
+    ///
+    /// Returns 'None' if the given does not exist.
     pub fn children_keys(&self, parent_key: &TreeNodeKey) -> Vec<TreeNodeKey> {
         let nodes = self.nodes.lock();
         nodes.iter()
@@ -301,12 +362,20 @@ impl Tree {
             .collect()
     }
 
+    /// Expand a node.
+    ///
+    /// Not recursive, the node's children will retain their collapsed/expanded state when they are
+    /// expanded.
     pub fn expand(&self, key: &TreeNodeKey) {
         let nodes = self.nodes.lock();
         let node = nodes.get(key).unwrap();
         node.is_expanded.set(true);
     }
 
+    /// Collapse a node.
+    ///
+    /// Not recursive, the node's children will retain their collapsed/expanded state when they are
+    /// re-expanded.
     pub fn collapse(&self, key: &TreeNodeKey) {
         let nodes = self.nodes.lock();
         let node = nodes.get(key).unwrap();
