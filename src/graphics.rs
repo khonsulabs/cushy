@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use figures::units::{Px, UPx};
 use figures::{
-    self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
+    self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, ScreenUnit, Size, Zero
 };
 use kempt::{map, Map};
 use kludgine::cosmic_text::{fontdb, FamilyOwned, FontSystem};
@@ -285,7 +285,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         text: impl Into<Drawable<&'a MeasuredText<Unit>, Unit>>,
         origin: TextOrigin<Unit>,
     ) where
-        Unit: ScreenUnit,
+        Unit: ScreenUnit + Round,
     {
         let mut text = text.into();
         text.opacity = Some(
