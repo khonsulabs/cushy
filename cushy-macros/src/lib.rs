@@ -28,5 +28,12 @@ mod cushy_main;
 
 #[manyhow(proc_macro_derive(LinearInterpolate))]
 pub use animation::linear_interpolate;
+/// This macro extracts the body of `main` and uses it as the closure for the `on_startup` for the
+/// [`cushy::PendingApp`].
+///
+/// Lifetimes:
+///
+/// Due to how this macro works variables in the closure will be dropped at the end of the
+/// method body, and *NOT* when the application terminates.
 #[manyhow(proc_macro_attribute)]
 pub use cushy_main::main;
