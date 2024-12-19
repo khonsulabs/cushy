@@ -1,7 +1,7 @@
 use cushy::value::Dynamic;
 use cushy::widget::{MakeWidget, WidgetList};
 use cushy::widgets::input::InputValue;
-use cushy::widgets::pile::Pile;
+use cushy::widgets::pile::{Focus, Pile};
 use cushy::Run;
 
 fn main() -> cushy::Result {
@@ -20,7 +20,7 @@ fn main() -> cushy::Result {
                 .into_button()
                 .on_click({
                     let section = handle.clone();
-                    move |_| section.show(true)
+                    move |_| section.show(Focus::Unchanged)
                 })
                 .make_widget();
             let button_id = button.id();
