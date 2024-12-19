@@ -490,11 +490,16 @@ struct ScrollbarInfo {
     size: UPx,
 }
 
-fn scrollbar_region(scroll: UPx, content_size: UPx, control_size: UPx) -> ScrollbarInfo {
+fn scrollbar_region(
+    scroll: UPx,
+    content_size: UPx,
+    control_size: UPx,
+    minimum_thumb_size: UPx,
+) -> ScrollbarInfo {
     if content_size > control_size {
         let amount_hidden = content_size - control_size;
         let ratio_visible = control_size.into_float() / content_size.into_float();
-        let bar_size = control_size * ratio_visible;
+        let bar_size = (control_size * ratio_visible).max(minimum_thumb_size);
         let remaining_area = control_size - bar_size;
         let amount_scrolled = scroll.into_float() / amount_hidden.into_float();
         let bar_offset = remaining_area * amount_scrolled;
@@ -704,7 +709,7 @@ impl Widget for ScrollBar {
         } else {
             control_size.width
         };
-        self.info = scrollbar_region(scroll, content_size, self.control_size);
+        self.info = scrollbar_region(scroll, content_size, self.control_size, self.bar_width);
         let mut constrained = Self::constrained_scroll(scroll, self.info.amount_hidden);
 
         // Preserve the current scroll if the widget has resized
