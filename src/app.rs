@@ -351,7 +351,7 @@ where
 pub struct RuntimeGuard<'a>(Box<dyn BoxableGuard<'a> + 'a>);
 
 trait BoxableGuard<'a> {}
-impl<'a, T> BoxableGuard<'a> for T {}
+impl<T> BoxableGuard<'_> for T {}
 
 struct AppSettings {
     multi_click_threshold: Duration,

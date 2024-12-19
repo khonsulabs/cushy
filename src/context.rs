@@ -529,7 +529,7 @@ impl<'context> Deref for EventContext<'context> {
     }
 }
 
-impl<'context> DerefMut for EventContext<'context> {
+impl DerefMut for EventContext<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.widget
     }
@@ -573,7 +573,7 @@ pub struct GraphicsContext<'context, 'clip, 'gfx, 'pass> {
     pub gfx: Exclusive<'context, Graphics<'clip, 'gfx, 'pass>>,
 }
 
-impl<'context, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'clip, 'gfx, 'pass> {
+impl<'clip, 'gfx, 'pass> GraphicsContext<'_, 'clip, 'gfx, 'pass> {
     /// Returns a new instance that borrows from `self`.
     pub fn borrowed(&mut self) -> GraphicsContext<'_, 'clip, 'gfx, 'pass> {
         GraphicsContext {
@@ -749,7 +749,7 @@ impl Drop for GraphicsContext<'_, '_, '_, '_> {
     }
 }
 
-impl<'context, 'clip, 'gfx, 'pass> Deref for GraphicsContext<'context, 'clip, 'gfx, 'pass> {
+impl<'context> Deref for GraphicsContext<'context, '_, '_, '_> {
     type Target = WidgetContext<'context>;
 
     fn deref(&self) -> &Self::Target {
@@ -757,7 +757,7 @@ impl<'context, 'clip, 'gfx, 'pass> Deref for GraphicsContext<'context, 'clip, 'g
     }
 }
 
-impl<'context, 'clip, 'gfx, 'pass> DerefMut for GraphicsContext<'context, 'clip, 'gfx, 'pass> {
+impl DerefMut for GraphicsContext<'_, '_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.widget
     }
@@ -842,7 +842,7 @@ impl<'context, 'clip, 'gfx, 'pass> LayoutContext<'context, 'clip, 'gfx, 'pass> {
     }
 }
 
-impl<'context, 'clip, 'gfx, 'pass> AsEventContext for LayoutContext<'context, 'clip, 'gfx, 'pass> {
+impl AsEventContext for LayoutContext<'_, '_, '_, '_> {
     fn as_event_context(&mut self) -> EventContext<'_> {
         self.graphics.as_event_context()
     }
@@ -856,7 +856,7 @@ impl<'context, 'clip, 'gfx, 'pass> Deref for LayoutContext<'context, 'clip, 'gfx
     }
 }
 
-impl<'context, 'clip, 'gfx, 'pass> DerefMut for LayoutContext<'context, 'clip, 'gfx, 'pass> {
+impl DerefMut for LayoutContext<'_, '_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.graphics
     }
