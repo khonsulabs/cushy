@@ -57,7 +57,7 @@ macro_rules! impl_with_clone {
     };
 }
 
-impl<'a, T> WithClone for &'a T
+impl<T> WithClone for &'_ T
 where
     T: Clone,
 {

@@ -176,7 +176,7 @@ where
 /// A [`Menu`] that is preparing to be shown in an [`OverlayLayer`].
 pub struct MenuOverlay<'a>(OverlayBuilder<'a>, OpenMenuHandle);
 
-impl<'a> Overlayable for MenuOverlay<'a> {
+impl Overlayable for MenuOverlay<'_> {
     type Handle = OpenMenuHandle;
 
     fn hide_on_unhover(self) -> Self {

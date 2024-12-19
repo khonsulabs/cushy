@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use figures::units::{Px, UPx};
 use figures::{
-    self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
+    self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, ScreenUnit, Size, Zero
 };
 use kempt::{map, Map};
 use kludgine::cosmic_text::{fontdb, FamilyOwned, FontSystem};
@@ -32,7 +32,7 @@ enum RenderContext<'clip, 'gfx, 'pass> {
     Clipped(ClipGuard<'clip, Renderer<'gfx, 'pass>>),
 }
 
-impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
+impl<'gfx, 'pass> Graphics<'_, 'gfx, 'pass> {
     /// Returns a new graphics context for the given [`Renderer`].
     #[must_use]
     pub fn new(renderer: Renderer<'gfx, 'pass>) -> Self {
@@ -285,7 +285,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         text: impl Into<Drawable<&'a MeasuredText<Unit>, Unit>>,
         origin: TextOrigin<Unit>,
     ) where
-        Unit: ScreenUnit,
+        Unit: ScreenUnit + Round,
     {
         let mut text = text.into();
         text.opacity = Some(
@@ -335,7 +335,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     }
 }
 
-impl<'gfx, 'pass> Deref for Graphics<'_, 'gfx, 'pass> {
+impl Deref for Graphics<'_, '_, '_> {
     type Target = Kludgine;
 
     fn deref(&self) -> &Self::Target {
@@ -343,7 +343,7 @@ impl<'gfx, 'pass> Deref for Graphics<'_, 'gfx, 'pass> {
     }
 }
 
-impl<'gfx, 'pass> DerefMut for Graphics<'_, 'gfx, 'pass> {
+impl DerefMut for Graphics<'_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.renderer
     }
@@ -360,7 +360,7 @@ impl<'gfx, 'pass> Deref for RenderContext<'_, 'gfx, 'pass> {
     }
 }
 
-impl<'gfx, 'pass> DerefMut for RenderContext<'_, 'gfx, 'pass> {
+impl DerefMut for RenderContext<'_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             RenderContext::Renderer(renderer) => renderer,

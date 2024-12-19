@@ -310,7 +310,7 @@ impl<W> RunningWindow<W>
 where
     W: PlatformWindowImplementation,
 {
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::ref_option)]
     pub(crate) fn new(
         window: W,
         kludgine_id: KludgineId,
@@ -4717,8 +4717,7 @@ where
 }
 
 fn copy_buffer_aligned_bytes_per_row(width: u32) -> u32 {
-    (width + COPY_BYTES_PER_ROW_ALIGNMENT - 1) / COPY_BYTES_PER_ROW_ALIGNMENT
-        * COPY_BYTES_PER_ROW_ALIGNMENT
+    width.div_ceil(COPY_BYTES_PER_ROW_ALIGNMENT) * COPY_BYTES_PER_ROW_ALIGNMENT
 }
 
 /// An animated PNG recorder.
