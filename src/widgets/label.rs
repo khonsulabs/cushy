@@ -9,9 +9,9 @@ use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{cosmic_text, CanRenderTo, Color, DrawableExt};
 
 use super::input::CowString;
-use crate::context::{GraphicsContext, LayoutContext, Trackable, WidgetContext};
+use crate::context::{FontSettings, GraphicsContext, LayoutContext, Trackable, WidgetContext};
 use crate::styles::components::{HorizontalAlignment, TextColor, VerticalAlignment};
-use crate::styles::{FontFamilyList, HorizontalAlign, VerticalAlign};
+use crate::styles::{HorizontalAlign, VerticalAlign};
 use crate::value::{
     Dynamic, DynamicReader, Generation, IntoDynamic, IntoReadOnly, IntoValue, ReadOnly, Value,
 };
@@ -28,7 +28,7 @@ pub struct Label<T> {
     /// single line.
     pub overflow: Value<LabelOverflow>,
     displayed: String,
-    prepared_text: WindowLocal<LabelCacheKey>,
+    prepared_text: WindowLocal<LabelCache>,
 }
 
 impl<T> Label<T>
@@ -61,7 +61,6 @@ where
         mut width: Px,
         align: HorizontalAlign,
     ) -> &MeasuredText<Px> {
-        let is_left_aligned = align == HorizontalAlign::Left;
         let align = match align {
             HorizontalAlign::Left => cosmic_text::Align::Left,
             HorizontalAlign::Center => cosmic_text::Align::Center,
@@ -71,22 +70,20 @@ where
         if overflow == LabelOverflow::Clip {
             width = Px::MAX;
         }
-        let check_generation = self.display.generation();
-        let check_display_generation = self.display.map(|display| display.generation(context));
         context.apply_current_font_settings();
-        let current_families = context.current_family_list();
+
+        let mut cache_key = LabelCacheKey {
+            generation: self.display.generation(),
+            display_generation: self.display.map(|display| display.generation(context)),
+            width,
+            color,
+            settings: context.current_font_settings(),
+            align,
+        };
+
         match self.prepared_text.get(context) {
             Some(cache)
-                if cache.text.can_render_to(&context.gfx)
-                    && cache.generation == check_generation
-                    && cache.display_generation == check_display_generation
-                    && cache.color == color
-                    && cache.align == align
-                    && ((is_left_aligned
-                        && width <= cache.width
-                        && cache.text.size.width <= width)
-                        || (!is_left_aligned && width == cache.width))
-                    && cache.families == current_families => {}
+                if cache.text.can_render_to(&context.gfx) && cache_key.is_valid_for(cache) => {}
             _ => {
                 let (measured, display_generation) = self.display.map(|text| {
                     self.displayed.clear();
@@ -100,16 +97,12 @@ where
                         text.generation(context),
                     )
                 });
+                cache_key.display_generation = display_generation;
                 self.prepared_text.set(
                     context,
-                    LabelCacheKey {
+                    LabelCache {
                         text: measured,
-                        generation: check_generation,
-                        display_generation,
-                        width,
-                        color,
-                        families: current_families,
-                        align,
+                        key: cache_key,
                     },
                 );
             }
@@ -218,14 +211,38 @@ pub enum LabelOverflow {
 }
 
 #[derive(Debug)]
-struct LabelCacheKey {
+struct LabelCache {
     text: MeasuredText<Px>,
+    key: LabelCacheKey,
+}
+
+#[derive(Debug)]
+struct LabelCacheKey {
     generation: Option<Generation>,
     display_generation: Option<Generation>,
     width: Px,
     color: Color,
-    families: FontFamilyList,
+    settings: FontSettings,
     align: cosmic_text::Align,
+}
+
+impl LabelCacheKey {
+    pub fn is_valid_for(&self, cache: &LabelCache) -> bool {
+        if self.generation == cache.key.generation
+            && self.display_generation == cache.key.display_generation
+            && self.color == cache.key.color
+            && self.settings == cache.key.settings
+            && self.align == cache.key.align
+        {
+            if self.align == cosmic_text::Align::Left {
+                self.width <= cache.key.width && cache.text.size.width <= self.width
+            } else {
+                self.width == cache.key.width
+            }
+        } else {
+            false
+        }
+    }
 }
 
 /// A context-aware [`Display`] implementation.
