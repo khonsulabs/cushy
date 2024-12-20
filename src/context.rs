@@ -6,7 +6,7 @@ use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::Cursor;
-use kludgine::cosmic_text::FamilyOwned;
+use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine, KludgineId};
 
@@ -17,7 +17,7 @@ use crate::styles::components::{
     CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, LineHeight,
     Opacity, OutlineWidth, TextSize, WidgetBackground,
 };
-use crate::styles::{ComponentDefinition, FontFamilyList, Styles, Theme, ThemePair};
+use crate::styles::{ComponentDefinition, Dimension, FontFamilyList, Styles, Theme, ThemePair};
 use crate::tree::Tree;
 use crate::value::{IntoValue, Source, Value};
 use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
@@ -709,14 +709,29 @@ impl<'clip, 'gfx, 'pass> GraphicsContext<'_, 'clip, 'gfx, 'pass> {
         self.stroke_outline(color, StrokeOptions::px_wide(width));
     }
 
+    /// Returns the widget context's current font settings.
+    ///
+    /// The settings returned are from retrieving the values of these style
+    /// components:
+    ///
+    /// The returned settings are not necessarily what is currently applied to
+    /// this graphics context. To apply these settings, consider using
+    /// [`Self::apply_current_font_settings()`] or [`FontSettings::apply`].
+    #[must_use]
+    pub fn current_font_settings(&self) -> FontSettings {
+        FontSettings {
+            family: self.widget.get(&FontFamily),
+            size: self.widget.get(&TextSize),
+            line_height: self.widget.get(&LineHeight),
+            style: self.widget.get(&FontStyle),
+            weight: self.widget.get(&FontWeight),
+        }
+    }
+
     /// Applies the current style settings for font family, text size, font
     /// style, and font weight.
     pub fn apply_current_font_settings(&mut self) {
-        self.set_available_font_family(&self.widget.get(&FontFamily));
-        self.gfx.set_font_size(self.widget.get(&TextSize));
-        self.gfx.set_line_height(self.widget.get(&LineHeight));
-        self.gfx.set_font_style(self.widget.get(&FontStyle));
-        self.gfx.set_font_weight(self.widget.get(&FontWeight));
+        self.current_font_settings().apply(self);
     }
 
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
@@ -760,6 +775,32 @@ impl<'context> Deref for GraphicsContext<'context, '_, '_, '_> {
 impl DerefMut for GraphicsContext<'_, '_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.widget
+    }
+}
+
+/// The font settings supported by a [`GraphicsContext`].
+#[derive(PartialEq, Debug, Clone)]
+pub struct FontSettings {
+    /// The list of font families.
+    pub family: FontFamilyList,
+    /// The font size.
+    pub size: Dimension,
+    /// The line height.
+    pub line_height: Dimension,
+    /// The font style.
+    pub style: Style,
+    /// The font weight (boldness/lightness).
+    pub weight: Weight,
+}
+
+impl FontSettings {
+    /// Applies these font settings to `context`.
+    pub fn apply(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
+        context.set_available_font_family(&self.family);
+        context.gfx.set_font_size(self.size);
+        context.gfx.set_line_height(self.line_height);
+        context.gfx.set_font_style(self.style);
+        context.gfx.set_font_weight(self.weight);
     }
 }
 
