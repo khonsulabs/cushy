@@ -17,7 +17,9 @@ use kludgine::app::winit::keyboard::ModifiersState;
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
 use parking_lot::{Mutex, MutexGuard};
+#[cfg(feature = "localization")]
 use unic_langid::LanguageIdentifier;
+
 use crate::app::Run;
 use crate::context::sealed::Trackable as _;
 use crate::context::{
@@ -35,8 +37,10 @@ use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::list::List;
 use crate::widgets::shortcuts::{ShortcutKey, Shortcuts};
+#[cfg(feature = "localization")]
+use crate::widgets::Localized;
 use crate::widgets::{
-    Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Localized, Resize, Scroll, Space,
+    Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Resize, Scroll, Space,
     Stack, Style, Themed, ThemedMode, Validated, Wrap,
 };
 use crate::window::sealed::WindowCommand;
@@ -1446,6 +1450,7 @@ pub trait MakeWidget: Sized {
     }
 
     /// Applies `theme` to `self` and its children.
+    #[cfg(feature = "localization")]
     fn localized(self, locale: impl IntoValue<LanguageIdentifier>) -> Localized {
         Localized::new(locale, self)
     }
@@ -2105,15 +2110,16 @@ impl MountedWidget {
         self.tree().overridden_theme(self.node_id)
     }
 
+    #[cfg(feature = "localization")]
     pub(crate) fn attach_locale(&self, locale: Value<LanguageIdentifier>) {
         self.tree().attach_locale(self.node_id, locale);
     }
 
-    pub(crate) fn overridden_locale(
-        &self,
-    ) -> Option<Value<LanguageIdentifier>> {
+    #[cfg(feature = "localization")]
+    pub(crate) fn overridden_locale(&self) -> Option<Value<LanguageIdentifier>> {
         self.tree().overridden_locale(self.node_id)
     }
+
     pub(crate) fn begin_layout(&self, constraints: Size<ConstraintLimit>) -> Option<Size<UPx>> {
         self.tree().begin_layout(self.node_id, constraints)
     }

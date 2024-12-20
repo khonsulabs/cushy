@@ -14,7 +14,7 @@ readme = "./README.md"
 rust-version = "1.80.0"
 
 [features]
-default = ["tracing-output", "roboto-flex", "native-dialogs"]
+default = ["tracing-output", "roboto-flex", "native-dialogs", "localization"]
 tracing-output = ["dep:tracing-subscriber"]
 roboto-flex = []
 plotters = ["dep:plotters", "kludgine/plotters"]
@@ -22,6 +22,12 @@ tokio = ["dep:tokio"]
 tokio-multi-thread = ["tokio", "tokio/rt-multi-thread"]
 serde = ["dep:serde", "figures/serde"]
 native-dialogs = ["dep:rfd"]
+localization = [
+    "dep:unic-langid",
+    "dep:fluent-bundle",
+    "dep:fluent-langneg",
+    "dep:sys-locale",
+]
 
 [dependencies]
 kludgine = { git = "https://github.com/khonsulabs/kludgine", features = [
@@ -35,10 +41,10 @@ intentional = "0.1.0"
 tracing = "0.1.40"
 tokio = { version = "1.40.0", optional = true, features = ["rt"] }
 rfd = { version = "0.15.0", optional = true }
-unic-langid = {version = "0.9", features = ["macros"]}
-fluent-bundle = "0.15"
-fluent-langneg = "0.13"
-sys-locale = "0.3"
+unic-langid = { version = "0.9", features = ["macros"], optional = true }
+fluent-bundle = { version = "0.15", optional = true }
+fluent-langneg = { version = "0.13", optional = true }
+sys-locale = { version = "0.3", optional = true }
 
 tracing-subscriber = { version = "0.3", optional = true, features = [
     "env-filter",
@@ -87,6 +93,10 @@ required-features = ["plotters"]
 [[example]]
 name = "tokio"
 required-features = ["tokio"]
+
+[[example]]
+name = "localized"
+required-features = ["localization"]
 
 [profile.release]
 # debug = true

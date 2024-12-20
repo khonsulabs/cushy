@@ -273,6 +273,22 @@ pub trait DynamicDisplay {
     {
         DynamicDisplayer(self, context)
     }
+
+    /// Returns `self` being `Display`ed in a [`Label`] widget.
+    fn into_label(self) -> Label<Self>
+    where
+        Self: Debug + Sized + Send + 'static,
+    {
+        Label::new(self)
+    }
+
+    /// Returns `self` being `Display`ed in a [`Label`] widget.
+    fn to_label(&self) -> Label<Self>
+    where
+        Self: Clone + Debug + Sized + Send + 'static,
+    {
+        self.clone().into_label()
+    }
 }
 
 impl<T> DynamicDisplay for T

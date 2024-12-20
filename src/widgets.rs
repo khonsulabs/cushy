@@ -20,6 +20,7 @@ pub mod input;
 pub mod label;
 pub mod layers;
 pub mod list;
+#[cfg(feature = "localization")]
 mod localized;
 pub mod menu;
 mod mode_switch;
@@ -58,6 +59,7 @@ pub use self::image::Image;
 pub use self::input::Input;
 pub use self::label::Label;
 pub use self::layers::Layers;
+#[cfg(feature = "localization")]
 pub use self::localized::Localized;
 pub use self::menu::Menu;
 pub use self::mode_switch::ThemedMode;

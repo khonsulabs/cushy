@@ -2625,8 +2625,15 @@ impl Generation {
 impl Add for Generation {
     type Output = Self;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        Self(self.0.wrapping_add(rhs.0))
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl AddAssign for Generation {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 = self.0.wrapping_add(rhs.0);
     }
 }
 
@@ -2918,7 +2925,7 @@ impl<T> Value<T> {
         match self {
             Value::Constant(value) => map(value),
             Value::Dynamic(dynamic) => {
-                context.invalidate_when_changed(dynamic);
+                dynamic.invalidate_when_changed(context);
                 dynamic.map_ref(map)
             }
         }

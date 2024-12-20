@@ -6,7 +6,9 @@ use alot::{LotId, Lots};
 use figures::units::{Px, UPx};
 use figures::{Point, Rect, Size};
 use parking_lot::Mutex;
+#[cfg(feature = "localization")]
 use unic_langid::LanguageIdentifier;
+
 use crate::styles::{Styles, ThemePair, VisualOrder};
 use crate::value::Value;
 use crate::widget::{MountedWidget, WidgetId, WidgetInstance};
@@ -44,6 +46,7 @@ impl Tree {
             effective_styles,
             theme: None,
             theme_mode: None,
+            #[cfg(feature = "localization")]
             locale: None,
         });
         data.nodes_by_id.insert(id, node_id);
@@ -400,21 +403,15 @@ impl Tree {
         )
     }
 
+    #[cfg(feature = "localization")]
     pub(crate) fn attach_locale(&self, id: LotId, locale: Value<LanguageIdentifier>) {
         let mut data = self.data.lock();
         data.nodes.get_mut(id).expect("missing widget").locale = Some(locale);
     }
 
-    pub(crate) fn overridden_locale(
-        &self,
-        id: LotId,
-    ) -> Option<Value<LanguageIdentifier>> {
-        let data = self.data.lock();
-        let Some(node) = data.nodes.get(id) else {
-            return Default::default();
-        };
-
-        node.locale.clone()
+    #[cfg(feature = "localization")]
+    pub(crate) fn overridden_locale(&self, id: LotId) -> Option<Value<LanguageIdentifier>> {
+        self.data.lock().nodes.get(id)?.locale.clone()
     }
 
     pub fn invalidate(&self, id: LotId, include_hierarchy: bool) {
@@ -655,6 +652,7 @@ struct Node {
     effective_styles: Styles,
     theme: Option<Value<ThemePair>>,
     theme_mode: Option<Value<ThemeMode>>,
+    #[cfg(feature = "localization")]
     locale: Option<Value<LanguageIdentifier>>,
 }
 
