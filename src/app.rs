@@ -10,6 +10,8 @@ use kludgine::app::{AppEvent, AsApplication, ExecutingApp, Monitors, Unrecoverab
 use parking_lot::{Mutex, MutexGuard};
 
 use crate::fonts::FontCollection;
+#[cfg(feature = "localization")]
+use crate::localization::Localizations;
 use crate::window::sealed::WindowCommand;
 use crate::window::WindowHandle;
 use crate::{animation, initialize_tracing};
@@ -364,6 +366,8 @@ pub struct Cushy {
     pub(crate) fonts: FontCollection,
     settings: Arc<Mutex<AppSettings>>,
     runtime: BoxedRuntime,
+    #[cfg(feature = "localization")]
+    pub(crate) localizations: Localizations,
 }
 
 impl Cushy {
@@ -377,6 +381,8 @@ impl Cushy {
                 multi_click_threshold: Duration::from_millis(500),
             })),
             runtime,
+            #[cfg(feature = "localization")]
+            localizations: Localizations::default(),
         }
     }
 
@@ -404,6 +410,13 @@ impl Cushy {
     #[must_use]
     pub fn fonts(&self) -> &FontCollection {
         &self.fonts
+    }
+
+    /// Returns the localizations that are applied throughout the application.
+    #[must_use]
+    #[cfg(feature = "localization")]
+    pub fn localizations(&self) -> &Localizations {
+        &self.localizations
     }
 
     /// Enters the application's runtime context.

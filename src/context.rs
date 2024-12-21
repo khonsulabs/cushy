@@ -9,10 +9,14 @@ use kludgine::app::winit::window::Cursor;
 use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine, KludgineId};
+#[cfg(feature = "localization")]
+use unic_langid::LanguageIdentifier;
 
 use crate::animation::ZeroToOne;
 use crate::fonts::{LoadedFont, LoadedFontFace};
 use crate::graphics::{FontState, Graphics};
+#[cfg(feature = "localization")]
+use crate::localization::Localizations;
 use crate::styles::components::{
     CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, LineHeight,
     Opacity, OutlineWidth, TextSize, WidgetBackground,
@@ -972,6 +976,10 @@ pub struct WidgetContext<'context> {
     font_state: &'context mut FontState,
     effective_styles: Styles,
     cache: WidgetCacheKey,
+    #[cfg(feature = "localization")]
+    locale: Value<LanguageIdentifier>,
+    #[cfg(feature = "localization")]
+    localizations: &'context Localizations,
 }
 
 impl<'context> WidgetContext<'context> {
@@ -982,9 +990,13 @@ impl<'context> WidgetContext<'context> {
         font_state: &'context mut FontState,
         theme_mode: ThemeMode,
         cursor: &'context mut CursorState,
+        #[cfg(feature = "localization")] localizations: &'context Localizations,
     ) -> Self {
         let enabled = current_node.enabled(&window.handle());
         let tree = current_node.tree();
+
+        #[cfg(feature = "localization")]
+        let overridden_locale = current_node.overridden_locale();
 
         let (effective_styles, overridden_theme, overridden_theme_mode) =
             current_node.overridden_theme();
@@ -1012,6 +1024,10 @@ impl<'context> WidgetContext<'context> {
             font_state,
             theme: Cow::Borrowed(theme),
             window,
+            #[cfg(feature = "localization")]
+            locale: Value::Constant(LanguageIdentifier::default()),
+            #[cfg(feature = "localization")]
+            localizations,
         };
 
         if let Some(theme) = overridden_theme {
@@ -1019,6 +1035,12 @@ impl<'context> WidgetContext<'context> {
         }
         if let Some(mode) = overridden_theme_mode {
             context.cache.theme_mode = mode.get_tracking_redraw(&context);
+        }
+        #[cfg(feature = "localization")]
+        if let Some(locale) = overridden_locale {
+            context.locale = locale;
+        } else {
+            context.locale = Value::Constant(context.localizations.effective_locale(&context));
         }
 
         context
@@ -1036,6 +1058,10 @@ impl<'context> WidgetContext<'context> {
             cache: self.cache,
             effective_styles: self.effective_styles.clone(),
             cursor: &mut *self.cursor,
+            #[cfg(feature = "localization")]
+            locale: self.locale.clone(),
+            #[cfg(feature = "localization")]
+            localizations: self.localizations,
         }
     }
 
@@ -1060,6 +1086,12 @@ impl<'context> WidgetContext<'context> {
             } else {
                 self.cache.theme_mode
             };
+            #[cfg(feature = "localization")]
+            let locale = if let Some(locale) = current_node.overridden_locale() {
+                locale
+            } else {
+                self.locale.clone()
+            };
             WidgetContext {
                 effective_styles,
                 cache: WidgetCacheKey {
@@ -1074,6 +1106,10 @@ impl<'context> WidgetContext<'context> {
                 theme,
                 pending_state: self.pending_state.borrowed(),
                 cursor: &mut *self.cursor,
+                #[cfg(feature = "localization")]
+                locale,
+                #[cfg(feature = "localization")]
+                localizations: self.localizations,
             }
         })
     }
@@ -1260,6 +1296,14 @@ impl<'context> WidgetContext<'context> {
         self.current_node.attach_theme_mode(theme_mode);
     }
 
+    /// Attaches `locale` to the widget hierarchy for this widget.
+    ///
+    /// All children nodes will access this theme in their contexts.
+    #[cfg(feature = "localization")]
+    pub fn attach_locale(&self, locale: Value<LanguageIdentifier>) {
+        self.current_node.attach_locale(locale);
+    }
+
     /// Queries the widget hierarchy for a single style component.
     ///
     /// This function traverses up the widget hierarchy looking for the
@@ -1288,13 +1332,27 @@ impl<'context> WidgetContext<'context> {
 
     /// Returns the window containing this widget.
     #[must_use]
-    pub fn window(&self) -> &dyn PlatformWindow {
+    pub const fn window(&self) -> &dyn PlatformWindow {
         self.window
+    }
+
+    /// Returns the locale for this widget.
+    #[must_use]
+    #[cfg(feature = "localization")]
+    pub const fn locale(&self) -> &Value<LanguageIdentifier> {
+        &self.locale
+    }
+
+    /// Returns the localizations for this application.
+    #[must_use]
+    #[cfg(feature = "localization")]
+    pub const fn localizations(&self) -> &Localizations {
+        self.localizations
     }
 
     /// Returns an exclusive reference to the window containing this widget.
     #[must_use]
-    pub fn window_mut(&mut self) -> &mut dyn PlatformWindow {
+    pub const fn window_mut(&mut self) -> &mut dyn PlatformWindow {
         self.window
     }
 

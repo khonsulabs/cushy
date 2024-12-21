@@ -17,6 +17,8 @@ use kludgine::app::winit::keyboard::ModifiersState;
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
 use parking_lot::{Mutex, MutexGuard};
+#[cfg(feature = "localization")]
+use unic_langid::LanguageIdentifier;
 
 use crate::app::Run;
 use crate::context::sealed::Trackable as _;
@@ -35,6 +37,8 @@ use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::list::List;
 use crate::widgets::shortcuts::{ShortcutKey, Shortcuts};
+#[cfg(feature = "localization")]
+use crate::widgets::Localized;
 use crate::widgets::{
     Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Resize, Scroll, Space,
     Stack, Style, Themed, ThemedMode, Validated, Wrap,
@@ -280,11 +284,11 @@ pub trait Widget: Send + Debug + 'static {
     ///
     /// - [`Opacity`](crate::styles::components::Opacity)
     /// - [`WidgetBackground`](crate::styles::components::WidgetBackground)
-    /// - [`FontFamily`]
-    /// - [`TextSize`]
-    /// - [`LineHeight`]
-    /// - [`FontStyle`]
-    /// - [`FontWeight`]
+    /// - [`FontFamily`](crate::styles::components::FontFamily)
+    /// - [`TextSize`](crate::styles::components::TextSize)
+    /// - [`LineHeight`](crate::styles::components::LineHeight)
+    /// - [`FontStyle`](crate::styles::components::FontStyle)
+    /// - [`FontWeight`](crate::styles::components::FontWeight)
     fn full_control_redraw(&self) -> bool {
         false
     }
@@ -533,7 +537,7 @@ pub struct WrappedLayout {
 
 impl WrappedLayout {
     /// Returns a layout that positions `size` within `available_space` while
-    /// respecting [`HOrizontalAlignment`] and [`VerticalAlignment`].
+    /// respecting [`HorizontalAlignment`] and [`VerticalAlignment`].
     pub fn aligned(
         size: Size<UPx>,
         available_space: Size<ConstraintLimit>,
@@ -1445,6 +1449,12 @@ pub trait MakeWidget: Sized {
         Themed::new(theme, self)
     }
 
+    /// Applies `theme` to `self` and its children.
+    #[cfg(feature = "localization")]
+    fn localized_in(self, locale: impl IntoValue<LanguageIdentifier>) -> Localized {
+        Localized::new(locale, self)
+    }
+
     /// Applies `mode` to `self` and its children.
     fn themed_mode(self, mode: impl IntoValue<ThemeMode>) -> ThemedMode {
         ThemedMode::new(mode, self)
@@ -2100,6 +2110,16 @@ impl MountedWidget {
         self.tree().overridden_theme(self.node_id)
     }
 
+    #[cfg(feature = "localization")]
+    pub(crate) fn attach_locale(&self, locale: Value<LanguageIdentifier>) {
+        self.tree().attach_locale(self.node_id, locale);
+    }
+
+    #[cfg(feature = "localization")]
+    pub(crate) fn overridden_locale(&self) -> Option<Value<LanguageIdentifier>> {
+        self.tree().overridden_locale(self.node_id)
+    }
+
     pub(crate) fn begin_layout(&self, constraints: Size<ConstraintLimit>) -> Option<Size<UPx>> {
         self.tree().begin_layout(self.node_id, constraints)
     }
@@ -2493,17 +2513,6 @@ where
 }
 
 /// Allows to convert collections or iterators directly into [`Stack`], [`Layers`], etc.
-///
-/// ```
-/// use cushy::widget::{MakeWidget, MakeWidgetList};
-///
-/// vec!["hello", "label"].into_rows();
-///
-/// vec!["hello", "button"]
-///     .into_iter()
-///     .map(|l| l.into_button())
-///     .into_columns();
-/// ```
 pub trait MakeWidgetList: Sized {
     /// Returns self as a `WidgetList`.
     fn make_widget_list(self) -> WidgetList;
@@ -2520,6 +2529,17 @@ pub trait MakeWidgetList: Sized {
 }
 
 /// A type that can be converted to a `Value<WidgetList>`.
+///
+/// ```
+/// use cushy::widget::{IntoWidgetList, MakeWidget};
+///
+/// vec!["hello", "label"].into_rows();
+///
+/// vec!["hello", "button"]
+///     .into_iter()
+///     .map(|l| l.into_button())
+///     .into_columns();
+/// ```
 pub trait IntoWidgetList: Sized {
     /// Returns this list of widgets as a `Value<WidgetList>`.
     fn into_widget_list(self) -> Value<WidgetList>;
