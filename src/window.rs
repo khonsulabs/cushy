@@ -1420,7 +1420,7 @@ where
                             self.theme_mode.get(),
                             &mut self.cursor,
                             #[cfg(feature = "localization")]
-                            &self.app.cushy().translations,
+                            &self.app.cushy().localizations,
                         ),
                         kludgine,
                     )
@@ -1435,7 +1435,7 @@ where
                         self.theme_mode.get(),
                         &mut self.cursor,
                         #[cfg(feature = "localization")]
-                        &self.app.cushy().translations,
+                        &self.app.cushy().localizations,
                     ),
                     kludgine,
                 )
@@ -1456,7 +1456,7 @@ where
                     self.theme_mode.get(),
                     &mut self.cursor,
                     #[cfg(feature = "localization")]
-                    &self.app.cushy().translations,
+                    &self.app.cushy().localizations,
                 ),
                 kludgine,
             )
@@ -1491,7 +1491,7 @@ where
                     self.theme_mode.get(),
                     &mut self.cursor,
                     #[cfg(feature = "localization")]
-                    &self.app.cushy().translations,
+                    &self.app.cushy().localizations,
                 ),
                 graphics,
             );
@@ -1644,7 +1644,7 @@ where
                         self.theme_mode.get(),
                         &mut self.cursor,
                         #[cfg(feature = "localization")]
-                        &self.app.cushy().translations,
+                        &self.app.cushy().localizations,
                     ),
                     kludgine,
                 );
@@ -1679,7 +1679,7 @@ where
                             self.theme_mode.get(),
                             &mut self.cursor,
                             #[cfg(feature = "localization")]
-                            &self.app.cushy().translations,
+                            &self.app.cushy().localizations,
                         ),
                         kludgine,
                     );
@@ -1895,7 +1895,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().translations,
+                &self.app.cushy().localizations,
             ),
             gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
@@ -2183,7 +2183,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().translations,
+                &self.app.cushy().localizations,
             ),
             kludgine,
         );
@@ -2246,7 +2246,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().translations,
+                &self.app.cushy().localizations,
             ),
             kludgine,
         );
@@ -2291,7 +2291,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().translations,
+                &self.app.cushy().localizations,
             ),
             kludgine,
         );
@@ -2338,7 +2338,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().translations,
+                &self.app.cushy().localizations,
             ),
             kludgine,
         )
@@ -2359,7 +2359,7 @@ where
                         self.theme_mode.get(),
                         &mut self.cursor,
                         #[cfg(feature = "localization")]
-                        &self.app.cushy().translations,
+                        &self.app.cushy().localizations,
                     ),
                     kludgine,
                 );
@@ -2401,7 +2401,7 @@ where
                     self.theme_mode.get(),
                     &mut self.cursor,
                     #[cfg(feature = "localization")]
-                    &self.app.cushy().translations,
+                    &self.app.cushy().localizations,
                 ),
                 kludgine,
             );
@@ -2446,7 +2446,7 @@ where
                         self.theme_mode.get(),
                         &mut self.cursor,
                         #[cfg(feature = "localization")]
-                        &self.app.cushy().translations,
+                        &self.app.cushy().localizations,
                     ),
                     kludgine,
                 ),
@@ -2474,7 +2474,7 @@ where
                     self.theme_mode.get(),
                     &mut self.cursor,
                     #[cfg(feature = "localization")]
-                    &self.app.cushy().translations,
+                    &self.app.cushy().localizations,
                 ),
                 kludgine,
             )
@@ -2525,7 +2525,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().translations,
+                &self.app.cushy().localizations,
             ),
             kludgine,
         );
@@ -2976,7 +2976,7 @@ where
                         self.theme_mode.get(),
                         &mut self.cursor,
                         #[cfg(feature = "localization")]
-                        &self.app.cushy().translations,
+                        &self.app.cushy().localizations,
                     ),
                     kludgine,
                 );

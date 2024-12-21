@@ -367,7 +367,7 @@ pub struct Cushy {
     settings: Arc<Mutex<AppSettings>>,
     runtime: BoxedRuntime,
     #[cfg(feature = "localization")]
-    pub(crate) translations: Localizations,
+    pub(crate) localizations: Localizations,
 }
 
 impl Cushy {
@@ -382,7 +382,7 @@ impl Cushy {
             })),
             runtime,
             #[cfg(feature = "localization")]
-            translations: Localizations::default(),
+            localizations: Localizations::default(),
         }
     }
 
@@ -412,11 +412,11 @@ impl Cushy {
         &self.fonts
     }
 
-    /// Returns the translations that will be loaded in all Cushy windows.
+    /// Returns the localizations that are applied throughout the application.
     #[must_use]
     #[cfg(feature = "localization")]
-    pub fn translations(&self) -> &Localizations {
-        &self.translations
+    pub fn localizations(&self) -> &Localizations {
+        &self.localizations
     }
 
     /// Enters the application's runtime context.

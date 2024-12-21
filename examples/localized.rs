@@ -1,63 +1,63 @@
-use cushy::localization::{Localization, Localize};
+use cushy::localization::Localization;
 use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
-use cushy::{Open, PendingApp};
+use cushy::{localize, Open, PendingApp};
 use unic_langid::LanguageIdentifier;
 
 fn localized() -> impl MakeWidget {
-    let element_in_default_locale = Localize::new("message-hello-world").contain();
+    let element_in_default_locale = localize!("message-hello-world").contain();
 
     let specific_locale: LanguageIdentifier = "es-ES".parse().unwrap();
-    let elements_in_specific_locale = Localize::new("message-hello-world")
+    let elements_in_specific_locale = localize!("message-hello-world")
         .localized_in(specific_locale)
         .contain();
 
     let dynamic_locale: Dynamic<LanguageChoices> = Dynamic::default();
-    let dynamic_message_label = Localize::new("message-hello-world");
+    let dynamic_message_label = localize!("message-hello-world");
 
     let dynamic_language_selector = dynamic_locale
         .new_radio(LanguageChoices::EnGb)
-        .labelled_by(Localize::new("language-en-gb"))
+        .labelled_by(localize!("language-en-gb"))
         .and(
             dynamic_locale
                 .new_radio(LanguageChoices::EnUs)
-                .labelled_by(Localize::new("language-en-us")),
+                .labelled_by(localize!("language-en-us")),
         )
         .and(
             dynamic_locale
                 .new_radio(LanguageChoices::EsEs)
-                .labelled_by(Localize::new("language-es-es")),
+                .labelled_by(localize!("language-es-es")),
         )
         .into_rows()
         .contain();
 
     let bananas_counter = Dynamic::new(0u32);
 
-    let counter_elements = Localize::new("banana-counter-message")
-        .arg("bananas_counter", &bananas_counter)
-        .and(
-            "+".into_button()
-                .on_click(bananas_counter.with_clone(|counter| {
-                    move |_| {
-                        let mut counter = counter.lock();
-                        counter.checked_add(1).inspect(|new_counter| {
-                            *counter = *new_counter;
-                        });
-                    }
-                })),
-        )
-        .and(
-            "-".into_button()
-                .on_click(bananas_counter.with_clone(|counter| {
-                    move |_| {
-                        let mut counter = counter.lock();
-                        counter.checked_sub(1).inspect(|new_counter| {
-                            *counter = *new_counter;
-                        });
-                    }
-                })),
-        )
-        .into_columns();
+    let counter_elements =
+        localize!("banana-counter-message", "bananas_counter" => &bananas_counter)
+            .and(
+                "+".into_button()
+                    .on_click(bananas_counter.with_clone(|counter| {
+                        move |_| {
+                            let mut counter = counter.lock();
+                            counter.checked_add(1).inspect(|new_counter| {
+                                *counter = *new_counter;
+                            });
+                        }
+                    })),
+            )
+            .and(
+                "-".into_button()
+                    .on_click(bananas_counter.with_clone(|counter| {
+                        move |_| {
+                            let mut counter = counter.lock();
+                            counter.checked_sub(1).inspect(|new_counter| {
+                                *counter = *new_counter;
+                            });
+                        }
+                    })),
+            )
+            .into_columns();
 
     let dynamic_container = dynamic_message_label
         .and(counter_elements)
@@ -96,24 +96,24 @@ impl LanguageChoices {
 fn main(app: &mut PendingApp) -> cushy::Result {
     // If you comment this block out, you can see the effect of having missing translation files.
     {
-        app.cushy().translations().add_default(
+        app.cushy().localizations().add_default(
             Localization::for_language(
                 "en-US",
-                include_str!("assets/translations/en-US/hello.ftl"),
+                include_str!("assets/localizations/en-US/hello.ftl"),
             )
             .expect("valid language id"),
         );
-        app.cushy().translations().add(
+        app.cushy().localizations().add(
             Localization::for_language(
                 "en-GB",
-                include_str!("assets/translations/en-GB/hello.ftl"),
+                include_str!("assets/localizations/en-GB/hello.ftl"),
             )
             .expect("valid language id"),
         );
-        app.cushy().translations().add(
+        app.cushy().localizations().add(
             Localization::for_language(
                 "es-ES",
-                include_str!("assets/translations/es-ES/hello.ftl"),
+                include_str!("assets/localizations/es-ES/hello.ftl"),
             )
             .expect("valid language id"),
         );

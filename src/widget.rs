@@ -284,11 +284,11 @@ pub trait Widget: Send + Debug + 'static {
     ///
     /// - [`Opacity`](crate::styles::components::Opacity)
     /// - [`WidgetBackground`](crate::styles::components::WidgetBackground)
-    /// - [`FontFamily`]
-    /// - [`TextSize`]
-    /// - [`LineHeight`]
-    /// - [`FontStyle`]
-    /// - [`FontWeight`]
+    /// - [`FontFamily`](crate::styles::components::FontFamily)
+    /// - [`TextSize`](crate::styles::components::TextSize)
+    /// - [`LineHeight`](crate::styles::components::LineHeight)
+    /// - [`FontStyle`](crate::styles::components::FontStyle)
+    /// - [`FontWeight`](crate::styles::components::FontWeight)
     fn full_control_redraw(&self) -> bool {
         false
     }
@@ -537,7 +537,7 @@ pub struct WrappedLayout {
 
 impl WrappedLayout {
     /// Returns a layout that positions `size` within `available_space` while
-    /// respecting [`HOrizontalAlignment`] and [`VerticalAlignment`].
+    /// respecting [`HorizontalAlignment`] and [`VerticalAlignment`].
     pub fn aligned(
         size: Size<UPx>,
         available_space: Size<ConstraintLimit>,
@@ -2513,17 +2513,6 @@ where
 }
 
 /// Allows to convert collections or iterators directly into [`Stack`], [`Layers`], etc.
-///
-/// ```
-/// use cushy::widget::{MakeWidget, MakeWidgetList};
-///
-/// vec!["hello", "label"].into_rows();
-///
-/// vec!["hello", "button"]
-///     .into_iter()
-///     .map(|l| l.into_button())
-///     .into_columns();
-/// ```
 pub trait MakeWidgetList: Sized {
     /// Returns self as a `WidgetList`.
     fn make_widget_list(self) -> WidgetList;
@@ -2540,6 +2529,17 @@ pub trait MakeWidgetList: Sized {
 }
 
 /// A type that can be converted to a `Value<WidgetList>`.
+///
+/// ```
+/// use cushy::widget::{IntoWidgetList, MakeWidget};
+///
+/// vec!["hello", "label"].into_rows();
+///
+/// vec!["hello", "button"]
+///     .into_iter()
+///     .map(|l| l.into_button())
+///     .into_columns();
+/// ```
 pub trait IntoWidgetList: Sized {
     /// Returns this list of widgets as a `Value<WidgetList>`.
     fn into_widget_list(self) -> Value<WidgetList>;

@@ -1,17 +1,105 @@
-//! Localization allows UIs to be created that support more than just one language.
+//! Localization allows user interfaces to be presented in the user's native
+//! locale (language and region).
 //!
-//! The basic idea is that instead of using strings throughout the application, you use keys that
-//! refer to messages in translation files.
+//! Localization in Cushy is powered by [Fluent](https://projectfluent.org/).
+//! Fluent offers a variety of features that solve many common localization
+//! problems. If you think your application might benefit from having multiple
+//! languages, it might save a lot of time to build the application with
+//! localization in mind.
 //!
-//! The Fluent crate is used as a backend.  Translations are stored in `.ftl` files.
+//! Thankfully, localization in Cushy is fairly straightforward. Wherever you
+//! want to display a localizable message, use the [`Localize`] type or the
+//! [`localize!`](crate::localize) macro:
 //!
-//! Basic example of creating a label:
 //! ```rust
 //! use cushy::localization::Localize;
-//! let label = Localize::new("message-hello-world").into_label();
+//! use cushy::localize;
+//!
+//! let message = Localize::new("hello-world");
+//! let message = localize!("hello-world");
 //! ```
 //!
-//! Translation files are added to the `Cushy` app instance, see [`Cushy::translations()`](crate::app::Cushy::translations).
+//! Regardless of which style you prefer, `message` now contains a localizable
+//! message. When the application is running, wherever `message` is used, the
+//! message will be looked up in the current locale.
+//!
+//! Localization messages are resolved through the application's
+//! [`Cushy`](crate::Cushy) instance.
+//! [`Cushy::localizations()`](crate::Cushy::localizations) returns the global
+//! [`Localizations`] collection, which [`Localization`]s can be added to.
+//! Consider this simple example:
+//!
+//! ```rust
+//! use cushy::localization::Localization;
+//! use cushy::{localize, Open, PendingApp};
+//!
+//! # fn main() {
+//! #[cushy::main]
+//! fn main(app: &mut PendingApp) -> cushy::Result {
+//!     app.cushy()
+//!         .localizations()
+//!         .add_default(Localization::for_language("en-US", "hello = Hello World!").unwrap());
+//!     app.cushy()
+//!         .localizations()
+//!         .add_default(Localization::for_language("es-MX", "hello = ¡Hola Mundo!").unwrap());
+//!     app.cushy()
+//!         .localizations()
+//!         .add_default(Localization::for_language("fr-FR", "hello = Bonjour monde!").unwrap());
+//!
+//!     localize!("hello").open(app)?;
+//!
+//!     Ok(())
+//! }
+//! # }
+//! ```
+//!
+//! Additionally, Fluent supports providing arguments to localization messages:
+//!
+//!
+//! ```rust
+//! use cushy::localization::Localization;
+//! use cushy::{localize, Open, PendingApp};
+//!
+//! # fn main() {
+//! #[cushy::main]
+//! fn main(app: &mut PendingApp) -> cushy::Result {
+//!     app.cushy()
+//!         .localizations()
+//!         .add_default(Localization::for_language("en-US", "hello-user = Hello {$name}!").unwrap());
+//!     app.cushy()
+//!         .localizations()
+//!         .add_default(Localization::for_language("es-MX", "hello-user = ¡Hola {$name}!").unwrap());
+//!     app.cushy()
+//!         .localizations()
+//!         .add_default(Localization::for_language("fr-FR", "hello-user = Bonjour {$name}!").unwrap());
+//!
+//!     localize!("hello", "user" => "Ecton").open(app)?;
+//!
+//!     Ok(())
+//! }
+//! # }
+//! ```
+//!
+//! # Locale Fallback Behavior
+//!
+//! Cushy attempts to find an exact match between the current locale and a
+//! loaded [`Localization`]. If an exact match is not found, [`fluent_langneg`]
+//! is used to try to find a fallback locale. If the message being localized
+//! cannot be found in either of these locales, the message is looked up in the
+//! *default locale*.
+//!
+//! Cushy has the concept of a *default locale*. There is no default locale
+//! until either [`Localizations::add_default`] or
+//! [`Localizations::set_default_locale`] are executed. Once a default locale is
+//! established, any messages that cannot be found in the current locale or a
+//! fallback locale will be localized using the default locale as a final
+//! effort.
+//!
+//! Using the default locale can be convenient, but it can also make it harder
+//! to visually notice when a message is missing from a particular locale. When
+//! relying on third parties to provide localizations, it can be beneficial to
+//! ensure that a valid message is always shown even if a localized message has
+//! not been provided yet.
 
 use core::fmt;
 use std::borrow::Cow;
@@ -64,7 +152,7 @@ impl LocalizationContext for WidgetContext<'_> {
     }
 
     fn localizations(&self) -> &Localizations {
-        self.translations()
+        self.localizations()
     }
 
     fn invalidate_when_changed(&self, trackable: &impl Trackable) {
@@ -78,7 +166,7 @@ impl LocalizationContext for EventContext<'_> {
     }
 
     fn localizations(&self) -> &Localizations {
-        self.widget.translations()
+        self.widget.localizations()
     }
 
     fn invalidate_when_changed(&self, trackable: &impl Trackable) {
@@ -92,7 +180,7 @@ impl LocalizationContext for GraphicsContext<'_, '_, '_, '_> {
     }
 
     fn localizations(&self) -> &Localizations {
-        self.widget.translations()
+        self.widget.localizations()
     }
 
     fn invalidate_when_changed(&self, trackable: &impl Trackable) {
@@ -106,7 +194,7 @@ impl LocalizationContext for LayoutContext<'_, '_, '_, '_> {
     }
 
     fn localizations(&self) -> &Localizations {
-        self.widget.translations()
+        self.widget.localizations()
     }
 
     fn invalidate_when_changed(&self, trackable: &impl Trackable) {
@@ -148,8 +236,8 @@ impl DynamicDisplay for MaybeLocalized {
 /// The primary of defining localized message
 #[derive(Clone, Debug)]
 pub struct Localize {
-    key: String,
-    args: HashMap<String, Value<FluentValue<'static>>>,
+    key: Cow<'static, str>,
+    args: Vec<(String, Value<FluentValue<'static>>)>,
 }
 
 impl IntoValue<MaybeLocalized> for Localize {
@@ -163,10 +251,10 @@ impl Localize {
     ///
     /// The `key` should refer to a valid message identifier in the localization files.
     /// See [Writing Text](https://projectfluent.org/fluent/guide/text.html)
-    pub fn new(key: impl Into<String>) -> Self {
+    pub fn new(key: impl Into<Cow<'static, str>>) -> Self {
         Self {
             key: key.into(),
-            args: HashMap::new(),
+            args: Vec::new(),
         }
     }
 
@@ -187,7 +275,7 @@ impl Localize {
         key: impl Into<String>,
         value: impl IntoValue<FluentValue<'static>>,
     ) -> Self {
-        self.args.insert(key.into(), value.into_value());
+        self.args.push((key.into(), value.into_value()));
         self
     }
 
@@ -207,8 +295,8 @@ impl Localize {
     ) -> fmt::Result {
         let locale = context.locale();
 
-        let translations = context.localizations();
-        let mut state = translations.state.lock();
+        let localizations = context.localizations();
+        let mut state = localizations.state.lock();
         // When localizing, we need mut access to update the FallbackLocales
         // cache. We don't want fallback locale renegotation to cause extra
         // invalidations.
@@ -237,28 +325,57 @@ impl Localize {
     }
 }
 
-macro_rules! impl_into_fluent_value {
-    ($($ty:ty)+) => {
-        $(impl_into_fluent_value!(. $ty);)+
+/// Returns a message that is localized in the current locale.
+///
+/// The first argument to this macro is the unique id/key of the message being
+/// localized. After the initial argument, the remaning arguments are expected
+/// to be `name => value` pairs.
+///
+/// ```rust
+/// use cushy::localize;
+///
+/// let message = localize!("welcome-message");
+///
+/// let message = localize!("welcome-message", "user" => "Ecton");
+/// ```
+#[macro_export]
+macro_rules! localize {
+    ($key:expr) => {
+        $crate::localization::Localize::new($key)
     };
-    (. $ty:ty) => {
-        impl IntoValue<FluentValue<'static>> for $ty {
-            fn into_value(self) -> Value<FluentValue<'static>> {
-                Value::Constant(FluentValue::from(self))
-            }
-        }
-        impl IntoValue<FluentValue<'static>> for Dynamic<$ty> {
-            fn into_value(self) -> Value<FluentValue<'static>> {
-                (&self).into_value()
-            }
-        }
-        impl IntoValue<FluentValue<'static>> for &Dynamic<$ty> {
-            fn into_value(self) -> Value<FluentValue<'static>> {
-                Value::Dynamic(self.map_each_into())
-            }
+    ($key:expr, $($name:expr => $arg:expr),*) => {
+        {
+            let mut localize = $crate::localization::Localize::new($key);
+            $(
+                localize = localize.arg($name, $arg);
+            )*
+            localize
         }
     };
 }
+
+macro_rules! impl_into_fluent_value {
+        ($($ty:ty)+) => {
+            $(impl_into_fluent_value!(. $ty);)+
+        };
+        (. $ty:ty) => {
+            impl IntoValue<FluentValue<'static>> for $ty {
+                fn into_value(self) -> Value<FluentValue<'static>> {
+                    Value::Constant(FluentValue::from(self))
+                }
+            }
+            impl IntoValue<FluentValue<'static>> for Dynamic<$ty> {
+                fn into_value(self) -> Value<FluentValue<'static>> {
+                    (&self).into_value()
+                }
+            }
+            impl IntoValue<FluentValue<'static>> for &Dynamic<$ty> {
+                fn into_value(self) -> Value<FluentValue<'static>> {
+                    Value::Dynamic(self.map_each_into())
+                }
+            }
+        };
+    }
 
 impl_into_fluent_value!(i8 i16 i32 i64 i128 isize);
 impl_into_fluent_value!(u8 u16 u32 u64 u128 usize);

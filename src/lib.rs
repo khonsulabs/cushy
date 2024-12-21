@@ -34,6 +34,7 @@ pub mod dialog;
 #[doc(hidden)]
 pub mod example;
 #[cfg(feature = "localization")]
+#[macro_use]
 pub mod localization;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
@@ -83,7 +84,7 @@ impl MaybeLocalized {
             MaybeLocalized::Text(text) => text.clone(),
             #[cfg(feature = "localization")]
             MaybeLocalized::Localized(localized) => {
-                localized.localize(&localization::WindowTranslationContext(&app.translations))
+                localized.localize(&localization::WindowTranslationContext(&app.localizations))
             }
         }
     }
@@ -130,7 +131,7 @@ pub use app::{
 /// ### Without Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{Open, PendingApp, Run};
 ///
 /// fn main() -> cushy::Result {
@@ -148,7 +149,7 @@ pub use app::{
 /// ### With Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{Open, PendingApp};
 ///
 /// #[cushy::main]
@@ -171,7 +172,7 @@ pub use app::{
 /// ### Without Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{App, Open, PendingApp, Run};
 ///
 /// fn main() -> cushy::Result {
@@ -188,7 +189,7 @@ pub use app::{
 /// ### With Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{App, Open};
 ///
 /// #[cushy::main]

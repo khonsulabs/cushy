@@ -979,7 +979,7 @@ pub struct WidgetContext<'context> {
     #[cfg(feature = "localization")]
     locale: Value<LanguageIdentifier>,
     #[cfg(feature = "localization")]
-    translations: &'context Localizations,
+    localizations: &'context Localizations,
 }
 
 impl<'context> WidgetContext<'context> {
@@ -1027,7 +1027,7 @@ impl<'context> WidgetContext<'context> {
             #[cfg(feature = "localization")]
             locale: Value::Constant(LanguageIdentifier::default()),
             #[cfg(feature = "localization")]
-            translations: localizations,
+            localizations,
         };
 
         if let Some(theme) = overridden_theme {
@@ -1040,7 +1040,7 @@ impl<'context> WidgetContext<'context> {
         if let Some(locale) = overridden_locale {
             context.locale = locale;
         } else {
-            context.locale = Value::Constant(context.translations.effective_locale(&context));
+            context.locale = Value::Constant(context.localizations.effective_locale(&context));
         }
 
         context
@@ -1061,7 +1061,7 @@ impl<'context> WidgetContext<'context> {
             #[cfg(feature = "localization")]
             locale: self.locale.clone(),
             #[cfg(feature = "localization")]
-            translations: self.translations,
+            localizations: self.localizations,
         }
     }
 
@@ -1109,7 +1109,7 @@ impl<'context> WidgetContext<'context> {
                 #[cfg(feature = "localization")]
                 locale,
                 #[cfg(feature = "localization")]
-                translations: self.translations,
+                localizations: self.localizations,
             }
         })
     }
@@ -1343,11 +1343,11 @@ impl<'context> WidgetContext<'context> {
         &self.locale
     }
 
-    /// Returns the translations for this application.
+    /// Returns the localizations for this application.
     #[must_use]
     #[cfg(feature = "localization")]
-    pub const fn translations(&self) -> &Localizations {
-        self.translations
+    pub const fn localizations(&self) -> &Localizations {
+        self.localizations
     }
 
     /// Returns an exclusive reference to the window containing this widget.
