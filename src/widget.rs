@@ -1451,7 +1451,7 @@ pub trait MakeWidget: Sized {
 
     /// Applies `theme` to `self` and its children.
     #[cfg(feature = "localization")]
-    fn localized(self, locale: impl IntoValue<LanguageIdentifier>) -> Localized {
+    fn localized_in(self, locale: impl IntoValue<LanguageIdentifier>) -> Localized {
         Localized::new(locale, self)
     }
 

@@ -1,36 +1,32 @@
 use cushy::localization::{Localization, Localize};
 use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
-use cushy::widgets::label::DynamicDisplay;
-use cushy::{Open, PendingApp, Run};
-use fluent_bundle::types::FluentNumber;
-use fluent_bundle::FluentValue;
+use cushy::{Open, PendingApp};
 use unic_langid::LanguageIdentifier;
 
 fn localized() -> impl MakeWidget {
-    let element_in_default_locale = Localize::new("message-hello-world").into_label().contain();
+    let element_in_default_locale = Localize::new("message-hello-world").contain();
 
     let specific_locale: LanguageIdentifier = "es-ES".parse().unwrap();
     let elements_in_specific_locale = Localize::new("message-hello-world")
-        .into_label()
-        .localized(specific_locale)
+        .localized_in(specific_locale)
         .contain();
 
     let dynamic_locale: Dynamic<LanguageChoices> = Dynamic::default();
-    let dynamic_message_label = Localize::new("message-hello-world").into_label();
+    let dynamic_message_label = Localize::new("message-hello-world");
 
     let dynamic_language_selector = dynamic_locale
         .new_radio(LanguageChoices::EnGb)
-        .labelled_by(Localize::new("language-en-gb").into_label())
+        .labelled_by(Localize::new("language-en-gb"))
         .and(
             dynamic_locale
                 .new_radio(LanguageChoices::EnUs)
-                .labelled_by(Localize::new("language-en-us").into_label()),
+                .labelled_by(Localize::new("language-en-us")),
         )
         .and(
             dynamic_locale
                 .new_radio(LanguageChoices::EsEs)
-                .labelled_by(Localize::new("language-es-es").into_label()),
+                .labelled_by(Localize::new("language-es-es")),
         )
         .into_rows()
         .contain();
@@ -38,11 +34,7 @@ fn localized() -> impl MakeWidget {
     let bananas_counter = Dynamic::new(0u32);
 
     let counter_elements = Localize::new("banana-counter-message")
-        .arg(
-            "bananas_counter",
-            bananas_counter.map_each(|value| FluentValue::Number(FluentNumber::from(value))),
-        )
-        .into_label()
+        .arg("bananas_counter", &bananas_counter)
         .and(
             "+".into_button()
                 .on_click(bananas_counter.with_clone(|counter| {
@@ -72,7 +64,7 @@ fn localized() -> impl MakeWidget {
         .and(dynamic_language_selector)
         .into_rows()
         .contain()
-        .localized(dynamic_locale.map_each(LanguageChoices::to_locale));
+        .localized_in(dynamic_locale.map_each(LanguageChoices::to_locale));
 
     element_in_default_locale
         .and(elements_in_specific_locale)
@@ -100,27 +92,25 @@ impl LanguageChoices {
     }
 }
 
-fn main() -> cushy::Result {
-    let mut app = PendingApp::default();
-
+#[cushy::main]
+fn main(app: &mut PendingApp) -> cushy::Result {
     // If you comment this block out, you can see the effect of having missing translation files.
     {
-        let translations = app.cushy().translations();
-        translations.add_default(
+        app.cushy().translations().add_default(
             Localization::for_language(
                 "en-US",
                 include_str!("assets/translations/en-US/hello.ftl"),
             )
             .expect("valid language id"),
         );
-        translations.add(
+        app.cushy().translations().add(
             Localization::for_language(
                 "en-GB",
                 include_str!("assets/translations/en-GB/hello.ftl"),
             )
             .expect("valid language id"),
         );
-        translations.add(
+        app.cushy().translations().add(
             Localization::for_language(
                 "es-ES",
                 include_str!("assets/translations/es-ES/hello.ftl"),
@@ -129,9 +119,9 @@ fn main() -> cushy::Result {
         );
     }
 
-    let _window_handle = localized().into_window().open(&mut app)?;
+    localized().into_window().open(app)?;
 
-    app.run()
+    Ok(())
 }
 
 #[test]

@@ -27,6 +27,7 @@ use unic_langid::{LanguageIdentifier, LanguageIdentifierError};
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext, Trackable, WidgetContext};
 use crate::value::{Dynamic, DynamicRead, Generation, IntoValue, Source, Value};
+use crate::widget::{MakeWidgetWithTag, WidgetInstance, WidgetTag};
 use crate::widgets::label::DynamicDisplay;
 use crate::MaybeLocalized;
 
@@ -181,8 +182,12 @@ impl Localize {
     ///
     /// See [Variables](https://projectfluent.org/fluent/guide/variables.html)
     #[must_use]
-    pub fn arg(mut self, key: &str, value: impl IntoValue<FluentValue<'static>>) -> Self {
-        self.args.insert(key.to_owned(), value.into_value());
+    pub fn arg(
+        mut self,
+        key: impl Into<String>,
+        value: impl IntoValue<FluentValue<'static>>,
+    ) -> Self {
+        self.args.insert(key.into(), value.into_value());
         self
     }
 
@@ -232,6 +237,34 @@ impl Localize {
     }
 }
 
+macro_rules! impl_into_fluent_value {
+    ($($ty:ty)+) => {
+        $(impl_into_fluent_value!(. $ty);)+
+    };
+    (. $ty:ty) => {
+        impl IntoValue<FluentValue<'static>> for $ty {
+            fn into_value(self) -> Value<FluentValue<'static>> {
+                Value::Constant(FluentValue::from(self))
+            }
+        }
+        impl IntoValue<FluentValue<'static>> for Dynamic<$ty> {
+            fn into_value(self) -> Value<FluentValue<'static>> {
+                (&self).into_value()
+            }
+        }
+        impl IntoValue<FluentValue<'static>> for &Dynamic<$ty> {
+            fn into_value(self) -> Value<FluentValue<'static>> {
+                Value::Dynamic(self.map_each_into())
+            }
+        }
+    };
+}
+
+impl_into_fluent_value!(i8 i16 i32 i64 i128 isize);
+impl_into_fluent_value!(u8 u16 u32 u64 u128 usize);
+impl_into_fluent_value!(f32 f64);
+impl_into_fluent_value!(String &'static str);
+
 impl DynamicDisplay for Localize {
     fn generation(&self, context: &WidgetContext<'_>) -> Option<Generation> {
         let mut generation = context.localizations().state.generation();
@@ -251,6 +284,12 @@ impl DynamicDisplay for Localize {
 
     fn fmt(&self, context: &WidgetContext<'_>, f: &mut Formatter<'_>) -> fmt::Result {
         self.localize_into(context, f)
+    }
+}
+
+impl MakeWidgetWithTag for Localize {
+    fn make_with_tag(self, tag: WidgetTag) -> WidgetInstance {
+        self.into_label().make_with_tag(tag)
     }
 }
 
