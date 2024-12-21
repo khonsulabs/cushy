@@ -132,7 +132,7 @@ impl MaybeLocalized {
 
 pub(crate) struct WindowTranslationContext<'a>(pub(crate) &'a Localizations);
 
-/// A context that can used while localizing values.
+/// A context that is used while localizing values.
 pub trait LocalizationContext {
     /// Returns the current locale of this context.
     fn locale(&self) -> LanguageIdentifier;
@@ -247,10 +247,10 @@ impl IntoValue<MaybeLocalized> for Localize {
 }
 
 impl Localize {
-    /// Create a new [`Localization`] instance.
+    /// Returns a value that localizes `key` at runtime.
     ///
-    /// The `key` should refer to a valid message identifier in the localization files.
-    /// See [Writing Text](https://projectfluent.org/fluent/guide/text.html)
+    /// The `key` should refer to a valid message identifier in the loaded
+    /// [`Localizations`] for the application.
     pub fn new(key: impl Into<Cow<'static, str>>) -> Self {
         Self {
             key: key.into(),
@@ -258,7 +258,7 @@ impl Localize {
         }
     }
 
-    /// Localizes this message using the given translation context.
+    /// Returns localized value using `context`.
     pub fn localize(&self, context: &impl LocalizationContext) -> String {
         let mut localized = String::new();
         self.localize_into(context, &mut localized)
@@ -266,7 +266,7 @@ impl Localize {
         localized
     }
 
-    /// Add an argument which can be used by the `.ftl` files.
+    /// Add a named argument, which can be used with parameterized messages.
     ///
     /// See [Variables](https://projectfluent.org/fluent/guide/variables.html)
     #[must_use]
@@ -325,7 +325,7 @@ impl Localize {
     }
 }
 
-/// Returns a message that is localized in the current locale.
+/// Returns a message localized in the current locale.
 ///
 /// The first argument to this macro is the unique id/key of the message being
 /// localized. After the initial argument, the remaning arguments are expected
@@ -338,6 +338,8 @@ impl Localize {
 ///
 /// let message = localize!("welcome-message", "user" => "Ecton");
 /// ```
+///
+/// This macro always returns a [`Localize`].
 #[macro_export]
 macro_rules! localize {
     ($key:expr) => {
@@ -475,6 +477,9 @@ impl Localizations {
     /// translation's locale as the default locale for this application.
     ///
     /// Note the `.ftl` file is not immediately parsed.
+    ///
+    /// See [`Localizations::set_default_locale`] for more information about
+    /// what the default locale is for.
     pub fn add_default(&self, translation: Localization) {
         let mut state = self.state.lock();
         state.default_locale = translation.locale.clone();
@@ -495,6 +500,9 @@ impl Localizations {
     }
 
     /// Returns the default locale.
+    ///
+    /// See [`Localizations::set_default_locale`] for more information about
+    /// what the default locale is for.
     #[must_use]
     pub fn default_locale(&self) -> LanguageIdentifier {
         self.state.read().default_locale.clone()
@@ -504,6 +512,10 @@ impl Localizations {
     /// application.
     ///
     /// This dynamic contains [`Locale::System`] by default.
+    ///
+    /// Changing the value contained by this dynamaic will update the locale for
+    /// the entire application. The [`Localized`](crate::widgets::Localized)
+    /// widget can be used to localize a section of an user interface.
     #[must_use]
     pub const fn user_locale(&self) -> &Dynamic<Locale> {
         &self.locale
