@@ -294,34 +294,29 @@ impl Localize {
         f: &mut W,
     ) -> fmt::Result {
         let locale = context.locale();
-
-        let localizations = context.localizations();
-        let mut state = localizations.state.lock();
+        let mut state = context.localizations().state.lock();
         // When localizing, we need mut access to update the FallbackLocales
         // cache. We don't want fallback locale renegotation to cause extra
         // invalidations.
         state.prevent_notifications();
 
-        let Some((bundle, message)) = state.localize(self, &locale) else {
-            return f.write_str(&format!("No message. locale: {locale}, key: {}", self.key));
-        };
-
-        let Some(value) = message.value() else {
-            return f.write_str(&format!("No value. locale: {locale}, key: {}", self.key));
+        let Some((bundle, value)) = state
+            .localize(self, &locale)
+            .and_then(|(bundle, message)| message.value().map(|value| (bundle, value)))
+        else {
+            tracing::warn!("missing localization of `{}` for {locale}", self.key);
+            return f.write_str(&format!("$missing {} for {locale}$", self.key));
         };
 
         let mut err = vec![];
         let args = self.get_args(context);
-        let res = bundle.format_pattern(value, Some(&args), &mut err);
+        bundle.write_pattern(f, value, Some(&args), &mut err)?;
 
-        if err.is_empty() {
-            f.write_str(&res)
-        } else {
-            f.write_str(&format!(
-                "{} {{Error. locale: {}, key: {}, cause: {:?}}}",
-                locale, self.key, res, err
-            ))
+        for err in err {
+            tracing::error!("error localizing {} in {locale}: {err}", self.key);
         }
+
+        Ok(())
     }
 }
 
@@ -464,27 +459,27 @@ pub struct Localizations {
 }
 
 impl Localizations {
-    /// Add a `Fluent` translation file for a given locale.
+    /// Add a localization to this collection.
     ///
-    /// Note the `.ftl` file is not immediately parsed.
-    pub fn add(&self, translation: Localization) {
+    /// Any errors will be output using `tracing`.
+    pub fn add(&self, localization: Localization) {
         let mut state = self.state.lock();
 
-        state.add(translation);
+        state.add(localization);
     }
 
-    /// Add a `Fluent` translation file for a given locale, setting this
-    /// translation's locale as the default locale for this application.
+    /// Add a localization to this collection, setting this localizations's
+    /// locale as the default locale.
     ///
-    /// Note the `.ftl` file is not immediately parsed.
+    /// Any errors will be output using `tracing`.
     ///
     /// See [`Localizations::set_default_locale`] for more information about
     /// what the default locale is for.
-    pub fn add_default(&self, translation: Localization) {
+    pub fn add_default(&self, localization: Localization) {
         let mut state = self.state.lock();
-        state.default_locale = translation.locale.clone();
+        state.default_locale = localization.locale.clone();
 
-        state.add(translation);
+        state.add(localization);
     }
 
     /// Sets the locale to use as a fallback when the currently set or detected
@@ -532,25 +527,12 @@ impl Localizations {
     }
 }
 
+#[derive(Default)]
 struct TranslationState {
     fallback_locales: FallbackLocales,
     default_locale: LanguageIdentifier,
     all_locales: Vec<LanguageIdentifier>,
-    loaded_translations: HashMap<LanguageIdentifier, FluentBundle<FluentResource>>,
-}
-
-impl Default for TranslationState {
-    fn default() -> Self {
-        Self {
-            fallback_locales: FallbackLocales::default(),
-            default_locale: LanguageIdentifier::default(),
-            all_locales: Vec::new(),
-            loaded_translations: HashMap::from([(
-                LanguageIdentifier::default(),
-                FluentBundle::new_concurrent(vec![LanguageIdentifier::default()]),
-            )]),
-        }
-    }
+    loaded_bundles: HashMap<LanguageIdentifier, FluentBundle<FluentResource>>,
 }
 
 impl TranslationState {
@@ -565,7 +547,7 @@ impl TranslationState {
             }
         };
         let bundle = self
-            .loaded_translations
+            .loaded_bundles
             .entry(translation.locale.clone())
             .or_insert_with(|| FluentBundle::new_concurrent(vec![translation.locale.clone()]));
         if let Err(errors) = bundle.add_resource(res) {
@@ -582,7 +564,7 @@ impl TranslationState {
         message: &Localize,
         locale: &LanguageIdentifier,
     ) -> Option<(&'a FluentBundle<FluentResource>, FluentMessage<'a>)> {
-        self.loaded_translations
+        self.loaded_bundles
             .get(locale)
             .and_then(|bundle| {
                 bundle
@@ -592,7 +574,7 @@ impl TranslationState {
             .or_else(|| {
                 self.fallback_locales
                     .fallback_for(locale, &self.all_locales, &self.default_locale)
-                    .and_then(|fallback| self.loaded_translations.get(fallback))
+                    .and_then(|fallback| self.loaded_bundles.get(fallback))
                     .and_then(|bundle| {
                         bundle
                             .get_message(&message.key)
@@ -600,7 +582,7 @@ impl TranslationState {
                     })
             })
             .or_else(|| {
-                self.loaded_translations
+                self.loaded_bundles
                     .get(&self.default_locale)
                     .and_then(|bundle| {
                         bundle

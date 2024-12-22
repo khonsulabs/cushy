@@ -95,7 +95,7 @@ name = "tokio"
 required-features = ["tokio"]
 
 [[example]]
-name = "localized"
+name = "localization"
 required-features = ["localization"]
 
 [profile.release]

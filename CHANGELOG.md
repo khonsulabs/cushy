@@ -390,8 +390,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   supported by a `GraphicsContext`. `FontSettings::apply()` can be used to apply
   settings in one step. `FontSettings` also implements `PartialEq` allowing it
   to be used as a cache invalidation key.
+- New feature `localization`, included in Cushy's default features, enables
+  multi-lingual/multi-locale support using [Fluent][fluent]. See the
+  `localization` module for documentation of this feature, or see the
+  `localization.rs` example in the repository to see it in action.
 
-
+[fluent]: https://projectfluent.org/
 [139]: https://github.com/khonsulabs/cushy/issues/139
 
 ## v0.4.0 (2024-08-20)
