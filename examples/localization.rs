@@ -1,8 +1,9 @@
-use cushy::localization::Localization;
+use cushy::localization::{Localization, Localize};
 use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::{localize, Open, PendingApp};
 use unic_langid::LanguageIdentifier;
+use cushy::widgets::Localized;
 
 fn localization() -> impl MakeWidget {
     // Create a widget showing `message-hello-world`, which we will place on the
@@ -129,7 +130,9 @@ fn main(app: &mut PendingApp) -> cushy::Result {
         );
     }
 
-    localization().into_window().open(app)?;
+    localization().into_window()
+        .titled(localize!("window-title"))
+        .open(app)?;
 
     Ok(())
 }
