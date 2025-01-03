@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use cushy::animation::ZeroToOne;
 use cushy::figures::units::Px;
 use cushy::figures::Rect;
 use cushy::kludgine::{wgpu, RenderingGraphics};
@@ -70,7 +71,12 @@ impl SimpleRenderOperation for TriangleShader {
         Self { pipeline }
     }
 
-    fn render(&self, region: Rect<Px>, _opacity: f32, graphics: &mut RenderingGraphics<'_, '_>) {
+    fn render(
+        &self,
+        region: Rect<Px>,
+        _opacity: ZeroToOne,
+        graphics: &mut RenderingGraphics<'_, '_>,
+    ) {
         println!("Render to {region:?} clipped to {:?}", graphics.clip_rect());
         graphics.pass_mut().set_pipeline(&self.pipeline);
         graphics.pass_mut().draw(0..3, 0..1);

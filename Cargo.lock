@@ -817,6 +817,7 @@ dependencies = [
  "ahash",
  "alot",
  "arboard",
+ "bytemuck",
  "cushy-macros",
  "easing-function",
  "figures",
@@ -1791,7 +1792,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 [[package]]
 name = "kludgine"
 version = "0.11.0"
-source = "git+https://github.com/khonsulabs/kludgine#8c00d667dfeb820f2f367e6e6be31074613d6d8d"
+source = "git+https://github.com/khonsulabs/kludgine#c73cb8143332e8d1ea34f5c781424a9193b14374"
 dependencies = [
  "ahash",
  "alot",
