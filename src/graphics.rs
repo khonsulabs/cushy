@@ -3,7 +3,8 @@ use std::ops::{Deref, DerefMut};
 
 use figures::units::{Px, UPx};
 use figures::{
-    self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
+    self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, ScreenUnit, Size,
+    Zero,
 };
 use kempt::{map, Map};
 use kludgine::cosmic_text::{fontdb, FamilyOwned, FontSystem};
@@ -32,7 +33,7 @@ enum RenderContext<'clip, 'gfx, 'pass> {
     Clipped(ClipGuard<'clip, Renderer<'gfx, 'pass>>),
 }
 
-impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
+impl<'gfx, 'pass> Graphics<'_, 'gfx, 'pass> {
     /// Returns a new graphics context for the given [`Renderer`].
     #[must_use]
     pub fn new(renderer: Renderer<'gfx, 'pass>) -> Self {
@@ -54,18 +55,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     #[must_use]
     pub fn translation(&self) -> Point<Px> {
         let clip_origin = self.renderer.clip_rect().origin.into_signed();
-        -Point::new(
-            if clip_origin.x <= self.region.origin.x {
-                Px::ZERO
-            } else {
-                clip_origin.x - self.region.origin.x
-            },
-            if clip_origin.y <= self.region.origin.y {
-                Px::ZERO
-            } else {
-                clip_origin.y - self.region.origin.y
-            },
-        )
+        self.region.origin - clip_origin
     }
 
     /// Returns the underlying renderer.
@@ -296,7 +286,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         text: impl Into<Drawable<&'a MeasuredText<Unit>, Unit>>,
         origin: TextOrigin<Unit>,
     ) where
-        Unit: ScreenUnit,
+        Unit: ScreenUnit + Round,
     {
         let mut text = text.into();
         text.opacity = Some(
@@ -316,15 +306,16 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     where
         Op::DrawInfo: Default,
     {
-        let origin = self.region.origin;
+        let region = self.region;
         self.renderer
-            .draw::<CushyRenderOp<Op>>((<Op::DrawInfo>::default(), origin));
+            .draw::<CushyRenderOp<Op>>((<Op::DrawInfo>::default(), region, self.opacity));
     }
 
     /// Draws `Op` with the given context.
     pub fn draw_with<Op: RenderOperation>(&mut self, context: Op::DrawInfo) {
-        let origin = self.region.origin;
-        self.renderer.draw::<CushyRenderOp<Op>>((context, origin));
+        let region = self.region;
+        self.renderer
+            .draw::<CushyRenderOp<Op>>((context, region, self.opacity));
     }
 
     /// Returns a reference to the font system used to render.
@@ -346,7 +337,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     }
 }
 
-impl<'gfx, 'pass> Deref for Graphics<'_, 'gfx, 'pass> {
+impl Deref for Graphics<'_, '_, '_> {
     type Target = Kludgine;
 
     fn deref(&self) -> &Self::Target {
@@ -354,7 +345,7 @@ impl<'gfx, 'pass> Deref for Graphics<'_, 'gfx, 'pass> {
     }
 }
 
-impl<'gfx, 'pass> DerefMut for Graphics<'_, 'gfx, 'pass> {
+impl DerefMut for Graphics<'_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.renderer
     }
@@ -371,7 +362,7 @@ impl<'gfx, 'pass> Deref for RenderContext<'_, 'gfx, 'pass> {
     }
 }
 
-impl<'gfx, 'pass> DerefMut for RenderContext<'_, 'gfx, 'pass> {
+impl DerefMut for RenderContext<'_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             RenderContext::Renderer(renderer) => renderer,
@@ -382,7 +373,8 @@ impl<'gfx, 'pass> DerefMut for RenderContext<'_, 'gfx, 'pass> {
 
 #[derive(Debug)]
 struct Prepared<T> {
-    origin: Point<Px>,
+    region: Rect<Px>,
+    opacity: ZeroToOne,
     data: T,
 }
 
@@ -392,7 +384,7 @@ impl<Op> kludgine::drawing::RenderOperation for CushyRenderOp<Op>
 where
     Op: RenderOperation,
 {
-    type DrawInfo = (Op::DrawInfo, Point<Px>);
+    type DrawInfo = (Op::DrawInfo, Rect<Px>, ZeroToOne);
     type Prepared = Prepared<Op::Prepared>;
 
     fn new(graphics: &mut kludgine::Graphics<'_>) -> Self {
@@ -401,23 +393,37 @@ where
 
     fn prepare(
         &mut self,
-        (context, origin): Self::DrawInfo,
+        (context, region, opacity): Self::DrawInfo,
         graphics: &mut kludgine::Graphics<'_>,
     ) -> Self::Prepared {
         Prepared {
-            origin,
-            data: self.0.prepare(context, origin, graphics),
+            region,
+            data: self.0.prepare(context, region, opacity, graphics),
+            opacity,
         }
     }
 
     fn render<'pass>(
         &'pass self,
         prepared: &Self::Prepared,
-        opacity: f32,
+        _opacity: f32,
         graphics: &mut RenderingGraphics<'_, 'pass>,
     ) {
         self.0
-            .render(&prepared.data, prepared.origin, opacity, graphics);
+            .render(&prepared.data, prepared.region, prepared.opacity, graphics);
+    }
+
+    fn batch_prepared(
+        &mut self,
+        first: &mut Self::Prepared,
+        mut other: Self::Prepared,
+    ) -> Result<(), Self::Prepared> {
+        if let Err(returned) = self.0.batch_prepared(&mut first.data, other.data) {
+            other.data = returned;
+            Err(other)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -430,7 +436,7 @@ pub struct FontState {
     app_fonts: FontCollection,
     app_font_generation: Generation,
     window_fonts: FontCollection,
-    window_font_generation: Generation,
+    window_font_generation: Option<Generation>,
     pub(crate) loaded_fonts: Map<LoadedFontId, LoadedFontIds>,
     font_generation: usize,
     fonts: Map<String, usize>,
@@ -448,7 +454,7 @@ impl FontState {
         let mut state = Self {
             fonts,
             current_font_family: None,
-            window_font_generation: window_fonts.0.generation(),
+            window_font_generation: None,
             window_fonts,
             app_font_generation: app_fonts.0.generation(),
             app_fonts,
@@ -492,10 +498,10 @@ impl FontState {
             true
         };
         let new_window_generation = self.window_fonts.0.generation();
-        let window_fonts_changed = if self.window_font_generation == new_window_generation {
+        let window_fonts_changed = if self.window_font_generation == Some(new_window_generation) {
             false
         } else {
-            self.window_font_generation = new_window_generation;
+            self.window_font_generation = Some(new_window_generation);
             true
         };
 
@@ -630,22 +636,63 @@ pub trait RenderOperation: Send + Sync + 'static {
     /// Returns a new instance of this render operation.
     fn new(graphics: &mut kludgine::Graphics<'_>) -> Self;
 
-    /// Prepares this operation to be rendered at `origin` in `graphics`.
+    /// Prepares this operation to be rendered in `region` in `graphics`.
+    ///
+    /// This operation's  will automatically be clipped to the available space
+    /// for the context it is being drawn to. The render operation should
+    /// project itself into `region` and only use the clip rect as an
+    /// optimization. To test that this is handled correctly, try placing
+    /// whatever is being rendered in a `Scroll` widget and ensure that as the
+    /// contents are clipped, the visible area shows the correct contents.
     fn prepare(
         &mut self,
         context: Self::DrawInfo,
-        origin: Point<Px>,
+        region: Rect<Px>,
+        opacity: ZeroToOne,
         graphics: &mut kludgine::Graphics<'_>,
     ) -> Self::Prepared;
 
-    /// Render `preprared` to `graphics` at `origin` with `opacity`.
+    /// Render `preprared` to `graphics` at `region` with `opacity`.
+    ///
+    /// This operation's  will automatically be clipped to the available space
+    /// for the context it is being drawn to. The render operation should
+    /// project itself into `region` and only use the clip rect as an
+    /// optimization. To test that this is handled correctly, try placing
+    /// whatever is being rendered in a `Scroll` widget and ensure that as the
+    /// contents are clipped, the visible area shows the correct contents.
     fn render(
         &self,
         prepared: &Self::Prepared,
-        origin: Point<Px>,
-        opacity: f32,
+        region: Rect<Px>,
+        opacity: ZeroToOne,
         graphics: &mut RenderingGraphics<'_, '_>,
     );
+
+    /// Batches `other` into `first`, if possible.
+    ///
+    /// This function allows render operations to participate in automatic
+    /// batching performed by Cushy/Kludgine. If the same render operation type
+    /// is drawn sequentially multiple times, this function is invoked with the
+    /// first and second results of the prepare function. If this function
+    /// returns `Ok(())`, `self` is expected to have been updated to draw both
+    /// the `self` and `other` operations.
+    ///
+    /// If this function returns `Err`, the returned preparation is enqueued.
+    ///
+    /// The provided implementation returns `Err(other)` which avoids batching.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if the render operations cannot be
+    /// batched.
+    #[allow(unused_variables)]
+    fn batch_prepared(
+        &mut self,
+        first: &mut Self::Prepared,
+        other: Self::Prepared,
+    ) -> Result<(), Self::Prepared> {
+        Err(other)
+    }
 }
 
 /// A [`RenderOperation`] with no per-drawing-call state.
@@ -653,8 +700,20 @@ pub trait SimpleRenderOperation: Send + Sync + 'static {
     /// Returns a new instance of this render operation.
     fn new(graphics: &mut kludgine::Graphics<'_>) -> Self;
 
-    /// Render to `graphics` at `origin` with `opacity`.
-    fn render(&self, origin: Point<Px>, opacity: f32, graphics: &mut RenderingGraphics<'_, '_>);
+    /// Render to `graphics` at `rect` with `opacity`.
+    ///
+    /// This operation's  will automatically be clipped to the available space
+    /// for the context it is being drawn to. The render operation should
+    /// project itself into `region` and only use the clip rect as an
+    /// optimization. To test that this is handled correctly, try placing
+    /// whatever is being rendered in a `Scroll` widget and ensure that as the
+    /// contents are clipped, the visible area shows the correct contents.
+    fn render(
+        &self,
+        region: Rect<Px>,
+        opacity: ZeroToOne,
+        graphics: &mut RenderingGraphics<'_, '_>,
+    );
 }
 
 impl<T> RenderOperation for T
@@ -671,7 +730,8 @@ where
     fn prepare(
         &mut self,
         _context: Self::DrawInfo,
-        _origin: Point<Px>,
+        _origin: Rect<Px>,
+        _opacity: ZeroToOne,
         _graphics: &mut kludgine::Graphics<'_>,
     ) -> Self::Prepared {
     }
@@ -679,10 +739,10 @@ where
     fn render(
         &self,
         _prepared: &Self::Prepared,
-        origin: Point<Px>,
-        opacity: f32,
+        region: Rect<Px>,
+        opacity: ZeroToOne,
         graphics: &mut RenderingGraphics<'_, '_>,
     ) {
-        self.render(origin, opacity, graphics);
+        self.render(region, opacity, graphics);
     }
 }

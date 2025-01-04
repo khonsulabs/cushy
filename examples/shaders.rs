@@ -1,9 +1,12 @@
 use std::borrow::Cow;
 
+use cushy::animation::ZeroToOne;
+use cushy::figures::units::Px;
+use cushy::figures::Rect;
+use cushy::kludgine::{wgpu, RenderingGraphics};
 use cushy::widget::MakeWidget;
 use cushy::widgets::Canvas;
 use cushy::{Run, SimpleRenderOperation};
-use kludgine::{wgpu, RenderingGraphics};
 
 static TRIANGLE_SHADER: &str = r#"
     @vertex
@@ -48,7 +51,7 @@ impl SimpleRenderOperation for TriangleShader {
                 layout: Some(&pipeline_layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
-                    entry_point: "vs_main",
+                    entry_point: Some("vs_main"),
                     buffers: &[],
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                 },
@@ -57,7 +60,7 @@ impl SimpleRenderOperation for TriangleShader {
                 multisample: graphics.multisample_state(),
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
-                    entry_point: "fs_main",
+                    entry_point: Some("fs_main"),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets: &[Some(graphics.texture_format().into())],
                 }),
@@ -70,11 +73,11 @@ impl SimpleRenderOperation for TriangleShader {
 
     fn render(
         &self,
-        origin: figures::Point<figures::units::Px>,
-        _opacity: f32,
+        region: Rect<Px>,
+        _opacity: ZeroToOne,
         graphics: &mut RenderingGraphics<'_, '_>,
     ) {
-        println!("Render to {origin:?} clipped to {:?}", graphics.clip_rect());
+        println!("Render to {region:?} clipped to {:?}", graphics.clip_rect());
         graphics.pass_mut().set_pipeline(&self.pipeline);
         graphics.pass_mut().draw(0..3, 0..1);
     }

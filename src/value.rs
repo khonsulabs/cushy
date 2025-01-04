@@ -1700,7 +1700,7 @@ where
     }
 }
 
-impl<'a, T, const READONLY: bool> DynamicMutexGuard<'a, T, READONLY> {
+impl<T, const READONLY: bool> DynamicMutexGuard<'_, T, READONLY> {
     fn unlocked<R>(&mut self, while_unlocked: impl FnOnce() -> R) -> R {
         MutexGuard::unlocked(&mut self.guard, || {
             let mut state = self.dynamic.lock.state.lock();
@@ -1723,7 +1723,7 @@ impl<'a, T, const READONLY: bool> DynamicMutexGuard<'a, T, READONLY> {
     }
 }
 
-impl<'a, T, const READONLY: bool> Drop for DynamicMutexGuard<'a, T, READONLY> {
+impl<T, const READONLY: bool> Drop for DynamicMutexGuard<'_, T, READONLY> {
     fn drop(&mut self) {
         if !self.released_hold {
             self.release_hold();
@@ -1731,14 +1731,15 @@ impl<'a, T, const READONLY: bool> Drop for DynamicMutexGuard<'a, T, READONLY> {
     }
 }
 
-impl<'a, T, const READONLY: bool> Deref for DynamicMutexGuard<'a, T, READONLY> {
+impl<T, const READONLY: bool> Deref for DynamicMutexGuard<'_, T, READONLY> {
     type Target = State<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.guard
     }
 }
-impl<'a, T, const READONLY: bool> DerefMut for DynamicMutexGuard<'a, T, READONLY> {
+
+impl<T, const READONLY: bool> DerefMut for DynamicMutexGuard<'_, T, READONLY> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.guard
     }
@@ -2378,7 +2379,7 @@ enum DynamicOrOwnedGuard<'a, T, const READONLY: bool> {
     Owned(RefMut<'a, GenerationalValue<T>>),
     OwnedRef(&'a mut GenerationalValue<T>),
 }
-impl<'a, T, const READONLY: bool> DynamicOrOwnedGuard<'a, T, READONLY> {
+impl<T, const READONLY: bool> DynamicOrOwnedGuard<'_, T, READONLY> {
     fn note_changed(&mut self) -> Option<ChangeCallbacks> {
         match self {
             Self::Dynamic(guard) => Some(guard.note_changed()),
@@ -2394,7 +2395,7 @@ impl<'a, T, const READONLY: bool> DynamicOrOwnedGuard<'a, T, READONLY> {
     }
 }
 
-impl<'a, T, const READONLY: bool> Deref for DynamicOrOwnedGuard<'a, T, READONLY> {
+impl<T, const READONLY: bool> Deref for DynamicOrOwnedGuard<'_, T, READONLY> {
     type Target = GenerationalValue<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -2406,7 +2407,7 @@ impl<'a, T, const READONLY: bool> Deref for DynamicOrOwnedGuard<'a, T, READONLY>
     }
 }
 
-impl<'a, T, const READONLY: bool> DerefMut for DynamicOrOwnedGuard<'a, T, READONLY> {
+impl<T, const READONLY: bool> DerefMut for DynamicOrOwnedGuard<'_, T, READONLY> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             Self::Dynamic(guard) => &mut guard.wrapped,
@@ -2452,7 +2453,7 @@ impl<T, const READONLY: bool> DynamicGuard<'_, T, READONLY> {
     }
 }
 
-impl<'a, T, const READONLY: bool> Deref for DynamicGuard<'a, T, READONLY> {
+impl<T, const READONLY: bool> Deref for DynamicGuard<'_, T, READONLY> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -2460,7 +2461,7 @@ impl<'a, T, const READONLY: bool> Deref for DynamicGuard<'a, T, READONLY> {
     }
 }
 
-impl<'a, T> DerefMut for DynamicGuard<'a, T, false> {
+impl<T> DerefMut for DynamicGuard<'_, T, false> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.accessed_mut = true;
         &mut self.guard.value
@@ -2720,7 +2721,7 @@ impl<T> Drop for DynamicReader<T> {
 #[must_use = "futures must be .await'ed to be executed"]
 pub struct BlockUntilUpdatedFuture<'a, T>(&'a DynamicReader<T>);
 
-impl<'a, T> Future for BlockUntilUpdatedFuture<'a, T> {
+impl<T> Future for BlockUntilUpdatedFuture<'_, T> {
     type Output = bool;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
@@ -2810,6 +2811,21 @@ impl Generation {
     #[must_use]
     pub fn next(self) -> Self {
         Self(self.0.wrapping_add(1))
+    }
+}
+
+impl Add for Generation {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl AddAssign for Generation {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 = self.0.wrapping_add(rhs.0);
     }
 }
 
@@ -3101,7 +3117,7 @@ impl<T> Value<T> {
         match self {
             Value::Constant(value) => map(value),
             Value::Dynamic(dynamic) => {
-                context.invalidate_when_changed(dynamic);
+                dynamic.invalidate_when_changed(context);
                 dynamic.map_ref(map)
             }
         }
@@ -3270,13 +3286,13 @@ impl<T> IntoValue<T> for T {
     }
 }
 
-impl<'a> IntoValue<String> for &'a str {
+impl IntoValue<String> for &'_ str {
     fn into_value(self) -> Value<String> {
         Value::Constant(self.to_owned())
     }
 }
 
-impl<'a> IntoReadOnly<String> for &'a str {
+impl IntoReadOnly<String> for &'_ str {
     fn into_read_only(self) -> ReadOnly<String> {
         ReadOnly::Constant(self.to_string())
     }

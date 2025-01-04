@@ -2607,7 +2607,7 @@ pub trait ProtoColor: Sized {
     }
 }
 
-impl<'a> ProtoColor for &'a ColorSource {
+impl ProtoColor for &'_ ColorSource {
     fn hue(&self) -> OklabHue {
         self.hue
     }
@@ -2835,11 +2835,11 @@ impl RequireInvalidation for HorizontalAlign {
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
 pub enum VerticalAlign {
     /// Align towards the top.
+    #[default] // TODO this should be baseline, not top.
     Top,
     /// Align towards the center/middle.
     Center,
     /// Align towards the bottom.
-    #[default] // TODO this should be baseline, not bottom.
     Bottom,
 }
 

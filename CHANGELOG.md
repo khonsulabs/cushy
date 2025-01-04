@@ -98,6 +98,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Label`s centered their content when sized larger than the text they
   contained. The defaults for the alignment components are left and top,
   respectively.
+- `wgpu` has been updated to `v23.0.0`.
+- Embedding a `Expand` in a `Stack` or `Grid` now honors both directions of
+  expansion. This may cause layouts that use
+  `Expand::expand()`/`MakeWidget::expand()` inside of a stack to behave
+  drastically differently. If this affects your user interface, use
+  `expand_horizontally()` or `expand_vertically()` to limit the direction of the
+  expansion.
 
 ### Changed
 
@@ -166,8 +173,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   contents. This means that the scroll bars are now clickable even in areas
   where interactive widgets are beneath them.
 - `GraphicsContext::fill` now properly fills the entire region of the widget.
-- `Slider` now correctly calculates its width when in a fully `SizeToFit`
-  layout.
 - `ThemedMode` is now properly applied consistently. Previously sometimes the
   window's theme mode would be used instead of the overridden mode.
 - `Expand` now requests children size to fit in the non-expanding direction when
@@ -178,6 +183,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   selected. This is not always the desired behavior, and further customization
   of this behavior should be allowed, but this is a step in the right direction
   compared to the previous behavior.
+- Using an `Expand` inside of a `Resize` widget no longer panics with
+  overflowing math.
+- Fonts already loaded into a `FontCollection` when the window is first opened
+  are now properly loaded.
+- Widgets of 0-size are now still rendered, even though all the drawing
+  operations will be clipped away. This allows the `ComponentProbe` to still
+  actively probe when placed in a location and given no space.
+- Focus order when reversing now correctly evaluates direct parent widgets.
+  Prior to this change, placing a button inside of a button would not allow
+  shift-tab to focus the outer button when focus was on the inner button.
+- Image now honors `ConstraintLimit::Fill` when using the aspect-fit scaling
+  mode.
+- A fix in `Graphics::translation` potentially fixes edge cases that could arise
+  when drawing in clipped regions inside of a scrolled area. This change was
+  made without observing any ill effects from the existing logic, but the logic
+  was not correct.
+- `Input` and `Label` now honor `ConstraintLayout::Fill`.
+- `Label` now properly invalidates itself when various font style components are
+  changed.
 
 ### Added
 
@@ -337,8 +361,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are returned for each widget pushed into a pile. These handles can be used to
   show or close a specific widget in a pile.
 - `HorizontalAlignment` and `VerticalAlignment` are new components that are used
-  by some widgets when positioning their contents. `WrapperWidget::position_child` has been updated to use `WrappedLayout::aligned` to support these components on most widgets automatically. `Label` and `Resize` have also been updated to support these components.
-- Local style support has been fully exposed. Local styles are applied to the widget they are attached to, but are not inherited to child widgets. The new APIs are:
+  by some widgets when positioning their contents.
+  `WrapperWidget::position_child` has been updated to use
+  `WrappedLayout::aligned` when the new function `WrapperWidget::align_child`
+  returns true. `Expand`, `Label`, and `Resize` have been updated to support
+  these components.
+- Local style support has been fully exposed. Local styles are applied to the
+  widget they are attached to, but are not inherited to child widgets. The new
+  APIs are:
 
   - `Styles::insert_local`
   - `Styles::insert_local_dynamic`
@@ -353,8 +383,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `MakeWidget::with_local_dynamic`
 - `Style::hint`, `MakeWidget::hint`, and `MakeWidget::with_hint` have been added
   to standardize a method of adding informational text to interfaces.
+- `ImageScaling::layout_size` and `ImageScaling::render_area` are new functions
+  that expose the layout calculations the `Image` widget performed.
+- `GraphicsContext::current_font_settings()` returns a new struct `FontSettings`
+  that contains the effective style components for the various font settings
+  supported by a `GraphicsContext`. `FontSettings::apply()` can be used to apply
+  settings in one step. `FontSettings` also implements `PartialEq` allowing it
+  to be used as a cache invalidation key.
+- New feature `localization`, included in Cushy's default features, enables
+  multi-lingual/multi-locale support using [Fluent][fluent]. See the
+  `localization` module for documentation of this feature, or see the
+  `localization.rs` example in the repository to see it in action.
 
-
+[fluent]: https://projectfluent.org/
 [139]: https://github.com/khonsulabs/cushy/issues/139
 
 ## v0.4.0 (2024-08-20)

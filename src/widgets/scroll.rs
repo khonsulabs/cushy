@@ -236,14 +236,6 @@ impl Scroll {
             .expect("a ScrollBar")
             .show(context);
     }
-
-    fn hide_scrollbars(&mut self, context: &mut EventContext<'_>) {
-        let mut horizontal = self.horizontal_widget.expect_made_mut().widget().lock();
-        horizontal
-            .downcast_mut::<ScrollBar>()
-            .expect("a ScrollBar")
-            .hide(context);
-    }
 }
 
 impl Widget for Scroll {
@@ -260,13 +252,21 @@ impl Widget for Scroll {
         _location: Point<Px>,
         context: &mut EventContext<'_>,
     ) -> Option<CursorIcon> {
-        self.show_scrollbars(context);
+        let mut horizontal = self.horizontal_widget.expect_made_mut().widget().lock();
+        horizontal
+            .downcast_mut::<ScrollBar>()
+            .expect("a ScrollBar")
+            .hover(context);
 
         None
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_>) {
-        self.hide_scrollbars(context);
+        let mut horizontal = self.horizontal_widget.expect_made_mut().widget().lock();
+        horizontal
+            .downcast_mut::<ScrollBar>()
+            .expect("a ScrollBar")
+            .unhover(context);
     }
 
     fn redraw(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
@@ -490,11 +490,16 @@ struct ScrollbarInfo {
     size: UPx,
 }
 
-fn scrollbar_region(scroll: UPx, content_size: UPx, control_size: UPx) -> ScrollbarInfo {
+fn scrollbar_region(
+    scroll: UPx,
+    content_size: UPx,
+    control_size: UPx,
+    minimum_thumb_size: UPx,
+) -> ScrollbarInfo {
     if content_size > control_size {
         let amount_hidden = content_size - control_size;
         let ratio_visible = control_size.into_float() / content_size.into_float();
-        let bar_size = control_size * ratio_visible;
+        let bar_size = (control_size * ratio_visible).max(minimum_thumb_size);
         let remaining_area = control_size - bar_size;
         let amount_scrolled = scroll.into_float() / amount_hidden.into_float();
         let bar_offset = remaining_area * amount_scrolled;
@@ -621,6 +626,24 @@ impl ScrollBar {
         self.scrollbar_opacity_animation = other.scrollbar_opacity_animation.clone();
     }
 
+    /// Marks this scroll bar as being hovered.
+    pub fn hover(&mut self, context: &mut EventContext<'_>) {
+        self.scrollbar_opacity_animation
+            .lock()
+            .hovering
+            .insert(context.widget().id());
+        self.show(context);
+    }
+
+    /// Unmarks this scroll bar as being hovered.
+    pub fn unhover(&mut self, context: &mut EventContext<'_>) {
+        self.scrollbar_opacity_animation
+            .lock()
+            .hovering
+            .remove(&context.widget().id());
+        self.hide(context);
+    }
+
     /// Shows this scroll bar, automatically hiding after a short delay.
     pub fn show(&mut self, context: &mut EventContext<'_>) {
         let mut animation_state = self.scrollbar_opacity_animation.lock();
@@ -686,7 +709,7 @@ impl Widget for ScrollBar {
         } else {
             control_size.width
         };
-        self.info = scrollbar_region(scroll, content_size, self.control_size);
+        self.info = scrollbar_region(scroll, content_size, self.control_size, self.bar_width);
         let mut constrained = Self::constrained_scroll(scroll, self.info.amount_hidden);
 
         // Preserve the current scroll if the widget has resized

@@ -1,8 +1,10 @@
+use std::iter;
+
 use cushy::animation::easings::StandardEasing;
 use cushy::context::GraphicsContext;
 use cushy::kludgine::shapes::{PathBuilder, Shape, StrokeOptions};
 use cushy::widget::{MakeWidget, WidgetList};
-use cushy::widgets::Canvas;
+use cushy::widgets::{Canvas, Expand};
 use cushy::Run;
 use easing_function::Easing;
 use figures::units::{Lp, Px};
@@ -26,9 +28,16 @@ fn main() -> cushy::Result {
         .collect::<Vec<_>>()
         .chunks(3)
         .map(|widgets| {
-            WidgetList::from_iter(widgets.iter().map(|w| w.clone().expand()))
-                .into_columns()
-                .height(Lp::inches(3))
+            WidgetList::from_iter(
+                widgets
+                    .iter()
+                    .map(|w| w.clone().expand())
+                    // Fill the last row with empty spaces
+                    .chain(iter::repeat(Expand::empty()))
+                    .take(3),
+            )
+            .into_columns()
+            .height(Lp::inches(3))
         })
         .collect::<WidgetList>()
         .into_wrap()

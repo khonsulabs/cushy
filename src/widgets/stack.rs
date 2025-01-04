@@ -3,6 +3,7 @@
 use figures::units::UPx;
 use figures::{IntoSigned, Rect, Round, ScreenScale, Size, Zero};
 
+use super::expand::ExpandKind;
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::FlexibleDimension;
@@ -71,14 +72,27 @@ impl Stack {
                     |this, change| match change {
                         ChildrenSyncChange::Insert(index, widget) => {
                             // This is a brand new child.
-                            let guard = widget.lock();
+                            let mut guard = widget.lock();
                             let (mut widget, dimension) = if let Some((weight, expand)) =
-                                guard.downcast_ref::<Expand>().and_then(|expand| {
+                                guard.downcast_mut::<Expand>().and_then(|expand| {
                                     expand
                                         .weight(self.orientation == Orientation::Row)
                                         .map(|weight| (weight, expand))
                                 }) {
-                                (expand.child().clone(), GridDimension::Fractional { weight })
+                                let widget = match expand.expand_kind() {
+                                    ExpandKind::Horizontal
+                                        if self.orientation == Orientation::Row =>
+                                    {
+                                        WidgetRef::new(widget.clone())
+                                    }
+                                    ExpandKind::Vertical
+                                        if self.orientation == Orientation::Column =>
+                                    {
+                                        WidgetRef::new(widget.clone())
+                                    }
+                                    _ => expand.child().clone(),
+                                };
+                                (widget, GridDimension::Fractional { weight })
                             } else if let Some((child, size)) =
                                 guard.downcast_ref::<Resize>().and_then(|r| {
                                     let (range, other_range) = match self.layout.orientation {
@@ -124,10 +138,8 @@ impl Stack {
 
 impl Widget for Stack {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
-        for (layout, child) in self.layout.iter().zip(&self.synced_children) {
-            if layout.size > 0 {
-                context.for_other(child).redraw();
-            }
+        for child in &self.synced_children {
+            context.for_other(child).redraw();
         }
     }
 
@@ -166,21 +178,19 @@ impl Widget for Stack {
         );
 
         for (layout, child) in self.layout.iter().zip(&self.synced_children) {
-            if layout.size > 0 {
-                context.set_child_layout(
-                    child,
-                    Rect::new(
-                        self.layout
-                            .orientation
-                            .make_point(layout.offset, UPx::ZERO)
-                            .into_signed(),
-                        self.layout
-                            .orientation
-                            .make_size(layout.size, self.layout.others[0])
-                            .into_signed(),
-                    ),
-                );
-            }
+            context.set_child_layout(
+                child,
+                Rect::new(
+                    self.layout
+                        .orientation
+                        .make_point(layout.offset, UPx::ZERO)
+                        .into_signed(),
+                    self.layout
+                        .orientation
+                        .make_size(layout.size, self.layout.others[0])
+                        .into_signed(),
+                ),
+            );
         }
 
         content_size

@@ -6,6 +6,8 @@ use alot::{LotId, Lots};
 use figures::units::{Px, UPx};
 use figures::{Point, Rect, Size};
 use parking_lot::Mutex;
+#[cfg(feature = "localization")]
+use unic_langid::LanguageIdentifier;
 
 use crate::styles::{Styles, ThemePair, VisualOrder};
 use crate::value::Value;
@@ -44,6 +46,8 @@ impl Tree {
             effective_styles,
             theme: None,
             theme_mode: None,
+            #[cfg(feature = "localization")]
+            locale: None,
         });
         data.nodes_by_id.insert(id, node_id);
         if widget.is_default() {
@@ -177,7 +181,7 @@ impl Tree {
                     }
                 };
                 let top = layout.origin.y;
-                let bottom = top + layout.size.height;
+                let bottom = top.saturating_add(layout.size.height);
                 min_vertical = order.vertical.smallest_px(min_vertical, top);
                 max_vertical = order.vertical.smallest_px(min_vertical, bottom);
 
@@ -397,6 +401,17 @@ impl Tree {
             node.theme.clone(),
             node.theme_mode.clone(),
         )
+    }
+
+    #[cfg(feature = "localization")]
+    pub(crate) fn attach_locale(&self, id: LotId, locale: Value<LanguageIdentifier>) {
+        let mut data = self.data.lock();
+        data.nodes.get_mut(id).expect("missing widget").locale = Some(locale);
+    }
+
+    #[cfg(feature = "localization")]
+    pub(crate) fn overridden_locale(&self, id: LotId) -> Option<Value<LanguageIdentifier>> {
+        self.data.lock().nodes.get(id)?.locale.clone()
     }
 
     pub fn invalidate(&self, id: LotId, include_hierarchy: bool) {
@@ -622,7 +637,7 @@ struct RenderArea {
 
 impl RenderArea {
     fn new(node: LotId, area: Rect<Px>) -> Self {
-        let (min, max) = area.extents();
+        let (min, max) = area.saturating_extents();
         Self { node, min, max }
     }
 }
@@ -637,6 +652,8 @@ struct Node {
     effective_styles: Styles,
     theme: Option<Value<ThemePair>>,
     theme_mode: Option<Value<ThemeMode>>,
+    #[cfg(feature = "localization")]
+    locale: Option<Value<LanguageIdentifier>>,
 }
 
 impl Node {

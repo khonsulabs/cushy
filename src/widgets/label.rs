@@ -4,20 +4,20 @@ use std::borrow::Cow;
 use std::fmt::{Debug, Display, Write};
 
 use figures::units::{Px, UPx};
-use figures::{Point, Round, Size, Zero};
+use figures::{IntoUnsigned, Point, Round, Size, Zero};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{cosmic_text, CanRenderTo, Color, DrawableExt};
 
 use super::input::CowString;
-use crate::context::{GraphicsContext, LayoutContext, Trackable, WidgetContext};
+use crate::context::{FontSettings, GraphicsContext, LayoutContext, Trackable, WidgetContext};
 use crate::styles::components::{HorizontalAlignment, TextColor, VerticalAlignment};
-use crate::styles::{FontFamilyList, HorizontalAlign, VerticalAlign};
+use crate::styles::{HorizontalAlign, VerticalAlign};
 use crate::value::{
     Dynamic, DynamicReader, Generation, IntoDynamic, IntoReadOnly, IntoValue, ReadOnly, Value,
 };
 use crate::widget::{MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag};
 use crate::window::WindowLocal;
-use crate::ConstraintLimit;
+use crate::{ConstraintLimit, FitMeasuredSize};
 
 /// A read-only text widget.
 #[derive(Debug)]
@@ -28,7 +28,7 @@ pub struct Label<T> {
     /// single line.
     pub overflow: Value<LabelOverflow>,
     displayed: String,
-    prepared_text: WindowLocal<LabelCacheKey>,
+    prepared_text: WindowLocal<LabelCache>,
 }
 
 impl<T> Label<T>
@@ -61,7 +61,6 @@ where
         mut width: Px,
         align: HorizontalAlign,
     ) -> &MeasuredText<Px> {
-        let is_left_aligned = align == HorizontalAlign::Left;
         let align = match align {
             HorizontalAlign::Left => cosmic_text::Align::Left,
             HorizontalAlign::Center => cosmic_text::Align::Center,
@@ -71,39 +70,39 @@ where
         if overflow == LabelOverflow::Clip {
             width = Px::MAX;
         }
-        let check_generation = self.display.generation();
         context.apply_current_font_settings();
-        let current_families = context.current_family_list();
+
+        let mut cache_key = LabelCacheKey {
+            generation: self.display.generation(),
+            display_generation: self.display.map(|display| display.generation(context)),
+            width,
+            color,
+            settings: context.current_font_settings(),
+            align,
+        };
+
         match self.prepared_text.get(context) {
             Some(cache)
-                if cache.text.can_render_to(&context.gfx)
-                    && cache.generation == check_generation
-                    && cache.color == color
-                    && cache.align == align
-                    && ((is_left_aligned
-                        && width <= cache.width
-                        && cache.text.size.width <= width)
-                        || (!is_left_aligned && width == cache.width))
-                    && cache.families == current_families => {}
+                if cache.text.can_render_to(&context.gfx) && cache_key.is_valid_for(cache) => {}
             _ => {
-                let measured = self.display.map(|text| {
+                let (measured, display_generation) = self.display.map(|text| {
                     self.displayed.clear();
                     if let Err(err) = write!(&mut self.displayed, "{}", text.as_display(context)) {
                         tracing::error!("Error invoking Display: {err}");
                     }
-                    context
-                        .gfx
-                        .measure_text(Text::new(&self.displayed, color).align(align, width))
+                    (
+                        context
+                            .gfx
+                            .measure_text(Text::new(&self.displayed, color).align(align, width)),
+                        text.generation(context),
+                    )
                 });
+                cache_key.display_generation = display_generation;
                 self.prepared_text.set(
                     context,
-                    LabelCacheKey {
+                    LabelCache {
                         text: measured,
-                        generation: check_generation,
-                        width,
-                        color,
-                        families: current_families,
-                        align,
+                        key: cache_key,
                     },
                 );
             }
@@ -155,7 +154,7 @@ where
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width, align);
 
-        prepared.size.try_cast().unwrap_or_default().ceil()
+        available_space.fit_measured(prepared.size.into_unsigned().ceil())
     }
 
     fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -212,13 +211,38 @@ pub enum LabelOverflow {
 }
 
 #[derive(Debug)]
-struct LabelCacheKey {
+struct LabelCache {
     text: MeasuredText<Px>,
+    key: LabelCacheKey,
+}
+
+#[derive(Debug)]
+struct LabelCacheKey {
     generation: Option<Generation>,
+    display_generation: Option<Generation>,
     width: Px,
     color: Color,
-    families: FontFamilyList,
+    settings: FontSettings,
     align: cosmic_text::Align,
+}
+
+impl LabelCacheKey {
+    pub fn is_valid_for(&self, cache: &LabelCache) -> bool {
+        if self.generation == cache.key.generation
+            && self.display_generation == cache.key.display_generation
+            && self.color == cache.key.color
+            && self.settings == cache.key.settings
+            && self.align == cache.key.align
+        {
+            if self.align == cosmic_text::Align::Left {
+                self.width <= cache.key.width && cache.text.size.width <= self.width
+            } else {
+                self.width == cache.key.width
+            }
+        } else {
+            false
+        }
+    }
 }
 
 /// A context-aware [`Display`] implementation.
@@ -226,6 +250,15 @@ struct LabelCacheKey {
 /// This trait is automatically implemented for all types that implement
 /// [`Display`].
 pub trait DynamicDisplay {
+    /// Returns a generation representing the current state of the dynamic.
+    ///
+    /// To ensure the contents are recached by a [`Label`] widget, return a
+    /// unique value from this function each time the contents are updated.
+    #[allow(unused_variables)]
+    fn generation(&self, context: &WidgetContext<'_>) -> Option<Generation> {
+        None
+    }
+
     /// Format `self` with any needed information from `context`.
     fn fmt(&self, context: &WidgetContext<'_>, f: &mut std::fmt::Formatter<'_>)
         -> std::fmt::Result;
@@ -239,6 +272,22 @@ pub trait DynamicDisplay {
         Self: Sized,
     {
         DynamicDisplayer(self, context)
+    }
+
+    /// Returns `self` being `Display`ed in a [`Label`] widget.
+    fn into_label(self) -> Label<Self>
+    where
+        Self: Debug + Sized + Send + 'static,
+    {
+        Label::new(self)
+    }
+
+    /// Returns `self` being `Display`ed in a [`Label`] widget.
+    fn to_label(&self) -> Label<Self>
+    where
+        Self: Clone + Debug + Sized + Send + 'static,
+    {
+        self.clone().into_label()
     }
 }
 

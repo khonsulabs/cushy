@@ -184,14 +184,6 @@ impl VirtualList {
             .show(context);
     }
 
-    fn hide_scrollbars(&mut self, context: &mut EventContext<'_>) {
-        let mut vertical = self.vertical_scroll.expect_made_mut().widget().lock();
-        vertical
-            .downcast_mut::<ScrollBar>()
-            .expect("a ScrollBar")
-            .hide(context);
-    }
-
     fn clear(&mut self, context: &mut LayoutContext<'_, '_, '_, '_>) {
         for item in self.items.drain(..) {
             context.remove_child(&item.mounted);
@@ -370,13 +362,21 @@ impl Widget for VirtualList {
         _location: Point<Px>,
         context: &mut EventContext<'_>,
     ) -> Option<CursorIcon> {
-        self.show_scrollbars(context);
+        let mut horizontal = self.horizontal_scroll.expect_made_mut().widget().lock();
+        horizontal
+            .downcast_mut::<ScrollBar>()
+            .expect("a ScrollBar")
+            .hover(context);
 
         None
     }
 
     fn unhover(&mut self, context: &mut EventContext<'_>) {
-        self.hide_scrollbars(context);
+        let mut horizontal = self.horizontal_scroll.expect_made_mut().widget().lock();
+        horizontal
+            .downcast_mut::<ScrollBar>()
+            .expect("a ScrollBar")
+            .unhover(context);
     }
 
     fn mounted(&mut self, context: &mut EventContext<'_>) {

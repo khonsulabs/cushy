@@ -90,6 +90,15 @@ where
         &mut self.child
     }
 
+    fn adjust_child_constraints(
+        &mut self,
+        available_space: figures::Size<crate::ConstraintLimit>,
+        context: &mut crate::context::LayoutContext<'_, '_, '_, '_>,
+    ) -> figures::Size<crate::ConstraintLimit> {
+        self.probed.set(context.get(&self.component));
+        available_space
+    }
+
     fn redraw_foreground(&mut self, context: &mut crate::context::GraphicsContext<'_, '_, '_, '_>) {
         self.probed.set(context.get(&self.component));
     }

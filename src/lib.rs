@@ -7,6 +7,7 @@
 )]
 
 // for proc-macros
+extern crate core;
 extern crate self as cushy;
 
 #[macro_use]
@@ -29,9 +30,78 @@ pub mod widgets;
 pub mod window;
 
 pub mod dialog;
+
 #[doc(hidden)]
 pub mod example;
+#[cfg(feature = "localization")]
+#[macro_use]
+pub mod localization;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
+
+/// A string that may be a localized message.
+#[derive(Clone, Debug)]
+pub enum MaybeLocalized {
+    /// A non-localized message.
+    Text(String),
+    #[cfg(feature = "localization")]
+    /// A localized message.
+    Localized(localization::Localize),
+}
+
+impl Default for MaybeLocalized {
+    fn default() -> Self {
+        Self::Text(String::new())
+    }
+}
+
+impl From<&str> for MaybeLocalized {
+    fn from(value: &str) -> Self {
+        Self::Text(value.to_string())
+    }
+}
+
+impl From<String> for MaybeLocalized {
+    fn from(value: String) -> Self {
+        Self::Text(value)
+    }
+}
+
+impl IntoValue<MaybeLocalized> for &str {
+    fn into_value(self) -> Value<MaybeLocalized> {
+        Value::Constant(MaybeLocalized::from(self))
+    }
+}
+
+impl IntoValue<MaybeLocalized> for String {
+    fn into_value(self) -> Value<MaybeLocalized> {
+        Value::Constant(MaybeLocalized::from(self))
+    }
+}
+impl MaybeLocalized {
+    #[cfg_attr(not(feature = "localization"), allow(unused_variables))]
+    fn localize_for_cushy(&self, app: &Cushy) -> String {
+        match self {
+            MaybeLocalized::Text(text) => text.clone(),
+            #[cfg(feature = "localization")]
+            MaybeLocalized::Localized(localized) => {
+                localized.localize(&localization::WindowTranslationContext(&app.localizations))
+            }
+        }
+    }
+}
+
+#[cfg(not(feature = "localization"))]
+impl widgets::label::DynamicDisplay for MaybeLocalized {
+    fn fmt(
+        &self,
+        _context: &context::WidgetContext<'_>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        match self {
+            MaybeLocalized::Text(text) => std::fmt::Display::fmt(text, f),
+        }
+    }
+}
 
 #[cfg(feature = "tokio")]
 pub use app::TokioRuntime;
@@ -61,7 +131,7 @@ pub use app::{
 /// ### Without Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{Open, PendingApp, Run};
 ///
 /// fn main() -> cushy::Result {
@@ -79,7 +149,7 @@ pub use app::{
 /// ### With Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{Open, PendingApp};
 ///
 /// #[cushy::main]
@@ -102,7 +172,7 @@ pub use app::{
 /// ### Without Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{App, Open, PendingApp, Run};
 ///
 /// fn main() -> cushy::Result {
@@ -119,7 +189,7 @@ pub use app::{
 /// ### With Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{App, Open};
 ///
 /// #[cushy::main]
@@ -135,6 +205,7 @@ use figures::{IntoUnsigned, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;
 pub use names::Name;
 pub use utils::{Lazy, ModifiersExt, ModifiersStateExt, WithClone};
+use value::{IntoValue, Value};
 pub use {figures, kludgine};
 
 pub use self::graphics::{Graphics, RenderOperation, SimpleRenderOperation};
@@ -326,6 +397,7 @@ fn initialize_tracing() {
             )
             .with(
                 Targets::new()
+                    .with_default(MAX_LEVEL)
                     .with_target("winit", Level::ERROR)
                     .with_target("wgpu", Level::ERROR)
                     .with_target("naga", Level::ERROR)

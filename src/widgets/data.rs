@@ -34,6 +34,11 @@ where
             child: WidgetRef::new(widget),
         }
     }
+
+    /// Returns a reference to the wrapped data.
+    pub fn data(&self) -> &T {
+        &self.data
+    }
 }
 
 impl<T> From<T> for Data<T>
