@@ -26,17 +26,10 @@ pub struct Pile {
 }
 
 #[derive(Default, Debug)]
-pub enum Focus {
-    Focused,
-    #[default]
-    Unchanged
-}
-
-#[derive(Default, Debug)]
 struct PileData {
     widgets: Lots<Option<WidgetInstance>>,
     visible: VecDeque<LotId>,
-    focus_visible: Focus,
+    focus_on_show: bool,
 }
 
 impl PileData {
@@ -129,7 +122,7 @@ impl Widget for WidgetPile {
                 .expect("visible widget")
                 .mounted(context);
             let mut child_context = context.for_other(&visible);
-            if matches!(pile.focus_visible, Focus::Focused) && self.last_visible != Some(id) {
+            if pile.focus_on_show && self.last_visible != Some(id) {
                 child_context.focus();
             }
             let size = child_context.layout(available_space);
@@ -197,20 +190,27 @@ pub struct PiledWidget(Arc<PiledWidgetData>);
 
 impl PiledWidget {
     /// Shows this widget in its pile.
-    ///
-    /// If `focus` is true, the widget will be focused when shown.
-    pub fn show(&self, focus: Focus) {
+    pub fn show(&self) {
+        self.show_inner(false);
+    }
+
+    /// Shows this widget in its pile and directs keyboard focus to it.
+    pub fn show_and_focus(&self) {
+        self.show_inner(true);
+    }
+
+    fn show_inner(&self, focus: bool) {
         let mut pile = self.0.pile.data.lock();
         pile.hide_id(self.0.id);
         pile.visible.push_front(self.0.id);
-        pile.focus_visible = focus;
+        pile.focus_on_show = focus;
     }
 
     /// Removes this widget from the pile.
     pub fn remove(&self) {
         let mut pile = self.0.pile.data.lock();
         if pile.visible.front() == Some(&self.0.id) {
-            pile.focus_visible = Focus::Unchanged;
+            pile.focus_on_show = false;
         }
         pile.hide_id(self.0.id);
         pile.widgets.remove(self.0.id);
