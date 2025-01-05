@@ -4648,33 +4648,31 @@ impl InvocationTree {
                 search = parent;
             }
             let root_invoked_by = enqueued_while_executing.invocation_root;
-            let insert_before =
-                if let Some(mut node_id) = self.nodes[enqueued_while_executing.node].first_child {
-                    loop {
-                        let node = &mut self.nodes[node_id];
-                        if node.id == callbacks_id {
-                            if let Some(enqueued) = &mut node.enqueued {
-                                enqueued.changed_at = enqueued.changed_at.max(callbacks.changed_at);
-                                return None;
-                            }
-
-                            node.enqueued = Some(callbacks);
-                            return Some(CallbackInvocationId {
-                                node: node_id,
-                                invocation_root: root_invoked_by,
-                            });
+            let existing_first_child = self.nodes[enqueued_while_executing.node].first_child;
+            if let Some(mut node_id) = existing_first_child {
+                loop {
+                    let node = &mut self.nodes[node_id];
+                    if node.id == callbacks_id {
+                        if let Some(enqueued) = &mut node.enqueued {
+                            enqueued.changed_at = enqueued.changed_at.max(callbacks.changed_at);
+                            return None;
                         }
 
-                        if let Some(next) = node.next {
-                            // Continue traversing the list.
-                            node_id = next;
-                        } else {
-                            break Some(node_id);
-                        }
+                        node.enqueued = Some(callbacks);
+                        return Some(CallbackInvocationId {
+                            node: node_id,
+                            invocation_root: root_invoked_by,
+                        });
                     }
-                } else {
-                    None
-                };
+
+                    if let Some(next) = node.next {
+                        // Continue traversing the list.
+                        node_id = next;
+                    } else {
+                        break;
+                    }
+                }
+            }
 
             // `callbacks` hasn't been executed by the list pointed at by
             // `enqueued_while_executing`.
@@ -4684,7 +4682,7 @@ impl InvocationTree {
                 parent: Some(enqueued_while_executing.node),
                 first_child: None,
                 root_callbacks: root_invoked_by,
-                next: insert_before,
+                next: existing_first_child,
             });
             self.nodes[enqueued_while_executing.node].first_child = Some(id);
             Some(CallbackInvocationId {
@@ -4704,26 +4702,29 @@ impl InvocationTree {
     fn remove_completed_recursive(&mut self, mut node_id: LotId) {
         let mut node = &mut self.nodes[node_id];
         while node.enqueued.is_none() && node.first_child.is_none() {
-            let removed = self.nodes.remove(node_id).expect("node present");
-            let Some(parent_id) = removed.parent else {
-                break;
-            };
-            let mut parent = &mut self.nodes[parent_id];
-            // Repair the linked list
-            if parent.first_child == Some(node_id) {
-                parent.first_child = removed.next;
-            } else {
-                let mut current = parent.first_child.expect("valid child");
-                while self.nodes[current].next != Some(node_id) {
-                    current = self.nodes[current].next.expect("removed node to exist");
+            let after_removed = node.next;
+            if let Some(parent_id) = node.parent {
+                let parent = &mut self.nodes[parent_id];
+                // Repair the linked list
+                if parent.first_child == Some(node_id) {
+                    parent.first_child = after_removed;
+                } else {
+                    let mut current = parent.first_child.expect("valid child");
+                    while self.nodes[current].next != Some(node_id) {
+                        current = self.nodes[current].next.expect("removed node to exist");
+                    }
+                    self.nodes[current].next = after_removed;
                 }
-                self.nodes[current].next = removed.next;
-                parent = &mut self.nodes[parent_id];
-            }
 
-            // Attempt to remove the parent if this was its last node.
-            node = parent;
-            node_id = parent_id;
+                self.nodes.remove(node_id);
+
+                // Attempt to remove the parent if this was its last node.
+                node = &mut self.nodes[parent_id];
+                node_id = parent_id;
+            } else {
+                self.nodes.remove(node_id);
+                break;
+            }
         }
     }
 }
