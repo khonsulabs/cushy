@@ -8,14 +8,14 @@ jobs:
       fail-fast: false
       matrix:
         version: ["stable", "1.80.0"]
-        os: ["ubuntu-latest", "windows-latest", "macos-latest"]
+        os: ["ubuntu-22.04", "windows-latest", "macos-latest"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
 
       -
         name: Free disk space
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo docker rmi $(docker image ls -aq) || true
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
@@ -23,7 +23,7 @@ jobs:
 
       # Sourced from https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml
       - name: install vulkan sdk
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         shell: bash
         run: |
           set -e
@@ -39,7 +39,7 @@ jobs:
 
       # Sourced from https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml  
       - name: install mesa
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         shell: bash
         run: |
           set -e
