@@ -2512,7 +2512,8 @@ where
     }
 }
 
-/// Allows to convert collections or iterators directly into [`Stack`], [`Layers`], etc.
+/// Allows to convert collections or iterators directly into [`Stack`],
+/// [`Layers`], etc.
 pub trait MakeWidgetList: Sized {
     /// Returns self as a `WidgetList`.
     fn make_widget_list(self) -> WidgetList;
