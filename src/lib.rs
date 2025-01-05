@@ -44,7 +44,8 @@ pub use app::{
 /// macro can be used to remove a few lines of code.
 ///
 /// The function body is executed during application startup, and the app will
-/// continue running until the last window is closed.
+/// continue running until the last window is closed. **Local variables in the
+/// function will be dropped before the application runs.**
 ///
 /// This attribute must be attached to a `main(&mut PendingApp)` or `main(&mut
 /// App)` function. Either form supports a return type or no return type.
