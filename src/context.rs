@@ -1352,7 +1352,7 @@ impl<'context> WidgetContext<'context> {
 
     /// Returns an exclusive reference to the window containing this widget.
     #[must_use]
-    pub const fn window_mut(&mut self) -> &mut dyn PlatformWindow {
+    pub fn window_mut(&mut self) -> &mut dyn PlatformWindow {
         self.window
     }
 
