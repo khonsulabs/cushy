@@ -105,6 +105,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drastically differently. If this affects your user interface, use
   `expand_horizontally()` or `expand_vertically()` to limit the direction of the
   expansion.
+- All callbacks executed by map_each/for_each/etc are now executed by a single
+  thread rather than in the thread causing the change. The major effect of this
+  change is that updating a dynamic and immediately trying to read a value of a
+  dynamic that is supposed to be updated will not work reliably anymore. Using a
+  DynamicReader to block until the value is updated will work in existing code
+  and in the new callback execution model.
+
+  This change was made to make complex data flows simpler to implement without
+  causing deadlocks. Without this change, it was easy in a multi-threaded
+  application to create deadlocks with relatively simple data flows like the new
+  `7guis-timer` example.
+- The type `cushy::Graphics` is now available at `cushy::graphics::Graphics`.
 
 ### Changed
 
@@ -200,6 +212,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   made without observing any ill effects from the existing logic, but the logic
   was not correct.
 - `Input` and `Label` now honor `ConstraintLayout::Fill`.
+- `Label` now properly invalidates itself when various font style components are
+  changed.
 
 ### Added
 
@@ -383,8 +397,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to standardize a method of adding informational text to interfaces.
 - `ImageScaling::layout_size` and `ImageScaling::render_area` are new functions
   that expose the layout calculations the `Image` widget performed.
+- `GraphicsContext::current_font_settings()` returns a new struct `FontSettings`
+  that contains the effective style components for the various font settings
+  supported by a `GraphicsContext`. `FontSettings::apply()` can be used to apply
+  settings in one step. `FontSettings` also implements `PartialEq` allowing it
+  to be used as a cache invalidation key.
+- New feature `localization`, included in Cushy's default features, enables
+  multi-lingual/multi-locale support using [Fluent][fluent]. See the
+  `localization` module for documentation of this feature, or see the
+  `localization.rs` example in the repository to see it in action.
+- `Duration` now has `LinearInterpolation` and `PercentBetween` implementations.
+- `Source::on_change_try` is a new function that executes a callback any time
+  the source is changed.
+- `Dynamic::linked_accessor` is a new function that takes a getter and setter
+  function and returns a `Dynamic` that will execute the getter and setter
+  appropriately when its value is changed.
+- `DynamicRead::read_nonblocking` is a new function that attempts to acquire
+  read access to the dynamic without blocking the current thread.
 
-
+[fluent]: https://projectfluent.org/
 [139]: https://github.com/khonsulabs/cushy/issues/139
 
 ## v0.4.0 (2024-08-20)

@@ -2607,7 +2607,7 @@ pub trait ProtoColor: Sized {
     }
 }
 
-impl<'a> ProtoColor for &'a ColorSource {
+impl ProtoColor for &'_ ColorSource {
     fn hue(&self) -> OklabHue {
         self.hue
     }
