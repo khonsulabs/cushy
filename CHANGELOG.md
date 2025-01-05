@@ -105,6 +105,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   drastically differently. If this affects your user interface, use
   `expand_horizontally()` or `expand_vertically()` to limit the direction of the
   expansion.
+- All callbacks executed by map_each/for_each/etc are now executed by a single
+  thread rather than in the thread causing the change. The major effect of this
+  change is that updating a dynamic and immediately trying to read a value of a
+  dynamic that is supposed to be updated will not work reliably anymore. Using a
+  DynamicReader to block until the value is updated will work in existing code
+  and in the new callback execution model.
+
+  This change was made to make complex data flows simpler to implement without
+  causing deadlocks. Without this change, it was easy in a multi-threaded
+  application to create deadlocks with relatively simple data flows like the new
+  `7guis-timer` example.
 
 ### Changed
 
@@ -394,6 +405,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   multi-lingual/multi-locale support using [Fluent][fluent]. See the
   `localization` module for documentation of this feature, or see the
   `localization.rs` example in the repository to see it in action.
+- `Duration` now has `LinearInterpolation` and `PercentBetween` implementations.
+- `Source::on_change_try` is a new function that executes a callback any time
+  the source is changed.
+- `Dynamic::linked_accessor` is a new function that takes a getter and setter
+  function and returns a `Dynamic` that will execute the getter and setter
+  appropriately when its value is changed.
+- `DynamicRead::read_nonblocking` is a new function that attempts to acquire
+  read access to the dynamic without blocking the current thread.
 
 [fluent]: https://projectfluent.org/
 [139]: https://github.com/khonsulabs/cushy/issues/139
