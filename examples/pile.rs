@@ -20,7 +20,7 @@ fn main() -> cushy::Result {
                 .into_button()
                 .on_click({
                     let section = handle.clone();
-                    move |_| section.show(true)
+                    move |_| section.show_and_focus()
                 })
                 .make_widget();
             let button_id = button.id();
