@@ -36,7 +36,7 @@ static CALLBACK_EXECUTORS: Mutex<Map<usize, Arc<DynamicLockData>>> = Mutex::new(
 fn execute_callbacks(
     lock: Arc<DynamicLockData>,
     callbacks: &mut CallbacksList,
-) -> Result<(), DeadlockError> {
+) -> Result<usize, DeadlockError> {
     let mut executors = CALLBACK_EXECUTORS.lock();
     let key = Arc::as_ptr(&lock) as usize;
     match executors.entry(key) {
@@ -49,15 +49,17 @@ fn execute_callbacks(
 
     // Invoke all callbacks, removing those that report an
     // error.
+    let mut count = 0;
     callbacks.invoked_at = Instant::now();
-    callbacks
-        .callbacks
-        .drain_filter(|callback| callback.changed().is_err());
+    callbacks.callbacks.drain_filter(|callback| {
+        count += 1;
+        callback.changed().is_err()
+    });
 
     let mut executors = CALLBACK_EXECUTORS.lock();
     executors.remove(&key);
 
-    Ok(())
+    Ok(count)
 }
 
 /// A source of one or more `T` values.
@@ -1705,7 +1707,6 @@ impl<T, const READONLY: bool> DynamicMutexGuard<'_, T, READONLY> {
         MutexGuard::unlocked(&mut self.guard, || {
             let mut state = self.dynamic.lock.state.lock();
             let current_holder = state.lock_holder.take();
-            // let current_executor = state.executing_callbacks.take();
             drop(state);
             self.dynamic.lock.sync.notify_all();
             let result = while_unlocked();
@@ -2282,17 +2283,17 @@ struct ChangeCallbacks {
 }
 
 impl ChangeCallbacks {
-    fn execute(self) {
+    fn execute(self) -> usize {
         // Invoke the callbacks
         let mut data = self.data.callbacks.lock();
         // If the callbacks have already been invoked by another
         // thread such that the callbacks observed the value our
         // thread wrote, we can skip the callbacks.
-        if data.invoked_at < self.changed_at
-            && execute_callbacks(self.data.lock.clone(), &mut data).is_err()
-        {
-            return;
-        }
+        let Some(Ok(count)) = (data.invoked_at < self.changed_at)
+            .then(|| execute_callbacks(self.data.lock.clone(), &mut data))
+        else {
+            return 0;
+        };
 
         // Clean up all callbacks that were disconnected while our callbacks
         // were locked.
@@ -2303,6 +2304,7 @@ impl ChangeCallbacks {
         drop(data);
         drop(state);
         self.data.lock.sync.notify_all();
+        count
     }
 }
 
@@ -4595,6 +4597,7 @@ impl CallbackExecutor {
         // error, but if it does, it's during program shutdown, and we can exit safely.
         while let Ok(callbacks) = self.receiver.recv() {
             self.enqueue(callbacks);
+            let mut callbacks_executed = 0;
             loop {
                 // Exhaust any pending callbacks without blocking.
                 while let Ok(callbacks) = self.receiver.try_recv() {
@@ -4604,7 +4607,11 @@ impl CallbackExecutor {
                 let Some(callbacks) = self.pop_callbacks() else {
                     break;
                 };
-                callbacks.execute();
+                callbacks_executed += callbacks.execute();
+            }
+
+            if callbacks_executed > 0 {
+                tracing::trace!("{callbacks_executed} callbacks executed");
             }
         }
     }
