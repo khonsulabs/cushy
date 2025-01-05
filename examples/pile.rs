@@ -25,7 +25,7 @@ fn main() -> cushy::Result {
                 .make_widget();
             let button_id = button.id();
 
-            pending_section.finish(
+            let _ = pending_section.finish(
                 Dynamic::new(format!("Section {counter}"))
                     .into_input()
                     .and("Close Section".into_button().on_click({
