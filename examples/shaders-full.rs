@@ -24,13 +24,14 @@ use bytemuck::{Pod, Zeroable};
 use cushy::animation::ZeroToOne;
 use cushy::figures::units::Px;
 use cushy::figures::Rect;
+use cushy::graphics::RenderOperation;
 use cushy::kludgine::{wgpu, RenderingGraphics};
 use cushy::styles::components::Opacity;
 use cushy::value::Dynamic;
 use cushy::widget::MakeWidget;
 use cushy::widgets::slider::Slidable;
 use cushy::widgets::Canvas;
-use cushy::{RenderOperation, Run};
+use cushy::Run;
 use kludgine::wgpu::util::DeviceExt;
 
 #[derive(Debug, Clone, Copy, Pod, Zeroable, PartialEq)]

@@ -1,3 +1,4 @@
+//! Graphics types for rendering.
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 
@@ -6,6 +7,7 @@ use figures::{
     self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, ScreenUnit, Size,
     Zero,
 };
+use intentional::Assert;
 use kempt::{map, Map};
 use kludgine::cosmic_text::{fontdb, FamilyOwned, FontSystem};
 use kludgine::drawing::Renderer;
@@ -371,11 +373,29 @@ impl DerefMut for RenderContext<'_, '_, '_> {
     }
 }
 
+/// A prepared [`RenderOperation`]'s data.
 #[derive(Debug)]
-struct Prepared<T> {
+pub struct Prepared<T> {
     region: Rect<Px>,
     opacity: ZeroToOne,
     data: T,
+}
+
+impl<T> Prepared<T> {
+    /// The region this operation is expected to draw within.
+    pub const fn region(&self) -> Rect<Px> {
+        self.region
+    }
+
+    /// The opacity this operation is expected to be performed with.
+    pub const fn opacity(&self) -> ZeroToOne {
+        self.opacity
+    }
+
+    /// The prepared data returned from [`RenderOperation::prepare`].
+    pub const fn inner(&self) -> &T {
+        &self.data
+    }
 }
 
 struct CushyRenderOp<Op>(Op);
@@ -401,6 +421,10 @@ where
             data: self.0.prepare(context, region, opacity, graphics),
             opacity,
         }
+    }
+
+    fn finish(&mut self, prepared: &[Self::Prepared], graphics: &mut kludgine::Graphics<'_>) {
+        self.0.finish(prepared, graphics);
     }
 
     fn render<'pass>(
@@ -432,7 +456,7 @@ pub(crate) struct LoadedFontIds {
     pub(crate) faces: Vec<LoadedFontFace>,
 }
 
-pub struct FontState {
+pub(crate) struct FontState {
     app_fonts: FontCollection,
     app_font_generation: Generation,
     window_fonts: FontCollection,
@@ -529,7 +553,7 @@ impl FontState {
             // Remove all fonts that didn't have their generation touched.
             let mut i = 0;
             while i < self.loaded_fonts.len() {
-                let field = self.loaded_fonts.field(i).expect("length checked");
+                let field = self.loaded_fonts.field(i).assert("length checked");
                 let check_if_changed = (app_fonts_changed
                     && self.app_fonts.0.as_ptr() == field.key().collection)
                     || (window_fonts_changed
@@ -586,6 +610,7 @@ impl FontState {
         self.update_fonts(db)
     }
 
+    #[must_use]
     pub fn find_available_font_family(&self, list: &FontFamilyList) -> Option<FamilyOwned> {
         list.iter()
             .find(|family| match family {
@@ -651,6 +676,18 @@ pub trait RenderOperation: Send + Sync + 'static {
         opacity: ZeroToOne,
         graphics: &mut kludgine::Graphics<'_>,
     ) -> Self::Prepared;
+
+    /// Finish any operations needed before render operations begin.
+    ///
+    /// This function is invoked once after all `prepare` functions have been
+    /// invoked, but before the `render` functions begin.
+    #[allow(unused_variables)]
+    fn finish(
+        &mut self,
+        prepared: &[Prepared<Self::Prepared>],
+        graphics: &mut kludgine::Graphics<'_>,
+    ) {
+    }
 
     /// Render `preprared` to `graphics` at `region` with `opacity`.
     ///

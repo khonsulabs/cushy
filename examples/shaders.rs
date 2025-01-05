@@ -3,10 +3,11 @@ use std::borrow::Cow;
 use cushy::animation::ZeroToOne;
 use cushy::figures::units::Px;
 use cushy::figures::Rect;
+use cushy::graphics::SimpleRenderOperation;
 use cushy::kludgine::{wgpu, RenderingGraphics};
 use cushy::widget::MakeWidget;
 use cushy::widgets::Canvas;
-use cushy::{Run, SimpleRenderOperation};
+use cushy::Run;
 
 static TRIANGLE_SHADER: &str = r#"
     @vertex

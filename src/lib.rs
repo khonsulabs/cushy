@@ -15,7 +15,7 @@ mod utils;
 
 pub mod animation;
 pub mod context;
-mod graphics;
+pub mod graphics;
 mod names;
 #[macro_use]
 pub mod styles;
@@ -208,7 +208,6 @@ pub use utils::{Lazy, ModifiersExt, ModifiersStateExt, WithClone};
 use value::{IntoValue, Value};
 pub use {figures, kludgine};
 
-pub use self::graphics::{Graphics, RenderOperation, SimpleRenderOperation};
 pub use self::tick::{InputState, Tick};
 
 /// Starts running a Cushy application, invoking `app_init` after the event loop

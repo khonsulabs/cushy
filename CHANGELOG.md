@@ -116,6 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   causing deadlocks. Without this change, it was easy in a multi-threaded
   application to create deadlocks with relatively simple data flows like the new
   `7guis-timer` example.
+- The type `cushy::Graphics` is now available at `cushy::graphics::Graphics`.
 
 ### Changed
 
