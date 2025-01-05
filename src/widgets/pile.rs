@@ -49,7 +49,6 @@ impl PileData {
 impl Pile {
     /// Returns a placeholder that can be used to show/close a piled widget
     /// before it has been constructed.
-    #[must_use]
     pub fn new_pending(&self) -> PendingPiledWidget {
         let mut pile = self.data.lock();
         let id = pile.widgets.push(None);
@@ -67,6 +66,9 @@ impl Pile {
     /// When the last clone of the returned [`PiledWidget`] is dropped, `widget`
     /// will be removed from the pile. If it is the currently visible widget,
     /// the next widget in the pile will be made visible.
+    ///
+    /// See [`PiledWidget`] for important lifetime information.
+    #[must_use]
     pub fn push(&self, widget: impl MakeWidget) -> PiledWidget {
         self.new_pending().finish(widget)
     }
@@ -160,11 +162,16 @@ impl Widget for WidgetPile {
 }
 
 /// A placeholder for a widget in a [`Pile`].
+#[must_use]
 pub struct PendingPiledWidget(Option<PiledWidget>);
 
 impl PendingPiledWidget {
     /// Place `widget` in the pile and returns a handle to the placed widget.
-    #[allow(clippy::must_use_candidate)]
+    ///
+    /// When the last clone of the returned [`PiledWidget`] is dropped, `widget`
+    /// will be removed from the pile. If it is the currently visible widget,
+    /// the next widget in the pile will be made visible.
+    #[must_use]
     pub fn finish(mut self, widget: impl MakeWidget) -> PiledWidget {
         let piled = self.0.take().assert("finished called once");
         let mut pile = piled.0.pile.data.lock();
@@ -185,6 +192,14 @@ impl std::ops::Deref for PendingPiledWidget {
 }
 
 /// A widget that has been added to a [`Pile`].
+///
+/// When the last clone of a `PiledWidget` is dropped, the widget will be
+/// removed from the Pile.
+///
+/// This can happen in application which creates a 'bottom layer' for the pile
+/// which is only supposed to be used by the pile itself.  If you don't want the
+/// 'bottom layer' to be removed immediately after creation you need to retain a
+/// reference to it.
 #[derive(Clone, Debug)]
 pub struct PiledWidget(Arc<PiledWidgetData>);
 
