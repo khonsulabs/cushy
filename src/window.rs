@@ -1821,7 +1821,7 @@ where
             outer_size: settings.outer_size,
             inner_position: settings.inner_position,
             outer_position: Tracked::from(settings.outer_position).ignoring_first(),
-            window_icon: Tracked::from(settings.window_icon),
+            window_icon: Tracked::from(settings.window_icon).ignoring_first_if(Option::is_none),
             modifiers: settings.modifiers,
             enabled_buttons: Tracked::from(settings.enabled_buttons).ignoring_first(),
             fullscreen: Tracked::from(settings.fullscreen).ignoring_first(),

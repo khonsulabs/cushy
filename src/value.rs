@@ -4347,6 +4347,15 @@ where
         self
     }
 
+    /// Marks the initial value as read if `test` returns true. Returns self.
+    #[must_use]
+    pub fn ignoring_first_if(mut self, test: impl FnOnce(&Source::Value) -> bool) -> Self {
+        if test(&self.current) {
+            self.unread = false;
+        }
+        self
+    }
+
     /// Updates this tracked instance's cached value from the source.
     ///
     /// Returns true if a value hasn't been read yet.
