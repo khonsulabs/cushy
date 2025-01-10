@@ -1,5 +1,5 @@
 use cushy::figures::units::{Lp, Px};
-use cushy::localization::Localize;
+use cushy::localize;
 use cushy::styles::ContainerLevel;
 use cushy::value::{Dynamic, Switchable};
 use cushy::widget::{MakeWidget, WidgetInstance};
@@ -59,14 +59,12 @@ impl SideBar {
             .expand_vertically()
             .make_widget();
 
-        let sidebar_header = Localize::new("side-bar-header")
-            .into_label()
+        let sidebar_header = localize!("side-bar-header")
             .centered()
             .align_left()
             .contain_level(ContainerLevel::Highest);
 
-        let sidebar_footer = Localize::new("side-bar-footer")
-            .into_label()
+        let sidebar_footer = localize!("side-bar-footer")
             .centered()
             .align_left()
             .contain_level(ContainerLevel::Highest);

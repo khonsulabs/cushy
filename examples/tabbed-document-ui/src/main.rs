@@ -4,9 +4,9 @@ use slotmap::SlotMap;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
 use cushy::figures::units::{Lp, Px};
-use cushy::{App, Application};
+use cushy::{localize, App, Application};
 use cushy::dialog::{FilePicker, FileType};
-use cushy::localization::Localize;
+use cushy::localization::Localization;
 use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Radio};
@@ -68,17 +68,26 @@ fn main(app: &mut App) -> cushy::Result {
     let es_es_locale: LanguageIdentifier = "es-ES".parse().unwrap();
 
     let languages: Vec<LanguageIdentifier> = vec![
-        en_us_locale.clone(),
-        es_es_locale.clone()
+        en_us_locale,
+        es_es_locale
     ];
 
     let language_identifier: Dynamic<LanguageIdentifier> = Dynamic::new(languages.first().unwrap().clone());
 
-    let translations = app.cushy().translations();
-    translations
-        .add(en_us_locale, include_str!("../assets/translations/en-US/translations.ftl").to_owned());
-    translations
-        .add(es_es_locale, include_str!("../assets/translations/es-ES/translations.ftl").to_owned());
+    app.cushy().localizations().add_default(
+        Localization::for_language(
+            "en-US",
+            include_str!("../assets/translations/en-US/translations.ftl"),
+        )
+            .expect("valid language id"),
+    );
+    app.cushy().localizations().add(
+        Localization::for_language(
+            "es-ES",
+            include_str!("../assets/translations/es-ES/translations.ftl"),
+        )
+            .expect("valid language id"),
+    );
 
 
     let message: Dynamic<AppMessage> = Dynamic::default();
@@ -160,7 +169,7 @@ fn main(app: &mut App) -> cushy::Result {
             .fit_vertically()
             .fit_horizontally()
             .with(&IntrinsicPadding, Px::new(4))
-            .localized(language_identifier)
+            .localized_in(language_identifier)
             .make_widget()
     )
         /*
@@ -590,8 +599,7 @@ impl Default for ToolbarMessage {
 fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>, language_identifier: Dynamic<LanguageIdentifier>, languages: &Vec<LanguageIdentifier>) -> WidgetInstance {
     let button_padding = Dimension::Lp(Lp::points(4));
 
-    let home_button = Localize::new("toolbar-button-home")
-        .into_label()
+    let home_button = localize!("toolbar-button-home")
         .into_button()
         .on_click({
             let message = toolbar_message.clone();
@@ -599,8 +607,7 @@ fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>, language_identifier: D
         })
         .with(&IntrinsicPadding, button_padding);
 
-    let new_button = Localize::new("toolbar-button-new")
-        .into_label()
+    let new_button = localize!("toolbar-button-new")
         .into_button()
         .on_click({
             let message = toolbar_message.clone();
@@ -608,8 +615,7 @@ fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>, language_identifier: D
         })
         .with(&IntrinsicPadding, button_padding);
 
-    let open_button = Localize::new("toolbar-button-open")
-        .into_label()
+    let open_button = localize!("toolbar-button-open")
         .into_button()
         .on_click({
             let message = toolbar_message.clone();
@@ -618,8 +624,7 @@ fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>, language_identifier: D
         .with(&IntrinsicPadding, button_padding);
 
 
-    let close_all_button = Localize::new("toolbar-button-close-all")
-        .into_label()
+    let close_all_button = localize!("toolbar-button-close-all")
         .into_button()
         .on_click({
             let message = toolbar_message.clone();

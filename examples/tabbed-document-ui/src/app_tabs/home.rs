@@ -1,4 +1,4 @@
-use cushy::localization::Localize;
+use cushy::localize;
 use cushy::value::Source;
 use crate::Dynamic;
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
@@ -48,14 +48,12 @@ impl Tab<HomeTabMessage, HomeTabAction> for HomeTab {
 
             callback.persist();
 
-            let home_label = Localize::new("home-banner")
-                .into_label()
+            let home_label = localize!("home-banner")
                 .xxxx_large()
                 .centered()
                 .make_widget();
 
-            let show_on_startup_button= Localize::new("home-checkbox-label-show-on-startup")
-                .into_label()
+            let show_on_startup_button= localize!("home-checkbox-label-show-on-startup")
                 .into_checkbox(show_on_startup_value)
                 .centered()
                 .make_widget();
