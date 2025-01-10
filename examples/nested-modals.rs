@@ -1,4 +1,4 @@
-use cushy::dialog::MessageBox;
+use cushy::dialog::{MessageBox, ShouldClose};
 use cushy::widget::MakeWidget;
 use cushy::widgets::layers::{Modal, ModalTarget};
 use cushy::Run;
@@ -39,11 +39,12 @@ fn show_modal(present_in: &impl ModalTarget, level: usize) {
                 }))
                 .into_rows(),
         )
-        .with_default_button("Close", || {})
+        .with_default_button("Close", ShouldClose::Close)
         .with_cancel_button("Close All", {
             let handle = handle.clone();
             move || {
                 handle.layer().dismiss();
+                ShouldClose::Close
             }
         })
         .show();

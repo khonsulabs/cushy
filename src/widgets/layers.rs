@@ -18,6 +18,7 @@ use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContex
 use crate::reactive::value::{
     Destination, Dynamic, DynamicGuard, DynamicRead, IntoValue, Source, Value,
 };
+use crate::dialog::{ButtonBehavior, ShouldClose};
 use crate::styles::components::{EasingIn, ScrimColor};
 use crate::widget::{
     Callback, MakeWidget, MakeWidgetWithTag, MountedChildren, SharedCallback, Widget, WidgetId,
@@ -928,7 +929,7 @@ impl Modal {
     /// dismisses the dialog.
     pub fn message(&self, message: impl MakeWidget, button_caption: impl MakeWidget) {
         self.build_dialog(message)
-            .with_default_button(button_caption, || {})
+            .with_default_button(button_caption, ShouldClose::Close)
             .show();
     }
 
@@ -1083,21 +1084,13 @@ impl DialogBuilder<No, No> {
 impl<HasDefault, HasCancel> DialogBuilder<HasDefault, HasCancel> {
     /// Adds a button with `caption` that invokes `on_click` when activated.
     /// Returns self.
-    pub fn with_button(
-        mut self,
-        caption: impl MakeWidget,
-        on_click: impl FnOnce() + Send + 'static,
-    ) -> Self {
+    pub fn with_button(mut self, caption: impl MakeWidget, on_click: impl ButtonBehavior) -> Self {
         self.push_button(caption, on_click);
         self
     }
 
     /// Pushes a button with `caption` that invokes `on_click` when activated.
-    pub fn push_button(
-        &mut self,
-        caption: impl MakeWidget,
-        on_click: impl FnOnce() + Send + 'static,
-    ) {
+    pub fn push_button(&mut self, caption: impl MakeWidget, on_click: impl ButtonBehavior) {
         self.inner_push_button(caption, DialogButtonKind::Plain, on_click);
     }
 
@@ -1105,18 +1098,15 @@ impl<HasDefault, HasCancel> DialogBuilder<HasDefault, HasCancel> {
         &mut self,
         caption: impl MakeWidget,
         kind: DialogButtonKind,
-        on_click: impl FnOnce() + Send + 'static,
+        mut on_click: impl ButtonBehavior,
     ) {
-        let mut on_click = Some(on_click);
         let modal = self.handle.clone();
         let mut button = caption
             .into_button()
             .on_click(move |_| {
-                let Some(on_click) = on_click.take() else {
-                    return;
-                };
-                modal.dismiss();
-                on_click();
+                if let ShouldClose::Close = on_click.clicked() {
+                    modal.dismiss();
+                }
             })
             .make_widget();
         match kind {
@@ -1130,7 +1120,7 @@ impl<HasDefault, HasCancel> DialogBuilder<HasDefault, HasCancel> {
     /// Shows the modal dialog, returning a handle that owns the session.
     pub fn show(mut self) {
         if self.buttons.is_empty() {
-            self.inner_push_button("OK", DialogButtonKind::Default, || {});
+            self.inner_push_button("OK", DialogButtonKind::Default, ShouldClose::Close);
         }
         self.handle.present(
             self.message
@@ -1147,7 +1137,7 @@ impl<HasCancel> DialogBuilder<No, HasCancel> {
     pub fn with_default_button(
         mut self,
         caption: impl MakeWidget,
-        on_click: impl FnOnce() + Send + 'static,
+        on_click: impl ButtonBehavior,
     ) -> DialogBuilder<Yes, HasCancel> {
         self.inner_push_button(caption, DialogButtonKind::Default, on_click);
         let Self {
@@ -1171,7 +1161,7 @@ impl<HasDefault> DialogBuilder<HasDefault, No> {
     pub fn with_cancel_button(
         mut self,
         caption: impl MakeWidget,
-        on_click: impl FnOnce() + Send + 'static,
+        on_click: impl FnMut() -> ShouldClose + Send + 'static,
     ) -> DialogBuilder<HasDefault, Yes> {
         self.inner_push_button(caption, DialogButtonKind::Cancel, on_click);
         let Self {
@@ -1206,7 +1196,7 @@ pub struct ModalHandle {
 
 impl ModalHandle {
     fn above(mut self, other: &Self) -> Self {
-        self.above = Some(other.id.clone());
+        self.above = Some(dbg!(other.id.clone()));
         self
     }
 
@@ -1224,7 +1214,7 @@ impl ModalHandle {
         } else {
             state.clear();
         };
-        self.id.set(Some(state.push(contents.make_widget())));
+        self.id.set(Some(dbg!(state.push(contents.make_widget()))));
     }
 
     // /// Prevents the modal shown by this handle from being dismissed when the
@@ -1236,7 +1226,9 @@ impl ModalHandle {
 
     /// Dismisses the modal shown by this handle.
     pub fn dismiss(&self) {
-        let Some(id) = self.id.take() else { return };
+        let Some(id) = self.id.take() else {
+            return;
+        };
         let mut state = self.layer.modal.lock();
         let Some(index) = state.index_of_id(id) else {
             return;
@@ -1250,10 +1242,16 @@ impl ModalHandle {
         &self.layer
     }
 
-    /// Returns a builder for a modal dialog that displays `message` in a modal
-    /// dialog above the dialog shown by this handle.
+    /// Returns a builder for a modal dialog that replaces the current contents
+    /// of this modal with `message` and presents it.
     pub fn build_dialog(&self, message: impl MakeWidget) -> DialogBuilder {
         DialogBuilder::new(self.clone(), message)
+    }
+
+    /// Returns a builder for a modal dialog that displays `message` in a modal
+    /// dialog above the dialog shown by this handle.
+    pub fn build_nested_dialog(&self, message: impl MakeWidget) -> DialogBuilder {
+        DialogBuilder::new(self.new_handle(), message)
     }
 }
 
