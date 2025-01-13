@@ -20,11 +20,12 @@ mod names;
 #[macro_use]
 pub mod styles;
 mod app;
+mod reactive;
+pub use reactive::{channel, value};
 pub mod debug;
 pub mod fonts;
 mod tick;
 mod tree;
-pub mod value;
 pub mod widget;
 pub mod widgets;
 pub mod window;
