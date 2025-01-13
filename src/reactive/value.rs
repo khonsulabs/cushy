@@ -1,27 +1,29 @@
 //! Types for storing and interacting with values in Widgets.
 
-use std::cell::{Cell, Ref, RefCell, RefMut};
-use std::collections::{HashMap, VecDeque};
+use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
 use std::fmt::{self, Debug, Display};
 use std::future::Future;
 use std::hash::{BuildHasher, Hash};
 use std::ops::{Add, AddAssign, Deref, DerefMut, Not};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self};
 use std::sync::{Arc, Weak};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use ahash::{AHashMap, AHashSet};
 use alot::{LotId, Lots};
 use intentional::Assert;
-use kempt::{map, Map, Sort};
+use kempt::{Map, Sort};
 use parking_lot::{Condvar, Mutex, MutexGuard};
 
 use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
 use crate::context::{self, Trackable, WidgetContext};
+use crate::reactive::{
+    defer_execute_callbacks, CallbackCollection, ChangeCallbacks, ChangeCallbacksData,
+};
 use crate::utils::WithClone;
 use crate::widget::{
     MakeWidget, MakeWidgetWithTag, OnceCallback, WidgetId, WidgetInstance, WidgetList,
@@ -29,38 +31,6 @@ use crate::widget::{
 use crate::widgets::checkbox::CheckboxState;
 use crate::widgets::{Checkbox, Radio, Select, Space, Switcher};
 use crate::window::WindowHandle;
-use crate::Lazy;
-
-static CALLBACK_EXECUTORS: Mutex<Map<usize, Arc<DynamicLockData>>> = Mutex::new(Map::new());
-
-fn execute_callbacks(
-    lock: Arc<DynamicLockData>,
-    callbacks: &mut CallbacksList,
-) -> Result<usize, DeadlockError> {
-    let mut executors = CALLBACK_EXECUTORS.lock();
-    let key = Arc::as_ptr(&lock) as usize;
-    match executors.entry(key) {
-        map::Entry::Occupied(_) => return Err(DeadlockError),
-        map::Entry::Vacant(entry) => {
-            entry.insert(lock);
-        }
-    }
-    drop(executors);
-
-    // Invoke all callbacks, removing those that report an
-    // error.
-    let mut count = 0;
-    callbacks.invoked_at = Instant::now();
-    callbacks.callbacks.drain_filter(|callback| {
-        count += 1;
-        callback.changed().is_err()
-    });
-
-    let mut executors = CALLBACK_EXECUTORS.lock();
-    executors.remove(&key);
-
-    Ok(count)
-}
 
 /// A source of one or more `T` values.
 pub trait Source<T> {
@@ -1914,10 +1884,6 @@ impl Display for DeadlockError {
     }
 }
 
-trait CallbackCollection: Send + Sync + 'static {
-    fn remove(&self, id: LotId);
-}
-
 /// A handle to a callback installed on a [`Dynamic`]. When dropped, the
 /// callback will be uninstalled.
 ///
@@ -2171,10 +2137,7 @@ impl<T> State<T> {
             self.invalidation.invoke();
         }
 
-        ChangeCallbacks {
-            data: self.callbacks.clone(),
-            changed_at: Instant::now(),
-        }
+        ChangeCallbacks::new(self.callbacks.clone())
     }
 
     fn debug(&self, name: &str, f: &mut fmt::Formatter<'_>) -> fmt::Result
@@ -2234,95 +2197,15 @@ where
 }
 
 #[derive(Default, Debug)]
-struct DynamicLockState {
+pub(super) struct DynamicLockState {
     lock_holder: Option<ThreadId>,
-    callbacks_to_remove: Vec<LotId>,
+    pub(super) callbacks_to_remove: Vec<LotId>,
 }
 
 #[derive(Default, Debug)]
-struct DynamicLockData {
-    state: Mutex<DynamicLockState>,
-    sync: Condvar,
-}
-
-#[derive(Default)]
-struct ChangeCallbacksData {
-    callbacks: Mutex<CallbacksList>,
-    lock: Arc<DynamicLockData>,
-}
-
-impl CallbackCollection for ChangeCallbacksData {
-    fn remove(&self, id: LotId) {
-        if CallbackExecutor::is_current_thread() {
-            let mut state = self.lock.state.lock();
-            state.callbacks_to_remove.push(id);
-        } else {
-            let mut data = self.callbacks.lock();
-            data.callbacks.remove(id);
-        }
-    }
-}
-
-struct CallbacksList {
-    callbacks: Lots<Box<dyn ValueCallback>>,
-    invoked_at: Instant,
-}
-
-impl Default for CallbacksList {
-    fn default() -> Self {
-        Self {
-            callbacks: Lots::new(),
-            invoked_at: Instant::now(),
-        }
-    }
-}
-
-struct ChangeCallbacks {
-    data: Arc<ChangeCallbacksData>,
-    changed_at: Instant,
-}
-
-impl ChangeCallbacks {
-    fn execute(self) -> usize {
-        // Invoke the callbacks
-        let mut data = self.data.callbacks.lock();
-        // If the callbacks have already been invoked by another
-        // thread such that the callbacks observed the value our
-        // thread wrote, we can skip the callbacks.
-        let Some(Ok(count)) = (data.invoked_at < self.changed_at)
-            .then(|| execute_callbacks(self.data.lock.clone(), &mut data))
-        else {
-            return 0;
-        };
-
-        // Clean up all callbacks that were disconnected while our callbacks
-        // were locked.
-        let mut state = self.data.lock.state.lock();
-        for callback in state.callbacks_to_remove.drain(..) {
-            data.callbacks.remove(callback);
-        }
-        drop(data);
-        drop(state);
-        self.data.lock.sync.notify_all();
-        count
-    }
-
-    fn id(&self) -> CallbacksId {
-        CallbacksId(Arc::as_ptr(&self.data) as usize)
-    }
-}
-
-trait ValueCallback: Send {
-    fn changed(&mut self) -> Result<(), CallbackDisconnected>;
-}
-
-impl<F> ValueCallback for F
-where
-    F: for<'a> FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
-{
-    fn changed(&mut self) -> Result<(), CallbackDisconnected> {
-        self()
-    }
+pub(super) struct DynamicLockData {
+    pub(super) state: Mutex<DynamicLockState>,
+    pub(super) sync: Condvar,
 }
 
 /// A value stored in a [`Dynamic`] with its [`Generation`].
@@ -4575,262 +4458,6 @@ where
     fn inner_redraw_when_changed(&self, handle: WindowHandle) {
         self.source.inner_redraw_when_changed(handle);
     }
-}
-
-fn defer_execute_callbacks(callbacks: ChangeCallbacks) {
-    static THREAD_SENDER: Lazy<mpsc::SyncSender<(ChangeCallbacks, Option<CallbackInvocationId>)>> =
-        Lazy::new(|| {
-            let (sender, receiver) = mpsc::sync_channel(256);
-            std::thread::spawn(move || CallbackExecutor::new(receiver).run());
-            sender
-        });
-    let id = EXECUTING_CALLBACK_ROOT.get();
-    let _ = THREAD_SENDER.send((callbacks, id));
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-struct CallbacksId(usize);
-
-#[derive(Clone, Copy, Eq, PartialEq)]
-struct CallbackInvocationId {
-    node: LotId,
-    invocation_root: CallbacksId,
-}
-
-struct InvocationTreeNode {
-    id: CallbacksId,
-    enqueued: Option<ChangeCallbacks>,
-    parent: Option<LotId>,
-    first_child: Option<LotId>,
-    root_callbacks: CallbacksId,
-    next: Option<LotId>,
-}
-
-#[derive(Default)]
-struct InvocationTree {
-    nodes: Lots<InvocationTreeNode>,
-}
-
-impl InvocationTree {
-    fn new_root(&mut self, callbacks: ChangeCallbacks) -> CallbackInvocationId {
-        let callbacks_id = callbacks.id();
-        let node = self.nodes.push(InvocationTreeNode {
-            id: callbacks_id,
-            parent: None,
-            first_child: None,
-            root_callbacks: callbacks_id,
-            enqueued: Some(callbacks),
-            next: None,
-        });
-        CallbackInvocationId {
-            node,
-            invocation_root: callbacks_id,
-        }
-    }
-
-    /// Pushes `invoked` into the list of callbacks executed by group of
-    /// callbacks pointed to by `invoked_by`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `invoked` has already been executed by this group of
-    /// callbacks.
-    fn push(
-        &mut self,
-        callbacks: ChangeCallbacks,
-        enqueued_while_executing: Option<CallbackInvocationId>,
-    ) -> Option<CallbackInvocationId> {
-        if let Some(enqueued_while_executing) = enqueued_while_executing {
-            // Verify that `callbacks` wasn't executed in the chain leading to the node that was executing this node.
-            let mut search = enqueued_while_executing.node;
-            let callbacks_id = callbacks.id();
-            loop {
-                let node = &self.nodes[search];
-                if node.id == callbacks_id {
-                    // This set of callbacks has already been executed in this
-                    // chain.
-                    return None;
-                }
-                let Some(parent) = node.parent else {
-                    break;
-                };
-                search = parent;
-            }
-            let root_invoked_by = enqueued_while_executing.invocation_root;
-            let existing_first_child = self.nodes[enqueued_while_executing.node].first_child;
-            if let Some(mut node_id) = existing_first_child {
-                loop {
-                    let node = &mut self.nodes[node_id];
-                    if node.id == callbacks_id {
-                        if let Some(enqueued) = &mut node.enqueued {
-                            enqueued.changed_at = enqueued.changed_at.max(callbacks.changed_at);
-                            return None;
-                        }
-
-                        node.enqueued = Some(callbacks);
-                        return Some(CallbackInvocationId {
-                            node: node_id,
-                            invocation_root: root_invoked_by,
-                        });
-                    }
-
-                    if let Some(next) = node.next {
-                        // Continue traversing the list.
-                        node_id = next;
-                    } else {
-                        break;
-                    }
-                }
-            }
-
-            // `callbacks` hasn't been executed by the list pointed at by
-            // `enqueued_while_executing`.
-            let id = self.nodes.push(InvocationTreeNode {
-                id: callbacks.id(),
-                enqueued: Some(callbacks),
-                parent: Some(enqueued_while_executing.node),
-                first_child: None,
-                root_callbacks: root_invoked_by,
-                next: existing_first_child,
-            });
-            self.nodes[enqueued_while_executing.node].first_child = Some(id);
-            Some(CallbackInvocationId {
-                node: id,
-                invocation_root: root_invoked_by,
-            })
-        } else {
-            // New root
-            Some(self.new_root(callbacks))
-        }
-    }
-
-    fn complete(&mut self, invocation: CallbackInvocationId) {
-        self.remove_completed_recursive(invocation.node);
-    }
-
-    fn remove_completed_recursive(&mut self, mut node_id: LotId) {
-        let mut node = &mut self.nodes[node_id];
-        while node.enqueued.is_none() && node.first_child.is_none() {
-            let after_removed = node.next;
-            if let Some(parent_id) = node.parent {
-                let parent = &mut self.nodes[parent_id];
-                // Repair the linked list
-                if parent.first_child == Some(node_id) {
-                    parent.first_child = after_removed;
-                } else {
-                    let mut current = parent.first_child.expect("valid child");
-                    while self.nodes[current].next != Some(node_id) {
-                        current = self.nodes[current].next.expect("removed node to exist");
-                    }
-                    self.nodes[current].next = after_removed;
-                }
-
-                self.nodes.remove(node_id);
-
-                // Attempt to remove the parent if this was its last node.
-                node = &mut self.nodes[parent_id];
-                node_id = parent_id;
-            } else {
-                self.nodes.remove(node_id);
-                break;
-            }
-        }
-    }
-}
-
-thread_local! {
-    static EXECUTING_CALLBACK_ROOT: Cell<Option<CallbackInvocationId>> = const { Cell::new(None) };
-}
-
-struct EnqueuedCallbacks {
-    node_id: CallbackInvocationId,
-    callbacks: ChangeCallbacks,
-}
-
-struct CallbackExecutor {
-    receiver: mpsc::Receiver<(ChangeCallbacks, Option<CallbackInvocationId>)>,
-
-    invocations: InvocationTree,
-    queue: VecDeque<LotId>,
-}
-
-impl CallbackExecutor {
-    fn new(receiver: mpsc::Receiver<(ChangeCallbacks, Option<CallbackInvocationId>)>) -> Self {
-        Self {
-            receiver,
-            invocations: InvocationTree::default(),
-            queue: VecDeque::new(),
-        }
-    }
-
-    fn enqueue_nonblocking(&mut self) {
-        // Exhaust any pending callbacks without blocking.
-        while let Ok((callbacks, invoked_by)) = self.receiver.try_recv() {
-            self.enqueue(callbacks, invoked_by);
-        }
-    }
-
-    fn run(mut self) {
-        IS_EXECUTOR_THREAD.set(true);
-
-        // Because this is stored in a static, this likely will never return an
-        // error, but if it does, it's during program shutdown, and we can exit safely.
-        while let Ok((callbacks, invoked_by)) = self.receiver.recv() {
-            self.enqueue(callbacks, invoked_by);
-            let mut callbacks_executed = 0;
-            loop {
-                let Some(enqueued) = self.pop_callbacks() else {
-                    break;
-                };
-                EXECUTING_CALLBACK_ROOT.set(Some(enqueued.node_id));
-                callbacks_executed += enqueued.callbacks.execute();
-
-                // Enqueue any queued operations before we complete this
-                // invocation to ensure all related invocations are tracked.
-                self.enqueue_nonblocking();
-                self.invocations.complete(enqueued.node_id);
-            }
-            EXECUTING_CALLBACK_ROOT.set(None);
-
-            // Once we've exited the loop, we can assume all callback invocation
-            // chains have completed.
-            assert!(self.invocations.nodes.is_empty());
-
-            if callbacks_executed > 0 {
-                tracing::trace!("{callbacks_executed} callbacks executed");
-            }
-        }
-    }
-
-    fn enqueue(&mut self, callbacks: ChangeCallbacks, invoked_by: Option<CallbackInvocationId>) {
-        if let Some(pushed) = self.invocations.push(callbacks, invoked_by) {
-            self.queue.push_back(pushed.node);
-        }
-    }
-
-    fn pop_callbacks(&mut self) -> Option<EnqueuedCallbacks> {
-        while let Some(id) = self.queue.pop_front() {
-            if let Some(callbacks) = self.invocations.nodes[id].enqueued.take() {
-                return Some(EnqueuedCallbacks {
-                    callbacks,
-                    node_id: CallbackInvocationId {
-                        node: id,
-                        invocation_root: self.invocations.nodes[id].root_callbacks,
-                    },
-                });
-            }
-        }
-
-        None
-    }
-
-    fn is_current_thread() -> bool {
-        IS_EXECUTOR_THREAD.get()
-    }
-}
-
-thread_local! {
-    static IS_EXECUTOR_THREAD: Cell<bool> = const { Cell::new(false) };
 }
 
 #[test]
