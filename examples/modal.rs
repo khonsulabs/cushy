@@ -1,5 +1,5 @@
 use cushy::dialog::ShouldClose;
-use cushy::value::{Dynamic, Source};
+use cushy::value::{Dynamic, Source, Validations};
 use cushy::widget::MakeWidget;
 use cushy::widgets::label::Displayable;
 use cushy::widgets::layers::Modal;
@@ -23,34 +23,42 @@ fn main() -> cushy::Result {
         let new_item_dialog = modal.new_handle();
         move |_| {
             let form = ItemForm::default();
+            let validations = form.validations();
             new_item_dialog
                 .build_dialog(&form)
                 .with_default_button("Ok", {
-                    // show an 'Are you sure? (Yes/No)' modal
+                    let validations = validations.clone();
                     let new_item_dialog = new_item_dialog.clone();
-                    move || {
-                        new_item_dialog
-                            .build_nested_dialog("Are you sure")
-                            .with_button("Yes", {
-                                let new_item_dialog = new_item_dialog.clone();
-                                let form = form.clone();
-                                move || {
-                                    println!(
-                                        "Ok, and user was certain. Insert {}/{:?}",
-                                        form.name.get(),
-                                        form.kind.get()
-                                    );
+                    move ||{
+                        match validations.is_valid() {
+                            false => ShouldClose::Remain,
+                            true => {
+                                // show an 'Are you sure? (Yes/No)' modal
+                                new_item_dialog
+                                    .build_nested_dialog("Are you sure")
+                                    .with_button("Yes", {
+                                        let new_item_dialog = new_item_dialog.clone();
+                                        let form = form.clone();
+                                        move || {
+                                            // The values from the from can be accessed here.
+                                            println!(
+                                                "Ok, and user was certain. Name: {}, Kind: {:?}",
+                                                form.name.get(),
+                                                form.kind.get()
+                                            );
 
-                                    new_item_dialog.dismiss();
-                                    ShouldClose::Close
-                                }
-                            })
-                            .with_default_button("No", || {
-                                println!("Ok, and user was unsure");
-                                ShouldClose::Close
-                            })
-                            .show();
-                        ShouldClose::Remain
+                                            new_item_dialog.dismiss();
+                                            ShouldClose::Close
+                                        }
+                                    })
+                                    .with_default_button("No", || {
+                                        println!("Ok, and user was unsure");
+                                        ShouldClose::Close
+                                    })
+                                    .show();
+                                ShouldClose::Remain
+                            }
+                        }
                     }
                 })
                 .with_cancel_button("Cancel", {
@@ -76,15 +84,25 @@ pub enum Kind {
     B,
 }
 
-#[derive(Default, Eq, PartialEq, Debug, Clone)]
+#[derive(Default, Clone)]
 pub struct ItemForm {
     pub name: Dynamic<String>,
     pub kind: Dynamic<Kind>,
+
+    validations: Validations,
+}
+
+impl ItemForm {
+    pub fn validations(&self) -> &Validations {
+        &self.validations
+    }
 }
 
 impl MakeWidget for &ItemForm {
     fn make_widget(self) -> cushy::widget::WidgetInstance {
-        let name_input = Input::new(self.name.clone()).placeholder("Enter a name");
+        let name_input = Input::new(self.name.clone()).placeholder("Enter a name")
+            .validation(self.validations.validate(&self.name, ItemForm::validate_name))
+            .hint("* required");
 
         let name_form_item = "Name".into_label().and(name_input).into_rows();
 
@@ -93,10 +111,29 @@ impl MakeWidget for &ItemForm {
             .new_radio(Kind::A)
             .labelled_by("A")
             .and(self.kind.new_radio(Kind::B).labelled_by("B"))
-            .into_columns();
+            .into_columns()
+            .validation(self.validations.validate(&self.kind, ItemForm::validate_kind))
+            .hint("* required");
 
         let kind_form_item = "Kind".into_label().and(kind_choices).into_rows();
 
         name_form_item.and(kind_form_item).into_rows().make_widget()
+    }
+}
+
+impl ItemForm {
+    fn validate_name(input: &String) -> Result<(), &'static str> {
+        if input.is_empty() {
+            Err("This field cannot be empty")
+        } else {
+            Ok(())
+        }
+    }
+
+    fn validate_kind(kind: &Kind) -> Result<(), &'static str> {
+        match kind {
+            Kind::None => Err("Choose an option"),
+            _ => Ok(())
+        }
     }
 }
