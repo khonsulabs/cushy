@@ -6,7 +6,7 @@ use cushy::widget::MakeWidget;
 use cushy::Run;
 
 fn main() -> cushy::Result {
-    include_str!("./nested-scroll.rs")
+    include_str!("scroll-nested.rs")
         .vertical_scroll()
         .with(&FontFamily, FontFamilyList::from(FamilyOwned::Monospace))
         .height(Lp::inches(3))
