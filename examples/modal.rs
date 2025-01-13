@@ -77,12 +77,6 @@ pub enum Kind {
 }
 
 #[derive(Default, Eq, PartialEq, Debug, Clone)]
-pub struct Item {
-    pub name: String,
-    pub kind: Kind,
-}
-
-#[derive(Default, Eq, PartialEq, Debug, Clone)]
 pub struct ItemForm {
     pub name: Dynamic<String>,
     pub kind: Dynamic<Kind>,
