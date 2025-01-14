@@ -33,7 +33,7 @@ use crate::widget::{
 use crate::widgets::checkbox::CheckboxState;
 use crate::widgets::{Checkbox, Radio, Select, Space, Switcher};
 use crate::window::WindowHandle;
-use crate::{Lazy, MaybeLocalized};
+use crate::MaybeLocalized;
 
 /// A source of one or more `T` values.
 pub trait Source<T> {

@@ -14,12 +14,14 @@ fn main() -> cushy::Result {
     "Hinted"
         .and(
             text.to_input()
+                .placeholder("Enter some text")
                 .validation(validations.validate(&text, validate_input))
                 .hint("* required"),
         )
         .and("Not Hinted")
         .and(
             text.to_input()
+                .placeholder("Enter some text")
                 .validation(validations.validate(&text, validate_input)),
         )
         .and(

@@ -21,12 +21,14 @@ fn form() -> impl MakeWidget {
     localize!("form-example-hinted-label")
         .and(
             text.to_input()
+                .placeholder(localize!("form-example-input-placeholder"))
                 .validation(validations.validate(&text, validate_input))
                 .hint(localize!("form-hint-field-required")),
         )
         .and(localize!("form-example-not-hinted-label"))
         .and(
             text.to_input()
+                .placeholder(localize!("form-example-input-placeholder"))
                 .validation(validations.validate(&text, validate_input)),
         )
         .and(

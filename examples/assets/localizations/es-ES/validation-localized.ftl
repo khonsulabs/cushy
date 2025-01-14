@@ -8,6 +8,7 @@ language-es-es = Español (España)
 #
 form-example-hinted-label = Insinuado
 form-example-not-hinted-label = No insinuado
+form-example-input-placeholder = Introduzca un texto
 
 # Razón de validación específica
 form-input-invalid-non-whitespace-required = Este campo debe tener al menos un carácter que no sea un espacio en blanco
