@@ -8,6 +8,7 @@ language-es-es = Spanish (Spain)
 #
 form-example-hinted-label = Hinted
 form-example-not-hinted-label = Not hinted
+form-example-input-placeholder = Enter some text
 
 # Specific validation reason
 form-input-invalid-non-whitespace-required = This field must have at least one non-whitespace character
