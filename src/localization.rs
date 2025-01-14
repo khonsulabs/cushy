@@ -234,7 +234,7 @@ impl DynamicDisplay for MaybeLocalized {
 }
 
 /// The primary of defining localized message
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Localize {
     key: Cow<'static, str>,
     args: Vec<(String, Value<FluentValue<'static>>)>,

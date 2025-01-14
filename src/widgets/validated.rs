@@ -3,15 +3,16 @@
 use std::fmt::Debug;
 
 use kludgine::Color;
-
-use crate::reactive::value::{
-    Destination, Dynamic, IntoDynamic, IntoValue, MapEach, Source, Validation, Value,
-};
+use crate::MaybeLocalized;
 use crate::styles::components::{
     ErrorColor, LineHeight, LineHeight2, OutlineColor, TextColor, TextSize, TextSize2,
 };
 use crate::styles::Dimension;
-use crate::widget::{MakeWidget, MakeWidgetWithTag, WidgetInstance, WidgetRef, WrapperWidget};
+use crate::reactive::value::{
+    Destination, Dynamic, IntoDynamic, IntoValue, MapEach, Source, Validation, Value,
+};
+use crate::widget::{MakeWidget, MakeWidgetWithTag, WidgetInstance, WidgetRef, WidgetTag, WrapperWidget};
+use crate::widgets::label::Displayable;
 
 /// A widget that displays validation information around another widget.
 ///
@@ -23,7 +24,7 @@ use crate::widget::{MakeWidget, MakeWidgetWithTag, WidgetInstance, WidgetRef, Wr
 /// supported.
 #[derive(Debug)]
 pub struct Validated {
-    hint: Value<String>,
+    hint: Value<MaybeLocalized>,
     validation: Dynamic<Validation>,
     validated: WidgetInstance,
 }
@@ -42,21 +43,15 @@ impl Validated {
 
     /// Sets the hint message to be displayed when there is no validation error.
     #[must_use]
-    pub fn hint(mut self, hint: impl IntoValue<String>) -> Self {
+    pub fn hint(mut self, hint: impl IntoValue<MaybeLocalized>) -> Self {
         self.hint = hint.into_value();
         self
     }
 }
 
 impl MakeWidgetWithTag for Validated {
-    fn make_with_tag(self, id: crate::widget::WidgetTag) -> WidgetInstance {
-        let message = match self.hint {
-            Value::Constant(hint) => self
-                .validation
-                .map_each(move |validation| validation.message(&hint).to_string()),
-            Value::Dynamic(hint) => (&hint, &self.validation)
-                .map_each(move |(hint, validation)| validation.message(hint).to_string()),
-        };
+    fn make_with_tag(self, id: WidgetTag) -> WidgetInstance {
+        let message: Dynamic<MaybeLocalized> = self.validation.map_each_cloned(move |validation| validation.message(&self.hint).get());
 
         let error_color = Dynamic::new(Color::CLEAR_BLACK);
         let default_color = Dynamic::new(Color::CLEAR_BLACK);
@@ -75,11 +70,23 @@ impl MakeWidgetWithTag for Validated {
                 self.validated
                     .with(&OutlineColor, color.clone())
                     .and(
-                        message
+                        message.map_each_cloned({
+                            move |message|{
+                                let label = match message {
+                                    MaybeLocalized::Localized(localized) => {
+                                        let (tag, _id) = WidgetTag::new();
+                                        localized.make_with_tag(tag)
+                                    },
+                                    MaybeLocalized::Text(meh) => meh.into_label().make_widget(),
+                                };
+
+                                label
+                            }
+                        })
                             .with(&TextColor, color)
                             .with_dynamic(&TextSize, ValidatedTextSize)
                             .with_dynamic(&LineHeight, ValidatedLineHeight)
-                            .align_left(),
+                            .align_left()
                     )
                     .into_rows(),
             ),

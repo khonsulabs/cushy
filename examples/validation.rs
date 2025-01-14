@@ -4,6 +4,9 @@ use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::Run;
 
+// For an example of localized validation, see the `validation-localized.rs` example which should
+// be kept in sync with this example.
+
 fn main() -> cushy::Result {
     let text = Dynamic::default();
     let validations = Validations::default();
