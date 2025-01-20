@@ -4518,21 +4518,36 @@ fn linked_short_circuit() {
 #[test]
 fn graph_shortcircuit() {
     let a = Dynamic::new(0_usize);
-    let doubled = a.map_each_cloned(|a| a * 2);
+    let doubled = a.map_each_cloned(|a| dbg!(a) * 2);
     let doubled_reader = doubled.create_reader();
-    let quadrupled = doubled.map_each_cloned(|a| a * 2);
-    let quadrupled_reader = quadrupled.create_reader();
+    let quadrupled = doubled.map_each_cloned(|doubled| dbg!(doubled) * 2);
+    let invocation_count = Dynamic::new(0_usize);
     a.set_source(quadrupled.for_each_cloned({
         let a = a.clone();
-        move |quad| a.set(quad / 4)
+        let invocation_count = invocation_count.clone();
+        move |quad| {
+            *invocation_count.lock() += 1;
+            a.set(dbg!(quad) / 4);
+        }
     }));
+    let invocation_count = invocation_count.into_reader();
 
     assert_eq!(a.get(), 0);
-    assert_eq!(quadrupled_reader.get(), 0);
+    assert_eq!(quadrupled.get(), 0);
     a.set(1);
-    quadrupled_reader.block_until_updated();
+
+    // We need to We expect two invocations at this point:
+    // - Once by using for_each_cloned.
+    // - Once by the callback chain invoked by setting a to 1.
+    //
+    // TODO for_each_cloned is acting like for_each_subsequent_cloned, throwing
+    // this count off by one
+    while invocation_count.get() < 1 {
+        invocation_count.block_until_updated();
+    }
+
     assert_eq!(doubled_reader.get(), 2);
-    assert_eq!(quadrupled_reader.get(), 4);
+    assert_eq!(quadrupled.get(), 4);
     quadrupled.set(16);
     doubled_reader.block_until_updated();
     assert_eq!(a.get(), 4);

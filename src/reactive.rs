@@ -122,10 +122,6 @@ impl ChangeCallbacks {
         self.data.lock.sync.notify_all();
         count
     }
-
-    fn id(&self) -> CallbacksId {
-        CallbacksId(Arc::as_ptr(&self.data) as usize)
-    }
 }
 
 trait ValueCallback: Send {
@@ -148,177 +144,11 @@ static THREAD_SENDER: Lazy<mpsc::SyncSender<BackgroundTask>> = Lazy::new(|| {
 });
 
 fn defer_execute_callbacks(callbacks: ChangeCallbacks) {
-    let invoked_by = EXECUTING_CALLBACK_ROOT.get();
-    let _ = THREAD_SENDER.send(BackgroundTask::ExecuteCallbacks {
-        callbacks,
-        invoked_by,
-    });
-}
-
-#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-struct CallbacksId(usize);
-
-#[derive(Clone, Copy, Eq, PartialEq)]
-struct CallbackInvocationId {
-    node: LotId,
-    invocation_root: CallbacksId,
-}
-
-struct InvocationTreeNode {
-    id: CallbacksId,
-    enqueued: Option<ChangeCallbacks>,
-    parent: Option<LotId>,
-    first_child: Option<LotId>,
-    root_callbacks: CallbacksId,
-    next: Option<LotId>,
-}
-
-#[derive(Default)]
-struct InvocationTree {
-    nodes: Lots<InvocationTreeNode>,
-}
-
-impl InvocationTree {
-    fn new_root(&mut self, callbacks: ChangeCallbacks) -> CallbackInvocationId {
-        let callbacks_id = callbacks.id();
-        let node = self.nodes.push(InvocationTreeNode {
-            id: callbacks_id,
-            parent: None,
-            first_child: None,
-            root_callbacks: callbacks_id,
-            enqueued: Some(callbacks),
-            next: None,
-        });
-        CallbackInvocationId {
-            node,
-            invocation_root: callbacks_id,
-        }
-    }
-
-    /// Pushes `invoked` into the list of callbacks executed by group of
-    /// callbacks pointed to by `invoked_by`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if `invoked` has already been executed by this group of
-    /// callbacks.
-    fn push(
-        &mut self,
-        callbacks: ChangeCallbacks,
-        enqueued_while_executing: Option<CallbackInvocationId>,
-    ) -> Option<CallbackInvocationId> {
-        if let Some(enqueued_while_executing) = enqueued_while_executing {
-            // Verify that `callbacks` wasn't executed in the chain leading to the node that was executing this node.
-            let mut search = enqueued_while_executing.node;
-            let callbacks_id = callbacks.id();
-            loop {
-                let node = &self.nodes[search];
-                if node.id == callbacks_id {
-                    // This set of callbacks has already been executed in this
-                    // chain.
-                    return None;
-                }
-                let Some(parent) = node.parent else {
-                    break;
-                };
-                search = parent;
-            }
-            let root_invoked_by = enqueued_while_executing.invocation_root;
-            let existing_first_child = self.nodes[enqueued_while_executing.node].first_child;
-            if let Some(mut node_id) = existing_first_child {
-                loop {
-                    let node = &mut self.nodes[node_id];
-                    if node.id == callbacks_id {
-                        if let Some(enqueued) = &mut node.enqueued {
-                            enqueued.changed_at = enqueued.changed_at.max(callbacks.changed_at);
-                            return None;
-                        }
-
-                        node.enqueued = Some(callbacks);
-                        return Some(CallbackInvocationId {
-                            node: node_id,
-                            invocation_root: root_invoked_by,
-                        });
-                    }
-
-                    if let Some(next) = node.next {
-                        // Continue traversing the list.
-                        node_id = next;
-                    } else {
-                        break;
-                    }
-                }
-            }
-
-            // `callbacks` hasn't been executed by the list pointed at by
-            // `enqueued_while_executing`.
-            let id = self.nodes.push(InvocationTreeNode {
-                id: callbacks.id(),
-                enqueued: Some(callbacks),
-                parent: Some(enqueued_while_executing.node),
-                first_child: None,
-                root_callbacks: root_invoked_by,
-                next: existing_first_child,
-            });
-            self.nodes[enqueued_while_executing.node].first_child = Some(id);
-            Some(CallbackInvocationId {
-                node: id,
-                invocation_root: root_invoked_by,
-            })
-        } else {
-            // New root
-            Some(self.new_root(callbacks))
-        }
-    }
-
-    fn complete(&mut self, invocation: CallbackInvocationId) {
-        self.remove_completed_recursive(invocation.node);
-    }
-
-    fn remove_completed_recursive(&mut self, mut node_id: LotId) {
-        let mut node = &mut self.nodes[node_id];
-        while node.enqueued.is_none() && node.first_child.is_none() {
-            let after_removed = node.next;
-            if let Some(parent_id) = node.parent {
-                let parent = &mut self.nodes[parent_id];
-                // Repair the linked list
-                if parent.first_child == Some(node_id) {
-                    parent.first_child = after_removed;
-                } else {
-                    let mut current = parent.first_child.expect("valid child");
-                    while self.nodes[current].next != Some(node_id) {
-                        current = self.nodes[current].next.expect("removed node to exist");
-                    }
-                    self.nodes[current].next = after_removed;
-                }
-
-                self.nodes.remove(node_id);
-
-                // Attempt to remove the parent if this was its last node.
-                node = &mut self.nodes[parent_id];
-                node_id = parent_id;
-            } else {
-                self.nodes.remove(node_id);
-                break;
-            }
-        }
-    }
-}
-
-thread_local! {
-    static EXECUTING_CALLBACK_ROOT: Cell<Option<CallbackInvocationId>> = const { Cell::new(None) };
-}
-
-struct EnqueuedCallbacks {
-    node_id: CallbackInvocationId,
-    callbacks: ChangeCallbacks,
+    let _ = THREAD_SENDER.send(BackgroundTask::ExecuteCallbacks(callbacks));
 }
 
 enum BackgroundTask {
-    ExecuteCallbacks {
-        callbacks: ChangeCallbacks,
-        invoked_by: Option<CallbackInvocationId>,
-    },
+    ExecuteCallbacks(ChangeCallbacks),
     Channel(ChannelTask),
     Wake(usize),
 }
@@ -421,15 +251,13 @@ struct CallbackExecutor {
     channels: WatchedChannels,
     futures: Futures,
 
-    invocations: InvocationTree,
-    queue: VecDeque<LotId>,
+    queue: VecDeque<ChangeCallbacks>,
 }
 
 impl CallbackExecutor {
     fn new(receiver: mpsc::Receiver<BackgroundTask>) -> Self {
         Self {
             receiver,
-            invocations: InvocationTree::default(),
             queue: VecDeque::new(),
             futures: Futures::default(),
             channels: WatchedChannels::default(),
@@ -451,34 +279,17 @@ impl CallbackExecutor {
         while let Ok(task) = self.receiver.recv() {
             self.enqueue(task);
 
-            loop {
+            while !self.futures.queue.is_empty() || !self.queue.is_empty() {
+                self.enqueue_nonblocking();
                 let mut callbacks_executed = 0;
-                loop {
-                    let Some(enqueued) = self.pop_callbacks() else {
-                        break;
-                    };
-                    EXECUTING_CALLBACK_ROOT.set(Some(enqueued.node_id));
-                    callbacks_executed += enqueued.callbacks.execute();
-
-                    // Enqueue any queued operations before we complete this
-                    // invocation to ensure all related invocations are tracked.
-                    self.enqueue_nonblocking();
-                    self.invocations.complete(enqueued.node_id);
+                while let Some(enqueued) = self.queue.pop_front() {
+                    callbacks_executed += enqueued.execute();
                 }
-                EXECUTING_CALLBACK_ROOT.set(None);
-
-                // Once we've exited the loop, we can assume all callback invocation
-                // chains have completed.
-                assert!(self.invocations.nodes.is_empty());
 
                 callbacks_executed += self.futures.poll();
 
                 if callbacks_executed > 0 {
                     tracing::trace!("{callbacks_executed} callbacks executed");
-                }
-
-                if self.futures.queue.is_empty() {
-                    break;
                 }
             }
         }
@@ -497,34 +308,13 @@ impl CallbackExecutor {
                     self.channels.unregister(id);
                 }
             },
-            BackgroundTask::ExecuteCallbacks {
-                callbacks,
-                invoked_by,
-            } => {
-                if let Some(pushed) = self.invocations.push(callbacks, invoked_by) {
-                    self.queue.push_back(pushed.node);
-                }
+            BackgroundTask::ExecuteCallbacks(callbacks) => {
+                self.queue.push_back(callbacks);
             }
             BackgroundTask::Wake(future_id) => {
                 self.futures.wake(future_id);
             }
         }
-    }
-
-    fn pop_callbacks(&mut self) -> Option<EnqueuedCallbacks> {
-        while let Some(id) = self.queue.pop_front() {
-            if let Some(callbacks) = self.invocations.nodes[id].enqueued.take() {
-                return Some(EnqueuedCallbacks {
-                    callbacks,
-                    node_id: CallbackInvocationId {
-                        node: id,
-                        invocation_root: self.invocations.nodes[id].root_callbacks,
-                    },
-                });
-            }
-        }
-
-        None
     }
 
     fn is_current_thread() -> bool {
