@@ -29,7 +29,7 @@ fn main() -> cushy::Result {
                 .with_default_button("Ok", {
                     let validations = validations.clone();
                     let new_item_dialog = new_item_dialog.clone();
-                    move ||{
+                    move || {
                         match validations.is_valid() {
                             false => ShouldClose::Remain,
                             true => {
@@ -73,7 +73,12 @@ fn main() -> cushy::Result {
 
     let button_container = button_1.and(button_2).into_columns().contain();
 
-    button_container.and(modal).into_layers().centered().run()
+    button_container
+        .centered()
+        .and(modal)
+        .into_layers()
+        .expand()
+        .run()
 }
 
 #[derive(Default, Eq, PartialEq, Debug, Clone, Copy)]
@@ -100,8 +105,12 @@ impl ItemForm {
 
 impl MakeWidget for &ItemForm {
     fn make_widget(self) -> cushy::widget::WidgetInstance {
-        let name_input = Input::new(self.name.clone()).placeholder("Enter a name")
-            .validation(self.validations.validate(&self.name, ItemForm::validate_name))
+        let name_input = Input::new(self.name.clone())
+            .placeholder("Enter a name")
+            .validation(
+                self.validations
+                    .validate(&self.name, ItemForm::validate_name),
+            )
             .hint("* required");
 
         let name_form_item = "Name".into_label().and(name_input).into_rows();
@@ -112,7 +121,10 @@ impl MakeWidget for &ItemForm {
             .labelled_by("A")
             .and(self.kind.new_radio(Kind::B).labelled_by("B"))
             .into_columns()
-            .validation(self.validations.validate(&self.kind, ItemForm::validate_kind))
+            .validation(
+                self.validations
+                    .validate(&self.kind, ItemForm::validate_kind),
+            )
             .hint("* required");
 
         let kind_form_item = "Kind".into_label().and(kind_choices).into_rows();
@@ -133,7 +145,7 @@ impl ItemForm {
     fn validate_kind(kind: &Kind) -> Result<(), &'static str> {
         match kind {
             Kind::None => Err("Choose an option"),
-            _ => Ok(())
+            _ => Ok(()),
         }
     }
 }
