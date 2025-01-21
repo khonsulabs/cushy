@@ -314,6 +314,20 @@ where
         self.data
             .try_send_inner(value, channel_id(&self.data), |_| ControlFlow::Break(()))
     }
+
+    /// Sends `value` to this channel, removing the oldest unread value if the
+    /// channel is full.
+    ///
+    /// If the channel is full, the unread value will be returned in
+    /// `Ok(Some(unread_value))`. If the channel has capacity, `Ok(None)` will
+    /// be returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns `value` if the channel is disconnected.
+    pub fn force_send(&self, value: T) -> Result<Option<T>, T> {
+        self.data.force_send_inner(value, channel_id(&self.data))
+    }
 }
 
 impl<T> Clone for Sender<T> {
@@ -707,6 +721,18 @@ where
         this
     }
 
+    fn force_send_inner(&self, value: T, id: usize) -> Result<Option<T>, T> {
+        let mut overflowed = None;
+        self.try_send_inner(value, id, |g| {
+            overflowed = g.queue.pop_front();
+            ControlFlow::Continue(())
+        })
+        .map_err(|err| match err {
+            TrySendError::Full(value) | TrySendError::Disconnected(value) => value,
+        })?;
+        Ok(overflowed)
+    }
+
     fn try_send_inner(
         &self,
         value: T,
@@ -857,6 +883,20 @@ where
     pub fn try_send(&self, value: T) -> Result<(), TrySendError<T>> {
         self.data
             .try_send_inner(value, channel_id(&self.data), |_| ControlFlow::Break(()))
+    }
+
+    /// Sends `value` to this channel, removing the oldest unread value if the
+    /// channel is full.
+    ///
+    /// If the channel is full, the unread value will be returned in
+    /// `Ok(Some(unread_value))`. If the channel has capacity, `Ok(None)` will
+    /// be returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns `value` if the channel is disconnected.
+    pub fn force_send(&self, value: T) -> Result<Option<T>, T> {
+        self.data.force_send_inner(value, channel_id(&self.data))
     }
 
     /// Returns a [`Broadcaster`] that sends to this channel.
@@ -1089,6 +1129,20 @@ where
     pub fn try_send(&self, value: T) -> Result<(), TrySendError<T>> {
         self.data
             .try_send_inner(value, channel_id(&self.data), |_| ControlFlow::Break(()))
+    }
+
+    /// Sends `value` to this channel, removing the oldest unread value if the
+    /// channel is full.
+    ///
+    /// If the channel is full, the unread value will be returned in
+    /// `Ok(Some(unread_value))`. If the channel has capacity, `Ok(None)` will
+    /// be returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns `value` if the channel is disconnected.
+    pub fn force_send(&self, value: T) -> Result<Option<T>, T> {
+        self.data.force_send_inner(value, channel_id(&self.data))
     }
 }
 
