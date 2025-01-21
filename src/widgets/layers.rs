@@ -1196,7 +1196,7 @@ pub struct ModalHandle {
 
 impl ModalHandle {
     fn above(mut self, other: &Self) -> Self {
-        self.above = Some(dbg!(other.id.clone()));
+        self.above = Some(other.id.clone());
         self
     }
 
@@ -1214,7 +1214,7 @@ impl ModalHandle {
         } else {
             state.clear();
         };
-        self.id.set(Some(dbg!(state.push(contents.make_widget()))));
+        self.id.set(Some(state.push(contents.make_widget())));
     }
 
     // /// Prevents the modal shown by this handle from being dismissed when the
