@@ -61,7 +61,7 @@ use crate::value::{
     Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Tracked, Value,
 };
 use crate::widget::{
-    Callback, EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, SharedCallback,
+    EventHandling, MakeWidget, MountedWidget, Notify, OnceCallback, RootBehavior, SharedCallback,
     WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
 use crate::widgets::shortcuts::{ShortcutKey, ShortcutMap};
@@ -574,7 +574,7 @@ where
     enabled_buttons: Option<Value<WindowButtons>>,
     fullscreen: Option<Value<Option<Fullscreen>>>,
     shortcuts: Value<ShortcutMap>,
-    on_file_drop: Option<Callback<FileDrop>>,
+    on_file_drop: Option<Notify<FileDrop>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -1027,11 +1027,16 @@ where
     }
 
     /// Invokes `on_file_drop` when a file is hovered or dropped on this window.
-    pub fn on_file_drop<Function>(mut self, on_file_drop: Function) -> Self
+    pub fn on_file_drop<Function>(self, on_file_drop: Function) -> Self
     where
         Function: FnMut(FileDrop) + Send + 'static,
     {
-        self.on_file_drop = Some(Callback::new(on_file_drop));
+        self.on_file_drop_notify(on_file_drop)
+    }
+
+    /// Notifies `on_file_drop` when a file is hovered or dropped on this window.
+    pub fn on_file_drop_notify(mut self, on_file_drop: impl Into<Notify<FileDrop>>) -> Self {
+        self.on_file_drop = Some(on_file_drop.into());
         self
     }
 
@@ -1254,6 +1259,7 @@ where
 }
 
 /// A file drop event for a window.
+#[derive(Clone, Debug)]
 pub struct FileDrop {
     /// The handle to the window the file drop event is for.
     pub window: WindowHandle,
@@ -1262,6 +1268,7 @@ pub struct FileDrop {
 }
 
 /// A drop event.
+#[derive(Clone, Debug)]
 pub enum DropEvent<T> {
     /// The payload is being hovered over the container.
     Hover(T),
@@ -1376,7 +1383,7 @@ struct OpenWindow<T> {
     fullscreen: Tracked<Value<Option<Fullscreen>>>,
     modifiers: Dynamic<Modifiers>,
     shortcuts: Value<ShortcutMap>,
-    on_file_drop: Option<Callback<FileDrop>>,
+    on_file_drop: Option<Notify<FileDrop>>,
     disabled_resize_automatically: bool,
 }
 
@@ -2567,7 +2574,7 @@ where
         window: &kludgine::app::Window<'_, WindowCommand>,
     ) {
         if let Some(on_file_drop) = &mut self.on_file_drop {
-            on_file_drop.invoke(FileDrop {
+            on_file_drop.notify(FileDrop {
                 window: WindowHandle::new(window.handle(), self.redraw_status.clone()),
                 drop,
             });
@@ -3074,7 +3081,7 @@ pub(crate) mod sealed {
     use crate::fonts::FontCollection;
     use crate::styles::{FontFamilyList, ThemePair};
     use crate::value::{Dynamic, Value};
-    use crate::widget::{Callback, OnceCallback, SharedCallback};
+    use crate::widget::{Notify, OnceCallback, SharedCallback};
     use crate::widgets::shortcuts::ShortcutMap;
     use crate::window::{FileDrop, PendingWindow, ThemeMode, WindowAttributes, WindowHandle};
     use crate::{App, MaybeLocalized};
@@ -3129,7 +3136,7 @@ pub(crate) mod sealed {
         pub enabled_buttons: Value<WindowButtons>,
         pub fullscreen: Value<Option<Fullscreen>>,
         pub shortcuts: Value<ShortcutMap>,
-        pub on_file_drop: Option<Callback<FileDrop>>,
+        pub on_file_drop: Option<Notify<FileDrop>>,
     }
 
     pub struct WindowExecute(Box<dyn ExecuteFunc>);

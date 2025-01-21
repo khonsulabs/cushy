@@ -26,7 +26,7 @@ use crate::reactive::{
 };
 use crate::utils::WithClone;
 use crate::widget::{
-    MakeWidget, MakeWidgetWithTag, OnceCallback, WidgetId, WidgetInstance, WidgetList,
+    MakeWidget, MakeWidgetWithTag, Notify, OnceCallback, WidgetId, WidgetInstance, WidgetList,
 };
 use crate::widgets::checkbox::CheckboxState;
 use crate::widgets::{Checkbox, Radio, Select, Space, Switcher};
@@ -302,6 +302,29 @@ pub trait Source<T> {
         self.for_each_cloned_try(move |value| {
             for_each(value);
             Ok(())
+        })
+    }
+
+    /// Notifies `notify` with a clone of the  current contents each time this
+    /// source's contents are updated.
+    fn for_each_notify(&self, notify: impl Into<Notify<T>>) -> CallbackHandle
+    where
+        T: Unpin + Clone + Send + 'static,
+    {
+        let mut notify = notify.into();
+        self.for_each_cloned(move |value| notify.notify(value))
+    }
+
+    /// Notifies `notify` with a clone of the  current contents each time this
+    /// source's contents are updated, disconnecting the callback if the target
+    /// is disconnected.
+    fn for_each_try_notify(&self, notify: impl Into<Notify<T>>) -> CallbackHandle
+    where
+        T: Unpin + Clone + Send + 'static,
+    {
+        let mut notify = notify.into();
+        self.for_each_cloned_try(move |value| {
+            notify.try_notify(value).map_err(|_| CallbackDisconnected)
         })
     }
 

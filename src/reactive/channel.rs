@@ -899,22 +899,6 @@ where
         self.data.force_send_inner(value, channel_id(&self.data))
     }
 
-    /// Returns a [`Broadcaster`] that sends to this channel.
-    #[must_use]
-    pub fn create_broadcaster(&self) -> Broadcaster<T> {
-        let mut data = self.data.synced.lock();
-        data.senders += 1;
-        Broadcaster {
-            data: self.data.clone(),
-        }
-    }
-
-    /// Returns this instance as a [`Broadcaster`] that sends to this channel.
-    #[must_use]
-    pub fn into_broadcaster(self) -> Broadcaster<T> {
-        self.create_broadcaster()
-    }
-
     /// Invokes `on_receive` each time a value is sent to this channel.
     ///
     /// This function assumes `on_receive` may block while waiting on another
@@ -1036,6 +1020,24 @@ where
     }
 }
 
+impl<T> BroadcastChannel<T> {
+    /// Returns a [`Broadcaster`] that sends to this channel.
+    #[must_use]
+    pub fn create_broadcaster(&self) -> Broadcaster<T> {
+        let mut data = self.data.synced.lock();
+        data.senders += 1;
+        Broadcaster {
+            data: self.data.clone(),
+        }
+    }
+
+    /// Returns this instance as a [`Broadcaster`] that sends to this channel.
+    #[must_use]
+    pub fn into_broadcaster(self) -> Broadcaster<T> {
+        self.create_broadcaster()
+    }
+}
+
 impl<T> Clone for BroadcastChannel<T> {
     fn clone(&self) -> Self {
         let mut data = self.data.synced.lock();
@@ -1071,6 +1073,7 @@ impl<T> Drop for BroadcastChannel<T> {
 }
 
 /// Sends values to a [`BroadcastChannel`].
+#[derive(Debug)]
 pub struct Broadcaster<T> {
     data: Arc<ChannelData<T, MultipleCallbacks<T>>>,
 }

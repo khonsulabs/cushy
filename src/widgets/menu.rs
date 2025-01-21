@@ -24,7 +24,7 @@ use crate::styles::components::{
 use crate::styles::Styles;
 use crate::value::{Dynamic, IntoValue, Source, Value};
 use crate::widget::{
-    Callback, EventHandling, MakeWidget, MakeWidgetWithTag, SharedCallback, Widget, WidgetId,
+    Callback, EventHandling, MakeWidget, MakeWidgetWithTag, SharedNotify, Widget, WidgetId,
     WidgetInstance, WidgetRef, WidgetTag, HANDLED,
 };
 use crate::ConstraintLimit;
@@ -75,9 +75,16 @@ where
     where
         F: FnMut(T) + Send + 'static,
     {
+        self.on_selected_notify(selected)
+    }
+
+    /// Sets the selected handler to `selected`, causing it to be notified when
+    /// an item is chosen.
+    #[must_use]
+    pub fn on_selected_notify(self, selected: impl Into<SharedNotify<T>>) -> Menu<T> {
         Menu {
             items: self.items,
-            on_click: MenuHandler(SharedCallback::new(selected)),
+            on_click: MenuHandler(selected.into()),
         }
     }
 }
@@ -103,7 +110,7 @@ where
 
 impl<T> Menu<T>
 where
-    T: Debug + Send + Clone + 'static,
+    T: Unpin + Debug + Send + Clone + 'static,
 {
     /// Presents this menu in `overlay`, returning an [`Overlayable`] that can
     /// be positioned relative or absolutely within `overlay`.
@@ -352,7 +359,7 @@ impl<T> sealed::MenuItemContentsSealed<T> for WidgetInstance {
 
 impl<T> sealed::SubmenuFactory for Menu<T>
 where
-    T: Clone + std::fmt::Debug + Send + Sync + 'static,
+    T: Unpin + Clone + std::fmt::Debug + Send + Sync + 'static,
 {
     fn overlay_submenu_in<'overlay>(
         &self,
@@ -371,7 +378,7 @@ where
     #[must_use]
     pub fn submenu<U>(mut self, submenu: Menu<U>) -> Self
     where
-        U: Clone + Debug + Send + Sync + 'static,
+        U: Unpin + Clone + Debug + Send + Sync + 'static,
     {
         self.submenu = Some(Arc::new(submenu));
         self
@@ -449,7 +456,7 @@ where
 
 /// A handler for a selected [`MenuItem<T>`].
 #[derive(Debug, Clone)]
-pub struct MenuHandler<T>(SharedCallback<T>);
+pub struct MenuHandler<T>(SharedNotify<T>);
 
 #[derive(Debug)]
 struct OpenMenu<T> {
@@ -536,7 +543,7 @@ impl<T> OpenMenu<T> {
 
 impl<T> Widget for OpenMenu<T>
 where
-    T: Clone + Debug + Send + 'static,
+    T: Unpin + Clone + Debug + Send + 'static,
 {
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
         self.update_visual_state(&mut context.as_event_context());
@@ -762,7 +769,7 @@ where
             let ItemKind::Item(item) = &self.items[index].item else {
                 return;
             };
-            self.on_click.0.invoke(item.value.clone());
+            self.on_click.0.notify(item.value.clone());
             let mut shared = self.shared.lock();
             for handle in shared.open_menus.drain() {
                 handle.dismiss();
