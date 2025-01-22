@@ -215,27 +215,25 @@ where
 
     fn poll(&self, futures: &mut Vec<ChannelCallbackFuture>) -> bool {
         let mut channel = self.synced.lock();
-
-        let Some(value) = channel.queue.pop_front() else {
-            return channel.senders > 0 && channel.behavior.connected();
-        };
-
-        self.condvar.notify_all();
-        for waker in channel.wakers.drain(..) {
-            waker.wake();
-        }
-
-        match channel.behavior.invoke(value, self) {
-            Ok(()) => {}
-            Err(ChannelCallbackError::Async(future)) => {
-                futures.push(ChannelCallbackFuture { future });
+        while let Some(value) = channel.queue.pop_front() {
+            self.condvar.notify_all();
+            for waker in channel.wakers.drain(..) {
+                waker.wake();
             }
-            Err(ChannelCallbackError::Disconnected) => {
-                return false;
+
+            match channel.behavior.invoke(value, self) {
+                Ok(()) => {}
+                Err(ChannelCallbackError::Async(future)) => {
+                    futures.push(ChannelCallbackFuture { future });
+                    return true;
+                }
+                Err(ChannelCallbackError::Disconnected) => {
+                    return false;
+                }
             }
         }
 
-        true
+        channel.senders > 0 && channel.behavior.connected()
     }
 
     fn disconnect(&self) {
