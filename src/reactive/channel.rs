@@ -90,7 +90,7 @@ use std::fmt::{self, Debug};
 use std::future::Future;
 use std::ops::ControlFlow;
 use std::pin::Pin;
-use std::sync::{mpsc, Arc};
+use std::sync::Arc;
 use std::task::{ready, Context, Poll, Waker};
 
 use builder::Builder;
@@ -412,8 +412,8 @@ impl<T> Debug for SingleCallback<T> {
 
 enum BroadcastCallback<T> {
     Blocking {
-        sender: mpsc::SyncSender<(T, Waker)>,
-        result: mpsc::Receiver<()>,
+        sender: Sender<(T, Autowaker)>,
+        result: Receiver<()>,
     },
     NonBlocking(Box<dyn AnyChannelCallback<T>>),
 }
@@ -425,10 +425,10 @@ impl<T> BroadcastCallback<T> {
     where
         T: Send + 'static,
     {
-        let (value_sender, value_receiver) = mpsc::sync_channel::<(T, Waker)>(1);
-        let (result_sender, result_receiver) = mpsc::sync_channel(1);
+        let (value_sender, value_receiver) = bounded::<(T, Autowaker)>(1);
+        let (result_sender, result_receiver) = bounded(1);
         std::thread::spawn(move || {
-            while let Ok((value, waker)) = value_receiver.recv() {
+            while let Some((value, waker)) = value_receiver.receive() {
                 if let Ok(()) = cb(value) {
                     if result_sender.send(()).is_err() {
                         return;
@@ -587,12 +587,12 @@ where
             else {
                 unreachable!("valid state");
             };
-            match result.try_recv() {
+            match result.try_receive() {
                 Ok(()) => {
                     self.next_recipient += 1;
                 }
-                Err(mpsc::TryRecvError::Empty) => return Poll::Pending,
-                Err(mpsc::TryRecvError::Disconnected) => {
+                Err(TryReceiveError::Empty) => return Poll::Pending,
+                Err(TryReceiveError::Disconnected) => {
                     data.behavior.0.remove(self.next_recipient);
                 }
             }
@@ -620,7 +620,7 @@ where
                     BroadcastCallback::Blocking { sender, .. } => {
                         if let Ok(()) = sender.send((
                             this.value.next().expect("enough value clones"),
-                            cx.waker().clone(),
+                            Autowaker(Some(cx.waker().clone())),
                         )) {
                             this.current_is_blocking = true;
                             drop(data_mutex);
@@ -895,6 +895,25 @@ where
     /// Returns `value` if the channel is disconnected.
     pub fn force_send(&self, value: T) -> Result<Option<T>, T> {
         self.data.force_send_inner(value, channel_id(&self.data))
+    }
+
+    /// Creates a new receiver for this channel.
+    ///
+    /// All receivers and callbacks must receive each value before the next
+    /// value is able to be received.
+    #[must_use]
+    pub fn create_receiver(&self) -> Receiver<T> {
+        let (sender, receiver) = bounded(1);
+        self.on_receive_async_try(move |value| {
+            let sender = sender.clone();
+            async move {
+                sender
+                    .send_async(value)
+                    .await
+                    .map_err(|_| CallbackDisconnected)
+            }
+        });
+        receiver
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel.
@@ -1462,6 +1481,27 @@ pub enum TryReceiveError {
     Empty,
     /// The channel has no senders connected.
     Disconnected,
+}
+
+struct Autowaker(Option<Waker>);
+
+impl Autowaker {
+    fn wake_by_ref(&mut self) {
+        let Some(waker) = self.0.take() else {
+            return;
+        };
+        waker.wake();
+    }
+
+    fn wake(mut self) {
+        self.wake_by_ref();
+    }
+}
+
+impl Drop for Autowaker {
+    fn drop(&mut self) {
+        self.wake_by_ref();
+    }
 }
 
 #[test]
