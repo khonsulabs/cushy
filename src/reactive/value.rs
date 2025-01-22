@@ -277,7 +277,22 @@ pub trait Source<T> {
     ///
     /// Returning `Err(CallbackDisconnected)` will prevent the callback from
     /// being invoked again.
-    fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Clone + Send + 'static,
+        F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.map_generational(|value| for_each(GenerationalValue::from(&value)))
+            .expect("initial for_each invocation failed");
+        self.for_each_subsequent_generational_cloned_try(for_each)
+    }
+
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
+    ///
+    /// Returning `Err(CallbackDisconnected)` will prevent the callback from
+    /// being invoked again.
+    fn for_each_subsequent_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static;
@@ -689,7 +704,7 @@ impl<T> Source<T> for Arc<DynamicData<T>> {
         })
     }
 
-    fn for_each_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
@@ -733,12 +748,12 @@ impl<T> Source<T> for Dynamic<T> {
         self.0.for_each_subsequent_generational_try(for_each)
     }
 
-    fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.0.for_each_generational_cloned_try(for_each)
+        self.0.for_each_subsequent_generational_cloned_try(for_each)
     }
 }
 
@@ -771,12 +786,13 @@ impl<T> Source<T> for DynamicReader<T> {
         self.source.for_each_subsequent_generational_try(for_each)
     }
 
-    fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.source.for_each_generational_cloned_try(for_each)
+        self.source
+            .for_each_subsequent_generational_cloned_try(for_each)
     }
 }
 
@@ -941,12 +957,12 @@ impl<T> Source<T> for Owned<T> {
         }))
     }
 
-    fn for_each_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.for_each_generational_try(move |gen| for_each(gen.guard.clone()))
+        self.for_each_generational_try(move |gen| for_each(GenerationalValue::from(&gen.guard)))
     }
 }
 
@@ -2268,6 +2284,27 @@ impl<T> GenerationalValue<T> {
             value: map(&self.value),
             generation: self.generation,
         }
+    }
+}
+
+impl<T, const READONLY: bool> From<&DynamicGuard<'_, T, READONLY>> for GenerationalValue<T>
+where
+    T: Clone,
+{
+    fn from(value: &DynamicGuard<'_, T, READONLY>) -> Self {
+        Self {
+            value: (**value).clone(),
+            generation: value.generation(),
+        }
+    }
+}
+
+impl<T, const READONLY: bool> From<&DynamicOrOwnedGuard<'_, T, READONLY>> for GenerationalValue<T>
+where
+    T: Clone,
+{
+    fn from(value: &DynamicOrOwnedGuard<'_, T, READONLY>) -> Self {
+        (**value).clone()
     }
 }
 
@@ -4198,11 +4235,11 @@ impl Source<usize> for Watcher {
         self.0.for_each_subsequent_generational_try(for_each)
     }
 
-    fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
     where
         F: FnMut(GenerationalValue<usize>) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.0.for_each_generational_cloned_try(for_each)
+        self.0.for_each_subsequent_generational_cloned_try(for_each)
     }
 }
 
@@ -4559,13 +4596,10 @@ fn graph_shortcircuit() {
     assert_eq!(quadrupled.get(), 0);
     a.set(1);
 
-    // We need to We expect two invocations at this point:
-    // - Once by using for_each_cloned.
+    // We expect two invocations at this point:
+    // - Once by using quadrupled.for_each_cloned.
     // - Once by the callback chain invoked by setting a to 1.
-    //
-    // TODO for_each_cloned is acting like for_each_subsequent_cloned, throwing
-    // this count off by one
-    while invocation_count.get() < 1 {
+    while invocation_count.get() < 2 {
         invocation_count.block_until_updated();
     }
 
