@@ -34,7 +34,7 @@ fn main() -> cushy::Result {
         clicking the button quickly and seeing how the \
         channel version increments for every click while \
         the dynamic version increments at most once every \
-        500 milliseconds."
+        second."
         .and(
             "Click Me"
                 .into_button()
