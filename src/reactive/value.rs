@@ -1,66 +1,36 @@
 //! Types for storing and interacting with values in Widgets.
 
-use std::cell::{Cell, Ref, RefCell, RefMut};
-use std::collections::{HashMap, VecDeque};
+use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
 use std::fmt::{self, Debug, Display};
 use std::future::Future;
 use std::hash::{BuildHasher, Hash};
 use std::ops::{Add, AddAssign, Deref, DerefMut, Not};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self};
 use std::sync::{Arc, Weak};
 use std::task::{Poll, Waker};
 use std::thread::ThreadId;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use ahash::{AHashMap, AHashSet};
 use alot::{LotId, Lots};
 use intentional::Assert;
-use kempt::{map, Map, Sort};
+use kempt::{Map, Sort};
 use parking_lot::{Condvar, Mutex, MutexGuard};
 
 use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
 use crate::context::{self, Trackable, WidgetContext};
+use crate::reactive::{
+    defer_execute_callbacks, CallbackCollection, ChangeCallbacks, ChangeCallbacksData,
+};
 use crate::utils::WithClone;
 use crate::widget::{
-    MakeWidget, MakeWidgetWithTag, OnceCallback, WidgetId, WidgetInstance, WidgetList,
+    MakeWidget, MakeWidgetWithTag, Notify, OnceCallback, WidgetId, WidgetInstance, WidgetList,
 };
 use crate::widgets::checkbox::CheckboxState;
 use crate::widgets::{Checkbox, Radio, Select, Space, Switcher};
 use crate::window::WindowHandle;
-use crate::Lazy;
-
-static CALLBACK_EXECUTORS: Mutex<Map<usize, Arc<DynamicLockData>>> = Mutex::new(Map::new());
-
-fn execute_callbacks(
-    lock: Arc<DynamicLockData>,
-    callbacks: &mut CallbacksList,
-) -> Result<usize, DeadlockError> {
-    let mut executors = CALLBACK_EXECUTORS.lock();
-    let key = Arc::as_ptr(&lock) as usize;
-    match executors.entry(key) {
-        map::Entry::Occupied(_) => return Err(DeadlockError),
-        map::Entry::Vacant(entry) => {
-            entry.insert(lock);
-        }
-    }
-    drop(executors);
-
-    // Invoke all callbacks, removing those that report an
-    // error.
-    let mut count = 0;
-    callbacks.invoked_at = Instant::now();
-    callbacks.callbacks.drain_filter(|callback| {
-        count += 1;
-        callback.changed().is_err()
-    });
-
-    let mut executors = CALLBACK_EXECUTORS.lock();
-    executors.remove(&key);
-
-    Ok(count)
-}
 
 /// A source of one or more `T` values.
 pub trait Source<T> {
@@ -307,19 +277,61 @@ pub trait Source<T> {
     ///
     /// Returning `Err(CallbackDisconnected)` will prevent the callback from
     /// being invoked again.
-    fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Clone + Send + 'static,
+        F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.map_generational(|value| for_each(GenerationalValue::from(&value)))
+            .expect("initial for_each invocation failed");
+        self.for_each_subsequent_generational_cloned_try(for_each)
+    }
+
+    /// Invokes `for_each` with the current contents and each time this source's
+    /// contents are updated.
+    ///
+    /// Returning `Err(CallbackDisconnected)` will prevent the callback from
+    /// being invoked again.
+    fn for_each_subsequent_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static;
 
     /// Invokes `for_each` with the current contents and each time this source's
     /// contents are updated.
+    ///
+    /// Returning `Err(CallbackDisconnected)` will prevent the callback from
+    /// being invoked again.
     fn for_each_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(T) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
         self.for_each_generational_cloned_try(move |gen| for_each(gen.value))
+    }
+
+    /// Invokes `for_each` each time this source's contents are updated.
+    ///
+    /// Returning `Err(CallbackDisconnected)` will prevent the callback from
+    /// being invoked again.
+    fn for_each_subsequent_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Clone + Send + 'static,
+        F: FnMut(T) -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.for_each_subsequent_generational_cloned_try(move |gen| for_each(gen.value))
+    }
+
+    /// Invokes `for_each` each time this source's contents are updated.
+    fn for_each_subsequent_cloned<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Clone + Send + 'static,
+        F: FnMut(T) + Send + 'static,
+    {
+        self.for_each_subsequent_cloned_try(move |value| {
+            for_each(value);
+            Ok(())
+        })
     }
 
     /// Invokes `for_each` with the current contents and each time this source's
@@ -332,6 +344,29 @@ pub trait Source<T> {
         self.for_each_cloned_try(move |value| {
             for_each(value);
             Ok(())
+        })
+    }
+
+    /// Notifies `notify` with a clone of the  current contents each time this
+    /// source's contents are updated.
+    fn for_each_notify(&self, notify: impl Into<Notify<T>>) -> CallbackHandle
+    where
+        T: Unpin + Clone + Send + 'static,
+    {
+        let mut notify = notify.into();
+        self.for_each_cloned(move |value| notify.notify(value))
+    }
+
+    /// Notifies `notify` with a clone of the  current contents each time this
+    /// source's contents are updated, disconnecting the callback if the target
+    /// is disconnected.
+    fn for_each_try_notify(&self, notify: impl Into<Notify<T>>) -> CallbackHandle
+    where
+        T: Unpin + Clone + Send + 'static,
+    {
+        let mut notify = notify.into();
+        self.for_each_cloned_try(move |value| {
+            notify.try_notify(value).map_err(|_| CallbackDisconnected)
         })
     }
 
@@ -696,7 +731,7 @@ impl<T> Source<T> for Arc<DynamicData<T>> {
         })
     }
 
-    fn for_each_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
@@ -740,12 +775,12 @@ impl<T> Source<T> for Dynamic<T> {
         self.0.for_each_subsequent_generational_try(for_each)
     }
 
-    fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.0.for_each_generational_cloned_try(for_each)
+        self.0.for_each_subsequent_generational_cloned_try(for_each)
     }
 }
 
@@ -778,12 +813,13 @@ impl<T> Source<T> for DynamicReader<T> {
         self.source.for_each_subsequent_generational_try(for_each)
     }
 
-    fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.source.for_each_generational_cloned_try(for_each)
+        self.source
+            .for_each_subsequent_generational_cloned_try(for_each)
     }
 }
 
@@ -948,12 +984,12 @@ impl<T> Source<T> for Owned<T> {
         }))
     }
 
-    fn for_each_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(GenerationalValue<T>) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.for_each_generational_try(move |gen| for_each(gen.guard.clone()))
+        self.for_each_generational_try(move |gen| for_each(GenerationalValue::from(&gen.guard)))
     }
 }
 
@@ -1914,10 +1950,6 @@ impl Display for DeadlockError {
     }
 }
 
-trait CallbackCollection: Send + Sync + 'static {
-    fn remove(&self, id: LotId);
-}
-
 /// A handle to a callback installed on a [`Dynamic`]. When dropped, the
 /// callback will be uninstalled.
 ///
@@ -2171,10 +2203,7 @@ impl<T> State<T> {
             self.invalidation.invoke();
         }
 
-        ChangeCallbacks {
-            data: self.callbacks.clone(),
-            changed_at: Instant::now(),
-        }
+        ChangeCallbacks::new(self.callbacks.clone())
     }
 
     fn debug(&self, name: &str, f: &mut fmt::Formatter<'_>) -> fmt::Result
@@ -2234,91 +2263,15 @@ where
 }
 
 #[derive(Default, Debug)]
-struct DynamicLockState {
+pub(super) struct DynamicLockState {
     lock_holder: Option<ThreadId>,
-    callbacks_to_remove: Vec<LotId>,
+    pub(super) callbacks_to_remove: Vec<LotId>,
 }
 
 #[derive(Default, Debug)]
-struct DynamicLockData {
-    state: Mutex<DynamicLockState>,
-    sync: Condvar,
-}
-
-#[derive(Default)]
-struct ChangeCallbacksData {
-    callbacks: Mutex<CallbacksList>,
-    lock: Arc<DynamicLockData>,
-}
-
-impl CallbackCollection for ChangeCallbacksData {
-    fn remove(&self, id: LotId) {
-        if CallbackExecutor::is_current_thread() {
-            let mut state = self.lock.state.lock();
-            state.callbacks_to_remove.push(id);
-        } else {
-            let mut data = self.callbacks.lock();
-            data.callbacks.remove(id);
-        }
-    }
-}
-
-struct CallbacksList {
-    callbacks: Lots<Box<dyn ValueCallback>>,
-    invoked_at: Instant,
-}
-
-impl Default for CallbacksList {
-    fn default() -> Self {
-        Self {
-            callbacks: Lots::new(),
-            invoked_at: Instant::now(),
-        }
-    }
-}
-
-struct ChangeCallbacks {
-    data: Arc<ChangeCallbacksData>,
-    changed_at: Instant,
-}
-
-impl ChangeCallbacks {
-    fn execute(self) -> usize {
-        // Invoke the callbacks
-        let mut data = self.data.callbacks.lock();
-        // If the callbacks have already been invoked by another
-        // thread such that the callbacks observed the value our
-        // thread wrote, we can skip the callbacks.
-        let Some(Ok(count)) = (data.invoked_at < self.changed_at)
-            .then(|| execute_callbacks(self.data.lock.clone(), &mut data))
-        else {
-            return 0;
-        };
-
-        // Clean up all callbacks that were disconnected while our callbacks
-        // were locked.
-        let mut state = self.data.lock.state.lock();
-        for callback in state.callbacks_to_remove.drain(..) {
-            data.callbacks.remove(callback);
-        }
-        drop(data);
-        drop(state);
-        self.data.lock.sync.notify_all();
-        count
-    }
-}
-
-trait ValueCallback: Send {
-    fn changed(&mut self) -> Result<(), CallbackDisconnected>;
-}
-
-impl<F> ValueCallback for F
-where
-    F: for<'a> FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
-{
-    fn changed(&mut self) -> Result<(), CallbackDisconnected> {
-        self()
-    }
+pub(super) struct DynamicLockData {
+    pub(super) state: Mutex<DynamicLockState>,
+    pub(super) sync: Condvar,
 }
 
 /// A value stored in a [`Dynamic`] with its [`Generation`].
@@ -2358,6 +2311,27 @@ impl<T> GenerationalValue<T> {
             value: map(&self.value),
             generation: self.generation,
         }
+    }
+}
+
+impl<T, const READONLY: bool> From<&DynamicGuard<'_, T, READONLY>> for GenerationalValue<T>
+where
+    T: Clone,
+{
+    fn from(value: &DynamicGuard<'_, T, READONLY>) -> Self {
+        Self {
+            value: (**value).clone(),
+            generation: value.generation(),
+        }
+    }
+}
+
+impl<T, const READONLY: bool> From<&DynamicOrOwnedGuard<'_, T, READONLY>> for GenerationalValue<T>
+where
+    T: Clone,
+{
+    fn from(value: &DynamicOrOwnedGuard<'_, T, READONLY>) -> Self {
+        (**value).clone()
     }
 }
 
@@ -4288,11 +4262,11 @@ impl Source<usize> for Watcher {
         self.0.for_each_subsequent_generational_try(for_each)
     }
 
-    fn for_each_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
+    fn for_each_subsequent_generational_cloned_try<F>(&self, for_each: F) -> CallbackHandle
     where
         F: FnMut(GenerationalValue<usize>) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.0.for_each_generational_cloned_try(for_each)
+        self.0.for_each_subsequent_generational_cloned_try(for_each)
     }
 }
 
@@ -4573,68 +4547,6 @@ where
     }
 }
 
-fn defer_execute_callbacks(callbacks: ChangeCallbacks) {
-    static THREAD_SENDER: Lazy<mpsc::SyncSender<ChangeCallbacks>> = Lazy::new(|| {
-        let (sender, receiver) = mpsc::sync_channel(256);
-        std::thread::spawn(move || CallbackExecutor::new(receiver).run());
-        sender
-    });
-    let _ = THREAD_SENDER.send(callbacks);
-}
-
-struct CallbackExecutor {
-    receiver: mpsc::Receiver<ChangeCallbacks>,
-
-    queue: VecDeque<ChangeCallbacks>,
-}
-
-impl CallbackExecutor {
-    fn new(receiver: mpsc::Receiver<ChangeCallbacks>) -> Self {
-        Self {
-            receiver,
-            queue: VecDeque::new(),
-        }
-    }
-
-    fn enqueue_nonblocking(&mut self) {
-        // Exhaust any pending callbacks without blocking.
-        while let Ok(callbacks) = self.receiver.try_recv() {
-            self.enqueue(callbacks);
-        }
-    }
-
-    fn run(mut self) {
-        IS_EXECUTOR_THREAD.set(true);
-
-        // Because this is stored in a static, this likely will never return an
-        // error, but if it does, it's during program shutdown, and we can exit safely.
-        while let Ok(callbacks) = self.receiver.recv() {
-            self.enqueue(callbacks);
-            self.enqueue_nonblocking();
-            let mut callbacks_executed = 0;
-            while let Some(enqueued) = self.queue.pop_front() {
-                callbacks_executed += enqueued.execute();
-            }
-
-            if callbacks_executed > 0 {
-                tracing::trace!("{callbacks_executed} callbacks executed");
-            }
-        }
-    }
-
-    fn enqueue(&mut self, callbacks: ChangeCallbacks) {
-        self.queue.push_back(callbacks);
-    }
-
-    fn is_current_thread() -> bool {
-        IS_EXECUTOR_THREAD.get()
-    }
-}
-
-thread_local! {
-    static IS_EXECUTOR_THREAD: Cell<bool> = const { Cell::new(false) };
-}
-
 #[test]
 fn compare_swap() {
     let dynamic = Dynamic::new(1);
@@ -4711,13 +4623,10 @@ fn graph_shortcircuit() {
     assert_eq!(quadrupled.get(), 0);
     a.set(1);
 
-    // We need to We expect two invocations at this point:
-    // - Once by using for_each_cloned.
+    // We expect two invocations at this point:
+    // - Once by using quadrupled.for_each_cloned.
     // - Once by the callback chain invoked by setting a to 1.
-    //
-    // TODO for_each_cloned is acting like for_each_subsequent_cloned, throwing
-    // this count off by one
-    while invocation_count.get() < 1 {
+    while invocation_count.get() < 2 {
         invocation_count.block_until_updated();
     }
 

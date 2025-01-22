@@ -22,7 +22,7 @@ use crate::styles::components::{
 use crate::styles::{ColorExt, Styles};
 use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{
-    Callback, EventHandling, MakeWidget, SharedCallback, Widget, WidgetRef, HANDLED,
+    EventHandling, MakeWidget, Notify, SharedCallback, Widget, WidgetRef, HANDLED,
 };
 use crate::window::{DeviceId, WindowLocal};
 use crate::FitMeasuredSize;
@@ -33,7 +33,7 @@ pub struct Button {
     /// The label to display on the button.
     pub content: WidgetRef,
     /// The callback that is invoked when the button is clicked.
-    pub on_click: Option<Callback<Option<ButtonClick>>>,
+    pub on_click: Option<Notify<Option<ButtonClick>>>,
     /// The kind of button to draw.
     pub kind: Value<ButtonKind>,
     focusable: bool,
@@ -159,11 +159,17 @@ impl Button {
     ///
     /// This callback will be invoked each time the button is clicked.
     #[must_use]
-    pub fn on_click<F>(mut self, callback: F) -> Self
+    pub fn on_click<F>(self, callback: F) -> Self
     where
         F: FnMut(Option<ButtonClick>) + Send + 'static,
     {
-        self.on_click = Some(Callback::new(callback));
+        self.on_click_notify(callback)
+    }
+
+    /// Sets `notify` to receive each click of this button, and returns self.
+    #[must_use]
+    pub fn on_click_notify(mut self, notify: impl Into<Notify<Option<ButtonClick>>>) -> Self {
+        self.on_click = Some(notify.into());
         self
     }
 
@@ -177,7 +183,7 @@ impl Button {
     fn invoke_on_click(&mut self, button: Option<ButtonClick>, context: &WidgetContext<'_>) {
         if context.enabled() {
             if let Some(on_click) = self.on_click.as_mut() {
-                on_click.invoke(button);
+                on_click.notify(button);
             }
         }
     }

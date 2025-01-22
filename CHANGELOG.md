@@ -117,6 +117,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   application to create deadlocks with relatively simple data flows like the new
   `7guis-timer` example.
 - The type `cushy::Graphics` is now available at `cushy::graphics::Graphics`.
+- `Source::for_each_cloned_*` now invoke the callback with the current contents
+  of of the source before attaching the callback. New functions beginning with
+  `for_each_subsequent_cloned` have been added with the original behavior. This
+  change was done to make `for_each_cloned` and `for_each` have the same
+  semantics.
 
 ### Changed
 

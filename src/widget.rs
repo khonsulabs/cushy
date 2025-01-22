@@ -21,6 +21,7 @@ use parking_lot::{Mutex, MutexGuard};
 use unic_langid::LanguageIdentifier;
 
 use crate::app::Run;
+use crate::channel::{BroadcastChannel, Broadcaster, Sender};
 use crate::context::sealed::Trackable as _;
 use crate::context::{
     AsEventContext, EventContext, GraphicsContext, LayoutContext, ManageWidget, WidgetContext,
@@ -1829,6 +1830,187 @@ where
 {
     fn invoke(&mut self, value: T) -> R {
         self(value)
+    }
+}
+
+/// A target for notifications.
+///
+/// Cushy provides several ways to create reactivity. This type allows `From`
+/// conversion from all types that can act as a receiver of values of `T`.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum Notify<T> {
+    /// A callback/function that is invoked for each `T`.
+    Callback(Callback<T>),
+    /// A callback/function that is invoked for each `T` that can be cloned and
+    /// used in multiple locations.
+    SharedCallback(SharedCallback<T>),
+    /// A channel that is sent each `T`.
+    Sender(Sender<T>),
+    /// A broadcast channel that is sent each `T`.
+    Broadcaster(Broadcaster<T>),
+    /// A dynamic that is updated with each `T`.
+    Dynamic(Dynamic<T>),
+}
+
+impl<T> Notify<T>
+where
+    T: Unpin + Clone + Send + 'static,
+{
+    /// Notifies the target of the new `value`.
+    pub fn notify(&mut self, value: T) {
+        match self {
+            Notify::Callback(callback) => callback.invoke(value),
+            Notify::SharedCallback(callback) => callback.invoke(value),
+            Notify::Sender(sender) => {
+                let _ = sender.force_send(value);
+            }
+            Notify::Broadcaster(broadcaster) => {
+                let _ = broadcaster.force_send(value);
+            }
+            Notify::Dynamic(dynamic) => {
+                *dynamic.lock() = value;
+            }
+        }
+    }
+
+    /// Notifies the target of the new `value`, returning an error if the target
+    /// is no longer reachable.
+    pub fn try_notify(&mut self, value: T) -> Result<(), T> {
+        match self {
+            Notify::Callback(callback) => callback.invoke(value),
+            Notify::SharedCallback(callback) => callback.invoke(value),
+            Notify::Sender(sender) => sender.force_send(value).map(|_| ())?,
+            Notify::Broadcaster(broadcaster) => broadcaster.force_send(value).map(|_| ())?,
+            Notify::Dynamic(dynamic) => {
+                *dynamic.lock() = value;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<T> From<Callback<T>> for Notify<T> {
+    fn from(value: Callback<T>) -> Self {
+        Self::Callback(value)
+    }
+}
+
+impl<T> From<SharedCallback<T>> for Notify<T> {
+    fn from(value: SharedCallback<T>) -> Self {
+        Self::SharedCallback(value)
+    }
+}
+
+impl<T> From<Dynamic<T>> for Notify<T> {
+    fn from(value: Dynamic<T>) -> Self {
+        Self::Dynamic(value)
+    }
+}
+
+impl<T> From<Sender<T>> for Notify<T> {
+    fn from(value: Sender<T>) -> Self {
+        Self::Sender(value)
+    }
+}
+
+impl<T> From<Broadcaster<T>> for Notify<T> {
+    fn from(value: Broadcaster<T>) -> Self {
+        Self::Broadcaster(value)
+    }
+}
+
+impl<T> From<BroadcastChannel<T>> for Notify<T> {
+    fn from(value: BroadcastChannel<T>) -> Self {
+        Self::Broadcaster(value.into_broadcaster())
+    }
+}
+
+impl<T, F> From<F> for Notify<T>
+where
+    F: FnMut(T) + Send + 'static,
+{
+    fn from(func: F) -> Self {
+        Self::from(Callback::new(func))
+    }
+}
+
+/// A target for notifications.
+///
+/// Cushy provides several ways to create reactivity. This type allows `From`
+/// conversion from all types that can act as a receiver of values of `T`.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum SharedNotify<T> {
+    /// A callback/function that is invoked for each `T` that can be cloned and
+    /// used in multiple locations.
+    SharedCallback(SharedCallback<T>),
+    /// A channel that is sent each `T`.
+    Sender(Sender<T>),
+    /// A broadcast channel that is sent each `T`.
+    Broadcaster(Broadcaster<T>),
+    /// A dynamic that is updated with each `T`.
+    Dynamic(Dynamic<T>),
+}
+
+impl<T> SharedNotify<T>
+where
+    T: Unpin + Clone + Send + 'static,
+{
+    /// Notifies the target of the new `value`.
+    pub fn notify(&mut self, value: T) {
+        match self {
+            Self::SharedCallback(callback) => callback.invoke(value),
+            Self::Sender(sender) => {
+                let _ = sender.force_send(value);
+            }
+            Self::Broadcaster(broadcaster) => {
+                let _ = broadcaster.force_send(value);
+            }
+            Self::Dynamic(dynamic) => {
+                *dynamic.lock() = value;
+            }
+        }
+    }
+}
+
+impl<T> From<SharedCallback<T>> for SharedNotify<T> {
+    fn from(value: SharedCallback<T>) -> Self {
+        Self::SharedCallback(value)
+    }
+}
+
+impl<T> From<Dynamic<T>> for SharedNotify<T> {
+    fn from(value: Dynamic<T>) -> Self {
+        Self::Dynamic(value)
+    }
+}
+
+impl<T> From<Sender<T>> for SharedNotify<T> {
+    fn from(value: Sender<T>) -> Self {
+        Self::Sender(value)
+    }
+}
+
+impl<T> From<Broadcaster<T>> for SharedNotify<T> {
+    fn from(value: Broadcaster<T>) -> Self {
+        Self::Broadcaster(value)
+    }
+}
+
+impl<T> From<BroadcastChannel<T>> for SharedNotify<T> {
+    fn from(value: BroadcastChannel<T>) -> Self {
+        Self::Broadcaster(value.into_broadcaster())
+    }
+}
+
+impl<T, F> From<F> for SharedNotify<T>
+where
+    F: FnMut(T) + Send + 'static,
+{
+    fn from(func: F) -> Self {
+        Self::from(SharedCallback::new(func))
     }
 }
 
