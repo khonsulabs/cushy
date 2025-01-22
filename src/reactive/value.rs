@@ -299,12 +299,39 @@ pub trait Source<T> {
 
     /// Invokes `for_each` with the current contents and each time this source's
     /// contents are updated.
+    ///
+    /// Returning `Err(CallbackDisconnected)` will prevent the callback from
+    /// being invoked again.
     fn for_each_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
     where
         T: Clone + Send + 'static,
         F: FnMut(T) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
         self.for_each_generational_cloned_try(move |gen| for_each(gen.value))
+    }
+
+    /// Invokes `for_each` each time this source's contents are updated.
+    ///
+    /// Returning `Err(CallbackDisconnected)` will prevent the callback from
+    /// being invoked again.
+    fn for_each_subsequent_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Clone + Send + 'static,
+        F: FnMut(T) -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.for_each_subsequent_generational_cloned_try(move |gen| for_each(gen.value))
+    }
+
+    /// Invokes `for_each` each time this source's contents are updated.
+    fn for_each_subsequent_cloned<F>(&self, mut for_each: F) -> CallbackHandle
+    where
+        T: Clone + Send + 'static,
+        F: FnMut(T) + Send + 'static,
+    {
+        self.for_each_subsequent_cloned_try(move |value| {
+            for_each(value);
+            Ok(())
+        })
     }
 
     /// Invokes `for_each` with the current contents and each time this source's
