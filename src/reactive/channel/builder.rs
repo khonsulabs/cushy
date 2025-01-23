@@ -1,4 +1,4 @@
-//! Builder types for Cushy [`channel`](super)qs.
+//! Builder types for Cushy [`channel`](super)s.
 use std::future::Future;
 use std::marker::PhantomData;
 

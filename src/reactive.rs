@@ -14,7 +14,7 @@ use tracing::warn;
 
 use self::channel::{AnyChannel, ChannelCallbackFuture};
 use self::value::{CallbackDisconnected, DeadlockError, DynamicLockData};
-use crate::Lazy;
+use crate::{Cushy, Lazy};
 
 pub mod channel;
 pub mod value;
@@ -280,6 +280,8 @@ impl CallbackExecutor {
 
     fn run(mut self) {
         IS_EXECUTOR_THREAD.set(true);
+        let cushy = Cushy::current();
+        let _runtime = cushy.enter_runtime();
 
         // Because this is stored in a static, this likely will never return an
         // error, but if it does, it's during program shutdown, and we can exit safely.

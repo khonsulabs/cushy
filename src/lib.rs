@@ -84,9 +84,9 @@ impl MaybeLocalized {
         match self {
             MaybeLocalized::Text(text) => text.clone(),
             #[cfg(feature = "localization")]
-            MaybeLocalized::Localized(localized) => {
-                localized.localize(&localization::WindowTranslationContext(&app.localizations))
-            }
+            MaybeLocalized::Localized(localized) => localized.localize(
+                &localization::WindowTranslationContext(&app.data.localizations),
+            ),
         }
     }
 }

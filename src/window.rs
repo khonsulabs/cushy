@@ -1427,7 +1427,7 @@ where
                             self.theme_mode.get(),
                             &mut self.cursor,
                             #[cfg(feature = "localization")]
-                            &self.app.cushy().localizations,
+                            &self.app.cushy().data.localizations,
                         ),
                         kludgine,
                     )
@@ -1442,7 +1442,7 @@ where
                         self.theme_mode.get(),
                         &mut self.cursor,
                         #[cfg(feature = "localization")]
-                        &self.app.cushy().localizations,
+                        &self.app.cushy().data.localizations,
                     ),
                     kludgine,
                 )
@@ -1463,7 +1463,7 @@ where
                     self.theme_mode.get(),
                     &mut self.cursor,
                     #[cfg(feature = "localization")]
-                    &self.app.cushy().localizations,
+                    &self.app.cushy().data.localizations,
                 ),
                 kludgine,
             )
@@ -1498,7 +1498,7 @@ where
                     self.theme_mode.get(),
                     &mut self.cursor,
                     #[cfg(feature = "localization")]
-                    &self.app.cushy().localizations,
+                    &self.app.cushy().data.localizations,
                 ),
                 graphics,
             );
@@ -1651,7 +1651,7 @@ where
                         self.theme_mode.get(),
                         &mut self.cursor,
                         #[cfg(feature = "localization")]
-                        &self.app.cushy().localizations,
+                        &self.app.cushy().data.localizations,
                     ),
                     kludgine,
                 );
@@ -1686,7 +1686,7 @@ where
                             self.theme_mode.get(),
                             &mut self.cursor,
                             #[cfg(feature = "localization")]
-                            &self.app.cushy().localizations,
+                            &self.app.cushy().data.localizations,
                         ),
                         kludgine,
                     );
@@ -1753,7 +1753,7 @@ where
         let app = settings.app.clone();
         let fonts = Self::load_fonts(
             &mut settings,
-            app.cushy().fonts.clone(),
+            app.cushy().data.fonts.clone(),
             graphics.font_system().db_mut(),
         );
 
@@ -1902,7 +1902,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().localizations,
+                &self.app.cushy().data.localizations,
             ),
             gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
@@ -2190,7 +2190,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().localizations,
+                &self.app.cushy().data.localizations,
             ),
             kludgine,
         );
@@ -2253,7 +2253,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().localizations,
+                &self.app.cushy().data.localizations,
             ),
             kludgine,
         );
@@ -2298,7 +2298,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().localizations,
+                &self.app.cushy().data.localizations,
             ),
             kludgine,
         );
@@ -2345,7 +2345,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().localizations,
+                &self.app.cushy().data.localizations,
             ),
             kludgine,
         )
@@ -2366,7 +2366,7 @@ where
                         self.theme_mode.get(),
                         &mut self.cursor,
                         #[cfg(feature = "localization")]
-                        &self.app.cushy().localizations,
+                        &self.app.cushy().data.localizations,
                     ),
                     kludgine,
                 );
@@ -2408,7 +2408,7 @@ where
                     self.theme_mode.get(),
                     &mut self.cursor,
                     #[cfg(feature = "localization")]
-                    &self.app.cushy().localizations,
+                    &self.app.cushy().data.localizations,
                 ),
                 kludgine,
             );
@@ -2453,7 +2453,7 @@ where
                         self.theme_mode.get(),
                         &mut self.cursor,
                         #[cfg(feature = "localization")]
-                        &self.app.cushy().localizations,
+                        &self.app.cushy().data.localizations,
                     ),
                     kludgine,
                 ),
@@ -2481,7 +2481,7 @@ where
                     self.theme_mode.get(),
                     &mut self.cursor,
                     #[cfg(feature = "localization")]
-                    &self.app.cushy().localizations,
+                    &self.app.cushy().data.localizations,
                 ),
                 kludgine,
             )
@@ -2532,7 +2532,7 @@ where
                 self.theme_mode.get(),
                 &mut self.cursor,
                 #[cfg(feature = "localization")]
-                &self.app.cushy().localizations,
+                &self.app.cushy().data.localizations,
             ),
             kludgine,
         );
@@ -2983,7 +2983,7 @@ where
                         self.theme_mode.get(),
                         &mut self.cursor,
                         #[cfg(feature = "localization")]
-                        &self.app.cushy().localizations,
+                        &self.app.cushy().data.localizations,
                     ),
                     kludgine,
                 );

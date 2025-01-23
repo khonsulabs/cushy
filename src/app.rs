@@ -61,12 +61,13 @@ impl PendingApp {
     /// [`with_tracing()`](Self::with_tracing)/[`initialize_tracing()`](Self::initialize_tracing)
     /// to enable Cushy's built-in trace handling.
     pub fn new<Runtime: AppRuntime>(runtime: Runtime) -> Self {
+        Self::from_cushy(Cushy::registered(BoxedRuntime(Box::new(runtime))))
+    }
+
+    fn from_cushy(cushy: Cushy) -> Self {
         let mut app = kludgine::app::PendingApp::default();
         app.on_unrecoverable_error(Self::unrecoverable_error);
-        Self {
-            app,
-            cushy: Cushy::new(BoxedRuntime(Box::new(runtime))),
-        }
+        Self { app, cushy }
     }
 
     /// Sets the error handler that is invoked when Cushy encounters an error
@@ -163,7 +164,7 @@ impl Run for PendingApp {
 
 impl Default for PendingApp {
     fn default() -> Self {
-        Self::new(DefaultRuntime::default()).with_tracing()
+        Self::from_cushy(Cushy::current()).with_tracing()
     }
 }
 
@@ -330,6 +331,12 @@ impl Clone for BoxedRuntime {
     }
 }
 
+impl Default for BoxedRuntime {
+    fn default() -> Self {
+        Self(Box::new(DefaultRuntime::default()))
+    }
+}
+
 trait BoxableRuntime: Send {
     fn enter_runtime(&self) -> RuntimeGuard<'_>;
     fn cloned(&self) -> BoxedRuntime;
@@ -359,30 +366,65 @@ struct AppSettings {
     multi_click_threshold: Duration,
 }
 
+static RUNNING_CUSHY: Mutex<Option<Cushy>> = const { Mutex::new(None) };
+
 /// Shared resources for a GUI application.
 #[derive(Clone)]
 pub struct Cushy {
-    pub(crate) clipboard: Option<Arc<Mutex<Clipboard>>>,
-    pub(crate) fonts: FontCollection,
-    settings: Arc<Mutex<AppSettings>>,
+    pub(crate) data: Arc<CushyData>,
     runtime: BoxedRuntime,
-    #[cfg(feature = "localization")]
-    pub(crate) localizations: Localizations,
 }
 
 impl Cushy {
-    fn new(runtime: BoxedRuntime) -> Self {
+    fn registered(runtime: BoxedRuntime) -> Self {
+        let cushy = Self::unregistered(runtime);
+
+        assert!(
+            RUNNING_CUSHY.lock().replace(cushy.clone()).is_none(),
+            "A Cushy instance was already initialized."
+        );
+
+        cushy
+    }
+
+    fn unregistered(runtime: BoxedRuntime) -> Self {
         Self {
-            clipboard: Clipboard::new()
-                .ok()
-                .map(|clipboard| Arc::new(Mutex::new(clipboard))),
-            fonts: FontCollection::default(),
-            settings: Arc::new(Mutex::new(AppSettings {
-                multi_click_threshold: Duration::from_millis(500),
-            })),
+            data: Arc::new(CushyData {
+                clipboard: Clipboard::new()
+                    .ok()
+                    .map(|clipboard| Arc::new(Mutex::new(clipboard))),
+                fonts: FontCollection::default(),
+                settings: Mutex::new(AppSettings {
+                    multi_click_threshold: Duration::from_millis(500),
+                }),
+                #[cfg(feature = "localization")]
+                localizations: Localizations::default(),
+            }),
             runtime,
-            #[cfg(feature = "localization")]
-            localizations: Localizations::default(),
+        }
+    }
+
+    /// Returns the current Cushy instance, if initialized.
+    ///
+    /// There can only be one Cushy instance per process.
+    #[must_use]
+    pub fn try_current() -> Option<Self> {
+        RUNNING_CUSHY.lock().clone()
+    }
+
+    /// Returns the current Cushy instance, initializing using the
+    /// [`DefaultRuntime`] if needed.
+    ///
+    /// There can only be one Cushy instance per process.
+    #[must_use]
+    pub fn current() -> Self {
+        let mut current = RUNNING_CUSHY.lock();
+        if let Some(cushy) = &*current {
+            cushy.clone()
+        } else {
+            let default = Cushy::unregistered(BoxedRuntime::default());
+            *current = Some(default.clone());
+            default
         }
     }
 
@@ -390,33 +432,33 @@ impl Cushy {
     /// elapse for the clicks to be considered separate actions.
     #[must_use]
     pub fn multi_click_threshold(&self) -> Duration {
-        self.settings.lock().multi_click_threshold
+        self.data.settings.lock().multi_click_threshold
     }
 
     /// Sets the maximum time between sequential clicks that should be
     /// considered the same action.
     pub fn set_multi_click_threshold(&self, threshold: Duration) {
-        self.settings.lock().multi_click_threshold = threshold;
+        self.data.settings.lock().multi_click_threshold = threshold;
     }
 
     /// Returns a locked mutex guard to the OS's clipboard, if one was able to be
     /// initialized when the window opened.
     #[must_use]
     pub fn clipboard_guard(&self) -> Option<MutexGuard<'_, Clipboard>> {
-        self.clipboard.as_ref().map(|mutex| mutex.lock())
+        self.data.clipboard.as_ref().map(|mutex| mutex.lock())
     }
 
     /// Returns the font collection that will be loaded in all Cushy windows.
     #[must_use]
     pub fn fonts(&self) -> &FontCollection {
-        &self.fonts
+        &self.data.fonts
     }
 
     /// Returns the localizations that are applied throughout the application.
     #[must_use]
     #[cfg(feature = "localization")]
     pub fn localizations(&self) -> &Localizations {
-        &self.localizations
+        &self.data.localizations
     }
 
     /// Enters the application's runtime context.
@@ -433,8 +475,16 @@ impl Cushy {
 
 impl Default for Cushy {
     fn default() -> Self {
-        Self::new(BoxedRuntime(Box::<DefaultRuntime>::default()))
+        Self::registered(BoxedRuntime::default())
     }
+}
+
+pub(crate) struct CushyData {
+    pub(crate) clipboard: Option<Arc<Mutex<Clipboard>>>,
+    pub(crate) fonts: FontCollection,
+    settings: Mutex<AppSettings>,
+    #[cfg(feature = "localization")]
+    pub(crate) localizations: Localizations,
 }
 
 /// A type that is a Cushy application.

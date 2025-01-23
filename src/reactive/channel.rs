@@ -97,7 +97,8 @@ use builder::Builder;
 use parking_lot::{Condvar, Mutex, MutexGuard};
 use sealed::{AnyChannelCallback, AsyncCallbackFuture, CallbackKind, ChannelCallbackError};
 
-use crate::reactive::{enqueue_task, BackgroundTask, ChannelTask};
+use super::enqueue_task;
+use crate::reactive::{BackgroundTask, ChannelTask};
 use crate::value::CallbackDisconnected;
 
 pub mod builder;
