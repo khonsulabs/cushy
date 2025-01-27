@@ -217,8 +217,7 @@ fn main(app: &mut App) -> cushy::Result {
         let app_state = &*app_state_guard;
 
 
-        if app_state.config.lock().show_home_on_startup
-        {
+        if app_state.config.lock().show_home_on_startup {
             add_home_tab(&context, &app_state.tab_bar);
         }
     }
