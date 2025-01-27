@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::default::Default;
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use log::{debug, trace};
+use log::{debug, error, trace};
 use slotmap::{new_key_type, SlotMap};
 use cushy::reactive::channel::Sender;
 use cushy::define_components;
@@ -67,7 +68,7 @@ new_key_type! {
     pub struct TabKey;
 }
 
-impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBar<TK, TKM, TKA> {
+impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + Debug + 'static, TKA> TabBar<TK, TKM, TKA> {
     pub fn new(sender: &Sender<TabMessage<TKM>>) -> Self {
         let tabs: Dynamic<SlotMap<TabKey, TabState<TK>>> = Dynamic::default();
         let active: Dynamic<Option<TabKey>> = Dynamic::new(None);
@@ -154,8 +155,7 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
             .on_click({
                 let sender = self.sender.clone();
                 move |_event| {
-                    // We don't want to add `+ Debug` to `TKM` nor do we care if we can no longer send the message
-                    let _ =sender.send(TabMessage::CloseTab(tab_key));
+                    sender.send(TabMessage::CloseTab(tab_key)).expect("ok");
                 }
             })
             .with(&ButtonBackground, Color::CLEAR_BLACK)
