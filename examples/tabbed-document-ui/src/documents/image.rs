@@ -3,6 +3,8 @@ use crate::WidgetInstance;
 use std::path::PathBuf;
 use std::time::Duration;
 use image::ImageReader;
+use log::error;
+use cushy::reactive::channel::Sender;
 use cushy::figures::Point;
 use cushy::figures::units::Px;
 use cushy::kludgine::{AnyTexture, LazyTexture};
@@ -48,12 +50,12 @@ pub struct ImageDocument {
     pub path: PathBuf,
     texture: Dynamic<Option<LazyTexture>>,
     side_bar: SideBar,
-    message: Dynamic<ImageDocumentMessage>,
+    sender: Sender<ImageDocumentMessage>,
     last_clicked_location: Dynamic<Option<Point<Px>>>,
 }
 
 impl ImageDocument {
-    fn new(path: PathBuf, message: Dynamic<ImageDocumentMessage>) -> ImageDocument {
+    fn new(path: PathBuf, sender: Sender<ImageDocumentMessage>) -> ImageDocument {
         let mut side_bar = SideBar::default()
             .with_fixed_width_columns();
 
@@ -84,21 +86,21 @@ impl ImageDocument {
             path,
             texture: Dynamic::new(None),
             side_bar,
-            message,
+            sender,
             last_clicked_location,
         }
     }
 
-    pub fn from_path(path: PathBuf, message: Dynamic<ImageDocumentMessage>) -> (Self, ImageDocumentMessage) {
+    pub fn from_path(path: PathBuf, sender: Sender<ImageDocumentMessage>) -> (Self, ImageDocumentMessage) {
         (
-            Self::new(path, message),
+            Self::new(path, sender),
             ImageDocumentMessage::Load,
         )
     }
 
-    pub fn create_new(path: PathBuf, message: Dynamic<ImageDocumentMessage>) -> (Self, ImageDocumentMessage) {
+    pub fn create_new(path: PathBuf, sender: Sender<ImageDocumentMessage>) -> (Self, ImageDocumentMessage) {
         (
-            Self::new(path, message),
+            Self::new(path, sender),
             ImageDocumentMessage::Create,
         )
     }
@@ -146,7 +148,7 @@ impl ImageDocument {
         let side_bar_widget = self.side_bar.make_widget();
 
         let image_widget = self.texture.clone().switcher({
-            let message = self.message.clone();
+            let sender = self.sender.clone();
             move |texture, _|
                 match texture {
                     None => Space::clear().make_widget(),
@@ -158,13 +160,15 @@ impl ImageDocument {
                             // FIXME the button should be the same size as the image/texture
                             .into_button()
                             .on_click({
-                                let message = message.clone();
+                                let sender = sender.clone();
                                 move |event|{
                                     match event {
                                         None => {}
                                         Some(button_click) => {
                                             let location = button_click.location;
-                                            message.force_set(ImageDocumentMessage::Clicked(location));
+                                            sender.send(ImageDocumentMessage::Clicked(location))
+                                                .map_err(|message|error!("unable to send message. message: {:?}", message))
+                                                .ok();
                                         }
                                     }
                                 }

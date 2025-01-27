@@ -1,12 +1,15 @@
 use std::path;
 use std::path::PathBuf;
+use log::{debug, error};
 use slotmap::SlotMap;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
 use cushy::figures::units::{Lp, Px};
 use cushy::{localize, App, Application};
+use cushy::reactive::channel::{Receiver, Sender};
 use cushy::dialog::{FilePicker, FileType};
-use cushy::reactive::value::{Destination, Dynamic, Source};
+use cushy::localization::Localization;
+use cushy::reactive::value::Dynamic;
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
 use cushy::widgets::{Expand, Radio};
 use cushy::window::{PendingWindow, WindowHandle};
@@ -15,7 +18,7 @@ use cushy::styles::Dimension;
 use crate::action::Action;
 use crate::app_tabs::document::{DocumentTab, DocumentTabAction, DocumentTabMessage};
 use crate::app_tabs::home::{HomeTab, HomeTabAction};
-use crate::app_tabs::new::{KindChoice, NewTab, NewTabAction, NewTabMessage};
+use crate::app_tabs::new::{KindChoice, NewTab, NewTabAction};
 use crate::app_tabs::{TabKind, TabKindAction, TabKindMessage};
 use crate::config::Config;
 use crate::context::Context;
@@ -38,18 +41,12 @@ mod runtime;
 
 #[derive(Clone, Debug)]
 enum AppMessage {
-    None,
     TabMessage(TabMessage<TabKindMessage>),
     ToolBarMessage(ToolbarMessage),
     FileOpened(PathBuf),
     ChooseFile(WindowHandle),
 }
 
-impl Default for AppMessage {
-    fn default() -> Self {
-        AppMessage::None
-    }
-}
 
 struct AppState {
     tab_bar: Dynamic<TabBar<TabKind, TabKindMessage, TabKindAction>>,
@@ -57,7 +54,7 @@ struct AppState {
     context: Dynamic<Context>,
 
     documents: Dynamic<SlotMap<DocumentKey, DocumentKind>>,
-    message: Dynamic<AppMessage>,
+    app_message_sender: Sender<AppMessage>,
 }
 
 #[cushy::main]
@@ -88,13 +85,13 @@ fn main(app: &mut App) -> cushy::Result {
             .expect("valid language id"),
     );
 
-
-    let message: Dynamic<AppMessage> = Dynamic::default();
+    let (app_message_sender, app_message_receiver) = cushy::reactive::channel::build()
+        .finish();
 
     let (mut sender, receiver) = futures::channel::mpsc::unbounded();
 
     let executor = Executor::new().expect("should be able to create an executor");
-    executor.spawn(MessageDispatcher::dispatch(receiver, message.clone()));
+    executor.spawn(MessageDispatcher::dispatch(receiver, app_message_sender.clone()));
     let mut runtime = RunTime::new(executor, sender.clone());
 
     let pending = PendingWindow::default();
@@ -103,16 +100,19 @@ fn main(app: &mut App) -> cushy::Result {
     let config = Dynamic::new(config::load());
     let documents = Dynamic::new(SlotMap::default());
 
-    let tab_message = Dynamic::default();
-    tab_message.for_each_cloned({
-        let message = message.clone();
-        move |tab_message|{
-            message.force_set(AppMessage::TabMessage(tab_message));
-        }
-    })
-        .persist();
+    let tab_message_sender: Sender<TabMessage<TabKindMessage>> = cushy::reactive::channel::build()
+        .on_receive({
+            let app_message_sender = app_message_sender.clone();
+            move |tab_message| {
+                app_message_sender.send(AppMessage::TabMessage(tab_message))
+                    .map_err(|app_message|{
+                        error!("unable to forward, app_message: {:?}", app_message);
+                    }).ok();
+            }
+        })
+        .finish();
 
-    let tab_bar = Dynamic::new(TabBar::new(&tab_message));
+    let tab_bar = Dynamic::new(TabBar::new(&tab_message_sender));
 
     let mut context = Context::default();
     context.provide(config.clone());
@@ -126,19 +126,25 @@ fn main(app: &mut App) -> cushy::Result {
         context: context.clone(),
         config,
         documents,
-        message: message.clone(),
+        app_message_sender: app_message_sender.clone(),
     };
 
-    let toolbar_message: Dynamic<ToolbarMessage> = Dynamic::default();
-    toolbar_message.for_each_cloned({
-        let message = message.clone();
-        move |toolbar_message|{
-            message.force_set(AppMessage::ToolBarMessage(toolbar_message));
-        }
-    })
-        .persist();
+    let toolbar_message_sender: Sender<ToolbarMessage> = cushy::reactive::channel::build()
+        .on_receive({
+            let app_message_sender = app_message_sender.clone();
+            move |toolbar_message|{
+                debug!("forwarding toolbar message. message: {:?}", toolbar_message);
+                app_message_sender.send(AppMessage::ToolBarMessage(toolbar_message))
+                    .map_err(|app_message|{
+                        error!("unable to forward from toolbar, app_message: {:?}", app_message);
+                    })
+                    .ok();
+            }
 
-    let toolbar = make_toolbar(toolbar_message, language_identifier.clone(), &languages);
+        })
+        .finish();
+
+    let toolbar = make_toolbar(toolbar_message_sender, language_identifier.clone(), &languages);
 
     let ui_elements = [
         toolbar.make_widget(),
@@ -147,17 +153,18 @@ fn main(app: &mut App) -> cushy::Result {
 
     let dyn_app_state = Dynamic::new(app_state);
 
-    message
-        .for_each_cloned({
-            let dyn_app_state = dyn_app_state.clone();
-            move |message|{
-                let task = dyn_app_state.lock().update(message);
+    app_message_receiver.on_receive({
+        let dyn_app_state = dyn_app_state.clone();
 
-                if let Some(stream) = task::into_stream(task) {
-                    runtime.run(stream);
-                }
+        move |app_message|{
+            println!("received app_message: {:?}", app_message);
+            let task = dyn_app_state.lock().update(app_message);
+
+            if let Some(stream) = task::into_stream(task) {
+                runtime.run(stream);
             }
-        })
+        }
+    })
         .persist();
 
     let ui = pending.with_root(
@@ -171,22 +178,25 @@ fn main(app: &mut App) -> cushy::Result {
             .localized_in(language_identifier)
             .make_widget()
     )
-        /*
         .on_open({
-            let message = message.clone();
+
+            let app_message_sender = app_message_sender.clone();
             let dyn_app_state = dyn_app_state.clone();
 
             move |_window| {
 
-                message.force_set(AppMessage::ToolBarMessage(ToolbarMessage::NewClicked));
+                app_message_sender.send(AppMessage::ToolBarMessage(ToolbarMessage::NewClicked)).expect("ok");
 
+                // FIXME this doesn't currently work since migrating to channels
+                /*
                 let tab_key = dyn_app_state.lock().tab_bar.lock().find_tab_by_label("New").unwrap();
                 println!("New tab. key: {:?}", tab_key);
 
-                message.force_set(AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::NewTabMessage(NewTabMessage::OkClicked))));
+                use crate::app_tabs::new::NewTabMessage;
+                app_message_sender.send(AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::NewTabMessage(NewTabMessage::OkClicked)))).expect("ok");
+                 */
             }
         })
-        */
         .on_close({
             let dyn_app_state = dyn_app_state.clone();
             let config = dyn_app_state.lock().config.clone();
@@ -244,9 +254,8 @@ fn main(app: &mut App) -> cushy::Result {
 
 impl AppState {
     fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
-        //println!("AppState::update, message: {:?}", message);
+        println!("AppState::update, message: {:?}", message);
         match message {
-            AppMessage::None => Task::none(),
             AppMessage::TabMessage(message) => {
                 let action = self.tab_bar.lock()
                     .update(&self.context, message);
@@ -281,12 +290,14 @@ impl AppState {
                     ])
                     .pick_file(&window,{
 
-                        let message = self.message.clone();
+                        let app_message_sender = self.app_message_sender.clone();
 
                         move |path|{
                             if let Some(path) = path {
                                 println!("path: {:?}", path);
-                                message.force_set(AppMessage::FileOpened(path))
+                                app_message_sender.send(AppMessage::FileOpened(path))
+                                    .map_err(|message|error!("unable to send message: {:?}", message))
+                                    .ok();
                             }
                         }
                     });
@@ -298,9 +309,6 @@ impl AppState {
 
     fn on_toolbar_message(&mut self, message: ToolbarMessage) -> Task<AppMessage> {
         match message {
-            ToolbarMessage::None => {
-                Task::none()
-            }
             ToolbarMessage::HomeClicked => {
                 println!("home clicked");
 
@@ -337,26 +345,29 @@ impl AppState {
 
     fn add_new_tab(&self) {
 
-        let new_tab_message: Dynamic<NewTabMessage> = Dynamic::default();
+        //let new_tab_message: Dynamic<NewTabMessage> = Dynamic::default();
+        let (new_tab_sender, new_tab_receiver) = cushy::reactive::channel::build()
+            .finish();
 
         let tab_key = self.tab_bar.lock()
-            .add_tab(&self.context, TabKind::New(NewTab::new(new_tab_message.clone())));
+            .add_tab(&self.context, TabKind::New(NewTab::new(new_tab_sender)));
 
-        new_tab_message.for_each_cloned({
-            let message = self.message.clone();
+        new_tab_receiver.on_receive({
+            let app_message_sender = self.app_message_sender.clone();
             move |new_tab_message|{
-                message.force_set(
+                app_message_sender.send(
                     AppMessage::TabMessage(
                         TabMessage::TabKindMessage(
                             tab_key,
                             TabKindMessage::NewTabMessage(new_tab_message)
                         )
                     )
-                );
+                )
+                    .map_err(|message|error!("unable to forward message: {:?}", message))
+                    .ok();
             }
         })
             .persist();
-
     }
 
     fn on_tab_action(&mut self, action: Action<TabAction<TabKindAction, TabKind>>) -> Task<AppMessage> {
@@ -429,9 +440,10 @@ impl AppState {
     fn create_document(&self, tab_key: TabKey, mut name: String, mut path: PathBuf, kind: KindChoice) -> Task<AppMessage> {
         println!("kind: {:?}, name: {:?}, path: {:?}", kind, name, path);
 
-        let document_tab_message = Dynamic::new(DocumentTabMessage::default());
+        let (document_tab_sender, document_tab_receiver) = cushy::reactive::channel::build()
+            .finish();
 
-        self.create_document_tab_mapping(document_tab_message.clone(), tab_key);
+        self.create_document_tab_mapping(document_tab_receiver, tab_key);
 
         match kind {
             KindChoice::Text => {
@@ -442,7 +454,7 @@ impl AppState {
                 let document = DocumentKind::TextDocument(text_document);
 
                 let document_key = self.documents.lock().insert(document);
-                let document_tab = DocumentTab::new(document_key, document_tab_message);
+                let document_tab = DocumentTab::new(document_key);
 
                 self.tab_bar.lock().replace(tab_key, &self.context, TabKind::Document(document_tab));
 
@@ -453,14 +465,14 @@ impl AppState {
                 name.push_str(".png");
                 path.push(&name);
 
-                let image_document_message = Dynamic::new(ImageDocumentMessage::default());
-                Self::make_image_document_message_mapping(&document_tab_message, &image_document_message);
+                let (image_document_sender, image_document_receiver) = cushy::reactive::channel::build().finish();
+                Self::make_image_document_mapper(document_tab_sender, image_document_receiver);
 
-                let (image_document, message) = ImageDocument::create_new(path.clone(), image_document_message);
+                let (image_document, message) = ImageDocument::create_new(path.clone(), image_document_sender);
                 let document = DocumentKind::ImageDocument(image_document);
 
                 let document_key = self.documents.lock().insert(document);
-                let document_tab = DocumentTab::new(document_key, document_tab_message);
+                let document_tab = DocumentTab::new(document_key);
 
                 self.tab_bar.lock().replace(tab_key, &self.context, TabKind::Document(document_tab));
 
@@ -477,13 +489,17 @@ impl AppState {
         }
     }
 
-    fn make_image_document_message_mapping(document_tab_message: &Dynamic<DocumentTabMessage>, image_document_message: &Dynamic<ImageDocumentMessage>) {
-        image_document_message.for_each_cloned({
-            let document_tab_message = document_tab_message.clone();
-            move |image_document_message| {
-                document_tab_message.force_set(DocumentTabMessage::ImageDocumentMessage(image_document_message))
+    fn make_image_document_mapper(document_tab_sender: Sender<DocumentTabMessage>, image_document_receiver: Receiver<ImageDocumentMessage>) {
+        image_document_receiver.on_receive({
+            move |message|{
+                document_tab_sender.send(DocumentTabMessage::ImageDocumentMessage(message))
+                    .map_err(|message|{
+                        error!("unable to forward image document message. message: {:?}", message);
+                    })
+                    .ok();
             }
-        }).persist();
+        })
+            .persist();
     }
 
     fn open_document(
@@ -497,22 +513,23 @@ impl AppState {
 
         let extension = path.extension().unwrap().to_str().unwrap();
 
-        let document_tab_message = Dynamic::new(DocumentTabMessage::default());
+        let (document_tab_sender, document_tab_receiver) = cushy::reactive::channel::build()
+            .finish();
 
         let message = if SUPPORTED_TEXT_EXTENSIONS.contains(&extension) {
             let (text_document, message) = TextDocument::from_path(path);
             let document = DocumentKind::TextDocument(text_document);
 
-            let tab_key = self.make_document_tab(document, document_tab_message);
+            let tab_key = self.make_document_tab(document, document_tab_receiver);
             AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::TextDocumentMessage(message))))
         } else if SUPPORTED_IMAGE_EXTENSIONS.contains(&extension) {
-            let image_document_message = Dynamic::new(ImageDocumentMessage::default());
-            Self::make_image_document_message_mapping(&document_tab_message, &image_document_message);
+            let (image_document_sender, image_document_receiver) = cushy::reactive::channel::build().finish();
+            Self::make_image_document_mapper(document_tab_sender, image_document_receiver);
 
-            let (image_document, message) = ImageDocument::from_path(path, image_document_message);
+            let (image_document, message) = ImageDocument::from_path(path, image_document_sender);
             let document = DocumentKind::ImageDocument(image_document);
 
-            let tab_key = self.make_document_tab(document, document_tab_message);
+            let tab_key = self.make_document_tab(document, document_tab_receiver);
             AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::ImageDocumentMessage(message))))
         } else {
             return Err(OpenDocumentError::UnsupportedFileExtension { extension: extension.to_string() });
@@ -523,34 +540,39 @@ impl AppState {
         Ok(message)
     }
 
-    fn make_document_tab(&self, document: DocumentKind, document_tab_message: Dynamic<DocumentTabMessage>) -> TabKey {
+    fn make_document_tab(&self, document: DocumentKind, document_tab_receiver: Receiver<DocumentTabMessage>) -> TabKey {
         let document_key = self.documents.lock().insert(document);
 
-        let document_tab = DocumentTab::new(document_key, document_tab_message.clone());
+        let document_tab = DocumentTab::new(document_key);
 
         let mut tab_bar_guard = self.tab_bar.lock();
         let tab_key = tab_bar_guard.add_tab(&self.context, TabKind::Document(document_tab));
 
-        self.create_document_tab_mapping(document_tab_message, tab_key);
+        self.create_document_tab_mapping(document_tab_receiver, tab_key);
 
         tab_key
     }
 
-    fn create_document_tab_mapping(&self, document_tab_message: Dynamic<DocumentTabMessage>, tab_key: TabKey) {
-        document_tab_message.for_each_cloned({
-            let message = self.message.clone();
+    fn create_document_tab_mapping(&self, document_tab_receiver: Receiver<DocumentTabMessage>, tab_key: TabKey) {
+
+        document_tab_receiver.on_receive({
+            let app_message_sender = self.app_message_sender.clone();
             move |document_tab_message| {
-                message.force_set(
+                app_message_sender.send(
                     AppMessage::TabMessage(
                         TabMessage::TabKindMessage(
                             tab_key,
                             TabKindMessage::DocumentTabMessage(document_tab_message)
                         )
                     )
-                );
+                )
+                    .map_err(|message|{
+                        error!("unable to forward document tab message. message: {:?}", message);
+                    })
+                    .ok();
             }
         })
-            .persist();
+            .persist()
     }
 }
 
@@ -581,56 +603,46 @@ const SUPPORTED_TEXT_EXTENSIONS: [&'static str; 1] = ["txt"];
 
 #[derive(Clone, Debug)]
 pub enum ToolbarMessage {
-    None,
     OpenClicked,
     HomeClicked,
     NewClicked,
     CloseAllClicked,
 }
 
-impl Default for ToolbarMessage {
-    fn default() -> Self {
-        Self::None
-    }
-}
-
-
-fn make_toolbar(toolbar_message: Dynamic<ToolbarMessage>, language_identifier: Dynamic<LanguageIdentifier>, languages: &Vec<LanguageIdentifier>) -> WidgetInstance {
+fn make_toolbar(toolbar_message_sender: Sender<ToolbarMessage>, language_identifier: Dynamic<LanguageIdentifier>, languages: &Vec<LanguageIdentifier>) -> WidgetInstance {
     let button_padding = Dimension::Lp(Lp::points(4));
 
     let home_button = localize!("toolbar-button-home")
         .into_button()
         .on_click({
-            let message = toolbar_message.clone();
-            move |_event| message.force_set(ToolbarMessage::HomeClicked)
+            let toolbar_message_sender = toolbar_message_sender.clone();
+            move |_event| { let _ = toolbar_message_sender.send(ToolbarMessage::HomeClicked); }
         })
         .with(&IntrinsicPadding, button_padding);
 
     let new_button = localize!("toolbar-button-new")
         .into_button()
         .on_click({
-            let message = toolbar_message.clone();
-            move |_event| message.force_set(ToolbarMessage::NewClicked)
+            let toolbar_message_sender = toolbar_message_sender.clone();
+            move |_event| { let _ = toolbar_message_sender.send(ToolbarMessage::NewClicked); }
         })
         .with(&IntrinsicPadding, button_padding);
 
     let open_button = localize!("toolbar-button-open")
         .into_button()
         .on_click({
-            let message = toolbar_message.clone();
-            move |_event| message.force_set(ToolbarMessage::OpenClicked)
+            let toolbar_message_sender = toolbar_message_sender.clone();
+            move |_event| { let _ = toolbar_message_sender.send(ToolbarMessage::OpenClicked); }
         })
         .with(&IntrinsicPadding, button_padding);
-
 
     let close_all_button = localize!("toolbar-button-close-all")
         .into_button()
         .on_click({
-            let message = toolbar_message.clone();
-            move |_event| message.force_set(ToolbarMessage::CloseAllClicked)
+            let toolbar_message_sender = toolbar_message_sender.clone();
+            move |_event| { let _ = toolbar_message_sender.send(ToolbarMessage::CloseAllClicked); }
         })
         .with(&IntrinsicPadding, button_padding);
-
 
     // TODO use a drop-down/pop-up instead of a radio group
     let language_radio_buttons: Vec<WidgetInstance> = languages.iter().map(|language|{

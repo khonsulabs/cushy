@@ -1,9 +1,11 @@
+use std::fmt::Debug;
 use std::future::Future;
 use std::marker::PhantomData;
 use futures::channel::mpsc;
 use futures::{select, Sink, Stream, StreamExt};
 use futures::stream::{BoxStream, FusedStream};
-use cushy::reactive::value::{Destination, Dynamic};
+use log::{error, trace};
+use cushy::reactive::channel::Sender;
 
 #[derive(Debug)]
 pub struct Executor;
@@ -61,12 +63,18 @@ where
 pub struct MessageDispatcher {}
 
 impl MessageDispatcher {
-    pub async fn dispatch<T>(mut receiver: impl Stream<Item = T> + FusedStream + Unpin, message: Dynamic<T>) {
+    pub async fn dispatch<T: Send + Debug + 'static>(mut receiver: impl Stream<Item = T> + FusedStream + Unpin, sender: Sender<T>) {
         loop {
             select! {
                 received_message = receiver.select_next_some() => {
-                    //println!("dispatcher received message: {:?}", received_message);
-                    message.force_set(received_message);
+                    trace!("dispatcher. task message: {:?}", &received_message);
+                    match sender.send(received_message) {
+
+                        Ok(_) => trace!("dispatch. completed"),
+                        Err(message) => {
+                            error!("dispatch. error dispatching task message: {:?}", message);
+                        }
+                    };
                 }
             }
         }

@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+use log::error;
+use cushy::reactive::channel::Sender;
 use cushy::dialog::FilePicker;
 use cushy::figures::units::Px;
 use cushy::styles::components::IntrinsicPadding;
@@ -15,14 +17,7 @@ use crate::widgets::tab_bar::{Tab, TabKey};
 
 #[derive(Clone, Debug)]
 pub enum NewTabMessage {
-    None,
     OkClicked,
-}
-
-impl Default for NewTabMessage {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 #[derive(Debug)]
@@ -39,20 +34,23 @@ pub enum KindChoice {
     Image,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct NewTab {
     name: Dynamic<String>,
     directory: Dynamic<PathBuf>,
     kind: Dynamic<Option<KindChoice>>,
-    message: Dynamic<NewTabMessage>,
+    sender: Sender<NewTabMessage>,
     validations: Validations,
 }
 
 impl NewTab {
-    pub fn new(message: Dynamic<NewTabMessage>) -> Self {
+    pub fn new(sender: Sender<NewTabMessage>) -> Self {
         Self {
-            message,
-            ..Self::default()
+            name: Default::default(),
+            directory: Default::default(),
+            kind: Default::default(),
+            sender,
+            validations: Default::default(),
         }
     }
 }
@@ -174,8 +172,12 @@ impl Tab<NewTabMessage, NewTabAction> for NewTab {
 
         let ok_button = "Ok".into_button()
             .on_click({
-                let message = self.message.clone();
-                move |_event| message.force_set(NewTabMessage::OkClicked)
+                let sender = self.sender.clone();
+                move |_event| {
+                    sender.send(NewTabMessage::OkClicked)
+                        .map_err(|message| error!("unable to send message. message: {:?}", message))
+                        .ok();
+                }
             });
 
         let form = grid
@@ -200,7 +202,6 @@ impl Tab<NewTabMessage, NewTabAction> for NewTab {
     fn update(&mut self, _context: &Dynamic<Context>, _tab_key: TabKey, message: NewTabMessage) -> Action<NewTabAction> {
 
         let action = match message {
-            NewTabMessage::None => NewTabAction::None,
             NewTabMessage::OkClicked => {
                 if self.validations.is_valid() {
                     NewTabAction::CreateDocument(self.name.get(), self.directory.get(), self.kind.get().unwrap())

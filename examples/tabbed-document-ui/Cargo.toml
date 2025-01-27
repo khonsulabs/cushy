@@ -17,3 +17,4 @@ futures = "0.3.31"
 async-std = "1.13.0"
 
 unic-langid = {version = "0.9", features = ["macros"]}
+log = "0.4.22"

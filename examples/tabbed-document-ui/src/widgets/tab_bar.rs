@@ -3,6 +3,7 @@ use std::default::Default;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use slotmap::{new_key_type, SlotMap};
+use cushy::reactive::channel::Sender;
 use cushy::define_components;
 use cushy::figures::units::Px;
 use cushy::styles::{Color, ContainerLevel, Edges};
@@ -18,15 +19,8 @@ use crate::context::Context;
 
 #[derive(Clone, Debug)]
 pub enum TabMessage<TKM> {
-    None,
     CloseTab(TabKey),
     TabKindMessage(TabKey, TKM),
-}
-
-impl<TKM> Default for TabMessage<TKM> {
-    fn default() -> Self {
-        TabMessage::None
-    }
 }
 
 pub enum TabAction<TKA, TK> {
@@ -63,8 +57,8 @@ pub struct TabBar<TK, TKM, TKA>
     /// tracks the most recently used tab, used when closing a tab.
     history: RefCell<Vec<TabKey>>,
 
-    /// a message which is updated when interactions occur.
-    message: Dynamic<TabMessage<TKM>>,
+    /// a sender to use for interaction messages.
+    sender: Sender<TabMessage<TKM>>,
     _action: PhantomData<TKA>
 }
 
@@ -73,7 +67,7 @@ new_key_type! {
 }
 
 impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBar<TK, TKM, TKA> {
-    pub fn new(message: &Dynamic<TabMessage<TKM>>) -> Self {
+    pub fn new(sender: &Sender<TabMessage<TKM>>) -> Self {
         let tabs: Dynamic<SlotMap<TabKey, TabState<TK>>> = Dynamic::default();
         let active: Dynamic<Option<TabKey>> = Dynamic::new(None);
         let switcher = active.clone().switcher({
@@ -102,7 +96,7 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
             content_switcher: Dynamic::new(switcher.make_widget()),
             active,
             history: RefCell::new(Vec::new()),
-            message: message.clone(),
+            sender: sender.clone(),
             _action: Default::default(),
         }
     }
@@ -157,8 +151,11 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
 
         let close_button = "X".into_button()
             .on_click({
-                let message = self.message.clone();
-                move |_event| message.force_set(TabMessage::CloseTab(tab_key))
+                let sender = self.sender.clone();
+                move |_event| {
+                    // We don't want to add `+ Debug` to `TKM` nor do we care if we can no longer send the message
+                    let _ =sender.send(TabMessage::CloseTab(tab_key));
+                }
             })
             .with(&ButtonBackground, Color::CLEAR_BLACK)
             .with(&ButtonActiveBackground, Color::CLEAR_BLACK)
@@ -336,7 +333,6 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
 
     pub fn update(&mut self, context: &Dynamic<Context>, message: TabMessage<TKM>) -> Action<TabAction<TKA, TK>> {
         match message {
-            TabMessage::None => Action::new(TabAction::None),
             TabMessage::CloseTab(tab_key) => {
                 let tab = self.close_tab(tab_key);
                 Action::new(TabAction::TabClosed(tab_key, tab))
