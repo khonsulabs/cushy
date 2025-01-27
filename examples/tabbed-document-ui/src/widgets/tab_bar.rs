@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::default::Default;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use log::{debug, trace};
 use slotmap::{new_key_type, SlotMap};
 use cushy::reactive::channel::Sender;
 use cushy::define_components;
@@ -75,11 +76,11 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
             move |tab_key, _|{
                 match tab_key {
                     None => {
-                        println!("switcher changed, no tabs");
+                        trace!("switcher changed, no tabs");
                         Space::clear().make_widget()
                     }
                     Some(tab_key) => {
-                        println!("switcher changed, tab_key: {:?}", tab_key);
+                        trace!("switcher changed, tab_key: {:?}", tab_key);
                         let tabs = tabs.lock();
                         let state = tabs.get(*tab_key).unwrap();
 
@@ -144,7 +145,7 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
             tab_state
         });
 
-        println!("tab_key: {:?}", tab_key);
+        debug!("adding tab. tab_key: {:?}", tab_key);
 
         let tabs = self.tabs.lock();
         let tab_state = tabs.get(tab_key).unwrap();
@@ -239,14 +240,14 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
 
     pub fn close_tab(&mut self, tab_key: TabKey) -> TK {
 
-        println!("closing tab. tab_key: {:?}", tab_key);
+        debug!("closing tab. tab_key: {:?}", tab_key);
 
         let mut history = self.history.borrow_mut();
-        println!("history (before): {:?}", history);
+        trace!("history (before): {:?}", history);
         history.retain(|&other_key| other_key != tab_key);
         history.dedup();
         let recent = history.pop();
-        println!("history (after): {:?}, recent: {:?}", history, recent);
+        trace!("history (after): {:?}, recent: {:?}", history, recent);
         // drop the history guard now so we don't deadlock in other methods we call that use history
         drop(history);
 
@@ -265,7 +266,7 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
             }
         }).unwrap();
 
-        println!("tab_key_index: {:?}", tab_key_index);
+        trace!("tab_key_index: {:?}", tab_key_index);
 
         let widgets = self.tab_buttons
             .take();
@@ -274,9 +275,9 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
                 .iter()
                 .zip(tab_button_keys.iter())
                 .filter_map(|( widget, index_tab_key)|{
-                    println!("index_tab_key: {:?}", index_tab_key);
+                    trace!("index_tab_key: {:?}", index_tab_key);
                     if index_tab_key.eq(&tab_key) {
-                        println!("removing");
+                        trace!("removing");
                         None
                     } else {
                         Some(widget.clone())
@@ -293,14 +294,11 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + 'static, TKA> TabBa
     }
 
     pub fn make_widget(&self) -> WidgetInstance {
-
-        println!("TabBar::make_widget");
-
         let callback = self.active.for_each({
             let history = self.history.clone();
             move |selected_tab_key|{
 
-                println!("key: {:?}", selected_tab_key);
+                debug!("selected tab. tab_key: {:?}", selected_tab_key);
 
                 if let Some(tab_key) = selected_tab_key {
                     let mut history = history.borrow_mut();

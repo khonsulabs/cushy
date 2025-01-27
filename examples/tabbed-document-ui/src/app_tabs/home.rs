@@ -1,3 +1,4 @@
+use log::info;
 use cushy::localize;
 use cushy::reactive::value::{Dynamic, Source};
 use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
@@ -40,7 +41,7 @@ impl Tab<HomeTabMessage, HomeTabAction> for HomeTab {
                 let config_binding = config.clone();
 
                 move |value|{
-                    println!("updating config, show_home_on_startup: {}", value);
+                    info!("updating config, show_home_on_startup: {}", value);
                     let mut config_guard = config_binding.lock();
                     config_guard.show_home_on_startup = value;
                 }

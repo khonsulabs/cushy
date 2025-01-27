@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use log::error;
+use log::{error, info, trace};
 use cushy::reactive::channel::Sender;
 use cushy::dialog::FilePicker;
 use cushy::figures::units::Px;
@@ -109,7 +109,7 @@ impl Tab<NewTabMessage, NewTabAction> for NewTab {
                 let directory = self.directory.clone();
 
                 move |_event| {
-                    println!("on_click");
+                    trace!("directory. on_click");
 
                     FilePicker::new()
                         .with_title("Choose folder")
@@ -119,7 +119,7 @@ impl Tab<NewTabMessage, NewTabAction> for NewTab {
 
                             move |path|{
                                 if let Some(path) = path {
-                                    println!("path: {:?}", path);
+                                    info!("picked folder. path: {:?}", path);
                                     directory.set(path.clone());
                                 }
                             }

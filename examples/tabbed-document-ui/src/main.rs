@@ -1,6 +1,6 @@
 use std::path;
 use std::path::PathBuf;
-use log::{debug, error};
+use log::{debug, error, info, trace};
 use slotmap::SlotMap;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
@@ -157,7 +157,7 @@ fn main(app: &mut App) -> cushy::Result {
         let dyn_app_state = dyn_app_state.clone();
 
         move |app_message|{
-            println!("received app_message: {:?}", app_message);
+            trace!("received app_message: {:?}", app_message);
             let task = dyn_app_state.lock().update(app_message);
 
             if let Some(stream) = task::into_stream(task) {
@@ -190,7 +190,7 @@ fn main(app: &mut App) -> cushy::Result {
                 // FIXME this doesn't currently work since migrating to channels
                 /*
                 let tab_key = dyn_app_state.lock().tab_bar.lock().find_tab_by_label("New").unwrap();
-                println!("New tab. key: {:?}", tab_key);
+                trace!("New tab. key: {:?}", tab_key);
 
                 use crate::app_tabs::new::NewTabMessage;
                 app_message_sender.send(AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::NewTabMessage(NewTabMessage::OkClicked)))).expect("ok");
@@ -205,7 +205,7 @@ fn main(app: &mut App) -> cushy::Result {
                 update_open_documents(&config, &documents);
 
                 let config = config.lock();
-                println!("Saving config");
+                info!("Saving config");
                 config::save(&*config);
             }
         })
@@ -254,7 +254,7 @@ fn main(app: &mut App) -> cushy::Result {
 
 impl AppState {
     fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
-        println!("AppState::update, message: {:?}", message);
+        trace!("AppState::update, message: {:?}", message);
         match message {
             AppMessage::TabMessage(message) => {
                 let action = self.tab_bar.lock()
@@ -294,7 +294,7 @@ impl AppState {
 
                         move |path|{
                             if let Some(path) = path {
-                                println!("path: {:?}", path);
+                                debug!("file chosen. path: {:?}", path);
                                 app_message_sender.send(AppMessage::FileOpened(path))
                                     .map_err(|message|error!("unable to send message: {:?}", message))
                                     .ok();
@@ -310,14 +310,14 @@ impl AppState {
     fn on_toolbar_message(&mut self, message: ToolbarMessage) -> Task<AppMessage> {
         match message {
             ToolbarMessage::HomeClicked => {
-                println!("home clicked");
+                debug!("toolbar. home clicked");
 
                 add_home_tab(&self.context, &self.tab_bar);
 
                 Task::none()
             }
             ToolbarMessage::NewClicked => {
-                println!("New clicked");
+                debug!("toolbar. New clicked");
 
                 self.add_new_tab();
 
@@ -329,12 +329,12 @@ impl AppState {
                     window_handle.clone()
                 }).unwrap();
 
-                println!("open clicked");
+                debug!("toolbar. open clicked");
 
                 Task::done(AppMessage::ChooseFile(window))
             }
             ToolbarMessage::CloseAllClicked => {
-                println!("close all clicked");
+                debug!("toolbar. close all clicked");
                 let closed_tabs = self.tab_bar.lock().close_all();
                 let tasks: Vec<_> = closed_tabs.into_iter().map(|(key, kind)|self.on_tab_closed(key, kind)).collect();
 
@@ -375,7 +375,7 @@ impl AppState {
 
         match action {
             TabAction::TabSelected(tab_key) => {
-                println!("tab selected, key: {:?}", tab_key);
+                debug!("tab selected, key: {:?}", tab_key);
                 Task::none()
             },
             TabAction::TabClosed(tab_key, tab) => {
@@ -384,7 +384,7 @@ impl AppState {
                 Task::none()
             },
             TabAction::TabAction(tab_key, tab_action) => {
-                println!("tab action. key: {:?}, action: {:?}", tab_key, tab_action);
+                debug!("tab action. key: {:?}, action: {:?}", tab_key, tab_action);
                 match tab_action {
                     TabKindAction::HomeTabAction(_tab_key, action) => {
                         match action {
@@ -426,7 +426,7 @@ impl AppState {
     }
 
     fn on_tab_closed(&mut self, tab_key: TabKey, tab: TabKind) -> Task<AppMessage> {
-        println!("tab closed, key: {:?}", tab_key);
+        debug!("tab closed, key: {:?}", tab_key);
         match tab {
             TabKind::Home(_tab) => (),
             TabKind::Document(tab) => {
@@ -438,7 +438,7 @@ impl AppState {
     }
 
     fn create_document(&self, tab_key: TabKey, mut name: String, mut path: PathBuf, kind: KindChoice) -> Task<AppMessage> {
-        println!("kind: {:?}, name: {:?}, path: {:?}", kind, name, path);
+        info!("creating document. kind: {:?}, name: {:?}, path: {:?}", kind, name, path);
 
         let (document_tab_sender, document_tab_receiver) = cushy::reactive::channel::build()
             .finish();
@@ -506,7 +506,7 @@ impl AppState {
         &self,
         path: PathBuf
     ) -> Result<AppMessage, OpenDocumentError> {
-        println!("open_document. path: {:?}", path);
+        info!("opening document. path: {:?}", path);
 
         let path = path::absolute(path)
             .or_else(|cause| Err(OpenDocumentError::IoError { cause }))?;
@@ -535,7 +535,7 @@ impl AppState {
             return Err(OpenDocumentError::UnsupportedFileExtension { extension: extension.to_string() });
         };
 
-        println!("open_document message: {:?}", message);
+        trace!("open_document message: {:?}", message);
 
         Ok(message)
     }
@@ -586,7 +586,7 @@ fn update_open_documents(config: &Dynamic<Config>, documents: &Dynamic<SlotMap<D
         })
         .collect();
 
-    println!("open_documents: {:?}", open_documents);
+    info!("open_documents: {:?}", open_documents);
     config.lock().open_document_paths = open_documents;
 }
 

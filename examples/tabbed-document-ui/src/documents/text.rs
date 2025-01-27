@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
+use log::{info, trace};
 use cushy::localization::Localize;
 use cushy::reactive::value::{Destination, Dynamic, Source};
 use cushy::widget::{MakeWidget, WidgetInstance};
@@ -73,14 +74,14 @@ impl TextDocument {
     }
 
     pub async fn create(path: PathBuf) -> Result<(), TextDocumentError> {
-        println!("creating text document. path: {:?}", path);
+        info!("creating text document. path: {:?}", path);
         // TODO improve error handling by using '_error'
         fs::write(&path, "New text file")
             .map_err(|_error|TextDocumentError::ErrorCreatingFile(path))
     }
 
     pub async fn load(path: PathBuf) -> Result<String, TextDocumentError> {
-        println!("loading text document. path: {:?}", path);
+        info!("loading text document. path: {:?}", path);
 
         // Simulate slow loading
         async_std::task::sleep(Duration::from_millis(500)).await;
@@ -91,7 +92,7 @@ impl TextDocument {
     }
 
     pub fn create_content(&self) -> WidgetInstance {
-        println!("TextDocument::create_content. path: {:?}", self.path);
+        trace!("TextDocument::create_content. path: {:?}", self.path);
 
         let side_bar_widget = self.side_bar.make_widget();
 

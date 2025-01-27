@@ -3,7 +3,7 @@ use crate::WidgetInstance;
 use std::path::PathBuf;
 use std::time::Duration;
 use image::ImageReader;
-use log::error;
+use log::{error, info, trace};
 use cushy::reactive::channel::Sender;
 use cushy::figures::Point;
 use cushy::figures::units::Px;
@@ -106,7 +106,7 @@ impl ImageDocument {
     }
 
     pub async fn create(path: PathBuf) -> Result<(), ImageDocumentError> {
-        println!("creating image document. path: {:?}", path);
+        info!("creating image document. path: {:?}", path);
         let mut imgbuf = image::ImageBuffer::<image::Rgb<u8>, Vec<u8>>::new(256, 256);
 
         for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
@@ -123,7 +123,7 @@ impl ImageDocument {
     }
 
     pub async fn load(path: PathBuf) -> Result<LazyTexture, ImageDocumentError> {
-        println!("loading image document. path: {:?}", path);
+        info!("loading image document. path: {:?}", path);
         // TODO improve error handling by using '_error'
         let reader = ImageReader::open(&path)
             .map_err(|_error|ImageDocumentError::ErrorLoadingImage(path.clone()))?;
@@ -143,7 +143,7 @@ impl ImageDocument {
     }
 
     pub fn create_content(&self) -> WidgetInstance {
-        println!("ImageDocument::create_content. path: {:?}", self.path);
+        trace!("ImageDocument::create_content. path: {:?}", self.path);
 
         let side_bar_widget = self.side_bar.make_widget();
 
@@ -215,7 +215,7 @@ impl ImageDocument {
                 ImageDocumentAction::None
             }
             ImageDocumentMessage::Clicked(point) => {
-                println!("image clicked, location: {:?}", point);
+                info!("image clicked, location: {:?}", point);
                 self.last_clicked_location.set(Some(point));
                 ImageDocumentAction::None
             }
