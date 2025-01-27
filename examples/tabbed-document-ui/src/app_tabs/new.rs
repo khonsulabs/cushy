@@ -211,8 +211,6 @@ impl Tab<NewTabMessage, NewTabAction> for NewTab {
             }
         };
 
-
-
         Action::new(action)
     }
 }
