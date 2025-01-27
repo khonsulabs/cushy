@@ -23,6 +23,7 @@ use crate::context::Context;
 pub enum TabMessage<TKM> {
     CloseTab(TabKey),
     TabKindMessage(TabKey, TKM),
+    RenameTab(TabKey, String),
 }
 
 pub enum TabAction<TKA, TK> {
@@ -343,6 +344,13 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + Debug + 'static, TK
                     .map(move |action|TabAction::TabAction(tab_key, action));
 
                 action
+            },
+            TabMessage::RenameTab(tab_key, label) => {
+                let mut guard = self.tabs.lock();
+                let tab_state = guard.get_mut(tab_key).unwrap();
+                tab_state.label.set(label);
+
+                Action::new(TabAction::None)
             }
         }
     }
