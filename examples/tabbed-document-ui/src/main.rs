@@ -112,7 +112,7 @@ fn main(app: &mut App) -> cushy::Result {
         })
         .finish();
 
-    let tab_bar = Dynamic::new(TabBar::new(&tab_message_sender));
+    let tab_bar = Dynamic::new(TabBar::new(tab_message_sender));
 
     let mut context = Context::default();
     context.provide(config.clone());

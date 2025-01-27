@@ -69,7 +69,7 @@ new_key_type! {
 }
 
 impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + Debug + 'static, TKA> TabBar<TK, TKM, TKA> {
-    pub fn new(sender: &Sender<TabMessage<TKM>>) -> Self {
+    pub fn new(sender: Sender<TabMessage<TKM>>) -> Self {
         let tabs: Dynamic<SlotMap<TabKey, TabState<TK>>> = Dynamic::default();
         let active: Dynamic<Option<TabKey>> = Dynamic::new(None);
         let switcher = active.clone().switcher({
