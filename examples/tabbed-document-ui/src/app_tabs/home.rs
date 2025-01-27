@@ -35,6 +35,7 @@ impl Tab<HomeTabMessage, HomeTabAction> for HomeTab {
         context.lock().with_context::<Dynamic<Config>, _, _>(|config|{
             let config_guard = config.lock();
             let show_on_startup_value = Dynamic::new(config_guard.show_home_on_startup);
+            drop(config_guard); // <-- explicit drop now required
             let callback = show_on_startup_value.for_each_cloned({
                 let config_binding = config.clone();
 
