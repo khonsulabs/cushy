@@ -51,7 +51,7 @@ where
             stream.map(Ok).forward(message).map(|result| match result {
                 Ok(()) => (),
                 Err(error) => {
-                    println!("Stream unable to complete, cause: {error}");
+                    error!("Stream unable to complete, cause: {error}");
                 }
             });
 
