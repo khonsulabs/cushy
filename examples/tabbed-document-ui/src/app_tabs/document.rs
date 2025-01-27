@@ -11,15 +11,8 @@ use crate::widgets::tab_bar::{Tab, TabKey};
 
 #[derive(Clone, Debug)]
 pub enum DocumentTabMessage {
-    None,
     ImageDocumentMessage(ImageDocumentMessage),
     TextDocumentMessage(TextDocumentMessage),
-}
-
-impl Default for DocumentTabMessage {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 #[derive(Debug)]
@@ -32,14 +25,12 @@ pub enum DocumentTabAction {
 #[derive(Clone)]
 pub struct DocumentTab {
     pub document_key: DocumentKey,
-    message: Dynamic<DocumentTabMessage>,
 }
 
 impl DocumentTab {
-    pub fn new(document_key: DocumentKey, message: Dynamic<DocumentTabMessage>) -> Self {
+    pub fn new(document_key: DocumentKey) -> Self {
         Self {
-            document_key,
-            message,
+            document_key
         }
     }
 }

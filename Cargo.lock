@@ -3581,6 +3581,7 @@ dependencies = [
  "cushy",
  "futures",
  "image",
+ "log",
  "serde",
  "serde_json",
  "slotmap",
