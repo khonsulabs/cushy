@@ -113,7 +113,7 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + Debug + 'static, TK
 
         tab_state.tab = tab;
         tab_state.widget.set(tab_content_widget);
-        tab_state.label.set(tab_label);
+        tab_state.label.replace(tab_label);
 
         // prevent deadlock in the switcher closure
         drop(tabs);
@@ -176,20 +176,20 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + Debug + 'static, TK
             .pad_by(Edges::default().with_horizontal(Px::new(3)).with_top(Px::new(3)).with_bottom(Px::new(0)))
             .and(
                 self.active.clone().switcher(move |active, _|{
-                   match active {
-                       Some(active_tab_key) if active_tab_key.eq(&tab_key) => {
-                           Space::default()
-                               .height(Px::new(3))
-                               .with_dynamic(&WidgetBackground, TabBarActiveTabMarker)
-                               .make_widget()
+                    match active {
+                        Some(active_tab_key) if active_tab_key.eq(&tab_key) => {
+                            Space::default()
+                                .height(Px::new(3))
+                                .with_dynamic(&WidgetBackground, TabBarActiveTabMarker)
+                                .make_widget()
 
-                       }
-                       _ => {
-                           Space::default()
-                               .height(Px::new(3))
-                               .make_widget()
-                       }
-                   }
+                        }
+                        _ => {
+                            Space::default()
+                                .height(Px::new(3))
+                                .make_widget()
+                        }
+                    }
                 })
             )
             .into_rows()
@@ -330,6 +330,21 @@ impl<TK: Tab<TKM, TKA> + Send + Clone + 'static, TKM: Send + Debug + 'static, TK
         let _previously_active = self.active.lock().replace(tab_key);
     }
 
+    pub fn active(&self) -> Option<TabKey> {
+        self.active.get()
+    }
+
+    pub fn with_active<R, F>(&self, with_fn: F) -> Option<R>
+    where
+        F: FnOnce(TabKey, &mut TK) -> R
+    {
+        self.active.get().map(|tab_key| {
+            let mut tabs = self.tabs.lock();
+            let tab_state = tabs.get_mut(tab_key).unwrap();
+            with_fn(tab_key, &mut tab_state.tab)
+        })
+    }
+
     pub fn update(&mut self, context: &Dynamic<Context>, message: TabMessage<TKM>) -> Action<TabAction<TKA, TK>> {
         match message {
             TabMessage::CloseTab(tab_key) => {
@@ -420,20 +435,20 @@ impl MakeWidget for TabBarWidget {
         let tab_bar_switcher = self.tab_buttons.switcher({
 
             move |tab_buttons, _|{
-               if tab_buttons.is_empty() {
-                   Space::clear().make_widget()
-               } else {
-                   let tab_bar = [
-                       Stack::new(Orientation::Column, dyn_tab_buttons.clone())
-                           .make_widget(),
-                       Expand::empty()
-                           .make_widget(),
-                   ]
-                       .into_columns()
-                       .contain_level(ContainerLevel::High);
+                if tab_buttons.is_empty() {
+                    Space::clear().make_widget()
+                } else {
+                    let tab_bar = [
+                        Stack::new(Orientation::Column, dyn_tab_buttons.clone())
+                            .make_widget(),
+                        Expand::empty()
+                            .make_widget(),
+                    ]
+                        .into_columns()
+                        .contain_level(ContainerLevel::High);
 
-                   tab_bar.make_widget()
-               }
+                    tab_bar.make_widget()
+                }
             }
         });
 
