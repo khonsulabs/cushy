@@ -519,7 +519,7 @@ impl App {
     pub(crate) fn standalone() -> Self {
         Self {
             app: None,
-            cushy: Cushy::default(),
+            cushy: Cushy::current(),
         }
     }
 
