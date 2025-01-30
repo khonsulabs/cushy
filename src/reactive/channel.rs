@@ -362,6 +362,16 @@ impl<T> Drop for Sender<T> {
     }
 }
 
+impl<T> Default for Sender<T>
+where
+    T: Send + 'static,
+{
+    /// Returns a disconnected sender.
+    fn default() -> Self {
+        unbounded().0
+    }
+}
+
 enum SingleCallback<T> {
     Receiver,
     Callback(Box<dyn AnyChannelCallback<T>>),
@@ -1068,6 +1078,16 @@ impl<T> Clone for BroadcastChannel<T> {
     }
 }
 
+impl<T> Default for BroadcastChannel<T>
+where
+    T: Unpin + Clone + Send + 'static,
+{
+    /// Returns an unbounded broadcast channel.
+    fn default() -> Self {
+        Self::unbounded()
+    }
+}
+
 impl<T> Drop for BroadcastChannel<T> {
     fn drop(&mut self) {
         let mut data = self.data.synced.lock();
@@ -1175,6 +1195,16 @@ impl<T> Clone for Broadcaster<T> {
         Self {
             data: self.data.clone(),
         }
+    }
+}
+
+impl<T> Default for Broadcaster<T>
+where
+    T: Unpin + Clone + Send + 'static,
+{
+    /// Returns a disconnected broadcaster.
+    fn default() -> Self {
+        BroadcastChannel::unbounded().into_broadcaster()
     }
 }
 
