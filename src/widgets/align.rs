@@ -4,8 +4,8 @@ use figures::units::UPx;
 use figures::{Fraction, IntoSigned, Point, Rect, ScreenScale, Size, Zero};
 
 use crate::context::{AsEventContext, EventContext, LayoutContext};
+use crate::reactive::value::{IntoValue, Value};
 use crate::styles::{Edges, FlexibleDimension};
-use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 

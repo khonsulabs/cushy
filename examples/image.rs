@@ -4,7 +4,7 @@ use cushy::animation::ZeroToOne;
 use cushy::figures::Size;
 use cushy::kludgine::include_texture;
 use cushy::kludgine::wgpu::FilterMode;
-use cushy::value::{Dynamic, MapEachCloned, Source, Switchable};
+use cushy::reactive::value::{Dynamic, MapEachCloned, Source, Switchable};
 use cushy::widget::MakeWidget;
 use cushy::widgets::image::{Aspect, ImageScaling};
 use cushy::widgets::slider::Slidable;

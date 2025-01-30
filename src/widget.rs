@@ -21,10 +21,13 @@ use parking_lot::{Mutex, MutexGuard};
 use unic_langid::LanguageIdentifier;
 
 use crate::app::Run;
-use crate::channel::{BroadcastChannel, Broadcaster, Sender};
 use crate::context::sealed::Trackable as _;
 use crate::context::{
     AsEventContext, EventContext, GraphicsContext, LayoutContext, ManageWidget, WidgetContext,
+};
+use crate::reactive::channel::{BroadcastChannel, Broadcaster, Sender};
+use crate::reactive::value::{
+    Dynamic, Generation, IntoDynamic, IntoValue, Source, Validation, Value,
 };
 use crate::styles::components::{HorizontalAlignment, IntrinsicPadding, VerticalAlignment};
 use crate::styles::{
@@ -33,7 +36,6 @@ use crate::styles::{
     ThemePair, VisualOrder,
 };
 use crate::tree::{Tree, WeakTree};
-use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Source, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::list::List;

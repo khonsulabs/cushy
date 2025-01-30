@@ -20,8 +20,8 @@ use kludgine::{
 
 use crate::animation::ZeroToOne;
 use crate::fonts::{FontCollection, LoadedFontFace, LoadedFontId};
+use crate::reactive::value::{DynamicRead, Generation, Source};
 use crate::styles::FontFamilyList;
-use crate::value::{DynamicRead, Generation, Source};
 
 /// A 2d graphics context
 pub struct Graphics<'clip, 'gfx, 'pass> {

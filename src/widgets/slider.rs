@@ -14,12 +14,12 @@ use kludgine::{Color, DrawableExt, Origin};
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
+use crate::reactive::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::styles::components::{
     AutoFocusableControls, DisabledWidgetAccentColor, OpaqueWidgetColor, OutlineColor,
     WidgetAccentColor,
 };
 use crate::styles::{Dimension, HorizontalOrder, VerticalOrder, VisualOrder};
-use crate::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
 use crate::window::{DeviceId, KeyEvent};
 use crate::ConstraintLimit;

@@ -2,11 +2,11 @@
 use std::future::Future;
 use std::marker::PhantomData;
 
-use super::sealed::{CallbackKind, ChannelCallbackError};
+use super::sealed::{ChannelCallbackError, ChannelCallbackKind};
 use super::{
     BroadcastCallback, BroadcastChannel, ChannelData, MultipleCallbacks, Receiver, Sender,
 };
-use crate::value::CallbackDisconnected;
+use crate::reactive::CallbackDisconnected;
 
 /// Builds a Cushy channel.
 ///
@@ -79,7 +79,7 @@ where
         Builder {
             mode: self
                 .mode
-                .push_callback(CallbackKind::Blocking(Box::new(map))),
+                .push_callback(ChannelCallbackKind::Blocking(Box::new(map))),
             bound: self.bound,
             ty: self.ty,
         }
@@ -124,7 +124,7 @@ where
         Builder {
             mode: self
                 .mode
-                .push_callback(CallbackKind::NonBlocking(Box::new(move |value| {
+                .push_callback(ChannelCallbackKind::NonBlocking(Box::new(move |value| {
                     map(value).map_err(|CallbackDisconnected| ChannelCallbackError::Disconnected)
                 }))),
             bound: self.bound,
@@ -167,7 +167,7 @@ where
         Builder {
             mode: self
                 .mode
-                .push_callback(CallbackKind::NonBlocking(Box::new(move |value| {
+                .push_callback(ChannelCallbackKind::NonBlocking(Box::new(move |value| {
                     let future = on_receive(value);
                     Err(ChannelCallbackError::Async(Box::pin(future)))
                 }))),
@@ -223,7 +223,7 @@ where
 impl<T> sealed::ChannelMode<T> for SingleConsumer {
     type Next = SingleCallback<T>;
 
-    fn push_callback(self, cb: CallbackKind<T>) -> Self::Next {
+    fn push_callback(self, cb: ChannelCallbackKind<T>) -> Self::Next {
         SingleCallback { cb }
     }
 }
@@ -239,7 +239,7 @@ impl<T> From<SingleConsumer> for Broadcast<T> {
 /// Builder configuration for a single-consumer channel with an associated
 /// callback.
 pub struct SingleCallback<T> {
-    cb: CallbackKind<T>,
+    cb: ChannelCallbackKind<T>,
 }
 
 impl<T> ChannelMode<T> for SingleCallback<T>
@@ -251,13 +251,13 @@ where
 
     fn finish(self, limit: Option<usize>) -> Self::Channel {
         let data = match self.cb {
-            CallbackKind::Blocking(cb) => {
+            ChannelCallbackKind::Blocking(cb) => {
                 let data = ChannelData::new(limit, super::SingleCallback::Receiver, 1, 1);
                 let receiver = Receiver { data: data.clone() };
                 receiver.spawn_thread(cb);
                 data
             }
-            CallbackKind::NonBlocking(cb) => {
+            ChannelCallbackKind::NonBlocking(cb) => {
                 ChannelData::new(limit, super::SingleCallback::Callback(cb), 1, 0)
             }
         };
@@ -268,7 +268,7 @@ where
 impl<T> sealed::ChannelMode<T> for SingleCallback<T> {
     type Next = Broadcast<T>;
 
-    fn push_callback(self, cb: CallbackKind<T>) -> Self::Next {
+    fn push_callback(self, cb: ChannelCallbackKind<T>) -> Self::Next {
         Broadcast {
             callbacks: vec![cb],
         }
@@ -285,7 +285,7 @@ impl<T> From<SingleCallback<T>> for Broadcast<T> {
 
 /// Builder configuration for a [`BroadcastChannel`].
 pub struct Broadcast<T> {
-    callbacks: Vec<CallbackKind<T>>,
+    callbacks: Vec<ChannelCallbackKind<T>>,
 }
 
 impl<T> ChannelMode<T> for Broadcast<T>
@@ -300,8 +300,8 @@ where
             .callbacks
             .into_iter()
             .map(|cb| match cb {
-                CallbackKind::Blocking(cb) => BroadcastCallback::spawn_blocking(cb),
-                CallbackKind::NonBlocking(cb) => BroadcastCallback::NonBlocking(cb),
+                ChannelCallbackKind::Blocking(cb) => BroadcastCallback::spawn_blocking(cb),
+                ChannelCallbackKind::NonBlocking(cb) => BroadcastCallback::NonBlocking(cb),
             })
             .collect();
         let data = ChannelData::new(limit, MultipleCallbacks(callbacks), 1, 1);
@@ -312,7 +312,7 @@ where
 impl<T> sealed::ChannelMode<T> for Broadcast<T> {
     type Next = Self;
 
-    fn push_callback(mut self, cb: CallbackKind<T>) -> Self::Next {
+    fn push_callback(mut self, cb: ChannelCallbackKind<T>) -> Self::Next {
         self.callbacks.push(cb);
         self
     }
@@ -331,11 +331,11 @@ pub trait ChannelMode<T>: Into<Broadcast<T>> {
 }
 
 mod sealed {
-    use crate::channel::sealed::CallbackKind;
+    use crate::reactive::channel::sealed::ChannelCallbackKind;
 
     pub trait ChannelMode<T> {
         type Next;
 
-        fn push_callback(self, callback: CallbackKind<T>) -> Self::Next;
+        fn push_callback(self, callback: ChannelCallbackKind<T>) -> Self::Next;
     }
 }

@@ -7,7 +7,7 @@
 //!
 //! When running this example after the bug has been fixed, unmounted messages
 //! should be printed twice: once per each window.
-use cushy::value::{Dynamic, Switchable};
+use cushy::reactive::value::{Dynamic, Switchable};
 use cushy::widget::MakeWidget;
 use cushy::widgets::Custom;
 use cushy::{Open, PendingApp};

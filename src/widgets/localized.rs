@@ -1,7 +1,7 @@
 use unic_langid::LanguageIdentifier;
 
 use crate::context::EventContext;
-use crate::value::{IntoValue, Value};
+use crate::reactive::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 
 /// A widget that applies a [`LanguageIdentifier`] to all contained widgets.

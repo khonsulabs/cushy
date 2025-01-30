@@ -12,7 +12,7 @@ use cushy::kludgine::tilemap::{
     DebugGrid, Object, ObjectLayer, TileArray, TileKind, TileMapFocus, TILE_SIZE,
 };
 use cushy::kludgine::{include_aseprite_sprite, Color, DrawableExt};
-use cushy::value::{Destination, Dynamic};
+use cushy::reactive::value::{Destination, Dynamic};
 use cushy::widgets::TileMap;
 use cushy::{Run, Tick};
 

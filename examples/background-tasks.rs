@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use cushy::animation::ZeroToOne;
-use cushy::value::{Destination, Dynamic, Switchable};
+use cushy::reactive::value::{Destination, Dynamic, Switchable};
 use cushy::widget::MakeWidget;
 use cushy::widgets::progress::{Progress, Progressable};
 use cushy::Run;

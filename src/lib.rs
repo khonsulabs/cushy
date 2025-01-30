@@ -20,10 +20,9 @@ mod names;
 #[macro_use]
 pub mod styles;
 mod app;
-mod reactive;
-pub use reactive::{channel, value};
 pub mod debug;
 pub mod fonts;
+pub mod reactive;
 mod tick;
 mod tree;
 pub mod widget;
@@ -206,8 +205,8 @@ use figures::units::UPx;
 use figures::{IntoUnsigned, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;
 pub use names::Name;
+use reactive::value::{IntoValue, Value};
 pub use utils::{Lazy, ModifiersExt, ModifiersStateExt, WithClone};
-use value::{IntoValue, Value};
 pub use {figures, kludgine};
 
 pub use self::tick::{InputState, Tick};

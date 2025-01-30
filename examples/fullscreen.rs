@@ -1,6 +1,6 @@
 use cushy::kludgine::app::winit::window::Fullscreen;
 use cushy::kludgine::app::Monitor;
-use cushy::value::Dynamic;
+use cushy::reactive::value::Dynamic;
 use cushy::widget::{MakeWidget, WidgetList};
 use cushy::{App, Open};
 

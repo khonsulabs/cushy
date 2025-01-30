@@ -10,14 +10,14 @@ use kludgine::{Color, DrawableExt, Origin};
 
 use crate::animation::{LinearInterpolate, PercentBetween, ZeroToOne};
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
+use crate::reactive::value::{
+    Destination, Dynamic, ForEachCloned, IntoDynamic, IntoReadOnly, IntoValue, MapEach, ReadOnly,
+    Source, Value,
+};
 use crate::styles::components::{
     HighlightColor, OutlineColor, OutlineWidth, SurfaceColor, TextColor,
 };
 use crate::styles::{ColorExt, ColorSource, Hsl, Hsla};
-use crate::value::{
-    Destination, Dynamic, ForEachCloned, IntoDynamic, IntoReadOnly, IntoValue, MapEach, ReadOnly,
-    Source, Value,
-};
 use crate::widget::{
     EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag, HANDLED,
 };

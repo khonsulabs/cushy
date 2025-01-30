@@ -12,12 +12,12 @@ use kludgine::Color;
 use crate::animation::{
     AnimationHandle, AnimationTarget, IntoAnimate, PercentBetween, Spawn, ZeroToOne,
 };
-use crate::styles::components::{EasingIn, EasingOut};
-use crate::styles::ContextFreeComponent;
-use crate::value::{
+use crate::reactive::value::{
     Destination, Dynamic, DynamicRead, IntoReadOnly, IntoReader, MapEach, ReadOnly, Source,
     TryLockError, Watcher,
 };
+use crate::styles::components::{EasingIn, EasingOut};
+use crate::styles::ContextFreeComponent;
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::slider::{InactiveTrackColor, Slidable, TrackColor, TrackSize};
 use crate::widgets::Data;

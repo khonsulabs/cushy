@@ -16,11 +16,11 @@ use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, LayoutContext};
-use crate::styles::components::{EasingIn, EasingOut, LineHeight, PrimaryColor, SurfaceColor};
-use crate::styles::Dimension;
-use crate::value::{
+use crate::reactive::value::{
     Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, MapEachCloned, Source, Value,
 };
+use crate::styles::components::{EasingIn, EasingOut, LineHeight, PrimaryColor, SurfaceColor};
+use crate::styles::Dimension;
 use crate::widget::{EventHandling, MakeWidget, Widget, WidgetId, WidgetRef, HANDLED, IGNORED};
 use crate::window::DeviceId;
 use crate::ConstraintLimit;

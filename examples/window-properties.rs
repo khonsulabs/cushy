@@ -1,6 +1,6 @@
 use cushy::figures::units::{Px, UPx};
 use cushy::figures::{IntoSigned, Point, Px2D, Size, UPx2D};
-use cushy::value::{Destination, Dynamic, Source};
+use cushy::reactive::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::{App, Open};
 

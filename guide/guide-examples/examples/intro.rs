@@ -1,5 +1,5 @@
 // ANCHOR: example
-use cushy::value::{Dynamic, Source};
+use cushy::reactive::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::{Input, InputValue};
 use cushy::Run;

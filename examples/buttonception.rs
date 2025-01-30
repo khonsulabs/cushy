@@ -16,8 +16,8 @@
 //! ┃ ┃ ┣ clicked_button Label
 //! ```
 
+use cushy::reactive::value::{Destination, Dynamic};
 use cushy::styles::Color;
-use cushy::value::{Destination, Dynamic};
 use cushy::widget::MakeWidget;
 use cushy::widgets::button::{ButtonHoverBackground, ButtonHoverForeground};
 use cushy::Run;

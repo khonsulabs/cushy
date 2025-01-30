@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use cushy::value::Dynamic;
+use cushy::reactive::value::Dynamic;
 use cushy::widget::MakeWidget;
 use cushy::widgets::label::{Displayable, LabelOverflow};
 use cushy::widgets::slider::Slidable;

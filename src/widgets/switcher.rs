@@ -6,7 +6,7 @@ use figures::Size;
 use kludgine::KludgineId;
 
 use crate::context::{AsEventContext, LayoutContext};
-use crate::value::{Dynamic, DynamicReader, IntoDynamic, IntoReader, Source};
+use crate::reactive::value::{Dynamic, DynamicReader, IntoDynamic, IntoReader, Source};
 use crate::widget::{MountedWidget, WidgetInstance, WidgetRef, WrapperWidget};
 use crate::window::WindowLocal;
 use crate::ConstraintLimit;

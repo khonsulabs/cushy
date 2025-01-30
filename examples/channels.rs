@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use cushy::value::{Destination, Dynamic, Source};
+use cushy::reactive::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::label::Displayable;
 use cushy::Run;
@@ -8,7 +8,7 @@ use cushy::Run;
 fn main() -> cushy::Result {
     let channel_counter = Dynamic::new(0_usize);
     let channel_counter_label = channel_counter.to_label();
-    let sender = cushy::channel::build()
+    let sender = cushy::reactive::channel::build()
         .on_receive({
             move |_| {
                 std::thread::sleep(Duration::from_secs(1));

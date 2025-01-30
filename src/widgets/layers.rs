@@ -15,8 +15,10 @@ use super::super::widget::MountedWidget;
 use super::{Custom, Space};
 use crate::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn, ZeroToOne};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
+use crate::reactive::value::{
+    Destination, Dynamic, DynamicGuard, DynamicRead, IntoValue, Source, Value,
+};
 use crate::styles::components::{EasingIn, ScrimColor};
-use crate::value::{Destination, Dynamic, DynamicGuard, DynamicRead, IntoValue, Source, Value};
 use crate::widget::{
     Callback, MakeWidget, MakeWidgetWithTag, MountedChildren, SharedCallback, Widget, WidgetId,
     WidgetList, WidgetRef, WidgetTag, WrapperWidget,

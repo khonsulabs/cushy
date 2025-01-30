@@ -22,7 +22,9 @@ use parking_lot::{Condvar, Mutex, MutexGuard};
 use crate::animation::{AnimationHandle, DynamicTransition, IntoAnimate, LinearInterpolate, Spawn};
 use crate::context::{self, Trackable, WidgetContext};
 use crate::reactive::{
-    defer_execute_callbacks, CallbackCollection, ChangeCallbacks, ChangeCallbacksData,
+    defer_execute_callbacks, CallbackCollection, CallbackDisconnected, CallbackHandle,
+    CallbackHandleData, CallbackHandleInner, CallbackKind, ChangeCallbacks, ChangeCallbacksData,
+    IntoOption,
 };
 use crate::utils::WithClone;
 use crate::widget::{
@@ -493,6 +495,58 @@ pub trait Source<T> {
     }
 }
 
+macro_rules! impl_unwrapped_for_source {
+    ($source:ident) => {
+        impl<'s, T, U> super::Unwrapped<U> for &'s $source<T>
+        where
+            for<'a> &'a T: IntoOption<&'a U>,
+            T: Send + 'static,
+            U: Clone + Send + 'static,
+        {
+            type Value<'a> = &'a U;
+
+            fn unwrapped_or_else(self, initial: impl FnOnce() -> U) -> Dynamic<U> {
+                let initial =
+                    self.map_ref(|result| result.into_option().cloned().unwrap_or_else(initial));
+                let mapped = Dynamic::new(initial);
+                mapped.set_source(self.for_each_generational_try({
+                    let weak_mapped = mapped.downgrade();
+                    move |result| {
+                        let mapped = weak_mapped.upgrade().ok_or(CallbackDisconnected)?;
+                        let Some(value) = result.into_option().cloned() else {
+                            return Ok(());
+                        };
+                        drop(result);
+
+                        *mapped.lock() = value;
+
+                        Ok(())
+                    }
+                }));
+                mapped
+            }
+
+            fn for_each_unwrapped_try<ForEach>(self, mut for_each: ForEach) -> CallbackHandle
+            where
+                ForEach: for<'a> FnMut(Self::Value<'a>) -> Result<(), CallbackDisconnected>
+                    + Send
+                    + 'static,
+            {
+                self.for_each_try(move |result| {
+                    let Some(value) = result.into_option() else {
+                        return Ok(());
+                    };
+                    for_each(value)
+                })
+            }
+        }
+    };
+}
+
+impl_unwrapped_for_source!(Dynamic);
+impl_unwrapped_for_source!(DynamicReader);
+impl_unwrapped_for_source!(Owned);
+
 /// A destination for values of type `T`.
 pub trait Destination<T> {
     /// Maps the contents with exclusive access. Before returning from this
@@ -957,16 +1011,18 @@ impl<T> Source<T> for Owned<T> {
         F: FnMut() -> Result<(), CallbackDisconnected> + Send + 'static,
     {
         let mut callbacks = self.callbacks.active.lock();
-        CallbackHandle(CallbackHandleInner::Single(CallbackHandleData {
-            id: Some(
-                callbacks.push(Box::new(move |g: DynamicGuard<'_, T, true>| {
-                    drop(g);
-                    on_change()
-                })),
-            ),
-            owner: None,
-            callbacks: self.callbacks.clone(),
-        }))
+        CallbackHandle(CallbackHandleInner::Single(CallbackKind::Value(
+            CallbackHandleData {
+                id: Some(
+                    callbacks.push(Box::new(move |g: DynamicGuard<'_, T, true>| {
+                        drop(g);
+                        on_change()
+                    })),
+                ),
+                owner: None,
+                callbacks: self.callbacks.clone(),
+            },
+        )))
     }
 
     fn for_each_subsequent_generational_try<F>(&self, for_each: F) -> CallbackHandle
@@ -977,11 +1033,13 @@ impl<T> Source<T> for Owned<T> {
             + 'static,
     {
         let mut callbacks = self.callbacks.active.lock();
-        CallbackHandle(CallbackHandleInner::Single(CallbackHandleData {
-            id: Some(callbacks.push(Box::new(for_each))),
-            owner: None,
-            callbacks: self.callbacks.clone(),
-        }))
+        CallbackHandle(CallbackHandleInner::Single(CallbackKind::Value(
+            CallbackHandleData {
+                id: Some(callbacks.push(Box::new(for_each))),
+                owner: None,
+                callbacks: self.callbacks.clone(),
+            },
+        )))
     }
 
     fn for_each_subsequent_generational_cloned_try<F>(&self, mut for_each: F) -> CallbackHandle
@@ -1369,7 +1427,7 @@ impl<T> Dynamic<T> {
     /// code may produce slightly more readable code.
     ///
     /// ```rust
-    /// use cushy::value::{Dynamic, Source};
+    /// use cushy::reactive::value::{Dynamic, Source};
     ///
     /// let value = Dynamic::new(1);
     ///
@@ -1902,16 +1960,14 @@ where
 {
     let state = this.state::<true>().expect("deadlocked");
     let mut data = state.callbacks.callbacks.lock();
-    CallbackHandle(CallbackHandleInner::Single(CallbackHandleData {
-        id: Some(data.callbacks.push(Box::new(map))),
-        owner: Some(this.clone()),
-        callbacks: state.callbacks.clone(),
-    }))
+    CallbackHandle(CallbackHandleInner::Single(CallbackKind::Value(
+        CallbackHandleData {
+            id: Some(data.callbacks.push(Box::new(map))),
+            owner: Some(this.clone()),
+            callbacks: state.callbacks.clone(),
+        },
+    )))
 }
-
-/// A callback function is no longer connected to its source.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct CallbackDisconnected;
 
 struct DebugDynamicData<'a, T>(&'a Arc<DynamicData<T>>);
 
@@ -1947,184 +2003,6 @@ impl std::error::Error for DeadlockError {}
 impl Display for DeadlockError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("a deadlock was detected")
-    }
-}
-
-/// A handle to a callback installed on a [`Dynamic`]. When dropped, the
-/// callback will be uninstalled.
-///
-/// To prevent the callback from ever being uninstalled, use
-/// [`Self::persist()`].
-#[must_use = "Callbacks are disconnected once the associated CallbackHandle is dropped. Consider using `CallbackHandle::persist()` to prevent the callback from being disconnected."]
-pub struct CallbackHandle(CallbackHandleInner);
-
-impl Default for CallbackHandle {
-    fn default() -> Self {
-        Self(CallbackHandleInner::None)
-    }
-}
-
-enum CallbackHandleInner {
-    None,
-    Single(CallbackHandleData),
-    Multi(Vec<CallbackHandleData>),
-}
-
-trait ReferencedDynamic: Sync + Send + 'static {}
-impl<T> ReferencedDynamic for T where T: Sync + Send + 'static {}
-
-struct CallbackHandleData {
-    id: Option<LotId>,
-    owner: Option<Arc<dyn ReferencedDynamic>>,
-    callbacks: Arc<dyn CallbackCollection>,
-}
-
-impl Debug for CallbackHandle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut tuple = f.debug_tuple("CallbackHandle");
-        match &self.0 {
-            CallbackHandleInner::None => {}
-            CallbackHandleInner::Single(handle) => {
-                tuple.field(&handle.id);
-            }
-            CallbackHandleInner::Multi(handles) => {
-                for handle in handles {
-                    tuple.field(&handle.id);
-                }
-            }
-        }
-
-        tuple.finish()
-    }
-}
-
-impl CallbackHandle {
-    /// Persists the callback so that it will always be invoked until the
-    /// dynamic is freed.
-    pub fn persist(self) {
-        match self.0 {
-            CallbackHandleInner::None => {}
-            CallbackHandleInner::Single(mut handle) => {
-                let _id = handle.id.take();
-                drop(handle);
-            }
-            CallbackHandleInner::Multi(handles) => {
-                for handle in handles {
-                    handle.persist();
-                }
-            }
-        }
-    }
-
-    /// Drops any references to owning [`Dynamic`]s associated with this
-    /// callback.
-    ///
-    /// This enables creating weak connections between callback graphs.
-    pub fn forget_owners(&mut self) {
-        match &mut self.0 {
-            CallbackHandleInner::None => {}
-            CallbackHandleInner::Single(handle) => {
-                handle.owner = None;
-            }
-            CallbackHandleInner::Multi(handles) => {
-                for handle in handles {
-                    handle.owner = None;
-                }
-            }
-        }
-    }
-
-    /// Drops any references to owning [`Dynamic`]s associated with this
-    /// callback, and returns self.
-    ///
-    /// This uses [`Self::forget_owners()`].
-    pub fn weak(mut self) -> Self {
-        self.forget_owners();
-        self
-    }
-}
-
-impl Eq for CallbackHandle {}
-
-impl PartialEq for CallbackHandle {
-    fn eq(&self, other: &Self) -> bool {
-        match (&self.0, &other.0) {
-            (CallbackHandleInner::None, CallbackHandleInner::None) => true,
-            (CallbackHandleInner::Single(this), CallbackHandleInner::Single(other)) => {
-                this == other
-            }
-            (CallbackHandleInner::Multi(this), CallbackHandleInner::Multi(other)) => this == other,
-            _ => false,
-        }
-    }
-}
-
-impl CallbackHandleData {
-    fn persist(mut self) {
-        let _id = self.id.take();
-        drop(self);
-    }
-}
-
-impl Drop for CallbackHandleData {
-    fn drop(&mut self) {
-        if let Some(id) = self.id {
-            self.callbacks.remove(id);
-        }
-    }
-}
-
-impl PartialEq for CallbackHandleData {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && Arc::ptr_eq(&self.callbacks, &other.callbacks)
-    }
-}
-
-impl Add for CallbackHandle {
-    type Output = Self;
-
-    fn add(mut self, rhs: Self) -> Self::Output {
-        self += rhs;
-        self
-    }
-}
-
-impl AddAssign for CallbackHandle {
-    fn add_assign(&mut self, rhs: Self) {
-        match (&mut self.0, rhs.0) {
-            (_, CallbackHandleInner::None) => {}
-            (CallbackHandleInner::None, other) => {
-                self.0 = other;
-            }
-            (CallbackHandleInner::Single(_), CallbackHandleInner::Single(other)) => {
-                let CallbackHandleInner::Single(single) =
-                    std::mem::replace(&mut self.0, CallbackHandleInner::Multi(vec![other]))
-                else {
-                    unreachable!("just matched")
-                };
-                let CallbackHandleInner::Multi(multi) = &mut self.0 else {
-                    unreachable!("just replaced")
-                };
-                multi.push(single);
-            }
-            (CallbackHandleInner::Single(_), CallbackHandleInner::Multi(multi)) => {
-                let CallbackHandleInner::Single(single) =
-                    std::mem::replace(&mut self.0, CallbackHandleInner::Multi(multi))
-                else {
-                    unreachable!("just matched")
-                };
-                let CallbackHandleInner::Multi(multi) = &mut self.0 else {
-                    unreachable!("just replaced")
-                };
-                multi.push(single);
-            }
-            (CallbackHandleInner::Multi(this), CallbackHandleInner::Single(single)) => {
-                this.push(single);
-            }
-            (CallbackHandleInner::Multi(this), CallbackHandleInner::Multi(mut other)) => {
-                this.append(&mut other);
-            }
-        }
     }
 }
 
@@ -3421,8 +3299,8 @@ macro_rules! impl_tuple_for_each {
                     let result = 'locks: {
                         $(let $avar = match $avar.read_nonblocking() {
                             Ok(guard) => guard,
-                            Err($crate::value::TryLockError::WouldDeadlock) => panic!("Deadlocked"),
-                            Err($crate::value::TryLockError::AlreadyLocked(locked)) => {
+                            Err($crate::reactive::value::TryLockError::WouldDeadlock) => panic!("Deadlocked"),
+                            Err($crate::reactive::value::TryLockError::AlreadyLocked(locked)) => {
                                 break 'locks Err(locked);
                             }
                         };)+

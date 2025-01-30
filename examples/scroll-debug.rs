@@ -1,5 +1,5 @@
+use cushy::reactive::value::{Destination, Dynamic, Source};
 use cushy::styles::{Dimension, DimensionRange, Edges};
-use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::Run;
 use figures::units::{Lp, UPx};

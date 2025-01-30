@@ -10,11 +10,13 @@ use super::button::{ButtonActiveBackground, ButtonDisabledBackground, ButtonHove
 use super::indicator::{Indicator, IndicatorBehavior, IndicatorState};
 use crate::animation::{LinearInterpolate, ZeroToOne};
 use crate::context::{GraphicsContext, LayoutContext, Trackable, WidgetContext};
+use crate::reactive::value::{
+    Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value,
+};
 use crate::styles::components::{
     FocusColor, LineHeight, OutlineColor, OutlineWidth, WidgetAccentColor, WidgetBackground,
 };
 use crate::styles::{ColorExt, Dimension};
-use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
 use crate::widgets::button::ButtonKind;
 use crate::ConstraintLimit;

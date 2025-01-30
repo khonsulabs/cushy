@@ -10,11 +10,11 @@ use kludgine::{cosmic_text, CanRenderTo, Color, DrawableExt};
 
 use super::input::CowString;
 use crate::context::{FontSettings, GraphicsContext, LayoutContext, Trackable, WidgetContext};
-use crate::styles::components::{HorizontalAlignment, TextColor, VerticalAlignment};
-use crate::styles::{HorizontalAlign, VerticalAlign};
-use crate::value::{
+use crate::reactive::value::{
     Dynamic, DynamicReader, Generation, IntoDynamic, IntoReadOnly, IntoValue, ReadOnly, Value,
 };
+use crate::styles::components::{HorizontalAlignment, TextColor, VerticalAlignment};
+use crate::styles::{HorizontalAlign, VerticalAlign};
 use crate::widget::{MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag};
 use crate::window::WindowLocal;
 use crate::{ConstraintLimit, FitMeasuredSize};

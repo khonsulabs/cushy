@@ -1,7 +1,7 @@
 use cushy::figures::units::Lp;
+use cushy::reactive::value::Dynamic;
 use cushy::styles::components::{LineHeight, TextSize, VerticalAlignment};
 use cushy::styles::VerticalAlign;
-use cushy::value::Dynamic;
 use cushy::widget::{MakeWidget, WidgetList};
 use cushy::widgets::wrap::WrapAlign;
 use cushy::Run;

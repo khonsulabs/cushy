@@ -95,11 +95,13 @@ use std::task::{ready, Context, Poll, Waker};
 
 use builder::Builder;
 use parking_lot::{Condvar, Mutex, MutexGuard};
-use sealed::{AnyChannelCallback, AsyncCallbackFuture, CallbackKind, ChannelCallbackError};
+use sealed::{AnyChannelCallback, AsyncCallbackFuture, ChannelCallbackError, ChannelCallbackKind};
 
-use super::enqueue_task;
-use crate::reactive::{BackgroundTask, ChannelTask};
-use crate::value::CallbackDisconnected;
+use super::value::Dynamic;
+use super::{
+    enqueue_task, CallbackHandle, CallbackHandleInner, CallbackKind, IntoOption, Unwrapped,
+};
+use crate::reactive::{BackgroundTask, CallbackDisconnected, ChannelTask};
 
 pub mod builder;
 
@@ -132,7 +134,7 @@ mod sealed {
     use std::future::Future;
     use std::pin::Pin;
 
-    pub enum CallbackKind<T> {
+    pub enum ChannelCallbackKind<T> {
         Blocking(Box<dyn FnMut(T) -> Result<(), super::CallbackDisconnected> + Send + 'static>),
         NonBlocking(Box<dyn AnyChannelCallback<T>>),
     }
@@ -202,6 +204,8 @@ pub(super) trait AnyChannel: Send + Sync + 'static {
     fn should_poll(&self) -> bool;
     fn poll(&self, futures: &mut Vec<ChannelCallbackFuture>) -> bool;
     fn disconnect(&self);
+    fn persist_callback_handle(&self);
+    fn drop_callback_handle(&self);
 }
 
 impl<T, Behavior> AnyChannel for Arc<ChannelData<T, Behavior>>
@@ -217,10 +221,7 @@ where
     fn poll(&self, futures: &mut Vec<ChannelCallbackFuture>) -> bool {
         let mut channel = self.synced.lock();
         while let Some(value) = channel.queue.pop_front() {
-            self.condvar.notify_all();
-            for waker in channel.wakers.drain(..) {
-                waker.wake();
-            }
+            notify(&mut channel, self);
 
             match channel.behavior.invoke(value, self) {
                 Ok(()) => {}
@@ -240,11 +241,20 @@ where
     fn disconnect(&self) {
         let mut data = self.synced.lock();
         data.behavior.disconnect();
-        for waker in data.wakers.drain(..) {
-            waker.wake();
+        notify_dropping(data, self);
+    }
+
+    fn persist_callback_handle(&self) {
+        let mut data = self.synced.lock();
+        data.handle_status = CallbackHandleStatus::Persisted;
+    }
+
+    fn drop_callback_handle(&self) {
+        let mut data = self.synced.lock();
+        if !matches!(data.handle_status, CallbackHandleStatus::Persisted) {
+            data.handle_status = CallbackHandleStatus::Dropped;
+            notify_dropping(data, self);
         }
-        drop(data);
-        self.condvar.notify_all();
     }
 }
 
@@ -720,6 +730,7 @@ where
                 senders,
                 receivers,
                 wakers: Vec::new(),
+                handle_status: CallbackHandleStatus::None,
                 behavior,
             }),
         });
@@ -775,12 +786,21 @@ where
     }
 }
 
+#[derive(Debug)]
+enum CallbackHandleStatus {
+    None,
+    Held,
+    Persisted,
+    Dropped,
+}
+
 struct SyncedChannelData<T, Behavior> {
     queue: VecDeque<T>,
     limit: usize,
     senders: usize,
     receivers: usize,
     wakers: Vec<Waker>,
+    handle_status: CallbackHandleStatus,
 
     behavior: Behavior,
 }
@@ -797,6 +817,7 @@ where
             .field("senders", &self.senders)
             .field("receiers", &self.receivers)
             .field("wakers", &self.wakers)
+            .field("callback_handle", &self.handle_status)
             .field("behavior", &self.behavior)
             .finish()
     }
@@ -923,7 +944,8 @@ where
                     .await
                     .map_err(|_| CallbackDisconnected)
             }
-        });
+        })
+        .persist();
         receiver
     }
 
@@ -933,14 +955,14 @@ where
     /// thread, another process, another callback, a network request, a locking
     /// primitive, or any other number of ways that could impact other callbacks
     /// from executing.
-    pub fn on_receive<Map>(&self, mut on_receive: Map)
+    pub fn on_receive<Map>(&self, mut on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) + Send + 'static,
     {
         self.on_receive_try(move |value| {
             on_receive(value);
             Ok(())
-        });
+        })
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel. Once an
@@ -953,11 +975,11 @@ where
     ///
     /// Once the last callback associated with a channel is removed, [`Sender`]s
     /// will begin returning disconnected errors.
-    pub fn on_receive_try<Map>(&self, on_receive: Map)
+    pub fn on_receive_try<Map>(&self, on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.on_receive_inner(CallbackKind::Blocking(Box::new(on_receive)));
+        self.on_receive_inner(ChannelCallbackKind::Blocking(Box::new(on_receive)))
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel.
@@ -966,14 +988,14 @@ where
     /// another thread, another process, another callback, a network request, a
     /// locking primitive, or any other number of ways that could impact other
     /// callbacks from executing in a shared environment.
-    pub fn on_receive_nonblocking<Map>(&self, mut on_receive: Map)
+    pub fn on_receive_nonblocking<Map>(&self, mut on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) + Send + 'static,
     {
         self.on_receive_nonblocking_try(move |value| {
             on_receive(value);
             Ok(())
-        });
+        })
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel. Once an
@@ -986,17 +1008,17 @@ where
     ///
     /// Once the last callback associated with a channel is removed, [`Sender`]s
     /// will begin returning disconnected errors.
-    pub fn on_receive_nonblocking_try<Map>(&self, mut on_receive: Map)
+    pub fn on_receive_nonblocking_try<Map>(&self, mut on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.on_receive_inner(CallbackKind::NonBlocking(Box::new(move |value| {
+        self.on_receive_inner(ChannelCallbackKind::NonBlocking(Box::new(move |value| {
             on_receive(value).map_err(|CallbackDisconnected| ChannelCallbackError::Disconnected)
-        })));
+        })))
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel.
-    pub fn on_receive_async<Map, Fut>(&self, mut on_receive: Map)
+    pub fn on_receive_async<Map, Fut>(&self, mut on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) -> Fut + Send + 'static,
         Fut: Future<Output = ()> + Send + 'static,
@@ -1007,7 +1029,7 @@ where
                 future.await;
                 Ok(())
             }
-        });
+        })
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel. The
@@ -1016,25 +1038,27 @@ where
     ///
     /// Once the last callback associated with a channel is removed, [`Sender`]s
     /// will begin returning disconnected errors.
-    pub fn on_receive_async_try<Map, Fut>(&self, mut on_receive: Map)
+    pub fn on_receive_async_try<Map, Fut>(&self, mut on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) -> Fut + Send + 'static,
         Fut: Future<Output = Result<(), CallbackDisconnected>> + Send + 'static,
     {
-        self.on_receive_inner(CallbackKind::NonBlocking(Box::new(move |value| {
+        self.on_receive_inner(ChannelCallbackKind::NonBlocking(Box::new(move |value| {
             let future = on_receive(value);
             Err(ChannelCallbackError::Async(Box::pin(future)))
-        })));
+        })))
     }
 
-    fn on_receive_inner(&self, cb: CallbackKind<T>) {
+    fn on_receive_inner(&self, cb: ChannelCallbackKind<T>) -> CallbackHandle {
+        let data_arc = Arc::new(self.data.clone());
         let mut data = self.data.synced.lock();
+        data.handle_status = CallbackHandleStatus::Held;
         let should_register = data.behavior.0.is_empty();
         match cb {
-            CallbackKind::Blocking(cb) => {
+            ChannelCallbackKind::Blocking(cb) => {
                 data.behavior.0.push(BroadcastCallback::spawn_blocking(cb));
             }
-            CallbackKind::NonBlocking(cb) => {
+            ChannelCallbackKind::NonBlocking(cb) => {
                 data.behavior.0.push(BroadcastCallback::NonBlocking(cb));
             }
         }
@@ -1042,9 +1066,12 @@ where
             drop(data);
             enqueue_task(BackgroundTask::Channel(ChannelTask::Register {
                 id: channel_id(&self.data),
-                data: Arc::new(self.data.clone()),
+                data: data_arc.clone(),
             }));
         }
+        CallbackHandle(CallbackHandleInner::Single(CallbackKind::Channel(
+            ChannelCallbackHandle(data_arc),
+        )))
     }
 }
 
@@ -1065,6 +1092,120 @@ impl<T> BroadcastChannel<T> {
         self.create_broadcaster()
     }
 }
+
+fn notify<T, Behavior>(
+    synced: &mut SyncedChannelData<T, Behavior>,
+    data: &ChannelData<T, Behavior>,
+) {
+    for waker in synced.wakers.drain(..) {
+        waker.wake();
+    }
+    data.condvar.notify_all();
+}
+
+fn notify_dropping<T, Behavior>(
+    mut guard: MutexGuard<'_, SyncedChannelData<T, Behavior>>,
+    data: &ChannelData<T, Behavior>,
+) {
+    for waker in guard.wakers.drain(..) {
+        waker.wake();
+    }
+    drop(guard);
+    data.condvar.notify_all();
+}
+
+impl<T, U> Unwrapped<U> for &BroadcastChannel<T>
+where
+    T: IntoOption<U> + Clone + Unpin + Send + 'static,
+    U: Send + 'static,
+{
+    type Value<'a> = U;
+
+    fn unwrapped_or_else(self, initial: impl FnOnce() -> U) -> Dynamic<U> {
+        let mut data = self.data.synced.lock();
+        let initial = if data.receivers == 1 && data.behavior.0.is_empty() {
+            if let Some(value) = data.queue.pop_front() {
+                notify_dropping(data, &self.data);
+
+                value.into_option().unwrap_or_else(initial)
+            } else {
+                initial()
+            }
+        } else {
+            initial()
+        };
+        let mapped = Dynamic::new(initial);
+        let weak_mapped = mapped.downgrade();
+        mapped.set_source(self.on_receive_try(move |value| {
+            let mapped = weak_mapped.upgrade().ok_or(CallbackDisconnected)?;
+            if let Some(value) = value.into_option() {
+                *mapped.lock() = value;
+            }
+            Ok(())
+        }));
+        mapped
+    }
+
+    fn for_each_unwrapped_try<ForEach>(self, mut for_each: ForEach) -> CallbackHandle
+    where
+        ForEach:
+            for<'a> FnMut(Self::Value<'a>) -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.on_receive_try(move |option| {
+            if let Some(value) = option.into_option() {
+                for_each(value)
+            } else {
+                Ok(())
+            }
+        })
+    }
+}
+
+// impl<T> Unwrapped<T> for &BroadcastChannel<Option<T>>
+// where
+//     T: Unpin + Clone + Send + 'static,
+// {
+//     type Value<'a> = T;
+
+//     fn unwrapped_or_else(self, initial: impl FnOnce() -> T) -> Dynamic<T> {
+//         let mut data = self.data.synced.lock();
+//         let initial = if data.receivers == 1 && data.behavior.0.is_empty() {
+//             if let Some(value) = data.queue.pop_front() {
+//                 notify_dropping(data, &self.data);
+
+//                 value.unwrap_or_else(initial)
+//             } else {
+//                 initial()
+//             }
+//         } else {
+//             initial()
+//         };
+//         let mapped = Dynamic::new(initial);
+//         let weak_mapped = mapped.downgrade();
+//         mapped.set_source(self.on_receive_try(move |value| {
+//             let mapped = weak_mapped.upgrade().ok_or(CallbackDisconnected)?;
+//             if let Some(value) = value {
+//                 *mapped.lock() = value;
+//             }
+//             Ok(())
+//         }));
+//         mapped
+//     }
+
+//     fn for_each_unwrapped_try<ForEach>(self, mut for_each: ForEach) -> CallbackHandle
+//     where
+//         ForEach:
+//             for<'a> FnMut(Self::Value<'a>) -> Result<(), CallbackDisconnected> + Send + 'static,
+//     {
+//         self.on_receive_try(move |option| {
+//             if let Some(value) = option {
+//                 for_each(value)
+//             } else {
+//                 Ok(())
+//             }
+//         })
+//     }
+// }
 
 impl<T> Clone for BroadcastChannel<T> {
     fn clone(&self) -> Self {
@@ -1096,11 +1237,8 @@ impl<T> Drop for BroadcastChannel<T> {
 
         let notify_disconnected = data.senders == 0 || data.behavior.0.is_empty();
         if notify_disconnected {
-            for waker in data.wakers.drain(..) {
-                waker.wake();
-            }
+            notify_dropping(data, &self.data);
         }
-        drop(data);
         if notify_disconnected {
             self.data.condvar.notify_all();
             enqueue_task(BackgroundTask::Channel(ChannelTask::Unregister(
@@ -1215,13 +1353,9 @@ impl<T> Drop for Broadcaster<T> {
 
         let notify_disconnected = data.senders == 0;
         if notify_disconnected {
-            for waker in data.wakers.drain(..) {
-                waker.wake();
-            }
+            notify_dropping(data, &self.data);
         }
-        drop(data);
         if notify_disconnected {
-            self.data.condvar.notify_all();
             enqueue_task(BackgroundTask::Channel(ChannelTask::Unregister(
                 channel_id(&self.data),
             )));
@@ -1320,6 +1454,10 @@ where
     ) -> Result<T, TryReceiveError> {
         let mut data = self.data.synced.lock();
         loop {
+            if matches!(data.handle_status, CallbackHandleStatus::Dropped) {
+                return Err(TryReceiveError::Disconnected);
+            }
+
             if let Some(value) = data.queue.pop_front() {
                 for waker in data.wakers.drain(..) {
                     waker.wake();
@@ -1345,14 +1483,14 @@ where
     /// thread, another process, another callback, a network request, a locking
     /// primitive, or any other number of ways that could impact other callbacks
     /// from executing.
-    pub fn on_receive<Map>(self, mut on_receive: Map)
+    pub fn on_receive<Map>(self, mut on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) + Send + 'static,
     {
         self.on_receive_try(move |value| {
             on_receive(value);
             Ok(())
-        });
+        })
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel. Once an
@@ -1365,11 +1503,11 @@ where
     ///
     /// Once the last callback associated with a channel is removed, [`Sender`]s
     /// will begin returning disconnected errors.
-    pub fn on_receive_try<Map>(self, on_receive: Map)
+    pub fn on_receive_try<Map>(self, on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.on_receive_inner(CallbackKind::Blocking(Box::new(on_receive)));
+        self.on_receive_inner(ChannelCallbackKind::Blocking(Box::new(on_receive)))
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel.
@@ -1378,14 +1516,14 @@ where
     /// another thread, another process, another callback, a network request, a
     /// locking primitive, or any other number of ways that could impact other
     /// callbacks from executing in a shared environment.
-    pub fn on_receive_nonblocking<Map>(self, mut on_receive: Map)
+    pub fn on_receive_nonblocking<Map>(self, mut on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) + Send + 'static,
     {
         self.on_receive_nonblocking_try(move |value| {
             on_receive(value);
             Ok(())
-        });
+        })
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel. Once an
@@ -1398,17 +1536,17 @@ where
     ///
     /// Once the last callback associated with a channel is removed, [`Sender`]s
     /// will begin returning disconnected errors.
-    pub fn on_receive_nonblocking_try<Map>(self, mut on_receive: Map)
+    pub fn on_receive_nonblocking_try<Map>(self, mut on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) -> Result<(), CallbackDisconnected> + Send + 'static,
     {
-        self.on_receive_inner(CallbackKind::NonBlocking(Box::new(move |value| {
+        self.on_receive_inner(ChannelCallbackKind::NonBlocking(Box::new(move |value| {
             on_receive(value).map_err(|CallbackDisconnected| ChannelCallbackError::Disconnected)
-        })));
+        })))
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel.
-    pub fn on_receive_async<Map, Fut>(self, mut on_receive: Map)
+    pub fn on_receive_async<Map, Fut>(self, mut on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) -> Fut + Send + 'static,
         Fut: Future<Output = ()> + Send + 'static,
@@ -1419,7 +1557,7 @@ where
                 future.await;
                 Ok(())
             }
-        });
+        })
     }
 
     /// Invokes `on_receive` each time a value is sent to this channel. The
@@ -1428,32 +1566,38 @@ where
     ///
     /// Once the last callback associated with a channel is removed, [`Sender`]s
     /// will begin returning disconnected errors.
-    pub fn on_receive_async_try<Map, Fut>(self, mut on_receive: Map)
+    pub fn on_receive_async_try<Map, Fut>(self, mut on_receive: Map) -> CallbackHandle
     where
         Map: FnMut(T) -> Fut + Send + 'static,
         Fut: Future<Output = Result<(), CallbackDisconnected>> + Send + 'static,
     {
-        self.on_receive_inner(CallbackKind::NonBlocking(Box::new(move |value| {
+        self.on_receive_inner(ChannelCallbackKind::NonBlocking(Box::new(move |value| {
             let future = on_receive(value);
             Err(ChannelCallbackError::Async(Box::pin(future)))
-        })));
+        })))
     }
 
-    fn on_receive_inner(self, cb: CallbackKind<T>) {
+    fn on_receive_inner(self, cb: ChannelCallbackKind<T>) -> CallbackHandle {
+        let data_arc = Arc::new(self.data.clone());
+        let mut data = self.data.synced.lock();
+        data.handle_status = CallbackHandleStatus::Held;
         match cb {
-            CallbackKind::Blocking(fn_mut) => {
+            ChannelCallbackKind::Blocking(fn_mut) => {
+                drop(data);
                 self.spawn_thread(fn_mut);
             }
-            CallbackKind::NonBlocking(cb) => {
-                let mut data = self.data.synced.lock();
+            ChannelCallbackKind::NonBlocking(cb) => {
                 data.behavior = SingleCallback::Callback(cb);
                 drop(data);
                 enqueue_task(BackgroundTask::Channel(ChannelTask::Register {
                     id: channel_id(&self.data),
-                    data: Arc::new(self.data.clone()),
+                    data: data_arc.clone(),
                 }));
             }
         }
+        CallbackHandle(CallbackHandleInner::Single(CallbackKind::Channel(
+            ChannelCallbackHandle(data_arc),
+        )))
     }
 
     fn spawn_thread(
@@ -1491,18 +1635,89 @@ where
     }
 }
 
+impl<T> Unwrapped<T> for Receiver<Option<T>>
+where
+    T: Send + 'static,
+{
+    type Value<'a> = T;
+
+    fn unwrapped_or_else(self, initial: impl FnOnce() -> T) -> Dynamic<T> {
+        let initial = self.try_receive().ok().flatten().unwrap_or_else(initial);
+        let mapped = Dynamic::new(initial);
+        let weak_mapped = mapped.downgrade();
+        mapped.set_source(self.on_receive_try(move |value| {
+            let mapped = weak_mapped.upgrade().ok_or(CallbackDisconnected)?;
+            if let Some(value) = value {
+                *mapped.lock() = value;
+            }
+            Ok(())
+        }));
+        mapped
+    }
+
+    fn for_each_unwrapped_try<ForEach>(self, mut for_each: ForEach) -> CallbackHandle
+    where
+        ForEach:
+            for<'a> FnMut(Self::Value<'a>) -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.on_receive_try(move |option| {
+            if let Some(value) = option {
+                for_each(value)
+            } else {
+                Ok(())
+            }
+        })
+    }
+}
+
+impl<T, E> Unwrapped<T> for Receiver<Result<T, E>>
+where
+    T: Send + 'static,
+    E: Send + 'static,
+{
+    type Value<'a> = T;
+
+    fn unwrapped_or_else(self, initial: impl FnOnce() -> T) -> Dynamic<T> {
+        let initial = self
+            .try_receive()
+            .ok()
+            .and_then(Result::ok)
+            .unwrap_or_else(initial);
+        let mapped = Dynamic::new(initial);
+        let weak_mapped = mapped.downgrade();
+        mapped.set_source(self.on_receive_try(move |value| {
+            let mapped = weak_mapped.upgrade().ok_or(CallbackDisconnected)?;
+            if let Ok(value) = value {
+                *mapped.lock() = value;
+            }
+            Ok(())
+        }));
+        mapped
+    }
+
+    fn for_each_unwrapped_try<ForEach>(self, mut for_each: ForEach) -> CallbackHandle
+    where
+        ForEach:
+            for<'a> FnMut(Self::Value<'a>) -> Result<(), CallbackDisconnected> + Send + 'static,
+    {
+        self.on_receive_try(move |option| {
+            if let Ok(value) = option {
+                for_each(value)
+            } else {
+                Ok(())
+            }
+        })
+    }
+}
+
 impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
         let mut data = self.data.synced.lock();
         data.receivers -= 1;
         if matches!(data.behavior, SingleCallback::Receiver) {
             data.behavior = SingleCallback::Disconnected;
+            notify_dropping(data, &self.data);
         }
-        for waker in data.wakers.drain(..) {
-            waker.wake();
-        }
-        drop(data);
-        self.data.condvar.notify_all();
     }
 }
 
@@ -1535,6 +1750,32 @@ impl Drop for Autowaker {
     }
 }
 
+pub(super) struct ChannelCallbackHandle(Arc<dyn AnyChannel>);
+
+impl ChannelCallbackHandle {
+    pub fn persist(self) {
+        self.0.persist_callback_handle();
+    }
+}
+
+impl fmt::Debug for ChannelCallbackHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Channel")
+    }
+}
+
+impl PartialEq for ChannelCallbackHandle {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Drop for ChannelCallbackHandle {
+    fn drop(&mut self) {
+        self.0.drop_callback_handle();
+    }
+}
+
 #[test]
 fn channel_basics() {
     let (result_sender, result_receiver) = unbounded();
@@ -1555,7 +1796,9 @@ fn send_then_spawn() {
 
     let (sender, receiver) = Builder::new().finish();
     sender.send(1).unwrap();
-    receiver.on_receive_nonblocking(move |value| result_sender.send(dbg!(value)).unwrap());
+    receiver
+        .on_receive_nonblocking(move |value| result_sender.send(dbg!(value)).unwrap())
+        .persist();
 
     assert_eq!(result_receiver.receive().unwrap(), 1);
     drop(sender);
@@ -1602,19 +1845,36 @@ fn async_channels() {
     let (a_sender, a_receiver) = bounded(1);
     let (b_sender, b_receiver) = bounded(1);
 
-    a_receiver.on_receive_async(move |value| {
-        let b_sender = b_sender.clone();
-        async move {
-            for i in 0..value {
-                b_sender.send_async(dbg!(i)).await.unwrap();
+    a_receiver
+        .on_receive_async(move |value| {
+            let b_sender = b_sender.clone();
+            async move {
+                for i in 0..value {
+                    b_sender.send_async(dbg!(i)).await.unwrap();
+                }
             }
-        }
-    });
+        })
+        .persist();
     a_sender.send(5).unwrap();
     for i in 0..5 {
         println!("Reading {i}");
         assert_eq!(b_receiver.receive(), Some(i));
     }
     drop(a_sender);
+    assert_eq!(b_receiver.receive(), None);
+}
+
+#[test]
+fn callback_disconnection() {
+    let (a_sender, a_receiver) = bounded(1);
+    let (b_sender, b_receiver) = bounded(1);
+
+    let handle = a_receiver.on_receive(move |value| b_sender.send(value).unwrap());
+    a_sender.send(1_usize).unwrap();
+    assert_eq!(b_receiver.receive(), Some(1));
+
+    drop(handle);
+
+    assert_eq!(a_sender.send(2_usize), Err(2));
     assert_eq!(b_receiver.receive(), None);
 }

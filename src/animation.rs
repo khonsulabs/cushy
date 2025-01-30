@@ -19,7 +19,7 @@
 //!
 //! use cushy::animation::easings::EaseInOutElastic;
 //! use cushy::animation::{AnimationTarget, Spawn};
-//! use cushy::value::{Dynamic, Source};
+//! use cushy::reactive::value::{Dynamic, Source};
 //!
 //! let value = Dynamic::new(0);
 //! let mut reader = value.create_reader();
@@ -55,9 +55,9 @@ use kludgine::Color;
 use parking_lot::{Condvar, Mutex, MutexGuard};
 
 use crate::animation::easings::Linear;
+use crate::reactive::value::{Destination, Dynamic, Source};
 use crate::styles::{Component, RequireInvalidation};
 use crate::utils::run_in_bg;
-use crate::value::{Destination, Dynamic, Source};
 use crate::widget::SharedCallback;
 use crate::Cushy;
 

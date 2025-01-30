@@ -7,7 +7,7 @@
 //! resize, and the current values of the dynamic values will be used.
 use std::time::Duration;
 
-use cushy::value::{Destination, Dynamic, InvalidationBatch, Source};
+use cushy::reactive::value::{Destination, Dynamic, InvalidationBatch, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::grid::{GridDimension, GridWidgets};
 use cushy::widgets::progress::Progressable;

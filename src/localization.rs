@@ -114,7 +114,7 @@ use kempt::{map, Map};
 use unic_langid::{LanguageIdentifier, LanguageIdentifierError};
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext, Trackable, WidgetContext};
-use crate::value::{Dynamic, DynamicRead, Generation, IntoValue, Source, Value};
+use crate::reactive::value::{Dynamic, DynamicRead, Generation, IntoValue, Source, Value};
 use crate::widget::{MakeWidgetWithTag, WidgetInstance, WidgetTag};
 use crate::widgets::label::DynamicDisplay;
 use crate::MaybeLocalized;

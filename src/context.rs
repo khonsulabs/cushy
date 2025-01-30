@@ -17,13 +17,13 @@ use crate::fonts::{LoadedFont, LoadedFontFace};
 use crate::graphics::{FontState, Graphics};
 #[cfg(feature = "localization")]
 use crate::localization::Localizations;
+use crate::reactive::value::{IntoValue, Source, Value};
 use crate::styles::components::{
     CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, LineHeight,
     Opacity, OutlineWidth, TextSize, WidgetBackground,
 };
 use crate::styles::{ComponentDefinition, Dimension, FontFamilyList, Styles, Theme, ThemePair};
 use crate::tree::Tree;
-use crate::value::{IntoValue, Source, Value};
 use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
 use crate::window::{
     CursorState, DeviceId, KeyEvent, PlatformWindow, ThemeMode, WidgetCursorState,

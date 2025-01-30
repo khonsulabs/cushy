@@ -1,5 +1,5 @@
 use cushy::figures::units::Lp;
-use cushy::value::{Dynamic, Source};
+use cushy::reactive::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::widgets::slider::Slidable;

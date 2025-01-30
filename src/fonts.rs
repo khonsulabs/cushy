@@ -5,7 +5,7 @@ use alot::{LotId, Lots};
 use kludgine::cosmic_text::fontdb::{self, Language};
 use kludgine::cosmic_text::{Stretch, Style, Weight};
 
-use crate::value::Dynamic;
+use crate::reactive::value::Dynamic;
 
 /// A collection of fonts that can be loaded into Cushy.
 #[derive(Clone, Default, PartialEq)]

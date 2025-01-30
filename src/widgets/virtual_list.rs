@@ -12,7 +12,7 @@ use crate::figures::units::{Px, UPx};
 use crate::figures::{IntoSigned, Point, Rect, Round, Size, Zero};
 use crate::kludgine::app::winit::event::{MouseScrollDelta, TouchPhase};
 use crate::kludgine::app::winit::window::CursorIcon;
-use crate::value::{
+use crate::reactive::value::{
     Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, MapEachCloned, Source, Watcher,
 };
 use crate::widget::{

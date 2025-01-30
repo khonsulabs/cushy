@@ -11,9 +11,9 @@ use kludgine::{Color, DrawableExt};
 use super::button::{ButtonActiveBackground, ButtonBackground, ButtonHoverBackground};
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{EventContext, LayoutContext};
+use crate::reactive::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::styles::components::{HighlightColor, IntrinsicPadding, LineHeight, OutlineColor};
 use crate::styles::Dimension;
-use crate::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{
     EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetRef, WidgetTag,
     HANDLED, IGNORED,

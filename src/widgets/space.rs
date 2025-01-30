@@ -3,9 +3,9 @@ use figures::Size;
 use kludgine::Color;
 
 use crate::context::{GraphicsContext, LayoutContext};
+use crate::reactive::value::{IntoValue, Value};
 use crate::styles::components::PrimaryColor;
 use crate::styles::{DynamicComponent, IntoDynamicComponentValue};
-use crate::value::{IntoValue, Value};
 use crate::widget::Widget;
 use crate::ConstraintLimit;
 

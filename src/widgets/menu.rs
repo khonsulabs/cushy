@@ -18,11 +18,11 @@ use super::layers::{OverlayBuilder, OverlayHandle, OverlayLayer, Overlayable};
 use super::Button;
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext};
+use crate::reactive::value::{Dynamic, IntoValue, Source, Value};
 use crate::styles::components::{
     CornerRadius, Easing, IntrinsicPadding, OpaqueWidgetColor, OutlineWidth, TextColor,
 };
 use crate::styles::Styles;
-use crate::value::{Dynamic, IntoValue, Source, Value};
 use crate::widget::{
     Callback, EventHandling, MakeWidget, MakeWidgetWithTag, SharedNotify, Widget, WidgetId,
     WidgetInstance, WidgetRef, WidgetTag, HANDLED,
@@ -295,7 +295,7 @@ mod sealed {
     use kempt::Set;
 
     use super::{MenuOverlay, OpenMenuHandle};
-    use crate::value::{Dynamic, Value};
+    use crate::reactive::value::{Dynamic, Value};
     use crate::widget::WidgetId;
     use crate::widgets::layers::OverlayLayer;
 

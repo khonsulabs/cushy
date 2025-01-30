@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use cushy::value::{Destination, Dynamic, DynamicReader, Source};
+use cushy::reactive::value::{Destination, Dynamic, DynamicReader, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::progress::Progressable;
 use cushy::widgets::slider::Slidable;

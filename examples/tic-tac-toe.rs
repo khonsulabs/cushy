@@ -4,7 +4,7 @@ use std::ops::Not;
 use std::time::SystemTime;
 
 use cushy::figures::units::Lp;
-use cushy::value::{Destination, Dynamic, Source};
+use cushy::reactive::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::button::ButtonKind;
 use cushy::{Run, WithClone};

@@ -54,12 +54,12 @@ use crate::context::{
 };
 use crate::fonts::FontCollection;
 use crate::graphics::{FontState, Graphics};
+use crate::reactive::value::{
+    Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Tracked, Value,
+};
 use crate::styles::{Edges, FontFamilyList, ThemePair};
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
-use crate::value::{
-    Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Tracked, Value,
-};
 use crate::widget::{
     EventHandling, MakeWidget, MountedWidget, Notify, OnceCallback, RootBehavior, SharedCallback,
     WidgetId, WidgetInstance, HANDLED, IGNORED,
@@ -3079,8 +3079,8 @@ pub(crate) mod sealed {
     use crate::context::sealed::InvalidationStatus;
     use crate::context::EventContext;
     use crate::fonts::FontCollection;
+    use crate::reactive::value::{Dynamic, Value};
     use crate::styles::{FontFamilyList, ThemePair};
-    use crate::value::{Dynamic, Value};
     use crate::widget::{Notify, OnceCallback, SharedCallback};
     use crate::widgets::shortcuts::ShortcutMap;
     use crate::window::{FileDrop, PendingWindow, ThemeMode, WindowAttributes, WindowHandle};

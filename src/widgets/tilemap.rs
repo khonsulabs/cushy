@@ -9,8 +9,8 @@ use kludgine::tilemap;
 use kludgine::tilemap::TileMapFocus;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext, Trackable};
+use crate::reactive::value::{Dynamic, IntoValue, Value};
 use crate::tick::Tick;
-use crate::value::{Dynamic, IntoValue, Value};
 use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
 use crate::window::{DeviceId, KeyEvent};
 use crate::ConstraintLimit;

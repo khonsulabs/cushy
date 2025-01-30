@@ -122,6 +122,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `for_each_subsequent_cloned` have been added with the original behavior. This
   change was done to make `for_each_cloned` and `for_each` have the same
   semantics.
+- The module `cushy::value` has been moved to `cushy::reactive::value`. The new
+  `reactive` module contains traits and types shared between both channels and
+  value containers.
+- `cushy::value::CallbackDisconnected` and `cushy::value::CallbackHandle` are
+  now exported from `cushy::reactive`.
 
 ### Changed
 
@@ -419,6 +424,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   appropriately when its value is changed.
 - `DynamicRead::read_nonblocking` is a new function that attempts to acquire
   read access to the dynamic without blocking the current thread.
+- `cushy::reactive::Unwrapped` is a new trait implemented by many reactive data
+  types that simplifies reacting only when a value is unwrappable. This trait is
+  implemented for  `Option<T>` or `Result<T, E>` values, and provides
+  `for_each_unwrapped` for callback attachment and `unwrapped()` to create a
+  `Dynamic<T>` that is updated only when the source contains `Ok(_)` or
+  `Some(_)`.
 
 [fluent]: https://projectfluent.org/
 [139]: https://github.com/khonsulabs/cushy/issues/139

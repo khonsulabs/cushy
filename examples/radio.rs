@@ -1,4 +1,4 @@
-use cushy::value::Dynamic;
+use cushy::reactive::value::Dynamic;
 use cushy::widget::MakeWidget;
 use cushy::Run;
 

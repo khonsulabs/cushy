@@ -1,7 +1,7 @@
 use std::process::exit;
 
 use cushy::figures::units::Lp;
-use cushy::value::{Dynamic, Source, Validations};
+use cushy::reactive::value::{Dynamic, Source, Validations};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::{InputValue, MaskedString};
 use cushy::widgets::layers::OverlayLayer;

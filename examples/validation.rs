@@ -1,5 +1,5 @@
 use cushy::figures::units::Lp;
-use cushy::value::{Destination, Dynamic, Validations};
+use cushy::reactive::value::{Destination, Dynamic, Validations};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::Run;

@@ -4,7 +4,7 @@ use figures::units::UPx;
 use figures::Size;
 
 use crate::context::{GraphicsContext, LayoutContext};
-use crate::value::Dynamic;
+use crate::reactive::value::Dynamic;
 use crate::widget::Widget;
 use crate::{ConstraintLimit, Tick};
 

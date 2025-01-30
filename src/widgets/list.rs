@@ -18,8 +18,8 @@ use super::grid::GridWidgets;
 use super::input::CowString;
 use super::label::DynamicDisplay;
 use super::{Grid, Label};
+use crate::reactive::value::{IntoValue, MapEach, Source, Value};
 use crate::styles::{Component, RequireInvalidation};
-use crate::value::{IntoValue, MapEach, Source, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, WidgetInstance, WidgetList};
 
 /// A list of items displayed with an optional item indicator.

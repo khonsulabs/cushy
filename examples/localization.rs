@@ -1,5 +1,5 @@
 use cushy::localization::Localization;
-use cushy::value::{Dynamic, Source};
+use cushy::reactive::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::{localize, Open, PendingApp};
 use unic_langid::LanguageIdentifier;

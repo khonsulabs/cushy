@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use cushy::animation::{AnimationHandle, AnimationTarget, IntoAnimate, Spawn};
 use cushy::figures::units::Lp;
-use cushy::value::{Destination, Dynamic};
+use cushy::reactive::value::{Destination, Dynamic};
 use cushy::widget::MakeWidget;
 use cushy::widgets::button::ButtonClick;
 use cushy::widgets::progress::Progressable;

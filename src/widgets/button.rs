@@ -12,6 +12,7 @@ use crate::animation::{
     AnimationHandle, AnimationTarget, IntoAnimate, LinearInterpolate, Spawn, ZeroToOne,
 };
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::reactive::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::styles::components::{
     AutoFocusableControls, CornerRadius, DefaultActiveBackgroundColor,
     DefaultActiveForegroundColor, DefaultBackgroundColor, DefaultDisabledBackgroundColor,
@@ -20,7 +21,6 @@ use crate::styles::components::{
     OutlineColor, OutlineWidth, SurfaceColor, TextColor,
 };
 use crate::styles::{ColorExt, Styles};
-use crate::value::{Destination, Dynamic, IntoValue, Source, Value};
 use crate::widget::{
     EventHandling, MakeWidget, Notify, SharedCallback, Widget, WidgetRef, HANDLED,
 };

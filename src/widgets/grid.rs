@@ -11,9 +11,9 @@ use figures::{Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScal
 use intentional::{Assert, Cast};
 
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
+use crate::reactive::value::{Generation, IntoValue, Value};
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::Dimension;
-use crate::value::{Generation, IntoValue, Value};
 use crate::widget::{MakeWidget, MountedWidget, Widget, WidgetInstance};
 use crate::ConstraintLimit;
 

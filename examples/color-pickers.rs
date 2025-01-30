@@ -1,7 +1,7 @@
 use cushy::figures::units::Lp;
 use cushy::figures::Size;
+use cushy::reactive::value::{Dynamic, Source};
 use cushy::styles::{Color, Hsla};
-use cushy::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::color::{HslaPicker, RgbaPicker};
 use cushy::widgets::Space;

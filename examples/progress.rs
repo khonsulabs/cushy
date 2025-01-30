@@ -1,6 +1,6 @@
 use cushy::figures::units::Lp;
 use cushy::figures::Size;
-use cushy::value::{Dynamic, MapEach};
+use cushy::reactive::value::{Dynamic, MapEach};
 use cushy::widget::MakeWidget;
 use cushy::widgets::progress::Progressable;
 use cushy::widgets::slider::Slidable;

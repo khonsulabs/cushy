@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use cushy::value::{Destination, Dynamic};
+use cushy::reactive::value::{Destination, Dynamic};
 use cushy::widget::MakeWidget;
 use cushy::widgets::progress::Progressable;
 use cushy::{Open, PendingApp, TokioRuntime};

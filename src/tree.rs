@@ -9,8 +9,8 @@ use parking_lot::Mutex;
 #[cfg(feature = "localization")]
 use unic_langid::LanguageIdentifier;
 
+use crate::reactive::value::Value;
 use crate::styles::{Styles, ThemePair, VisualOrder};
-use crate::value::Value;
 use crate::widget::{MountedWidget, WidgetId, WidgetInstance};
 use crate::window::{ThemeMode, WindowHandle};
 use crate::ConstraintLimit;

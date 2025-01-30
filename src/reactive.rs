@@ -1,5 +1,7 @@
+//! Reactive data types for Cushy
 use std::cell::Cell;
 use std::collections::{hash_map, VecDeque};
+use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{mpsc, Arc};
@@ -8,16 +10,104 @@ use std::time::Instant;
 
 use ahash::AHashMap;
 use alot::{LotId, Lots};
+use channel::ChannelCallbackHandle;
 use kempt::{map, Map, Set};
 use parking_lot::Mutex;
 use tracing::warn;
+use value::Dynamic;
 
 use self::channel::{AnyChannel, ChannelCallbackFuture};
-use self::value::{CallbackDisconnected, DeadlockError, DynamicLockData};
+use self::value::{DeadlockError, DynamicLockData};
 use crate::{Cushy, Lazy};
 
 pub mod channel;
 pub mod value;
+
+/// Unwrap values contained in a dynamic source.
+pub trait Unwrapped<T>: Sized {
+    /// The value type provided to the for each functions.
+    type Value<'a>;
+
+    /// Returns a dynamic that is updated with the unwrapped contents of thie
+    /// source.
+    ///
+    /// The initial value of this dynamic will be the result of
+    /// `unwrap_or_default()` on the value currently contained in this source.
+    fn unwrapped(self) -> Dynamic<T>
+    where
+        T: Default,
+    {
+        self.unwrapped_or_else(T::default)
+    }
+
+    /// Returns a dynamic that is updated with the unwrapped contents of thie
+    /// source.
+    ///
+    /// The initial value of this dynamic will be the result of
+    /// `unwrap_or_else(initial)` on the value currently contained in this
+    /// source.
+    fn unwrapped_or_else(self, initial: impl FnOnce() -> T) -> Dynamic<T>;
+
+    /// Invokes `for_each` when `self` is updated with a value that can be
+    /// unwrapped.
+    ///
+    /// Returning `Err(CallbackDisconnected)` will prevent the callback from
+    /// being invoked again.
+    fn for_each_unwrapped_try<ForEach>(self, for_each: ForEach) -> CallbackHandle
+    where
+        ForEach:
+            for<'a> FnMut(Self::Value<'a>) -> Result<(), CallbackDisconnected> + Send + 'static;
+
+    /// Invokes `for_each` when `self` is updated with a value that can be
+    /// unwrapped.
+    fn for_each_unwrapped<ForEach>(self, mut for_each: ForEach) -> CallbackHandle
+    where
+        ForEach: for<'a> FnMut(Self::Value<'a>) + Send + 'static,
+    {
+        self.for_each_unwrapped_try(move |value| {
+            for_each(value);
+            Ok(())
+        })
+    }
+}
+
+/// A type that can be converted into an `Option<T>`.
+///
+/// This trait exists to unify how [`Unwrapped`] abstracts implementations for
+/// `Result` and `Option`. In the future, if the standard library implements
+/// `Into<Option<T>>` for `Result<T,E>`, this trait can be removed.
+pub trait IntoOption<T> {
+    /// Returns `self` as an option.
+    fn into_option(self) -> Option<T>;
+}
+
+impl<T> IntoOption<T> for Option<T> {
+    fn into_option(self) -> Option<T> {
+        self
+    }
+}
+
+impl<T, E> IntoOption<T> for Result<T, E> {
+    fn into_option(self) -> Option<T> {
+        self.ok()
+    }
+}
+
+impl<'a, T> IntoOption<&'a T> for &'a Option<T> {
+    fn into_option(self) -> Option<&'a T> {
+        self.as_ref()
+    }
+}
+
+impl<'a, T, E> IntoOption<&'a T> for &'a Result<T, E> {
+    fn into_option(self) -> Option<&'a T> {
+        self.as_ref().ok()
+    }
+}
+
+/// A callback function is no longer connected to its source.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct CallbackDisconnected;
 
 static CALLBACK_EXECUTORS: Mutex<Map<usize, Arc<DynamicLockData>>> = Mutex::new(Map::new());
 
@@ -439,5 +529,216 @@ thread_local! {
 fn enqueue_task(task: BackgroundTask) {
     if THREAD_SENDER.send(task).is_err() {
         warn!("background task thread not running");
+    }
+}
+
+/// A handle to a callback installed on a [`Dynamic`]. When dropped, the
+/// callback will be uninstalled.
+///
+/// To prevent the callback from ever being uninstalled, use
+/// [`Self::persist()`].
+#[must_use = "Callbacks are disconnected once the associated CallbackHandle is dropped. Consider using `CallbackHandle::persist()` to prevent the callback from being disconnected."]
+pub struct CallbackHandle(CallbackHandleInner);
+
+impl Default for CallbackHandle {
+    fn default() -> Self {
+        Self(CallbackHandleInner::None)
+    }
+}
+
+enum CallbackHandleInner {
+    None,
+    Single(CallbackKind),
+    Multi(Vec<CallbackKind>),
+}
+
+#[derive(Debug, PartialEq)]
+enum CallbackKind {
+    Channel(ChannelCallbackHandle),
+    Value(CallbackHandleData),
+}
+
+impl CallbackKind {
+    fn persist(self) {
+        match self {
+            Self::Channel(channel) => {
+                channel.persist();
+            }
+            Self::Value(data) => {
+                data.persist();
+            }
+        }
+    }
+
+    fn forget_owners(&mut self) {
+        match self {
+            CallbackKind::Channel(_) => {}
+            CallbackKind::Value(handle) => {
+                handle.owner = None;
+            }
+        }
+    }
+}
+
+trait ReferencedDynamic: Sync + Send + 'static {}
+impl<T> ReferencedDynamic for T where T: Sync + Send + 'static {}
+
+struct CallbackHandleData {
+    id: Option<LotId>,
+    owner: Option<Arc<dyn ReferencedDynamic>>,
+    callbacks: Arc<dyn CallbackCollection>,
+}
+
+impl fmt::Debug for CallbackHandleData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&self.id, f)
+    }
+}
+
+impl fmt::Debug for CallbackHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut tuple = f.debug_tuple("CallbackHandle");
+        match &self.0 {
+            CallbackHandleInner::None => {}
+            CallbackHandleInner::Single(handle) => {
+                tuple.field(handle);
+            }
+            CallbackHandleInner::Multi(handles) => {
+                for handle in handles {
+                    tuple.field(handle);
+                }
+            }
+        }
+
+        tuple.finish()
+    }
+}
+
+impl CallbackHandle {
+    /// Persists the callback so that it will always be invoked until the
+    /// dynamic is freed.
+    pub fn persist(self) {
+        match self.0 {
+            CallbackHandleInner::None => {}
+            CallbackHandleInner::Single(handle) => {
+                handle.persist();
+            }
+            CallbackHandleInner::Multi(handles) => {
+                for handle in handles {
+                    handle.persist();
+                }
+            }
+        }
+    }
+
+    /// Drops any references to owning [`Dynamic`]s associated with this
+    /// callback.
+    ///
+    /// This enables creating weak connections between callback graphs.
+    pub fn forget_owners(&mut self) {
+        match &mut self.0 {
+            CallbackHandleInner::None => {}
+            CallbackHandleInner::Single(handle) => {
+                handle.forget_owners();
+            }
+            CallbackHandleInner::Multi(handles) => {
+                for handle in handles {
+                    handle.forget_owners();
+                }
+            }
+        }
+    }
+
+    /// Drops any references to owning [`Dynamic`]s associated with this
+    /// callback, and returns self.
+    ///
+    /// This uses [`Self::forget_owners()`].
+    pub fn weak(mut self) -> Self {
+        self.forget_owners();
+        self
+    }
+}
+
+impl Eq for CallbackHandle {}
+
+impl PartialEq for CallbackHandle {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (CallbackHandleInner::None, CallbackHandleInner::None) => true,
+            (CallbackHandleInner::Single(this), CallbackHandleInner::Single(other)) => {
+                this == other
+            }
+            (CallbackHandleInner::Multi(this), CallbackHandleInner::Multi(other)) => this == other,
+            _ => false,
+        }
+    }
+}
+
+impl CallbackHandleData {
+    fn persist(mut self) {
+        let _id = self.id.take();
+        drop(self);
+    }
+}
+
+impl Drop for CallbackHandleData {
+    fn drop(&mut self) {
+        if let Some(id) = self.id {
+            self.callbacks.remove(id);
+        }
+    }
+}
+
+impl PartialEq for CallbackHandleData {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && Arc::ptr_eq(&self.callbacks, &other.callbacks)
+    }
+}
+
+impl std::ops::Add for CallbackHandle {
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl std::ops::AddAssign for CallbackHandle {
+    fn add_assign(&mut self, rhs: Self) {
+        match (&mut self.0, rhs.0) {
+            (_, CallbackHandleInner::None) => {}
+            (CallbackHandleInner::None, other) => {
+                self.0 = other;
+            }
+            (CallbackHandleInner::Single(_), CallbackHandleInner::Single(other)) => {
+                let CallbackHandleInner::Single(single) =
+                    std::mem::replace(&mut self.0, CallbackHandleInner::Multi(vec![other]))
+                else {
+                    unreachable!("just matched")
+                };
+                let CallbackHandleInner::Multi(multi) = &mut self.0 else {
+                    unreachable!("just replaced")
+                };
+                multi.push(single);
+            }
+            (CallbackHandleInner::Single(_), CallbackHandleInner::Multi(multi)) => {
+                let CallbackHandleInner::Single(single) =
+                    std::mem::replace(&mut self.0, CallbackHandleInner::Multi(multi))
+                else {
+                    unreachable!("just matched")
+                };
+                let CallbackHandleInner::Multi(multi) = &mut self.0 else {
+                    unreachable!("just replaced")
+                };
+                multi.push(single);
+            }
+            (CallbackHandleInner::Multi(this), CallbackHandleInner::Single(single)) => {
+                this.push(single);
+            }
+            (CallbackHandleInner::Multi(this), CallbackHandleInner::Multi(mut other)) => {
+                this.append(&mut other);
+            }
+        }
     }
 }

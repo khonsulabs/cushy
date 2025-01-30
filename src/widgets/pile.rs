@@ -10,7 +10,7 @@ use figures::{IntoSigned, Rect, Size};
 use intentional::Assert;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
-use crate::value::{Dynamic, DynamicRead, DynamicReader};
+use crate::reactive::value::{Dynamic, DynamicRead, DynamicReader};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetRef, WidgetTag};
 use crate::ConstraintLimit;
 

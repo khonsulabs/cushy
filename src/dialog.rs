@@ -9,9 +9,9 @@ use std::{env, fs};
 use figures::units::Lp;
 use parking_lot::Mutex;
 
+use crate::reactive::value::{Destination, Dynamic, Source};
 use crate::styles::components::{PrimaryColor, WidgetBackground};
 use crate::styles::DynamicComponent;
-use crate::value::{Destination, Dynamic, Source};
 use crate::widget::{MakeWidget, OnceCallback, SharedCallback, WidgetList};
 use crate::widgets::button::{ButtonKind, ClickCounter};
 use crate::widgets::input::InputValue;
