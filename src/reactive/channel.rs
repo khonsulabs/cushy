@@ -215,7 +215,7 @@ where
 {
     fn should_poll(&self) -> bool {
         let channel = self.synced.lock();
-        !channel.queue.is_empty() && channel.behavior.connected()
+        !channel.queue.is_empty() && channel.behavior.should_poll()
     }
 
     fn poll(&self, futures: &mut Vec<ChannelCallbackFuture>) -> bool {
@@ -396,6 +396,10 @@ where
         !matches!(self, Self::Disconnected)
     }
 
+    fn should_poll(&self) -> bool {
+        matches!(self, Self::Callback(_))
+    }
+
     fn disconnect(&mut self) {
         *self = Self::Disconnected;
     }
@@ -477,6 +481,10 @@ where
 {
     fn connected(&self) -> bool {
         !self.0.is_empty()
+    }
+
+    fn should_poll(&self) -> bool {
+        self.connected()
     }
 
     fn disconnect(&mut self) {
@@ -693,6 +701,7 @@ where
 
 trait CallbackBehavior<T>: Sized + Send + 'static {
     fn connected(&self) -> bool;
+    fn should_poll(&self) -> bool;
     fn disconnect(&mut self);
     fn invoke(
         &mut self,
@@ -762,7 +771,9 @@ where
         ) -> ControlFlow<()>,
     ) -> Result<(), TrySendError<T>> {
         let mut channel = self.synced.lock();
-        while channel.receivers > 0 || channel.behavior.connected() {
+        while !matches!(channel.handle_status, CallbackHandleStatus::Dropped)
+            && (channel.receivers > 0 || channel.behavior.connected())
+        {
             if channel.queue.len() >= channel.limit {
                 match when_full(&mut channel) {
                     ControlFlow::Continue(()) => continue,
