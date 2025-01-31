@@ -77,7 +77,6 @@ fn main() -> cushy::Result {
         .contain()
         .width(Lp::inches(3)..Lp::inches(6))
         .pad()
-        .scroll()
         .centered();
 
     ui.and(tooltips).into_layers().run()
