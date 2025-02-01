@@ -92,6 +92,7 @@ use std::ops::ControlFlow;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{ready, Context, Poll, Waker};
+use std::time::{Duration, Instant};
 
 use builder::Builder;
 use parking_lot::{Condvar, Mutex, MutexGuard};
@@ -1449,10 +1450,53 @@ where
         .ok()
     }
 
+    /// Returns the next value if it can be retrieved within `timeout`.
+    ///
+    /// # Errors
+    ///
+    /// - [`TryReceiveError::Disconnected`] is returned if no senders are
+    ///   connected to this receiver.
+    /// - [`TryReceiveError::Empty`] is returned if `timeout` elapses before a
+    ///   value is received.
+    pub fn receive_timeout(&self, timeout: Duration) -> Result<T, TryReceiveError> {
+        self.receive_until(Instant::now() + timeout)
+    }
+
+    /// Returns the next value if it can be retrieved before `instant`.
+    ///
+    /// If a value is already available, it will be returned even if `instant`
+    /// is in the past when this function is invoked. The timeout logic only is
+    /// applied when the queue is empty.
+    ///
+    /// # Errors
+    ///
+    /// - [`TryReceiveError::Disconnected`] is returned if no senders are
+    ///   connected to this receiver.
+    /// - [`TryReceiveError::Empty`] is returned if `timeout` elapses before a
+    ///   value is received.
+    pub fn receive_until(&self, instant: Instant) -> Result<T, TryReceiveError> {
+        let mut timed_out = false;
+        self.try_receive_inner(|guard| {
+            if self.data.condvar.wait_until(guard, instant).timed_out() {
+                timed_out = true;
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        })
+    }
+
     /// Returns the next value if possible, otherwise returning an error
     /// describing why a value was unable to be received.
     ///
     /// This function will not block the current thread.
+    ///
+    /// # Errors
+    ///
+    /// - [`TryReceiveError::Disconnected`] is returned if no senders are
+    ///   connected to this receiver.
+    /// - [`TryReceiveError::Empty`] is returned if no value is available in
+    ///   this channel.
     pub fn try_receive(&self) -> Result<T, TryReceiveError> {
         self.try_receive_inner(|_guard| ControlFlow::Break(()))
     }
