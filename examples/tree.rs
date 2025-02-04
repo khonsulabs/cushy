@@ -1,5 +1,5 @@
 
-use cushy::{App, Open, Run};
+use cushy::{App, Open};
 use cushy::reactive::value::Dynamic;
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::label::Displayable;
@@ -14,7 +14,7 @@ fn make_node_with_label_and_buttons(tree: Dynamic<Tree>, key: TreeNodeKey, name:
             .on_click({
                 let tree = tree.clone();
                 let key = key.clone();
-                move |event|{
+                move |_event|{
                     tree.lock().remove_node(&key);
                 }
             })
@@ -25,7 +25,7 @@ fn make_node_with_label_and_buttons(tree: Dynamic<Tree>, key: TreeNodeKey, name:
             .on_click({
                 let tree = tree.clone();
                 let key = key.clone();
-                move |event|{
+                move |_event|{
                     tree.lock().insert_child_with_key(|child_key|{
                         make_node_with_label_and_buttons(tree.clone(), child_key.clone(), "generated child").make_widget()
                     }, Some(&key));
@@ -38,7 +38,7 @@ fn make_node_with_label_and_buttons(tree: Dynamic<Tree>, key: TreeNodeKey, name:
             .on_click({
                 let tree = tree.clone();
                 let key = key.clone();
-                move |event|{
+                move |_event|{
                     tree.lock().insert_after_with_key(|sibling_key|{
                         make_node_with_label_and_buttons(tree.clone(), sibling_key.clone(), "generated sibling").make_widget()
                     }, &key);
@@ -55,7 +55,7 @@ fn make_node_with_label_and_buttons(tree: Dynamic<Tree>, key: TreeNodeKey, name:
 fn main(app: &mut App) -> cushy::Result {
     let pending = PendingWindow::default();
 
-    let mut dyn_tree: Dynamic<Tree> = Dynamic::new(Tree::default());
+    let dyn_tree: Dynamic<Tree> = Dynamic::new(Tree::default());
     let root_key = {
         let mut tree = dyn_tree.lock();
 
