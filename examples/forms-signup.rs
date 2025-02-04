@@ -95,7 +95,7 @@ fn signup_form(
             NewUserState::FormEntry { .. } | NewUserState::Done => signup_modal.dismiss(),
             NewUserState::SigningUp => {
                 signup_modal.present(
-                    "SIgning Up"
+                    "Signing-up"
                         .and(ProgressBar::indeterminant().spinner().centered())
                         .into_rows()
                         .pad()
