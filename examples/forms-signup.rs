@@ -11,6 +11,7 @@ use cushy::widgets::layers::{Modal, OverlayLayer};
 use cushy::widgets::{Expand, ProgressBar, Validated};
 use cushy::Run;
 use kempt::Map;
+use regex::Regex;
 
 #[derive(Default, PartialEq)]
 enum AppState {
@@ -329,6 +330,10 @@ fn handle_login(
                         // handle the two cases with the same error message
                         mapped_errors.insert(SignupFormField::Username, String::from("Username is a unavailable"));
                     },
+                    Ok(FakeApiSignupErrorCode::UsernameInvalid)
+                    => {
+                        mapped_errors.insert(SignupFormField::Username, String::from("Username is invalid"));
+                    },
                     Ok(FakeApiSignupErrorCode::PasswordInsecure) => {
                         mapped_errors.insert(SignupFormField::Password, String::from("Password is insecure"));
                     },
@@ -378,8 +383,9 @@ enum FakeApiResponse {
 
 #[repr(u32)]
 enum FakeApiSignupErrorCode {
-    UsernameReserved = 42,
+    UsernameInvalid = 2,
     UsernameUnavailable = 3,
+    UsernameReserved = 42,
     PasswordInsecure = 69,
 }
 
@@ -388,8 +394,9 @@ impl TryFrom<u32> for FakeApiSignupErrorCode {
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
-            42 => Ok(FakeApiSignupErrorCode::UsernameReserved),
+            2 => Ok(FakeApiSignupErrorCode::UsernameInvalid),
             3 => Ok(FakeApiSignupErrorCode::UsernameUnavailable),
+            42 => Ok(FakeApiSignupErrorCode::UsernameReserved),
             69 => Ok(FakeApiSignupErrorCode::PasswordInsecure),
             _ => Err(()),
         }
@@ -408,6 +415,16 @@ fn fake_service(request: FakeApiRequest) {
             // Simulate this api taking a while
             thread::sleep(Duration::from_secs(1));
 
+            // Simulate some arbitrary server-side validation rules not-known to the form
+            fn has_more_than_four_digits(s: &str) -> bool {
+                s.chars().filter(|c| c.is_digit(10)).count() > 4
+            }
+
+            fn contains_year(s: &str) -> bool {
+                let re = Regex::new(r"(?:^|\D)(19[0-9]{2}|20[0-9]{2})(?:\D|$)").unwrap();
+                re.is_match(s)
+            }
+
             let mut errors: Vec<u32> = Vec::default();
             if username == "admin" {
                 errors.push(
@@ -419,7 +436,14 @@ fn fake_service(request: FakeApiRequest) {
                     FakeApiSignupErrorCode::UsernameUnavailable.into(),
                 );
             }
-            if *password == "password" {
+
+            if has_more_than_four_digits(&username) || contains_year(&username) {
+                errors.push(
+                    FakeApiSignupErrorCode::UsernameInvalid.into(),
+                );
+            }
+
+            if *password == "password" || contains_year(&password) || password.eq(&username) {
                 errors.push(
                     FakeApiSignupErrorCode::PasswordInsecure.into(),
                 );
