@@ -52,12 +52,12 @@ enum NewUserState {
 }
 
 #[derive(Default)]
-struct SignupFormFields {
+struct SignupFormFieldState {
     username: Dynamic::<String>,
     password: Dynamic::<MaskedString>,
 }
 
-impl SignupFormFields {
+impl SignupFormFieldState {
     pub fn result(&self) -> LoginArgs {
         LoginArgs {
             username: self.username.get(),
@@ -75,9 +75,14 @@ struct LoginArgs {
 #[derive(Default)]
 struct SignupForm {
     state: Dynamic::<NewUserState>,
-    fields: SignupFormFields,
+    fields: SignupFormFieldState,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum SignupFormField {
+    Username,
+    Password,
+}
 
 impl SignupForm {
     fn build(self,
@@ -94,20 +99,21 @@ impl SignupForm {
         // A network request can take time, so rather than waiting on the API call
         // once we are ready to submit the form, we delegate the login process to a
         // background task using a channel.
-        let api_errors = Dynamic::default();
+        let field_errors: Dynamic<Map<SignupFormField, String>> = Dynamic::default();
+
         let login_handler = channel::build()
             .on_receive({
                 let form_state = self.state.clone();
                 let app_state = app_state.clone();
                 let api = api.clone();
-                let api_errors = api_errors.clone();
+                let form_errors = field_errors.clone();
                 move |login_args: LoginArgs| {
                     handle_login(
                         login_args,
                         &api,
                         &app_state,
                         &form_state,
-                        &api_errors,
+                        &form_errors,
                     );
                 }
             })
@@ -137,9 +143,9 @@ impl SignupForm {
         // callback and any error returned from the API for this field.
         let username_field = "Username"
             .and(
-                validated_field(SignupField::Username, form_fields.username
+                validated_field(SignupFormField::Username, form_fields.username
                     .to_input()
-                    .placeholder("Username"), &form_fields.username, &validations, &api_errors, |username| {
+                    .placeholder("Username"), &form_fields.username, &validations, &field_errors, |username| {
                     if username.is_empty() {
                         Err(String::from(
                             "usernames must contain at least one character",
@@ -161,11 +167,11 @@ impl SignupForm {
         let password_field = "Password"
             .and(
                 validated_field(
-                    SignupField::Password,
+                    SignupFormField::Password,
                     form_fields.password.to_input().placeholder("Password"),
                     &form_fields.password,
                     &validations,
-                    &api_errors,
+                    &field_errors,
                     |password| {
                         if password.len() < 8 {
                             Err(String::from("passwords must be at least 8 characters long"))
@@ -236,24 +242,23 @@ impl SignupForm {
             .scroll()
             .centered()
     }
-
 }
 
 
 /// Returns `widget` that is validated using `validate` and `api_errors`.
 fn validated_field<T>(
-    field: SignupField,
+    form_field: SignupFormField,
     widget: impl MakeWidget,
     value: &Dynamic<T>,
     validations: &Validations,
-    api_errors: &Dynamic<Map<SignupField, String>>,
+    form_errors: &Dynamic<Map<SignupFormField, String>>,
     mut validate: impl FnMut(&T) -> Result<(), String> + Send + 'static,
 ) -> Validated
 where
     T: Send + 'static,
 {
     // Create a dynamic that contains the error for this field, or None.
-    let api_error = api_errors.map_each(move |errors| errors.get(&field).cloned());
+    let api_error = form_errors.map_each(move |errors| errors.get(&form_field).cloned());
     // When the underlying value has been changed, we should invalidate the API
     // error since the edited value needs to be re-checked by the API.
     value
@@ -295,7 +300,7 @@ fn handle_login(
     api: &channel::Sender<FakeApiRequest>,
     app_state: &Dynamic<AppState>,
     form_state: &Dynamic<NewUserState>,
-    api_errors: &Dynamic<Map<SignupField, String>>,
+    form_errors: &Dynamic<Map<SignupFormField, String>>,
 ) {
     let request = FakeApiRequestKind::SignUp {
         username: login_args.username.clone(),
@@ -310,9 +315,30 @@ fn handle_login(
             app_state.set(AppState::LoggedIn { username: login_args.username });
             form_state.set(NewUserState::Done);
         }
-        FakeApiResponse::SignUpFailure(errors) => {
+        FakeApiResponse::SignUpFailure(mut errors) => {
             form_state.set(NewUserState::FormEntry);
-            api_errors.set(errors);
+
+            // match up the API errors to form errors, there may not be a 1:1 relationship with form fields and api errors
+            let mut mapped_errors: Map<SignupFormField, String> = Default::default();
+
+            for code in errors.drain(..).into_iter() {
+                match code.try_into() {
+                    Ok(FakeApiSignupErrorCode::UsernameReserved) |
+                    Ok(FakeApiSignupErrorCode::UsernameUnavailable)
+                    => {
+                        // handle the two cases with the same error message
+                        mapped_errors.insert(SignupFormField::Username, String::from("Username is a unavailable"));
+                    },
+                    Ok(FakeApiSignupErrorCode::PasswordInsecure) => {
+                        mapped_errors.insert(SignupFormField::Password, String::from("Password is insecure"));
+                    },
+                    Err(_) => {
+                        // another error occurred with the API, but this implementation doesn't know how to handle it
+                    }
+                }
+            }
+
+            form_errors.set(mapped_errors);
         }
     }
 }
@@ -345,14 +371,35 @@ struct FakeApiRequest {
 
 #[derive(Debug)]
 enum FakeApiResponse {
-    SignUpFailure(Map<SignupField, String>),
+    // the API returns numbers, which needs to be mapped to a specific error message
+    SignUpFailure(Vec<u32>),
     SignUpSuccess,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum SignupField {
-    Username,
-    Password,
+#[repr(u32)]
+enum FakeApiSignupErrorCode {
+    UsernameReserved = 42,
+    UsernameUnavailable = 3,
+    PasswordInsecure = 69,
+}
+
+impl TryFrom<u32> for FakeApiSignupErrorCode {
+    type Error = ();
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            42 => Ok(FakeApiSignupErrorCode::UsernameReserved),
+            3 => Ok(FakeApiSignupErrorCode::UsernameUnavailable),
+            69 => Ok(FakeApiSignupErrorCode::PasswordInsecure),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Into<u32> for FakeApiSignupErrorCode {
+    fn into(self) -> u32 {
+        self as u32
+    }
 }
 
 fn fake_service(request: FakeApiRequest) {
@@ -361,17 +408,20 @@ fn fake_service(request: FakeApiRequest) {
             // Simulate this api taking a while
             thread::sleep(Duration::from_secs(1));
 
-            let mut errors = Map::new();
+            let mut errors: Vec<u32> = Vec::default();
             if username == "admin" {
-                errors.insert(
-                    SignupField::Username,
-                    String::from("admin is a reserved username"),
+                errors.push(
+                    FakeApiSignupErrorCode::UsernameReserved.into(),
+                );
+            }
+            if username == "user" {
+                errors.push(
+                    FakeApiSignupErrorCode::UsernameUnavailable.into(),
                 );
             }
             if *password == "password" {
-                errors.insert(
-                    SignupField::Password,
-                    String::from("'password' is not a strong password"),
+                errors.push(
+                    FakeApiSignupErrorCode::PasswordInsecure.into(),
                 );
             }
 
