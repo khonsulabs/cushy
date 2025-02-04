@@ -35,7 +35,7 @@ fn main() -> cushy::Result {
         let tooltips = tooltips.clone();
         let modals = modals.clone();
         move |current_state, app_state| match current_state {
-            AppState::NewUser => signup_form(&tooltips, &modals, app_state, &api).make_widget(),
+            AppState::NewUser => SignupForm::default().build(&tooltips, &modals, app_state, &api).make_widget(),
             AppState::LoggedIn { username } => logged_in(username, app_state).make_widget(),
         }
     });
@@ -63,68 +63,75 @@ impl SignupFormFields {
     }
 }
 
-fn signup_form(
-    tooltips: &OverlayLayer,
-    modals: &Modal,
-    app_state: &Dynamic<AppState>,
-    api: &channel::Sender<FakeApiRequest>,
-) -> impl MakeWidget {
-    let form_state = Dynamic::<NewUserState>::default();
-    let form_fields = SignupFormFields::default();
+#[derive(Default)]
+struct SignupForm {
+    state: Dynamic::<NewUserState>,
+    fields: SignupFormFields,
+}
 
-    let password_confirmation = Dynamic::<MaskedString>::default();
-    let validations = Validations::default();
 
-    // A network request can take time, so rather than waiting on the API call
-    // once we are ready to submit the form, we delegate the login process to a
-    // background task using a channel.
-    let api_errors = Dynamic::default();
-    let login_handler = channel::build()
-        .on_receive({
-            let form_state = form_state.clone();
-            let app_state = app_state.clone();
-            let api = api.clone();
-            let api_errors = api_errors.clone();
-            move |(username, password)| {
-                handle_login(
-                    username,
-                    password,
-                    &api,
-                    &app_state,
-                    &form_state,
-                    &api_errors,
-                );
-            }
-        })
-        .finish();
+impl SignupForm {
+    fn build(self,
+             tooltips: &OverlayLayer,
+             modals: &Modal,
+             app_state: &Dynamic<AppState>,
+             api: &channel::Sender<FakeApiRequest>,
+    ) -> impl MakeWidget {
+        let form_fields = self.fields;
 
-    // When we are processing a signup request, we should display a modal with a
-    // spinner so that the user can't edit the form or click the sign-in button
-    // again.
-    let signup_modal = modals.new_handle();
-    form_state
-        .for_each(move |state| match state {
-            NewUserState::FormEntry { .. } | NewUserState::Done => signup_modal.dismiss(),
-            NewUserState::SigningUp => {
-                signup_modal.present(
-                    "Signing-up"
-                        .and(ProgressBar::indeterminant().spinner().centered())
-                        .into_rows()
-                        .pad()
-                        .centered()
-                        .contain(),
-                );
-            }
-        })
-        .persist();
+        let password_confirmation = Dynamic::<MaskedString>::default();
+        let validations = Validations::default();
 
-    // We use a helper in this file `validated_field` to combine our validation
-    // callback and any error returned from the API for this field.
-    let username_field = "Username"
-        .and(
-            validated_field(SignupField::Username, form_fields.username
-                .to_input()
-                .placeholder("Username"), &form_fields.username, &validations, &api_errors, |username| {
+        // A network request can take time, so rather than waiting on the API call
+        // once we are ready to submit the form, we delegate the login process to a
+        // background task using a channel.
+        let api_errors = Dynamic::default();
+        let login_handler = channel::build()
+            .on_receive({
+                let form_state = self.state.clone();
+                let app_state = app_state.clone();
+                let api = api.clone();
+                let api_errors = api_errors.clone();
+                move |(username, password)| {
+                    handle_login(
+                        username,
+                        password,
+                        &api,
+                        &app_state,
+                        &form_state,
+                        &api_errors,
+                    );
+                }
+            })
+            .finish();
+
+        // When we are processing a signup request, we should display a modal with a
+        // spinner so that the user can't edit the form or click the sign-in button
+        // again.
+        let signup_modal = modals.new_handle();
+        self.state
+            .for_each(move |state| match state {
+                NewUserState::FormEntry { .. } | NewUserState::Done => signup_modal.dismiss(),
+                NewUserState::SigningUp => {
+                    signup_modal.present(
+                        "Signing-up"
+                            .and(ProgressBar::indeterminant().spinner().centered())
+                            .into_rows()
+                            .pad()
+                            .centered()
+                            .contain(),
+                    );
+                }
+            })
+            .persist();
+
+        // We use a helper in this file `validated_field` to combine our validation
+        // callback and any error returned from the API for this field.
+        let username_field = "Username"
+            .and(
+                validated_field(SignupField::Username, form_fields.username
+                    .to_input()
+                    .placeholder("Username"), &form_fields.username, &validations, &api_errors, |username| {
                     if username.is_empty() {
                         Err(String::from(
                             "usernames must contain at least one character",
@@ -135,92 +142,95 @@ fn signup_form(
                         Ok(())
                     }
                 })
-                .hint("* required")
-                .tooltip(
-                    tooltips,
-                    "Your username uniquely identifies your account. It must only contain ascii letters and digits.",
-                ),
-        )
-        .into_rows();
-
-    let password_field = "Password"
-        .and(
-            validated_field(
-                SignupField::Password,
-                form_fields.password.to_input().placeholder("Password"),
-                &form_fields.password,
-                &validations,
-                &api_errors,
-                |password| {
-                    if password.len() < 8 {
-                        Err(String::from("passwords must be at least 8 characters long"))
-                    } else {
-                        Ok(())
-                    }
-                },
+                    .hint("* required")
+                    .tooltip(
+                        tooltips,
+                        "Your username uniquely identifies your account. It must only contain ascii letters and digits.",
+                    ),
             )
-            .hint("* required, 8 characters min")
-            .tooltip(tooltips, "Passwords are always at least 8 bytes long."),
-        )
-        .into_rows();
+            .into_rows();
 
-    // The password confirmation validation simply checks that the password and
-    // confirm password match.
-    let password_confirmation_result =
-        (&form_fields.password, &password_confirmation).map_each(|(password, confirmation)| {
-            if password == confirmation {
-                Ok(())
-            } else {
-                Err("Passwords must match")
-            }
-        });
+        let password_field = "Password"
+            .and(
+                validated_field(
+                    SignupField::Password,
+                    form_fields.password.to_input().placeholder("Password"),
+                    &form_fields.password,
+                    &validations,
+                    &api_errors,
+                    |password| {
+                        if password.len() < 8 {
+                            Err(String::from("passwords must be at least 8 characters long"))
+                        } else {
+                            Ok(())
+                        }
+                    },
+                )
+                    .hint("* required, 8 characters min")
+                    .tooltip(tooltips, "Passwords are always at least 8 bytes long."),
+            )
+            .into_rows();
 
-    let password_confirmation_field = "Confirm Password"
-        .and(
-            password_confirmation
-                .to_input()
-                .placeholder("Password")
-                .validation(validations.validate_result(password_confirmation_result)),
-        )
-        .into_rows();
+        // The password confirmation validation simply checks that the password and
+        // confirm password match.
+        let password_confirmation_result =
+            (&form_fields.password, &password_confirmation).map_each(|(password, confirmation)| {
+                if password == confirmation {
+                    Ok(())
+                } else {
+                    Err("Passwords must match")
+                }
+            });
 
-    let buttons = "Cancel"
-        .into_button()
-        .on_click(|_| {
-            eprintln!("Sign Up cancelled");
-            exit(0)
-        })
-        .into_escape()
-        .tooltip(tooltips, "This button quits the program")
-        .and(Expand::empty_horizontally())
-        .and(
-            "Sign Up"
-                .into_button()
-                .on_click(validations.when_valid(move |_| {
-                    // The form is valid and the sign-up button was clicked.
-                    // Send the request to our login handler background task
-                    // after setting the state to show the indeterminate
-                    // progress modal.
-                    form_state.set(NewUserState::SigningUp);
-                    login_handler
-                        .send(form_fields.result())
-                        .unwrap();
-                }))
-                .into_default(),
-        )
-        .into_columns();
+        let password_confirmation_field = "Confirm Password"
+            .and(
+                password_confirmation
+                    .to_input()
+                    .placeholder("Password")
+                    .validation(validations.validate_result(password_confirmation_result)),
+            )
+            .into_rows();
 
-    username_field
-        .and(password_field)
-        .and(password_confirmation_field)
-        .and(buttons)
-        .into_rows()
-        .contain()
-        .width(Lp::inches(3)..Lp::inches(6))
-        .pad()
-        .scroll()
-        .centered()
+        let buttons = "Cancel"
+            .into_button()
+            .on_click(|_| {
+                eprintln!("Sign Up cancelled");
+                exit(0)
+            })
+            .into_escape()
+            .tooltip(tooltips, "This button quits the program")
+            .and(Expand::empty_horizontally())
+            .and(
+                "Sign Up"
+                    .into_button()
+                    .on_click(validations.when_valid(move |_| {
+                        // The form is valid and the sign-up button was clicked.
+                        // Send the request to our login handler background task
+                        // after setting the state to show the indeterminate
+                        // progress modal.
+                        self.state.set(NewUserState::SigningUp);
+                        login_handler
+                            .send(form_fields.result())
+                            .unwrap();
+                    }))
+                    .into_default(),
+            )
+            .into_columns();
+
+        username_field
+            .and(password_field)
+            .and(password_confirmation_field)
+            .and(buttons)
+            .into_rows()
+            .contain()
+            .width(Lp::inches(3)..Lp::inches(6))
+            .pad()
+            .scroll()
+            .centered()
+    }
+
 }
+
 
 /// Returns `widget` that is validated using `validate` and `api_errors`.
 fn validated_field<T>(
