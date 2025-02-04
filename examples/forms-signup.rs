@@ -51,6 +51,18 @@ enum NewUserState {
     Done,
 }
 
+#[derive(Default)]
+struct SignupFormFields {
+    username: Dynamic::<String>,
+    password: Dynamic::<MaskedString>,
+}
+
+impl SignupFormFields {
+    pub fn result(&self) -> (String, MaskedString) {
+        (self.username.get(), self.password.get())
+    }
+}
+
 fn signup_form(
     tooltips: &OverlayLayer,
     modals: &Modal,
@@ -58,8 +70,8 @@ fn signup_form(
     api: &channel::Sender<FakeApiRequest>,
 ) -> impl MakeWidget {
     let form_state = Dynamic::<NewUserState>::default();
-    let username = Dynamic::<String>::default();
-    let password = Dynamic::<MaskedString>::default();
+    let form_fields = SignupFormFields::default();
+
     let password_confirmation = Dynamic::<MaskedString>::default();
     let validations = Validations::default();
 
@@ -110,9 +122,9 @@ fn signup_form(
     // callback and any error returned from the API for this field.
     let username_field = "Username"
         .and(
-            validated_field(SignupField::Username, username
+            validated_field(SignupField::Username, form_fields.username
                 .to_input()
-                .placeholder("Username"), &username, &validations, &api_errors, |username| {
+                .placeholder("Username"), &form_fields.username, &validations, &api_errors, |username| {
                     if username.is_empty() {
                         Err(String::from(
                             "usernames must contain at least one character",
@@ -135,8 +147,8 @@ fn signup_form(
         .and(
             validated_field(
                 SignupField::Password,
-                password.to_input().placeholder("Password"),
-                &password,
+                form_fields.password.to_input().placeholder("Password"),
+                &form_fields.password,
                 &validations,
                 &api_errors,
                 |password| {
@@ -155,7 +167,7 @@ fn signup_form(
     // The password confirmation validation simply checks that the password and
     // confirm password match.
     let password_confirmation_result =
-        (&password, &password_confirmation).map_each(|(password, confirmation)| {
+        (&form_fields.password, &password_confirmation).map_each(|(password, confirmation)| {
             if password == confirmation {
                 Ok(())
             } else {
@@ -191,7 +203,7 @@ fn signup_form(
                     // progress modal.
                     form_state.set(NewUserState::SigningUp);
                     login_handler
-                        .send((username.get(), password.get()))
+                        .send(form_fields.result())
                         .unwrap();
                 }))
                 .into_default(),
