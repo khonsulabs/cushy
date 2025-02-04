@@ -87,7 +87,7 @@ fn signup_form(
         .finish();
 
     // When we are processing a signup request, we should display a modal with a
-    // spinner so that the user can't edit the form or click the sign in button
+    // spinner so that the user can't edit the form or click the sign-in button
     // again.
     let signup_modal = modals.new_handle();
     form_state
@@ -185,9 +185,9 @@ fn signup_form(
             "Sign Up"
                 .into_button()
                 .on_click(validations.when_valid(move |_| {
-                    // The form is valid and the sign up button was clickeed.
+                    // The form is valid and the sign-up button was clicked.
                     // Send the request to our login handler background task
-                    // after setting the state to show the indeterminant
+                    // after setting the state to show the indeterminate
                     // progress modal.
                     form_state.set(NewUserState::SigningUp);
                     login_handler
