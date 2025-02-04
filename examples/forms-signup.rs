@@ -58,9 +58,18 @@ struct SignupFormFields {
 }
 
 impl SignupFormFields {
-    pub fn result(&self) -> (String, MaskedString) {
-        (self.username.get(), self.password.get())
+    pub fn result(&self) -> LoginArgs {
+        LoginArgs {
+            username: self.username.get(),
+            password: self.password.get(),
+        }
     }
+}
+
+#[derive(Debug)]
+struct LoginArgs {
+    username: String,
+    password: MaskedString,
 }
 
 #[derive(Default)]
@@ -92,10 +101,9 @@ impl SignupForm {
                 let app_state = app_state.clone();
                 let api = api.clone();
                 let api_errors = api_errors.clone();
-                move |(username, password)| {
+                move |login_args: LoginArgs| {
                     handle_login(
-                        username,
-                        password,
+                        login_args,
                         &api,
                         &app_state,
                         &form_state,
@@ -283,16 +291,15 @@ fn logged_in(username: &str, app_state: &Dynamic<AppState>) -> impl MakeWidget {
 }
 
 fn handle_login(
-    username: String,
-    password: MaskedString,
+    login_args: LoginArgs,
     api: &channel::Sender<FakeApiRequest>,
     app_state: &Dynamic<AppState>,
     form_state: &Dynamic<NewUserState>,
     api_errors: &Dynamic<Map<SignupField, String>>,
 ) {
     let request = FakeApiRequestKind::SignUp {
-        username: username.clone(),
-        password,
+        username: login_args.username.clone(),
+        password: login_args.password,
     };
 
     let response = request
@@ -300,7 +307,7 @@ fn handle_login(
 
     match response {
         FakeApiResponse::SignUpSuccess => {
-            app_state.set(AppState::LoggedIn { username });
+            app_state.set(AppState::LoggedIn { username: login_args.username });
             form_state.set(NewUserState::Done);
         }
         FakeApiResponse::SignUpFailure(errors) => {
