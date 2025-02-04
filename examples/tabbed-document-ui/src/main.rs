@@ -1,0 +1,700 @@
+use std::path;
+use std::path::PathBuf;
+use log::{debug, error, info, trace};
+use slotmap::SlotMap;
+use thiserror::Error;
+use unic_langid::LanguageIdentifier;
+use cushy::figures::units::{Lp, Px};
+use cushy::{localize, App, Application};
+use cushy::reactive::channel::{Receiver, Sender};
+use cushy::dialog::{FilePicker, FileType};
+use cushy::localization::Localization;
+use cushy::reactive::value::Dynamic;
+use cushy::widget::{IntoWidgetList, MakeWidget, WidgetInstance};
+use cushy::widgets::{Expand, Radio};
+use cushy::window::{PendingWindow, WindowHandle};
+use cushy::styles::components::IntrinsicPadding;
+use cushy::styles::Dimension;
+use crate::action::Action;
+use crate::app_tabs::document::{DocumentTab, DocumentTabAction, DocumentTabMessage};
+use crate::app_tabs::home::{HomeTab, HomeTabAction};
+use crate::app_tabs::new::{KindChoice, NewTab, NewTabAction};
+use crate::app_tabs::{TabKind, TabKindAction, TabKindMessage};
+use crate::config::Config;
+use crate::context::Context;
+use crate::documents::{DocumentKey, DocumentKind};
+use crate::documents::image::{ImageDocument, ImageDocumentMessage};
+use crate::documents::text::TextDocument;
+use crate::runtime::{Executor, MessageDispatcher, RunTime};
+use crate::task::{Task};
+use crate::widgets::tab_bar::{TabAction, TabBar, TabKey, TabMessage};
+
+mod config;
+mod widgets;
+mod global_context;
+mod context;
+mod app_tabs;
+mod documents;
+mod task;
+mod action;
+mod runtime;
+
+#[derive(Clone, Debug)]
+enum AppMessage {
+    TabMessage(TabMessage<TabKindMessage>),
+    ToolBarMessage(ToolbarMessage),
+    FileOpened(PathBuf),
+    ChooseFile(WindowHandle),
+}
+
+
+struct AppState {
+    tab_bar: Dynamic<TabBar<TabKind, TabKindMessage, TabKindAction>>,
+    config: Dynamic<Config>,
+    context: Dynamic<Context>,
+
+    documents: Dynamic<SlotMap<DocumentKey, DocumentKind>>,
+    app_message_sender: Sender<AppMessage>,
+}
+
+#[cushy::main]
+fn main(app: &mut App) -> cushy::Result {
+
+    let en_us_locale: LanguageIdentifier = "en-US".parse().unwrap();
+    let es_es_locale: LanguageIdentifier = "es-ES".parse().unwrap();
+
+    let languages: Vec<LanguageIdentifier> = vec![
+        en_us_locale,
+        es_es_locale
+    ];
+
+    let language_identifier: Dynamic<LanguageIdentifier> = Dynamic::new(languages.first().unwrap().clone());
+
+    app.cushy().localizations().add_default(
+        Localization::for_language(
+            "en-US",
+            include_str!("../assets/translations/en-US/translations.ftl"),
+        )
+            .expect("valid language id"),
+    );
+    app.cushy().localizations().add(
+        Localization::for_language(
+            "es-ES",
+            include_str!("../assets/translations/es-ES/translations.ftl"),
+        )
+            .expect("valid language id"),
+    );
+
+    let (app_message_sender, app_message_receiver) = cushy::reactive::channel::build()
+        .finish();
+
+    let (mut sender, receiver) = futures::channel::mpsc::unbounded();
+
+    let executor = Executor::new().expect("should be able to create an executor");
+    executor.spawn(MessageDispatcher::dispatch(receiver, app_message_sender.clone()));
+    let mut runtime = RunTime::new(executor, sender.clone());
+
+    let pending = PendingWindow::default();
+    let window = pending.handle();
+
+    let config = Dynamic::new(config::load());
+    let documents = Dynamic::new(SlotMap::default());
+
+    let tab_message_sender: Sender<TabMessage<TabKindMessage>> = cushy::reactive::channel::build()
+        .on_receive({
+            let app_message_sender = app_message_sender.clone();
+            move |tab_message| {
+                app_message_sender.send(AppMessage::TabMessage(tab_message))
+                    .map_err(|app_message|{
+                        error!("unable to forward, app_message: {:?}", app_message);
+                    }).ok();
+            }
+        })
+        .finish();
+
+    let tab_bar = Dynamic::new(TabBar::new(tab_message_sender));
+
+    let mut context = Context::default();
+    context.provide(config.clone());
+    context.provide(documents.clone());
+    context.provide(window);
+
+    let context = Dynamic::new(context);
+
+    let app_state = AppState {
+        tab_bar: tab_bar.clone(),
+        context: context.clone(),
+        config,
+        documents,
+        app_message_sender: app_message_sender.clone(),
+    };
+
+    let toolbar_message_sender: Sender<ToolbarMessage> = cushy::reactive::channel::build()
+        .on_receive({
+            let app_message_sender = app_message_sender.clone();
+            move |toolbar_message|{
+                debug!("forwarding toolbar message. message: {:?}", toolbar_message);
+                app_message_sender.send(AppMessage::ToolBarMessage(toolbar_message))
+                    .map_err(|app_message|{
+                        error!("unable to forward from toolbar, app_message: {:?}", app_message);
+                    })
+                    .ok();
+            }
+
+        })
+        .finish();
+
+    let toolbar = make_toolbar(toolbar_message_sender, language_identifier.clone(), &languages);
+
+    let ui_elements = [
+        toolbar.make_widget(),
+        app_state.tab_bar.lock().make_widget(),
+    ];
+
+    let dyn_app_state = Dynamic::new(app_state);
+
+    app_message_receiver.on_receive({
+        let dyn_app_state = dyn_app_state.clone();
+
+        move |app_message|{
+            trace!("received app_message: {:?}", app_message);
+            let task = dyn_app_state.lock().update(app_message);
+
+            if let Some(stream) = task::into_stream(task) {
+                runtime.run(stream);
+            }
+        }
+    })
+        .persist();
+
+    let ui = pending.with_root(
+        ui_elements
+            .into_rows()
+            .width(Px::new(640)..)
+            .height(Px::new(480)..)
+            .fit_vertically()
+            .fit_horizontally()
+            .with(&IntrinsicPadding, Px::new(4))
+            .localized_in(language_identifier)
+            .make_widget()
+    )
+        .on_open({
+
+            let app_message_sender = app_message_sender.clone();
+            let dyn_app_state = dyn_app_state.clone();
+
+            move |_window| {
+
+                app_message_sender.send(AppMessage::ToolBarMessage(ToolbarMessage::NewClicked)).expect("ok");
+
+                // FIXME this doesn't currently work since migrating to channels
+                /*
+                let tab_key = dyn_app_state.lock().tab_bar.lock().find_tab_by_label("New").unwrap();
+                trace!("New tab. key: {:?}", tab_key);
+
+                use crate::app_tabs::new::NewTabMessage;
+                app_message_sender.send(AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::NewTabMessage(NewTabMessage::OkClicked)))).expect("ok");
+                 */
+            }
+        })
+        .on_close({
+            let dyn_app_state = dyn_app_state.clone();
+            let config = dyn_app_state.lock().config.clone();
+            let documents = dyn_app_state.lock().documents.clone();
+            move ||{
+                update_open_documents(&config, &documents);
+
+                let config = config.lock();
+                info!("Saving config");
+                config::save(&*config);
+            }
+        })
+        // TODO add translation support for the window title.
+        .titled("Tabbed document UI");
+
+    {
+        let app_state_guard = dyn_app_state.lock();
+        let app_state = &*app_state_guard;
+
+
+        if app_state.config.lock().show_home_on_startup {
+            add_home_tab(&context, &app_state.tab_bar);
+        }
+    }
+
+    {
+        let paths = dyn_app_state.lock().config.lock().open_document_paths.clone();
+
+        let messages: Vec<_> = paths.iter().cloned().filter_map(|path|{
+            match dyn_app_state.lock().open_document(path) {
+                Ok(message) => Some(message),
+                Err(_error) => {
+                    // Silently ignore previously opened documents that cannot be loaded
+                    None
+                }
+            }
+        }).collect();
+
+        for message in messages {
+            // this causes deadlock
+            // dyn_app_state.lock().message.force_set(message);
+
+            // so it's required to use the sender instead
+            let _result = sender.start_send(message);
+        }
+    }
+
+    ui.open_centered(app)?;
+
+    // FIXME control never returns here (at least on windows)
+
+    Ok(())
+}
+
+impl AppState {
+    fn update(&mut self, message: AppMessage) -> Task<AppMessage> {
+        trace!("AppState::update, message: {:?}", message);
+        match message {
+            AppMessage::TabMessage(message) => {
+                let action = self.tab_bar.lock()
+                    .update(&self.context, message);
+
+                self.on_tab_action(action)
+            }
+            AppMessage::ToolBarMessage(message) => {
+                self
+                    .on_toolbar_message(message)
+            }
+            AppMessage::FileOpened(path) => {
+                match self.open_document(path) {
+                    Ok(message) => {
+                        Task::done(message)
+                    }
+                    Err(_error) => {
+                        // TODO improve error handling by using '_error'
+                        Task::none()
+                    }
+                }
+            }
+            AppMessage::ChooseFile(window) => {
+                let all_extensions: Vec<_> = SUPPORTED_TEXT_EXTENSIONS.iter().cloned().chain(SUPPORTED_IMAGE_EXTENSIONS.iter().cloned()).collect();
+
+                // TODO translate strings using the window's locale
+                FilePicker::new()
+                    .with_title("Open file")
+                    .with_types([
+                        FileType::from(("All supported files", into_array::<_, 6>(all_extensions))),
+                        FileType::from(("Text files", SUPPORTED_TEXT_EXTENSIONS)),
+                        FileType::from(("Image files", SUPPORTED_IMAGE_EXTENSIONS)),
+                    ])
+                    .pick_file(&window,{
+
+                        let app_message_sender = self.app_message_sender.clone();
+
+                        move |path|{
+                            if let Some(path) = path {
+                                debug!("file chosen. path: {:?}", path);
+                                app_message_sender.send(AppMessage::FileOpened(path))
+                                    .map_err(|message|error!("unable to send message: {:?}", message))
+                                    .ok();
+                            }
+                        }
+                    });
+
+                Task::none()
+            }
+        }
+    }
+
+    fn on_toolbar_message(&mut self, message: ToolbarMessage) -> Task<AppMessage> {
+        match message {
+            ToolbarMessage::HomeClicked => {
+                debug!("toolbar. home clicked");
+
+                add_home_tab(&self.context, &self.tab_bar);
+
+                Task::none()
+            }
+            ToolbarMessage::NewClicked => {
+                debug!("toolbar. New clicked");
+
+                self.add_new_tab();
+
+                Task::none()
+            }
+            ToolbarMessage::OpenClicked => {
+
+                let window = self.context.lock().with_context::<WindowHandle, _, _>(|window_handle| {
+                    window_handle.clone()
+                }).unwrap();
+
+                debug!("toolbar. open clicked");
+
+                Task::done(AppMessage::ChooseFile(window))
+            }
+            ToolbarMessage::CloseAllClicked => {
+                debug!("toolbar. close all clicked");
+                let closed_tabs = self.tab_bar.lock().close_all();
+                let tasks: Vec<_> = closed_tabs.into_iter().map(|(key, kind)|self.on_tab_closed(key, kind)).collect();
+
+                Task::batch(tasks)
+            }
+        }
+    }
+
+    fn add_new_tab(&self) {
+
+        //let new_tab_message: Dynamic<NewTabMessage> = Dynamic::default();
+        let (new_tab_sender, new_tab_receiver) = cushy::reactive::channel::build()
+            .finish();
+
+        let tab_key = self.tab_bar.lock()
+            .add_tab(&self.context, TabKind::New(NewTab::new(new_tab_sender)));
+
+        new_tab_receiver.on_receive({
+            let app_message_sender = self.app_message_sender.clone();
+            move |new_tab_message|{
+                app_message_sender.send(
+                    AppMessage::TabMessage(
+                        TabMessage::TabKindMessage(
+                            tab_key,
+                            TabKindMessage::NewTabMessage(new_tab_message)
+                        )
+                    )
+                )
+                    .map_err(|message|error!("unable to forward message: {:?}", message))
+                    .ok();
+            }
+        })
+            .persist();
+    }
+
+    fn on_tab_action(&mut self, action: Action<TabAction<TabKindAction, TabKind>>) -> Task<AppMessage> {
+        let action = action.into_inner();
+
+        match action {
+            TabAction::TabSelected(tab_key) => {
+                debug!("tab selected, key: {:?}", tab_key);
+                Task::none()
+            },
+            TabAction::TabClosed(tab_key, tab) => {
+                self.on_tab_closed(tab_key, tab);
+
+                Task::none()
+            },
+            TabAction::TabAction(tab_key, tab_action) => {
+                debug!("tab action. key: {:?}, action: {:?}", tab_key, tab_action);
+                match tab_action {
+                    TabKindAction::HomeTabAction(_tab_key, action) => {
+                        match action {
+                            HomeTabAction::None => Task::none(),
+                        }
+                    },
+                    TabKindAction::DocumentTabAction(_tab_key, action) => {
+                        match action {
+                            DocumentTabAction::None => Task::none(),
+                            DocumentTabAction::ImageDocumentTask(task) => {
+                                task.map(move |message|{
+                                    AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::ImageDocumentMessage(message))))
+                                })
+                            }
+                            DocumentTabAction::TextDocumentTask(task) => {
+                                task.map(move |message|{
+                                    AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::TextDocumentMessage(message))))
+                                })
+                            }
+                        }
+                    },
+                    TabKindAction::NewTabAction(tab_key, action) => {
+                        match action {
+                            NewTabAction::None => Task::none(),
+                            NewTabAction::CreateDocument(name, path, kind) => {
+                                self.create_document(tab_key, name, path, kind)
+                            }
+                            NewTabAction::Task(task) => {
+                                task.map(move |message|{
+                                    AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::NewTabMessage(message)))
+                                })
+                            }
+                        }
+                    }
+                }
+            }
+            TabAction::None => Task::none(),
+        }
+    }
+
+    fn on_tab_closed(&mut self, tab_key: TabKey, tab: TabKind) -> Task<AppMessage> {
+        debug!("tab closed, key: {:?}", tab_key);
+        match tab {
+            TabKind::Home(_tab) => (),
+            TabKind::Document(tab) => {
+                self.documents.lock().remove(tab.document_key);
+            }
+            TabKind::New(_tab) => ()
+        }
+        Task::none()
+    }
+
+    fn create_document(&self, tab_key: TabKey, mut name: String, mut path: PathBuf, kind: KindChoice) -> Task<AppMessage> {
+        info!("creating document. kind: {:?}, name: {:?}, path: {:?}", kind, name, path);
+
+        let (document_tab_sender, document_tab_receiver) = cushy::reactive::channel::build()
+            .finish();
+
+        self.create_document_tab_mapping(document_tab_receiver, tab_key);
+
+        match kind {
+            KindChoice::Text => {
+                name.push_str(".txt");
+                path.push(&name);
+
+                let (text_document, message) = TextDocument::create_new(path.clone());
+                let document = DocumentKind::TextDocument(text_document);
+
+                let document_key = self.documents.lock().insert(document);
+                let document_tab = DocumentTab::new(document_key);
+
+                self.tab_bar.lock().replace(tab_key, &self.context, TabKind::Document(document_tab));
+
+                let task_message = AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::TextDocumentMessage(message))));
+                Task::done(task_message)
+            }
+            KindChoice::Image => {
+                name.push_str(".png");
+                path.push(&name);
+
+                let (image_document_sender, image_document_receiver) = cushy::reactive::channel::build().finish();
+                Self::make_image_document_mapper(document_tab_sender, image_document_receiver);
+
+                let (image_document, message) = ImageDocument::create_new(path.clone(), image_document_sender);
+                let document = DocumentKind::ImageDocument(image_document);
+
+                let document_key = self.documents.lock().insert(document);
+                let document_tab = DocumentTab::new(document_key);
+
+                self.tab_bar.lock().replace(tab_key, &self.context, TabKind::Document(document_tab));
+
+                let task_message = AppMessage::TabMessage(
+                    TabMessage::TabKindMessage(
+                        tab_key,
+                        TabKindMessage::DocumentTabMessage(
+                            DocumentTabMessage::ImageDocumentMessage(message)
+                        )
+                    )
+                );
+                Task::done(task_message)
+            }
+        }
+    }
+
+    fn make_image_document_mapper(document_tab_sender: Sender<DocumentTabMessage>, image_document_receiver: Receiver<ImageDocumentMessage>) {
+        image_document_receiver.on_receive({
+            move |message|{
+                document_tab_sender.send(DocumentTabMessage::ImageDocumentMessage(message))
+                    .map_err(|message|{
+                        error!("unable to forward image document message. message: {:?}", message);
+                    })
+                    .ok();
+            }
+        })
+            .persist();
+    }
+
+    fn open_document(
+        &self,
+        path: PathBuf
+    ) -> Result<AppMessage, OpenDocumentError> {
+        info!("opening document. path: {:?}", path);
+
+        let path = path::absolute(path)
+            .or_else(|cause| Err(OpenDocumentError::IoError { cause }))?;
+
+        let extension = path.extension().unwrap().to_str().unwrap();
+
+        let (document_tab_sender, document_tab_receiver) = cushy::reactive::channel::build()
+            .finish();
+
+        let message = if SUPPORTED_TEXT_EXTENSIONS.contains(&extension) {
+            let (text_document, message) = TextDocument::from_path(path);
+            let document = DocumentKind::TextDocument(text_document);
+
+            let tab_key = self.make_document_tab(document, document_tab_receiver);
+            AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::TextDocumentMessage(message))))
+        } else if SUPPORTED_IMAGE_EXTENSIONS.contains(&extension) {
+            let (image_document_sender, image_document_receiver) = cushy::reactive::channel::build().finish();
+            Self::make_image_document_mapper(document_tab_sender, image_document_receiver);
+
+            let (image_document, message) = ImageDocument::from_path(path, image_document_sender);
+            let document = DocumentKind::ImageDocument(image_document);
+
+            let tab_key = self.make_document_tab(document, document_tab_receiver);
+            AppMessage::TabMessage(TabMessage::TabKindMessage(tab_key, TabKindMessage::DocumentTabMessage(DocumentTabMessage::ImageDocumentMessage(message))))
+        } else {
+            return Err(OpenDocumentError::UnsupportedFileExtension { extension: extension.to_string() });
+        };
+
+        trace!("open_document message: {:?}", message);
+
+        Ok(message)
+    }
+
+    fn make_document_tab(&self, document: DocumentKind, document_tab_receiver: Receiver<DocumentTabMessage>) -> TabKey {
+        let document_key = self.documents.lock().insert(document);
+
+        let document_tab = DocumentTab::new(document_key);
+
+        let mut tab_bar_guard = self.tab_bar.lock();
+        let tab_key = tab_bar_guard.add_tab(&self.context, TabKind::Document(document_tab));
+
+        self.create_document_tab_mapping(document_tab_receiver, tab_key);
+
+        tab_key
+    }
+
+    fn create_document_tab_mapping(&self, document_tab_receiver: Receiver<DocumentTabMessage>, tab_key: TabKey) {
+
+        document_tab_receiver.on_receive({
+            let app_message_sender = self.app_message_sender.clone();
+            move |document_tab_message| {
+                app_message_sender.send(
+                    AppMessage::TabMessage(
+                        TabMessage::TabKindMessage(
+                            tab_key,
+                            TabKindMessage::DocumentTabMessage(document_tab_message)
+                        )
+                    )
+                )
+                    .map_err(|message|{
+                        error!("unable to forward document tab message. message: {:?}", message);
+                    })
+                    .ok();
+            }
+        })
+            .persist()
+    }
+}
+
+fn update_open_documents(config: &Dynamic<Config>, documents: &Dynamic<SlotMap<DocumentKey, DocumentKind>>) {
+    let open_documents: Vec<PathBuf> = documents.lock().iter()
+        .map(|(_key, document)| {
+            match document {
+                DocumentKind::TextDocument(document) => document.path.clone(),
+                DocumentKind::ImageDocument(document) => document.path.clone(),
+            }
+        })
+        .collect();
+
+    info!("open_documents: {:?}", open_documents);
+    config.lock().open_document_paths = open_documents;
+}
+
+#[derive(Error, Debug)]
+enum OpenDocumentError {
+    #[error("Unsupported file type. extension: {extension}")]
+    UnsupportedFileExtension{extension: String},
+    #[error("IO error, cause: {cause}")]
+    IoError{cause: std::io::Error},
+}
+
+const SUPPORTED_IMAGE_EXTENSIONS: [&'static str; 5] = ["bmp", "png", "jpg", "jpeg", "svg"];
+const SUPPORTED_TEXT_EXTENSIONS: [&'static str; 1] = ["txt"];
+
+#[derive(Clone, Debug)]
+pub enum ToolbarMessage {
+    OpenClicked,
+    HomeClicked,
+    NewClicked,
+    CloseAllClicked,
+}
+
+fn make_toolbar(toolbar_message_sender: Sender<ToolbarMessage>, language_identifier: Dynamic<LanguageIdentifier>, languages: &Vec<LanguageIdentifier>) -> WidgetInstance {
+    let button_padding = Dimension::Lp(Lp::points(4));
+
+    let home_button = localize!("toolbar-button-home")
+        .into_button()
+        .on_click({
+            let toolbar_message_sender = toolbar_message_sender.clone();
+            move |_event| { let _ = toolbar_message_sender.send(ToolbarMessage::HomeClicked); }
+        })
+        .with(&IntrinsicPadding, button_padding);
+
+    let new_button = localize!("toolbar-button-new")
+        .into_button()
+        .on_click({
+            let toolbar_message_sender = toolbar_message_sender.clone();
+            move |_event| { let _ = toolbar_message_sender.send(ToolbarMessage::NewClicked); }
+        })
+        .with(&IntrinsicPadding, button_padding);
+
+    let open_button = localize!("toolbar-button-open")
+        .into_button()
+        .on_click({
+            let toolbar_message_sender = toolbar_message_sender.clone();
+            move |_event| { let _ = toolbar_message_sender.send(ToolbarMessage::OpenClicked); }
+        })
+        .with(&IntrinsicPadding, button_padding);
+
+    let close_all_button = localize!("toolbar-button-close-all")
+        .into_button()
+        .on_click({
+            let toolbar_message_sender = toolbar_message_sender.clone();
+            move |_event| { let _ = toolbar_message_sender.send(ToolbarMessage::CloseAllClicked); }
+        })
+        .with(&IntrinsicPadding, button_padding);
+
+    // TODO use a drop-down/pop-up instead of a radio group
+    let language_radio_buttons: Vec<WidgetInstance> = languages.iter().map(|language|{
+        Radio::new(language.clone(), language_identifier.clone())
+            // TODO show human-readable language names
+            //      in the format "<Country in current locale> (<Language in current locale>) - <Country in native locale> (<Languge in native locale>)
+            //      e.g. given the current locale of "en-US", display: "Spanish (Spain) - Español (España)" for "es-ES"
+            .labelled_by(language.to_string())
+            .make_widget()
+    }).collect();
+
+    let language_selector = language_radio_buttons
+        .into_columns();
+
+    let toolbar_widgets: [WidgetInstance; 6] = [
+        home_button.make_widget(),
+        new_button.make_widget(),
+        open_button.make_widget(),
+        close_all_button.make_widget(),
+        Expand::empty().make_widget(),
+        language_selector.make_widget(),
+    ];
+
+    let toolbar = toolbar_widgets
+        .into_columns()
+        .contain()
+        .make_widget();
+
+    toolbar
+}
+
+fn add_home_tab(context: &Dynamic<Context>, tab_bar: &Dynamic<TabBar<TabKind, TabKindMessage, TabKindAction>>) {
+    let mut tab_bar_guard = tab_bar
+        .lock();
+
+    let home_tab_result = tab_bar_guard.with_tabs(|mut iter|{
+        iter.find_map(move |(_key, tab)|
+            match tab {
+                TabKind::Home(tab) => Some((_key, tab.clone())),
+                _ => None
+            }
+        )
+    });
+
+    if let Some((key, _tab)) = home_tab_result {
+        tab_bar_guard.activate(key);
+    } else {
+        tab_bar_guard
+            .add_tab(context, TabKind::Home(HomeTab::default()));
+    }
+}
+
+fn into_array<T, const N: usize>(v: Vec<T>) -> [T; N] {
+    v.try_into()
+        .unwrap_or_else(|v: Vec<T>| panic!("Incorrect element count. required: {}, actual: {}", N, v.len()))
+}

@@ -1,5 +1,5 @@
 [workspace]
-members = ["cushy-macros", "guide/guide-examples"]
+members = ["cushy-macros", "guide/guide-examples", "examples/tabbed-document-ui"]
 
 [package]
 name = "cushy"
