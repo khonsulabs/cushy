@@ -280,11 +280,14 @@ fn handle_login(
     form_state: &Dynamic<NewUserState>,
     api_errors: &Dynamic<Map<SignupField, String>>,
 ) {
-    let response = FakeApiRequestKind::SignUp {
+    let request = FakeApiRequestKind::SignUp {
         username: username.clone(),
         password,
-    }
-    .send_to(api);
+    };
+
+    let response = request
+        .send_to(api);
+
     match response {
         FakeApiResponse::SignUpSuccess => {
             app_state.set(AppState::LoggedIn { username });
