@@ -343,7 +343,8 @@ fn handle_login(
                 }
             }
 
-            form_errors.set(mapped_errors);
+            // Using `force_set` here, not `set`, in case the resulting `mapped_errors` were the same as the last time the API was used.
+            form_errors.force_set(mapped_errors);
         }
     }
 }
