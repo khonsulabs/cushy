@@ -63,6 +63,7 @@ nominals = "0.3.0"
 parking_lot = "0.12.1"
 easing-function = "0.1.1"
 serde = { version = "1.0.210", features = ["derive"], optional = true }
+regex = "1.11.1"
 
 
 # [patch.crates-io]

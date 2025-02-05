@@ -845,6 +845,7 @@ dependencies = [
  "png",
  "pollster",
  "rand",
+ "regex",
  "rfd",
  "serde",
  "sys-locale",
