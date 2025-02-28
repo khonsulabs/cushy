@@ -155,9 +155,9 @@ use crate::ConstraintLimit;
 /// layout functions, it needs to ensure that all depended upon [`Dynamic`]s are
 /// tracked using one of the various
 /// `*_tracking_redraw()`/`*_tracking_invalidate()` functions. For example,
-/// [`Source::get_tracking_redraw()`](crate::value::Source::get_tracking_redraw)
+/// [`Source::get_tracking_redraw()`](crate::reactive::value::Source::get_tracking_redraw)
 /// and
-/// [`Source::get_tracking_invalidate()`](crate::value::Source::get_tracking_invalidate).
+/// [`Source::get_tracking_invalidate()`](crate::reactive::value::Source::get_tracking_invalidate).
 ///
 /// # Hover State: Hit Testing
 ///
@@ -2531,7 +2531,7 @@ impl WidgetList {
         mut change_fn: impl FnMut(&mut Collection, ChildrenSyncChange),
     ) {
         for (index, widget) in self.iter().enumerate() {
-            if get_index(collection, index).map_or(true, |child| child != widget) {
+            if get_index(collection, index) != Some(widget) {
                 // These entries do not match. See if we can find the
                 // new id somewhere else, if so we can swap the entries.
                 if let Some(Some(swap_index)) = (index + 1..usize::MAX).find_map(|index| {

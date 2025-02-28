@@ -290,15 +290,11 @@ impl VirtualList {
             while self
                 .items
                 .front()
-                .map_or(false, |item| item.index < start_item)
+                .is_some_and(|item| item.index < start_item)
             {
                 context.remove_child(&self.items.pop_front().expect("at least one item").mounted);
             }
-            while self
-                .items
-                .back()
-                .map_or(false, |item| item.index > end_item)
-            {
+            while self.items.back().is_some_and(|item| item.index > end_item) {
                 context.remove_child(&self.items.pop_back().expect("at least one item").mounted);
             }
             // no extend front :(

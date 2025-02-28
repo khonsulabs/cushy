@@ -557,7 +557,7 @@ impl App {
     where
         Callback: FnOnce(&ExecutingApp<'_, WindowCommand>) + Send + 'static,
     {
-        self.app.as_ref().map_or(false, |app| app.execute(callback))
+        self.app.as_ref().is_some_and(|app| app.execute(callback))
     }
 }
 

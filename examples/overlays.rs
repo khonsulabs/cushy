@@ -6,7 +6,7 @@ use cushy::widget::{MakeWidget, MakeWidgetWithTag, WidgetTag};
 use cushy::widgets::container::ContainerShadow;
 use cushy::widgets::layers::{OverlayBuilder, OverlayLayer, Overlayable};
 use cushy::Run;
-use rand::{thread_rng, Rng};
+use rand::{rng, Rng};
 
 fn main() -> cushy::Result {
     let overlay = OverlayLayer::default();
@@ -35,9 +35,9 @@ fn test_widget(overlay: &OverlayLayer, is_root: bool) -> impl MakeWidget {
     if !is_root {
         buttons = buttons
             .background_color(Color::new(
-                thread_rng().gen(),
-                thread_rng().gen(),
-                thread_rng().gen(),
+                rng().random(),
+                rng().random(),
+                rng().random(),
                 255,
             ))
             .shadow(

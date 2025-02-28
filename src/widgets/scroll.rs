@@ -899,7 +899,7 @@ impl Widget for ScrollBar {
         self.drag.mouse_buttons_down -= 1;
 
         if self.drag.mouse_buttons_down == 0 {
-            if location.map_or(false, |location| {
+            if location.is_some_and(|location| {
                 let offset = if self.vertical {
                     location.y
                 } else {
