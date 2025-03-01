@@ -92,7 +92,7 @@ name = "plotters"
 required-features = ["plotters"]
 
 [[example]]
-name = "tokio"
+name = "tasks-tokio"
 required-features = ["tokio"]
 
 [[example]]
