@@ -549,14 +549,12 @@ impl_unwrapped_for_source!(Owned);
 
 /// A destination for values of type `T`.
 pub trait Destination<T> {
-    /// Maps the contents with exclusive access. Before returning from this
-    /// function, all observers will be notified that the contents have been
-    /// updated.
+    /// Maps the contents with exclusive access. All observers will be notified
+    /// at some point in the future if the value has been changed.
     fn try_map_mut<R>(&self, map: impl FnOnce(Mutable<'_, T>) -> R) -> Result<R, DeadlockError>;
 
-    /// Maps the contents with exclusive access. Before returning from this
-    /// function, all observers will be notified that the contents have been
-    /// updated.
+    /// Maps the contents with exclusive access. All observers will be notified
+    /// at some point in the future if the value has been changed.
     ///
     /// # Panics
     ///
@@ -570,9 +568,8 @@ pub trait Destination<T> {
     /// the currently stored value. If the value is updated, the previous
     /// contents are returned.
     ///
-    ///
-    /// Before returning from this function, all observers will be notified that
-    /// the contents have been updated.
+    /// All observers will be notified at some point in the future if the value
+    /// has been changed.
     ///
     /// # Errors
     ///
@@ -597,8 +594,8 @@ pub trait Destination<T> {
     }
 
     /// Replaces the contents with `new_value`, returning the previous contents.
-    /// Before returning from this function, all observers will be notified that
-    /// the contents have been updated.
+    /// All observers will be notified at some point in the future if the value
+    /// has been changed.
     ///
     /// If the calling thread has exclusive access to the contents of this
     /// dynamic, this call will return None and the value will not be updated.
@@ -622,8 +619,8 @@ pub trait Destination<T> {
         self.try_replace(new_value).ok()
     }
 
-    /// Stores `new_value` in this dynamic. Before returning from this function,
-    /// all observers will be notified that the contents have been updated.
+    /// Stores `new_value` in this dynamic. All observers will be notified at
+    /// some point in the future if the value has been changed.
     ///
     /// If the calling thread has exclusive access to the contents of this
     /// dynamic, this call will return None and the value will not be updated.
@@ -636,14 +633,23 @@ pub trait Destination<T> {
     /// "noisy". Cushy attempts to minimize noise by only invoking callbacks
     /// when the value has changed, and it detects this by using `PartialEq`.
     ///
-    /// However, not all types implement `PartialEq`.
-    /// [`map_mut()`](Self::map_mut) does not require `PartialEq`, and will
-    /// invoke change callbacks after accessing exclusively.
+    /// However, not all types implement `PartialEq`. See
+    /// [`force_set()`](Self::force_set).
     fn set(&self, new_value: T)
     where
         T: PartialEq,
     {
         let _old = self.replace(new_value);
+    }
+
+    /// Stores `new_value` in this dynamic without checking for equality.
+    ///
+    /// All observers will be notified at some point that this dynamic's
+    /// contents have been changed.
+    fn force_set(&self, new_value: T) {
+        self.map_mut(|mut old_value| {
+            *old_value = new_value;
+        });
     }
 
     /// Replaces the current value with `new_value` if the current value is

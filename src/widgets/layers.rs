@@ -324,7 +324,7 @@ impl OverlayState {
             if overlay.requires_hover
                 && !overlay
                     .layout
-                    .map_or(false, |check| !check.contains(location))
+                    .is_some_and(|check| !check.contains(location))
             {
                 return Some(index + 1);
             }
@@ -512,7 +512,7 @@ impl OverlayState {
         for index in (0..self.overlays.len()).filter(|&i| i != checking_index) {
             if self.overlays[index]
                 .layout
-                .map_or(false, |check| check.intersects(layout))
+                .is_some_and(|check| check.intersects(layout))
             {
                 return true;
             }

@@ -2952,11 +2952,7 @@ where
                     Some(Ize::Minimize) => (true, false),
                     None => (false, false),
                 };
-                if window
-                    .winit()
-                    .is_minimized()
-                    .map_or(true, |minimized| minimized != minimize)
-                {
+                if window.winit().is_minimized() != Some(minimize) {
                     window.winit().set_minimized(minimize);
                 }
                 if window.winit().is_maximized() != maximize {
@@ -4463,9 +4459,9 @@ impl Capture {
     {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         self.texture.copy_to_buffer(
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &self.buffer,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(self.bytes_per_row),
                     rows_per_image: None,

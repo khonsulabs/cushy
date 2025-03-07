@@ -29,9 +29,8 @@ use crate::ConstraintLimit;
 ///   parent container uses a color instead of a level,
 ///   [`ContainerLevel::Lowest`] will be used.
 /// - [`ContainerBackground::Color`]: The specified color will be drawn.
-/// - [`ContainerBackground::Level`]: The
-///   [`SurfaceTheme`](crate::styles::SurfaceTheme) container color associated
-///   with the given level will be used.
+/// - [`ContainerBackground::Level`]: The [`SurfaceTheme`](crate::styles::SurfaceTheme)
+///   container color associated with the given level will be used.
 #[derive(Debug)]
 pub struct Container {
     /// The configured background selection.

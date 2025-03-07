@@ -12,10 +12,7 @@ use crate::App;
 
 impl MessageButtons {
     fn as_rfd_buttons(&self) -> rfd::MessageButtons {
-        let cancel_is_custom = self
-            .cancel
-            .as_ref()
-            .map_or(false, |b| !b.caption.is_empty());
+        let cancel_is_custom = self.cancel.as_ref().is_some_and(|b| !b.caption.is_empty());
         match self.kind {
             MessageButtonsKind::YesNo => {
                 let negative = self.negative.as_ref().expect("no button");
@@ -159,8 +156,7 @@ fn handle_message_result(result: &MessageDialogResult, buttons: &MessageButtons)
                 buttons.affirmative.callback.invoke();
             } else if let Some(negative) = buttons.negative.as_ref().filter(|negative| {
                 &negative.caption == caption
-                    || default_negative
-                        .map_or(false, |default_negative| default_negative == caption)
+                    || default_negative.is_some_and(|default_negative| default_negative == caption)
             }) {
                 negative.callback.invoke();
             } else if let Some(cancel) = buttons

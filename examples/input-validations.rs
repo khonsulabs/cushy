@@ -42,7 +42,7 @@ fn main() -> cushy::Result {
             // Allow ascii control characters for text navigation and deletion.
             key if key
                 .to_text()
-                .map_or(false, |text| text.chars().all(|c| !c.is_ascii_control())) =>
+                .is_some_and(|text| text.chars().all(|c| !c.is_ascii_control())) =>
             {
                 HANDLED
             }

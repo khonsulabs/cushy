@@ -98,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Label`s centered their content when sized larger than the text they
   contained. The defaults for the alignment components are left and top,
   respectively.
-- `wgpu` has been updated to `v23.0.0`.
+- `wgpu` has been updated to `v24.0.1`.
 - Embedding a `Expand` in a `Stack` or `Grid` now honors both directions of
   expansion. This may cause layouts that use
   `Expand::expand()`/`MakeWidget::expand()` inside of a stack to behave
@@ -430,6 +430,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `for_each_unwrapped` for callback attachment and `unwrapped()` to create a
   `Dynamic<T>` that is updated only when the source contains `Ok(_)` or
   `Some(_)`.
+- `Destination::force_set` is a new function that always updates the destination
+  with the specified value. Many functions use `PartialEq` to short-circuit
+  update notifications that don't change the underlying value. This new API will
+  always notify observers.
 
 [fluent]: https://projectfluent.org/
 [139]: https://github.com/khonsulabs/cushy/issues/139
