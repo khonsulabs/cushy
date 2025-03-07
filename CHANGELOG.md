@@ -430,6 +430,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `for_each_unwrapped` for callback attachment and `unwrapped()` to create a
   `Dynamic<T>` that is updated only when the source contains `Ok(_)` or
   `Some(_)`.
+- `Destination::force_set` is a new function that always updates the destination
+  with the specified value. Many functions use `PartialEq` to short-circuit
+  update notifications that don't change the underlying value. This new API will
+  always notify observers.
 
 [fluent]: https://projectfluent.org/
 [139]: https://github.com/khonsulabs/cushy/issues/139

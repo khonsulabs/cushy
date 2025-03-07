@@ -648,7 +648,7 @@ pub trait Destination<T> {
     /// contents have been changed.
     fn force_set(&self, new_value: T) {
         self.map_mut(|mut old_value| {
-            let _old_value = std::mem::replace(&mut *old_value, new_value);
+            *old_value = new_value;
         });
     }
 
