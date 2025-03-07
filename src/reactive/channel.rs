@@ -40,7 +40,7 @@
 //! callbacks to be executed when values are sent. Instead of needing to
 //! manually spawn threads or async tasks, these callbacks are automatically
 //! scheduled by Cushy, making channel reactivity feel similar to
-//! [`Dynamic<T>`](crate::value::Dynamic) reactivity. However, channels
+//! [`Dynamic<T>`](crate::reactive::value::Dynamic) reactivity. However, channels
 //! guarantee that the callbacks associated with them receive *every* value
 //! written, while dynamics only guarantee that the latest written value will be
 //! observed.

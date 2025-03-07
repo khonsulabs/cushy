@@ -5,6 +5,10 @@
     clippy::missing_errors_doc,
     clippy::doc_lazy_continuation
 )]
+// Recursion limit setting is necessary after updating from wgpu 23.0.0 to
+// 24.0.0 caused "error[E0275]: overflow evaluating the requirement
+// `NumericType: Sync`".
+#![recursion_limit = "256"]
 
 // for proc-macros
 extern crate core;

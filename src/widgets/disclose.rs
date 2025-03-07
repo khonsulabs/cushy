@@ -346,7 +346,7 @@ impl Widget for DiscloseIndicator {
             self.deactivate(context);
             self.collapsed.toggle();
         }
-        let hovering = location.map_or(false, |location| self.hit_test(location, context));
+        let hovering = location.is_some_and(|location| self.hit_test(location, context));
         if hovering != self.hovering_indicator {
             self.hovering_indicator = hovering;
             context.set_needs_redraw();

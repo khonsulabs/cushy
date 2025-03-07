@@ -38,7 +38,7 @@ fn monitor_info(index: usize, monitor: Monitor, primary: Option<&Monitor>) -> im
     let mut name = monitor
         .name()
         .unwrap_or_else(|| format!("Monitor {}", index + 1));
-    if primary.map_or(false, |primary| primary == &monitor) {
+    if primary == Some(&monitor) {
         name.push_str(" (Primary)");
     }
     let region = monitor.region();

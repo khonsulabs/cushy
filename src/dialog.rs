@@ -876,7 +876,7 @@ impl MakeWidget for FilePickerWidget {
                                         let full_path = full_path.clone();
                                         move |click| {
                                             if kind.is_multiple()
-                                                && click.map_or(false, |click| {
+                                                && click.is_some_and(|click| {
                                                     click.modifiers.state().primary()
                                                 })
                                             {
