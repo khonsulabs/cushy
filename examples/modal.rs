@@ -1,5 +1,5 @@
 use cushy::dialog::ShouldClose;
-use cushy::value::{Dynamic, Source, Validations};
+use cushy::reactive::value::{Dynamic, Source, Validations};
 use cushy::widget::MakeWidget;
 use cushy::widgets::label::Displayable;
 use cushy::widgets::layers::Modal;
