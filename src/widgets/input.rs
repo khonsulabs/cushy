@@ -30,7 +30,7 @@ use crate::styles::components::{HighlightColor, IntrinsicPadding, OutlineColor, 
 use crate::utils::ModifiersExt;
 use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
 use crate::window::KeyEvent;
-use crate::{ConstraintLimit, FitMeasuredSize, Lazy};
+use crate::{ConstraintLimit, FitMeasuredSize, Lazy, MaybeLocalized};
 
 const CURSOR_BLINK_DURATION: Duration = Duration::from_millis(500);
 
@@ -40,7 +40,7 @@ pub struct Input<Storage = String> {
     /// The value of this widget.
     pub value: Dynamic<Storage>,
     /// The placeholder text to display when no value is present.
-    pub placeholder: Value<String>,
+    pub placeholder: Value<MaybeLocalized>,
     mask_symbol: Value<CowString>,
     mask: CowString,
     on_key: Option<Callback<KeyEvent, EventHandling>>,
@@ -129,7 +129,7 @@ where
 
     /// Sets the `placeholder` text, which is displayed when the field has an
     /// empty value.
-    pub fn placeholder(mut self, placeholder: impl IntoValue<String>) -> Self {
+    pub fn placeholder(mut self, placeholder: impl IntoValue<MaybeLocalized>) -> Self {
         self.placeholder = placeholder.into_value();
         self
     }
@@ -607,7 +607,11 @@ where
                     }
 
                     let placeholder_color = context.theme().surface.on_color_variant;
-                    let placeholder = self.placeholder.map(|placeholder| context.gfx.measure_text(Text::new(placeholder, placeholder_color)));
+                    let placeholder = self.placeholder.map(|placeholder| {
+                        let text = placeholder.localize(context).to_string();
+
+                        context.gfx.measure_text(Text::new(&text, placeholder_color))
+                    });
                     (bytes, context.gfx.measure_text(text), placeholder)
                 });
                 self.cache = Some(CachedLayout {

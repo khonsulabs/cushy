@@ -43,7 +43,7 @@ pub mod localization;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
 /// A string that may be a localized message.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum MaybeLocalized {
     /// A non-localized message.
     Text(String),

@@ -33,6 +33,7 @@ use crate::widget::{
 use crate::widgets::checkbox::CheckboxState;
 use crate::widgets::{Checkbox, Radio, Select, Space, Switcher};
 use crate::window::WindowHandle;
+use crate::MaybeLocalized;
 
 /// A source of one or more `T` values.
 pub trait Source<T> {
@@ -1597,7 +1598,7 @@ impl<T> Dynamic<T> {
     where
         T: Send + 'static,
         Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
-        E: Display,
+        E: IntoValue<MaybeLocalized>,
     {
         let validation = Dynamic::new(Validation::None);
         let callback = self.for_each({
@@ -1605,7 +1606,7 @@ impl<T> Dynamic<T> {
             move |value| {
                 validation.set(match check(value) {
                     Ok(()) => Validation::Valid,
-                    Err(err) => Validation::Invalid(err.to_string()),
+                    Err(err) => Validation::Invalid(err.into_value()),
                 });
             }
         });
@@ -2933,6 +2934,15 @@ pub enum Value<T> {
     Dynamic(Dynamic<T>),
 }
 
+impl<T> PartialEq for Value<T>
+where
+    T: PartialEq + Clone
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.get() == other.get()
+    }
+}
+
 impl<T> Value<T> {
     /// Returns a [`Value::Dynamic`] containing `value`.
     pub fn dynamic(value: T) -> Self {
@@ -3599,7 +3609,7 @@ macro_rules! impl_tuple_map_each_cloned {
 impl_all_tuples!(impl_tuple_map_each_cloned, 2);
 
 /// The status of validating data.
-#[derive(Debug, Default, Clone, Eq, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub enum Validation {
     /// No validation has been performed yet.
     ///
@@ -3610,16 +3620,16 @@ pub enum Validation {
     /// The data is valid.
     Valid,
     /// The data is invalid. The string contains a human-readable message.
-    Invalid(String),
+    Invalid(Value<MaybeLocalized>),
 }
 
 impl Validation {
-    /// Returns the effective text to display along side the field.
+    /// Returns the effective text to display along-side the field.
     ///
     /// When there is a validation error, it is returned, otherwise the hint is
     /// returned.
     #[must_use]
-    pub fn message<'a>(&'a self, hint: &'a str) -> &'a str {
+    pub fn message<'a>(&'a self, hint: &'a Value<MaybeLocalized>) -> &'a Value<MaybeLocalized> {
         match self {
             Validation::None | Validation::Valid => hint,
             Validation::Invalid(err) => err,
@@ -3647,13 +3657,13 @@ impl Validation {
 
 impl<T, E> IntoDynamic<Validation> for Dynamic<Result<T, E>>
 where
-    T: Send + 'static,
-    E: Display + Send + 'static,
+    T: Send + Clone + 'static,
+    E: IntoValue<MaybeLocalized> + Send + Clone + 'static,
 {
     fn into_dynamic(self) -> Dynamic<Validation> {
-        self.map_each(|result| match result {
+        self.map_each_cloned(|result| match result {
             Ok(_) => Validation::Valid,
-            Err(err) => Validation::Invalid(err.to_string()),
+            Err(err) => Validation::Invalid(err.into_value()),
         })
     }
 }
@@ -3681,15 +3691,16 @@ impl Validations {
     /// The validation is linked with `self` such that checking `self`'s
     /// validation status will include this validation.
     #[must_use]
-    pub fn validate<T, E, Valid>(
+    pub fn validate<T, Valid, R>(
         &self,
         dynamic: &Dynamic<T>,
         mut check: Valid,
+
     ) -> Dynamic<Validation>
     where
         T: Send + 'static,
-        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
-        E: Display,
+        R: IntoValue<MaybeLocalized> + Send + PartialEq + Clone + 'static,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), R> + Send + 'static
     {
         let validation = Dynamic::new(Validation::None);
         let mut message_mapping = Self::map_to_message(move |value| check(value));
@@ -3729,32 +3740,33 @@ impl Validations {
 
         self.validate(&error_message, |error_message| match error_message {
             None => Ok(()),
-            Some(message) => Err(message.clone()),
+            Some(message) => Err(MaybeLocalized::Text(message.clone())),
         })
     }
 
-    fn map_to_message<T, E, Valid>(
+    fn map_to_message<T, Valid, R>(
         mut check: Valid,
-    ) -> impl for<'a> FnMut(&'a GenerationalValue<T>) -> GenerationalValue<Option<String>> + Send + 'static
+    ) -> impl for<'a> FnMut(&'a GenerationalValue<T>) -> GenerationalValue<Option<R>> + Send + 'static
     where
         T: Send + 'static,
-        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
-        E: Display,
+        R: IntoValue<MaybeLocalized> + 'static,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), R> + Send + 'static,
     {
         move |value| {
             value.map_ref(|value| match check(value) {
                 Ok(()) => None,
-                Err(err) => Some(err.to_string()),
+                Err(err) => Some(err),
             })
         }
     }
 
-    fn generate_validation<T>(
+    fn generate_validation<T, R>(
         &self,
         dynamic: &Dynamic<T>,
-    ) -> impl FnMut(ValidationsState, GenerationalValue<Option<String>>) -> Validation
+    ) -> impl FnMut(ValidationsState, GenerationalValue<Option<R>>) -> Validation
     where
         T: Send + 'static,
+        R: IntoValue<MaybeLocalized>,
     {
         self.invalid.map_mut(|mut invalid| *invalid += 1);
 
@@ -3777,7 +3789,7 @@ impl Validations {
                 invalid = new_invalid;
             }
             let new_status = if let Some(err) = generational.value {
-                Validation::Invalid(err.to_string())
+                Validation::Invalid(err.into_value())
             } else {
                 Validation::Valid
             };
@@ -3874,15 +3886,14 @@ impl WhenValidation<'_> {
     /// Each change to `dynamic` is validated, but the result of the validation
     /// will be ignored if the required prerequisite isn't met.
     #[must_use]
-    pub fn validate<T, E, Valid>(
+    pub fn validate<T, Valid>(
         &self,
         dynamic: &Dynamic<T>,
         mut check: Valid,
     ) -> Dynamic<Validation>
     where
         T: Send + 'static,
-        Valid: for<'a> FnMut(&'a T) -> Result<(), E> + Send + 'static,
-        E: Display,
+        Valid: for<'a> FnMut(&'a T) -> Result<(), MaybeLocalized> + Send + 'static,
     {
         let validation = Dynamic::new(Validation::None);
         let mut map_to_message = Validations::map_to_message(move |value| check(value));
@@ -3934,7 +3945,7 @@ impl WhenValidation<'_> {
 
         self.validate(&error_message, |error_message| match error_message {
             None => Ok(()),
-            Some(message) => Err(message.clone()),
+            Some(message) => Err(MaybeLocalized::Text(message.clone())),
         })
     }
 }
