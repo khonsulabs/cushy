@@ -11,7 +11,7 @@ use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext
 use crate::reactive::value::{Dynamic, IntoValue, Source, Value};
 use crate::styles::components::{CornerRadius, IntrinsicPadding, Opacity, SurfaceColor};
 use crate::styles::{Component, ContainerLevel, Dimension, Edges, RequireInvalidation, Styles};
-use crate::widget::{MakeWidget, RootBehavior, Widget, WidgetInstance, WidgetRef};
+use crate::widget::{MakeWidget, RootBehavior, Widget, WidgetInstance, WidgetLayout, WidgetRef};
 use crate::ConstraintLimit;
 
 /// A visual container widget, optionally applying padding and a background
@@ -255,7 +255,7 @@ impl Widget for Container {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let child = self.child.mounted(context);
 
         let corner_radii = context
@@ -296,7 +296,7 @@ impl Widget for Container {
         let shadow_spread = shadow.spread.into_unsigned();
 
         let child_shadow_offset_amount = shadow.offset.abs().into_unsigned();
-        let child_size = context.for_other(&child).layout(
+        let child_layout = context.for_other(&child).layout(
             available_space - padding_amount - child_shadow_offset_amount - shadow_spread * 2,
         );
 
@@ -305,12 +305,17 @@ impl Widget for Container {
             &child,
             Rect::new(
                 Point::new(padding.left, padding.top) + child_shadow_offset + shadow_spread,
-                child_size,
+                child_layout.size,
             )
             .into_signed(),
         );
 
-        child_size + padding_amount + child_shadow_offset_amount + shadow_spread * 2
+        let size =
+            child_layout.size + padding_amount + child_shadow_offset_amount + shadow_spread * 2;
+        WidgetLayout {
+            size,
+            baseline: child_layout.baseline.map(|baseline| baseline + padding.top),
+        }
     }
 
     fn root_behavior(

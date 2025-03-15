@@ -4,7 +4,7 @@ use cushy::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Z
 use cushy::kludgine::text::{MeasuredText, TextOrigin};
 use cushy::reactive::value::{Dynamic, IntoValue, Value};
 use cushy::styles::components::IntrinsicPadding;
-use cushy::widget::{WrappedLayout, WrapperWidget};
+use cushy::widget::{WidgetLayout, WrappedLayout, WrapperWidget};
 use cushy::widgets::input::InputValue;
 use cushy::ConstraintLimit;
 
@@ -75,7 +75,7 @@ fn composition_wrapperwidget() -> impl cushy::widget::MakeWidget {
         // ANCHOR: wrapperwidget-c
         fn position_child(
             &mut self,
-            child_size: Size<Px>,
+            child_layout: WidgetLayout,
             available_space: Size<ConstraintLimit>,
             context: &mut LayoutContext<'_, '_, '_, '_>,
         ) -> WrappedLayout {
@@ -84,17 +84,18 @@ fn composition_wrapperwidget() -> impl cushy::widget::MakeWidget {
                 available_space
                     .width
                     .min()
+                    .max(child_layout.size.width)
                     .into_signed()
-                    .max(child_size.width)
                     .max(label_and_padding.width),
-                child_size.height + label_and_padding.height,
+                child_layout.size.height.into_signed() + label_and_padding.height,
             );
             WrappedLayout {
                 child: Rect::new(
                     Point::new(Px::ZERO, label_and_padding.height),
-                    Size::new(full_size.width, child_size.height),
+                    Size::new(full_size.width, child_layout.size.height.into_signed()),
                 ),
                 size: full_size.into_unsigned(),
+                baseline: child_layout.baseline,
             }
         }
 

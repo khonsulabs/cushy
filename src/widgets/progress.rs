@@ -18,7 +18,7 @@ use crate::reactive::value::{
 };
 use crate::styles::components::{EasingIn, EasingOut};
 use crate::styles::ContextFreeComponent;
-use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance};
+use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout};
 use crate::widgets::slider::{InactiveTrackColor, Slidable, TrackColor, TrackSize};
 use crate::widgets::Data;
 
@@ -423,10 +423,12 @@ impl Widget for Spinner {
         &mut self,
         available_space: figures::Size<crate::ConstraintLimit>,
         context: &mut crate::context::LayoutContext<'_, '_, '_, '_>,
-    ) -> figures::Size<figures::units::UPx> {
+    ) -> WidgetLayout {
         let track_size = context.get(&TrackSize).into_px(context.gfx.scale());
         let minimum_size = track_size * 4;
 
-        available_space.map(|constraint| constraint.fit_measured(minimum_size))
+        available_space
+            .map(|constraint| constraint.fit_measured(minimum_size))
+            .into()
     }
 }

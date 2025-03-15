@@ -1,11 +1,13 @@
 //! This example shows two approaches to writing custom widgets: implementing
 //! traits or using the [`Custom`] widget with callbacks.
 
-use cushy::figures::units::{Lp, UPx};
+use cushy::figures::units::Lp;
 use cushy::figures::{ScreenScale, Size};
 use cushy::kludgine::Color;
 use cushy::reactive::value::{Destination, Dynamic, Source};
-use cushy::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag, HANDLED};
+use cushy::widget::{
+    MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout, WidgetTag, HANDLED,
+};
 use cushy::widgets::Custom;
 use cushy::window::DeviceId;
 use cushy::Run;
@@ -95,11 +97,12 @@ impl Widget for Toggle {
         &mut self,
         available_space: Size<cushy::ConstraintLimit>,
         context: &mut cushy::context::LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         Size::new(
             available_space.width.min(),
             Lp::inches(1).into_upx(context.gfx.scale()),
         )
+        .into()
     }
 
     fn hit_test(

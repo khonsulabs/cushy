@@ -8,7 +8,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use figures::units::{Lp, Px, UPx};
+use figures::units::{Lp, Px};
 use figures::{
     Abs, FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero,
 };
@@ -28,7 +28,7 @@ use crate::reactive::value::{
 };
 use crate::styles::components::{HighlightColor, IntrinsicPadding, OutlineColor, TextColor};
 use crate::utils::ModifiersExt;
-use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
+use crate::widget::{Baseline, Callback, EventHandling, Widget, WidgetLayout, HANDLED, IGNORED};
 use crate::window::KeyEvent;
 use crate::{ConstraintLimit, FitMeasuredSize, Lazy};
 
@@ -1168,7 +1168,7 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let padding = context
             .get(&IntrinsicPadding)
             .into_upx(context.gfx.scale())
@@ -1186,7 +1186,11 @@ where
             .max(info.cache.placeholder.size)
             .into_unsigned()
             + Size::squared(padding * 2);
-        available_space.fit_measured(measured_size)
+
+        WidgetLayout {
+            size: available_space.fit_measured(measured_size),
+            baseline: Baseline::from(padding + info.cache.measured.ascent.into_unsigned()),
+        }
     }
 
     fn keyboard_input(

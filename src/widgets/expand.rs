@@ -145,23 +145,28 @@ impl WrapperWidget for Expand {
             ),
         };
         let child = self.child.mounted(&mut context.as_event_context());
-        let size = context.for_other(&child).layout(available_space);
+        let layout = context.for_other(&child).layout(available_space);
 
         let (width, height) = match &self.kind {
             ExpandKind::Weighted(_) => (
-                available_space.width.fit_measured(size.width),
-                available_space.height.fit_measured(size.height),
+                available_space.width.fit_measured(layout.size.width),
+                available_space.height.fit_measured(layout.size.height),
             ),
             ExpandKind::Horizontal => (
-                available_space.width.fit_measured(size.width),
-                size.height.min(available_space.height.max()),
+                available_space.width.fit_measured(layout.size.width),
+                layout.size.height.min(available_space.height.max()),
             ),
             ExpandKind::Vertical => (
-                size.width.min(available_space.width.max()),
-                available_space.height.fit_measured(size.height),
+                layout.size.width.min(available_space.width.max()),
+                available_space.height.fit_measured(layout.size.height),
             ),
         };
 
-        Size::new(width, height).into_signed().into()
+        let size = Size::new(width, height);
+        WrappedLayout {
+            child: size.into_signed().into(),
+            size,
+            baseline: layout.baseline,
+        }
     }
 }

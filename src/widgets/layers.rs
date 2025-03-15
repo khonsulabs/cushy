@@ -21,8 +21,8 @@ use crate::reactive::value::{
 use crate::dialog::{ButtonBehavior, ShouldClose};
 use crate::styles::components::{EasingIn, ScrimColor};
 use crate::widget::{
-    Callback, MakeWidget, MakeWidgetWithTag, MountedChildren, SharedCallback, Widget, WidgetId,
-    WidgetList, WidgetRef, WidgetTag, WrapperWidget,
+    Baseline, Callback, MakeWidget, MakeWidgetWithTag, MountedChildren, SharedCallback, Widget,
+    WidgetId, WidgetLayout, WidgetList, WidgetRef, WidgetTag, WrappedLayout, WrapperWidget,
 };
 use crate::widgets::container::ContainerShadow;
 use crate::ConstraintLimit;
@@ -74,18 +74,21 @@ impl Widget for Layers {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         self.synchronize_children(&mut context.as_event_context());
 
         let mut size = Size::ZERO;
 
+        let mut last_baseline = Baseline::NONE;
         for child in self.mounted.children() {
-            size = size.max(
-                context
-                    .for_other(child)
-                    .as_temporary()
-                    .layout(available_space),
-            );
+            let layout = context
+                .for_other(child)
+                .as_temporary()
+                .layout(available_space);
+            size = size.max(layout.size);
+            if layout.baseline.is_some() {
+                last_baseline = layout.baseline;
+            }
         }
 
         // Now we know the size of the widget, we can request the widgets fill
@@ -102,7 +105,10 @@ impl Widget for Layers {
             context.set_child_layout(child, layout);
         }
 
-        size
+        WidgetLayout {
+            size,
+            baseline: last_baseline,
+        }
     }
 
     fn mounted(&mut self, context: &mut EventContext<'_>) {
@@ -210,7 +216,7 @@ impl Widget for OverlayLayer {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let mut state = self.state.lock();
         state.prevent_notifications();
 
@@ -247,7 +253,7 @@ impl Widget for OverlayLayer {
         // layers, despite what layouts its children are assigned. This may seem
         // weird, but it would also be weird for a tooltop to expand its window
         // when shown.
-        Size::ZERO
+        Size::<UPx>::ZERO.into()
     }
 
     fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> bool {
@@ -432,6 +438,7 @@ impl OverlayState {
         let size = context
             .for_other(widget)
             .layout(constraints.map(ConstraintLimit::SizeToFit))
+            .size
             .into_signed();
 
         let mut layout_direction = positioning;
@@ -548,6 +555,7 @@ impl OverlayState {
             let size = context
                 .for_other(widget)
                 .layout(available_space.map(ConstraintLimit::SizeToFit))
+                .size
                 .into_signed();
 
             let available_space = available_space.into_signed();
@@ -1032,10 +1040,10 @@ impl WrapperWidget for ModalLayer {
 
     fn position_child(
         &mut self,
-        size: Size<Px>,
+        layout: WidgetLayout,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> crate::widget::WrappedLayout {
+    ) -> WrappedLayout {
         if self.focus_top_layer {
             self.focus_top_layer = false;
             if let Some(mut ctx) = self
@@ -1047,8 +1055,8 @@ impl WrapperWidget for ModalLayer {
             }
         }
         Size::new(
-            available_space.width.fit_measured(size.width),
-            available_space.height.fit_measured(size.height),
+            available_space.width.fit_measured(layout.size.width),
+            available_space.height.fit_measured(layout.size.height),
         )
         .into()
     }

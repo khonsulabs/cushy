@@ -11,7 +11,7 @@ use crate::animation::ZeroToOne;
 use crate::context::{LayoutContext, Trackable};
 use crate::reactive::value::{IntoValue, Source, Value};
 use crate::styles::Dimension;
-use crate::widget::Widget;
+use crate::widget::{Widget, WidgetLayout};
 use crate::ConstraintLimit;
 
 /// A widget that displays an image/texture.
@@ -156,10 +156,11 @@ impl Widget for Image {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let scaling = self.scaling.get_tracking_invalidate(context);
         self.contents
             .map(|texture| scaling.layout_size(texture.size(), available_space))
+            .into()
     }
 }
 

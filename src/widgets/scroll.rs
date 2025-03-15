@@ -21,7 +21,9 @@ use crate::reactive::value::{
 };
 use crate::styles::components::{EasingIn, EasingOut, LineHeight, PrimaryColor, SurfaceColor};
 use crate::styles::Dimension;
-use crate::widget::{EventHandling, MakeWidget, Widget, WidgetId, WidgetRef, HANDLED, IGNORED};
+use crate::widget::{
+    EventHandling, MakeWidget, Widget, WidgetId, WidgetLayout, WidgetRef, HANDLED, IGNORED,
+};
 use crate::window::DeviceId;
 use crate::ConstraintLimit;
 
@@ -292,7 +294,7 @@ impl Widget for Scroll {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let max_extents = Size::new(
             if self.enabled.x {
                 ConstraintLimit::SizeToFit(UPx::MAX)
@@ -306,7 +308,7 @@ impl Widget for Scroll {
             },
         );
         let contents = self.contents.mounted(&mut context.as_event_context());
-        let new_content_size = context.for_other(&contents).layout(max_extents);
+        let new_content_size = context.for_other(&contents).layout(max_extents).size;
         self.content_size.set(new_content_size);
 
         let new_control_size = Size::new(
@@ -326,7 +328,7 @@ impl Widget for Scroll {
             .horizontal_widget
             .make_if_needed()
             .mounted(&mut context.as_event_context());
-        let layout = context.for_other(&horizontal).layout(available_space);
+        let layout = context.for_other(&horizontal).layout(available_space).size;
         context.set_child_layout(
             &horizontal,
             Rect::new(
@@ -345,7 +347,7 @@ impl Widget for Scroll {
             .vertical_widget
             .make_if_needed()
             .mounted(&mut context.as_event_context());
-        let layout = context.for_other(&vertical).layout(available_space);
+        let layout = context.for_other(&vertical).layout(available_space).size;
         context.set_child_layout(
             &vertical,
             Rect::new(
@@ -372,7 +374,7 @@ impl Widget for Scroll {
         );
         context.set_child_layout(&contents, region);
 
-        new_control_size
+        new_control_size.into()
     }
 
     fn mouse_wheel(
@@ -807,7 +809,7 @@ impl Widget for ScrollBar {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         self.bar_width = context
             .get(&ScrollBarThickness)
             .into_upx(context.gfx.scale())
@@ -815,9 +817,9 @@ impl Widget for ScrollBar {
         self.line_height = context.get(&LineHeight).into_upx(context.gfx.scale());
 
         if self.vertical {
-            Size::new(self.bar_width, available_space.height.max())
+            Size::new(self.bar_width, available_space.height.max()).into()
         } else {
-            Size::new(available_space.width.max(), self.bar_width)
+            Size::new(available_space.width.max(), self.bar_width).into()
         }
     }
 
