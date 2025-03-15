@@ -1,4 +1,4 @@
-use cushy::value::{Destination, Dynamic, Switchable};
+use cushy::reactive::value::{Destination, Dynamic, Switchable};
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::Run;
 

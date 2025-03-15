@@ -1,20 +1,20 @@
 use cushy::figures::units::Lp;
+use cushy::reactive::value::Dynamic;
 use cushy::styles::components::{LineHeight, TextSize, VerticalAlignment};
 use cushy::styles::VerticalAlign;
-use cushy::value::Dynamic;
 use cushy::widget::{MakeWidget, WidgetList};
 use cushy::widgets::wrap::WrapAlign;
 use cushy::Run;
-use rand::{thread_rng, Rng};
+use rand::{rng, Rng};
 
 const EXPLANATION: &str = "This example demonstrates the Wrap widget. Each word shown here is an individual Label widget that is being positioned by the Wrap widget.";
 
 fn main() -> cushy::Result {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let words = EXPLANATION
         .split_ascii_whitespace()
         .map(|word| {
-            let text_size = Lp::points(rng.gen_range(14..48));
+            let text_size = Lp::points(rng.random_range(14..48));
             word.with(&TextSize, text_size).with(&LineHeight, text_size)
         })
         .collect::<WidgetList>();

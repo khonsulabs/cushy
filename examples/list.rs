@@ -1,4 +1,4 @@
-use cushy::value::Dynamic;
+use cushy::reactive::value::Dynamic;
 use cushy::widget::{MakeWidget, WidgetList};
 use cushy::widgets::list::ListStyle;
 use cushy::Run;

@@ -1,5 +1,5 @@
 use cushy::figures::Fraction;
-use cushy::value::{Dynamic, Source};
+use cushy::reactive::value::{Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::slider::Slidable;
 use cushy::Run;

@@ -11,7 +11,7 @@ use kludgine::app::winit::keyboard::Key;
 use parking_lot::{Condvar, Mutex, MutexGuard};
 
 use crate::context::WidgetContext;
-use crate::value::{Destination, Dynamic};
+use crate::reactive::value::{Destination, Dynamic};
 use crate::widget::{EventHandling, HANDLED, IGNORED};
 use crate::window::KeyEvent;
 

@@ -4,7 +4,7 @@
 use cushy::figures::units::Lp;
 use cushy::figures::{ScreenScale, Size};
 use cushy::kludgine::Color;
-use cushy::value::{Destination, Dynamic, Source};
+use cushy::reactive::value::{Destination, Dynamic, Source};
 use cushy::widget::{
     MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout, WidgetTag, HANDLED,
 };

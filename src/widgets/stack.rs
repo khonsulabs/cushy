@@ -5,9 +5,9 @@ use figures::{IntoSigned, Rect, Round, ScreenScale, Size, Zero};
 
 use super::expand::ExpandKind;
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
+use crate::reactive::value::{Generation, IntoValue, Value};
 use crate::styles::components::IntrinsicPadding;
 use crate::styles::FlexibleDimension;
-use crate::value::{Generation, IntoValue, Value};
 use crate::widget::{
     ChildrenSyncChange, MountedWidget, Widget, WidgetLayout, WidgetList, WidgetRef,
 };

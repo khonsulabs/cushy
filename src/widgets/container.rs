@@ -8,9 +8,9 @@ use kludgine::shapes::{CornerRadii, PathBuilder, Shape};
 use kludgine::Color;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::reactive::value::{Dynamic, IntoValue, Source, Value};
 use crate::styles::components::{CornerRadius, IntrinsicPadding, Opacity, SurfaceColor};
 use crate::styles::{Component, ContainerLevel, Dimension, Edges, RequireInvalidation, Styles};
-use crate::value::{Dynamic, IntoValue, Source, Value};
 use crate::widget::{MakeWidget, RootBehavior, Widget, WidgetInstance, WidgetLayout, WidgetRef};
 use crate::ConstraintLimit;
 
@@ -29,9 +29,8 @@ use crate::ConstraintLimit;
 ///   parent container uses a color instead of a level,
 ///   [`ContainerLevel::Lowest`] will be used.
 /// - [`ContainerBackground::Color`]: The specified color will be drawn.
-/// - [`ContainerBackground::Level`]: The
-///   [`SurfaceTheme`](crate::styles::SurfaceTheme) container color associated
-///   with the given level will be used.
+/// - [`ContainerBackground::Level`]: The [`SurfaceTheme`](crate::styles::SurfaceTheme)
+///   container color associated with the given level will be used.
 #[derive(Debug)]
 pub struct Container {
     /// The configured background selection.

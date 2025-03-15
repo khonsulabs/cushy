@@ -1,6 +1,6 @@
 use cushy::figures::units::Lp;
 use cushy::figures::{Lp2D, Point};
-use cushy::value::{Destination, Dynamic};
+use cushy::reactive::value::{Destination, Dynamic};
 use cushy::widget::{MakeWidget, WidgetInstance};
 use cushy::widgets::container::ContainerShadow;
 use cushy::window::ThemeMode;

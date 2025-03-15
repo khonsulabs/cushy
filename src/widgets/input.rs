@@ -23,9 +23,11 @@ use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 use zeroize::Zeroizing;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
+use crate::reactive::value::{
+    Destination, Dynamic, Generation, IntoDynamic, IntoValue, Source, Value,
+};
 use crate::styles::components::{HighlightColor, IntrinsicPadding, OutlineColor, TextColor};
 use crate::utils::ModifiersExt;
-use crate::value::{Destination, Dynamic, Generation, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{Baseline, Callback, EventHandling, Widget, WidgetLayout, HANDLED, IGNORED};
 use crate::window::KeyEvent;
 use crate::{ConstraintLimit, FitMeasuredSize, Lazy};

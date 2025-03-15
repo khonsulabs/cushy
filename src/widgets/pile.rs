@@ -9,7 +9,7 @@ use figures::{IntoSigned, Rect, Size};
 use intentional::Assert;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
-use crate::value::{Dynamic, DynamicRead, DynamicReader};
+use crate::reactive::value::{Dynamic, DynamicRead, DynamicReader};
 use crate::widget::{
     MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout, WidgetRef, WidgetTag,
 };
@@ -30,7 +30,7 @@ pub struct Pile {
 struct PileData {
     widgets: Lots<Option<WidgetInstance>>,
     visible: VecDeque<LotId>,
-    focus_visible: bool,
+    focus_on_show: bool,
 }
 
 impl PileData {
@@ -50,7 +50,6 @@ impl PileData {
 impl Pile {
     /// Returns a placeholder that can be used to show/close a piled widget
     /// before it has been constructed.
-    #[must_use]
     pub fn new_pending(&self) -> PendingPiledWidget {
         let mut pile = self.data.lock();
         let id = pile.widgets.push(None);
@@ -68,6 +67,9 @@ impl Pile {
     /// When the last clone of the returned [`PiledWidget`] is dropped, `widget`
     /// will be removed from the pile. If it is the currently visible widget,
     /// the next widget in the pile will be made visible.
+    ///
+    /// See [`PiledWidget`] for important lifetime information.
+    #[must_use]
     pub fn push(&self, widget: impl MakeWidget) -> PiledWidget {
         self.new_pending().finish(widget)
     }
@@ -123,7 +125,7 @@ impl Widget for WidgetPile {
                 .expect("visible widget")
                 .mounted(context);
             let mut child_context = context.for_other(&visible);
-            if pile.focus_visible && self.last_visible != Some(id) {
+            if pile.focus_on_show && self.last_visible != Some(id) {
                 child_context.focus();
             }
             let layout = child_context.layout(available_space);
@@ -161,11 +163,16 @@ impl Widget for WidgetPile {
 }
 
 /// A placeholder for a widget in a [`Pile`].
+#[must_use]
 pub struct PendingPiledWidget(Option<PiledWidget>);
 
 impl PendingPiledWidget {
     /// Place `widget` in the pile and returns a handle to the placed widget.
-    #[allow(clippy::must_use_candidate)]
+    ///
+    /// When the last clone of the returned [`PiledWidget`] is dropped, `widget`
+    /// will be removed from the pile. If it is the currently visible widget,
+    /// the next widget in the pile will be made visible.
+    #[must_use]
     pub fn finish(mut self, widget: impl MakeWidget) -> PiledWidget {
         let piled = self.0.take().assert("finished called once");
         let mut pile = piled.0.pile.data.lock();
@@ -186,25 +193,40 @@ impl std::ops::Deref for PendingPiledWidget {
 }
 
 /// A widget that has been added to a [`Pile`].
+///
+/// When the last clone of a `PiledWidget` is dropped, the widget will be
+/// removed from the Pile.
+///
+/// This can happen in application which creates a 'bottom layer' for the pile
+/// which is only supposed to be used by the pile itself.  If you don't want the
+/// 'bottom layer' to be removed immediately after creation you need to retain a
+/// reference to it.
 #[derive(Clone, Debug)]
 pub struct PiledWidget(Arc<PiledWidgetData>);
 
 impl PiledWidget {
     /// Shows this widget in its pile.
-    ///
-    /// If `focus` is true, the widget will be focused when shown.
-    pub fn show(&self, focus: bool) {
+    pub fn show(&self) {
+        self.show_inner(false);
+    }
+
+    /// Shows this widget in its pile and directs keyboard focus to it.
+    pub fn show_and_focus(&self) {
+        self.show_inner(true);
+    }
+
+    fn show_inner(&self, focus: bool) {
         let mut pile = self.0.pile.data.lock();
         pile.hide_id(self.0.id);
         pile.visible.push_front(self.0.id);
-        pile.focus_visible = focus;
+        pile.focus_on_show = focus;
     }
 
     /// Removes this widget from the pile.
     pub fn remove(&self) {
         let mut pile = self.0.pile.data.lock();
         if pile.visible.front() == Some(&self.0.id) {
-            pile.focus_visible = false;
+            pile.focus_on_show = false;
         }
         pile.hide_id(self.0.id);
         pile.widgets.remove(self.0.id);

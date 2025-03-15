@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use cushy::value::{Dynamic, MapEach, Source};
+use cushy::reactive::value::{Dynamic, MapEach, Source};
 use cushy::widget::{MakeWidget, WidgetList};
 use cushy::widgets::input::InputValue;
 use cushy::Run;

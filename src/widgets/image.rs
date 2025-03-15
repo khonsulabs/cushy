@@ -9,8 +9,8 @@ use kludgine::{
 
 use crate::animation::ZeroToOne;
 use crate::context::{LayoutContext, Trackable};
+use crate::reactive::value::{IntoValue, Source, Value};
 use crate::styles::Dimension;
-use crate::value::{IntoValue, Source, Value};
 use crate::widget::{Widget, WidgetLayout};
 use crate::ConstraintLimit;
 

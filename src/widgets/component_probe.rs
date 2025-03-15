@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use super::Space;
+use crate::reactive::value::{Destination, Dynamic};
 use crate::styles::{ComponentDefinition, ContextFreeComponent};
-use crate::value::{Destination, Dynamic};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 
 /// A widget that provides access to a [`ComponentDefinition`]'s value through a

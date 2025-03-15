@@ -1,8 +1,8 @@
 use cushy::figures::units::Px;
 use cushy::fonts::FontCollection;
+use cushy::reactive::value::{Destination, Dynamic, Source};
 use cushy::styles::components::{FontFamily, FontWeight, LineHeight, TextSize};
 use cushy::styles::{Component, DynamicComponent, FamilyOwned, FontFamilyList};
-use cushy::value::{Destination, Dynamic, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::window::DropEvent;

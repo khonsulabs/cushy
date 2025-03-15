@@ -7,8 +7,8 @@ use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::reactive::value::{IntoValue, Value};
 use crate::styles::VisualOrder;
-use crate::value::{IntoValue, Value};
 use crate::widget::{
     EventHandling, MakeWidget, WidgetLayout, WidgetRef, WrappedLayout, WrapperWidget, IGNORED,
 };

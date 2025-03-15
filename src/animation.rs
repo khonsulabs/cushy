@@ -19,7 +19,7 @@
 //!
 //! use cushy::animation::easings::EaseInOutElastic;
 //! use cushy::animation::{AnimationTarget, Spawn};
-//! use cushy::value::{Dynamic, Source};
+//! use cushy::reactive::value::{Dynamic, Source};
 //!
 //! let value = Dynamic::new(0);
 //! let mut reader = value.create_reader();
@@ -55,9 +55,9 @@ use kludgine::Color;
 use parking_lot::{Condvar, Mutex, MutexGuard};
 
 use crate::animation::easings::Linear;
+use crate::reactive::value::{Destination, Dynamic, Source};
 use crate::styles::{Component, RequireInvalidation};
 use crate::utils::run_in_bg;
-use crate::value::{Destination, Dynamic, Source};
 use crate::widget::SharedCallback;
 use crate::Cushy;
 
@@ -1053,6 +1053,27 @@ where
     }
 }
 
+impl LinearInterpolate for Duration {
+    #[allow(clippy::cast_precision_loss)]
+    fn lerp(&self, target: &Self, percent: f32) -> Self {
+        let nanos = self.as_nanos().lerp(&target.as_nanos(), percent);
+        let seconds = nanos / 1_000_000_000;
+        let subsec_nanos = nanos % 1_000_000_000;
+        Self::new(
+            u64::try_from(seconds).unwrap_or(u64::MAX),
+            subsec_nanos as u32,
+        )
+    }
+}
+impl PercentBetween for Duration {
+    fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
+        let this = self.as_secs_f32();
+        let min = min.as_secs_f32();
+        let max = max.as_secs_f32();
+        this.percent_between(&min, &max)
+    }
+}
+
 #[test]
 fn integer_lerps() {
     #[track_caller]
@@ -1156,14 +1177,16 @@ macro_rules! impl_percent_between {
                 clippy::cast_lossless
             )]
             fn percent_between(&self, min: &Self, max: &Self) -> ZeroToOne {
-                assert!(min <= max, "percent_between requires min <= max");
-                assert!(
-                    self >= min && self <= max,
-                    "self must satisfy min <= self <= max"
-                );
-
-                let range = max.$sub(*min);
-                ZeroToOne::from(self.$sub(*min) as $float / range as $float)
+                if min >= max {
+                    return ZeroToOne::ZERO;
+                } else if self <= min {
+                    ZeroToOne::ZERO
+                } else if self >= max {
+                    ZeroToOne::ONE
+                } else {
+                    let range = max.$sub(*min);
+                    ZeroToOne::from(self.$sub(*min) as $float / range as $float)
+                }
             }
         }
     };

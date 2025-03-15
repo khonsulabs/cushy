@@ -5,8 +5,13 @@
     clippy::missing_errors_doc,
     clippy::doc_lazy_continuation
 )]
+// Recursion limit setting is necessary after updating from wgpu 23.0.0 to
+// 24.0.0 caused "error[E0275]: overflow evaluating the requirement
+// `NumericType: Sync`".
+#![recursion_limit = "256"]
 
 // for proc-macros
+extern crate core;
 extern crate self as cushy;
 
 #[macro_use]
@@ -14,24 +19,93 @@ mod utils;
 
 pub mod animation;
 pub mod context;
-mod graphics;
+pub mod graphics;
 mod names;
 #[macro_use]
 pub mod styles;
 mod app;
 pub mod debug;
 pub mod fonts;
+pub mod reactive;
 mod tick;
 mod tree;
-pub mod value;
 pub mod widget;
 pub mod widgets;
 pub mod window;
 
 pub mod dialog;
+
 #[doc(hidden)]
 pub mod example;
+#[cfg(feature = "localization")]
+#[macro_use]
+pub mod localization;
 use std::ops::{Add, AddAssign, Sub, SubAssign};
+
+/// A string that may be a localized message.
+#[derive(Clone, Debug)]
+pub enum MaybeLocalized {
+    /// A non-localized message.
+    Text(String),
+    #[cfg(feature = "localization")]
+    /// A localized message.
+    Localized(localization::Localize),
+}
+
+impl Default for MaybeLocalized {
+    fn default() -> Self {
+        Self::Text(String::new())
+    }
+}
+
+impl From<&str> for MaybeLocalized {
+    fn from(value: &str) -> Self {
+        Self::Text(value.to_string())
+    }
+}
+
+impl From<String> for MaybeLocalized {
+    fn from(value: String) -> Self {
+        Self::Text(value)
+    }
+}
+
+impl IntoValue<MaybeLocalized> for &str {
+    fn into_value(self) -> Value<MaybeLocalized> {
+        Value::Constant(MaybeLocalized::from(self))
+    }
+}
+
+impl IntoValue<MaybeLocalized> for String {
+    fn into_value(self) -> Value<MaybeLocalized> {
+        Value::Constant(MaybeLocalized::from(self))
+    }
+}
+impl MaybeLocalized {
+    #[cfg_attr(not(feature = "localization"), allow(unused_variables))]
+    fn localize_for_cushy(&self, app: &Cushy) -> String {
+        match self {
+            MaybeLocalized::Text(text) => text.clone(),
+            #[cfg(feature = "localization")]
+            MaybeLocalized::Localized(localized) => localized.localize(
+                &localization::WindowTranslationContext(&app.data.localizations),
+            ),
+        }
+    }
+}
+
+#[cfg(not(feature = "localization"))]
+impl widgets::label::DynamicDisplay for MaybeLocalized {
+    fn fmt(
+        &self,
+        _context: &context::WidgetContext<'_>,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        match self {
+            MaybeLocalized::Text(text) => std::fmt::Display::fmt(text, f),
+        }
+    }
+}
 
 #[cfg(feature = "tokio")]
 pub use app::TokioRuntime;
@@ -44,7 +118,8 @@ pub use app::{
 /// macro can be used to remove a few lines of code.
 ///
 /// The function body is executed during application startup, and the app will
-/// continue running until the last window is closed.
+/// continue running until the last window is closed. **Local variables in the
+/// function will be dropped before the application runs.**
 ///
 /// This attribute must be attached to a `main(&mut PendingApp)` or `main(&mut
 /// App)` function. Either form supports a return type or no return type.
@@ -61,7 +136,7 @@ pub use app::{
 /// ### Without Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{Open, PendingApp, Run};
 ///
 /// fn main() -> cushy::Result {
@@ -79,7 +154,7 @@ pub use app::{
 /// ### With Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{Open, PendingApp};
 ///
 /// #[cushy::main]
@@ -102,7 +177,7 @@ pub use app::{
 /// ### Without Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{App, Open, PendingApp, Run};
 ///
 /// fn main() -> cushy::Result {
@@ -119,7 +194,7 @@ pub use app::{
 /// ### With Macro
 ///
 /// ```rust
-/// # fn test() {
+/// # fn main() {
 /// use cushy::{App, Open};
 ///
 /// #[cushy::main]
@@ -134,10 +209,10 @@ use figures::units::UPx;
 use figures::{IntoUnsigned, Size, Zero};
 use kludgine::app::winit::error::EventLoopError;
 pub use names::Name;
+use reactive::value::{IntoValue, Value};
 pub use utils::{Lazy, ModifiersExt, ModifiersStateExt, WithClone};
 pub use {figures, kludgine};
 
-pub use self::graphics::{Graphics, RenderOperation, SimpleRenderOperation};
 pub use self::tick::{InputState, Tick};
 
 /// Starts running a Cushy application, invoking `app_init` after the event loop
@@ -326,9 +401,11 @@ fn initialize_tracing() {
             )
             .with(
                 Targets::new()
+                    .with_default(MAX_LEVEL)
                     .with_target("winit", Level::ERROR)
                     .with_target("wgpu", Level::ERROR)
-                    .with_target("naga", Level::ERROR),
+                    .with_target("naga", Level::ERROR)
+                    .with_default(MAX_LEVEL),
             )
             .try_init();
     }

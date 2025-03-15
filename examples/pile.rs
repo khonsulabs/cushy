@@ -1,4 +1,4 @@
-use cushy::value::Dynamic;
+use cushy::reactive::value::Dynamic;
 use cushy::widget::{MakeWidget, WidgetList};
 use cushy::widgets::input::InputValue;
 use cushy::widgets::pile::Pile;
@@ -20,12 +20,12 @@ fn main() -> cushy::Result {
                 .into_button()
                 .on_click({
                     let section = handle.clone();
-                    move |_| section.show(true)
+                    move |_| section.show_and_focus()
                 })
                 .make_widget();
             let button_id = button.id();
 
-            pending_section.finish(
+            let _ = pending_section.finish(
                 Dynamic::new(format!("Section {counter}"))
                     .into_input()
                     .and("Close Section".into_button().on_click({

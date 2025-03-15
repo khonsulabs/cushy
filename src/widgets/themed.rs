@@ -1,6 +1,6 @@
 use crate::context::EventContext;
+use crate::reactive::value::{IntoValue, Value};
 use crate::styles::ThemePair;
-use crate::value::{IntoValue, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 
 /// A widget that applies a [`ThemePair`] to all contained widgets.

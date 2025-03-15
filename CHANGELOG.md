@@ -98,13 +98,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Label`s centered their content when sized larger than the text they
   contained. The defaults for the alignment components are left and top,
   respectively.
-- `wgpu` has been updated to `v23.0.0`.
+- `wgpu` has been updated to `v24.0.1`.
 - Embedding a `Expand` in a `Stack` or `Grid` now honors both directions of
   expansion. This may cause layouts that use
   `Expand::expand()`/`MakeWidget::expand()` inside of a stack to behave
   drastically differently. If this affects your user interface, use
   `expand_horizontally()` or `expand_vertically()` to limit the direction of the
   expansion.
+- All callbacks executed by map_each/for_each/etc are now executed by a single
+  thread rather than in the thread causing the change. The major effect of this
+  change is that updating a dynamic and immediately trying to read a value of a
+  dynamic that is supposed to be updated will not work reliably anymore. Using a
+  DynamicReader to block until the value is updated will work in existing code
+  and in the new callback execution model.
+
+  This change was made to make complex data flows simpler to implement without
+  causing deadlocks. Without this change, it was easy in a multi-threaded
+  application to create deadlocks with relatively simple data flows like the new
+  `7guis-timer` example.
+- The type `cushy::Graphics` is now available at `cushy::graphics::Graphics`.
+- `Source::for_each_cloned_*` now invoke the callback with the current contents
+  of of the source before attaching the callback. New functions beginning with
+  `for_each_subsequent_cloned` have been added with the original behavior. This
+  change was done to make `for_each_cloned` and `for_each` have the same
+  semantics.
+- The module `cushy::value` has been moved to `cushy::reactive::value`. The new
+  `reactive` module contains traits and types shared between both channels and
+  value containers.
+- `cushy::value::CallbackDisconnected` and `cushy::value::CallbackHandle` are
+  now exported from `cushy::reactive`.
 
 ### Changed
 
@@ -200,6 +222,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   made without observing any ill effects from the existing logic, but the logic
   was not correct.
 - `Input` and `Label` now honor `ConstraintLayout::Fill`.
+- `Label` now properly invalidates itself when various font style components are
+  changed.
 
 ### Added
 
@@ -383,8 +407,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to standardize a method of adding informational text to interfaces.
 - `ImageScaling::layout_size` and `ImageScaling::render_area` are new functions
   that expose the layout calculations the `Image` widget performed.
+- `GraphicsContext::current_font_settings()` returns a new struct `FontSettings`
+  that contains the effective style components for the various font settings
+  supported by a `GraphicsContext`. `FontSettings::apply()` can be used to apply
+  settings in one step. `FontSettings` also implements `PartialEq` allowing it
+  to be used as a cache invalidation key.
+- New feature `localization`, included in Cushy's default features, enables
+  multi-lingual/multi-locale support using [Fluent][fluent]. See the
+  `localization` module for documentation of this feature, or see the
+  `localization.rs` example in the repository to see it in action.
+- `Duration` now has `LinearInterpolation` and `PercentBetween` implementations.
+- `Source::on_change_try` is a new function that executes a callback any time
+  the source is changed.
+- `Dynamic::linked_accessor` is a new function that takes a getter and setter
+  function and returns a `Dynamic` that will execute the getter and setter
+  appropriately when its value is changed.
+- `DynamicRead::read_nonblocking` is a new function that attempts to acquire
+  read access to the dynamic without blocking the current thread.
+- `cushy::reactive::Unwrapped` is a new trait implemented by many reactive data
+  types that simplifies reacting only when a value is unwrappable. This trait is
+  implemented for  `Option<T>` or `Result<T, E>` values, and provides
+  `for_each_unwrapped` for callback attachment and `unwrapped()` to create a
+  `Dynamic<T>` that is updated only when the source contains `Ok(_)` or
+  `Some(_)`.
+- `Destination::force_set` is a new function that always updates the destination
+  with the specified value. Many functions use `PartialEq` to short-circuit
+  update notifications that don't change the underlying value. This new API will
+  always notify observers.
 
-
+[fluent]: https://projectfluent.org/
 [139]: https://github.com/khonsulabs/cushy/issues/139
 
 ## v0.4.0 (2024-08-20)

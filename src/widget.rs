@@ -18,11 +18,17 @@ use kludgine::app::winit::keyboard::ModifiersState;
 use kludgine::app::winit::window::CursorIcon;
 use kludgine::Color;
 use parking_lot::{Mutex, MutexGuard};
+#[cfg(feature = "localization")]
+use unic_langid::LanguageIdentifier;
 
 use crate::app::Run;
 use crate::context::sealed::Trackable as _;
 use crate::context::{
     AsEventContext, EventContext, GraphicsContext, LayoutContext, ManageWidget, WidgetContext,
+};
+use crate::reactive::channel::{BroadcastChannel, Broadcaster, Sender};
+use crate::reactive::value::{
+    Dynamic, Generation, IntoDynamic, IntoValue, Source, Validation, Value,
 };
 use crate::styles::components::{HorizontalAlignment, IntrinsicPadding, VerticalAlignment};
 use crate::styles::{
@@ -31,11 +37,12 @@ use crate::styles::{
     ThemePair, VisualOrder,
 };
 use crate::tree::{Tree, WeakTree};
-use crate::value::{Dynamic, Generation, IntoDynamic, IntoValue, Source, Validation, Value};
 use crate::widgets::checkbox::{Checkable, CheckboxState};
 use crate::widgets::layers::{OverlayLayer, Tooltipped};
 use crate::widgets::list::List;
 use crate::widgets::shortcuts::{ShortcutKey, Shortcuts};
+#[cfg(feature = "localization")]
+use crate::widgets::Localized;
 use crate::widgets::{
     Align, Button, Checkbox, Collapse, Container, Disclose, Expand, Layers, Resize, Scroll, Space,
     Stack, Style, Themed, ThemedMode, Validated, Wrap,
@@ -149,9 +156,9 @@ use crate::ConstraintLimit;
 /// layout functions, it needs to ensure that all depended upon [`Dynamic`]s are
 /// tracked using one of the various
 /// `*_tracking_redraw()`/`*_tracking_invalidate()` functions. For example,
-/// [`Source::get_tracking_redraw()`](crate::value::Source::get_tracking_redraw)
+/// [`Source::get_tracking_redraw()`](crate::reactive::value::Source::get_tracking_redraw)
 /// and
-/// [`Source::get_tracking_invalidate()`](crate::value::Source::get_tracking_invalidate).
+/// [`Source::get_tracking_invalidate()`](crate::reactive::value::Source::get_tracking_invalidate).
 ///
 /// # Hover State: Hit Testing
 ///
@@ -281,11 +288,11 @@ pub trait Widget: Send + Debug + 'static {
     ///
     /// - [`Opacity`](crate::styles::components::Opacity)
     /// - [`WidgetBackground`](crate::styles::components::WidgetBackground)
-    /// - [`FontFamily`]
-    /// - [`TextSize`]
-    /// - [`LineHeight`]
-    /// - [`FontStyle`]
-    /// - [`FontWeight`]
+    /// - [`FontFamily`](crate::styles::components::FontFamily)
+    /// - [`TextSize`](crate::styles::components::TextSize)
+    /// - [`LineHeight`](crate::styles::components::LineHeight)
+    /// - [`FontStyle`](crate::styles::components::FontStyle)
+    /// - [`FontWeight`](crate::styles::components::FontWeight)
     fn full_control_redraw(&self) -> bool {
         false
     }
@@ -681,7 +688,7 @@ pub struct WrappedLayout {
 
 impl WrappedLayout {
     /// Returns a layout that positions `size` within `available_space` while
-    /// respecting [`HOrizontalAlignment`] and [`VerticalAlignment`].
+    /// respecting [`HorizontalAlignment`] and [`VerticalAlignment`].
     pub fn aligned(
         layout: impl Into<WidgetLayout>,
         available_space: Size<ConstraintLimit>,
@@ -1604,6 +1611,12 @@ pub trait MakeWidget: Sized {
         Themed::new(theme, self)
     }
 
+    /// Applies `theme` to `self` and its children.
+    #[cfg(feature = "localization")]
+    fn localized_in(self, locale: impl IntoValue<LanguageIdentifier>) -> Localized {
+        Localized::new(locale, self)
+    }
+
     /// Applies `mode` to `self` and its children.
     fn themed_mode(self, mode: impl IntoValue<ThemeMode>) -> ThemedMode {
         ThemedMode::new(mode, self)
@@ -1981,6 +1994,187 @@ where
     }
 }
 
+/// A target for notifications.
+///
+/// Cushy provides several ways to create reactivity. This type allows `From`
+/// conversion from all types that can act as a receiver of values of `T`.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum Notify<T> {
+    /// A callback/function that is invoked for each `T`.
+    Callback(Callback<T>),
+    /// A callback/function that is invoked for each `T` that can be cloned and
+    /// used in multiple locations.
+    SharedCallback(SharedCallback<T>),
+    /// A channel that is sent each `T`.
+    Sender(Sender<T>),
+    /// A broadcast channel that is sent each `T`.
+    Broadcaster(Broadcaster<T>),
+    /// A dynamic that is updated with each `T`.
+    Dynamic(Dynamic<T>),
+}
+
+impl<T> Notify<T>
+where
+    T: Unpin + Clone + Send + 'static,
+{
+    /// Notifies the target of the new `value`.
+    pub fn notify(&mut self, value: T) {
+        match self {
+            Notify::Callback(callback) => callback.invoke(value),
+            Notify::SharedCallback(callback) => callback.invoke(value),
+            Notify::Sender(sender) => {
+                let _ = sender.force_send(value);
+            }
+            Notify::Broadcaster(broadcaster) => {
+                let _ = broadcaster.force_send(value);
+            }
+            Notify::Dynamic(dynamic) => {
+                *dynamic.lock() = value;
+            }
+        }
+    }
+
+    /// Notifies the target of the new `value`, returning an error if the target
+    /// is no longer reachable.
+    pub fn try_notify(&mut self, value: T) -> Result<(), T> {
+        match self {
+            Notify::Callback(callback) => callback.invoke(value),
+            Notify::SharedCallback(callback) => callback.invoke(value),
+            Notify::Sender(sender) => sender.force_send(value).map(|_| ())?,
+            Notify::Broadcaster(broadcaster) => broadcaster.force_send(value).map(|_| ())?,
+            Notify::Dynamic(dynamic) => {
+                *dynamic.lock() = value;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl<T> From<Callback<T>> for Notify<T> {
+    fn from(value: Callback<T>) -> Self {
+        Self::Callback(value)
+    }
+}
+
+impl<T> From<SharedCallback<T>> for Notify<T> {
+    fn from(value: SharedCallback<T>) -> Self {
+        Self::SharedCallback(value)
+    }
+}
+
+impl<T> From<Dynamic<T>> for Notify<T> {
+    fn from(value: Dynamic<T>) -> Self {
+        Self::Dynamic(value)
+    }
+}
+
+impl<T> From<Sender<T>> for Notify<T> {
+    fn from(value: Sender<T>) -> Self {
+        Self::Sender(value)
+    }
+}
+
+impl<T> From<Broadcaster<T>> for Notify<T> {
+    fn from(value: Broadcaster<T>) -> Self {
+        Self::Broadcaster(value)
+    }
+}
+
+impl<T> From<BroadcastChannel<T>> for Notify<T> {
+    fn from(value: BroadcastChannel<T>) -> Self {
+        Self::Broadcaster(value.into_broadcaster())
+    }
+}
+
+impl<T, F> From<F> for Notify<T>
+where
+    F: FnMut(T) + Send + 'static,
+{
+    fn from(func: F) -> Self {
+        Self::from(Callback::new(func))
+    }
+}
+
+/// A target for notifications.
+///
+/// Cushy provides several ways to create reactivity. This type allows `From`
+/// conversion from all types that can act as a receiver of values of `T`.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub enum SharedNotify<T> {
+    /// A callback/function that is invoked for each `T` that can be cloned and
+    /// used in multiple locations.
+    SharedCallback(SharedCallback<T>),
+    /// A channel that is sent each `T`.
+    Sender(Sender<T>),
+    /// A broadcast channel that is sent each `T`.
+    Broadcaster(Broadcaster<T>),
+    /// A dynamic that is updated with each `T`.
+    Dynamic(Dynamic<T>),
+}
+
+impl<T> SharedNotify<T>
+where
+    T: Unpin + Clone + Send + 'static,
+{
+    /// Notifies the target of the new `value`.
+    pub fn notify(&mut self, value: T) {
+        match self {
+            Self::SharedCallback(callback) => callback.invoke(value),
+            Self::Sender(sender) => {
+                let _ = sender.force_send(value);
+            }
+            Self::Broadcaster(broadcaster) => {
+                let _ = broadcaster.force_send(value);
+            }
+            Self::Dynamic(dynamic) => {
+                *dynamic.lock() = value;
+            }
+        }
+    }
+}
+
+impl<T> From<SharedCallback<T>> for SharedNotify<T> {
+    fn from(value: SharedCallback<T>) -> Self {
+        Self::SharedCallback(value)
+    }
+}
+
+impl<T> From<Dynamic<T>> for SharedNotify<T> {
+    fn from(value: Dynamic<T>) -> Self {
+        Self::Dynamic(value)
+    }
+}
+
+impl<T> From<Sender<T>> for SharedNotify<T> {
+    fn from(value: Sender<T>) -> Self {
+        Self::Sender(value)
+    }
+}
+
+impl<T> From<Broadcaster<T>> for SharedNotify<T> {
+    fn from(value: Broadcaster<T>) -> Self {
+        Self::Broadcaster(value)
+    }
+}
+
+impl<T> From<BroadcastChannel<T>> for SharedNotify<T> {
+    fn from(value: BroadcastChannel<T>) -> Self {
+        Self::Broadcaster(value.into_broadcaster())
+    }
+}
+
+impl<T, F> From<F> for SharedNotify<T>
+where
+    F: FnMut(T) + Send + 'static,
+{
+    fn from(func: F) -> Self {
+        Self::from(SharedCallback::new(func))
+    }
+}
+
 /// A [`Callback`] that can be cloned.
 ///
 /// Only one thread can be invoking a shared callback at any given time.
@@ -2259,6 +2453,16 @@ impl MountedWidget {
         self.tree().overridden_theme(self.node_id)
     }
 
+    #[cfg(feature = "localization")]
+    pub(crate) fn attach_locale(&self, locale: Value<LanguageIdentifier>) {
+        self.tree().attach_locale(self.node_id, locale);
+    }
+
+    #[cfg(feature = "localization")]
+    pub(crate) fn overridden_locale(&self) -> Option<Value<LanguageIdentifier>> {
+        self.tree().overridden_locale(self.node_id)
+    }
+
     pub(crate) fn begin_layout(&self, constraints: Size<ConstraintLimit>) -> Option<WidgetLayout> {
         self.tree().begin_layout(self.node_id, constraints)
     }
@@ -2486,7 +2690,7 @@ impl WidgetList {
         mut change_fn: impl FnMut(&mut Collection, ChildrenSyncChange),
     ) {
         for (index, widget) in self.iter().enumerate() {
-            if get_index(collection, index).map_or(true, |child| child != widget) {
+            if get_index(collection, index) != Some(widget) {
                 // These entries do not match. See if we can find the
                 // new id somewhere else, if so we can swap the entries.
                 if let Some(Some(swap_index)) = (index + 1..usize::MAX).find_map(|index| {
@@ -2651,18 +2855,8 @@ where
     }
 }
 
-/// Allows to convert collections or iterators directly into [`Stack`], [`Layers`], etc.
-///
-/// ```
-/// use cushy::widget::{MakeWidget, MakeWidgetList};
-///
-/// vec!["hello", "label"].into_rows();
-///
-/// vec!["hello", "button"]
-///     .into_iter()
-///     .map(|l| l.into_button())
-///     .into_columns();
-/// ```
+/// Allows to convert collections or iterators directly into [`Stack`],
+/// [`Layers`], etc.
 pub trait MakeWidgetList: Sized {
     /// Returns self as a `WidgetList`.
     fn make_widget_list(self) -> WidgetList;
@@ -2679,6 +2873,17 @@ pub trait MakeWidgetList: Sized {
 }
 
 /// A type that can be converted to a `Value<WidgetList>`.
+///
+/// ```
+/// use cushy::widget::{IntoWidgetList, MakeWidget};
+///
+/// vec!["hello", "label"].into_rows();
+///
+/// vec!["hello", "button"]
+///     .into_iter()
+///     .map(|l| l.into_button())
+///     .into_columns();
+/// ```
 pub trait IntoWidgetList: Sized {
     /// Returns this list of widgets as a `Value<WidgetList>`.
     fn into_widget_list(self) -> Value<WidgetList>;

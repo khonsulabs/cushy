@@ -6,9 +6,9 @@ use kludgine::shapes::{PathBuilder, StrokeOptions};
 use kludgine::Color;
 
 use crate::context::{GraphicsContext, LayoutContext};
+use crate::reactive::value::{IntoValue, Value};
 use crate::styles::components::TextColor;
 use crate::styles::{Dimension, FlexibleDimension};
-use crate::value::{IntoValue, Value};
 use crate::widget::{Widget, WidgetLayout};
 use crate::ConstraintLimit;
 

@@ -6,9 +6,9 @@ use figures::{IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Z
 use intentional::Cast;
 
 use crate::context::{AsEventContext, GraphicsContext, LayoutContext, Trackable};
+use crate::reactive::value::{IntoValue, Value};
 use crate::styles::components::{IntrinsicPadding, LayoutOrder, VerticalAlignment};
 use crate::styles::{FlexibleDimension, HorizontalOrder, VerticalAlign};
-use crate::value::{IntoValue, Value};
 use crate::widget::{Baseline, MountedChildren, Widget, WidgetLayout, WidgetList};
 use crate::ConstraintLimit;
 

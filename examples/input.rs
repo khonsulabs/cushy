@@ -1,7 +1,7 @@
 use cushy::figures::units::Px;
+use cushy::reactive::value::Dynamic;
 use cushy::styles::components::HorizontalAlignment;
 use cushy::styles::HorizontalAlign;
-use cushy::value::Dynamic;
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::{InputValue, MaskedString};
 use cushy::Run;

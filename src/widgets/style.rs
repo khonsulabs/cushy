@@ -1,5 +1,6 @@
 use super::validated::HintTextColor;
 use crate::context::EventContext;
+use crate::reactive::value::{Destination, IntoValue, Mutable, Value};
 use crate::styles::components::{
     FontFamily, FontStyle, FontWeight, Heading1FontFamily, Heading1Style, Heading1Weight,
     Heading2FontFamily, Heading2Style, Heading2Weight, Heading3FontFamily, Heading3Style,
@@ -10,7 +11,6 @@ use crate::styles::components::{
     TextSize6, TextSize7, TextSize8,
 };
 use crate::styles::{ComponentDefinition, IntoComponentValue, IntoDynamicComponentValue, Styles};
-use crate::value::{Destination, IntoValue, Mutable, Value};
 use crate::widget::{MakeWidget, WidgetRef, WrapperWidget};
 
 /// A widget that applies a set of [`Styles`] to all contained widgets.

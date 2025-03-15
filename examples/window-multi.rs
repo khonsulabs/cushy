@@ -1,5 +1,5 @@
 use cushy::kludgine::{include_texture, LazyTexture};
-use cushy::value::{Destination, Dynamic, MapEach};
+use cushy::reactive::value::{Destination, Dynamic, MapEach};
 use cushy::widget::MakeWidget;
 use cushy::widgets::Image;
 use cushy::window::PendingWindow;

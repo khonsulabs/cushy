@@ -3,9 +3,11 @@ use std::fmt::Debug;
 
 use kludgine::Color;
 
+use crate::reactive::value::{
+    Destination, Dynamic, IntoDynamic, IntoValue, MapEach, Source, Value,
+};
 use crate::styles::components::OutlineColor;
 use crate::styles::{Component, DynamicComponent};
-use crate::value::{Destination, Dynamic, IntoDynamic, IntoValue, MapEach, Source, Value};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, WidgetInstance};
 use crate::widgets::button::{ButtonBackground, ButtonHoverBackground, ButtonKind};
 

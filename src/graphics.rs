@@ -1,10 +1,13 @@
+//! Graphics types for rendering.
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 
 use figures::units::{Px, UPx};
 use figures::{
-    self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, ScreenUnit, Size, Zero,
+    self, Fraction, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, ScreenUnit, Size,
+    Zero,
 };
+use intentional::Assert;
 use kempt::{map, Map};
 use kludgine::cosmic_text::{fontdb, FamilyOwned, FontSystem};
 use kludgine::drawing::Renderer;
@@ -17,8 +20,8 @@ use kludgine::{
 
 use crate::animation::ZeroToOne;
 use crate::fonts::{FontCollection, LoadedFontFace, LoadedFontId};
+use crate::reactive::value::{DynamicRead, Generation, Source};
 use crate::styles::FontFamilyList;
-use crate::value::{DynamicRead, Generation, Source};
 
 /// A 2d graphics context
 pub struct Graphics<'clip, 'gfx, 'pass> {
@@ -32,7 +35,7 @@ enum RenderContext<'clip, 'gfx, 'pass> {
     Clipped(ClipGuard<'clip, Renderer<'gfx, 'pass>>),
 }
 
-impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
+impl<'gfx, 'pass> Graphics<'_, 'gfx, 'pass> {
     /// Returns a new graphics context for the given [`Renderer`].
     #[must_use]
     pub fn new(renderer: Renderer<'gfx, 'pass>) -> Self {
@@ -285,7 +288,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
         text: impl Into<Drawable<&'a MeasuredText<Unit>, Unit>>,
         origin: TextOrigin<Unit>,
     ) where
-        Unit: ScreenUnit,
+        Unit: ScreenUnit + Round,
     {
         let mut text = text.into();
         text.opacity = Some(
@@ -307,13 +310,14 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     {
         let region = self.region;
         self.renderer
-            .draw::<CushyRenderOp<Op>>((<Op::DrawInfo>::default(), region));
+            .draw::<CushyRenderOp<Op>>((<Op::DrawInfo>::default(), region, self.opacity));
     }
 
     /// Draws `Op` with the given context.
     pub fn draw_with<Op: RenderOperation>(&mut self, context: Op::DrawInfo) {
         let region = self.region;
-        self.renderer.draw::<CushyRenderOp<Op>>((context, region));
+        self.renderer
+            .draw::<CushyRenderOp<Op>>((context, region, self.opacity));
     }
 
     /// Returns a reference to the font system used to render.
@@ -335,7 +339,7 @@ impl<'clip, 'gfx, 'pass> Graphics<'clip, 'gfx, 'pass> {
     }
 }
 
-impl<'gfx, 'pass> Deref for Graphics<'_, 'gfx, 'pass> {
+impl Deref for Graphics<'_, '_, '_> {
     type Target = Kludgine;
 
     fn deref(&self) -> &Self::Target {
@@ -343,7 +347,7 @@ impl<'gfx, 'pass> Deref for Graphics<'_, 'gfx, 'pass> {
     }
 }
 
-impl<'gfx, 'pass> DerefMut for Graphics<'_, 'gfx, 'pass> {
+impl DerefMut for Graphics<'_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.renderer
     }
@@ -360,7 +364,7 @@ impl<'gfx, 'pass> Deref for RenderContext<'_, 'gfx, 'pass> {
     }
 }
 
-impl<'gfx, 'pass> DerefMut for RenderContext<'_, 'gfx, 'pass> {
+impl DerefMut for RenderContext<'_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             RenderContext::Renderer(renderer) => renderer,
@@ -369,10 +373,29 @@ impl<'gfx, 'pass> DerefMut for RenderContext<'_, 'gfx, 'pass> {
     }
 }
 
+/// A prepared [`RenderOperation`]'s data.
 #[derive(Debug)]
-struct Prepared<T> {
+pub struct Prepared<T> {
     region: Rect<Px>,
+    opacity: ZeroToOne,
     data: T,
+}
+
+impl<T> Prepared<T> {
+    /// The region this operation is expected to draw within.
+    pub const fn region(&self) -> Rect<Px> {
+        self.region
+    }
+
+    /// The opacity this operation is expected to be performed with.
+    pub const fn opacity(&self) -> ZeroToOne {
+        self.opacity
+    }
+
+    /// The prepared data returned from [`RenderOperation::prepare`].
+    pub const fn inner(&self) -> &T {
+        &self.data
+    }
 }
 
 struct CushyRenderOp<Op>(Op);
@@ -381,7 +404,7 @@ impl<Op> kludgine::drawing::RenderOperation for CushyRenderOp<Op>
 where
     Op: RenderOperation,
 {
-    type DrawInfo = (Op::DrawInfo, Rect<Px>);
+    type DrawInfo = (Op::DrawInfo, Rect<Px>, ZeroToOne);
     type Prepared = Prepared<Op::Prepared>;
 
     fn new(graphics: &mut kludgine::Graphics<'_>) -> Self {
@@ -390,23 +413,41 @@ where
 
     fn prepare(
         &mut self,
-        (context, region): Self::DrawInfo,
+        (context, region, opacity): Self::DrawInfo,
         graphics: &mut kludgine::Graphics<'_>,
     ) -> Self::Prepared {
         Prepared {
             region,
-            data: self.0.prepare(context, region, graphics),
+            data: self.0.prepare(context, region, opacity, graphics),
+            opacity,
         }
+    }
+
+    fn finish(&mut self, prepared: &[Self::Prepared], graphics: &mut kludgine::Graphics<'_>) {
+        self.0.finish(prepared, graphics);
     }
 
     fn render<'pass>(
         &'pass self,
         prepared: &Self::Prepared,
-        opacity: f32,
+        _opacity: f32,
         graphics: &mut RenderingGraphics<'_, 'pass>,
     ) {
         self.0
-            .render(&prepared.data, prepared.region, opacity, graphics);
+            .render(&prepared.data, prepared.region, prepared.opacity, graphics);
+    }
+
+    fn batch_prepared(
+        &mut self,
+        first: &mut Self::Prepared,
+        mut other: Self::Prepared,
+    ) -> Result<(), Self::Prepared> {
+        if let Err(returned) = self.0.batch_prepared(&mut first.data, other.data) {
+            other.data = returned;
+            Err(other)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -415,7 +456,7 @@ pub(crate) struct LoadedFontIds {
     pub(crate) faces: Vec<LoadedFontFace>,
 }
 
-pub struct FontState {
+pub(crate) struct FontState {
     app_fonts: FontCollection,
     app_font_generation: Generation,
     window_fonts: FontCollection,
@@ -512,7 +553,7 @@ impl FontState {
             // Remove all fonts that didn't have their generation touched.
             let mut i = 0;
             while i < self.loaded_fonts.len() {
-                let field = self.loaded_fonts.field(i).expect("length checked");
+                let field = self.loaded_fonts.field(i).assert("length checked");
                 let check_if_changed = (app_fonts_changed
                     && self.app_fonts.0.as_ptr() == field.key().collection)
                     || (window_fonts_changed
@@ -569,6 +610,7 @@ impl FontState {
         self.update_fonts(db)
     }
 
+    #[must_use]
     pub fn find_available_font_family(&self, list: &FontFamilyList) -> Option<FamilyOwned> {
         list.iter()
             .find(|family| match family {
@@ -631,8 +673,21 @@ pub trait RenderOperation: Send + Sync + 'static {
         &mut self,
         context: Self::DrawInfo,
         region: Rect<Px>,
+        opacity: ZeroToOne,
         graphics: &mut kludgine::Graphics<'_>,
     ) -> Self::Prepared;
+
+    /// Finish any operations needed before render operations begin.
+    ///
+    /// This function is invoked once after all `prepare` functions have been
+    /// invoked, but before the `render` functions begin.
+    #[allow(unused_variables)]
+    fn finish(
+        &mut self,
+        prepared: &[Prepared<Self::Prepared>],
+        graphics: &mut kludgine::Graphics<'_>,
+    ) {
+    }
 
     /// Render `preprared` to `graphics` at `region` with `opacity`.
     ///
@@ -646,9 +701,35 @@ pub trait RenderOperation: Send + Sync + 'static {
         &self,
         prepared: &Self::Prepared,
         region: Rect<Px>,
-        opacity: f32,
+        opacity: ZeroToOne,
         graphics: &mut RenderingGraphics<'_, '_>,
     );
+
+    /// Batches `other` into `first`, if possible.
+    ///
+    /// This function allows render operations to participate in automatic
+    /// batching performed by Cushy/Kludgine. If the same render operation type
+    /// is drawn sequentially multiple times, this function is invoked with the
+    /// first and second results of the prepare function. If this function
+    /// returns `Ok(())`, `self` is expected to have been updated to draw both
+    /// the `self` and `other` operations.
+    ///
+    /// If this function returns `Err`, the returned preparation is enqueued.
+    ///
+    /// The provided implementation returns `Err(other)` which avoids batching.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if the render operations cannot be
+    /// batched.
+    #[allow(unused_variables)]
+    fn batch_prepared(
+        &mut self,
+        first: &mut Self::Prepared,
+        other: Self::Prepared,
+    ) -> Result<(), Self::Prepared> {
+        Err(other)
+    }
 }
 
 /// A [`RenderOperation`] with no per-drawing-call state.
@@ -664,7 +745,12 @@ pub trait SimpleRenderOperation: Send + Sync + 'static {
     /// optimization. To test that this is handled correctly, try placing
     /// whatever is being rendered in a `Scroll` widget and ensure that as the
     /// contents are clipped, the visible area shows the correct contents.
-    fn render(&self, region: Rect<Px>, opacity: f32, graphics: &mut RenderingGraphics<'_, '_>);
+    fn render(
+        &self,
+        region: Rect<Px>,
+        opacity: ZeroToOne,
+        graphics: &mut RenderingGraphics<'_, '_>,
+    );
 }
 
 impl<T> RenderOperation for T
@@ -682,6 +768,7 @@ where
         &mut self,
         _context: Self::DrawInfo,
         _origin: Rect<Px>,
+        _opacity: ZeroToOne,
         _graphics: &mut kludgine::Graphics<'_>,
     ) -> Self::Prepared {
     }
@@ -690,7 +777,7 @@ where
         &self,
         _prepared: &Self::Prepared,
         region: Rect<Px>,
-        opacity: f32,
+        opacity: ZeroToOne,
         graphics: &mut RenderingGraphics<'_, '_>,
     ) {
         self.render(region, opacity, graphics);

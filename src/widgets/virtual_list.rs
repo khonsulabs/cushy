@@ -12,7 +12,7 @@ use crate::figures::units::{Px, UPx};
 use crate::figures::{IntoSigned, Point, Rect, Round, Size, Zero};
 use crate::kludgine::app::winit::event::{MouseScrollDelta, TouchPhase};
 use crate::kludgine::app::winit::window::CursorIcon;
-use crate::value::{
+use crate::reactive::value::{
     Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, MapEachCloned, Source, Watcher,
 };
 use crate::widget::{
@@ -291,15 +291,11 @@ impl VirtualList {
             while self
                 .items
                 .front()
-                .map_or(false, |item| item.index < start_item)
+                .is_some_and(|item| item.index < start_item)
             {
                 context.remove_child(&self.items.pop_front().expect("at least one item").mounted);
             }
-            while self
-                .items
-                .back()
-                .map_or(false, |item| item.index > end_item)
-            {
+            while self.items.back().is_some_and(|item| item.index > end_item) {
                 context.remove_child(&self.items.pop_back().expect("at least one item").mounted);
             }
             // no extend front :(

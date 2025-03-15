@@ -54,19 +54,19 @@ use crate::context::{
 };
 use crate::fonts::FontCollection;
 use crate::graphics::{FontState, Graphics};
+use crate::reactive::value::{
+    Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Tracked, Value,
+};
 use crate::styles::{Edges, FontFamilyList, ThemePair};
 use crate::tree::Tree;
 use crate::utils::ModifiersExt;
-use crate::value::{
-    Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Tracked, Value,
-};
 use crate::widget::{
-    Callback, EventHandling, MakeWidget, MountedWidget, OnceCallback, RootBehavior, SharedCallback,
+    EventHandling, MakeWidget, MountedWidget, Notify, OnceCallback, RootBehavior, SharedCallback,
     WidgetId, WidgetInstance, HANDLED, IGNORED,
 };
 use crate::widgets::shortcuts::{ShortcutKey, ShortcutMap};
 use crate::window::sealed::WindowCommand;
-use crate::{App, ConstraintLimit};
+use crate::{App, ConstraintLimit, MaybeLocalized};
 
 /// A platform-dependent window implementation.
 pub trait PlatformWindowImplementation {
@@ -309,7 +309,7 @@ impl<W> RunningWindow<W>
 where
     W: PlatformWindowImplementation,
 {
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::ref_option)]
     pub(crate) fn new(
         window: W,
         kludgine_id: KludgineId,
@@ -507,7 +507,7 @@ where
     Behavior: WindowBehavior,
 {
     /// The title to display in the title bar of the window.
-    pub title: Value<String>,
+    pub title: Value<MaybeLocalized>,
     /// The colors to use to theme the user interface.
     pub theme: Value<ThemePair>,
     /// When true, the system fonts will be loaded into the font database. This
@@ -574,7 +574,7 @@ where
     enabled_buttons: Option<Value<WindowButtons>>,
     fullscreen: Option<Value<Option<Fullscreen>>>,
     shortcuts: Value<ShortcutMap>,
-    on_file_drop: Option<Callback<FileDrop>>,
+    on_file_drop: Option<Notify<FileDrop>>,
 }
 
 impl<Behavior> Default for Window<Behavior>
@@ -625,7 +625,7 @@ where
             .clone();
         Self {
             pending,
-            title: Value::Constant(title),
+            title: Value::Constant(title.into()),
             attributes: WindowAttributes::default(),
             on_open: None,
             on_closed: None,
@@ -1027,16 +1027,21 @@ where
     }
 
     /// Invokes `on_file_drop` when a file is hovered or dropped on this window.
-    pub fn on_file_drop<Function>(mut self, on_file_drop: Function) -> Self
+    pub fn on_file_drop<Function>(self, on_file_drop: Function) -> Self
     where
         Function: FnMut(FileDrop) + Send + 'static,
     {
-        self.on_file_drop = Some(Callback::new(on_file_drop));
+        self.on_file_drop_notify(on_file_drop)
+    }
+
+    /// Notifies `on_file_drop` when a file is hovered or dropped on this window.
+    pub fn on_file_drop_notify(mut self, on_file_drop: impl Into<Notify<FileDrop>>) -> Self {
+        self.on_file_drop = Some(on_file_drop.into());
         self
     }
 
     /// Sets the window's title.
-    pub fn titled(mut self, title: impl IntoValue<String>) -> Self {
+    pub fn titled(mut self, title: impl IntoValue<MaybeLocalized>) -> Self {
         self.title = title.into_value();
         self
     }
@@ -1254,6 +1259,7 @@ where
 }
 
 /// A file drop event for a window.
+#[derive(Clone, Debug)]
 pub struct FileDrop {
     /// The handle to the window the file drop event is for.
     pub window: WindowHandle,
@@ -1262,6 +1268,7 @@ pub struct FileDrop {
 }
 
 /// A drop event.
+#[derive(Clone, Debug)]
 pub enum DropEvent<T> {
     /// The payload is being hovered over the container.
     Hover(T),
@@ -1376,7 +1383,7 @@ struct OpenWindow<T> {
     fullscreen: Tracked<Value<Option<Fullscreen>>>,
     modifiers: Dynamic<Modifiers>,
     shortcuts: Value<ShortcutMap>,
-    on_file_drop: Option<Callback<FileDrop>>,
+    on_file_drop: Option<Notify<FileDrop>>,
     disabled_resize_automatically: bool,
 }
 
@@ -1419,6 +1426,8 @@ where
                             &mut self.fonts,
                             self.theme_mode.get(),
                             &mut self.cursor,
+                            #[cfg(feature = "localization")]
+                            &self.app.cushy().data.localizations,
                         ),
                         kludgine,
                     )
@@ -1432,6 +1441,8 @@ where
                         &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
+                        #[cfg(feature = "localization")]
+                        &self.app.cushy().data.localizations,
                     ),
                     kludgine,
                 )
@@ -1451,6 +1462,8 @@ where
                     &mut self.fonts,
                     self.theme_mode.get(),
                     &mut self.cursor,
+                    #[cfg(feature = "localization")]
+                    &self.app.cushy().data.localizations,
                 ),
                 kludgine,
             )
@@ -1484,6 +1497,8 @@ where
                     &mut self.fonts,
                     self.theme_mode.get(),
                     &mut self.cursor,
+                    #[cfg(feature = "localization")]
+                    &self.app.cushy().data.localizations,
                 ),
                 graphics,
             );
@@ -1635,6 +1650,8 @@ where
                         &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
+                        #[cfg(feature = "localization")]
+                        &self.app.cushy().data.localizations,
                     ),
                     kludgine,
                 );
@@ -1668,6 +1685,8 @@ where
                             &mut self.fonts,
                             self.theme_mode.get(),
                             &mut self.cursor,
+                            #[cfg(feature = "localization")]
+                            &self.app.cushy().data.localizations,
                         ),
                         kludgine,
                     );
@@ -1734,7 +1753,7 @@ where
         let app = settings.app.clone();
         let fonts = Self::load_fonts(
             &mut settings,
-            app.cushy().fonts.clone(),
+            app.cushy().data.fonts.clone(),
             graphics.font_system().db_mut(),
         );
 
@@ -1809,7 +1828,7 @@ where
             outer_size: settings.outer_size,
             inner_position: settings.inner_position,
             outer_position: Tracked::from(settings.outer_position).ignoring_first(),
-            window_icon: Tracked::from(settings.window_icon),
+            window_icon: Tracked::from(settings.window_icon).ignoring_first_if(Option::is_none),
             modifiers: settings.modifiers,
             enabled_buttons: Tracked::from(settings.enabled_buttons).ignoring_first(),
             fullscreen: Tracked::from(settings.fullscreen).ignoring_first(),
@@ -1882,6 +1901,8 @@ where
                 &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
+                #[cfg(feature = "localization")]
+                &self.app.cushy().data.localizations,
             ),
             gfx: Exclusive::Owned(Graphics::new(graphics)),
         };
@@ -2169,6 +2190,8 @@ where
                 &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
+                #[cfg(feature = "localization")]
+                &self.app.cushy().data.localizations,
             ),
             kludgine,
         );
@@ -2230,6 +2253,8 @@ where
                 &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
+                #[cfg(feature = "localization")]
+                &self.app.cushy().data.localizations,
             ),
             kludgine,
         );
@@ -2273,6 +2298,8 @@ where
                 &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
+                #[cfg(feature = "localization")]
+                &self.app.cushy().data.localizations,
             ),
             kludgine,
         );
@@ -2318,6 +2345,8 @@ where
                 &mut self.fonts,
                 self.theme_mode.get(),
                 &mut self.cursor,
+                #[cfg(feature = "localization")]
+                &self.app.cushy().data.localizations,
             ),
             kludgine,
         )
@@ -2337,6 +2366,8 @@ where
                         &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
+                        #[cfg(feature = "localization")]
+                        &self.app.cushy().data.localizations,
                     ),
                     kludgine,
                 );
@@ -2377,11 +2408,146 @@ where
                     &mut self.fonts,
                     self.theme_mode.get(),
                     &mut self.cursor,
+                    #[cfg(feature = "localization")]
+                    &self.app.cushy().data.localizations,
                 ),
                 kludgine,
             );
             context.clear_hover();
         }
+    }
+
+    fn mouse_down<W>(
+        &mut self,
+        window: W,
+        kludgine: &mut Kludgine,
+        device_id: DeviceId,
+        button: MouseButton,
+    ) -> EventHandling
+    where
+        W: PlatformWindowImplementation,
+    {
+        let mut window = RunningWindow::new(
+            window,
+            kludgine.id(),
+            &self.redraw_status,
+            &self.app,
+            &self.focused,
+            &self.occluded,
+            self.inner_size.source(),
+            &self.close_requested,
+        );
+        if let (Some(location), Some(hovered)) = (
+            self.cursor.location,
+            self.cursor
+                .widget
+                .as_ref()
+                .and_then(|hover| self.tree.widget(hover.id)),
+        ) {
+            if let Some(handler) = recursively_handle_event(
+                &mut EventContext::new(
+                    WidgetContext::new(
+                        hovered.clone(),
+                        &self.current_theme,
+                        &mut window,
+                        &mut self.fonts,
+                        self.theme_mode.get(),
+                        &mut self.cursor,
+                        #[cfg(feature = "localization")]
+                        &self.app.cushy().data.localizations,
+                    ),
+                    kludgine,
+                ),
+                |context| {
+                    let Some(layout) = context.last_layout() else {
+                        return IGNORED;
+                    };
+                    let relative = location - layout.origin;
+                    context.mouse_down(relative, device_id, button)
+                },
+            ) {
+                self.mouse_buttons
+                    .entry(device_id)
+                    .or_default()
+                    .insert(button, handler.id());
+                return HANDLED;
+            }
+        } else {
+            EventContext::new(
+                WidgetContext::new(
+                    self.root.clone(),
+                    &self.current_theme,
+                    &mut window,
+                    &mut self.fonts,
+                    self.theme_mode.get(),
+                    &mut self.cursor,
+                    #[cfg(feature = "localization")]
+                    &self.app.cushy().data.localizations,
+                ),
+                kludgine,
+            )
+            .clear_focus();
+        }
+        IGNORED
+    }
+
+    fn mouse_up<W>(
+        &mut self,
+        window: W,
+        kludgine: &mut Kludgine,
+        device_id: DeviceId,
+        button: MouseButton,
+    ) -> EventHandling
+    where
+        W: PlatformWindowImplementation,
+    {
+        let mut window = RunningWindow::new(
+            window,
+            kludgine.id(),
+            &self.redraw_status,
+            &self.app,
+            &self.focused,
+            &self.occluded,
+            self.inner_size.source(),
+            &self.close_requested,
+        );
+        let Some(device_buttons) = self.mouse_buttons.get_mut(&device_id) else {
+            return IGNORED;
+        };
+        let Some(handler) = device_buttons.remove(&button) else {
+            return IGNORED;
+        };
+        if device_buttons.is_empty() {
+            self.mouse_buttons.remove(&device_id);
+        }
+        let Some(handler) = self.tree.widget(handler) else {
+            return IGNORED;
+        };
+        let cursor_location = self.cursor.location;
+        let mut context = EventContext::new(
+            WidgetContext::new(
+                handler,
+                &self.current_theme,
+                &mut window,
+                &mut self.fonts,
+                self.theme_mode.get(),
+                &mut self.cursor,
+                #[cfg(feature = "localization")]
+                &self.app.cushy().data.localizations,
+            ),
+            kludgine,
+        );
+
+        let relative = if let (Some(last_rendered), Some(location)) =
+            (context.last_layout(), cursor_location)
+        {
+            Some(location - last_rendered.origin)
+        } else {
+            None
+        };
+
+        context.mouse_up(relative, device_id, button);
+        HANDLED
     }
 
     fn mouse_input<W>(
@@ -2397,105 +2563,9 @@ where
     {
         let cushy = self.app.cushy().clone();
         let _guard = cushy.enter_runtime();
-        let mut window = RunningWindow::new(
-            window,
-            kludgine.id(),
-            &self.redraw_status,
-            &self.app,
-            &self.focused,
-            &self.occluded,
-            self.inner_size.source(),
-            &self.close_requested,
-        );
         match state {
-            ElementState::Pressed => {
-                if let (ElementState::Pressed, Some(location), Some(hovered)) = (
-                    state,
-                    self.cursor.location,
-                    self.cursor
-                        .widget
-                        .as_ref()
-                        .and_then(|hover| self.tree.widget(hover.id)),
-                ) {
-                    if let Some(handler) = recursively_handle_event(
-                        &mut EventContext::new(
-                            WidgetContext::new(
-                                hovered.clone(),
-                                &self.current_theme,
-                                &mut window,
-                                &mut self.fonts,
-                                self.theme_mode.get(),
-                                &mut self.cursor,
-                            ),
-                            kludgine,
-                        ),
-                        |context| {
-                            let Some(layout) = context.last_layout() else {
-                                return IGNORED;
-                            };
-                            let relative = location - layout.origin;
-                            context.mouse_down(relative, device_id, button)
-                        },
-                    ) {
-                        self.mouse_buttons
-                            .entry(device_id)
-                            .or_default()
-                            .insert(button, handler.id());
-                        return HANDLED;
-                    }
-                } else {
-                    EventContext::new(
-                        WidgetContext::new(
-                            self.root.clone(),
-                            &self.current_theme,
-                            &mut window,
-                            &mut self.fonts,
-                            self.theme_mode.get(),
-                            &mut self.cursor,
-                        ),
-                        kludgine,
-                    )
-                    .clear_focus();
-                }
-                IGNORED
-            }
-            ElementState::Released => {
-                let Some(device_buttons) = self.mouse_buttons.get_mut(&device_id) else {
-                    return IGNORED;
-                };
-                let Some(handler) = device_buttons.remove(&button) else {
-                    return IGNORED;
-                };
-                if device_buttons.is_empty() {
-                    self.mouse_buttons.remove(&device_id);
-                }
-                let Some(handler) = self.tree.widget(handler) else {
-                    return IGNORED;
-                };
-                let cursor_location = self.cursor.location;
-                let mut context = EventContext::new(
-                    WidgetContext::new(
-                        handler,
-                        &self.current_theme,
-                        &mut window,
-                        &mut self.fonts,
-                        self.theme_mode.get(),
-                        &mut self.cursor,
-                    ),
-                    kludgine,
-                );
-
-                let relative = if let (Some(last_rendered), Some(location)) =
-                    (context.last_layout(), cursor_location)
-                {
-                    Some(location - last_rendered.origin)
-                } else {
-                    None
-                };
-
-                context.mouse_up(relative, device_id, button);
-                HANDLED
-            }
+            ElementState::Pressed => self.mouse_down(window, kludgine, device_id, button),
+            ElementState::Released => self.mouse_up(window, kludgine, device_id, button),
         }
     }
 
@@ -2505,7 +2575,7 @@ where
         window: &kludgine::app::Window<'_, WindowCommand>,
     ) {
         if let Some(on_file_drop) = &mut self.on_file_drop {
-            on_file_drop.invoke(FileDrop {
+            on_file_drop.notify(FileDrop {
                 window: WindowHandle::new(window.handle(), self.redraw_status.clone()),
                 drop,
             });
@@ -2641,7 +2711,9 @@ where
         if let Some(Value::Constant(theme_mode)) = &settings.theme_mode {
             attrs.preferred_theme = Some((*theme_mode).into());
         }
-        attrs.title = settings.title.get();
+        attrs.title = settings
+            .title
+            .map(|title| title.localize_for_cushy(settings.app.cushy()));
         if attrs.inner_size.is_none() {
             let dynamic_inner = settings.inner_size.get();
             if !dynamic_inner.is_zero() {
@@ -2863,6 +2935,7 @@ where
                 }
             }
             WindowCommand::SetTitle(new_title) => {
+                let new_title = new_title.localize_for_cushy(self.app.cushy());
                 window.set_title(&new_title);
             }
             WindowCommand::ResetDeadKeys => {
@@ -2880,11 +2953,7 @@ where
                     Some(Ize::Minimize) => (true, false),
                     None => (false, false),
                 };
-                if window
-                    .winit()
-                    .is_minimized()
-                    .map_or(true, |minimized| minimized != minimize)
-                {
+                if window.winit().is_minimized() != Some(minimize) {
                     window.winit().set_minimized(minimize);
                 }
                 if window.winit().is_maximized() != maximize {
@@ -2910,6 +2979,8 @@ where
                         &mut self.fonts,
                         self.theme_mode.get(),
                         &mut self.cursor,
+                        #[cfg(feature = "localization")]
+                        &self.app.cushy().data.localizations,
                     ),
                     kludgine,
                 );
@@ -3005,12 +3076,12 @@ pub(crate) mod sealed {
     use crate::context::sealed::InvalidationStatus;
     use crate::context::EventContext;
     use crate::fonts::FontCollection;
+    use crate::reactive::value::{Dynamic, Value};
     use crate::styles::{FontFamilyList, ThemePair};
-    use crate::value::{Dynamic, Value};
-    use crate::widget::{Callback, OnceCallback, SharedCallback};
+    use crate::widget::{Notify, OnceCallback, SharedCallback};
     use crate::widgets::shortcuts::ShortcutMap;
     use crate::window::{FileDrop, PendingWindow, ThemeMode, WindowAttributes, WindowHandle};
-    use crate::App;
+    use crate::{App, MaybeLocalized};
 
     pub struct Context<C> {
         pub user: C,
@@ -3021,7 +3092,7 @@ pub(crate) mod sealed {
     pub struct WindowSettings {
         pub app: App,
         pub redraw_status: InvalidationStatus,
-        pub title: Value<String>,
+        pub title: Value<MaybeLocalized>,
         pub attributes: Option<WindowAttributes>,
         pub occluded: Dynamic<bool>,
         pub focused: Dynamic<bool>,
@@ -3062,7 +3133,7 @@ pub(crate) mod sealed {
         pub enabled_buttons: Value<WindowButtons>,
         pub fullscreen: Value<Option<Fullscreen>>,
         pub shortcuts: Value<ShortcutMap>,
-        pub on_file_drop: Option<Callback<FileDrop>>,
+        pub on_file_drop: Option<Notify<FileDrop>>,
     }
 
     pub struct WindowExecute(Box<dyn ExecuteFunc>);
@@ -3109,7 +3180,7 @@ pub(crate) mod sealed {
         RequestUserAttention(Option<UserAttentionType>),
         Focus,
         Ize(Option<Ize>),
-        SetTitle(String),
+        SetTitle(MaybeLocalized),
         Execute(WindowExecute),
     }
 
@@ -3342,7 +3413,7 @@ impl InnerWindowHandle {
             InnerWindowHandle::Virtual(state) => match message {
                 WindowCommand::Redraw => state.redraw_target.set(RedrawTarget::Now),
                 WindowCommand::RequestClose => state.close_requested.set(true),
-                WindowCommand::SetTitle(title) => state.title.set(title),
+                WindowCommand::SetTitle(title) => *state.title.lock() = title,
                 WindowCommand::Execute(_func) => {
                     tracing::error!("ignoring execution of window function on virtual window");
                 }
@@ -3539,7 +3610,7 @@ pub struct WindowDynamicState {
     /// should be invoked.
     pub close_requested: Dynamic<bool>,
     /// The current title of the window.
-    pub title: Dynamic<String>,
+    pub title: Dynamic<MaybeLocalized>,
 }
 
 /// A target for the next redraw of a window.
@@ -4389,9 +4460,9 @@ impl Capture {
     {
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         self.texture.copy_to_buffer(
-            wgpu::ImageCopyBuffer {
+            wgpu::TexelCopyBufferInfo {
                 buffer: &self.buffer,
-                layout: wgpu::ImageDataLayout {
+                layout: wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some(self.bytes_per_row),
                     rows_per_image: None,
@@ -4689,8 +4760,7 @@ where
 }
 
 fn copy_buffer_aligned_bytes_per_row(width: u32) -> u32 {
-    (width + COPY_BYTES_PER_ROW_ALIGNMENT - 1) / COPY_BYTES_PER_ROW_ALIGNMENT
-        * COPY_BYTES_PER_ROW_ALIGNMENT
+    width.div_ceil(COPY_BYTES_PER_ROW_ALIGNMENT) * COPY_BYTES_PER_ROW_ALIGNMENT
 }
 
 /// An animated PNG recorder.

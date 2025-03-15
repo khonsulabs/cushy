@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use cushy::value::{Dynamic, Switchable};
+use cushy::reactive::value::{Dynamic, Switchable};
 use cushy::widget::MakeWidget;
 use cushy::Run;
 

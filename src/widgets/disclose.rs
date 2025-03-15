@@ -11,9 +11,9 @@ use kludgine::{Color, DrawableExt};
 use super::button::{ButtonActiveBackground, ButtonBackground, ButtonHoverBackground};
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::{EventContext, LayoutContext};
+use crate::reactive::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::styles::components::{HighlightColor, IntrinsicPadding, LineHeight, OutlineColor};
 use crate::styles::Dimension;
-use crate::value::{Destination, Dynamic, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{
     EventHandling, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout, WidgetRef,
     WidgetTag, HANDLED, IGNORED,
@@ -355,7 +355,7 @@ impl Widget for DiscloseIndicator {
             self.deactivate(context);
             self.collapsed.toggle();
         }
-        let hovering = location.map_or(false, |location| self.hit_test(location, context));
+        let hovering = location.is_some_and(|location| self.hit_test(location, context));
         if hovering != self.hovering_indicator {
             self.hovering_indicator = hovering;
             context.set_needs_redraw();

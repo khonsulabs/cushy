@@ -6,20 +6,24 @@ use figures::units::{Lp, Px, UPx};
 use figures::{IntoSigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use kludgine::app::winit::event::{Ime, MouseButton, MouseScrollDelta, TouchPhase};
 use kludgine::app::winit::window::Cursor;
-use kludgine::cosmic_text::FamilyOwned;
+use kludgine::cosmic_text::{FamilyOwned, Style, Weight};
 use kludgine::shapes::{Shape, StrokeOptions};
 use kludgine::{Color, Kludgine, KludgineId};
+#[cfg(feature = "localization")]
+use unic_langid::LanguageIdentifier;
 
 use crate::animation::ZeroToOne;
 use crate::fonts::{LoadedFont, LoadedFontFace};
 use crate::graphics::{FontState, Graphics};
+#[cfg(feature = "localization")]
+use crate::localization::Localizations;
+use crate::reactive::value::{IntoValue, Source, Value};
 use crate::styles::components::{
     CornerRadius, FontFamily, FontStyle, FontWeight, HighlightColor, LayoutOrder, LineHeight,
     Opacity, OutlineWidth, TextSize, WidgetBackground,
 };
-use crate::styles::{ComponentDefinition, FontFamilyList, Styles, Theme, ThemePair};
+use crate::styles::{ComponentDefinition, Dimension, FontFamilyList, Styles, Theme, ThemePair};
 use crate::tree::Tree;
-use crate::value::{IntoValue, Source, Value};
 use crate::widget::{
     EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance, WidgetLayout,
 };
@@ -531,7 +535,7 @@ impl<'context> Deref for EventContext<'context> {
     }
 }
 
-impl<'context> DerefMut for EventContext<'context> {
+impl DerefMut for EventContext<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.widget
     }
@@ -575,7 +579,7 @@ pub struct GraphicsContext<'context, 'clip, 'gfx, 'pass> {
     pub gfx: Exclusive<'context, Graphics<'clip, 'gfx, 'pass>>,
 }
 
-impl<'context, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'clip, 'gfx, 'pass> {
+impl<'clip, 'gfx, 'pass> GraphicsContext<'_, 'clip, 'gfx, 'pass> {
     /// Returns a new instance that borrows from `self`.
     pub fn borrowed(&mut self) -> GraphicsContext<'_, 'clip, 'gfx, 'pass> {
         GraphicsContext {
@@ -711,14 +715,29 @@ impl<'context, 'clip, 'gfx, 'pass> GraphicsContext<'context, 'clip, 'gfx, 'pass>
         self.stroke_outline(color, StrokeOptions::px_wide(width));
     }
 
+    /// Returns the widget context's current font settings.
+    ///
+    /// The settings returned are from retrieving the values of these style
+    /// components:
+    ///
+    /// The returned settings are not necessarily what is currently applied to
+    /// this graphics context. To apply these settings, consider using
+    /// [`Self::apply_current_font_settings()`] or [`FontSettings::apply`].
+    #[must_use]
+    pub fn current_font_settings(&self) -> FontSettings {
+        FontSettings {
+            family: self.widget.get(&FontFamily),
+            size: self.widget.get(&TextSize),
+            line_height: self.widget.get(&LineHeight),
+            style: self.widget.get(&FontStyle),
+            weight: self.widget.get(&FontWeight),
+        }
+    }
+
     /// Applies the current style settings for font family, text size, font
     /// style, and font weight.
     pub fn apply_current_font_settings(&mut self) {
-        self.set_available_font_family(&self.widget.get(&FontFamily));
-        self.gfx.set_font_size(self.widget.get(&TextSize));
-        self.gfx.set_line_height(self.widget.get(&LineHeight));
-        self.gfx.set_font_style(self.widget.get(&FontStyle));
-        self.gfx.set_font_weight(self.widget.get(&FontWeight));
+        self.current_font_settings().apply(self);
     }
 
     /// Invokes [`Widget::redraw()`](crate::widget::Widget::redraw) on this
@@ -751,7 +770,7 @@ impl Drop for GraphicsContext<'_, '_, '_, '_> {
     }
 }
 
-impl<'context, 'clip, 'gfx, 'pass> Deref for GraphicsContext<'context, 'clip, 'gfx, 'pass> {
+impl<'context> Deref for GraphicsContext<'context, '_, '_, '_> {
     type Target = WidgetContext<'context>;
 
     fn deref(&self) -> &Self::Target {
@@ -759,9 +778,35 @@ impl<'context, 'clip, 'gfx, 'pass> Deref for GraphicsContext<'context, 'clip, 'g
     }
 }
 
-impl<'context, 'clip, 'gfx, 'pass> DerefMut for GraphicsContext<'context, 'clip, 'gfx, 'pass> {
+impl DerefMut for GraphicsContext<'_, '_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.widget
+    }
+}
+
+/// The font settings supported by a [`GraphicsContext`].
+#[derive(PartialEq, Debug, Clone)]
+pub struct FontSettings {
+    /// The list of font families.
+    pub family: FontFamilyList,
+    /// The font size.
+    pub size: Dimension,
+    /// The line height.
+    pub line_height: Dimension,
+    /// The font style.
+    pub style: Style,
+    /// The font weight (boldness/lightness).
+    pub weight: Weight,
+}
+
+impl FontSettings {
+    /// Applies these font settings to `context`.
+    pub fn apply(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) {
+        context.set_available_font_family(&self.family);
+        context.gfx.set_font_size(self.size);
+        context.gfx.set_line_height(self.line_height);
+        context.gfx.set_font_style(self.style);
+        context.gfx.set_font_weight(self.weight);
     }
 }
 
@@ -844,7 +889,7 @@ impl<'context, 'clip, 'gfx, 'pass> LayoutContext<'context, 'clip, 'gfx, 'pass> {
     }
 }
 
-impl<'context, 'clip, 'gfx, 'pass> AsEventContext for LayoutContext<'context, 'clip, 'gfx, 'pass> {
+impl AsEventContext for LayoutContext<'_, '_, '_, '_> {
     fn as_event_context(&mut self) -> EventContext<'_> {
         self.graphics.as_event_context()
     }
@@ -858,7 +903,7 @@ impl<'context, 'clip, 'gfx, 'pass> Deref for LayoutContext<'context, 'clip, 'gfx
     }
 }
 
-impl<'context, 'clip, 'gfx, 'pass> DerefMut for LayoutContext<'context, 'clip, 'gfx, 'pass> {
+impl DerefMut for LayoutContext<'_, '_, '_, '_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.graphics
     }
@@ -933,6 +978,10 @@ pub struct WidgetContext<'context> {
     font_state: &'context mut FontState,
     effective_styles: Styles,
     cache: WidgetCacheKey,
+    #[cfg(feature = "localization")]
+    locale: Value<LanguageIdentifier>,
+    #[cfg(feature = "localization")]
+    localizations: &'context Localizations,
 }
 
 impl<'context> WidgetContext<'context> {
@@ -943,9 +992,13 @@ impl<'context> WidgetContext<'context> {
         font_state: &'context mut FontState,
         theme_mode: ThemeMode,
         cursor: &'context mut CursorState,
+        #[cfg(feature = "localization")] localizations: &'context Localizations,
     ) -> Self {
         let enabled = current_node.enabled(&window.handle());
         let tree = current_node.tree();
+
+        #[cfg(feature = "localization")]
+        let overridden_locale = current_node.overridden_locale();
 
         let (effective_styles, overridden_theme, overridden_theme_mode) =
             current_node.overridden_theme();
@@ -973,6 +1026,10 @@ impl<'context> WidgetContext<'context> {
             font_state,
             theme: Cow::Borrowed(theme),
             window,
+            #[cfg(feature = "localization")]
+            locale: Value::Constant(LanguageIdentifier::default()),
+            #[cfg(feature = "localization")]
+            localizations,
         };
 
         if let Some(theme) = overridden_theme {
@@ -980,6 +1037,12 @@ impl<'context> WidgetContext<'context> {
         }
         if let Some(mode) = overridden_theme_mode {
             context.cache.theme_mode = mode.get_tracking_redraw(&context);
+        }
+        #[cfg(feature = "localization")]
+        if let Some(locale) = overridden_locale {
+            context.locale = locale;
+        } else {
+            context.locale = Value::Constant(context.localizations.effective_locale(&context));
         }
 
         context
@@ -997,6 +1060,10 @@ impl<'context> WidgetContext<'context> {
             cache: self.cache,
             effective_styles: self.effective_styles.clone(),
             cursor: &mut *self.cursor,
+            #[cfg(feature = "localization")]
+            locale: self.locale.clone(),
+            #[cfg(feature = "localization")]
+            localizations: self.localizations,
         }
     }
 
@@ -1021,6 +1088,12 @@ impl<'context> WidgetContext<'context> {
             } else {
                 self.cache.theme_mode
             };
+            #[cfg(feature = "localization")]
+            let locale = if let Some(locale) = current_node.overridden_locale() {
+                locale
+            } else {
+                self.locale.clone()
+            };
             WidgetContext {
                 effective_styles,
                 cache: WidgetCacheKey {
@@ -1035,6 +1108,10 @@ impl<'context> WidgetContext<'context> {
                 theme,
                 pending_state: self.pending_state.borrowed(),
                 cursor: &mut *self.cursor,
+                #[cfg(feature = "localization")]
+                locale,
+                #[cfg(feature = "localization")]
+                localizations: self.localizations,
             }
         })
     }
@@ -1221,6 +1298,14 @@ impl<'context> WidgetContext<'context> {
         self.current_node.attach_theme_mode(theme_mode);
     }
 
+    /// Attaches `locale` to the widget hierarchy for this widget.
+    ///
+    /// All children nodes will access this theme in their contexts.
+    #[cfg(feature = "localization")]
+    pub fn attach_locale(&self, locale: Value<LanguageIdentifier>) {
+        self.current_node.attach_locale(locale);
+    }
+
     /// Queries the widget hierarchy for a single style component.
     ///
     /// This function traverses up the widget hierarchy looking for the
@@ -1249,8 +1334,22 @@ impl<'context> WidgetContext<'context> {
 
     /// Returns the window containing this widget.
     #[must_use]
-    pub fn window(&self) -> &dyn PlatformWindow {
+    pub const fn window(&self) -> &dyn PlatformWindow {
         self.window
+    }
+
+    /// Returns the locale for this widget.
+    #[must_use]
+    #[cfg(feature = "localization")]
+    pub const fn locale(&self) -> &Value<LanguageIdentifier> {
+        &self.locale
+    }
+
+    /// Returns the localizations for this application.
+    #[must_use]
+    #[cfg(feature = "localization")]
+    pub const fn localizations(&self) -> &Localizations {
+        self.localizations
     }
 
     /// Returns an exclusive reference to the window containing this widget.

@@ -4,13 +4,13 @@ use std::fmt::Debug;
 
 use kludgine::Color;
 
+use crate::reactive::value::{
+    Destination, Dynamic, IntoDynamic, IntoValue, MapEach, Source, Validation, Value,
+};
 use crate::styles::components::{
     ErrorColor, LineHeight, LineHeight2, OutlineColor, TextColor, TextSize, TextSize2,
 };
 use crate::styles::Dimension;
-use crate::value::{
-    Destination, Dynamic, IntoDynamic, IntoValue, MapEach, Source, Validation, Value,
-};
 use crate::widget::{MakeWidget, MakeWidgetWithTag, WidgetInstance, WidgetRef, WrapperWidget};
 
 /// A widget that displays validation information around another widget.

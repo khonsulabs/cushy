@@ -1,7 +1,7 @@
 use cushy::kludgine::app::winit::event::ElementState;
 use cushy::kludgine::app::winit::keyboard::{Key, NamedKey};
 use cushy::kludgine::Color;
-use cushy::value::{Destination, Dynamic};
+use cushy::reactive::value::{Destination, Dynamic};
 use cushy::widget::{MakeWidget, HANDLED, IGNORED};
 use cushy::widgets::input::InputValue;
 use cushy::Run;

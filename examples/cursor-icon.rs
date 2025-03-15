@@ -1,5 +1,5 @@
 use cushy::kludgine::app::winit::window::CursorIcon;
-use cushy::value::Dynamic;
+use cushy::reactive::value::Dynamic;
 use cushy::widget::MakeWidget;
 use cushy::widgets::input::InputValue;
 use cushy::widgets::Custom;

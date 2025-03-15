@@ -10,11 +10,11 @@ use kludgine::Color;
 
 use crate::animation::{AnimationHandle, AnimationTarget, LinearInterpolate, Spawn, ZeroToOne};
 use crate::context::{EventContext, GraphicsContext, LayoutContext, WidgetContext};
+use crate::reactive::value::{Destination, Dynamic, Source};
 use crate::styles::components::{
     AutoFocusableControls, Easing, IntrinsicPadding, WidgetAccentColor,
 };
 use crate::styles::ColorExt;
-use crate::value::{Destination, Dynamic, Source};
 use crate::widget::{
     Baseline, EventHandling, MakeWidget, Widget, WidgetLayout, WidgetRef, HANDLED, IGNORED,
 };

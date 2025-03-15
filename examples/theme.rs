@@ -2,12 +2,12 @@ use std::fmt::Write;
 
 use cushy::figures::units::Lp;
 use cushy::kludgine::Color;
+use cushy::reactive::value::{Destination, Dynamic, MapEachCloned, Source};
 use cushy::styles::components::{TextColor, TextSize, WidgetBackground};
 use cushy::styles::{
     ColorScheme, ColorSchemeBuilder, ColorSource, ColorTheme, Dimension, FixedTheme, OklabHue,
     SurfaceTheme, Theme, ThemePair,
 };
-use cushy::value::{Destination, Dynamic, MapEachCloned, Source};
 use cushy::widget::MakeWidget;
 use cushy::widgets::checkbox::Checkable;
 use cushy::widgets::color::ColorSourcePicker;

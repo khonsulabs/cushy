@@ -1,4 +1,4 @@
-use cushy::value::{Dynamic, IntoValue, Value};
+use cushy::reactive::value::{Dynamic, IntoValue, Value};
 use cushy::widgets::input::InputValue;
 
 fn composition_makewidget() -> impl cushy::widget::MakeWidget {

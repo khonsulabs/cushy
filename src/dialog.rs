@@ -9,9 +9,9 @@ use std::{env, fs};
 use figures::units::Lp;
 use parking_lot::Mutex;
 
+use crate::reactive::value::{Destination, Dynamic, Source};
 use crate::styles::components::{PrimaryColor, WidgetBackground};
 use crate::styles::DynamicComponent;
-use crate::value::{Destination, Dynamic, Source};
 use crate::widget::{MakeWidget, OnceCallback, SharedCallback, WidgetList};
 use crate::widgets::button::{ButtonKind, ClickCounter};
 use crate::widgets::input::InputValue;
@@ -51,21 +51,21 @@ enum MessageButtonsKind {
 /// use [`MessageButton::custom`].
 #[derive(Clone, Debug, Default)]
 pub struct MessageButton {
-    callback: OptionalCallback,
+    callback: ShouldCloseCallback,
     caption: String,
 }
 
 impl MessageButton {
     /// Returns a button with a custom caption that invokes `on_click` when
     /// selected.
-    pub fn custom<F>(caption: impl Into<String>, on_click: F) -> Self
+    pub fn custom<F>(caption: impl Into<String>, mut on_click: F) -> Self
     where
-        F: FnOnce() + Send + 'static,
+        F: ButtonBehavior,
     {
         Self {
-            callback: OptionalCallback(Arc::new(Mutex::new(Some(OnceCallback::new(move |()| {
-                on_click();
-            }))))),
+            callback: ShouldCloseCallback(Arc::new(Mutex::new(Some(OnceCallback::new(
+                move |()| on_click.clicked(),
+            ))))),
             caption: caption.into(),
         }
     }
@@ -74,7 +74,7 @@ impl MessageButton {
 impl From<String> for MessageButton {
     fn from(value: String) -> Self {
         Self {
-            callback: OptionalCallback::default(),
+            callback: ShouldCloseCallback::default(),
             caption: value,
         }
     }
@@ -94,7 +94,7 @@ impl From<&'_ str> for MessageButton {
 
 impl<F> From<F> for MessageButton
 where
-    F: FnOnce() + Send + 'static,
+    F: ButtonBehavior,
 {
     fn from(value: F) -> Self {
         Self::custom(String::new(), value)
@@ -108,12 +108,14 @@ impl From<()> for MessageButton {
 }
 
 #[derive(Clone, Debug, Default)]
-struct OptionalCallback(Arc<Mutex<Option<OnceCallback>>>);
+struct ShouldCloseCallback(Arc<Mutex<Option<OnceCallback<(), ShouldClose>>>>);
 
-impl OptionalCallback {
-    fn invoke(&self) {
+impl ShouldCloseCallback {
+    fn invoke(&self) -> ShouldClose {
         if let Some(callback) = self.0.lock().take() {
-            callback.invoke(());
+            callback.invoke(())
+        } else {
+            ShouldClose::Close
         }
     }
 }
@@ -124,6 +126,38 @@ enum MessageLevel {
     Warning,
     #[default]
     Info,
+}
+
+/// The behavior of a button in a [`Dialog`].
+pub trait ButtonBehavior: Send + 'static {
+    /// Invokes the behavior. Returns whether the dialog containing this button
+    /// should close or remain open.
+    fn clicked(&mut self) -> ShouldClose;
+}
+
+impl<T> ButtonBehavior for T
+where
+    T: FnMut() -> ShouldClose + Send + 'static,
+{
+    fn clicked(&mut self) -> ShouldClose {
+        self()
+    }
+}
+
+impl ButtonBehavior for ShouldClose {
+    fn clicked(&mut self) -> ShouldClose {
+        *self
+    }
+}
+
+/// Whether something should be closed or remain visible.
+#[derive(Default, Clone, Copy, Eq, PartialEq, Debug)]
+pub enum ShouldClose {
+    /// The item should remain visible.
+    Remain,
+    /// The item should be closed.
+    #[default]
+    Close,
 }
 
 /// A marker indicating a [`MessageBoxBuilder`] does not have a preference
@@ -328,9 +362,7 @@ where
             let on_negative = negative.callback.clone();
             dialog = dialog.with_button(
                 coalesce_empty(&negative.caption, default_negative),
-                move || {
-                    on_negative.invoke();
-                },
+                move || on_negative.invoke(),
             );
         }
 
@@ -338,7 +370,7 @@ where
             let on_cancel = cancel.callback.clone();
             dialog
                 .with_cancel_button(coalesce_empty(&cancel.caption, "Cancel"), move || {
-                    on_cancel.invoke();
+                    on_cancel.invoke()
                 })
                 .show();
         } else {
@@ -807,6 +839,7 @@ impl MakeWidget for FilePickerWidget {
                                                     unreachable!("re-set above");
                                                 };
                                                 cb.invoke(chosen_path.clone());
+                                                ShouldClose::Close
                                             }
                                         })
                                         .with_no(())
@@ -876,7 +909,7 @@ impl MakeWidget for FilePickerWidget {
                                         let full_path = full_path.clone();
                                         move |click| {
                                             if kind.is_multiple()
-                                                && click.map_or(false, |click| {
+                                                && click.is_some_and(|click| {
                                                     click.modifiers.state().primary()
                                                 })
                                             {

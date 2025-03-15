@@ -12,7 +12,7 @@ use cushy::kludgine::tilemap::{
     DebugGrid, Object, ObjectLayer, TileArray, TileKind, TileMapFocus, TILE_SIZE,
 };
 use cushy::kludgine::{include_aseprite_sprite, Color, DrawableExt};
-use cushy::value::{Destination, Dynamic};
+use cushy::reactive::value::{Destination, Dynamic};
 use cushy::widgets::TileMap;
 use cushy::{Run, Tick};
 
@@ -88,7 +88,7 @@ fn main() -> cushy::Result {
 
                 let rect = Rect::new(player.position - Size::squared(8.), Size::squared(16.));
                 layers.1[myself].hovered =
-                    cursor_pos.map_or(false, |cursor_pos| rect.cast().contains(cursor_pos));
+                    cursor_pos.is_some_and(|cursor_pos| rect.cast().contains(cursor_pos));
             });
         }));
 

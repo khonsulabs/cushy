@@ -5,8 +5,8 @@ use figures::{IntoSigned, IntoUnsigned, Size, Zero};
 
 use crate::animation::{AnimationHandle, AnimationTarget, Spawn};
 use crate::context::LayoutContext;
+use crate::reactive::value::{Dynamic, Generation, IntoDynamic, Source};
 use crate::styles::components::{EasingIn, EasingOut};
-use crate::value::{Dynamic, Generation, IntoDynamic, Source};
 use crate::widget::{
     MakeWidget, WidgetInstance, WidgetLayout, WidgetRef, WrappedLayout, WrapperWidget,
 };

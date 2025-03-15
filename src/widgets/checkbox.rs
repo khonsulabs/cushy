@@ -15,12 +15,14 @@ use super::button::{
 use super::indicator::{Indicator, IndicatorBehavior, IndicatorState};
 use crate::animation::{LinearInterpolate, ZeroToOne};
 use crate::context::{GraphicsContext, LayoutContext, WidgetContext};
+use crate::reactive::value::{
+    Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value,
+};
 use crate::styles::components::{
     CornerRadius, FocusColor, LineHeight, OutlineColor, OutlineWidth, TextColor, VerticalAlignment,
     WidgetAccentColor, WidgetBackground,
 };
 use crate::styles::{ColorExt, Dimension, VerticalAlign};
-use crate::value::{Destination, Dynamic, DynamicReader, IntoDynamic, IntoValue, Source, Value};
 use crate::widget::{
     Baseline, MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout,
 };
