@@ -134,6 +134,7 @@ impl MakeWidget for &ItemForm {
 }
 
 impl ItemForm {
+    #[allow(clippy::ptr_arg)]
     fn validate_name(input: &String) -> Result<(), &'static str> {
         if input.is_empty() {
             Err("This field cannot be empty")
