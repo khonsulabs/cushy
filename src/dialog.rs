@@ -128,7 +128,7 @@ enum MessageLevel {
     Info,
 }
 
-/// The behavior of a button in a [`Dialog`].
+/// The behavior of a button in a dialog.
 pub trait ButtonBehavior: Send + 'static {
     /// Invokes the behavior. Returns whether the dialog containing this button
     /// should close or remain open.

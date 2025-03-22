@@ -17,10 +17,10 @@ use crate::styles::components::{
     AutoFocusableControls, CornerRadius, DefaultActiveBackgroundColor,
     DefaultActiveForegroundColor, DefaultBackgroundColor, DefaultDisabledBackgroundColor,
     DefaultDisabledForegroundColor, DefaultForegroundColor, DefaultHoveredBackgroundColor,
-    DefaultHoveredForegroundColor, Easing, HighlightColor, IntrinsicPadding, OpaqueWidgetColor,
-    OutlineColor, OutlineWidth, SurfaceColor, TextColor,
+    DefaultHoveredForegroundColor, Easing, HighlightColor, HorizontalAlignment, IntrinsicPadding,
+    OpaqueWidgetColor, OutlineColor, OutlineWidth, SurfaceColor, TextColor,
 };
-use crate::styles::{ColorExt, Styles};
+use crate::styles::{ColorExt, HorizontalAlign, Styles};
 use crate::widget::{
     EventHandling, MakeWidget, Notify, SharedCallback, Widget, WidgetLayout, WidgetRef, HANDLED,
 };
@@ -38,6 +38,7 @@ pub struct Button {
     pub kind: Value<ButtonKind>,
     focusable: bool,
     per_window: WindowLocal<PerWindow>,
+    label_align: Dynamic<HorizontalAlign>,
 }
 
 #[derive(Debug, Default)]
@@ -139,12 +140,14 @@ pub struct ButtonColors {
 impl Button {
     /// Returns a new button with the provided label.
     pub fn new(content: impl MakeWidget) -> Self {
+        let label_align = Dynamic::<HorizontalAlign>::default();
         Self {
-            content: content.into_ref(),
+            content: content.with(&HorizontalAlignment, &label_align).into_ref(),
             on_click: None,
             per_window: WindowLocal::default(),
             kind: Value::Constant(ButtonKind::default()),
             focusable: true,
+            label_align,
         }
     }
 
@@ -527,12 +530,19 @@ impl Widget for Button {
         let double_padding = padding * 2;
         let mounted = self.content.mounted(context);
         let available_space = available_space.map(|space| space - double_padding);
+        let align = context.get(&ButtonLabelAlignment);
+        self.label_align.set(align);
         let layout = context.for_other(&mounted).layout(available_space);
         let size = available_space.fit_measured(layout.size);
-        context.set_child_layout(
-            &mounted,
-            Rect::new(Point::squared(padding), size).into_signed(),
+        let mut position = Rect::new(Point::squared(padding), size).into_signed();
+        position.origin.x += align.alignment_offset(
+            layout.size.width.into_signed().min(position.size.width),
+            available_space
+                .width
+                .fill_or_fit(position.size.width)
+                .into_signed(),
         );
+        context.set_child_layout(&mounted, position);
         WidgetLayout {
             size: size + double_padding,
             baseline: layout.baseline.map(|baseline| baseline + padding),
@@ -616,6 +626,8 @@ define_components! {
         /// The outline color of the button when the mouse cursor is hovering over
         /// it.
         ButtonDisabledOutline(Color, "disabled_outline_color", Color::CLEAR_BLACK)
+        /// The horizontal alignment to apply to the label widget of the button.
+        ButtonLabelAlignment(HorizontalAlign, "align", HorizontalAlign::Center)
     }
 }
 

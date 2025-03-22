@@ -189,35 +189,6 @@ impl Widget for Stack {
                 0,
                 cell_align,
             );
-            // let mut position = Rect::new(
-            //     self.layout
-            //         .orientation
-            //         .make_point(layout.offset, )
-            //         .into_signed(),
-            //     self.layout
-            //         .orientation
-            //         .make_size(layout.size, )
-            //         .into_signed(),
-            // );
-
-            // let cell_info = layout.baselines[0];
-
-            // let (row_baseline, row_after_baseline) =
-            //     if self.layout.orientation == Orientation::Column {
-            //         self.layout.row_baselines[0]
-            //     } else {
-            //         self.layout.row_baselines[index]
-            //     };
-
-            // if let (Some(cell_baseline), Some(row_baseline)) =
-            //     (cell_info.baseline.0, row_baseline.0)
-            // {
-            //     let alignment_needed = row_baseline - cell_baseline;
-            //     let row_height = row_baseline + row_after_baseline.expect("has baseline");
-            //     let available_space = row_height - cell_info.height;
-            //     let adjustment = alignment_needed.min(available_space);
-            //     position.origin.y += adjustment.into_signed();
-            // }
 
             context.set_child_layout(child, position);
         }

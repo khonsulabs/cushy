@@ -17,7 +17,7 @@ use crate::styles::components::{HorizontalAlignment, TextColor, VerticalAlignmen
 use crate::styles::{HorizontalAlign, VerticalAlign};
 use crate::widget::{MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout, WidgetTag};
 use crate::window::WindowLocal;
-use crate::{ConstraintLimit, FitMeasuredSize};
+use crate::ConstraintLimit;
 
 /// A read-only text widget.
 #[derive(Debug)]
@@ -154,13 +154,8 @@ where
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width, align);
 
-        // TODO if vertical alignment isn't top and we are using Fill on the
-        // height constraint limit, we should calculate the actual baseline. On
-        // that topic, if the text is wrapped, is the baseline of bottom-aligned
-        // text the bottom line's baseline or the top line's baseline? Probably
-        // bottom...
         WidgetLayout {
-            size: available_space.fit_measured(prepared.size.into_unsigned().ceil()),
+            size: prepared.size.into_unsigned().ceil(),
             baseline: prepared.line_height.into(),
         }
     }

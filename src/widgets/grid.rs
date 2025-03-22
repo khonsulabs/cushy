@@ -275,7 +275,7 @@ pub(crate) struct GridLayout {
     fit_to_content: Vec<LotId>,
     premeasured: Vec<LotId>,
     measured_scale: Fraction,
-    pub row_baselines: Vec<Baseline>,
+    pub row_baselines: Vec<BaselineInfo>,
     pub orientation: Orientation,
 }
 
@@ -283,6 +283,15 @@ pub(crate) struct GridLayout {
 pub(crate) struct BaselineInfo {
     pub baseline: Baseline,
     pub height: UPx,
+}
+
+impl BaselineInfo {
+    fn max(self, other: Self) -> Self {
+        Self {
+            baseline: self.baseline.max(other.baseline),
+            height: self.height.max(other.height),
+        }
+    }
 }
 
 impl From<&WidgetLayout> for BaselineInfo {
@@ -575,7 +584,7 @@ impl GridLayout {
 
         WidgetLayout {
             size: self.orientation.make_size(measured, total_other),
-            baseline: self.row_baselines[0],
+            baseline: self.row_baselines[0].baseline,
         }
     }
 
@@ -647,8 +656,8 @@ impl GridLayout {
                 .extend((0..self.elements_per_child).map(|row| {
                     self.layouts
                         .iter()
-                        .fold(Baseline::NONE, |max_baseline, layout| {
-                            max_baseline.max(layout.baselines[row].baseline)
+                        .fold(BaselineInfo::NONE, |max_baseline, layout| {
+                            max_baseline.max(layout.baselines[row])
                         })
                 }));
         } else {
@@ -656,8 +665,8 @@ impl GridLayout {
                 layout
                     .baselines
                     .iter()
-                    .fold(Baseline::NONE, |max_baseline, info| {
-                        max_baseline.max(info.baseline)
+                    .fold(BaselineInfo::NONE, |max_baseline, info| {
+                        max_baseline.max(*info)
                     })
             }));
         };
@@ -685,17 +694,17 @@ impl GridLayout {
         match vertical_alignment {
             VerticalAlign::Top => {}
             VerticalAlign::Baseline => {
-                let row_baseline = if self.orientation == Orientation::Column {
+                let row_info = if self.orientation == Orientation::Column {
                     self.row_baselines[row_index]
                 } else {
                     self.row_baselines[cell_index]
                 };
 
                 if let (Some(cell_baseline), Some(row_baseline)) =
-                    (cell_info.baseline.0, *row_baseline)
+                    (cell_info.baseline.0, *row_info.baseline)
                 {
                     let alignment_needed = row_baseline - cell_baseline;
-                    let available_space = other_size - cell_info.height;
+                    let available_space = row_info.height - cell_info.height;
                     let adjustment = alignment_needed.min(available_space);
                     position.origin.y += adjustment.into_signed();
                 }
