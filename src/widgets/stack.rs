@@ -1,12 +1,12 @@
 //! A widget that combines a collection of [`WidgetList`] widgets into one.
 
 use figures::units::UPx;
-use figures::{IntoSigned, Rect, Round, ScreenScale, Size, Zero};
+use figures::{Round, ScreenScale, Size, Zero};
 
 use super::expand::ExpandKind;
 use crate::context::{AsEventContext, EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::reactive::value::{Generation, IntoValue, Value};
-use crate::styles::components::IntrinsicPadding;
+use crate::styles::components::{IntrinsicPadding, VerticalAlignment};
 use crate::styles::FlexibleDimension;
 use crate::widget::{
     ChildrenSyncChange, MountedWidget, Widget, WidgetLayout, WidgetList, WidgetRef,
@@ -157,6 +157,7 @@ impl Widget for Stack {
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WidgetLayout {
         self.synchronize_children(&mut context.as_event_context());
+        let cell_align = context.get(&VerticalAlignment);
 
         self.gutter.invalidate_when_changed(context);
         let gutter = match self.gutter.get() {
@@ -179,20 +180,46 @@ impl Widget for Stack {
             },
         );
 
-        for (layout, child) in self.layout.iter().zip(&self.synced_children) {
-            context.set_child_layout(
-                child,
-                Rect::new(
-                    self.layout
-                        .orientation
-                        .make_point(layout.offset, UPx::ZERO)
-                        .into_signed(),
-                    self.layout
-                        .orientation
-                        .make_size(layout.size, self.layout.others[0])
-                        .into_signed(),
-                ),
+        for (index, (layout, child)) in self.layout.iter().zip(&self.synced_children).enumerate() {
+            let position = self.layout.position_cell(
+                layout,
+                UPx::ZERO,
+                self.layout.others[0],
+                index,
+                0,
+                cell_align,
             );
+            // let mut position = Rect::new(
+            //     self.layout
+            //         .orientation
+            //         .make_point(layout.offset, )
+            //         .into_signed(),
+            //     self.layout
+            //         .orientation
+            //         .make_size(layout.size, )
+            //         .into_signed(),
+            // );
+
+            // let cell_info = layout.baselines[0];
+
+            // let (row_baseline, row_after_baseline) =
+            //     if self.layout.orientation == Orientation::Column {
+            //         self.layout.row_baselines[0]
+            //     } else {
+            //         self.layout.row_baselines[index]
+            //     };
+
+            // if let (Some(cell_baseline), Some(row_baseline)) =
+            //     (cell_info.baseline.0, row_baseline.0)
+            // {
+            //     let alignment_needed = row_baseline - cell_baseline;
+            //     let row_height = row_baseline + row_after_baseline.expect("has baseline");
+            //     let available_space = row_height - cell_info.height;
+            //     let adjustment = alignment_needed.min(available_space);
+            //     position.origin.y += adjustment.into_signed();
+            // }
+
+            context.set_child_layout(child, position);
         }
 
         content_size

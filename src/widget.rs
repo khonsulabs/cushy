@@ -513,12 +513,23 @@ where
 }
 // ANCHOR_END: run
 
+/// The measurement from the top of the content to the bottom of the first line
+/// of text.
+///
+/// In typography, the baseline of text is where the font rendering begins
+/// drawing characters. Portions of characters may extend belown this
+/// measurement. For example, the letters `yjg` all have portions that extend
+/// below the baseline.
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Baseline(pub Option<UPx>);
 
 impl Baseline {
+    /// No baseline measurement.
     pub const NONE: Self = Self(None);
 
+    /// Apply `map` to the baseline, if present, and return the result.
+    ///
+    /// If this baseline is `None`, `map` will not be invoked.
     #[must_use]
     pub fn map(self, map: impl FnOnce(UPx) -> UPx) -> Self {
         Self(self.0.map(map))
@@ -594,9 +605,13 @@ impl PartialOrd for Baseline {
     }
 }
 
+/// Information about a widget's desired layout.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct WidgetLayout {
+    /// The size desired for this widget.
     pub size: Size<UPx>,
+    /// The baseline of the first line of text within this widget, if text is
+    /// present.
     pub baseline: Baseline,
 }
 

@@ -2837,8 +2837,9 @@ impl RequireInvalidation for HorizontalAlign {
 /// Alignment along the vertical axis.
 #[derive(Default, Debug, Clone, Copy, Eq, PartialEq)]
 pub enum VerticalAlign {
-    /// Align towards the top.
+    /// Align along the top.
     Top,
+    /// Align along the baseline of the first line of text.
     #[default]
     Baseline,
     /// Align towards the center/middle.

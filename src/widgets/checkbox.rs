@@ -193,25 +193,29 @@ impl CheckboxColors {
     }
 }
 
+fn indicator_layout(context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout {
+    let size = Size::squared(
+        context
+            .get(&CheckboxSize)
+            .into_upx(context.gfx.scale())
+            .ceil(),
+    );
+    let icon_inset = Lp::points(3).into_upx(context.gfx.scale()).ceil();
+    let icon_height = size.height - icon_inset * 2;
+
+    let checkmark_lowest_point = (icon_inset + icon_height * 3 / 4).round();
+
+    WidgetLayout {
+        size,
+        baseline: Baseline::from(checkmark_lowest_point),
+    }
+}
+
 impl IndicatorBehavior for CheckboxIndicator {
     type Colors = CheckboxColors;
 
     fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout {
-        let size = Size::squared(
-            context
-                .get(&CheckboxSize)
-                .into_upx(context.gfx.scale())
-                .ceil(),
-        );
-        let icon_inset = Lp::points(3).into_upx(context.gfx.scale()).ceil();
-        let icon_height = size.height - icon_inset * 2;
-
-        let checkmark_lowest_point = (icon_inset + icon_height * 3 / 4).round();
-
-        WidgetLayout {
-            size,
-            baseline: Baseline::from(checkmark_lowest_point),
-        }
+        indicator_layout(context)
     }
 
     fn desired_colors(
@@ -378,7 +382,7 @@ fn draw_filled_checkbox(
                 .line_to(
                     Point::new(
                         icon_area.origin.x + icon_area.size.width,
-                        icon_area.origin.y,
+                        icon_area.origin.y + icon_area.size.height / 4,
                     )
                     .round(),
                 )
@@ -531,11 +535,7 @@ impl Widget for CheckboxOrnament {
         _available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WidgetLayout {
-        let checkbox_size = context
-            .get(&CheckboxSize)
-            .into_upx(context.gfx.scale())
-            .ceil();
-        Size::squared(checkbox_size).into()
+        indicator_layout(context)
     }
 }
 

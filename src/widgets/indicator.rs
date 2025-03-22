@@ -267,16 +267,20 @@ where
                 available_space.height,
             );
             let mounted = label.mounted(context);
-            let label_layout = context.for_other(&mounted).layout(remaining_space);
+            let label_layout = context.for_other(&mounted).layout(Size::new(
+                remaining_space.width,
+                ConstraintLimit::SizeToFit(remaining_space.height.max()),
+            ));
             let indicator_baseline = indicator_layout
                 .baseline
                 .unwrap_or(indicator_layout.size.height);
-            let (offset, height) = match *label_layout.baseline {
-                Some(baseline) if baseline < indicator_baseline => (
-                    indicator_baseline.saturating_sub(baseline),
-                    window_local.size.height,
-                ),
-                _ => (UPx::ZERO, label_layout.size.height),
+            let height = indicator_layout.size.height.max(label_layout.size.height);
+            let offset = match *label_layout.baseline {
+                Some(baseline) if baseline < indicator_baseline => {
+                    indicator_baseline.saturating_sub(baseline)
+                }
+
+                _ => UPx::ZERO,
             };
 
             window_local.label_region = Rect::new(
@@ -308,13 +312,16 @@ where
             }
         }
 
-        full_size.height = full_size
-            .height
-            .max(window_local.checkbox_region.extent().y.into_unsigned());
+        full_size.height = window_local
+            .label_region
+            .extent()
+            .y
+            .max(window_local.checkbox_region.extent().y)
+            .into_unsigned();
 
         WidgetLayout {
             size: full_size,
-            baseline,
+            baseline: baseline.max(indicator_layout.baseline),
         }
     }
 
