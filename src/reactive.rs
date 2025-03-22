@@ -1,5 +1,5 @@
 //! Reactive data types for Cushy
-use std::cell::Cell;
+use std::cell::RefCell;
 use std::collections::{hash_map, VecDeque};
 use std::fmt;
 use std::future::Future;
@@ -368,8 +368,16 @@ impl CallbackExecutor {
         }
     }
 
+    fn enqueue_from_callback(&mut self) {
+        CURRENT_EXECUTOR_QUEUE.with_borrow_mut(|queue| {
+            while let Some(task) = queue.as_mut().expect("running executor thread").pop_front() {
+                self.enqueue(task);
+            }
+        });
+    }
+
     fn run(mut self) {
-        IS_EXECUTOR_THREAD.set(true);
+        CURRENT_EXECUTOR_QUEUE.set(Some(VecDeque::new()));
         let cushy = Cushy::current();
         let _runtime = cushy.enter_runtime();
 
@@ -383,6 +391,7 @@ impl CallbackExecutor {
                 let mut callbacks_executed = 0;
                 while let Some(enqueued) = self.queue.pop_front() {
                     callbacks_executed += enqueued.execute();
+                    self.enqueue_from_callback();
                 }
 
                 callbacks_executed += self.futures.poll();
@@ -419,7 +428,7 @@ impl CallbackExecutor {
     }
 
     fn is_current_thread() -> bool {
-        IS_EXECUTOR_THREAD.get()
+        CURRENT_EXECUTOR_QUEUE.with_borrow(Option::is_some)
     }
 }
 
@@ -523,13 +532,17 @@ impl Future for PollChannelFuture {
 }
 
 thread_local! {
-    static IS_EXECUTOR_THREAD: Cell<bool> = const { Cell::new(false) };
+    static CURRENT_EXECUTOR_QUEUE: RefCell<Option<VecDeque<BackgroundTask>>> = const { RefCell::new(None) };
 }
 
 fn enqueue_task(task: BackgroundTask) {
-    if THREAD_SENDER.send(task).is_err() {
-        warn!("background task thread not running");
-    }
+    CURRENT_EXECUTOR_QUEUE.with_borrow_mut(|queue| {
+        if let Some(queue) = queue {
+            queue.push_back(task);
+        } else if THREAD_SENDER.send(task).is_err() {
+            warn!("background task thread not running");
+        }
+    });
 }
 
 /// A handle to a callback installed on a [`Dynamic`]. When dropped, the
