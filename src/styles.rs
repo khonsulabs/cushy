@@ -9,6 +9,7 @@ use std::ops::{
     RangeToInclusive, Sub,
 };
 use std::sync::Arc;
+use std::{mem, slice};
 
 use ahash::AHashMap;
 use figures::units::{Lp, Px, UPx};
@@ -2698,21 +2699,34 @@ impl From<ColorSource> for ColorScheme {
     }
 }
 
-/// A list of font families.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FontFamilyList(Arc<Vec<FamilyOwned>>);
-
-impl Default for FontFamilyList {
-    fn default() -> Self {
-        static DEFAULT: Lazy<FontFamilyList> = Lazy::new(|| FontFamilyList::from(vec![]));
-        DEFAULT.clone()
-    }
+enum FontFamilyListData {
+    Single(FamilyOwned),
+    Multiple(Arc<Vec<FamilyOwned>>),
 }
+
+/// A list of font families.
+#[derive(Clone, Debug, Eq, PartialEq, Default)]
+pub struct FontFamilyList(Option<FontFamilyListData>);
 
 impl FontFamilyList {
     /// Pushes `family` on the end of this list.
     pub fn push(&mut self, family: FamilyOwned) {
-        Arc::make_mut(&mut self.0).push(family);
+        match &mut self.0 {
+            None => {
+                self.0 = Some(FontFamilyListData::Single(family));
+            }
+            Some(FontFamilyListData::Single(first_family)) => {
+                let first_family = mem::replace(first_family, FamilyOwned::Serif);
+                self.0 = Some(FontFamilyListData::Multiple(Arc::new(vec![
+                    first_family,
+                    family,
+                ])));
+            }
+            Some(FontFamilyListData::Multiple(vec)) => {
+                Arc::make_mut(vec).push(family);
+            }
+        }
     }
 }
 
@@ -2720,25 +2734,47 @@ impl Deref for FontFamilyList {
     type Target = [FamilyOwned];
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        match &self.0 {
+            Some(FontFamilyListData::Single(family)) => slice::from_ref(family),
+            Some(FontFamilyListData::Multiple(vec)) => vec,
+            None => &[],
+        }
     }
 }
 
 impl FromIterator<FamilyOwned> for FontFamilyList {
     fn from_iter<T: IntoIterator<Item = FamilyOwned>>(iter: T) -> Self {
-        Self(Arc::new(iter.into_iter().collect()))
+        let mut iter = iter.into_iter();
+        match iter.size_hint().0 {
+            0 | 1 => match iter.next() {
+                Some(first) => match iter.next() {
+                    Some(second) => {
+                        let mut contents = vec![first, second];
+                        contents.extend(iter);
+                        Self(Some(FontFamilyListData::Multiple(Arc::new(contents))))
+                    }
+                    None => Self(Some(FontFamilyListData::Single(first))),
+                },
+                None => Self(None),
+            },
+            _ => Self(Some(FontFamilyListData::Multiple(Arc::new(iter.collect())))),
+        }
     }
 }
 
 impl From<FamilyOwned> for FontFamilyList {
     fn from(value: FamilyOwned) -> Self {
-        Self::from(vec![value])
+        Self(Some(FontFamilyListData::Single(value)))
     }
 }
 
 impl From<Vec<FamilyOwned>> for FontFamilyList {
     fn from(value: Vec<FamilyOwned>) -> Self {
-        Self(Arc::new(value))
+        match value.len() {
+            1 => Self(value.into_iter().next().map(FontFamilyListData::Single)),
+            0 => Self(None),
+            _ => Self(Some(FontFamilyListData::Multiple(Arc::new(value)))),
+        }
     }
 }
 

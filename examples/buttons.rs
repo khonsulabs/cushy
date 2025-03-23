@@ -16,6 +16,7 @@ fn main() -> cushy::Result {
 
     clicked_label
         .clone()
+        .centered()
         .and(
             "Normal Button"
                 .into_button()

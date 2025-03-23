@@ -9,6 +9,7 @@ fn main() -> cushy::Result {
 
     count
         .to_label()
+        .centered()
         .expand()
         .and(
             "Count"

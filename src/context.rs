@@ -625,7 +625,7 @@ impl<'clip, 'gfx, 'pass> GraphicsContext<'_, 'clip, 'gfx, 'pass> {
         self.font_state
             .current_font_family
             .clone()
-            .unwrap_or_else(|| FontFamilyList::from(vec![FamilyOwned::new(self.gfx.font_family())]))
+            .unwrap_or_else(|| FontFamilyList::from(FamilyOwned::new(self.gfx.font_family())))
     }
 
     /// Returns the first font family in `list` that is currently in the font

@@ -634,7 +634,7 @@ impl GridLayout {
                             element,
                             self.orientation.make_size(
                                 ConstraintLimit::Fill(self.layouts[index].size.into_upx(scale)),
-                                ConstraintLimit::SizeToFit(self.others[element]),
+                                ConstraintLimit::Fill(self.others[element]),
                             ),
                             true,
                         );

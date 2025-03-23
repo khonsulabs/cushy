@@ -1072,6 +1072,14 @@ where
             });
         }
 
+        // TODO: Approximating the descent is not great. We probably should
+        // measure a letter with a descender and use that size as a minimum.
+        let full_line_height = info.cache.measured.line_height
+            - info
+                .cache
+                .measured
+                .descent
+                .min((-info.cache.measured.line_height / 3).ceil());
         if let Some(selection) = info.selection {
             let (start, end) = if selection < info.cursor {
                 (selection, info.cursor)
@@ -1088,10 +1096,7 @@ where
                 let width = end_position.x - start_position.x;
                 context.gfx.draw_shape(
                     Shape::filled_rect(
-                        Rect::new(
-                            start_position,
-                            Size::new(width, info.cache.measured.line_height),
-                        ),
+                        Rect::new(start_position, Size::new(width, full_line_height)),
                         highlight,
                     )
                     .translate_by(padding),
@@ -1101,16 +1106,13 @@ where
                 let width = size.width.into_signed() - start_position.x;
                 context.gfx.draw_shape(
                     Shape::filled_rect(
-                        Rect::new(
-                            start_position,
-                            Size::new(width, info.cache.measured.line_height),
-                        ),
+                        Rect::new(start_position, Size::new(width, full_line_height)),
                         highlight,
                     )
                     .translate_by(padding),
                 );
                 // Fill region between
-                let bottom_of_first_line = start_position.y + info.cache.measured.line_height;
+                let bottom_of_first_line = start_position.y + full_line_height;
                 let distance_between = end_position.y - bottom_of_first_line;
                 if distance_between > 0 {
                     context.gfx.draw_shape(
@@ -1129,7 +1131,7 @@ where
                     Shape::filled_rect(
                         Rect::new(
                             Point::new(Px::ZERO, end_position.y),
-                            Size::new(end_position.x + end_width, info.cache.measured.line_height),
+                            Size::new(end_position.x + end_width, full_line_height),
                         ),
                         highlight,
                     )
@@ -1144,7 +1146,7 @@ where
                     Shape::filled_rect(
                         Rect::new(
                             Point::new(location.x - cursor_width / 2, location.y),
-                            Size::new(cursor_width, info.cache.measured.line_height),
+                            Size::new(cursor_width, full_line_height),
                         ),
                         highlight,
                     )
@@ -1189,7 +1191,7 @@ where
 
         WidgetLayout {
             size: available_space.fit_measured(measured_size),
-            baseline: Baseline::from(padding + info.cache.measured.ascent.into_unsigned()),
+            baseline: Baseline::from(padding + info.cache.measured.line_height.into_unsigned()),
         }
     }
 
