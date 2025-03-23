@@ -584,7 +584,11 @@ impl GridLayout {
 
         WidgetLayout {
             size: self.orientation.make_size(measured, total_other),
-            baseline: self.row_baselines[0].baseline,
+            baseline: self
+                .row_baselines
+                .first()
+                .map(|i| i.baseline)
+                .unwrap_or_default(),
         }
     }
 
