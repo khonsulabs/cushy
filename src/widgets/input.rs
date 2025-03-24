@@ -69,6 +69,7 @@ struct CachedLayout {
     bytes: usize,
     measured: MeasuredText<Px>,
     placeholder: MeasuredText<Px>,
+    sentinel: MeasuredText<Px>,
     key: CacheKey,
 }
 
@@ -571,7 +572,7 @@ where
                     && cache.placeholder.can_render_to(&context.gfx)
                     && cache.key == key => {}
             _ => {
-                let (bytes, measured, placeholder, ) = self.value.map_ref(|storage| {
+                let (bytes, measured, placeholder, sentinel) = self.value.map_ref(|storage| {
                     let mut text = storage.as_str();
                     let mut bytes = text.len();
 
@@ -608,12 +609,14 @@ where
 
                     let placeholder_color = context.theme().surface.on_color_variant;
                     let placeholder = self.placeholder.map(|placeholder| context.gfx.measure_text(Text::new(placeholder, placeholder_color)));
-                    (bytes, context.gfx.measure_text(text), placeholder)
+                    let sentinel = context.gfx.measure_text("yjgTL");
+                    (bytes, context.gfx.measure_text(text), placeholder, sentinel)
                 });
                 self.cache = Some(CachedLayout {
                     bytes,
                     measured,
                     placeholder,
+                    sentinel,
                     key,
                 });
             }
@@ -1072,14 +1075,7 @@ where
             });
         }
 
-        // TODO: Approximating the descent is not great. We probably should
-        // measure a letter with a descender and use that size as a minimum.
-        let full_line_height = info.cache.measured.line_height
-            - info
-                .cache
-                .measured
-                .descent
-                .min((-info.cache.measured.line_height / 3).ceil());
+        let full_line_height = info.cache.sentinel.line_height - info.cache.sentinel.descent;
         if let Some(selection) = info.selection {
             let (start, end) = if selection < info.cursor {
                 (selection, info.cursor)
@@ -1191,7 +1187,7 @@ where
 
         WidgetLayout {
             size: available_space.fit_measured(measured_size),
-            baseline: Baseline::from(padding + info.cache.measured.line_height.into_unsigned()),
+            baseline: Baseline::from(padding + info.cache.sentinel.line_height.into_unsigned()),
         }
     }
 
