@@ -59,8 +59,8 @@ pub trait IndicatorBehavior: Send + Debug + 'static {
         region: Rect<Px>,
         context: &mut GraphicsContext<'_, '_, '_, '_>,
     );
-    /// Returns the size of this indicator.
-    fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout;
+    /// Returns the size and basline of this indicator.
+    fn layout(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout;
 }
 
 /// The current state of an [`Indicator`] widget.
@@ -252,7 +252,7 @@ where
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WidgetLayout {
         let window_local = self.per_window.entry(context).or_default();
-        let indicator_layout = self.behavior.size(context);
+        let indicator_layout = self.behavior.layout(context);
         window_local.size = indicator_layout.size.ceil();
         window_local.checkbox_region.size = window_local.size.into_signed();
 

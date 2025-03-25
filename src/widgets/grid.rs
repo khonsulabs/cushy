@@ -684,7 +684,6 @@ impl GridLayout {
         row_index: usize,
         vertical_alignment: VerticalAlign,
     ) -> Rect<Px> {
-        // TODO We need to honor expanding the child if we are supposed to expand it.
         let mut position = Rect::new(
             self.orientation
                 .make_point(layout.offset, other_offset)

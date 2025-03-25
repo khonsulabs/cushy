@@ -214,7 +214,7 @@ fn indicator_layout(context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayo
 impl IndicatorBehavior for CheckboxIndicator {
     type Colors = CheckboxColors;
 
-    fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout {
+    fn layout(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout {
         indicator_layout(context)
     }
 

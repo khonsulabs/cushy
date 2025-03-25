@@ -165,7 +165,7 @@ where
 {
     type Colors = RadioColors;
 
-    fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout {
+    fn layout(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout {
         let size = Size::squared(context.get(&RadioSize).into_upx(context.gfx.scale()).ceil());
         let outline_width = context
             .get(&OutlineWidth)
