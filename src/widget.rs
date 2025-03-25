@@ -848,13 +848,17 @@ pub trait WrapperWidget: Debug + Send + 'static {
     #[must_use]
     fn position_child(
         &mut self,
-        layout: WidgetLayout,
+        mut layout: WidgetLayout,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         if self.align_child() {
             WrappedLayout::aligned(layout, available_space, context)
         } else {
+            layout.size = Size::new(
+                available_space.width.fill_or_fit(layout.size.width),
+                available_space.height.fill_or_fit(layout.size.height),
+            );
             WrappedLayout::from(layout)
         }
     }

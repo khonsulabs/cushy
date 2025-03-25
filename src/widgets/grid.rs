@@ -580,7 +580,7 @@ impl GridLayout {
             }
         }
 
-        let measured = self.update_offsets(needs_final_layout, gutter, scale, measure);
+        let measured = self.update_offsets(needs_final_layout, gutter, measure);
 
         WidgetLayout {
             size: self.orientation.make_size(measured, total_other),
@@ -616,7 +616,6 @@ impl GridLayout {
         &mut self,
         needs_final_layout: bool,
         gutter: UPx,
-        scale: Fraction,
         mut measure: impl FnMut(usize, usize, Size<ConstraintLimit>, bool) -> WidgetLayout,
     ) -> UPx {
         let mut offset = UPx::ZERO;
@@ -637,7 +636,7 @@ impl GridLayout {
                             index,
                             element,
                             self.orientation.make_size(
-                                ConstraintLimit::Fill(self.layouts[index].size.into_upx(scale)),
+                                ConstraintLimit::Fill(self.layouts[index].size),
                                 ConstraintLimit::Fill(self.others[element]),
                             ),
                             true,
@@ -685,6 +684,7 @@ impl GridLayout {
         row_index: usize,
         vertical_alignment: VerticalAlign,
     ) -> Rect<Px> {
+        // TODO We need to honor expanding the child if we are supposed to expand it.
         let mut position = Rect::new(
             self.orientation
                 .make_point(layout.offset, other_offset)
