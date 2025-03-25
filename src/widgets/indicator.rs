@@ -15,7 +15,9 @@ use crate::styles::components::{
     AutoFocusableControls, Easing, IntrinsicPadding, WidgetAccentColor,
 };
 use crate::styles::ColorExt;
-use crate::widget::{EventHandling, MakeWidget, Widget, WidgetRef, HANDLED, IGNORED};
+use crate::widget::{
+    Baseline, EventHandling, MakeWidget, Widget, WidgetLayout, WidgetRef, HANDLED, IGNORED,
+};
 use crate::window::WindowLocal;
 use crate::ConstraintLimit;
 
@@ -57,8 +59,8 @@ pub trait IndicatorBehavior: Send + Debug + 'static {
         region: Rect<Px>,
         context: &mut GraphicsContext<'_, '_, '_, '_>,
     );
-    /// Returns the size of this indicator.
-    fn size(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> Size<UPx>;
+    /// Returns the size and basline of this indicator.
+    fn layout(&self, context: &mut GraphicsContext<'_, '_, '_, '_>) -> WidgetLayout;
 }
 
 /// The current state of an [`Indicator`] widget.
@@ -85,7 +87,7 @@ struct WindowLocalState<Colors> {
     focused: bool,
     hovered: bool,
     mouse_buttons_pressed: usize,
-    size: Size<Px>,
+    size: Size<UPx>,
 }
 
 impl<Colors> Default for WindowLocalState<Colors> {
@@ -248,47 +250,79 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let window_local = self.per_window.entry(context).or_default();
-        window_local.size = self.behavior.size(context).into_signed().ceil();
-        window_local.checkbox_region.size = window_local.size;
+        let indicator_layout = self.behavior.layout(context);
+        window_local.size = indicator_layout.size.ceil();
+        window_local.checkbox_region.size = window_local.size.into_signed();
 
-        let full_size = if let Some(label) = &mut self.label {
+        let (mut full_size, baseline) = if let Some(label) = &mut self.label {
             let padding = context
                 .get(&IntrinsicPadding)
                 .into_px(context.gfx.scale())
                 .ceil();
-            let x_offset = window_local.size.width + padding;
+            let x_offset = window_local.checkbox_region.size.width + padding;
             let remaining_space = Size::new(
                 available_space.width - x_offset.into_unsigned(),
                 available_space.height,
             );
             let mounted = label.mounted(context);
-            let label_size = context
-                .for_other(&mounted)
-                .layout(remaining_space)
-                .into_signed();
-            let height = available_space
-                .height
-                .fit_measured(label_size.height.into_unsigned())
-                .into_signed()
-                .max(window_local.size.height);
+            let label_layout = context.for_other(&mounted).layout(Size::new(
+                remaining_space.width,
+                ConstraintLimit::SizeToFit(remaining_space.height.max()),
+            ));
+            let indicator_baseline = indicator_layout
+                .baseline
+                .unwrap_or(indicator_layout.size.height);
+            let height = indicator_layout.size.height.max(label_layout.size.height);
+            let offset = match *label_layout.baseline {
+                Some(baseline) if baseline < indicator_baseline => {
+                    indicator_baseline.saturating_sub(baseline)
+                }
+
+                _ => UPx::ZERO,
+            };
 
             window_local.label_region = Rect::new(
-                Point::new(x_offset, (height - label_size.height) / 2),
-                label_size,
+                Point::new(x_offset, offset.into_signed()),
+                label_layout.size.into_signed(),
             );
             context.set_child_layout(&mounted, window_local.label_region);
 
-            Size::new(label_size.width + x_offset, height).into_unsigned()
+            (
+                Size::new(label_layout.size.width + x_offset.into_unsigned(), height),
+                label_layout.baseline.map(|baseline| baseline + offset),
+            )
         } else {
-            window_local.size.into_unsigned()
+            (window_local.size.into_unsigned(), Baseline::NONE)
         };
 
-        window_local.checkbox_region.origin.y =
-            (full_size.height.into_signed() - window_local.size.height) / 2;
+        match (*baseline, *indicator_layout.baseline) {
+            (Some(label_baseline), Some(indicator_baseline)) => {
+                window_local.checkbox_region.origin.y =
+                    (label_baseline.saturating_sub(indicator_baseline)).into_signed();
+            }
+            (Some(label_baseline), None) => {
+                window_local.checkbox_region.origin.y =
+                    (label_baseline.saturating_sub(window_local.size.height)).into_signed();
+            }
+            _ => {
+                window_local.checkbox_region.origin.y =
+                    (full_size.height.into_signed() - window_local.checkbox_region.size.height) / 2;
+            }
+        }
 
-        full_size
+        full_size.height = window_local
+            .label_region
+            .extent()
+            .y
+            .max(window_local.checkbox_region.extent().y)
+            .into_unsigned();
+
+        WidgetLayout {
+            size: full_size,
+            baseline: baseline.max(indicator_layout.baseline),
+        }
     }
 
     fn hit_test(&mut self, location: Point<Px>, context: &mut EventContext<'_>) -> bool {

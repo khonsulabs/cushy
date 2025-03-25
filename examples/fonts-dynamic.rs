@@ -27,9 +27,9 @@ fn main() -> cushy::Result<()> {
             let font = loaded_font.get_tracking_invalidate(context)?;
 
             let face = context.loaded_font_faces(&font).first()?;
-            Some(Component::custom(FontFamilyList::from(vec![
-                FamilyOwned::Name(face.families[0].0.clone()),
-            ])))
+            Some(Component::custom(FontFamilyList::from(FamilyOwned::Name(
+                face.families[0].0.clone(),
+            ))))
         }
     });
     let family_weight = DynamicComponent::new(move |context| {

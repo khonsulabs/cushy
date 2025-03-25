@@ -1,6 +1,6 @@
 //! A visual delimiter widget.
 
-use figures::units::{Lp, UPx};
+use figures::units::Lp;
 use figures::{Point, ScreenScale, Size};
 use kludgine::shapes::{PathBuilder, StrokeOptions};
 use kludgine::Color;
@@ -9,7 +9,7 @@ use crate::context::{GraphicsContext, LayoutContext};
 use crate::reactive::value::{IntoValue, Value};
 use crate::styles::components::TextColor;
 use crate::styles::{Dimension, FlexibleDimension};
-use crate::widget::Widget;
+use crate::widget::{Widget, WidgetLayout};
 use crate::ConstraintLimit;
 
 #[derive(Debug)]
@@ -95,12 +95,13 @@ impl Widget for Delimiter {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let size = self.get_size(context).into_upx(context.gfx.scale());
-        match self.orientation {
+        let measured = match self.orientation {
             Orientation::Horizontal => Size::new(available_space.width.max(), size),
             Orientation::Vertical => Size::new(size, available_space.height.max()),
-        }
+        };
+        measured.into()
     }
 }
 

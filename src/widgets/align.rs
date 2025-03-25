@@ -6,7 +6,7 @@ use figures::{Fraction, IntoSigned, Point, Rect, ScreenScale, Size, Zero};
 use crate::context::{AsEventContext, EventContext, LayoutContext};
 use crate::reactive::value::{IntoValue, Value};
 use crate::styles::{Edges, FlexibleDimension};
-use crate::widget::{MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
+use crate::widget::{Baseline, MakeWidget, RootBehavior, WidgetRef, WrappedLayout, WrapperWidget};
 use crate::ConstraintLimit;
 
 /// A widget aligns its contents to its container's boundaries.
@@ -99,10 +99,10 @@ impl Align {
         );
 
         let child = self.child.mounted(&mut context.as_event_context());
-        let content_size = context.for_other(&child).layout(content_available);
+        let layout = context.for_other(&child).layout(content_available);
 
-        let (left, right, width) = horizontal.measure(available_space.width, content_size.width);
-        let (top, bottom, height) = vertical.measure(available_space.height, content_size.height);
+        let (left, right, width) = horizontal.measure(available_space.width, layout.size.width);
+        let (top, bottom, height) = vertical.measure(available_space.height, layout.size.height);
 
         Layout {
             margin: Edges {
@@ -112,6 +112,7 @@ impl Align {
                 bottom,
             },
             content: Size::new(width, height),
+            baseline: layout.baseline,
         }
     }
 }
@@ -196,6 +197,7 @@ impl WrapperWidget for Align {
                 layout.content.into_signed(),
             ),
             size: layout.content + layout.margin.size(),
+            baseline: layout.baseline.map(|baseline| baseline + layout.margin.top),
         }
     }
 }
@@ -210,4 +212,5 @@ impl AsMut<WidgetRef> for Align {
 struct Layout {
     margin: Edges<UPx>,
     content: Size<UPx>,
+    baseline: Baseline,
 }

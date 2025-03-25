@@ -5,13 +5,14 @@ use std::sync::Arc;
 
 use ahash::AHashMap;
 use alot::{LotId, Lots};
-use figures::units::UPx;
 use figures::{IntoSigned, Rect, Size};
 use intentional::Assert;
 
 use crate::context::{EventContext, GraphicsContext, LayoutContext};
 use crate::reactive::value::{Dynamic, DynamicRead, DynamicReader};
-use crate::widget::{MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetRef, WidgetTag};
+use crate::widget::{
+    MakeWidget, MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout, WidgetRef, WidgetTag,
+};
 use crate::ConstraintLimit;
 
 /// A pile of widgets that shows the top widget.
@@ -112,12 +113,12 @@ impl Widget for WidgetPile {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         context.invalidate_when_changed(&self.pile);
         self.synchronize_widgets();
         let pile = self.pile.read();
         let visible = pile.visible.front().copied();
-        let size = if let Some(id) = visible {
+        let layout = if let Some(id) = visible {
             let visible = self
                 .widgets
                 .get_mut(&id)
@@ -127,17 +128,17 @@ impl Widget for WidgetPile {
             if pile.focus_on_show && self.last_visible != Some(id) {
                 child_context.focus();
             }
-            let size = child_context.layout(available_space);
+            let layout = child_context.layout(available_space);
             drop(child_context);
-            context.set_child_layout(&visible, Rect::from(size).into_signed());
-            size
+            context.set_child_layout(&visible, Rect::from(layout.size).into_signed());
+            layout
         } else {
-            available_space.map(ConstraintLimit::min)
+            available_space.map(ConstraintLimit::min).into()
         };
 
         self.last_visible = visible;
 
-        size
+        layout
     }
 
     fn redraw(&mut self, context: &mut GraphicsContext<'_, '_, '_, '_>) {

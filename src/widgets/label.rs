@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::fmt::{Debug, Display, Write};
 
-use figures::units::{Px, UPx};
+use figures::units::Px;
 use figures::{IntoUnsigned, Point, Round, Size, Zero};
 use kludgine::text::{MeasuredText, Text, TextOrigin};
 use kludgine::{cosmic_text, CanRenderTo, Color, DrawableExt};
@@ -15,9 +15,9 @@ use crate::reactive::value::{
 };
 use crate::styles::components::{HorizontalAlignment, TextColor, VerticalAlignment};
 use crate::styles::{HorizontalAlign, VerticalAlign};
-use crate::widget::{MakeWidgetWithTag, Widget, WidgetInstance, WidgetTag};
+use crate::widget::{MakeWidgetWithTag, Widget, WidgetInstance, WidgetLayout, WidgetTag};
 use crate::window::WindowLocal;
-use crate::{ConstraintLimit, FitMeasuredSize};
+use crate::ConstraintLimit;
 
 /// A read-only text widget.
 #[derive(Debug)]
@@ -131,7 +131,7 @@ where
             self.prepared_text(context, text_color, context.gfx.region().size.width, align);
 
         let y_offset = match valign {
-            VerticalAlign::Top => Px::ZERO,
+            VerticalAlign::Top | VerticalAlign::Baseline => Px::ZERO,
             VerticalAlign::Center => {
                 (context.gfx.region().size.height - prepared_text.size.height) / 2
             }
@@ -148,13 +148,16 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let align = context.get(&HorizontalAlignment);
         let color = context.get(&TextColor);
         let width = available_space.width.max().try_into().unwrap_or(Px::MAX);
         let prepared = self.prepared_text(context, color, width, align);
 
-        available_space.fit_measured(prepared.size.into_unsigned().ceil())
+        WidgetLayout {
+            size: prepared.size.into_unsigned().ceil(),
+            baseline: prepared.line_height.into(),
+        }
     }
 
     fn summarize(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

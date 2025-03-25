@@ -1,7 +1,7 @@
 //! A widget for laying out multiple widgets in a similar fashion as how words
 //! are wrapped in a paragraph.
 
-use figures::units::{Px, UPx};
+use figures::units::UPx;
 use figures::{IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero};
 use intentional::Cast;
 
@@ -9,7 +9,7 @@ use crate::context::{AsEventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::reactive::value::{IntoValue, Value};
 use crate::styles::components::{IntrinsicPadding, LayoutOrder, VerticalAlignment};
 use crate::styles::{FlexibleDimension, HorizontalOrder, VerticalAlign};
-use crate::widget::{MountedChildren, Widget, WidgetList};
+use crate::widget::{Baseline, MountedChildren, Widget, WidgetLayout, WidgetList};
 use crate::ConstraintLimit;
 
 /// A widget that lays its children out horizontally, wrapping into multiple
@@ -58,28 +58,28 @@ impl Wrap {
     fn horizontal_alignment(
         align: WrapAlign,
         order: HorizontalOrder,
-        remaining: Px,
+        remaining: UPx,
         row_children_len: usize,
-    ) -> (Px, Px) {
+    ) -> (UPx, UPx) {
         match (align, order) {
             (WrapAlign::Start, HorizontalOrder::LeftToRight)
-            | (WrapAlign::End, HorizontalOrder::RightToLeft) => (Px::ZERO, Px::ZERO),
+            | (WrapAlign::End, HorizontalOrder::RightToLeft) => (UPx::ZERO, UPx::ZERO),
             (WrapAlign::End, HorizontalOrder::LeftToRight)
-            | (WrapAlign::Start, HorizontalOrder::RightToLeft) => (remaining, Px::ZERO),
-            (WrapAlign::Center, _) => (remaining / 2, Px::ZERO),
+            | (WrapAlign::Start, HorizontalOrder::RightToLeft) => (remaining, UPx::ZERO),
+            (WrapAlign::Center, _) => (remaining / 2, UPx::ZERO),
             (WrapAlign::SpaceBetween, _) => {
                 if row_children_len > 1 {
-                    (Px::ZERO, remaining / (row_children_len - 1).cast::<i32>())
+                    (UPx::ZERO, remaining / (row_children_len - 1).cast::<u32>())
                 } else {
-                    (Px::ZERO, Px::ZERO)
+                    (UPx::ZERO, UPx::ZERO)
                 }
             }
             (WrapAlign::SpaceEvenly, _) => {
-                let spacing = remaining / row_children_len.cast::<i32>();
+                let spacing = remaining / row_children_len.cast::<u32>();
                 (spacing / 2, spacing)
             }
             (WrapAlign::SpaceAround, _) => {
-                let spacing = remaining / (row_children_len + 1).cast::<i32>();
+                let spacing = remaining / (row_children_len + 1).cast::<u32>();
                 (spacing, spacing)
             }
         }
@@ -98,11 +98,12 @@ impl Widget for Wrap {
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         struct RowChild {
             index: usize,
-            x: Px,
-            size: Size<Px>,
+            x: UPx,
+            baseline_offset: UPx,
+            layout: WidgetLayout,
         }
 
         let order = context.get(&LayoutOrder).horizontal;
@@ -117,46 +118,47 @@ impl Widget for Wrap {
                 FlexibleDimension::Auto => context.get(&IntrinsicPadding),
                 FlexibleDimension::Dimension(dimension) => dimension,
             })
-            .into_px(context.gfx.scale())
+            .into_upx(context.gfx.scale())
             .round();
         self.mounted
             .synchronize_with(&self.children, &mut context.as_event_context());
 
-        let mut y = Px::ZERO;
+        let mut y = UPx::ZERO;
         let mut row_children = Vec::new();
         let mut index = 0;
-        let width = available_space.width.max().into_signed();
+        let width = available_space.width.max();
         let child_constraints =
             available_space.map(|limit| ConstraintLimit::SizeToFit(limit.max()));
+        let mut first_baseline = Baseline::NONE;
         while index < self.mounted.children().len() {
-            if y != Px::ZERO {
+            if y != UPx::ZERO {
                 y += spacing.height;
             }
             // Find all children that can fit on this next row.
-            let mut x = Px::ZERO;
-            let mut max_height = Px::ZERO;
+            let mut x = UPx::ZERO;
+            let mut max_height = UPx::ZERO;
+            let mut max_baseline = Baseline::NONE;
             while let Some(child) = self.mounted.children().get(index) {
-                let child_size = context
-                    .for_other(child)
-                    .layout(child_constraints)
-                    .into_signed();
-                max_height = max_height.max(child_size.height);
-
+                let child_layout = context.for_other(child).layout(child_constraints);
                 let child_x = if x.is_zero() {
                     x
                 } else {
                     x.saturating_add(spacing.width)
                 };
-                let after_child = child_x.saturating_add(child_size.width);
+                let after_child = child_x.saturating_add(child_layout.size.width);
 
                 if x > 0 && after_child > width {
                     break;
                 }
 
+                max_baseline = child_layout.baseline.max(max_baseline);
+                max_height = max_height.max(child_layout.size.height);
+
                 row_children.push(RowChild {
                     index,
                     x: child_x,
-                    size: child_size,
+                    layout: child_layout,
+                    baseline_offset: UPx::ZERO,
                 });
 
                 x = after_child;
@@ -164,12 +166,28 @@ impl Widget for Wrap {
             }
 
             // Calculate the horizontal alignment.
-            let remaining = (width - x).max(Px::ZERO);
+            let remaining = width.saturating_sub(x);
             let (x, space_between) = if remaining > 0 {
                 Self::horizontal_alignment(align, order, remaining, row_children.len())
             } else {
-                (Px::ZERO, Px::ZERO)
+                (UPx::ZERO, UPx::ZERO)
             };
+
+            if let Some(max_baseline) = *max_baseline {
+                // If we have a baseline, we might need to add additional height
+                // due to aligning all of the baselines.
+                for child in &mut row_children {
+                    if let Some(child_baseline) = *child.layout.baseline {
+                        child.baseline_offset = max_baseline - child_baseline;
+                        max_height =
+                            max_height.max(child.layout.size.height + child.baseline_offset);
+                    }
+                }
+            }
+
+            if y == 0 {
+                first_baseline = max_baseline;
+            }
 
             // Position the children
             let mut additional_x = x;
@@ -179,21 +197,25 @@ impl Widget for Wrap {
                 }
                 let child_x = additional_x + child.x;
                 let child_y = y + match vertical_align {
-                    VerticalAlign::Top => Px::ZERO,
-                    VerticalAlign::Center => (max_height - child.size.height) / 2,
-                    VerticalAlign::Bottom => max_height - child.size.height,
+                    VerticalAlign::Top => UPx::ZERO,
+                    VerticalAlign::Baseline => child.baseline_offset,
+                    VerticalAlign::Center => (max_height - child.layout.size.height) / 2,
+                    VerticalAlign::Bottom => max_height - child.layout.size.height,
                 };
 
                 context.set_child_layout(
                     &self.mounted.children()[child.index],
-                    Rect::new(Point::new(child_x, child_y), child.size),
+                    Rect::new(Point::new(child_x, child_y), child.layout.size).into_signed(),
                 );
             }
 
             y += max_height;
         }
 
-        Size::new(width, y).into_unsigned()
+        WidgetLayout {
+            size: Size::new(width, y).into_unsigned(),
+            baseline: first_baseline,
+        }
     }
 }
 

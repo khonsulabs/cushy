@@ -4,7 +4,7 @@ use cushy::figures::{IntoSigned, IntoUnsigned, Point, Rect, ScreenScale, Size, Z
 use cushy::kludgine::text::{MeasuredText, TextOrigin};
 use cushy::reactive::value::{Dynamic, IntoValue, Value};
 use cushy::styles::components::IntrinsicPadding;
-use cushy::widget::Widget;
+use cushy::widget::{Widget, WidgetLayout};
 use cushy::widgets::input::InputValue;
 use cushy::ConstraintLimit;
 
@@ -51,34 +51,37 @@ fn composition_widget() -> impl cushy::widget::MakeWidget {
             &mut self,
             available_space: Size<ConstraintLimit>,
             context: &mut LayoutContext<'_, '_, '_, '_>,
-        ) -> Size<UPx> {
+        ) -> WidgetLayout {
             let label_and_padding = self.label_and_padding_size(context);
             let field_available_space = Size::new(
                 available_space.width,
                 available_space.height - label_and_padding.height,
             );
             let field = self.field.mounted(context);
-            let field_size = context.for_other(&field).layout(field_available_space);
+            let field_layout = context.for_other(&field).layout(field_available_space);
 
             let full_size = Size::new(
                 available_space
                     .width
                     .min()
-                    .max(field_size.width)
+                    .max(field_layout.size.width)
                     .max(label_and_padding.width),
-                field_size.height + label_and_padding.height,
+                field_layout.size.height + label_and_padding.height,
             );
 
             context.set_child_layout(
                 &field,
                 Rect::new(
                     Point::new(UPx::ZERO, label_and_padding.height),
-                    Size::new(full_size.width, field_size.height),
+                    Size::new(full_size.width, field_layout.size.height),
                 )
                 .into_signed(),
             );
 
-            full_size
+            WidgetLayout {
+                size: full_size,
+                baseline: field_layout.baseline,
+            }
         }
 
         // ANCHOR_END: widget-a

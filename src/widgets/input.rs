@@ -8,7 +8,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use figures::units::{Lp, Px, UPx};
+use figures::units::{Lp, Px};
 use figures::{
     Abs, FloatConversion, IntoSigned, IntoUnsigned, Point, Rect, Round, ScreenScale, Size, Zero,
 };
@@ -28,7 +28,7 @@ use crate::reactive::value::{
 };
 use crate::styles::components::{HighlightColor, IntrinsicPadding, OutlineColor, TextColor};
 use crate::utils::ModifiersExt;
-use crate::widget::{Callback, EventHandling, Widget, HANDLED, IGNORED};
+use crate::widget::{Baseline, Callback, EventHandling, Widget, WidgetLayout, HANDLED, IGNORED};
 use crate::window::KeyEvent;
 use crate::{ConstraintLimit, FitMeasuredSize, Lazy};
 
@@ -69,6 +69,7 @@ struct CachedLayout {
     bytes: usize,
     measured: MeasuredText<Px>,
     placeholder: MeasuredText<Px>,
+    sentinel: MeasuredText<Px>,
     key: CacheKey,
 }
 
@@ -571,7 +572,7 @@ where
                     && cache.placeholder.can_render_to(&context.gfx)
                     && cache.key == key => {}
             _ => {
-                let (bytes, measured, placeholder, ) = self.value.map_ref(|storage| {
+                let (bytes, measured, placeholder, sentinel) = self.value.map_ref(|storage| {
                     let mut text = storage.as_str();
                     let mut bytes = text.len();
 
@@ -608,12 +609,14 @@ where
 
                     let placeholder_color = context.theme().surface.on_color_variant;
                     let placeholder = self.placeholder.map(|placeholder| context.gfx.measure_text(Text::new(placeholder, placeholder_color)));
-                    (bytes, context.gfx.measure_text(text), placeholder)
+                    let sentinel = context.gfx.measure_text("yjgTL");
+                    (bytes, context.gfx.measure_text(text), placeholder, sentinel)
                 });
                 self.cache = Some(CachedLayout {
                     bytes,
                     measured,
                     placeholder,
+                    sentinel,
                     key,
                 });
             }
@@ -1072,6 +1075,7 @@ where
             });
         }
 
+        let full_line_height = info.cache.sentinel.line_height - info.cache.sentinel.descent;
         if let Some(selection) = info.selection {
             let (start, end) = if selection < info.cursor {
                 (selection, info.cursor)
@@ -1088,10 +1092,7 @@ where
                 let width = end_position.x - start_position.x;
                 context.gfx.draw_shape(
                     Shape::filled_rect(
-                        Rect::new(
-                            start_position,
-                            Size::new(width, info.cache.measured.line_height),
-                        ),
+                        Rect::new(start_position, Size::new(width, full_line_height)),
                         highlight,
                     )
                     .translate_by(padding),
@@ -1101,16 +1102,13 @@ where
                 let width = size.width.into_signed() - start_position.x;
                 context.gfx.draw_shape(
                     Shape::filled_rect(
-                        Rect::new(
-                            start_position,
-                            Size::new(width, info.cache.measured.line_height),
-                        ),
+                        Rect::new(start_position, Size::new(width, full_line_height)),
                         highlight,
                     )
                     .translate_by(padding),
                 );
                 // Fill region between
-                let bottom_of_first_line = start_position.y + info.cache.measured.line_height;
+                let bottom_of_first_line = start_position.y + full_line_height;
                 let distance_between = end_position.y - bottom_of_first_line;
                 if distance_between > 0 {
                     context.gfx.draw_shape(
@@ -1129,7 +1127,7 @@ where
                     Shape::filled_rect(
                         Rect::new(
                             Point::new(Px::ZERO, end_position.y),
-                            Size::new(end_position.x + end_width, info.cache.measured.line_height),
+                            Size::new(end_position.x + end_width, full_line_height),
                         ),
                         highlight,
                     )
@@ -1144,7 +1142,7 @@ where
                     Shape::filled_rect(
                         Rect::new(
                             Point::new(location.x - cursor_width / 2, location.y),
-                            Size::new(cursor_width, info.cache.measured.line_height),
+                            Size::new(cursor_width, full_line_height),
                         ),
                         highlight,
                     )
@@ -1168,7 +1166,7 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let padding = context
             .get(&IntrinsicPadding)
             .into_upx(context.gfx.scale())
@@ -1186,7 +1184,11 @@ where
             .max(info.cache.placeholder.size)
             .into_unsigned()
             + Size::squared(padding * 2);
-        available_space.fit_measured(measured_size)
+
+        WidgetLayout {
+            size: available_space.fit_measured(measured_size),
+            baseline: Baseline::from(padding + info.cache.sentinel.line_height.into_unsigned()),
+        }
     }
 
     fn keyboard_input(

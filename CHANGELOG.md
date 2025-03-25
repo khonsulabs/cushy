@@ -127,6 +127,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   value containers.
 - `cushy::value::CallbackDisconnected` and `cushy::value::CallbackHandle` are
   now exported from `cushy::reactive`.
+- Cushy now generically supports `HorizontalAlignment` and `VerticalAlignment`
+  of widgets contained within other widgets. Additionally, baseline vertical
+  alignment support has been added to make it simple to align widgets vertically
+  based on the content of the widget. To support this, many APIs have required
+  changes:
+
+  - `Widget::layout()` and `LayoutContext::layout()` now returns `WidgetLayout`.
+  - `IndicatorBehavior::size()` has been renamed to
+    `IndicatorBehavior::layout()` and now returns `WidgetLayout`.
+  - `WrappedLayout` now has the field `baseline: Baseline`.
+  - `WrappedLayout::aligned` now accepts `Into<WidgetLayout>` for its first
+    parameter. This should be mostly compatible with existing code.
+  - `WrapperWidget::position_child` now accepts a `WidgetLayout` instead of a
+    `Size<UPx>` as its first parameter.
+  - `Button`'s label is automatically centered horizontally using a new style
+    component: `ButtonLabelAlignment`.
 
 ### Changed
 

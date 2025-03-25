@@ -99,11 +99,13 @@ impl WrapperWidget for Resize {
         context: &mut LayoutContext<'_, '_, '_, '_>,
     ) -> WrappedLayout {
         let child = self.child.mounted(&mut context.as_event_context());
-        let (size, fill_layout) = if let (Some(width), Some(height)) =
+        let (mut layout, fill_layout) = if let (Some(width), Some(height)) =
             (self.width.exact_dimension(), self.height.exact_dimension())
         {
             (
-                Size::new(width, height).map(|i| i.into_upx(context.gfx.scale())),
+                Size::new(width, height)
+                    .map(|i| i.into_upx(context.gfx.scale()))
+                    .into(),
                 true,
             )
         } else {
@@ -117,21 +119,22 @@ impl WrapperWidget for Resize {
                     || matches!(available_space.height, ConstraintLimit::SizeToFit(_)),
             )
         };
-        let mut size = Size::new(
-            self.width.clamp(size.width, context.gfx.scale()),
-            self.height.clamp(size.height, context.gfx.scale()),
+        layout.size = Size::new(
+            self.width.clamp(layout.size.width, context.gfx.scale()),
+            self.height.clamp(layout.size.height, context.gfx.scale()),
         );
 
         if fill_layout {
             // Now that we have our known dimension, give the child an opportunity
             // to lay out with Fill semantics.
-            size = context
+            let filled_layout = context
                 .for_other(&child)
-                .layout(size.map(ConstraintLimit::Fill))
-                .min(size);
+                .layout(layout.size.map(ConstraintLimit::Fill));
+            layout.size = filled_layout.size.min(layout.size);
+            layout.baseline = filled_layout.baseline;
         }
 
-        WrappedLayout::aligned(size, available_space, context)
+        WrappedLayout::aligned(layout, available_space, context)
     }
 }
 

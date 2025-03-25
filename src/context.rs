@@ -24,7 +24,9 @@ use crate::styles::components::{
 };
 use crate::styles::{ComponentDefinition, Dimension, FontFamilyList, Styles, Theme, ThemePair};
 use crate::tree::Tree;
-use crate::widget::{EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance};
+use crate::widget::{
+    EventHandling, MountedWidget, RootBehavior, WidgetId, WidgetInstance, WidgetLayout,
+};
 use crate::window::{
     CursorState, DeviceId, KeyEvent, PlatformWindow, ThemeMode, WidgetCursorState,
 };
@@ -623,7 +625,7 @@ impl<'clip, 'gfx, 'pass> GraphicsContext<'_, 'clip, 'gfx, 'pass> {
         self.font_state
             .current_font_family
             .clone()
-            .unwrap_or_else(|| FontFamilyList::from(vec![FamilyOwned::new(self.gfx.font_family())]))
+            .unwrap_or_else(|| FontFamilyList::from(FamilyOwned::new(self.gfx.font_family())))
     }
 
     /// Returns the first font family in `list` that is currently in the font
@@ -854,7 +856,7 @@ impl<'context, 'clip, 'gfx, 'pass> LayoutContext<'context, 'clip, 'gfx, 'pass> {
 
     /// Invokes [`Widget::layout()`](crate::widget::Widget::layout) on this
     /// context's widget and returns the result.
-    pub fn layout(&mut self, available_space: Size<ConstraintLimit>) -> Size<UPx> {
+    pub fn layout(&mut self, available_space: Size<ConstraintLimit>) -> WidgetLayout {
         if self.persist_layout {
             if let Some(cached) = self.graphics.current_node.begin_layout(available_space) {
                 return cached;
@@ -867,7 +869,7 @@ impl<'context, 'clip, 'gfx, 'pass> LayoutContext<'context, 'clip, 'gfx, 'pass> {
             .lock()
             .as_widget()
             .layout(available_space, self)
-            .map(Round::ceil);
+            .ceil();
         if self.persist_layout {
             self.graphics
                 .current_node

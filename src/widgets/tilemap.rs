@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use figures::units::{Px, UPx};
+use figures::units::Px;
 use figures::{Point, Size};
 use intentional::Cast;
 use kludgine::app::winit::event::{ElementState, MouseScrollDelta, TouchPhase};
@@ -11,7 +11,7 @@ use kludgine::tilemap::TileMapFocus;
 use crate::context::{EventContext, GraphicsContext, LayoutContext, Trackable};
 use crate::reactive::value::{Dynamic, IntoValue, Value};
 use crate::tick::Tick;
-use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
+use crate::widget::{EventHandling, Widget, WidgetLayout, HANDLED, IGNORED};
 use crate::window::{DeviceId, KeyEvent};
 use crate::ConstraintLimit;
 
@@ -120,8 +120,8 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         _context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
-        Size::new(available_space.width.max(), available_space.height.max())
+    ) -> WidgetLayout {
+        Size::new(available_space.width.max(), available_space.height.max()).into()
     }
 
     fn mouse_wheel(

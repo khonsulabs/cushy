@@ -20,7 +20,7 @@ use crate::styles::components::{
     WidgetAccentColor,
 };
 use crate::styles::{Dimension, HorizontalOrder, VerticalOrder, VisualOrder};
-use crate::widget::{EventHandling, Widget, HANDLED, IGNORED};
+use crate::widget::{EventHandling, Widget, WidgetLayout, HANDLED, IGNORED};
 use crate::window::{DeviceId, KeyEvent};
 use crate::ConstraintLimit;
 
@@ -502,7 +502,7 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         self.knob_size = if self.knob_visible {
             context.get(&KnobSize).into_upx(context.gfx.scale())
         } else {
@@ -551,6 +551,7 @@ where
                 Size::new(width.min(minimum_size), static_side)
             }
         }
+        .into()
     }
 
     fn hit_test(&mut self, _location: Point<Px>, _context: &mut EventContext<'_>) -> bool {

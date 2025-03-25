@@ -24,8 +24,8 @@ use crate::styles::components::{
 };
 use crate::styles::Styles;
 use crate::widget::{
-    Callback, EventHandling, MakeWidget, MakeWidgetWithTag, SharedNotify, Widget, WidgetId,
-    WidgetInstance, WidgetRef, WidgetTag, HANDLED,
+    Baseline, Callback, EventHandling, MakeWidget, MakeWidgetWithTag, SharedNotify, Widget,
+    WidgetId, WidgetInstance, WidgetLayout, WidgetRef, WidgetTag, HANDLED,
 };
 use crate::ConstraintLimit;
 
@@ -649,7 +649,7 @@ where
         &mut self,
         available_space: Size<ConstraintLimit>,
         context: &mut LayoutContext<'_, '_, '_, '_>,
-    ) -> Size<UPx> {
+    ) -> WidgetLayout {
         let mut maximum_item_width = UPx::ZERO;
         let mut remaining_height = available_space.height.max();
         self.padding = context.get(&IntrinsicPadding).into_upx(context.gfx.scale());
@@ -664,17 +664,21 @@ where
         let available_width = available_space.width.max() - double_padding;
 
         let mut y = self.padding;
-        for rendered in &mut self.items {
+        let mut first_baseline = Baseline::NONE;
+        for (index, rendered) in self.items.iter_mut().enumerate() {
             let (height, full_height) = match &mut rendered.item {
                 ItemKind::Item(item) => {
                     let mounted = item.contents.mounted(context);
                     let available_width = available_width - submenu_space;
-                    let size = context.for_other(&mounted).layout(Size::new(
+                    let layout = context.for_other(&mounted).layout(Size::new(
                         ConstraintLimit::SizeToFit(available_width),
                         ConstraintLimit::SizeToFit(remaining_height),
                     ));
-                    maximum_item_width = maximum_item_width.max(size.width);
-                    (size.height, size.height + double_padding)
+                    maximum_item_width = maximum_item_width.max(layout.size.width);
+                    if index == 0 {
+                        first_baseline = layout.baseline;
+                    }
+                    (layout.size.height, layout.size.height + double_padding)
                 }
                 ItemKind::Separator => (UPx::ZERO, self.padding),
             };
@@ -701,7 +705,10 @@ where
             );
         }
 
-        Size::new(maximum_item_width + double_padding * 2 + submenu_space, y)
+        WidgetLayout {
+            size: Size::new(maximum_item_width + double_padding * 2 + submenu_space, y),
+            baseline: first_baseline,
+        }
     }
 
     fn hit_test(
