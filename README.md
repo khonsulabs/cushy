@@ -37,7 +37,7 @@ increments its own label:
 
 ```rust,ignore
 fn main() -> cushy::Result {
-    // Create a dynamic usize.
+    // Create a dynamic isize.
     let count = Dynamic::new(0_isize);
 
     // Create a new label displaying `count`
